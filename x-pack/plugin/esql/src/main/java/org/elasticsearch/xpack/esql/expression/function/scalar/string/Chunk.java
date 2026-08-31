@@ -20,6 +20,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -49,7 +50,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.emitChunks;
 
-public class Chunk extends EsqlScalarFunction implements OptionalArgument {
+public class Chunk extends EsqlScalarFunction implements OptionalArgument, AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Chunk", Chunk::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Chunk.class).binary(Chunk::new).name("chunk");
@@ -242,11 +243,11 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         BytesRefBlock field,
         @Fixed ChunkingSettings chunkingSettings
     ) {
-        int valueCount = field.getValueCount(position);
-        if (valueCount == 0) {
+        if (field.isNull(position)) {
             builder.appendNull();
             return;
         }
+        int valueCount = field.getValueCount(position);
 
         int firstValueIndex = field.getFirstValueIndex(position);
 

@@ -84,7 +84,7 @@ public class ESVectorUtilFloatOperationBenchmark {
 
     @Benchmark
     public float dotProduct() {
-        return impl.dotProduct(a, b, offset, size);
+        return impl.dotProduct(a, offset, b, offset, size);
     }
 
     @Benchmark

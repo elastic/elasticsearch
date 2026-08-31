@@ -40,6 +40,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.hamcrest.Matchers.equalTo;
@@ -79,7 +80,7 @@ public class CacheFileReaderTests extends ESTestCase {
             AtomicInteger fetchCount = new AtomicInteger();
             CacheBlobReader reader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), fetchCount);
             CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
@@ -124,7 +125,7 @@ public class CacheFileReaderTests extends ESTestCase {
                 }
             };
             CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
@@ -154,7 +155,7 @@ public class CacheFileReaderTests extends ESTestCase {
             AtomicInteger fetchCount = new AtomicInteger();
             CacheBlobReader reader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), fetchCount);
             CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
@@ -189,7 +190,7 @@ public class CacheFileReaderTests extends ESTestCase {
             AtomicInteger fetchCount = new AtomicInteger();
             CacheBlobReader reader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), fetchCount);
             CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
@@ -221,7 +222,7 @@ public class CacheFileReaderTests extends ESTestCase {
             AtomicInteger fetchCount = new AtomicInteger();
             CacheBlobReader reader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), fetchCount);
             CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
@@ -253,7 +254,7 @@ public class CacheFileReaderTests extends ESTestCase {
             AtomicInteger fetchCount = new AtomicInteger();
             CacheBlobReader reader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), fetchCount);
             CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
@@ -286,7 +287,7 @@ public class CacheFileReaderTests extends ESTestCase {
             AtomicInteger fetchCount = new AtomicInteger();
             CacheBlobReader reader = alreadyUploadedThenServingReader(fileName, blob, service.getRangeSize(), 1, fetchCount);
             CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
@@ -331,7 +332,7 @@ public class CacheFileReaderTests extends ESTestCase {
                 fetchCount
             );
             CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
@@ -374,7 +375,7 @@ public class CacheFileReaderTests extends ESTestCase {
                 }
             };
             CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
@@ -412,7 +413,7 @@ public class CacheFileReaderTests extends ESTestCase {
             FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), 1L, fileName);
             CacheBlobReader blobReader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), new AtomicInteger());
             CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 blobReader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,

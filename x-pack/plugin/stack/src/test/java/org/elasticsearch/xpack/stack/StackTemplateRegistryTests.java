@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -91,13 +92,18 @@ public class StackTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
+        registry = new StackTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
+        );
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         threadPool.shutdownNow();
     }
 
@@ -108,7 +114,8 @@ public class StackTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
         );
         assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
     }
@@ -120,7 +127,8 @@ public class StackTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
         );
         assertThat(disabledRegistry.getComponentTemplateConfigs(), not(anEmptyMap()));
         assertThat(
@@ -364,7 +372,8 @@ public class StackTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
         );
 
         DiscoveryNode node = DiscoveryNodeUtils.create("node");

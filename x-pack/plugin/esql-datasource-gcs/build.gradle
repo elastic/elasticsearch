@@ -39,42 +39,42 @@ dependencies {
   compileOnly project(':modules:workload-identity:spi')
 
   // Google Cloud Storage client library - versions consistent with repository-gcs module
-  implementation 'com.google.cloud:google-cloud-storage:2.50.0'
-  implementation 'com.google.cloud:google-cloud-core:2.53.1'
-  implementation 'com.google.cloud:google-cloud-core-http:2.53.1'
-  runtimeOnly 'com.google.guava:guava:33.4.0-jre'
-  runtimeOnly 'com.google.guava:failureaccess:1.0.2'
+  implementation 'com.google.cloud:google-cloud-storage:2.71.0'
+  implementation 'com.google.cloud:google-cloud-core:2.73.0'
+  implementation 'com.google.cloud:google-cloud-core-http:2.73.0'
+  runtimeOnly 'com.google.guava:guava:33.6.0-jre'
+  runtimeOnly 'com.google.guava:failureaccess:1.0.3'
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
-  implementation 'com.google.api:api-common:2.46.1'
-  implementation 'com.google.api:gax:2.63.1'
+  implementation 'com.google.api:api-common:2.66.0'
+  implementation 'com.google.api:gax:2.83.0'
   implementation 'org.threeten:threetenbp:1.7.0'
-  runtimeOnly "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
-  runtimeOnly "com.google.protobuf:protobuf-java:${versions.protobuf}"
-  runtimeOnly 'com.google.code.gson:gson:2.12.1'
-  runtimeOnly 'com.google.api.grpc:proto-google-common-protos:2.54.1'
-  runtimeOnly 'com.google.api.grpc:proto-google-iam-v1:1.49.1'
-  implementation 'com.google.auth:google-auth-library-credentials:1.33.1'
-  implementation 'com.google.auth:google-auth-library-oauth2-http:1.33.1'
-  runtimeOnly "com.google.oauth-client:google-oauth-client:${versions.google_oauth_client}"
+  runtimeOnly 'com.google.protobuf:protobuf-java-util:4.33.6'
+  runtimeOnly 'com.google.protobuf:protobuf-java:4.33.6'
+  runtimeOnly 'com.google.code.gson:gson:2.13.2'
+  runtimeOnly 'com.google.api.grpc:proto-google-common-protos:2.74.0'
+  runtimeOnly 'com.google.api.grpc:proto-google-iam-v1:1.69.0'
+  implementation 'com.google.auth:google-auth-library-credentials:1.50.0'
+  implementation 'com.google.auth:google-auth-library-oauth2-http:1.50.0'
+  runtimeOnly 'com.google.oauth-client:google-oauth-client:1.39.0'
   implementation 'com.google.api-client:google-api-client:2.7.2'
-  implementation 'com.google.http-client:google-http-client:1.46.3'
-  runtimeOnly 'com.google.http-client:google-http-client-gson:1.46.3'
-  runtimeOnly 'com.google.http-client:google-http-client-appengine:1.46.3'
-  runtimeOnly 'com.google.http-client:google-http-client-jackson2:1.46.3'
+  implementation 'com.google.http-client:google-http-client:2.2.0'
+  runtimeOnly 'com.google.http-client:google-http-client-gson:2.2.0'
+  runtimeOnly 'com.google.http-client:google-http-client-appengine:2.2.0'
+  runtimeOnly 'com.google.http-client:google-http-client-jackson2:2.2.0'
   // Must match the Jackson bundled by the extended x-pack-esql plugin (see libs:arrow) so this
   // copy is de-duplicated out of the plugin bundle instead of tripping the jar-hell check at boot.
-  runtimeOnly "com.fasterxml.jackson.core:jackson-core:2.21.4"
-  runtimeOnly 'com.google.api:gax-httpjson:2.63.1'
+  runtimeOnly "com.fasterxml.jackson.core:jackson-core:2.21.5"
+  runtimeOnly 'com.google.api:gax-httpjson:2.83.0'
   runtimeOnly 'io.opencensus:opencensus-api:0.31.1'
   runtimeOnly 'io.opencensus:opencensus-contrib-http-util:0.31.1'
-  implementation 'com.google.apis:google-api-services-storage:v1-rev20250224-2.0.0'
+  implementation 'com.google.apis:google-api-services-storage:v1-rev20260524-2.0.0'
   compileOnly 'org.checkerframework:checker-qual:3.49.0'
   runtimeOnly 'io.opentelemetry:opentelemetry-api:1.62.0'
   runtimeOnly 'io.opentelemetry:opentelemetry-common:1.62.0'
   runtimeOnly 'io.opentelemetry:opentelemetry-context:1.62.0'
-  runtimeOnly 'com.google.api.grpc:proto-google-cloud-storage-v2:2.50.0'
-  runtimeOnly 'io.grpc:grpc-api:1.70.0'
+  runtimeOnly 'com.google.api.grpc:proto-google-cloud-storage-v2:2.71.0'
+  runtimeOnly 'io.grpc:grpc-api:1.82.2'
 
   testImplementation project(':test:framework')
   testImplementation project(xpackModule('esql:qa:testFixtures'))
@@ -113,20 +113,11 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.protobuf.MessageSchema',
     'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
     'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
-    'com.google.common.hash.Striped64',
-    'com.google.common.hash.Striped64$1',
-    'com.google.common.hash.Striped64$Cell',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
   )
 
   ignoreMissingClasses(
@@ -151,6 +142,12 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.appengine.api.urlfetch.URLFetchService',
     'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
 
+    // optional Conscrypt TLS provider referenced by gax
+    'org.conscrypt.Conscrypt',
+
+    // optional Jackson XML class referenced by GCS SDK
+    'com.fasterxml.jackson.dataformat.xml.XmlMapper',
+
     // grpc/proto stuff
     'com.google.api.gax.grpc.GrpcCallContext',
     'com.google.api.gax.grpc.GrpcCallSettings',
@@ -158,8 +155,10 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.api.gax.grpc.GrpcInterceptorProvider',
     'com.google.api.gax.grpc.GrpcStatusCode',
     'com.google.api.gax.grpc.GrpcStubCallableFactory',
+    'com.google.api.gax.grpc.GrpcTransportChannel',
     'com.google.api.gax.grpc.InstantiatingGrpcChannelProvider',
     'com.google.api.gax.grpc.InstantiatingGrpcChannelProvider$Builder',
+    'com.google.api.gax.grpc.InstantiatingGrpcChannelProvider$HardBoundTokenTypes',
     'com.google.cloud.grpc.GrpcTransportOptions',
     'com.google.cloud.grpc.GrpcTransportOptions$Builder',
     'com.google.cloud.opentelemetry.metric.GoogleCloudMetricExporter',
@@ -170,7 +169,9 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.storage.v2.StorageSettings',
     'com.google.storage.v2.StorageSettings$Builder',
     'com.google.storage.v2.stub.GrpcStorageStub',
+    'com.google.storage.v2.stub.StorageStub',
     'com.google.storage.v2.stub.StorageStubSettings',
+    'com.google.storage.v2.stub.StorageStubSettings$Builder',
     // opentelemetry implementation stuff
     'io.grpc.opentelemetry.GrpcOpenTelemetry',
     'io.grpc.opentelemetry.GrpcOpenTelemetry$Builder',
@@ -208,7 +209,7 @@ tasks.named("thirdPartyAudit").configure {
 }
 
 // Exclude grpc-context globally to avoid jar hell with grpc-api
-// (grpc-api 1.70.0 absorbed grpc-context classes, but older transitive deps still pull grpc-context 1.49.2)
+// (grpc-api absorbed grpc-context classes, but older transitive deps may still pull grpc-context)
 configurations.javaRestTestRuntimeClasspath {
   exclude group: 'io.grpc', module: 'grpc-context'
 }
@@ -227,14 +228,14 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql-datasource-gcs'))
 
   // Google Cloud Storage client library (needed for GcsStorageProvider in tests)
-  javaRestTestImplementation 'com.google.cloud:google-cloud-storage:2.50.0'
-  javaRestTestImplementation 'com.google.cloud:google-cloud-core:2.53.1'
-  javaRestTestImplementation 'com.google.cloud:google-cloud-core-http:2.53.1'
-  javaRestTestImplementation 'com.google.auth:google-auth-library-credentials:1.33.1'
-  javaRestTestImplementation 'com.google.auth:google-auth-library-oauth2-http:1.33.1'
-  javaRestTestImplementation 'com.google.http-client:google-http-client:1.46.3'
-  javaRestTestImplementation 'com.google.api:api-common:2.46.1'
-  javaRestTestImplementation 'com.google.api:gax:2.63.1'
+  javaRestTestImplementation 'com.google.cloud:google-cloud-storage:2.71.0'
+  javaRestTestImplementation 'com.google.cloud:google-cloud-core:2.73.0'
+  javaRestTestImplementation 'com.google.cloud:google-cloud-core-http:2.73.0'
+  javaRestTestImplementation 'com.google.auth:google-auth-library-credentials:1.50.0'
+  javaRestTestImplementation 'com.google.auth:google-auth-library-oauth2-http:1.50.0'
+  javaRestTestImplementation 'com.google.http-client:google-http-client:2.2.0'
+  javaRestTestImplementation 'com.google.api:api-common:2.66.0'
+  javaRestTestImplementation 'com.google.api:gax:2.83.0'
 
   // The DEFAULT distribution already bundles repository-gcs, workload-identity, and every
   // esql-datasource-* module needed by GcsManagedIdentityAuthIT. Mapper plugins are not in

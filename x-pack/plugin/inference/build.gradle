@@ -159,7 +159,7 @@ dependencies {
 
   runtimeOnly "org.cryptomator:siv-mode:1.5.2"
   api "org.codehaus.woodstox:stax2-api:4.2.2"
-  api "org.ow2.asm:asm:9.9"
+  api "org.ow2.asm:asm:9.10.1"
   /* End packages for Azure */
 }
 

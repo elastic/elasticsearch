@@ -12,7 +12,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
@@ -30,7 +30,7 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoolean;
 
-public class Not extends UnaryScalarFunction implements EvaluatorMapper, Negatable<Expression>, TranslationAware {
+public class Not extends UnaryScalarFunction implements EvaluatorMapper, Negatable<Expression>, TranslationAware, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Not", Not::new);
 
     public Not(Source source, Expression child) {
@@ -66,19 +66,7 @@ public class Not extends UnaryScalarFunction implements EvaluatorMapper, Negatab
 
     @Override
     public Object fold(FoldContext ctx) {
-        return apply(field().fold(ctx));
-    }
-
-    private static Boolean apply(Object input) {
-        if (input == null) {
-            return null;
-        }
-
-        if ((input instanceof Boolean) == false) {
-            throw new QlIllegalArgumentException("A boolean is required; received {}", input);
-        }
-
-        return ((Boolean) input).booleanValue() ? Boolean.FALSE : Boolean.TRUE;
+        return EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override

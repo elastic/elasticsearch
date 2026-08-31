@@ -9,490 +9,390 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROMETHEUS_LABELS_PREFIX;
 
 /**
- * The label-grouping fragment of the PromQL -> ESQL syntax-directed translation.
- * <p>
- * A PromQL query such as {@code sum by(cluster) (avg without(region) (cpu_util))} is a chain of aggregates over a single
- * leaf selector. PromQL grouping is <em>dynamic</em>: the concrete set of label names lives on disk and is unknown at
- * plan time, so we cannot list it efficiently. Instead, the translation carries the aggregation shape symbolically
- * and resolves it against real columns only at the very end.
- *
- * <h2>Abstract domain: label sets</h2>
- * A label set is a plain {@code List<Attribute>} plus two "top" sentinels: {@code UNIVERSE} for the full label universe
- * {@code T} ("every runtime label") - the one set we can never enumerate at plan time - and {@code SCALAR} for a
- * subtree that exposes no series identity at all (a literal/scalar or a bare {@code NONE}). {@code T} is realised
- * physically by the opaque {@code _timeseries} grouping key (see {@code TranslateTimeSeriesWithout}), which is why it
- * contributes no concrete columns when resolved. The static {@code union}/{@code intersect}/{@code minus} helpers
- * implement set algebra over these values (labels are compared by field name). {@code T} minus a finite set stays
- * {@code T}: the removed labels are never listed, and - because every {@code BY} forces a finite scope down its
- * subtree - that complement is never observed, so a single {@code UNIVERSE} sentinel is enough.
- *
- * <h2>The two attributes</h2>
- * The translation is an <em>L-attributed</em> syntax-directed definition. Two attributes flow through the aggregate
- * tree, modelled here as distinct immutable value types:
- * <ul>
- *   <li>{@link InheritedAttributes} - the <b>inherited</b> attribute, threaded <em>down</em> the chain. It answers "what
- *   must the subtree below preserve?". Each aggregate narrows it ({@link InheritedAttributes#including}/
- *   {@link InheritedAttributes#excluding}); the leaf selector turns it into the shape it exposes
- *   ({@link InheritedAttributes#reflect}).</li>
- *   <li>{@link SynthesizedAttributes} - the <b>synthesized</b> attribute, folded <em>up</em> the chain. It answers "what
- *   does the subtree expose?". Each aggregate folds its grouping over its child's shape
- *   ({@link SynthesizedAttributes#foldIncluding}/{@link SynthesizedAttributes#foldExcluding}).</li>
- * </ul>
- * Two passes are unavoidable: this is an L-attributed (not S-attributed) definition, and the translation can only
- * resolve symbolic labels against the <em>concrete</em> columns a child subtree actually produces, which exist only
- * after the child is translated.
- *
- * <h2>The translation: from attribute to target representation</h2>
- * A {@link SynthesizedAttributes} is symbolic; it cannot be handed to a plan node directly. {@link SynthesizedAttributes#translate}/
- * {@link SynthesizedAttributes#translateLeaf} are the <b>code-generation semantic action</b> that concretizes it against the
- * target schema - collapsing the {@code T}/symbolic sets, binding labels by name to the real {@link Attribute}
- * instances, and reporting unresolved {@code BY} labels for null-filling. Their output, {@link ResolvedAttributes},
- * is the <b>target representation</b> the plan builder consumes; unlike the attributes, it does not propagate up the
- * tree.
- *
- * <h2>Exclusions: inherited vs synthesized</h2>
- * {@code WITHOUT} dimensions are tracked twice, on purpose, because two distinct consumers need two distinct facts:
- * <ul>
- *   <li>{@link InheritedAttributes#accumulatedExclusions} accumulates <em>every</em> dimension dropped on the way down. The
- *   innermost aggregate (which owns the physical {@code _timeseries} grouping) needs this full set to build its
- *   {@code TimeSeriesWithout}; the translator hands it to {@link SynthesizedAttributes#translateLeaf} via
- *   {@link InheritedAttributes#pathExclusions}.</li>
- *   <li>{@link SynthesizedAttributes#hasExclusions} reports whether <em>this subtree</em> contains a {@code WITHOUT}. An
- *   outer aggregate reads only that boolean to decide whether the child's {@code _timeseries} hides dimensions that
- *   must be packed and unpacked around grouping.</li>
- * </ul>
- *
- * <h2>Worked examples</h2>
- * Each aggregate's synthesized {@code [grouping, output, subtreeWithouts]} is shown on its closing line; the leaf's
- * {@code translateLeaf} additionally receives the demand's accumulated exclusions.
- * <pre>
- * sum without(pod) (
- *   avg without(region) (
- *     cpu_util
- *   ) [G=T\{region}, O={}, X={region}]   // translateLeaf path-exclusions = {pod,region}
- * ) [G=T\{region,pod}, O={}, X={region,pod}]
- *
- * sum by(cluster,region) (
- *   avg without(region) (
- *     cpu_util
- *   ) [G=T\{region}, O={}, X={region}]   // translateLeaf path-exclusions = {region}
- * ) [G={cluster}, O={cluster,region}, X={}]   // region is null-filled
- *
- * sum without(pod) (
- *   avg by(cluster,pod) (
- *     cpu_util
- *   ) [G={cluster,pod}, O={cluster,pod}, X={}]   // translateLeaf path-exclusions = {pod}
- * ) [G={cluster}, O={}, X={pod}]
- * </pre>
- *
- * <p>The descent starts from {@link InheritedAttributes#unconstrained()} above the outermost aggregate: every label is in scope
- * ({@code T}) and nothing is excluded. Both attribute types are immutable; every transition returns a new value.
+ * The required and actual header of a PromQL translation attempt.
  */
 public final class PromqlAttributesTranslationContext {
 
-    /**
-     * The full label universe {@code T} ("every runtime label"): the one set we never enumerate at plan time. It is
-     * realised physically by the opaque {@code _timeseries} grouping key, so it contributes no concrete columns.
-     */
-    private static final List<Attribute> UNIVERSE = List.of(new ReferenceAttribute(Source.EMPTY, ":U", DataType.NULL));
-
-    /**
-     * The <b>scalar</b> sentinel: a subtree that exposes no series identity at all (a literal/scalar, or a bare
-     * {@code NONE} aggregate that collapses every series into one). Like {@code UNIVERSE} it is "top" for the set
-     * operations - a {@code BY} stacked on top keeps its declared keys - but, unlike {@code UNIVERSE}, it must
-     * <b>not</b> materialise a {@code _timeseries} grouping. Telling it apart from {@code UNIVERSE} is what lets an
-     * empty {@code without ()} (which retains the full universe {@code T}) be distinguished from {@code none()}
-     * (which retains nothing).
-     */
-    private static final List<Attribute> SCALAR = List.of(new ReferenceAttribute(Source.EMPTY, ":S", DataType.NULL));
-
     private PromqlAttributesTranslationContext() {}
 
-    /** Whether {@code set} is one of the two top sentinels ({@code UNIVERSE} or {@code SCALAR}) rather than a finite, enumerable set. */
-    private static boolean isTop(List<Attribute> set) {
-        return set == UNIVERSE || set == SCALAR;
-    }
-
-    // label-set algebra:
-
     /**
-     * Collapse a raw label list to its canonical set by field name: at most one attribute per field name, first
-     * occurrence wins, insertion order preserved. Every external finite list is funnelled through here before it is
-     * stored, so the algebra below can assume its inputs are already duplicate-free.
+     * A column exposed by a translated subtree. A column carries the expression currently denoting it; whether that
+     * expression is linked to a given plan is a derived property, re-established at plan boundaries via
+     * {@link #resolveColumn}.
      */
-    private static List<Attribute> canonicalizeByFieldName(List<Attribute> labels) {
-        assert isTop(labels) == false : "canonicalizeByFieldName expects a finite list, not a top sentinel";
-        List<Attribute> result = new ArrayList<>();
-        Set<String> seen = new LinkedHashSet<>();
-        for (Attribute attr : labels) {
-            if (seen.add(canonicalName(attr))) {
-                result.add(attr);
-            }
+    public sealed interface Column permits NamedColumn, TimeSeriesColumn {
+        NamedExpression expression();
+
+        default Attribute attribute() {
+            return expression().toAttribute();
         }
-        return result;
     }
 
-    /** {@code a | b} by field name, order-preserving ({@code a} first). Both operands are finite. */
-    static List<Attribute> union(List<Attribute> a, List<Attribute> b) {
-        assert isTop(a) == false && isTop(b) == false : "union expects finite operands, not a top sentinel";
-        List<Attribute> result = new ArrayList<>();
-        Set<String> seen = new LinkedHashSet<>();
-        for (Attribute attr : a) {
-            if (seen.add(canonicalName(attr))) {
-                result.add(attr);
-            }
+    /** A named column. */
+    public record NamedColumn(NamedExpression expression) implements Column {}
+
+    /** A time-series metadata block-loader column with its exclusion set (skip-set). */
+    public record TimeSeriesColumn(NamedExpression expression, List<Attribute> exclusions) implements Column {
+        public TimeSeriesColumn {
+            exclusions = distinctByCanonicalName(exclusions);
         }
-        for (Attribute attr : b) {
-            if (seen.add(canonicalName(attr))) {
-                result.add(attr);
-            }
+
+        public static TimeSeriesColumn of(List<Attribute> exclusions) {
+            return new TimeSeriesColumn(FieldAttribute.timeSeriesAttribute(Source.EMPTY), exclusions);
         }
-        return result;
     }
 
-    /** {@code a & b}. {@code a} may be a top sentinel ({@code T} or scalar; then the result is exactly {@code b}); {@code b} is finite. */
-    private static List<Attribute> intersect(List<Attribute> a, List<Attribute> b) {
-        assert isTop(b) == false : "intersect expects a finite right operand, not a top sentinel";
-        if (isTop(a)) {
-            return new ArrayList<>(b);
-        }
-        Set<String> names = fieldNames(b);
-        return filter(a, attr -> names.contains(canonicalName(attr)));
-    }
-
-    /** {@code a \ b}. {@code a} may be a top sentinel (top minus a finite set stays that same sentinel); {@code b} is finite. */
-    private static List<Attribute> minus(List<Attribute> a, List<Attribute> b) {
-        assert isTop(b) == false : "minus expects a finite right operand, not a top sentinel";
-        if (isTop(a)) {
-            return a;
-        }
-        Set<String> names = fieldNames(b);
-        return filter(a, attr -> names.contains(canonicalName(attr)) == false);
-    }
-
-    /** The member with this field name, or {@code null} (always {@code null} for {@code T}). */
-    static Attribute findByFieldName(List<Attribute> set, String name) {
-        if (isTop(set)) {
-            return null;
-        }
-        for (Attribute attr : set) {
-            if (canonicalName(attr).equals(name)) {
-                return attr;
-            }
-        }
-        return null;
-    }
-
-    /** The concrete members, or the empty list for a top sentinel ({@code T} or scalar). */
-    private static List<Attribute> asList(List<Attribute> set) {
-        return isTop(set) ? List.of() : set;
-    }
-
-    private static Set<String> fieldNames(List<Attribute> set) {
-        Set<String> names = new LinkedHashSet<>(set.size());
-        for (Attribute attr : set) {
-            names.add(canonicalName(attr));
-        }
-        return names;
-    }
-
-    private static List<Attribute> filter(List<Attribute> set, Predicate<Attribute> keep) {
-        List<Attribute> result = new ArrayList<>();
-        for (Attribute attr : set) {
-            if (keep.test(attr)) {
-                result.add(attr);
-            }
-        }
-        return result;
+    @FunctionalInterface
+    public interface Fn {
+        Column transform(Column column, boolean grouping);
     }
 
     /**
-     * Canonical name used by the label algebra: a {@link FieldAttribute} uses its field name, everything else falls
-     * back to {@link Attribute#name()}. PromQL refers to labels by bare names ({@code le}, {@code job}), while TSDB
-     * dimensions that store Prometheus labels can be exposed as {@code labels.le} / {@code labels.job}. Strip that
-     * storage prefix so {@code by}, {@code without}, intersection, and difference compare PromQL label keys rather than
-     * backing field names (and so exclusion names match the dimensions the {@code _timeseries} block loader enumerates).
+     * The symbolic columns exposed by a translated subtree. The same type flows in both directions of the
+     * negotiation: upward as the surface a subtree produced, and downward as the demand a parent pushes to a
+     * child - the columns the child must expose ({@link #success}) and, when non-empty, the concrete grouping the
+     * demand pins ({@code groupBy}). Translation may widen a demand and retry a child.
      */
-    static String canonicalName(Attribute attr) {
-        return stripIgnorePrefix((attr instanceof FieldAttribute fa) ? fa.fieldName().string() : attr.name());
-    }
+    public static final class Header {
+        private final List<Column> groupBy;
+        private final List<Column> columns;
 
-    private static String stripIgnorePrefix(String name) {
-        return name.startsWith(PROMETHEUS_LABELS_PREFIX) ? name.substring(PROMETHEUS_LABELS_PREFIX.length()) : name;
-    }
-
-    /** The concrete dimension fields among {@code attributes} (used to seed a child demand from a selector's output). */
-    static List<Attribute> filterDimensionAttributes(List<Attribute> attributes) {
-        return attributes.stream().filter(a -> a instanceof FieldAttribute fa && fa.isDimension()).toList();
-    }
-
-    /**
-     * The <b>inherited</b> attribute: the scope a subtree must preserve, threaded down the aggregate chain. An
-     * {@code InheritedAttributes} is produced by {@link #unconstrained()} above the outermost aggregate and narrowed by each
-     * aggregate before being handed to its child. The leaf selector ends the descent with {@link #reflect()}.
-     */
-    public static final class InheritedAttributes {
-
-        /** {@code G}: the labels still in scope and required from below ({@code UNIVERSE} until a {@code BY} narrows it). */
-        private final List<Attribute> required;
-        /** {@code X}: every dimension dropped by a {@code WITHOUT} on the way down, for the innermost {@code _timeseries}. */
-        private final List<Attribute> accumulatedExclusions;
-
-        private InheritedAttributes(List<Attribute> required, List<Attribute> accumulatedExclusions) {
-            this.required = required;
-            this.accumulatedExclusions = accumulatedExclusions;
+        public Header(List<? extends Column> groupBy, List<? extends Column> columns) {
+            this.groupBy = distinct(groupBy);
+            this.columns = distinct(columns);
         }
 
-        /** Everything in scope ({@code G=T}), nothing excluded. */
-        public static InheritedAttributes unconstrained() {
-            return new InheritedAttributes(UNIVERSE, List.of());
+        /** No series identity; as a demand, no requirement. */
+        public static Header undefined() {
+            return new Header(List.of(), List.of());
+        }
+
+        /** Add named column requirements without changing the primary grouping. */
+        public Header including(List<Attribute> labels) {
+            var exposed = new ArrayList<>(columns);
+            distinctByCanonicalName(labels).stream().map(NamedColumn::new).forEach(exposed::add);
+            return new Header(groupBy, exposed);
+        }
+
+        /** Add a time-series identity requirement without changing the primary grouping. */
+        public Header including(TimeSeriesColumn required) {
+            var exposed = new ArrayList<>(columns);
+            exposed.add(required);
+            return new Header(groupBy, exposed);
         }
 
         /**
-         * {@code BY(W)}: the child scope becomes exactly {@code W}, and the accumulated exclusions are <b>cleared</b>. A
-         * {@code BY} fixes its subtree's output to concrete keys, so any outer {@code WITHOUT} applies over those concrete
-         * labels (handled by the outer aggregate), not as a leaf {@code _timeseries} exclusion. Carrying the outer
-         * exclusions past a {@code BY} would wrongly inject a {@code _timeseries} into the inner concrete aggregate, making
-         * it group by {@code identity \ excluded} instead of {@code W} and leaking every other label.
+         * Transposes this demand across an aggregate: the demand the aggregate's child sees. A {@code by} fixes
+         * identity to finite keys, so upstream demands stop at the aggregate; a {@code without} forwards them.
          */
-        public InheritedAttributes limitedTo(List<Attribute> labels) {
-            return new InheritedAttributes(canonicalizeByFieldName(labels), List.of());
-        }
-
-        /** {@code WITHOUT(E)}: {@code E} drops out of scope ({@code G \ E}) and joins the accumulated exclusions. */
-        public InheritedAttributes excluding(List<Attribute> labels) {
-            List<Attribute> dropped = canonicalizeByFieldName(labels);
-            return new InheritedAttributes(minus(required, dropped), union(accumulatedExclusions, dropped));
+        public Header withAcrossSeriesAgg(AcrossSeriesAggregate.Grouping grouping, List<Attribute> labels) {
+            return switch (grouping) {
+                case BY -> undefined().including(labels);
+                case WITHOUT -> labels.isEmpty() && labels().isEmpty() == false ? groupedBy(labels()) : this;
+                case NONE -> undefined();
+            };
         }
 
         /**
-         * A function-internal requirement (e.g. {@code histogram_quantile} materializing the {@code le} bucket label):
-         * keep the current scope and additionally require {@code labels}. Unlike {@link #limitedTo} this <b>widens</b> the
-         * scope rather than replacing it; like {@code BY} it re-fixes the subtree to concrete keys and so <b>clears</b> the
-         * accumulated exclusions (the function regroups by concrete labels, so an outer {@code WITHOUT} applies over those
-         * keys at the outer aggregate, not as a leaf {@code _timeseries} exclusion). When the current scope is the full
-         * universe {@code T} the labels already cover it, so it collapses to exactly {@code labels}.
+         * Widen this demand with the identity requirement implied by a grouping header.
+         * <p>
+         * When this demand has no grouping yet, the required TA <em>is</em> the leaf identity (e.g. single
+         * {@code without(pod)} → {@code ta·skip{pod}}). Pinning it into {@code groupBy} stops
+         * {@link #withIdentityGrouping} from also inventing a full {@code ta·skip{}} and emitting two
+         * {@code _timeseries} columns. When a TA group key already exists, the required identity is only
+         * carried as an extra column (nested {@code without}).
          */
-        public InheritedAttributes including(List<Attribute> labels) {
-            List<Attribute> add = canonicalizeByFieldName(labels);
-            return new InheritedAttributes(isTop(required) ? add : union(required, add), List.of());
-        }
-
-        /**
-         * End the descent at the leaf selector: it exposes exactly the labels demanded of it, with no exclusions of its
-         * own (the selector sits below every {@code WITHOUT}).
-         */
-        public SynthesizedAttributes reflect() {
-            return new SynthesizedAttributes(required, List.of(), List.of());
-        }
-
-        /** Every dimension excluded along the path to here, for the innermost aggregate's {@code TimeSeriesWithout}. */
-        public List<Attribute> pathExclusions() {
-            return accumulatedExclusions;
-        }
-    }
-
-    /**
-     * The <b>synthesized</b> attribute: the labels a subtree exposes, folded up the aggregate chain. A
-     * {@code SynthesizedAttributes} is seeded at the leaf ({@link InheritedAttributes#reflect}, {@link #of}, {@link #none}) and
-     * folded by each aggregate ({@link #foldIncluding}/{@link #foldExcluding}) until it is translated into a physical
-     * {@link ResolvedAttributes}.
-     */
-    public static final class SynthesizedAttributes {
-
-        /** {@code G}: the labels this subtree exposes as grouping keys ({@code SCALAR} for a literal/scalar). */
-        private final List<Attribute> grouping;
-        /** {@code O}: the labels a {@code BY} promises to expose. Empty unless this shape came from a {@code BY}. */
-        private final List<Attribute> output;
-        /**
-         * {@code X}: dimensions dropped by a {@code WITHOUT} <em>within this subtree only</em> - not the whole-path
-         * exclusions (those live on the inherited path, see {@link InheritedAttributes#accumulatedExclusions}). A {@code BY}
-         * clears it. Outer aggregates read it only as a boolean via {@link #hasExclusions}.
-         */
-        private final List<Attribute> subtreeWithouts;
-
-        private SynthesizedAttributes(List<Attribute> grouping, List<Attribute> output, List<Attribute> subtreeWithouts) {
-            this.grouping = grouping;
-            this.output = output;
-            this.subtreeWithouts = subtreeWithouts;
-        }
-
-        /**
-         * The shape of a subtree that exposes no specific grouping (a literal selector, a scalar, a bare {@code NONE}
-         * aggregate). It carries the {@code SCALAR} sentinel: top-like for set operations (so a {@code BY} stacked directly
-         * on top keeps its declared keys) but, unlike {@code T}, it does not materialise a {@code _timeseries} grouping.
-         */
-        public static SynthesizedAttributes none() {
-            return new SynthesizedAttributes(SCALAR, List.of(), List.of());
-        }
-
-        /** A shape built directly from a known label set, e.g., a bare selector's output. */
-        public static SynthesizedAttributes of(List<Attribute> labels) {
-            return new SynthesizedAttributes(canonicalizeByFieldName(labels), List.of(), List.of());
-        }
-
-        /**
-         * Fold {@code BY(W)} over the child shape: keep the {@code BY} keys the child actually exposes
-         * ({@code child.G & W}), but remember the full {@code W} so {@link #translate} can null-fill any that are missing. A
-         * {@code BY} clears exclusions because it groups by concrete labels.
-         */
-        public static SynthesizedAttributes foldIncluding(List<Attribute> promised, SynthesizedAttributes child) {
-            List<Attribute> keys = canonicalizeByFieldName(promised);
-            return new SynthesizedAttributes(intersect(child.grouping, keys), keys, List.of());
-        }
-
-        /**
-         * Fold {@code WITHOUT(E)} over the child shape: drop the excluded labels ({@code child.G \ E}) and accumulate
-         * the exclusions ({@code child.X | E}).
-         */
-        public static SynthesizedAttributes foldExcluding(List<Attribute> removed, SynthesizedAttributes child) {
-            List<Attribute> dropped = canonicalizeByFieldName(removed);
-            return new SynthesizedAttributes(minus(child.grouping, dropped), List.of(), union(child.subtreeWithouts, dropped));
-        }
-
-        /**
-         * Translate the innermost aggregate, whose child is the raw selector and which therefore owns the single
-         * physical {@code _timeseries} grouping. Labels resolve against this shape's own {@link #grouping}; the
-         * dimensions to exclude are the full path exclusions supplied by the matching {@link InheritedAttributes#pathExclusions}.
-         */
-        public ResolvedAttributes translateLeaf(List<Attribute> pathExclusions) {
-            return translateAgainst(grouping, canonicalizeByFieldName(pathExclusions));
-        }
-
-        /**
-         * Translate an aggregate stacked on top of another aggregate, binding it to the child plan's resolved
-         * {@code childColumns} (runtime data, available only once the child has been translated). Labels resolve
-         * against those columns; an empty list means "trust this shape as-is".
-         */
-        public ResolvedAttributes translate(List<Attribute> childColumns) {
-            List<Attribute> available = childColumns.isEmpty() ? grouping : canonicalizeByFieldName(childColumns);
-            return translateAgainst(available, subtreeWithouts);
-        }
-
-        /** The concrete labels this shape exposes - used to resolve an aggregate stacked directly on top of it. */
-        public List<Attribute> declared() {
-            return asList(grouping);
-        }
-
-        /** Whether this shape exposes any concrete label that an outer binary operator could match on. */
-        public boolean hasDeclared() {
-            return asList(projected()).isEmpty() == false;
-        }
-
-        /** Whether this subtree contains a {@code WITHOUT}, i.e. its {@code _timeseries} hides dimensions to pack around. */
-        public boolean hasExclusions() {
-            return subtreeWithouts.isEmpty() == false;
-        }
-
-        /**
-         * The label set to resolve against the available output in {@link #translate}: a {@code BY} shape projects its
-         * declared {@code BY} {@link #output} (so missing labels can be null-filled); every other shape projects its
-         * in-scope {@link #grouping}. A non-empty {@link #output} is produced only by a {@code BY}, so it doubles as the
-         * discriminator.
-         */
-        private List<Attribute> projected() {
-            return output.isEmpty() ? grouping : output;
-        }
-
-        /**
-         * Concretize {@code projected} against {@code available}: split it into concrete grouping keys, reporting any
-         * {@code BY} labels that are absent as {@code absent}. When {@code _timeseries} is available it becomes the sole
-         * grouping key and the concrete labels move to {@code passthrough}.
-         */
-        private ResolvedAttributes translateAgainst(List<Attribute> available, List<Attribute> excludedDimensions) {
-            List<Attribute> projected = projected();
-            var timeseries = findByFieldName(available, MetadataAttribute.TIMESERIES);
-
-            /*
-             * `without` means "group by the runtime label set", represented by `_timeseries`.
-             * If the input plan does not expose `_timeseries` yet, synthesize it here so the
-             * plan builder can lower it normally. Do not do this for the scalar/NONE sentinel.
-             */
-            if (timeseries == null && projected == UNIVERSE) {
-                timeseries = FieldAttribute.timeSeriesAttribute(Source.EMPTY);
+        public Header requiring(Header grouping) {
+            TimeSeriesColumn tc = grouping.groupByTimeSeries();
+            if (tc == null) {
+                return this;
             }
+            TimeSeriesColumn required = TimeSeriesColumn.of(tc.exclusions());
+            if (groupByTimeSeries() != null) {
+                return including(required);
+            }
+            if (groupBy.isEmpty()) {
+                var exposed = new ArrayList<Column>(columns.size() + 1);
+                exposed.add(required);
+                for (Column column : columns) {
+                    if (eq(column, required) == false) {
+                        exposed.add(column);
+                    }
+                }
+                return new Header(List.of(required), exposed);
+            }
+            return including(required);
+        }
 
-            var resolved = new ArrayList<Attribute>();
+        /** Whether a returned header exposes every time-series identity this demand requires. */
+        public boolean success(Header header) {
+            for (Column column : columns) {
+                if (column instanceof TimeSeriesColumn tc && header.timeSeries(tc.exclusions()) == null) {
+                    return false;
+                }
+            }
+            return true;
+        }
 
-            if (isTop(projected) == false) {
-                if (available == UNIVERSE) {
-                    resolved.addAll(projected);
-                } else {
-                    resolved.ensureCapacity(projected.size());
-                    for (Attribute attr : projected) {
-                        Attribute match = available.contains(attr) ? attr : findByFieldName(available, canonicalName(attr));
+        /** The named columns of this header; on a demand, the labels a parent requires. */
+        public List<Attribute> labels() {
+            return columns.stream().filter(NamedColumn.class::isInstance).map(Column::attribute).toList();
+        }
 
-                        if (match != null) {
-                            resolved.add(match);
-                        }
+        /**
+         * The leaf surface implied by this demand: keeps the concrete grouping when the demand pins one, otherwise
+         * groups by the full series identity.
+         */
+        public Header withIdentityGrouping() {
+            if (groupBy.isEmpty() == false) {
+                return this;
+            }
+            TimeSeriesColumn identity = TimeSeriesColumn.of(List.of());
+            var exposed = new ArrayList<Column>(columns.size() + 1);
+            exposed.add(identity);
+            exposed.addAll(columns);
+            return new Header(List.of(identity), exposed);
+        }
+
+        /** Grouping produced by applying an across-series aggregation to this child header. */
+        public Header withAcrossSeriesAgg(AcrossSeriesAggregate.Grouping grouping, List<Attribute> labels, List<Attribute> output) {
+            return switch (grouping) {
+                case BY -> groupedBy(output);
+                case WITHOUT -> groupedWithout(labels);
+                case NONE -> undefined();
+            };
+        }
+
+        /** Header produced by {@code BY(labels)}. Missing labels remain proxies and are null-filled during emission. */
+        public Header groupedBy(List<Attribute> labels) {
+            List<Column> ephemeral = distinctByCanonicalName(labels).stream().map(NamedColumn::new).map(Column.class::cast).toList();
+            return new Header(ephemeral, ephemeral);
+        }
+
+        /** Header produced by {@code WITHOUT(labels)}. */
+        public Header groupedWithout(List<Attribute> labels) {
+            List<Attribute> removed = distinctByCanonicalName(labels);
+            TimeSeriesColumn timeSeries = groupByTimeSeries();
+            if (timeSeries != null) {
+                TimeSeriesColumn desired = TimeSeriesColumn.of(PromqlAttributesTranslationContext.union(timeSeries.exclusions(), removed));
+                TimeSeriesColumn exposed = timeSeries(desired.exclusions());
+                desired = exposed == null ? desired : exposed;
+                return new Header(List.of(desired), List.of(desired));
+            }
+            Set<String> removedNames = toCanonicalNames(removed);
+            List<Column> concrete = groupBy.stream()
+                .filter(NamedColumn.class::isInstance)
+                .filter(column -> removedNames.contains(toCanonicalName(column.attribute())) == false)
+                .toList();
+            return new Header(concrete, concrete);
+        }
+
+        /** Regroup this child and preserve non-grouping columns that an ancestor requires and this child exposes. */
+        public Header regrouped(Header grouping, Header required) {
+            var exposed = new ArrayList<>(grouping.columns);
+            for (Column demand : required.columns) {
+                if (contains(required.groupBy, demand)) {
+                    continue;
+                }
+                Column actual = columns.stream().filter(column -> eq(column, demand)).findFirst().orElse(null);
+                if (actual != null && grouping.canCarry(actual) && contains(exposed, actual) == false) {
+                    exposed.add(actual);
+                }
+            }
+            return new Header(grouping.groupBy, exposed);
+        }
+
+        private boolean canCarry(Column column) {
+            TimeSeriesColumn identity = groupByTimeSeries();
+            if (column instanceof NamedColumn) {
+                return identity != null
+                    ? toCanonicalNames(identity.exclusions()).contains(toCanonicalName(column.attribute())) == false
+                    : contains(groupBy, column);
+            }
+            if (column instanceof TimeSeriesColumn timeSeries) {
+                return identity != null && toCanonicalNames(timeSeries.exclusions()).containsAll(toCanonicalNames(identity.exclusions()));
+            }
+            return false;
+        }
+
+        public boolean hasTimeSeriesGrouping() {
+            return groupByTimeSeries() != null;
+        }
+
+        private TimeSeriesColumn groupByTimeSeries() {
+            return groupBy.size() == 1 && groupBy.getFirst() instanceof TimeSeriesColumn timeSeries ? timeSeries : null;
+        }
+
+        private TimeSeriesColumn timeSeries(List<Attribute> exclusions) {
+            for (Column column : columns) {
+                if (column instanceof TimeSeriesColumn timeSeries) {
+                    List<Attribute> left = timeSeries.exclusions();
+                    if (toCanonicalNames(left).equals(toCanonicalNames(exclusions))) {
+                        return timeSeries;
                     }
                 }
             }
-
-            var missing = asList(minus(projected, resolved));
-
-            if (timeseries == null) {
-                return new ResolvedAttributes(resolved, List.of(), missing, excludedDimensions);
-            }
-
-            resolved.removeIf(attr -> MetadataAttribute.isTimeSeriesAttributeName(attr.name()));
-
-            return new ResolvedAttributes(List.of(timeseries), resolved, missing, excludedDimensions);
+            return null;
         }
 
+        public Header transformExpressions(Fn transformer) {
+            var originals = new ArrayList<Column>();
+            var transformed = new ArrayList<Column>();
+            for (Column column : groupBy) {
+                if (contains(originals, column) == false) {
+                    originals.add(column);
+                    transformed.add(transformer.transform(column, true));
+                }
+            }
+            for (Column column : columns) {
+                if (contains(originals, column) == false) {
+                    originals.add(column);
+                    transformed.add(transformer.transform(column, false));
+                }
+            }
+            return new Header(transform(groupBy, originals, transformed), transform(columns, originals, transformed));
+        }
+
+        public List<NamedExpression> groupingExpressions() {
+            return groupBy.stream().map(Column::expression).toList();
+        }
+
+        public List<NamedExpression> exposedExpressions() {
+            return columns.stream().map(Column::attribute).map(NamedExpression.class::cast).toList();
+        }
+
+        /** Physical definitions for exposed columns that are computed inline by the consuming plan node. */
+        public List<NamedExpression> expressions() {
+            return columns.stream().map(Column::expression).toList();
+        }
+
+        public Attribute column(String name) {
+            for (Column column : columns) {
+                if (toCanonicalName(column.attribute()).equals(name)) {
+                    return column.attribute();
+                }
+            }
+            return null;
+        }
+
+        public boolean isDefined() {
+            return columns.isEmpty() == false;
+        }
+
+        public boolean hasTimeSeriesColumns() {
+            return columns.stream().anyMatch(TimeSeriesColumn.class::isInstance);
+        }
+
+        private static List<Column> transform(List<Column> source, List<Column> originals, List<Column> transformed) {
+            var result = new ArrayList<Column>(source.size());
+            for (Column column : source) {
+                for (int i = 0; i < originals.size(); i++) {
+                    if (eq(column, originals.get(i))) {
+                        Column replacement = transformed.get(i);
+                        if (replacement != null) {
+                            result.add(replacement);
+                        }
+                        break;
+                    }
+                }
+            }
+            return result;
+        }
     }
 
-    /**
-     * The <b>target representation</b> produced by {@link SynthesizedAttributes#translateLeaf}/
-     * {@link SynthesizedAttributes#translate}. Translator code consumes this directly to build the aggregate plan node.
-     */
-    public record ResolvedAttributes(
-        /*
-         * Concrete grouping keys for the aggregate.
-         *
-         * If `_timeseries` is present, it is the grouping key and concrete label attrs
-         * move to passthrough. Otherwise, these are ordinary concrete label keys.
-         */
-        List<Attribute> groupings,
+    /** Links a column to the matching attribute of a plan output; keeps the column unchanged when there is none. */
+    static Column resolveColumn(Column column, List<Attribute> available) {
+        if (column instanceof TimeSeriesColumn tc) {
+            var m = findById(tc.attribute(), available);
+            return m != null ? new TimeSeriesColumn(m, tc.exclusions()) : column;
+        }
+        var m = findByIdOrName(column.attribute(), available);
+        return m != null ? new NamedColumn(m) : column;
+    }
 
-        /*
-         * Visible label attrs that belong in the output shape but are not grouping keys.
-         *
-         * Outer aggregation carries these through pack/unpack so they survive grouping
-         * without becoming split keys.
-         */
-        List<Attribute> passthrough,
+    static Attribute findById(Attribute attribute, List<Attribute> available) {
+        return available.stream().filter(candidate -> candidate.id().equals(attribute.id())).findFirst().orElse(null);
+    }
 
-        /*
-         * BY labels requested by the spec but absent from visible output.
-         *
-         * Caller turns these into null aliases, so PromQL BY preserves declared labels
-         * in the final output even when they are not visible in the child.
-         */
-        List<Attribute> absent,
+    static Attribute findByIdOrName(Attribute attribute, List<Attribute> available) {
+        Attribute byId = findById(attribute, available);
+        return byId != null ? byId : findByName(available, toCanonicalName(attribute));
+    }
 
-        /*
-          Concrete dimensions to exclude from the `_timeseries` grouping (fed into TimeSeriesWithout).
+    private static boolean contains(List<? extends Column> columns, Column candidate) {
+        return columns.stream().anyMatch(column -> eq(column, candidate));
+    }
 
-          For the innermost aggregate (translateLeaf) this is the FULL set accumulated down the
-          inherited path; for an outer aggregate (translate) it is only that subtree's own WITHOUTs,
-          and a BY clears it. Whole-path exclusions therefore exist only on the inherited path and
-          are consumed only by the leaf translation.
-         */
-        List<Attribute> excludedDimensions
-    ) {}
+    private static boolean eq(Column left, Column right) {
+        if (left instanceof TimeSeriesColumn l && right instanceof TimeSeriesColumn r) {
+            return toCanonicalNames(l.exclusions()).equals(toCanonicalNames(r.exclusions()));
+        }
+        return left instanceof NamedColumn
+            && right instanceof NamedColumn
+            && toCanonicalName(left.attribute()).equals(toCanonicalName(right.attribute()));
+    }
+
+    private static List<Column> distinct(List<? extends Column> columns) {
+        var result = new ArrayList<Column>();
+        for (Column column : columns) {
+            if (contains(result, column) == false) {
+                result.add(column);
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private static List<Attribute> distinctByCanonicalName(List<Attribute> labels) {
+        var result = new ArrayList<Attribute>();
+        var seen = new LinkedHashSet<String>();
+        for (Attribute attribute : labels) {
+            if (seen.add(toCanonicalName(attribute))) {
+                result.add(attribute);
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private static List<Attribute> union(List<Attribute> left, List<Attribute> right) {
+        var result = new ArrayList<Attribute>(left.size() + right.size());
+        result.addAll(left);
+        result.addAll(right);
+        return distinctByCanonicalName(result);
+    }
+
+    private static Set<String> toCanonicalNames(List<Attribute> attributes) {
+        var names = new LinkedHashSet<String>();
+        attributes.forEach(attribute -> names.add(toCanonicalName(attribute)));
+        return names;
+    }
+
+    static String toCanonicalName(Attribute attribute) {
+        String name = attribute instanceof FieldAttribute field ? field.fieldName().string() : attribute.name();
+        return name.startsWith(PROMETHEUS_LABELS_PREFIX) ? name.substring(PROMETHEUS_LABELS_PREFIX.length()) : name;
+    }
+
+    public static Attribute findByName(List<Attribute> attributes, String labelName) {
+        Attribute bareMatch = null;
+        for (Attribute attribute : attributes) {
+            if (toCanonicalName(attribute).equals(labelName)) {
+                if (attribute.name().equals(labelName) == false) {
+                    return attribute;
+                }
+                bareMatch = attribute;
+            }
+        }
+        return bareMatch;
+    }
 }

@@ -33,8 +33,8 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FallbackPostMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -632,14 +632,16 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                             ctx -> load(ctx).getAggregateMetricValues()
                         );
                     }
-                    throw new UnsupportedOperationException(
-                        "["
+                    throw new IllegalArgumentException(
+                        "Sorting by field ["
+                            + name()
+                            + "] of type ["
                             + CONTENT_TYPE
-                            + "] supports sorting if it has configured a single metric or the metrics ["
+                            + "] is not supported unless it has configured a single metric or the ["
                             + Metric.sum
                             + ", "
                             + Metric.value_count
-                            + "]"
+                            + "] metrics"
                     );
                 }
 
@@ -669,6 +671,8 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
             if (cfg != null) {
                 return switch (cfg.function()) {
+                    // After an AggregateMetricDoubleBlock is loaded, we do not have anymore the single metric
+                    // information, this is why in the context of ES|QL we always default to average.
                     case AMD_DEFAULT -> new AggregateMetricDoubleBlockLoader.AvgBlockLoader(metricFields, blContext.warnings());
                     case AMD_COUNT -> getIndividualBlockLoader(Metric.value_count);
                     case AMD_MAX -> getIndividualBlockLoader(Metric.max);
@@ -865,7 +869,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                 }
 
                 if (malformedDataForSyntheticSource != null) {
-                    IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), malformedDataForSyntheticSource);
+                    FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED, malformedDataForSyntheticSource);
                 }
 
                 context.addIgnoredField(fullPath());

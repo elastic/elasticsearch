@@ -22,6 +22,8 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.ToolCall;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
@@ -50,6 +52,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class AmazonBedrockExecutorTests extends ESTestCase {
+    // Shadows ESTestCase.logger until ESTestCase migrates its field to org.elasticsearch.logging.Logger
+    private final Logger logger = LogManager.getLogger(getClass());
+
     public void testExecute_EmbeddingsRequest_ForAmazonTitan() throws CharacterCodingException {
         var model = AmazonBedrockEmbeddingsModelTests.createModel(
             "id",

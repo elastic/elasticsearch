@@ -31,34 +31,45 @@ public class ElasticsearchInternalServiceModelValidator implements ModelValidato
     }
 
     @Override
-    public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<Model> listener) {
-        if (model instanceof CustomElandEmbeddingModel elandModel && elandModel.getTaskType() == TaskType.TEXT_EMBEDDING) {
-            var temporaryModelWithModelId = new CustomElandEmbeddingModel(
-                elandModel.getServiceSettings().modelId(),
-                elandModel.getTaskType(),
-                elandModel.getConfigurations().getService(),
-                elandModel.getServiceSettings(),
-                elandModel.getConfigurations().getChunkingSettings()
-            );
-
-            serviceIntegrationValidator.validate(
-                service,
-                temporaryModelWithModelId,
-                timeout,
-                listener.delegateFailureAndWrap((delegate, r) -> {
-                    delegate.onResponse(postValidate(service, model, r));
-                })
-            );
-        } else if (model instanceof ElasticDeployedModel && model.getTaskType() == TaskType.TEXT_EMBEDDING) {
-            serviceIntegrationValidator.validate(
-                service,
-                model,
-                timeout,
-                listener.delegateFailureAndWrap((delegate, r) -> delegate.onResponse(postValidate(service, model, r)))
-            );
+    public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<ModelValidationResult> listener) {
+        if (requiresDeploymentValidation(model)) {
+            // Deploy the model before running the validation inference request. Validation calls service.infer(),
+            // which fails with "Model [...] must be deployed to use" if the deployment has not been started.
+            // Fixes https://github.com/elastic/elasticsearch/issues/144871. For ElasticDeployedModel (an
+            // existing deployment) start()/stop() are no-ops, so it's ok to call start().
+            // Return deploymentStarted=true so the caller can skip starting the deployment a second time.
+            service.start(model, timeout, listener.delegateFailureAndWrap((startedListener, ignored) -> {
+                var stopOnFailure = startedListener.delegateResponse((l, e) -> stopModelDeployment(service, model, l, e));
+                serviceIntegrationValidator.validate(
+                    service,
+                    model,
+                    timeout,
+                    stopOnFailure.delegateFailureAndWrap(
+                        (l, results) -> l.onResponse(new ModelValidationResult(postValidate(service, model, results), true))
+                    )
+                );
+            }));
         } else {
-            listener.onResponse(model);
+            listener.onResponse(new ModelValidationResult(model, false));
         }
+    }
+
+    private static boolean requiresDeploymentValidation(Model model) {
+        return (model instanceof CustomElandEmbeddingModel || model instanceof ElasticDeployedModel)
+            && model.getTaskType() == TaskType.TEXT_EMBEDDING;
+    }
+
+    private void stopModelDeployment(InferenceService service, Model model, ActionListener<ModelValidationResult> listener, Exception e) {
+        service.stop(model, ActionListener.wrap(stopped -> listener.onFailure(e), stopException -> {
+            stopException.addSuppressed(e);
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Model validation failed and model deployment could not be stopped",
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    stopException
+                )
+            );
+        }));
     }
 
     private Model postValidate(InferenceService service, Model model, InferenceServiceResults results) {

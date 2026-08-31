@@ -13,12 +13,15 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatSelector;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
@@ -30,6 +33,7 @@ import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -74,6 +78,10 @@ public class PerFieldFormatSupplier {
     }
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
+    // Only keyword fields are routed to ColumNAR, so the column type is always a string.
+    private static final DocValuesFormat keywordColumnarDocValuesFormatInstance = new ColumNARDocValuesFormat(
+        field -> ColumnarFieldType.STRING
+    );
     private final KnnVectorsFormat knnVectorsFormat;
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion104");
@@ -86,6 +94,7 @@ public class PerFieldFormatSupplier {
     private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
     private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
     private final DocValuesFormat tsdbDocValuesFormat;
+    private final DocValuesFormat keywordColumnarDocValuesFormat;
 
     @SuppressWarnings("this-escape")
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
@@ -101,6 +110,10 @@ public class PerFieldFormatSupplier {
         this.tsdbDocValuesFormat = mapperService == null
             ? null
             : TSDBDocValuesFormatSelector.select(mapperService.getIndexSettings(), this::resolveFieldContext);
+        this.keywordColumnarDocValuesFormat = mapperService != null
+            && ColumnarDocValuesFormatSelector.useColumnarCodec(mapperService.getIndexSettings())
+                ? keywordColumnarDocValuesFormatInstance
+                : null;
         var bloomFilterSettings = mapperService == null ? null : mapperService.getIndexSettings().syntheticIdBloomFilterSettings();
         this.idBloomFilterDocValuesFormat = bloomFilterSettings == null
             ? new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME) // fallback to the defaults if no settings are present
@@ -174,7 +187,9 @@ public class PerFieldFormatSupplier {
                 return completionPostingsFormat;
             }
             if (mapper instanceof IdFieldMapper
-                && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT)) {
+                && mapperService.getIndexSettings()
+                    .getIndexVersionCreated()
+                    .between(IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT, IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT)) {
                 // The default posting format doesn't handle randomly generated IDs well during merging. Several cases have been reported
                 // where a single merge thread uses disproportionate jvm heap memory just for Lucene103BlockTreeTermsWriter.TermsWriter.
                 return es812PostingsFormat;
@@ -224,11 +239,20 @@ public class PerFieldFormatSupplier {
             return idBloomFilterDocValuesFormat;
         }
 
+        if (keywordColumnarDocValuesFormat != null && isKeywordField(field)) {
+            return keywordColumnarDocValuesFormat;
+        }
+
         if (useTSDBDocValuesFormat(field)) {
             return tsdbDocValuesFormat;
         }
 
         return docValuesFormat;
+    }
+
+    private boolean isKeywordField(String field) {
+        return mapperService.mappingLookup().getMapper(field) instanceof KeywordFieldMapper keyword
+            && keyword.fieldType().usesBinaryDocValues();
     }
 
     FieldContext resolveFieldContext(final String fieldName, final int blockSize) {

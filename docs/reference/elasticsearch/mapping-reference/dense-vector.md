@@ -721,10 +721,10 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
 
 ## GPU vector indexing
 ```{applies_to}
-stack: preview 9.3
+stack: preview 9.3, ga 9.4
 ```
 
-{{es}} can leverage  [GPU acceleration](gpu-vector-indexing.md)  to speed up the indexing of dense vectors.
+{{es}} can leverage [GPU acceleration](docs-content://solutions/search/vector/gpu-vector-indexing.md) to speed up the indexing of dense vectors.
 
 
 ## Index modes for vector search [dense-vector-index-modes]
@@ -735,7 +735,7 @@ stack: preview 9.3
 
 The `vectordb_document` [index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) optimizes an index for vector search workloads.
 
-In {{serverless-short}}, this mode is automatically applied to indices in Vector DB projects. On {{ech}}, you must set it explicitly at index creation time:
+You must set the mode at index creation time:
 
 ```console
 PUT my-vector-index

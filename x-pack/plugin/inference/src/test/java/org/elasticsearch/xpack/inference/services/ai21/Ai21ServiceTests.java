@@ -145,8 +145,8 @@ public class Ai21ServiceTests extends InferenceServiceTestCase {
                                  "index": 0
                              }
                          ],
-                         "model": null,
-                         "object": null
+                         "model": "",
+                         "object": ""
                      }
 
                 """));

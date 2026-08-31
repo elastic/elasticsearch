@@ -19,11 +19,14 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -125,6 +128,51 @@ public class GrokEvaluatorExtracterTests extends ESTestCase {
         checkDoubleBlock(targetBlocks[3], new int[] { 4 }, 12.3F, 14.3F, 34.3F, 84.3F);
         checkDoubleBlock(targetBlocks[4], new int[] { 4 }, 15.5D, 16.5D, 36.5D, 86.5D);
         checkBooleanBlock(targetBlocks[5], new int[] { 4 }, false, true, true, false);
+    }
+
+    public void testTimeoutIsUserError() {
+        // This pattern causes catastrophic backtracking and will reliably exceed the 200 ms watchdog timeout.
+        // The same pattern is used in GrokTests.testExponentialExpressions.
+        String pattern = "Bonsuche mit folgender Anfrage: Belegart->\\[%{WORD:param2},(?<param5>(\\s*%{NOTSPACE})*)\\] "
+            + "Zustand->ABGESCHLOSSEN Kassennummer->%{WORD:param9} Bonnummer->%{WORD:param10} Datum->%{DATESTAMP_OTHER:param11}";
+        String logLine = "Bonsuche mit folgender Anfrage: Belegart->[EINGESCHRAENKTER_VERKAUF, VERKAUF, NACHERFASSUNG] "
+            + "Zustand->ABGESCHLOSSEN Kassennummer->2 Bonnummer->6362 Datum->Mon Jan 08 00:00:00 UTC 2018";
+
+        Map<String, Integer> keyToBlock = Map.of("param2", 0, "param5", 1, "param9", 2, "param10", 3, "param11", 4);
+        Map<String, ElementType> types = Map.of(
+            "param2",
+            ElementType.BYTES_REF,
+            "param5",
+            ElementType.BYTES_REF,
+            "param9",
+            ElementType.BYTES_REF,
+            "param10",
+            ElementType.BYTES_REF,
+            "param11",
+            ElementType.BYTES_REF
+        );
+
+        var builtinPatterns = GrokBuiltinPatterns.get(true);
+        Grok grok = new Grok(builtinPatterns, pattern, MatcherWatchdog.newInstance(200), logger::warn);
+        GrokEvaluatorExtracter extracter = new GrokEvaluatorExtracter.Factory(grok, pattern, keyToBlock, types).create(null);
+
+        BytesRefBlock inputBlock;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(1)) {
+            builder.appendBytesRef(new BytesRef(logLine));
+            inputBlock = builder.build();
+        }
+        Block.Builder[] targetBlocks = {
+            blockFactory.newBytesRefBlockBuilder(1),
+            blockFactory.newBytesRefBlockBuilder(1),
+            blockFactory.newBytesRefBlockBuilder(1),
+            blockFactory.newBytesRefBlockBuilder(1),
+            blockFactory.newBytesRefBlockBuilder(1) };
+
+        EsqlClientException ex = expectThrows(
+            EsqlClientException.class,
+            () -> extracter.computeRow(inputBlock, 0, targetBlocks, new BytesRef())
+        );
+        assertThat(ex.getMessage(), containsString("grok pattern matching was interrupted after"));
     }
 
     private void checkStringBlock(Block.Builder builder, int[] itemsPerRow, String... expectedValues) {

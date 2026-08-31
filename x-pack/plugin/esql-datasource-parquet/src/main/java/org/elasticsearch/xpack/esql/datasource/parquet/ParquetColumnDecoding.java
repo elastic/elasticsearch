@@ -38,6 +38,7 @@ import java.nio.ByteOrder;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.function.IntConsumer;
 
 /**
  * Shared Parquet decode helpers used by both the baseline {@code ParquetColumnIterator}
@@ -278,6 +279,24 @@ final class ParquetColumnDecoding {
         @Nullable String columnName,
         @Nullable SkipWarnings warnings
     ) {
+        return bytesBlockToDatetimeMillis(source, dateFormatter, blockFactory, columnName, warnings, null);
+    }
+
+    /**
+     * Overload of {@link #bytesBlockToDatetimeMillis} that additionally reports failed positions to
+     * {@code failedPositionSink} for {@code skip_row} callers. When non-null, a parse failure at position
+     * {@code p} still nulls the cell in the returned block and calls {@code failedPositionSink.accept(p)}
+     * so the caller's {@link org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper} can drop
+     * the whole row at the page emit point.
+     */
+    static Block bytesBlockToDatetimeMillis(
+        Block source,
+        @Nullable DateFormatter dateFormatter,
+        BlockFactory blockFactory,
+        @Nullable String columnName,
+        @Nullable SkipWarnings warnings,
+        @Nullable IntConsumer failedPositionSink
+    ) {
         int positions = source.getPositionCount();
         if (source.areAllValuesNull()) {
             return blockFactory.newConstantNullBlock(positions);
@@ -285,6 +304,7 @@ final class ParquetColumnDecoding {
         BytesRefBlock bytes = (BytesRefBlock) source;
         BytesRef scratch = new BytesRef();
         long[] parsed = null;
+        boolean skipRow = failedPositionSink != null;
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(positions)) {
             for (int pos = 0; pos < positions; pos++) {
                 int count = bytes.getValueCount(pos);
@@ -295,7 +315,8 @@ final class ParquetColumnDecoding {
                     try {
                         builder.appendLong(DeclaredTypeCoercions.parseDatetimeMillis(value.utf8ToString(), dateFormatter));
                     } catch (IllegalArgumentException | DateTimeException e) {
-                        DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
+                        DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings, skipRow);
+                        if (skipRow) failedPositionSink.accept(pos);
                         builder.appendNull();
                     }
                 } else {
@@ -311,11 +332,12 @@ final class ParquetColumnDecoding {
                         try {
                             parsed[v] = DeclaredTypeCoercions.parseDatetimeMillis(value.utf8ToString(), dateFormatter);
                         } catch (IllegalArgumentException | DateTimeException e) {
-                            DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
+                            DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings, skipRow);
                             failed = true;
                         }
                     }
                     if (failed) {
+                        if (skipRow) failedPositionSink.accept(pos);
                         builder.appendNull();
                         continue;
                     }
@@ -580,6 +602,18 @@ final class ParquetColumnDecoding {
         @Nullable String columnName,
         @Nullable SkipWarnings warnings
     ) {
+        return readListColumn(cr, info, rows, blockFactory, columnName, warnings, null);
+    }
+
+    static Block readListColumn(
+        ColumnReader cr,
+        ColumnInfo info,
+        int rows,
+        BlockFactory blockFactory,
+        @Nullable String columnName,
+        @Nullable SkipWarnings warnings,
+        @Nullable IntConsumer failedPositionSink
+    ) {
         DataType declared = info.esqlType();
         DataType fileElementType = info.fileEsqlType();
         if (fileElementType != null
@@ -595,7 +629,8 @@ final class ParquetColumnDecoding {
                     info.dateFormatter(),
                     blockFactory,
                     columnName,
-                    warnings
+                    warnings,
+                    failedPositionSink
                 );
             } finally {
                 physical.close();
@@ -619,7 +654,7 @@ final class ParquetColumnDecoding {
             case DOUBLE -> readListDoubleColumn(cr, maxDef, rows, blockFactory);
             case BOOLEAN -> readListBooleanColumn(cr, maxDef, rows, blockFactory);
             case KEYWORD, TEXT -> readListBytesRefColumn(cr, info, rows, blockFactory);
-            case DATETIME -> readListDatetimeColumn(cr, info, rows, blockFactory, columnName, warnings);
+            case DATETIME -> readListDatetimeColumn(cr, info, rows, blockFactory, columnName, warnings, failedPositionSink);
             case DATE_NANOS -> readListDateNanosColumn(cr, info, rows, blockFactory);
             default -> {
                 skipListValues(cr, rows);
@@ -761,14 +796,15 @@ final class ParquetColumnDecoding {
         int rows,
         BlockFactory blockFactory,
         @Nullable String columnName,
-        @Nullable SkipWarnings warnings
+        @Nullable SkipWarnings warnings,
+        @Nullable IntConsumer failedPositionSink
     ) {
         // Declared string->datetime coercion for LIST<string> columns: parse each element via the shared
         // scalar with the column's declared format (ISO default), mirroring the flat decode paths. A parse
         // failure follows castBlock's bulk semantics (whole position nulls, or propagates when strict), so
         // this arm gathers each row before appending.
         if (info.parquetType() == PrimitiveType.PrimitiveTypeName.BINARY) {
-            return readListStringDatetimeColumn(cr, info, rows, blockFactory, columnName, warnings);
+            return readListStringDatetimeColumn(cr, info, rows, blockFactory, columnName, warnings, failedPositionSink);
         }
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
             int maxDef = info.maxDefLevel();
@@ -798,9 +834,22 @@ final class ParquetColumnDecoding {
         @Nullable String columnName,
         @Nullable SkipWarnings warnings
     ) {
+        return readListStringDatetimeColumn(cr, info, rows, blockFactory, columnName, warnings, null);
+    }
+
+    private static Block readListStringDatetimeColumn(
+        ColumnReader cr,
+        ColumnInfo info,
+        int rows,
+        BlockFactory blockFactory,
+        @Nullable String columnName,
+        @Nullable SkipWarnings warnings,
+        @Nullable IntConsumer failedPositionSink
+    ) {
         int maxDef = info.maxDefLevel();
         DateFormatter dateFormatter = info.dateFormatter();
         long[] parsed = new long[8];
+        boolean skipRow = failedPositionSink != null;
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
             for (int row = 0; row < rows; row++) {
                 int count = 0;
@@ -817,7 +866,14 @@ final class ParquetColumnDecoding {
                             try {
                                 parsed[count++] = DeclaredTypeCoercions.parseDatetimeMillis(value, dateFormatter);
                             } catch (IllegalArgumentException | DateTimeException e) {
-                                DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
+                                DeclaredTypeCoercions.onCoercionFailure(
+                                    columnName,
+                                    DataType.KEYWORD,
+                                    DataType.DATETIME,
+                                    e,
+                                    warnings,
+                                    skipRow
+                                );
                                 failed = true;
                             }
                         }
@@ -829,6 +885,7 @@ final class ParquetColumnDecoding {
                     // failed: bulk semantics null the whole position (already warned above).
                     // count == 0: null list, empty list, or all-null elements — a null position,
                     // matching readListRow's no-defined-values branch.
+                    if (failed && skipRow) failedPositionSink.accept(row);
                     builder.appendNull();
                 } else {
                     builder.beginPositionEntry();

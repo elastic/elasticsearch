@@ -268,6 +268,10 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
         }
     }
 
+    /**
+     * Pre-handoff reshard targets keep {@link RecoverySource.Type#RESHARD_SPLIT}, including across failed recoveries (e.g. source relocates
+     * and cancels start-split). Those must stay provisional/GREEN rather than RED while the source still serves the data.
+     */
     public void testHealthWhileReshardSplitTargetShardsInactive() {
         final var projectId = randomProjectIdOrDefault();
         final var indexMetadata = IndexMetadata.builder(INDEX_NAME)
@@ -283,19 +287,25 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
         final var sourceShardReplica = shardRouting(sourceShardId, false, nodeB, null, STARTED);
         final var targetShardId = new ShardId(index.getName(), index.getUUID(), 1);
         final var unassignedAt = new TimeValue(System.currentTimeMillis() - TimeValue.timeValueMinutes(5).millis(), TimeUnit.MILLISECONDS);
+        // Include ALLOCATION_FAILED so failedAllocations > 0 still stays provisional for RESHARD_SPLIT targets.
+        final var targetPrimaryUnassignedInfo = randomBoolean()
+            ? unassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, unassignedAt)
+            : unassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, unassignedAt, UnassignedInfo.AllocationStatus.NO_ATTEMPT);
         var targetShardPrimary = newUnassigned(
             targetShardId,
             true,
             new RecoverySource.ReshardSplitRecoverySource(sourceShardId),
-            unassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, unassignedAt),
-            ShardRouting.Role.DEFAULT
+            targetPrimaryUnassignedInfo,
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
         var targetShardReplica = newUnassigned(
             targetShardId,
             false,
             RecoverySource.PeerRecoverySource.INSTANCE,
             unassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, unassignedAt),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
         if (randomBoolean()) {
             targetShardPrimary = targetShardPrimary.initialize(nodeB, null, 0);
@@ -464,7 +474,14 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
             ? (unassignedInfo != null ? recoverySourceFrom(unassignedInfo) : RecoverySource.ExistingStoreRecoverySource.INSTANCE)
             : RecoverySource.PeerRecoverySource.INSTANCE;
 
-        var routing = newUnassigned(shardId, primary, recoverySource, info, ShardRouting.Role.DEFAULT);
+        var routing = newUnassigned(
+            shardId,
+            primary,
+            recoverySource,
+            info,
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED // may not correspond to other parameters, but that shouldn't matter
+        );
         if (state == ShardRoutingState.UNASSIGNED) {
             return routing;
         }

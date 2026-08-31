@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
@@ -473,7 +474,7 @@ public class S3StorageProvider implements StorageProvider {
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
                 return existsViaRangeGet(bucket, key, path);
             }
-            throw new IOException("Failed to check existence of " + path + credentialHint(), e);
+            throw new IOException("Failed to check existence of " + path + ": " + S3FailureDetail.of(e) + credentialHint(), e);
         }
     }
 
@@ -486,7 +487,14 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
-            throw new IOException("Failed to check existence of " + path + " (HEAD denied, range GET also failed)" + credentialHint(), e);
+            throw new IOException(
+                "Failed to check existence of "
+                    + path
+                    + " (HEAD denied, range GET also failed): "
+                    + S3FailureDetail.of(e)
+                    + credentialHint(),
+                e
+            );
         }
     }
 
@@ -628,7 +636,7 @@ public class S3StorageProvider implements StorageProvider {
                         + "Verify that the configured credentials have s3:ListBucket permission on this bucket, "
                         + "or use exact file paths instead of glob patterns."
                     : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
-                throw new RuntimeException(msg, e);
+                throw new UncheckedIOException(new IOException(msg + ": " + S3FailureDetail.of(e), e));
             }
         }
     }

@@ -169,8 +169,8 @@ public class ReindexBasicTests extends ReindexTestCase {
     }
 
     /**
-     * Tests that high throttling (that would exceed the scroll keep-alive) does not terminate a reindexing operation early.
-     * This is achieved by setting the scroll keep-alive to 500ms second, and the throttling is (5 docs at 4 req/s ≈ 1.25s)
+     * Tests that high throttling (that would exceed the search context keep-alive) does not terminate a reindexing operation early.
+     * This is achieved by setting the scroll keep-alive to 500ms, and the throttling is (5 docs at 4 req/s ≈ 1.25s).
      */
     public void testSmallScrollTimeoutWithHeavyThrottleCompletes() {
         String prefix = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);

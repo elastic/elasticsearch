@@ -19,11 +19,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.InsertEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
@@ -33,10 +35,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -49,10 +53,12 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
+import org.elasticsearch.xpack.esql.plan.physical.InsertEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
@@ -62,9 +68,11 @@ import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnpackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
@@ -102,6 +110,25 @@ public class MapperUtils {
             return new EvalExec(eval.source(), child, eval.fields());
         }
 
+        if (p instanceof PackDims pack) {
+            return new PackDimsExec(pack.source(), child, pack.dims(), pack.packed());
+        }
+
+        if (p instanceof UnpackDims unpack) {
+            return new UnpackDimsExec(unpack.source(), child, unpack.packed(), unpack.dims());
+        }
+
+        if (p instanceof InsertEmptyBuckets insertEmptyBuckets) {
+            return new InsertEmptyBucketsExec(
+                insertEmptyBuckets.source(),
+                child,
+                insertEmptyBuckets.buckets(),
+                insertEmptyBuckets.groups(),
+                insertEmptyBuckets.defaultValues(),
+                null
+            );
+        }
+
         if (p instanceof Dissect dissect) {
             return new DissectExec(dissect.source(), child, dissect.input(), dissect.parser(), dissect.extractedFields());
         }
@@ -131,6 +158,17 @@ public class MapperUtils {
                 completion.targetField(),
                 completion.taskSettings(),
                 completion.timeout()
+            );
+        }
+
+        if (p instanceof DenseVector denseVector) {
+            return new DenseVectorExec(
+                denseVector.source(),
+                child,
+                denseVector.inferenceId(),
+                denseVector.fields(),
+                denseVector.generatedAttributes(),
+                denseVector.timeout()
             );
         }
 
@@ -279,8 +317,7 @@ public class MapperUtils {
                 aggMode,
                 intermediateAttributes,
                 null,
-                ts.timeBucket(),
-                ts.outputTimeBucket()
+                ts.timeBucket()
             );
             case SampledAggregate sample -> new SampledAggregateExec(
                 sample.source(),

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -35,7 +36,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNum
 /**
  * Returns the hypotenuse of the numbers given as parameters.
  */
-public class Hypot extends EsqlScalarFunction {
+public class Hypot extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Hypot", Hypot::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Hypot.class).binary(Hypot::new).name("hypot");
 

@@ -74,7 +74,7 @@ public class AlibabaCloudSearchCompletionRequestManagerTests extends ESTestCase 
     }
 
     public void testExecute_throwsIllegalArgumentException_whenInputIsNotChatCompletion() {
-        var inputs = new EmbeddingsInput(List.of("input1"), InputType.SEARCH);
+        var inputs = EmbeddingsInput.fromStrings(List.of("input1"), InputType.SEARCH);
         RequestSender mockSender = mock(RequestSender.class);
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 

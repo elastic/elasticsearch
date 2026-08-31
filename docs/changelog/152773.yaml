@@ -1,6 +1,0 @@
-area: Aggregations
-issues:
- - 150290
-pr: 152773
-summary: Avoid out-of-memory errors by accounting for memory during the cardinality aggregation reduction phase
-type: bug

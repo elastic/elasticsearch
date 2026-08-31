@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -42,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 /**
  * {code right(foo, len)} is an alias to {code substring(foo, foo.length-len, len)}
  */
-public class Right extends EsqlScalarFunction {
+public class Right extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Right", Right::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Right.class).binary(Right::new).name("right");
 

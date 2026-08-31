@@ -182,11 +182,13 @@ import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStatsNamedWriteablesProvider;
+import org.elasticsearch.xpack.core.ml.inference.IngestModelMemoryProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelCacheMetadata;
@@ -331,6 +333,7 @@ import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClu
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.ml.inference.ingest.IngestModelMemoryService;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankRescorerBuilder;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankService;
@@ -810,6 +813,18 @@ public class MachineLearning extends Plugin
     public static final Setting<TimeValue> CONFIG_METRICS_POLL_INTERVAL = MlConfigMetrics.POLL_INTERVAL;
 
     /**
+     * Reserved operator escape hatch. When enabled (the default), user-initiated {@code project_routing} changes on a
+     * datafeed require the associated job to be closed and auto-retain the job's current model snapshot before the
+     * routing update is persisted. Disable only when snapshot retain is blocking legitimate scope updates.
+     */
+    public static final Setting<Boolean> REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE = Setting.boolSetting(
+        "xpack.ml.datafeed.require_rollback_snapshot_before_scope_change",
+        true,
+        Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * The time that has to pass after scaling up, before scaling down is allowed.
      * Note that the ML autoscaling has its own cooldown time to release the hardware.
      */
@@ -931,6 +946,7 @@ public class MachineLearning extends Plugin
             CCS_STABILIZATION_CYCLES,
             CCS_STABILIZATION_FLOOR,
             CONFIG_METRICS_POLL_INTERVAL,
+            REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE,
             DUMMY_ENTITY_MEMORY,
             DUMMY_ENTITY_PROCESSORS,
             SCALE_UP_COOLDOWN_TIME,
@@ -1072,7 +1088,8 @@ public class MachineLearning extends Plugin
             threadPool,
             client,
             canUseIlm,
-            xContentRegistry
+            xContentRegistry,
+            services.featureService()
         );
         registry.initialize();
 
@@ -1135,6 +1152,7 @@ public class MachineLearning extends Plugin
             jobConfigProvider,
             xContentRegistry,
             settings,
+            clusterService,
             client,
             machineLearningExtension.get(),
             anomalyDetectionAuditor
@@ -1289,6 +1307,10 @@ public class MachineLearning extends Plugin
             getLicenseState()
         );
         this.modelLoadingService.set(modelLoadingService);
+
+        final IngestModelMemoryService ingestModelMemoryService = new IngestModelMemoryService(trainedModelProvider, threadPool);
+        clusterService.addListener(ingestModelMemoryService);
+        IngestModelMemoryProvider.setInstance(ingestModelMemoryService);
 
         this.learningToRankService.set(
             new LearningToRankService(modelLoadingService, trainedModelProvider, services.scriptService(), services.xContentRegistry())
@@ -1506,6 +1528,7 @@ public class MachineLearning extends Plugin
             dataFrameAnalyticsConfigProvider,
             nativeStorageProvider,
             modelLoadingService,
+            ingestModelMemoryService,
             trainedModelCacheMetadataService,
             trainedModelProvider,
             trainedModelAssignmentService,
@@ -1581,6 +1604,7 @@ public class MachineLearning extends Plugin
         restHandlers.add(new RestMlMemoryAction());
         restHandlers.add(new RestSetUpgradeModeAction());
         if (anomalyDetectionEnabled) {
+            final boolean mlCrossProjectSearchEnabled = DatafeedConfig.isCPSAllowed(restHandlersServices.crossProjectModeDecider());
             restHandlers.add(new RestGetJobsAction());
             restHandlers.add(new RestGetJobStatsAction());
             restHandlers.add(new RestPutJobAction());
@@ -1608,10 +1632,10 @@ public class MachineLearning extends Plugin
             restHandlers.add(new RestUpdateModelSnapshotAction());
             restHandlers.add(new RestGetDatafeedsAction());
             restHandlers.add(new RestGetDatafeedStatsAction());
-            restHandlers.add(new RestPutDatafeedAction());
-            restHandlers.add(new RestUpdateDatafeedAction());
+            restHandlers.add(new RestPutDatafeedAction(mlCrossProjectSearchEnabled));
+            restHandlers.add(new RestUpdateDatafeedAction(mlCrossProjectSearchEnabled));
             restHandlers.add(new RestDeleteDatafeedAction());
-            restHandlers.add(new RestPreviewDatafeedAction());
+            restHandlers.add(new RestPreviewDatafeedAction(mlCrossProjectSearchEnabled));
             restHandlers.add(new RestStartDatafeedAction());
             restHandlers.add(new RestStopDatafeedAction());
             restHandlers.add(new RestDeleteModelSnapshotAction());

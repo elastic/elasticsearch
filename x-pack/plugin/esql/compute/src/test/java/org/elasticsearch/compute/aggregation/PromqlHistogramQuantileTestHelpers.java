@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.aggregation.PromqlHistogramQuantileStates.Bucket;
+import org.elasticsearch.compute.aggregation.PromqlHistogramStates.Bucket;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -119,7 +119,7 @@ final class PromqlHistogramQuantileTestHelpers {
             for (int upperBoundOffset = upperBoundStart; upperBoundOffset < upperBoundEnd; upperBoundOffset++) {
                 double upperBound;
                 try {
-                    upperBound = PromqlHistogramQuantileStates.parseUpperBound(upperBounds.getBytesRef(upperBoundOffset, scratch));
+                    upperBound = PromqlHistogramStates.parseUpperBound(upperBounds.getBytesRef(upperBoundOffset, scratch));
                 } catch (NumberFormatException e) {
                     // Mirror the aggregator: buckets with an unparseable `le` label are skipped, not counted.
                     continue;
@@ -132,12 +132,12 @@ final class PromqlHistogramQuantileTestHelpers {
     static double expectedQuantile(double quantile, List<Bucket> buckets) {
         List<Bucket> sortedBuckets = new ArrayList<>(buckets);
         sortedBuckets.sort(Comparator.comparingDouble(Bucket::upperBound));
-        return PromqlHistogramQuantileStates.bucketQuantile(quantile, coalesceBuckets(sortedBuckets));
+        return PromqlHistogramStates.Quantile.bucketQuantile(quantile, coalesceBuckets(sortedBuckets));
     }
 
     /**
      * Merges buckets that share the same upper bound by summing their cumulative counts before calling
-     * {@link PromqlHistogramQuantileStates#bucketQuantile}. The production state does the same merge as raw and
+     * {@link PromqlHistogramStates.Quantile#bucketQuantile}. The production state does the same merge as raw and
      * intermediate buckets are added, so the quantile helper can assert that its input is already pre-aggregated.
      */
     private static List<Bucket> coalesceBuckets(List<Bucket> buckets) {
@@ -148,7 +148,8 @@ final class PromqlHistogramQuantileTestHelpers {
         Bucket previous = buckets.getFirst();
         for (int i = 1; i < buckets.size(); i++) {
             Bucket bucket = buckets.get(i);
-            if (bucket.upperBound() == previous.upperBound()) {
+            if (bucket.upperBound() == previous.upperBound()
+                || (Double.isNaN(bucket.upperBound()) && Double.isNaN(previous.upperBound()))) {
                 previous = new Bucket(previous.upperBound(), previous.count() + bucket.count());
             } else {
                 result.add(previous);

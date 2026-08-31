@@ -362,8 +362,8 @@ public record UnassignedInfo(
             out.writeByte((byte) Reason.FORCED_EMPTY_PRIMARY.ordinal());
         } else if (reason.equals(Reason.RECOVERY_CANCELLED)
             && out.getTransportVersion().supports(UNASSIGNEDINFO_RECOVERY_CANCELLED) == false) {
-                // TODO: edit/remove this comment once #153670 merges.
-                // Direct cancellation will be gated by a min cluster-wide transport version > UNASSIGNEDINFO_RECOVERY_CANCELLED
+                // Direct cancellation is gated by the min cluster-wide transport version
+                // DIRECT_RECOVERY_CANCELLATION > UNASSIGNEDINFO_RECOVERY_CANCELLED
                 assert false;
                 final Reason fallbackReason = failedAllocations > 0 ? Reason.ALLOCATION_FAILED : Reason.MANUAL_ALLOCATION;
                 out.writeByte((byte) fallbackReason.ordinal());

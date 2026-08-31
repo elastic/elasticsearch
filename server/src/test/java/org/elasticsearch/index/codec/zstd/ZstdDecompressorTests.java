@@ -293,11 +293,12 @@ public class ZstdDecompressorTests extends ESTestCase {
         }
 
         @Override
-        public boolean withMemorySegmentSlices(
+        public boolean withSliceAddresses(
             long[] offsets,
             int length,
             int count,
-            CheckedConsumer<MemorySegment[], IOException> action
+            MemorySegment addressesScratch,
+            CheckedConsumer<MemorySegment, IOException> action
         ) {
             throw new AlreadyClosedException("no free region found");
         }
@@ -329,11 +330,12 @@ public class ZstdDecompressorTests extends ESTestCase {
         }
 
         @Override
-        public boolean withMemorySegmentSlices(
+        public boolean withSliceAddresses(
             long[] offsets,
             int length,
             int count,
-            CheckedConsumer<MemorySegment[], IOException> action
+            MemorySegment addressesScratch,
+            CheckedConsumer<MemorySegment, IOException> action
         ) {
             return false;
         }

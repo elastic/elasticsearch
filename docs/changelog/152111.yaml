@@ -1,5 +1,0 @@
-area: Mapping
-issues: []
-pr: 152111
-summary: Restrict doc values multi_value/nullability parameters to columnar mode
-type: enhancement

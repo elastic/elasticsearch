@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 152035
-summary: Avoid dense run-length allocation in HyperLogLog
-type: bug

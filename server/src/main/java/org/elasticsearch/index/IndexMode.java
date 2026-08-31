@@ -1072,6 +1072,7 @@ public enum IndexMode {
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,
+            boolean registryInstalledTemplate,
             ProjectMetadata projectMetadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
@@ -1083,7 +1084,7 @@ public enum IndexMode {
             if (indexMode == null) {
                 String modeName = indexTemplateAndCreateRequestSettings.get(IndexSettings.MODE.getKey());
                 if (modeName != null) {
-                    indexMode = IndexMode.valueOf(modeName.toUpperCase(Locale.ROOT));
+                    indexMode = IndexMode.fromString(modeName);
                 }
             }
             if (indexMode == LOOKUP) {

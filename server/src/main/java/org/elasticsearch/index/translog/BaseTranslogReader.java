@@ -10,6 +10,7 @@
 package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
@@ -124,9 +125,9 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     }
 
     /**
-     * Reads either an {@link Translog.Operation} or an {@link Translog.IndexBatch} from the stream
-     * (consuming the size prefix and verifying the checksum) and verifies the record's primary
-     * term against the translog header.
+     * Reads either an {@link Translog.Operation} or an {@link IndexOperationBatch.TranslogRecord}
+     * from the stream (consuming the size prefix and verifying the checksum) and verifies the
+     * record's primary term against the translog header.
      */
     protected Translog.Record readRecord(BufferedChecksumStreamInput inStream) throws IOException {
         final Translog.Record record = Translog.readRecord(inStream);
@@ -167,24 +168,28 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         return Files.getLastModifiedTime(path).toMillis();
     }
 
-    /**
-     * Reads a single operation from the given location. If the record at that location is
-     * an {@link Translog.IndexBatch}, calls {@link Translog.IndexBatch#getIndexOp(int)} with the
-     * {@link Translog.Location#batchRowIndex()} to return the individual row's {@link Translog.Index}
-     * operation.
-     * If batchRowIndex is not set, the buffer is returned as a single operation
-     */
+    /** Reads a single non-batch operation. Throws if the record is a batch. */
     Translog.Operation read(Translog.Location location) throws IOException {
+        return read(location, -1);
+    }
+
+    /**
+     * Reads a single operation from the given location. If the record is an
+     * {@link IndexOperationBatch.TranslogRecord} and {@code rowIndex >= 0}, returns that row's
+     * {@link Translog.Index} via {@link IndexOperationBatch.TranslogRecord#getIndexOp(int)}. A
+     * batch record with {@code rowIndex < 0} throws.
+     */
+    Translog.Operation read(Translog.Location location, int rowIndex) throws IOException {
         assert location.generation() == this.generation : "generation mismatch expected: " + generation + " got: " + location.generation();
         ByteBuffer buffer = ByteBuffer.allocate(location.size());
         final Translog.Record record = readRecord(checksummedStream(buffer, location.translogLocation(), location.size(), null));
-        if (record instanceof Translog.IndexBatch indexBatch) {
-            if (location.isBatchRow() == false) {
-                throw new IOException("Record at location is a batch; use a location with batchRowIndex to read a single row");
+        if (record instanceof IndexOperationBatch.TranslogRecord batch) {
+            if (rowIndex < 0) {
+                throw new IOException("Record at location is a batch; provide a rowIndex to read a single row");
             }
-            return indexBatch.getIndexOp(location.batchRowIndex());
+            return batch.getIndexOp(rowIndex);
         }
-        assert location.isBatchRow() == false : "Location set for a non batch record";
+        assert rowIndex < 0 : "rowIndex set for a non-batch record";
         return (Translog.Operation) record;
     }
 }

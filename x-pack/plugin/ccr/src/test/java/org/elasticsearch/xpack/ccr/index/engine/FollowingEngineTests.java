@@ -62,6 +62,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -99,9 +101,8 @@ public class FollowingEngineTests extends ESTestCase {
     private AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
     private IndexMode indexMode;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initEngineTestResources() throws Exception {
         Settings settings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
             .build();
@@ -118,10 +119,19 @@ public class FollowingEngineTests extends ESTestCase {
         indexMode = randomFrom(IndexMode.availableModes());
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void cleanupEngineTestResources() throws Exception {
         IOUtils.close(nodeEnvironment, () -> terminate(threadPool));
-        super.tearDown();
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        final var warnings = super.filteredWarnings();
+        warnings.add(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+        return warnings;
     }
 
     public void testFollowingEngineRejectsNonFollowingIndex() throws IOException {

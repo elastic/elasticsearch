@@ -11,6 +11,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -21,14 +22,9 @@ import java.io.IOException;
  * because it has a self referential type parameter of its own. So use this
  * instead.
  */
-public class BasicReplicationRequest extends ReplicationRequest<BasicReplicationRequest> {
-    /**
-     * Creates a new request with resolved shard id
-     */
-    // TODO: Check if callers of this need to be modified to pass in shardCountSummary and eventually remove this constructor
-    public BasicReplicationRequest(ShardId shardId) {
-        super(shardId);
-    }
+public class BasicReplicationRequest extends ReplicationRequest<BasicReplicationRequest> implements ReshardSplitAwareReplicationRequest {
+
+    private final SplitShardCountSummary splitShardCountSummary;
 
     /**
      * Creates a new request with resolved shard id and SplitShardCountSummary (used
@@ -36,11 +32,24 @@ public class BasicReplicationRequest extends ReplicationRequest<BasicReplication
      * coordinator that sent the request)
      */
     public BasicReplicationRequest(ShardId shardId, SplitShardCountSummary splitShardCountSummary) {
-        super(shardId, splitShardCountSummary);
+        super(shardId);
+        this.splitShardCountSummary = splitShardCountSummary;
     }
 
     public BasicReplicationRequest(StreamInput in) throws IOException {
         super(in);
+        this.splitShardCountSummary = readReshardSplitAwareSummary(in, legacySplitShardCountSummary);
+    }
+
+    @Override
+    public SplitShardCountSummary splitShardCountSummary() {
+        return splitShardCountSummary;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        writeReshardSplitAwareSummary(out, splitShardCountSummary);
     }
 
     @Override

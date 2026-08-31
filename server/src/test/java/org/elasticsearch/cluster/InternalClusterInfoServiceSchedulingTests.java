@@ -130,7 +130,9 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             client,
             mockEstimatedHeapUsageCollector,
             mockCacheSizesAndCommitmentCollector,
-            nodeUsageStatsForThreadPoolsCollector
+            PartitionSizeCollector.EMPTY,
+            nodeUsageStatsForThreadPoolsCollector,
+            SearchLaneRequirementsCollector.EMPTY
         );
         final WriteLoadConstraintMonitor usageMonitor = spy(
             new WriteLoadConstraintMonitor(
@@ -263,7 +265,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
     private static class StubEstimatedEstimatedHeapUsageCollector implements EstimatedHeapUsageCollector {
 
         @Override
-        public void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener) {
+        public void collectClusterHeapUsage(ActionListener<Map<String, NodeHeapEstimates>> listener) {
             listener.onResponse(Map.of());
         }
 

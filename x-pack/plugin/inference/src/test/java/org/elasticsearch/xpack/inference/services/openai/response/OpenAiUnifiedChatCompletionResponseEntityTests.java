@@ -14,8 +14,6 @@ import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class OpenAiUnifiedChatCompletionResponseEntityTests extends ESTestCase {
 
@@ -68,18 +66,19 @@ public class OpenAiUnifiedChatCompletionResponseEntityTests extends ESTestCase {
         var message = choice.message();
         assertThat(message.role(), is("assistant"));
         assertThat(message.content(), is("Hello, world!"));
-        assertThat(message.refusal(), nullValue());
-        assertThat(message.toolCalls(), notNullValue());
+        assertNull(message.refusal());
+        assertNotNull(message.toolCalls());
         assertThat(message.toolCalls(), hasSize(1));
 
         var toolCall = message.toolCalls().get(0);
+        assertThat(toolCall.index(), is(0));
         assertThat(toolCall.id(), is("call_xyz"));
         assertThat(toolCall.type(), is("function"));
         assertThat(toolCall.function().name(), is("get_weather"));
         assertThat(toolCall.function().arguments(), is("{\"city\": \"London\"}"));
 
         var usage = result.usage();
-        assertThat(usage, notNullValue());
+        assertNotNull(usage);
         assertThat(usage.promptTokens(), is(9));
         assertThat(usage.completionTokens(), is(12));
         assertThat(usage.totalTokens(), is(21));
@@ -108,14 +107,14 @@ public class OpenAiUnifiedChatCompletionResponseEntityTests extends ESTestCase {
 
         assertThat(result.id(), is("chatcmpl-minimal"));
         assertThat(result.model(), is("gpt-4o-mini"));
-        assertThat(result.usage(), nullValue());
+        assertNull(result.usage());
         assertThat(result.choices(), hasSize(1));
 
         var message = result.choices().get(0).message();
         assertThat(message.role(), is("assistant"));
         assertThat(message.content(), is("Hi"));
-        assertThat(message.toolCalls(), nullValue());
-        assertThat(message.refusal(), nullValue());
+        assertNull(message.toolCalls());
+        assertNull(message.refusal());
     }
 
     public void testFromResponse_MultipleChoices_PreservesAll() throws IOException {
@@ -175,8 +174,322 @@ public class OpenAiUnifiedChatCompletionResponseEntityTests extends ESTestCase {
         var result = OpenAiUnifiedChatCompletionResponseEntity.fromResponse(json.getBytes(StandardCharsets.UTF_8));
 
         var message = result.choices().get(0).message();
-        assertThat(message.content(), nullValue());
+        assertNull(message.content());
         assertThat(message.refusal(), is("I cannot help with that."));
+    }
+
+    public void testFromResponse_ToolCallsWithoutIndex_AssignsPositionalIndex() throws IOException {
+        var json = """
+            {
+              "id": "chatcmpl-tc1",
+              "object": "chat.completion",
+              "model": "gpt-4o",
+              "choices": [
+                {
+                  "index": 0,
+                  "message": {
+                    "role": "assistant",
+                    "content": null,
+                    "tool_calls": [
+                      {
+                        "id": "call_a",
+                        "type": "function",
+                        "function": { "name": "fn_a", "arguments": "{}" }
+                      },
+                      {
+                        "id": "call_b",
+                        "type": "function",
+                        "function": { "name": "fn_b", "arguments": "{}" }
+                      },
+                      {
+                        "id": "call_c",
+                        "type": "function",
+                        "function": { "name": "fn_c", "arguments": "{}" }
+                      }
+                    ]
+                  },
+                  "finish_reason": "tool_calls"
+                }
+              ]
+            }
+            """;
+
+        var result = OpenAiUnifiedChatCompletionResponseEntity.fromResponse(json.getBytes(StandardCharsets.UTF_8));
+        var toolCalls = result.choices().get(0).message().toolCalls();
+        assertNotNull(toolCalls);
+        assertThat(toolCalls, hasSize(3));
+        assertThat(toolCalls.get(0).index(), is(0));
+        assertThat(toolCalls.get(1).index(), is(1));
+        assertThat(toolCalls.get(2).index(), is(2));
+    }
+
+    public void testFromResponse_MultipleChoices_ResetsToolCallIndexPerChoice() throws IOException {
+        var json = """
+            {
+              "id": "chatcmpl-mc1",
+              "object": "chat.completion",
+              "model": "gpt-4o",
+              "choices": [
+                {
+                  "index": 0,
+                  "message": {
+                    "role": "assistant",
+                    "content": null,
+                    "tool_calls": [
+                      {
+                        "id": "call_a0",
+                        "type": "function",
+                        "function": { "name": "fn_a", "arguments": "{}" }
+                      },
+                      {
+                        "id": "call_a1",
+                        "type": "function",
+                        "function": { "name": "fn_b", "arguments": "{}" }
+                      }
+                    ]
+                  },
+                  "finish_reason": "tool_calls"
+                },
+                {
+                  "index": 1,
+                  "message": {
+                    "role": "assistant",
+                    "content": null,
+                    "tool_calls": [
+                      {
+                        "id": "call_b0",
+                        "type": "function",
+                        "function": { "name": "fn_c", "arguments": "{}" }
+                      },
+                      {
+                        "id": "call_b1",
+                        "type": "function",
+                        "function": { "name": "fn_d", "arguments": "{}" }
+                      }
+                    ]
+                  },
+                  "finish_reason": "tool_calls"
+                }
+              ]
+            }
+            """;
+
+        var result = OpenAiUnifiedChatCompletionResponseEntity.fromResponse(json.getBytes(StandardCharsets.UTF_8));
+        assertThat(result.choices(), hasSize(2));
+
+        var firstToolCalls = result.choices().get(0).message().toolCalls();
+        assertNotNull(firstToolCalls);
+        assertThat(firstToolCalls, hasSize(2));
+        assertThat(firstToolCalls.get(0).index(), is(0));
+        assertThat(firstToolCalls.get(1).index(), is(1));
+
+        var secondToolCalls = result.choices().get(1).message().toolCalls();
+        assertNotNull(secondToolCalls);
+        assertThat(secondToolCalls, hasSize(2));
+        assertThat(secondToolCalls.get(0).index(), is(0));
+        assertThat(secondToolCalls.get(1).index(), is(1));
+    }
+
+    public void testFromResponse_ToolCallsWithExplicitIndex_HonorsDeclaredValues() throws IOException {
+        var json = """
+            {
+              "id": "chatcmpl-ei1",
+              "object": "chat.completion",
+              "model": "gpt-4o",
+              "choices": [
+                {
+                  "index": 0,
+                  "message": {
+                    "role": "assistant",
+                    "content": null,
+                    "tool_calls": [
+                      {
+                        "index": 1,
+                        "id": "call_a",
+                        "type": "function",
+                        "function": { "name": "fn_a", "arguments": "{}" }
+                      },
+                      {
+                        "index": 0,
+                        "id": "call_b",
+                        "type": "function",
+                        "function": { "name": "fn_b", "arguments": "{}" }
+                      }
+                    ]
+                  },
+                  "finish_reason": "tool_calls"
+                }
+              ]
+            }
+            """;
+
+        var result = OpenAiUnifiedChatCompletionResponseEntity.fromResponse(json.getBytes(StandardCharsets.UTF_8));
+        var toolCalls = result.choices().get(0).message().toolCalls();
+        assertNotNull(toolCalls);
+        assertThat(toolCalls, hasSize(2));
+        assertThat(toolCalls.get(0).index(), is(1));
+        assertThat(toolCalls.get(1).index(), is(0));
+    }
+
+    public void testFromResponse_ToolCallsWithMixedIndex_ThrowsException() {
+        var json = """
+            {
+              "id": "chatcmpl-mix1",
+              "object": "chat.completion",
+              "model": "gpt-4o",
+              "choices": [
+                {
+                  "index": 0,
+                  "message": {
+                    "role": "assistant",
+                    "content": null,
+                    "tool_calls": [
+                      {
+                        "index": 0,
+                        "id": "call_a",
+                        "type": "function",
+                        "function": { "name": "fn_a", "arguments": "{}" }
+                      },
+                      {
+                        "id": "call_b",
+                        "type": "function",
+                        "function": { "name": "fn_b", "arguments": "{}" }
+                      }
+                    ]
+                  },
+                  "finish_reason": "tool_calls"
+                }
+              ]
+            }
+            """;
+
+        expectThrows(Exception.class, () -> OpenAiUnifiedChatCompletionResponseEntity.fromResponse(json.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    public void testFromResponse_NullToolCalls_ParsesAsNull() throws IOException {
+        var json = """
+            {
+              "id": "chatcmpl-ntc1",
+              "object": "chat.completion",
+              "model": "gpt-4o",
+              "choices": [
+                {
+                  "index": 0,
+                  "message": {
+                    "role": "assistant",
+                    "content": "Hello",
+                    "tool_calls": null
+                  },
+                  "finish_reason": "stop"
+                }
+              ]
+            }
+            """;
+
+        var result = OpenAiUnifiedChatCompletionResponseEntity.fromResponse(json.getBytes(StandardCharsets.UTF_8));
+        assertNull(result.choices().get(0).message().toolCalls());
+    }
+
+    public void testFromResponse_NullPromptTokensDetails_ParsesSuccessfully() throws IOException {
+        var json = """
+            {
+              "id": "chatcmpl-ptd1",
+              "object": "chat.completion",
+              "model": "gpt-4o",
+              "choices": [
+                {
+                  "index": 0,
+                  "message": {
+                    "role": "assistant",
+                    "content": "Hello"
+                  },
+                  "finish_reason": "stop"
+                }
+              ],
+              "usage": {
+                "prompt_tokens": 5,
+                "completion_tokens": 10,
+                "total_tokens": 15,
+                "prompt_tokens_details": null
+              }
+            }
+            """;
+
+        var result = OpenAiUnifiedChatCompletionResponseEntity.fromResponse(json.getBytes(StandardCharsets.UTF_8));
+        assertNotNull(result.usage());
+        assertThat(result.usage().promptTokens(), is(5));
+        assertThat(result.usage().completionTokens(), is(10));
+        assertThat(result.usage().totalTokens(), is(15));
+        assertNull(result.usage().promptTokensDetails());
+    }
+
+    public void testFromResponse_EmptyPromptTokensDetails_ParsesToNull() throws IOException {
+        var json = """
+            {
+              "id": "chatcmpl-ptd2",
+              "object": "chat.completion",
+              "model": "gpt-4o",
+              "choices": [
+                {
+                  "index": 0,
+                  "message": {
+                    "role": "assistant",
+                    "content": "Hello"
+                  },
+                  "finish_reason": "stop"
+                }
+              ],
+              "usage": {
+                "prompt_tokens": 5,
+                "completion_tokens": 10,
+                "total_tokens": 15,
+                "prompt_tokens_details": {}
+              }
+            }
+            """;
+
+        var result = OpenAiUnifiedChatCompletionResponseEntity.fromResponse(json.getBytes(StandardCharsets.UTF_8));
+        assertNotNull(result.usage());
+        assertNull(result.usage().promptTokensDetails());
+    }
+
+    public void testFromResponse_ExplicitNullTokenCounts_ParsesToNull() throws IOException {
+        // A provider sending explicit JSON nulls for the count fields should not fail the parse,
+        // and the detail objects should collapse to null (both fields null → ofNullable returns null).
+        var json = """
+            {
+              "id": "chatcmpl-ptd3",
+              "object": "chat.completion",
+              "model": "gpt-4o",
+              "choices": [
+                {
+                  "index": 0,
+                  "message": {
+                    "role": "assistant",
+                    "content": "Hello"
+                  },
+                  "finish_reason": "stop"
+                }
+              ],
+              "usage": {
+                "prompt_tokens": 5,
+                "completion_tokens": 10,
+                "total_tokens": 15,
+                "prompt_tokens_details": {
+                  "cached_tokens": null,
+                  "cache_write_tokens": null
+                },
+                "completion_tokens_details": {
+                  "reasoning_tokens": null
+                }
+              }
+            }
+            """;
+
+        var result = OpenAiUnifiedChatCompletionResponseEntity.fromResponse(json.getBytes(StandardCharsets.UTF_8));
+        assertNotNull(result.usage());
+        assertNull(result.usage().promptTokensDetails());
+        assertNull(result.usage().completionTokenDetails());
     }
 
     public void testFromResponse_InvalidJson_ThrowsException() {

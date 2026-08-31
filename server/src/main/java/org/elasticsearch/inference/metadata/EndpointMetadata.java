@@ -135,16 +135,6 @@ public record EndpointMetadata(
         return this.equals(EMPTY_INSTANCE);
     }
 
-    public boolean fingerprintMatches(EndpointMetadata other) {
-        return Objects.equals(internal.fingerprint(), other.internal.fingerprint());
-    }
-
-    public boolean hasNewerVersionThan(EndpointMetadata other) {
-        long thisVersion = Optional.ofNullable(internal.version()).orElse(0L);
-        long otherVersion = Optional.ofNullable(other.internal.version()).orElse(0L);
-        return thisVersion > otherVersion;
-    }
-
     public Params getXContentParamsExcludeInternalFields() {
         return new ToXContent.MapParams(Map.of(INCLUDE_INTERNAL_FIELDS_PARAM_NAME, Boolean.FALSE.toString()));
     }
@@ -187,29 +177,36 @@ public record EndpointMetadata(
     /**
      * Describes an availability region for an inference endpoint.
      *
-     * @param csp    the cloud service provider (e.g., "aws", "gcp", "azure")
-     * @param region the provider-specific region identifier (e.g., "us-east-1")
-     * @param geo    the geographic area (e.g., "us", "eu")
+     * @param csp               the cloud service provider (e.g., "aws", "gcp", "azure")
+     * @param region            the provider-specific region identifier (e.g., "us-east-1")
+     * @param geo               the geographic area (e.g., "us", "eu")
+     * @param regionDisplayName an optional human-readable label for the region (e.g., "US East (N. Virginia)")
      */
-    public record EndpointRegion(@Nullable String csp, @Nullable String region, @Nullable String geo)
+    public record EndpointRegion(@Nullable String csp, @Nullable String region, @Nullable String geo, @Nullable String regionDisplayName)
         implements
             ToXContentObject,
             Writeable {
 
+        public static final TransportVersion REGION_DISPLAY_NAME_ADDED = TransportVersion.fromName(
+            "inference_endpoint_metadata_region_display_name_added"
+        );
+
         public static final ParseField CSP_FIELD = new ParseField("csp");
         public static final ParseField REGION_FIELD = new ParseField("region");
         public static final ParseField GEO_FIELD = new ParseField("geo");
+        public static final ParseField REGION_DISPLAY_NAME_FIELD = new ParseField("region_display_name");
 
         private static final ConstructingObjectParser<EndpointRegion, Void> PARSER = new ConstructingObjectParser<>(
             "endpoint_region",
             true,
-            args -> new EndpointRegion((String) args[0], (String) args[1], (String) args[2])
+            args -> new EndpointRegion((String) args[0], (String) args[1], (String) args[2], (String) args[3])
         );
 
         static {
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CSP_FIELD);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REGION_FIELD);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), GEO_FIELD);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REGION_DISPLAY_NAME_FIELD);
         }
 
         public static EndpointRegion parse(XContentParser parser) throws IOException {
@@ -217,7 +214,12 @@ public record EndpointMetadata(
         }
 
         public EndpointRegion(StreamInput in) throws IOException {
-            this(in.readOptionalString(), in.readOptionalString(), in.readOptionalString());
+            this(
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.getTransportVersion().supports(REGION_DISPLAY_NAME_ADDED) ? in.readOptionalString() : null
+            );
         }
 
         @Override
@@ -232,6 +234,9 @@ public record EndpointMetadata(
             if (geo != null) {
                 builder.field(GEO_FIELD.getPreferredName(), geo);
             }
+            if (regionDisplayName != null) {
+                builder.field(REGION_DISPLAY_NAME_FIELD.getPreferredName(), regionDisplayName);
+            }
             builder.endObject();
             return builder;
         }
@@ -241,6 +246,9 @@ public record EndpointMetadata(
             out.writeOptionalString(csp);
             out.writeOptionalString(region);
             out.writeOptionalString(geo);
+            if (out.getTransportVersion().supports(REGION_DISPLAY_NAME_ADDED)) {
+                out.writeOptionalString(regionDisplayName);
+            }
         }
     }
 
@@ -461,6 +469,16 @@ public record EndpointMetadata(
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(fingerprint);
             out.writeOptionalVLong(version);
+        }
+
+        public boolean fingerprintMatches(Internal other) {
+            return Objects.equals(fingerprint, other.fingerprint);
+        }
+
+        public boolean isNewerThan(Internal other) {
+            long thisVersion = Optional.ofNullable(version).orElse(0L);
+            long otherVersion = Optional.ofNullable(other.version).orElse(0L);
+            return thisVersion > otherVersion;
         }
 
         public boolean isEmpty() {

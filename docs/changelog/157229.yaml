@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 157229
+summary: Fix shared score accumulator amongst segments for ivf search
+type: bug

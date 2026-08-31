@@ -199,6 +199,7 @@ import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCCaptureBox;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCChargeAllocation;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCancellationCheck;
@@ -1515,6 +1516,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
         TargetType targetType = scriptScope.getDecoration(userFunctionRefNode, TargetType.class);
         CapturesDecoration capturesDecoration = scriptScope.getDecoration(userFunctionRefNode, CapturesDecoration.class);
+        // True when a charging path built its own capture names (script + receiver); consulted below so the plain
+        // single-receiver list does not overwrite it.
+        boolean typedChargeAllocation = false;
+        boolean dynamicChargeAllocation = false;
 
         if (targetType == null) {
             Def.Encoding encoding = scriptScope.getDecoration(userFunctionRefNode, EncodingDecoration.class).encoding();
@@ -1523,35 +1528,59 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             if (scriptScope.getCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class)) {
                 defInterfaceReferenceNode.attachCondition(IRCInstanceCapture.class);
             }
+            // Charging def-receiver bound ref (`def s = obj; s::method`): the REFERENCE bootstrap dispatches on the receiver,
+            // so capture [receiver, #scriptThis] rather than IRCInstanceCapture (which prepends the script). Identified by
+            // isStatic==false with a receiver capture (external charging refs have none; typed-receiver ones are isStatic==true).
+            if (encoding.isStatic == false && encoding.chargesAllocation && capturesDecoration != null) {
+                List<String> captureNames = new ArrayList<>();
+                captureNames.add(capturesDecoration.captures().get(0).name());
+                captureNames.add("#scriptThis");
+                defInterfaceReferenceNode.attachDecoration(new IRDCaptureNames(captureNames));
+                dynamicChargeAllocation = true;
+            }
             irReferenceNode = defInterfaceReferenceNode;
         } else if (capturesDecoration != null && capturesDecoration.captures().get(0).type() == def.class) {
+            // Def-receiver bound ref with a known target type (e.g. `Optional.empty().orElseGet(s::method)`, `def s`): like
+            // the def-receiver ref above but emits a real REFERENCE invokedynamic. Under tracking, over-capture and charge it
+            // the same way (receiver type still unknown, so no pre-filter).
             TypedCaptureReferenceNode typedCaptureReferenceNode = new TypedCaptureReferenceNode(userFunctionRefNode.getLocation());
             typedCaptureReferenceNode.attachDecoration(new IRDName(userFunctionRefNode.getMethodName()));
+            if (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()) {
+                List<String> captureNames = new ArrayList<>();
+                captureNames.add(capturesDecoration.captures().get(0).name());
+                captureNames.add("#scriptThis");
+                typedCaptureReferenceNode.attachDecoration(new IRDCaptureNames(captureNames));
+                typedCaptureReferenceNode.attachCondition(IRCChargeAllocation.class);
+                dynamicChargeAllocation = true;
+            }
             irReferenceNode = typedCaptureReferenceNode;
         } else {
             FunctionRef reference = scriptScope.getDecoration(userFunctionRefNode, ReferenceDecoration.class).reference();
             TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode(userFunctionRefNode.getLocation());
             // Charge an annotated reference's allocation per invocation (tracking on): capture the script as a leading
-            // factory capture so the generated lambda can charge before delegating. Covers static-method (H_INVOKESTATIC),
-            // constructor (H_NEWINVOKESPECIAL) and unbound instance-method (H_INVOKEVIRTUAL / H_INVOKEINTERFACE) references;
-            // for the last the receiver is the first argument, matching the estimator's receiver-first signature. Bound
-            // instance-method references (captured receiver) are not charged; unannotated / tracking-off emit unchanged.
-            boolean chargeAllocation = scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
+            // factory capture so the generated lambda can charge before delegating, then drop it. Covers static-method
+            // (H_INVOKESTATIC), constructor (H_NEWINVOKESPECIAL), unbound instance-method (H_INVOKEVIRTUAL / H_INVOKEINTERFACE)
+            // and bound instance-method references (a captured receiver): the script is prepended ahead of the receiver
+            // capture, so after the drop the delegate sees the receiver as before. Unannotated / tracking-off emit unchanged.
+            typedChargeAllocation = scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
                 && reference.allocationEstimator != null
-                && capturesDecoration == null
                 && (reference.delegateInvokeType == Opcodes.H_INVOKESTATIC
                     || reference.delegateInvokeType == Opcodes.H_NEWINVOKESPECIAL
                     || reference.delegateInvokeType == Opcodes.H_INVOKEVIRTUAL
                     || reference.delegateInvokeType == Opcodes.H_INVOKEINTERFACE);
-            if (chargeAllocation) {
-                // Capture the script so the generated lambda can charge the estimator against it; the retained estimator
-                // is the signal to invokeLambdaCall that this reference charges.
-                reference = reference.withSyntheticScriptCapture(scriptScope.getScriptClassInfo().getBaseClass());
-                typedInterfaceReferenceNode.attachDecoration(new IRDCaptureNames(List.of("#scriptThis")));
-            } else {
-                // Not charging (tracking off, or an ineligible reference form): drop the estimator so it emits unchanged.
-                reference = reference.withoutAllocationEstimator();
+            if (typedChargeAllocation) {
+                reference = reference.withAllocationCharge(scriptScope.getScriptClassInfo().getBaseClass());
+                List<String> captureNames = new ArrayList<>();
+                captureNames.add("#scriptThis");
+                if (capturesDecoration != null) {
+                    captureNames.add(capturesDecoration.captures().get(0).name());
+                }
+                typedInterfaceReferenceNode.attachDecoration(new IRDCaptureNames(captureNames));
+                if (capturesDecoration != null && scriptScope.getCondition(userFunctionRefNode, CaptureBox.class)) {
+                    typedInterfaceReferenceNode.attachCondition(IRCCaptureBox.class);
+                }
             }
+            // Not charging: reference.chargesAllocation stays false, so any resolved estimator is unread and it emits unchanged.
             typedInterfaceReferenceNode.attachDecoration(new IRDReference(reference));
             if (scriptScope.getCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class)) {
                 typedInterfaceReferenceNode.attachCondition(IRCInstanceCapture.class);
@@ -1563,7 +1592,9 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             new IRDExpressionType(scriptScope.getDecoration(userFunctionRefNode, ValueType.class).valueType())
         );
 
-        if (capturesDecoration != null) {
+        // A charging reference already built its capture names above (script + receiver); only set the plain
+        // single-receiver capture names for the non-charging case.
+        if (capturesDecoration != null && typedChargeAllocation == false && dynamicChargeAllocation == false) {
             irReferenceNode.attachDecoration(new IRDCaptureNames(List.of(capturesDecoration.captures().get(0).name())));
 
             if (scriptScope.getCondition(userFunctionRefNode, CaptureBox.class)) {

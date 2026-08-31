@@ -7,28 +7,14 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.function.IntConsumer;
 
 public abstract class TimeSeriesGroupingAggregatorEvaluationContext extends GroupingAggregatorEvaluationContext {
-    private IntVector allGroupIds;
 
     public TimeSeriesGroupingAggregatorEvaluationContext(DriverContext driverContext) {
         super(driverContext);
-    }
-
-    /**
-     * Returns the full set of group IDs when output filtering is active.
-     * Window aggregations use this to build intermediate states for non-output buckets.
-     */
-    public IntVector allGroupIds() {
-        return allGroupIds;
-    }
-
-    public void setAllGroupIds(IntVector allGroupIds) {
-        this.allGroupIds = allGroupIds;
     }
 
     /**

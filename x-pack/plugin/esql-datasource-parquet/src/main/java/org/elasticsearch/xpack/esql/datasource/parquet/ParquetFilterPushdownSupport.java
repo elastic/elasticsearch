@@ -173,11 +173,13 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
      * {@link ParquetPushedExpressions#evaluateExpression} that AND-s out the null mask before
      * negating, so both bare and negated forms are YES.
      *
-     * <p>Other predicate families ({@code Eq}, {@code In}, {@code Range}, {@code IsNull},
-     * {@code IsNotNull}) stay {@link Pushability#RECHECK} because the generic bitwise negate
-     * is not TVL-correct for their nulls; the {@code FilterExec} safety net applies them
-     * per-row. {@code Not(And(...))} likewise stays RECHECK — bitwise {@code ~(m1 & m2)} is
-     * not {@code NOT (a AND b)} under TVL when either arm holds null.
+     * <p>{@code Not(EsqlBinaryComparison)}, {@code Not(In)}, and {@code Not(Range)} on a single
+     * column are now also TVL-correct: {@code valueColumnBlockForNot} extracts the column block
+     * so that {@code tvlNegate} can AND-out null/MV positions before negating, exactly as the
+     * LIKE-family does. These predicates could therefore be promoted to {@link Pushability#YES}
+     * (dropping the double-evaluation RECHECK cost), but that promotion is left as a follow-up.
+     * {@code IsNull}/{@code IsNotNull} and {@code Not(And(...))} stay {@link Pushability#RECHECK}:
+     * the null/MV gate can't be derived from a single column block for those forms.
      *
      * <p>{@code AND} of YES-eligible predicates is YES (a {@code 0} on either side blocks the
      * row regardless of provenance). {@code OR} is excluded: {@code evaluateExpression}'s
@@ -189,7 +191,9 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
             return true;
         }
         if (expr instanceof Not not) {
-            // Only the LIKE-family inner predicates have a TVL-aware evaluator special case.
+            // LIKE-family and simple single-column comparisons (Eq/In/Range) are TVL-correct.
+            // The comparison cases are handled via valueColumnBlockForNot + tvlNegate in
+            // ParquetPushedExpressions. Promoting those to YES is a follow-up TODO.
             return isLikeFamily(not.field());
         }
         if (expr instanceof And and) {

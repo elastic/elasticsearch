@@ -291,6 +291,16 @@ public final class SplitDiscoveryPhase {
             result = splitProvider.discoverSplits(context);
         } catch (ElasticsearchException e) {
             throw e;
+        } catch (IllegalArgumentException e) {
+            // Preserve the 400. Everything below is wrapped in a bare ElasticsearchException, which maps to
+            // 500 -- so an invalid setting value reaching here (e.g. target_split_size) was reported as a
+            // server fault even though the parser it came from rejects it as user input. Re-wrap in kind so
+            // the status survives while the path context is still added, mirroring resolveSingleSource's
+            // "Failed to resolve metadata for [path]" wrap, which preserves IllegalArgumentException too.
+            throw new IllegalArgumentException(
+                "failed to discover splits for external source [" + exec.sourcePath() + "] of type [" + exec.sourceType() + "]",
+                e
+            );
         } catch (Exception e) {
             throw new ElasticsearchException(
                 "failed to discover splits for external source [{}] of type [{}]",

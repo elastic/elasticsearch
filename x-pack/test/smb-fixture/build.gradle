@@ -5,7 +5,7 @@ dependencies {
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 
   api project(':test:fixtures:testcontainer-utils')
-  api "junit:junit:${versions.junit}"
+  api "junit:junit:${versions.junit4}"
   api "org.testcontainers:testcontainers:${versions.testcontainer}"
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
 

@@ -12,12 +12,13 @@ import org.elasticsearch.core.Nullable;
  * Read-only context describing a single audit event.
  *
  * @param indices the indices the event relates to, or {@code null} if the event is not index-scoped
+ * @param roles   the roles granting the privileges for the event, or {@code null} if the event was not authorized
  * @param realm   the name of the realm associated with the event, or {@code null} if none applies
  */
-public record AuditEventContext(@Nullable String[] indices, @Nullable String realm) {
+public record AuditEventContext(@Nullable String[] indices, @Nullable String[] roles, @Nullable String realm) {
 
     /**
      * An empty context, used when no event-specific information is available.
      */
-    public static final AuditEventContext EMPTY = new AuditEventContext(null, null);
+    public static final AuditEventContext EMPTY = new AuditEventContext(null, null, null);
 }

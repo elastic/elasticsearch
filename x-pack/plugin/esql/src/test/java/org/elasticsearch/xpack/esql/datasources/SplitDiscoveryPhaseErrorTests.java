@@ -8,22 +8,27 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -61,6 +66,110 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("gcs://bucket/files/*.csv"));
         assertThat(e.getMessage(), containsString("csv"));
         assertThat(e.getCause(), instanceOf(RuntimeException.class));
+    }
+
+    /**
+     * A user-caused failure keeps its 400. Everything that is not an {@link ElasticsearchException} used to be
+     * wrapped in a bare one, which maps to 500 -- so converting a config parser to {@link IllegalArgumentException}
+     * bought nothing on the only query path that reaches it: the status was thrown away one frame up. The wrap now
+     * preserves the type while still adding the source path and format, so the parser conversions are not cosmetic.
+     */
+    public void testIllegalArgumentExceptionKeepsClientStatusAndGainsContext() {
+        ExternalSourceExec exec = createExternalSourceExec("s3://bucket/data/*.csv", "csv");
+        IllegalArgumentException original = new IllegalArgumentException("Invalid value for [target_split_size]: [0b]; must be positive");
+        SplitProvider failingProvider = ctx -> { throw original; };
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("csv", testFactory(failingProvider)))
+        );
+
+        assertEquals("a user-caused split-discovery failure is a client error", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString("s3://bucket/data/*.csv"));
+        assertThat(e.getMessage(), containsString("csv"));
+        assertSame("the original failure must be preserved as the cause", original, e.getCause());
+    }
+
+    /**
+     * The escape, not the throw. {@link #testIllegalArgumentExceptionKeepsClientStatusAndGainsContext} hands the
+     * phase a hand-built {@link IllegalArgumentException}, so it pins the wrap and nothing more: it stays green no
+     * matter what {@code FileSplitProvider} actually throws. This runs the real provider over a real one-file list
+     * with a real bad {@code target_split_size}, so it fails the moment the parser goes back to throwing a
+     * {@code QlIllegalArgumentException} -- which the {@code catch (ElasticsearchException)} arm above rethrows
+     * untouched, losing both the 400 and the source-path context this asserts.
+     */
+    public void testRealSplitProviderRejectsTargetSplitSizeAsClientErrorThroughThePhase() {
+        assertDatasetKeyRejectedAsClientError(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE, "0b");
+    }
+
+    public void testRealSplitProviderRejectsSplitProbeWindowAsClientErrorThroughThePhase() {
+        assertDatasetKeyRejectedAsClientError(FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW, "0b");
+    }
+
+    /** A count takes no unit suffix, so a byte size is as invalid here as a non-number is. */
+    public void testRealSplitProviderRejectsMaxSplitProbesAsClientErrorThroughThePhase() {
+        assertDatasetKeyRejectedAsClientError(FileSplitProvider.CONFIG_MAX_SPLIT_PROBES, randomFrom("0", "-1", "1mb", "many"));
+    }
+
+    public void testRealSplitProviderRejectsMaxSplitProbesAboveItsCeiling() {
+        assertDatasetKeyRejectedAsClientError(
+            FileSplitProvider.CONFIG_MAX_SPLIT_PROBES,
+            Integer.toString(FileSplitProvider.MAX_SPLIT_PROBES_CEILING + 1)
+        );
+    }
+
+    /**
+     * Two values that each pass their own parser and together ask for more reads than a query may spend. Neither
+     * key can see the other, so this is what pins that the pair is checked at all rather than only the parts.
+     */
+    public void testRealSplitProviderRejectsAProbeBudgetOverTheCeiling() {
+        long overTheBudget = 2 * FileSplitProvider.MAX_PROBE_BUDGET_BYTES;
+        int probes = 2 * FileSplitProvider.DEFAULT_MAX_SPLIT_PROBES;
+        assertDatasetKeysRejectedAsClientError(
+            Map.of(
+                FileSplitProvider.CONFIG_MAX_SPLIT_PROBES,
+                Integer.toString(probes),
+                FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW,
+                (overTheBudget / probes) + "b"
+            ),
+            FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW
+        );
+    }
+
+    private static void assertDatasetKeyRejectedAsClientError(String key, String value) {
+        assertDatasetKeysRejectedAsClientError(Map.of(key, value), key);
+    }
+
+    /**
+     * @param namedInMessage the key the rejection has to name, which for a whole-config failure is whichever of
+     *                       them the message leads with
+     */
+    private static void assertDatasetKeysRejectedAsClientError(Map<String, Object> config, String namedInMessage) {
+        StorageEntry file = new StorageEntry(StoragePath.of("s3://bucket/data/events.ndjson"), 3000, Instant.EPOCH);
+        ExternalSourceExec exec = new ExternalSourceExec(
+            SRC,
+            "s3://bucket/data/*.ndjson",
+            "ndjson",
+            List.of(fieldAttr("id", DataType.LONG)),
+            config,
+            Map.of(),
+            null,
+            null
+        ).withFileList(GlobExpander.fileListOf(List.of(file), "s3://bucket/data/*.ndjson"));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("ndjson", testFactory(new FileSplitProvider())))
+        );
+
+        assertEquals(
+            "an invalid [" + namedInMessage + "] is the user's mistake, not ours",
+            RestStatus.BAD_REQUEST,
+            ExceptionsHelper.status(e)
+        );
+        assertThat(e.getMessage(), containsString("s3://bucket/data/*.ndjson"));
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause().getMessage(), containsString(namedInMessage));
     }
 
     public void testElasticsearchExceptionNotDoubleWrapped() {

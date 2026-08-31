@@ -9,6 +9,8 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -25,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
+@ThreadLeakFilters(filters = { GrpcThreadsFilter.class })
 public abstract class AbstractTelemetryIT extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(AbstractTelemetryIT.class);
 

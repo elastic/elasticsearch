@@ -109,6 +109,7 @@ public class ColumnarSourceLicensingTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(DATA_STREAM_NAME, 0),
             DATA_STREAM_NAME,
             columnarMode,
+            false,
             emptyProject(),
             Instant.now(),
             indexSettings,

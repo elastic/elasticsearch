@@ -16,37 +16,41 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.roaringbitmap.RoaringBitmap;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Base64;
 import java.util.Objects;
 
 /**
- * A query that matches documents whose integer field value is present in a RoaringBitmap,
+ * A query that matches documents whose numeric field value is present in a RoaringBitmap,
  * supplied as a base64-encoded serialized bitmap in little-endian byte order.
  * <p>
- * Only supported on indexed {@code integer} fields ({@code index: true}).
- * Only non-negative values (0 to 2,147,483,647) are supported.
- * <p>
+ * Only supported on indexed {@code integer} and {@code long} fields ({@code index: true}), and only
+ * for non-negative values &mdash; 0 to 2,147,483,647 for {@code integer}, 0 to
+ * 9,223,372,036,854,775,807 for {@code long}. The field's type selects the bitmap format:
+ * <ul>
+ *   <li>{@code integer} expects a 32-bit RoaringBitmap, as produced by
+ *       {@code RoaringBitmap#serialize} or pyroaring's {@code BitMap#serialize}.</li>
+ *   <li>{@code long} expects a 64-bit bitmap in the portable format, as produced by
+ *       {@code Roaring64NavigableMap#serializePortable} or pyroaring's {@code BitMap64#serialize}
+ *       (see {@link LongBitmap}). Java clients must call {@code serializePortable} rather than
+ *       {@code serialize}, which defaults to a different layout.</li>
+ * </ul>
  * Example:
  * <pre>{@code
  * {
  *   "bitmap_terms": {
- *     "field": "my_integer_field",
+ *     "field": "my_long_field",
  *     "value": "<base64-encoded bitmap>"
  *   }
  * }
  * }</pre>
  */
-public class BitmapTermsQueryBuilder extends AbstractQueryBuilder<BitmapTermsQueryBuilder> {
+public class BitmapTermsQueryBuilder extends LeafQueryBuilder<BitmapTermsQueryBuilder> {
 
     public static final String NAME = "bitmap_terms";
 
@@ -143,15 +147,16 @@ public class BitmapTermsQueryBuilder extends AbstractQueryBuilder<BitmapTermsQue
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (!(fieldType instanceof NumberFieldMapper.NumberFieldType numberFieldType)
-            || numberFieldType.numberType() != NumberFieldMapper.NumberType.INTEGER
+            || (numberFieldType.numberType() != NumberFieldMapper.NumberType.INTEGER
+                && numberFieldType.numberType() != NumberFieldMapper.NumberType.LONG)
             || (numberFieldType.isIndexedWithPoints() == false && numberFieldType.isIndexedWithTerms() == false)) {
             throw new IllegalArgumentException(
                 "[bitmap_terms] query is not supported on field ["
                     + fieldName
-                    + "]: only supported on [integer] fields indexed with points or terms"
+                    + "]: only supported on [integer] and [long] fields indexed with points or terms"
             );
         }
         byte[] bitmapBytes;
@@ -160,22 +165,50 @@ public class BitmapTermsQueryBuilder extends AbstractQueryBuilder<BitmapTermsQue
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("[bitmap_terms] query expects a base64-encoded RoaringBitmap value", e);
         }
-        RoaringBitmap bitmap = new RoaringBitmap();
+        BitmapValues values = switch (numberFieldType.numberType()) {
+            case INTEGER -> integerValues(bitmapBytes);
+            case LONG -> longValues(bitmapBytes);
+            default -> throw new AssertionError("unexpected number type [" + numberFieldType.numberType() + "]");
+        };
+        // The two queries differ only in which index structure they merge against; the field's width
+        // is carried by the BitmapValues.
+        if (numberFieldType.isIndexedWithTerms()) {
+            return new BitmapTermsQuery(fieldName, values);
+        }
+        return new BitmapBKDQuery(fieldName, values);
+    }
+
+    private static IntBitmap integerValues(byte[] bitmapBytes) {
+        IntBitmap bitmap;
         try {
-            bitmap.deserialize(ByteBuffer.wrap(bitmapBytes).order(ByteOrder.LITTLE_ENDIAN));
-            bitmap.validate();
+            bitmap = IntBitmap.deserialize(bitmapBytes);
         } catch (Exception e) {
             throw new IllegalArgumentException("[bitmap_terms] query value is not a valid serialized RoaringBitmap", e);
         }
-        if (bitmap.isEmpty() == false && bitmap.last() < 0) {
+        if (bitmap.hasNegativeValues()) {
             throw new IllegalArgumentException(
                 "[bitmap_terms] query on [integer] field only supports non-negative values (0 to 2147483647)"
             );
         }
-        if (numberFieldType.isIndexedWithTerms()) {
-            return new IntBitmapIndexTermsQuery(fieldName, bitmap);
+        return bitmap;
+    }
+
+    private static LongBitmap longValues(byte[] bitmapBytes) {
+        LongBitmap bitmap;
+        try {
+            bitmap = LongBitmap.deserializePortable(bitmapBytes);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                "[bitmap_terms] query value is not a valid serialized 64-bit RoaringBitmap in the portable format",
+                e
+            );
         }
-        return new IntBitmapIndexBKDQuery(fieldName, bitmap);
+        if (bitmap.hasNegativeValues()) {
+            throw new IllegalArgumentException(
+                "[bitmap_terms] query on [long] field only supports non-negative values (0 to 9223372036854775807)"
+            );
+        }
+        return bitmap;
     }
 
     @Override

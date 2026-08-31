@@ -117,6 +117,28 @@ public interface ZstdLibrary {
     long freeDStream(MemorySegment dstream);
 
     /**
+     * Set a decompression parameter on a context ({@code ZSTD_DStream} is a typedef of {@code ZSTD_DCtx},
+     * so the handle from {@link #createDStream()} is accepted). Used to pin {@code ZSTD_d_windowLogMax},
+     * which caps the back-reference window the streaming decoder is willing to allocate — the memory-safety
+     * knob against maliciously or accidentally large-window frames.
+     *
+     * @return {@code 0} on success, or an error code testable with {@link #isError(long)}.
+     * @see <a href="https://facebook.github.io/zstd/zstd_manual.html">ZSTD_DCtx_setParameter</a>
+     */
+    @Function("ZSTD_DCtx_setParameter")
+    long dctxSetParameter(MemorySegment dctx, int param, int value);
+
+    /**
+     * Current native memory footprint of a streaming decompression context, in bytes. The figure grows
+     * once the frame header is parsed and the back-reference window is allocated, so callers sample it
+     * <em>after</em> the first {@code ZSTD_decompressStream} call to observe the steady-state size.
+     *
+     * @see <a href="https://facebook.github.io/zstd/zstd_manual.html">ZSTD_sizeof_DStream</a>
+     */
+    @Function("ZSTD_sizeof_DStream")
+    long sizeofDStream(MemorySegment dstream);
+
+    /**
      * Recommended input buffer size for streaming decompression.
      *
      * @see <a href="https://facebook.github.io/zstd/zstd_manual.html">ZSTD_DStreamInSize</a>

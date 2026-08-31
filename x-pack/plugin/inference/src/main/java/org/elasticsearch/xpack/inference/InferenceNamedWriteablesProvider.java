@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
@@ -112,7 +112,6 @@ import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatso
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankTaskSettings;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingServiceSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAITextEmbeddingServiceSettings;
@@ -795,8 +794,8 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 InferenceServiceResults.class,
-                UnifiedChatCompletionResults.NAME,
-                UnifiedChatCompletionResults::new
+                ChatCompletionChunkResponse.NAME,
+                ChatCompletionChunkResponse::new
             )
         );
         namedWriteables.add(
@@ -921,9 +920,6 @@ public class InferenceNamedWriteablesProvider {
     }
 
     private static void addJinaAINamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(ServiceSettings.class, JinaAICommonServiceSettings.NAME, JinaAICommonServiceSettings::new)
-        );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 ServiceSettings.class,

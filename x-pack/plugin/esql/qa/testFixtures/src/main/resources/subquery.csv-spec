@@ -197,6 +197,7 @@ sample_data    | null           | null              | 172.21.3.15 | 172.21.3.15
 
 subqueryMetadataIndex
 required_capability: subquery_in_from_command
+skip_columnar: _index_mode metadata correctly reports "columnar" in columnar mode but the csv-spec oracle expects "standard"
 
 // tag::subquery_with_metadata[]
 FROM employees,
@@ -219,6 +220,7 @@ count:long | emp_no:integer | _index:keyword | _index_mode:keyword
 
 subqueryMetadataIndexInner
 required_capability: subquery_in_from_command
+skip_columnar: _index_mode metadata correctly reports "columnar" in columnar mode but the csv-spec oracle expects "standard"
 
 // tag::subquery_with_metadata_inner[]
 FROM employees,
@@ -240,6 +242,7 @@ count:long | emp_no:integer | _index:keyword | _index_mode:keyword
 
 subqueryMetadataIndexOuter
 required_capability: subquery_in_from_command
+skip_columnar: _index_mode metadata correctly reports "columnar" in columnar mode but the csv-spec oracle expects "standard"
 
 // tag::subquery_with_metadata_outer[]
 FROM employees,
@@ -861,10 +864,10 @@ required_capability: change_point
 required_capability: subquery_in_from_command
 
 FROM employees_incompatible, (FROM employees
-                                                        | EVAL salary = CASE(emp_no==10022, 100000, salary)
-                                                        | EVAL salary = CASE(emp_no==10023, 1000000, salary)
-                                                        | KEEP emp_no, salary
-                                                        | CHANGE_POINT salary ON emp_no AS type, pvalue)
+                              | EVAL salary = CASE(emp_no==10023, 1000000, salary)
+                              | KEEP emp_no, salary
+                              | WHERE emp_no < 10025
+                              | CHANGE_POINT salary ON emp_no AS type, pvalue)
             metadata _index
 | EVAL emp_no = emp_no::long, salary = salary::long
 | WHERE pvalue is not null and type is not null
@@ -872,8 +875,8 @@ FROM employees_incompatible, (FROM employees
 | KEEP  _index, emp_no, salary, type, pvalue
 ;
 
-_index:keyword         | emp_no:long | salary:long | type:keyword | pvalue:double
-null           | 10023       | 1000000     | spike        | 0.0
+_index:keyword | emp_no:long | salary:long | type:keyword | pvalue:double
+null           | 10023       | 1000000     | spike        | 0..1E-100
 ;
 
 subqueryInFromWithChangePointInMainQuery
@@ -883,8 +886,8 @@ required_capability: subquery_in_from_command
 FROM employees, (FROM employees_incompatible
                                  | KEEP emp_no, salary)
 | EVAL emp_no = emp_no::long, salary = salary::long
-| EVAL salary = CASE(emp_no==10022, 100000::long, salary)
 | EVAL salary = CASE(emp_no==10023, 1000000::long, salary)
+| WHERE emp_no < 10025
 | CHANGE_POINT salary ON emp_no AS type, pvalue
 | WHERE pvalue is not null and type is not null
 | SORT emp_no
@@ -892,7 +895,7 @@ FROM employees, (FROM employees_incompatible
 ;
 
 emp_no:long | salary:long | type:keyword | pvalue:double
-10023       | 1000000     | spike        | 0.0
+10023       | 1000000     | spike        | 0..1E-100
 ;
 
 subqueryInFromWithCompletionInSubquery
@@ -900,6 +903,7 @@ required_capability: completion
 required_capability: match_operator_colon
 required_capability: subquery_in_from_command
 required_capability: routing_function_update
+skip_columnar: queries a completion field, which cannot be reconstructed from doc values in columnar mode
 
 FROM sample_data, (FROM books metadata _score
                                    | WHERE title:"war and peace" AND author:"Tolstoy"

@@ -32,6 +32,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
@@ -1152,6 +1153,20 @@ public final class EsqlTestUtils {
     }
 
     /**
+     * Resolves a single classpath resource by its exact name, stripping
+     * any leading "/" (resource names looked up via the classloader must
+     * not start with "/"). This is a fast alternative to
+     * {@link #classpathResources(String)} for callers who already know
+     * the exact resource name and don't need pattern matching.
+     */
+    public static URL classpathResource(String name) {
+        while (name.startsWith("/")) {
+            name = name.substring(1);
+        }
+        return EsqlTestUtils.class.getClassLoader().getResource(name);
+    }
+
+    /**
      * Returns the classpath resources matching a simple pattern ("*.csv").
      * It supports folders separated by "/" (e.g. "/some/folder/*.txt").
      *
@@ -1283,6 +1298,14 @@ public final class EsqlTestUtils {
                 var from = randomMillisUpToYear9999();
                 var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
                 yield new LongRangeBlockBuilder.LongRange(from, to);
+            }
+            case DOUBLE_RANGE -> {
+                double first = randomDouble();
+                double second;
+                do {
+                    second = randomDouble();
+                } while (first == second);
+                yield new DoubleRangeBlockBuilder.DoubleRange(Math.min(first, second), Math.max(first, second));
             }
             case NULL -> null;
             case SOURCE -> {

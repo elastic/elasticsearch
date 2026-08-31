@@ -21,7 +21,7 @@ final class EscfDoubleColumn extends AbstractFixed64Column {
     }
 
     @Override
-    byte kind() {
+    public byte kind() {
         return EscfColumnKind.DOUBLE;
     }
 
@@ -31,7 +31,7 @@ final class EscfDoubleColumn extends AbstractFixed64Column {
     }
 
     @Override
-    double getDoubleValue(int row) {
+    public double getDoubleValue(int row) {
         return Double.longBitsToDouble(rawLong(row));
     }
 

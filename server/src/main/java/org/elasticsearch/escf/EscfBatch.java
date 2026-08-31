@@ -110,8 +110,8 @@ public final class EscfBatch implements SourceBatch {
         return new EscfRow(this, docIndex);
     }
 
-    /** The typed view for {@code columnIndex}. Package-private: used by {@link EscfRow}. */
-    EscfColumn column(int columnIndex) {
+    /** The typed view for {@code columnIndex}. */
+    public EscfColumn column(int columnIndex) {
         return columns[columnIndex];
     }
 

@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 
 import java.util.List;
@@ -32,6 +34,11 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
         return "SET unmapped_fields=\"load\"; " + query;
     }
 
+    static String setUnmappedLoadAll(String query) {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.isEnabled());
+        return "SET unmapped_fields=\"LOAD_ALL\"; " + query;
+    }
+
     static String setUnmappedNullify(String query) {
         return "SET unmapped_fields=\"nullify\"; " + query;
     }
@@ -49,7 +56,9 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
             "lookup_only",
             keywordField("lookup_only")
         );
-        return IndexResolution.valid(new EsIndex("custom_lookup", mapping, Map.of("custom_lookup", IndexMode.LOOKUP), Map.of(), Map.of()));
+        return IndexResolution.valid(
+            new EsIndex("custom_lookup", mapping, Map.of("custom_lookup", new IndexProperties(IndexMode.LOOKUP, 0)), Map.of(), Map.of())
+        );
     }
 
     static IndexResolution keywordLanguagesLookup() {
@@ -57,7 +66,7 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
             new EsIndex(
                 "keyword_languages_lookup",
                 Map.of("language_code", keywordField("language_code"), "language_name", keywordField("language_name")),
-                Map.of("keyword_languages_lookup", IndexMode.LOOKUP),
+                Map.of("keyword_languages_lookup", new IndexProperties(IndexMode.LOOKUP, 0)),
                 Map.of(),
                 Map.of()
             )
@@ -74,7 +83,7 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
             new EsIndex(
                 "message_lookup",
                 Map.of("message", keywordField("message"), "type", keywordField("type")),
-                Map.of("message_lookup", IndexMode.LOOKUP),
+                Map.of("message_lookup", new IndexProperties(IndexMode.LOOKUP, 0)),
                 Map.of(),
                 Map.of()
             )

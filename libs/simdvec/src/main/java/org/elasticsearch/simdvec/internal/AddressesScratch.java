@@ -12,6 +12,7 @@ package org.elasticsearch.simdvec.internal;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.util.function.IntFunction;
 
 /**
  * Reusable, lazily-grown scratch buffer for an array of native addresses
@@ -20,7 +21,7 @@ import java.lang.foreign.ValueLayout;
  *
  * <p>Not thread-safe; instances must not be shared across threads.
  */
-public final class AddressesScratch {
+public final class AddressesScratch implements IntFunction<MemorySegment> {
 
     private MemorySegment seg;
 
@@ -32,20 +33,10 @@ public final class AddressesScratch {
      * instance until a larger one is needed.
      *
      * <p>
-     * Segments are returned from an auto arena, so they are garbage-collected. Choice
-     * here was between:<ul>
-     * <li> a confined arena (but confined arenas have thread affinity, which is probably
-     * OK for our use cases, but it would add a very implicit contract),</li>
-     * <li> a shared arena (but that has extra
-     * invocation costs)</li>
-     * <li> or an auto arena.</li>
-     * </ul>
-     * The first 2 would have to be closed and re-created (basically, 1 arena - 1 segment).
-     * The pro would have been a more controlled/deterministic lifecycle. The cons are listed above,
-     * plus the additional complexity that an auto arena does not have. Auto here seems to be
-     * the sweet spot.
+     * Segments are returned from an auto arena, so they are garbage-collected.
      */
-    public MemorySegment get(int count) {
+    @Override
+    public MemorySegment apply(int count) {
         long needed = (long) count * ValueLayout.ADDRESS.byteSize();
         if (seg == null || seg.byteSize() < needed) {
             // No need to call close() here, or to keep a reference to the Arena: Arena#ofAuto is

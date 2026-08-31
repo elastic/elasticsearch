@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
 
 public class ShutdownPrepareServiceTests extends ESTestCase {
 
-    public void testAwaitTasksComplete_timesOut() {
+    public void testAwaitTasksCompleteInternal_timesOut() {
         String actionName = "test:action/name";
         TaskManager taskManager = mock();
         long taskId = randomNonNegativeLong();
@@ -46,17 +46,18 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         );
         when(taskManager.getTasks()).thenReturn(Map.of(taskId, task));
 
-        boolean completed = ShutdownPrepareService.awaitTasksComplete(
+        boolean completed = ShutdownPrepareService.awaitTasksCompleteInternal(
             timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
             mock(),
             actionName,
             taskManager,
+            null,
             null
         );
         assertThat(completed, is(false));
     }
 
-    public void testAwaitTasksComplete_completes() {
+    public void testAwaitTasksCompleteInternal_completes() {
         String actionName = "test:action/name";
         TaskManager taskManager = mock();
         long taskId = randomNonNegativeLong();
@@ -79,17 +80,18 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
             // Third call: empty
             .thenReturn(Map.of());
 
-        boolean completed = ShutdownPrepareService.awaitTasksComplete(
+        boolean completed = ShutdownPrepareService.awaitTasksCompleteInternal(
             timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
             mock(),
             actionName,
             taskManager,
+            null,
             null
         );
         assertThat(completed, is(true));
     }
 
-    public void testAwaitTasksComplete_invokesNotifierExactlyOnceForEachTask() {
+    public void testAwaitTasksCompleteInternal_invokesNotifierExactlyOnceForEachTask() {
         String actionName = "test:action/name";
         TaskManager taskManager = mock();
         String nodeId = randomAlphaOfLength(10);
@@ -135,12 +137,13 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
             .thenReturn(Map.of(taskId2, task2));
 
         List<Task> notified = new ArrayList<>();
-        ShutdownPrepareService.awaitTasksComplete(
+        ShutdownPrepareService.awaitTasksCompleteInternal(
             timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
             mock(),
             actionName,
             taskManager,
-            notified::add
+            notified::add,
+            null
         );
         assertThat(notified, containsInAnyOrder(task1, task2, task3)); // should notify each task exactly once
     }

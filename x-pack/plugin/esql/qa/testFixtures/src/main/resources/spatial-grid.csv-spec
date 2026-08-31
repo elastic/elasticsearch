@@ -17,6 +17,18 @@ u3bu           | u3bu
 // end::to_geohash-result[]
 ;
 
+toGeohashFromKeywordField
+required_capability: spatial_grid_types
+
+FROM conv_from_keyword
+| EVAL geohash = TO_GEOHASH(geohash_str)
+| KEEP geohash_str, geohash
+;
+
+geohash_str:keyword | geohash:geohash
+u3bu                | u3bu
+;
+
 toGeohashToLong
 required_capability: spatial_grid_types
 
@@ -514,6 +526,83 @@ count:long | centroid:geo_point
 ;
 
 ###############################################
+# Tests for geo_shape support in ST_GEOHASH
+###############################################
+
+geohashFromGeoShape
+required_capability: spatial_grid_geo_shape
+
+// POINT geo_shape gives the same result as geo_point
+ROW location = TO_GEOSHAPE("POINT(12.6493508684508 55.6285017221528)")
+| EVAL geohash4 = ST_GEOHASH(location, 4),
+       geohash3 = ST_GEOHASH(location, 3),
+       geohash2 = ST_GEOHASH(location, 2),
+       geohash1 = ST_GEOHASH(location, 1)
+| KEEP geohash4, geohash3, geohash2, geohash1
+;
+
+geohash4:geohash | geohash3:geohash | geohash2:geohash | geohash1:geohash
+u3bu             | u3b              | u3               | u
+;
+
+geohashFromGeoShapePolygon
+required_capability: spatial_grid_geo_shape
+
+// This tiny polygon fits entirely within a single geohash cell at these precisions
+ROW location = TO_GEOSHAPE("POLYGON((12.62 55.62, 12.64 55.62, 12.64 55.64, 12.62 55.64, 12.62 55.62))")
+| EVAL geohash3 = ST_GEOHASH(location, 3),
+       geohash1 = ST_GEOHASH(location, 1)
+| KEEP geohash3, geohash1
+;
+
+geohash3:geohash | geohash1:geohash
+u3b              | u
+;
+
+geohashFromGeoShapeLinestring
+required_capability: spatial_grid_geo_shape
+
+// This short linestring fits entirely within a single geohash cell at precision 1
+ROW location = TO_GEOSHAPE("LINESTRING(10 52, 15 58)")
+| EVAL geohash1 = ST_GEOHASH(location, 1)
+| KEEP geohash1
+;
+
+geohash1:geohash
+u
+;
+
+geohashFromGeoShapePolygonMv
+required_capability: spatial_grid_geo_shape
+
+// Polygon spanning cells u (lon [0,45]) and v (lon [45,90]) at geohash precision 1 returns multi-values
+ROW location = TO_GEOSHAPE("POLYGON((40 50, 50 50, 50 60, 40 60, 40 50))")
+| EVAL hashes = ST_GEOHASH(location, 1)
+| EVAL count = MV_COUNT(hashes)
+| EVAL hashes_str = MV_SORT(TO_STRING(hashes))
+| KEEP count, hashes_str
+;
+
+count:integer | hashes_str:keyword
+2             | [u, v]
+;
+
+geohashFromGeoShapePolygonMvWithBounds
+required_capability: spatial_grid_geo_shape
+
+// Polygon spanning 4 precision-1 cells (s, t, u, v); bounds (lat >= 45) filters to 2 northern cells
+ROW location = TO_GEOSHAPE("POLYGON((40 40, 55 40, 55 60, 40 60, 40 40))")
+| EVAL hashes = ST_GEOHASH(location, 1, TO_GEOSHAPE("BBOX(0, 90, 90, 45)"))
+| EVAL count = MV_COUNT(hashes)
+| EVAL hashes_str = MV_SORT(TO_STRING(hashes))
+| KEEP count, hashes_str
+;
+
+count:integer | hashes_str:keyword
+2             | [u, v]
+;
+
+###############################################
 # Tests for geo_grid function: ST_GEOTILE
 ###############################################
 
@@ -530,6 +619,18 @@ ROW string = "4/8/5"
 string:keyword | geotile:geotile
 4/8/5          | 4/8/5
 // end::to_geotile-result[]
+;
+
+toGeotileFromKeywordField
+required_capability: spatial_grid_types
+
+FROM conv_from_keyword
+| EVAL geotile = TO_GEOTILE(geotile_str)
+| KEEP geotile_str, geotile
+;
+
+geotile_str:keyword | geotile:geotile
+4/8/5               | 4/8/5
 ;
 
 toGeotileToLong
@@ -925,8 +1026,85 @@ FROM airports
 | SORT count DESC
 ;
 
-count:long | centroid:geo_point                          
+count:long | centroid:geo_point
 17         | POINT (-2.597342072712148 54.33551226578214)
+;
+
+###############################################
+# Tests for geo_shape support in ST_GEOTILE
+###############################################
+
+geotileFromGeoShape
+required_capability: spatial_grid_geo_shape
+
+// POINT geo_shape gives the same result as geo_point
+ROW location = TO_GEOSHAPE("POINT(12.6493508684508 55.6285017221528)")
+| EVAL geotile4 = ST_GEOTILE(location, 4),
+       geotile3 = ST_GEOTILE(location, 3),
+       geotile2 = ST_GEOTILE(location, 2),
+       geotile1 = ST_GEOTILE(location, 1)
+| KEEP geotile4, geotile3, geotile2, geotile1
+;
+
+geotile4:geotile | geotile3:geotile | geotile2:geotile | geotile1:geotile
+4/8/5            | 3/4/2            | 2/2/1            | 1/1/0
+;
+
+geotileFromGeoShapePolygon
+required_capability: spatial_grid_geo_shape
+
+// This small polygon fits entirely within a single geotile cell at these precisions
+ROW location = TO_GEOSHAPE("POLYGON((12.5 55.5, 12.75 55.5, 12.75 55.75, 12.5 55.75, 12.5 55.5))")
+| EVAL geotile3 = ST_GEOTILE(location, 3),
+       geotile1 = ST_GEOTILE(location, 1)
+| KEEP geotile3, geotile1
+;
+
+geotile3:geotile | geotile1:geotile
+3/4/2            | 1/1/0
+;
+
+geotileFromGeoShapeLinestring
+required_capability: spatial_grid_geo_shape
+
+// This short linestring fits entirely within a single geotile cell at precision 1
+ROW location = TO_GEOSHAPE("LINESTRING(10 52, 15 58)")
+| EVAL geotile1 = ST_GEOTILE(location, 1)
+| KEEP geotile1
+;
+
+geotile1:geotile
+1/1/0
+;
+
+geotileFromGeoShapePolygonMv
+required_capability: spatial_grid_geo_shape
+
+// Polygon spanning tiles 2/2/1 (lon [0,90]) and 2/3/1 (lon [90,180]) at geotile precision 2 returns multi-values
+ROW location = TO_GEOSHAPE("POLYGON((85 45, 95 45, 95 55, 85 55, 85 45))")
+| EVAL tiles = ST_GEOTILE(location, 2)
+| EVAL count = MV_COUNT(tiles)
+| EVAL tiles_str = MV_SORT(TO_STRING(tiles))
+| KEEP count, tiles_str
+;
+
+count:integer | tiles_str:keyword
+2             | [2/2/1, 2/3/1]
+;
+
+geotileFromGeoShapePolygonMvWithBounds
+required_capability: spatial_grid_geo_shape
+
+// Polygon spanning 3 precision-2 tiles (2/1/1, 2/2/1, 2/3/1); bounds (lon >= 1) filters to 2 eastern tiles
+ROW location = TO_GEOSHAPE("POLYGON((-10 40, 100 40, 100 55, -10 55, -10 40))")
+| EVAL tiles = ST_GEOTILE(location, 2, TO_GEOSHAPE("BBOX(1, 180, 60, 30)"))
+| EVAL count = MV_COUNT(tiles)
+| EVAL tiles_str = MV_SORT(TO_STRING(tiles))
+| KEEP count, tiles_str
+;
+
+count:integer | tiles_str:keyword
+2             | [2/2/1, 2/3/1]
 ;
 
 ###############################################
@@ -946,6 +1124,18 @@ ROW string = "841f059ffffffff"
 string:keyword  | geohex:geohex
 841f059ffffffff | 841f059ffffffff
 // end::to_geohex-result[]
+;
+
+toGeohexFromKeywordField
+required_capability: spatial_grid_types
+
+FROM conv_from_keyword
+| EVAL geohex = TO_GEOHEX(geohex_str)
+| KEEP geohex_str, geohex
+;
+
+geohex_str:keyword | geohex:geohex
+841f059ffffffff    | 841f059ffffffff
 ;
 
 toGeohexToLong
@@ -1490,9 +1680,85 @@ FROM airports
 | SORT count DESC
 ;
 
-count:long | centroid:geo_point 
+count:long | centroid:geo_point
 13         | POINT (-2.283508819169723 53.28242553254733)
 2          | POINT (-3.482485176064074 58.24696456314996)
+;
+
+###############################################
+# Tests for geo_shape support in ST_GEOHEX
+###############################################
+
+geohexFromGeoShape
+required_capability: spatial_grid_geo_shape
+
+// POINT geo_shape gives the same result as geo_point
+ROW location = TO_GEOSHAPE("POINT(12.6493508684508 55.6285017221528)")
+| EVAL geohex4 = ST_GEOHEX(location, 4),
+       geohex3 = ST_GEOHEX(location, 3),
+       geohex2 = ST_GEOHEX(location, 2),
+       geohex1 = ST_GEOHEX(location, 1)
+| KEEP geohex4, geohex3, geohex2, geohex1
+;
+
+geohex4:geohex   | geohex3:geohex   | geohex2:geohex   | geohex1:geohex
+841f059ffffffff  | 831f05fffffffff  | 821f07fffffffff  | 811f3ffffffffff
+;
+
+geohexFromGeoShapePolygon
+required_capability: spatial_grid_geo_shape
+
+// This small polygon fits entirely within a single H3 cell at precision 1 (cells are ~600km across)
+ROW location = TO_GEOSHAPE("POLYGON((12.5 55.5, 12.75 55.5, 12.75 55.75, 12.5 55.75, 12.5 55.5))")
+| EVAL geohex1 = ST_GEOHEX(location, 1)
+| KEEP geohex1
+;
+
+geohex1:geohex
+811f3ffffffffff
+;
+
+geohexFromGeoShapeLinestring
+required_capability: spatial_grid_geo_shape
+
+// This short linestring fits entirely within a single H3 cell at precision 1 (cells are ~600km across)
+ROW location = TO_GEOSHAPE("LINESTRING(12.5 55.5, 12.6 55.6)")
+| EVAL geohex1 = ST_GEOHEX(location, 1)
+| KEEP geohex1
+;
+
+geohex1:geohex
+811f3ffffffffff
+;
+
+geohexFromGeoShapePolygonMv
+required_capability: spatial_grid_geo_shape
+
+// Polygon crossing H3 cell boundaries at geohex precision 3 returns multi-values
+ROW location = TO_GEOSHAPE("POLYGON((12 55, 13 55, 13 56, 12 56, 12 55))")
+| EVAL cells = ST_GEOHEX(location, 3)
+| EVAL count = MV_COUNT(cells)
+| EVAL cells_str = MV_SORT(TO_STRING(cells))
+| KEEP count, cells_str
+;
+
+count:integer | cells_str:keyword
+3             | [831f05fffffffff, 831f23fffffffff, 831f2efffffffff]
+;
+
+geohexFromGeoShapePolygonMvWithBounds
+required_capability: spatial_grid_geo_shape
+
+// Same polygon with western bounds (lon <= 12.6) filters from 3 cells to 2
+ROW location = TO_GEOSHAPE("POLYGON((12 55, 13 55, 13 56, 12 56, 12 55))")
+| EVAL cells = ST_GEOHEX(location, 3, TO_GEOSHAPE("BBOX(12.0, 12.6, 56.0, 55.0)"))
+| EVAL count = MV_COUNT(cells)
+| EVAL cells_str = MV_SORT(TO_STRING(cells))
+| KEEP count, cells_str
+;
+
+count:integer | cells_str:keyword
+2             | [831f05fffffffff, 831f23fffffffff]
 ;
 
 ###############################################

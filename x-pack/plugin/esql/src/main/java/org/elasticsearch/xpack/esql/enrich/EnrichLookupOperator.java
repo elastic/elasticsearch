@@ -131,6 +131,10 @@ public final class EnrichLookupOperator extends AsyncOperator<Page> {
         );
         CheckedFunction<AbstractLookupService.LookupResponse, Page, Exception> handleResponse = response -> {
             totalBytesRead.addAndGet(response.bytesRead());
+            // Replay warnings accumulated by the (possibly remote) lookup driver into this driver.
+            for (String warning : response.warnings()) {
+                driverContext().addWarning(warning);
+            }
             List<Page> pages = response.takePages();
             if (pages.size() != 1) {
                 throw new UnsupportedOperationException("ENRICH should only return a single page");

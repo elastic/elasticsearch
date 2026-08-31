@@ -10,10 +10,18 @@ package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
@@ -390,6 +398,64 @@ public class ScanningBinaryDocValuesTermQueryTests extends ESTestCase {
         assertEquals(q1.hashCode(), q2.hashCode());
         assertNotEquals(q1, q3);
         assertNotEquals(q1, q4);
+    }
+
+    public void testNoBinaryDocValuesOpenedDuringPlanning() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                addSingleValueDoc(writer, "field", "hello");
+                try (DirectoryReader reader = forbidBinaryDvOpenReader(writer.getReader())) {
+                    final IndexSearcher searcher = new IndexSearcher(reader);
+                    final Weight weight = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("hello"), false).createWeight(
+                        searcher,
+                        ScoreMode.COMPLETE_NO_SCORES,
+                        1f
+                    );
+                    for (LeafReaderContext ctx : reader.leaves()) {
+                        weight.scorerSupplier(ctx);
+                    }
+                }
+            }
+        }
+    }
+
+    private static DirectoryReader forbidBinaryDvOpenReader(DirectoryReader reader) throws IOException {
+        return new FilterDirectoryReader(reader, new FilterDirectoryReader.SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader leaf) {
+                return new FilterLeafReader(leaf) {
+                    @Override
+                    public BinaryDocValues getBinaryDocValues(String field) {
+                        throw new AssertionError(
+                            "getBinaryDocValues() must not be called during scorerSupplier() (planning phase);"
+                                + " defer reader construction to ScorerSupplier#get(). field=["
+                                + field
+                                + "]"
+                        );
+                    }
+
+                    @Override
+                    public IndexReader.CacheHelper getCoreCacheHelper() {
+                        return null;
+                    }
+
+                    @Override
+                    public IndexReader.CacheHelper getReaderCacheHelper() {
+                        return null;
+                    }
+                };
+            }
+        }) {
+            @Override
+            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+                return in;
+            }
+
+            @Override
+            public IndexReader.CacheHelper getReaderCacheHelper() {
+                return null;
+            }
+        };
     }
 
     static void addSingleValueDoc(RandomIndexWriter writer, String fieldName, String value) throws IOException {

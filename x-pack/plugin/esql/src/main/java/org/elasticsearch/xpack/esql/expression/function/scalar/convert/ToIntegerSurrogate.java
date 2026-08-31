@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -46,7 +47,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
  * </ul>
  */
 
-public class ToIntegerSurrogate extends EsqlScalarFunction implements OnlySurrogateExpression, OptionalArgument, ConvertFunction {
+public class ToIntegerSurrogate extends EsqlScalarFunction
+    implements
+        OnlySurrogateExpression,
+        OptionalArgument,
+        ConvertFunction,
+        AnyNullIsNull {
 
     private final Expression field;
     private final Expression base;

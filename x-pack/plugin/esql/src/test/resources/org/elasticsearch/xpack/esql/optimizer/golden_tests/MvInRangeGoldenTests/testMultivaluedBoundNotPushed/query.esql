@@ -1,0 +1,2 @@
+    FROM employees
+    | WHERE mv_in_range(salary, [25000, 26000], 30000)

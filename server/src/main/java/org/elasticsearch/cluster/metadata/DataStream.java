@@ -877,11 +877,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStreamAutoShardingEvent autoShardingEvent
     ) {
         IndexMode dsIndexMode = this.indexMode;
-        if (dsIndexMode == IndexMode.LOOKUP || indexModeFromTemplate == IndexMode.LOOKUP) {
-            throw new IllegalArgumentException(
-                "[" + name + "] is a data stream, unsafe rollover is not allowed for [" + IndexMode.LOOKUP + "] index mode"
-            );
-        }
         if (dsIndexMode != indexModeFromTemplate) {
             if (IndexMode.isTsdb(indexModeFromTemplate) && (dsIndexMode == IndexMode.LOGSDB || dsIndexMode == IndexMode.LOGSDB_COLUMNAR)) {
                 LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
@@ -1415,6 +1410,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * access method.
      */
     private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
+        if (IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP) {
+            return false;
+        }
         var lifecycle = getDataLifecycleForIndex(indexMetadata.getIndex());
         if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null && lifecycle.enabled()) {
             // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index

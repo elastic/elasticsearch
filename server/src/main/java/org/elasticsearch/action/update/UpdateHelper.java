@@ -11,19 +11,27 @@ package org.elasticsearch.action.update;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.StoredFields;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.UpdateNotSupportedException;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -60,14 +68,138 @@ public class UpdateHelper {
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
-    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis, FetchSourceContext fetchSourceContext)
-        throws IOException {
+    public Result prepare(
+        UpdateRequest request,
+        IndexShard indexShard,
+        LongSupplier nowInMillis,
+        FetchSourceContext fetchSourceContext,
+        SplitShardCountSummary splitShardCountSummary
+    ) throws IOException {
         if (indexShard.indexSettings().sequenceNumbersDisabled()) {
             throw new UpdateNotSupportedException(indexShard.shardId());
         }
         final GetResult getResult = indexShard.getService()
-            .getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm(), fetchSourceContext);
+            .getForUpdate(
+                request.id(),
+                request.routing(),
+                request.ifSeqNo(),
+                request.ifPrimaryTerm(),
+                fetchSourceContext,
+                splitShardCountSummary
+            );
         return prepare(indexShard, request, getResult, nowInMillis);
+    }
+
+    /**
+     * First phase of a two-phase update preparation: resolves the updated document ahead of execution; {@code null}
+     * when there is nothing worth holding until execution. OCC conditions are validated on consumption.
+     */
+    @Nullable
+    public PreResolvedUpdate preResolve(
+        UpdateRequest request,
+        IndexShard indexShard,
+        LongSupplier nowInMillis,
+        FetchSourceContext fetchSourceContext,
+        SplitShardCountSummary splitShardCountSummary
+    ) {
+        final Engine.GetResult getResult = indexShard.getService()
+            .preResolveForUpdate(request.id(), request.routing(), splitShardCountSummary);
+        // a missing document has nothing to prefetch (the upsert path keeps today's semantics), and holding a
+        // translog-served get result would pin an in-memory copy of the document for the whole bulk while its reads
+        // never touch stored fields
+        if (getResult.exists() == false || getResult.isFromTranslog()) {
+            getResult.close();
+            return null;
+        }
+        return new PreResolvedUpdate(request, indexShard, nowInMillis, fetchSourceContext, getResult, splitShardCountSummary);
+    }
+
+    /**
+     * An update preparation whose document was pre-resolved ahead of execution. {@link #complete()} consumes the
+     * pre-resolved get and may be called at most once; closing releases the acquired searcher if the get was never
+     * consumed.
+     */
+    public final class PreResolvedUpdate implements Releasable, ShardGetService.PreResolved {
+        private final IndexShard indexShard;
+        private final LongSupplier nowInMillis;
+        private final FetchSourceContext fetchSourceContext;
+        private final SplitShardCountSummary splitShardCountSummary;
+
+        private UpdateRequest request;
+        private Engine.GetResult preResolvedGet;
+
+        private PreResolvedUpdate(
+            UpdateRequest request,
+            IndexShard indexShard,
+            LongSupplier nowInMillis,
+            FetchSourceContext fetchSourceContext,
+            Engine.GetResult preResolvedGet,
+            SplitShardCountSummary splitShardCountSummary
+        ) {
+            this.splitShardCountSummary = splitShardCountSummary;
+            assert preResolvedGet != null;
+            this.request = request;
+            this.indexShard = indexShard;
+            this.nowInMillis = nowInMillis;
+            this.fetchSourceContext = fetchSourceContext;
+            this.preResolvedGet = preResolvedGet;
+        }
+
+        /** Completes the preparation into an index or delete request or an update response. */
+        public Result complete() throws IOException {
+            if (isReleased()) {
+                throw new IllegalStateException("pre-resolved update already consumed or closed");
+            }
+            final GetResult getResult = indexShard.getService()
+                .getForUpdate(this, request.ifSeqNo(), request.ifPrimaryTerm(), fetchSourceContext, splitShardCountSummary);
+            assert isReleased() : "expected the pre-resolved get to be consumed";
+            return prepare(indexShard, request, getResult, nowInMillis);
+        }
+
+        public void prefetch(Map<LeafReader, StoredFields> storedFieldsCache) throws IOException {
+            final var dav = preResolvedGet.docIdAndVersion();
+            // Reuse the StoredFields instance per leaf reader: instantiation is cheap but Lucene's
+            // CompressingStoredFieldsReader caches per-chunk decompression state inside the instance,
+            // so sharing it across docs in the same segment avoids redundant work.
+            StoredFields sf = storedFieldsCache.get(dav.reader);
+            if (sf == null) {
+                sf = dav.reader.storedFields();
+                storedFieldsCache.put(dav.reader, sf);
+            }
+            sf.prefetch(dav.docId);
+        }
+
+        @Override
+        public String id() {
+            return request.id();
+        }
+
+        @Override
+        @Nullable
+        public String routing() {
+            return request.routing();
+        }
+
+        @Override
+        public Engine.GetResult takeGetResult() {
+            final Engine.GetResult engineGetResult = preResolvedGet;
+            assert engineGetResult != null : "pre-resolved get already consumed";
+            preResolvedGet = null;
+            return engineGetResult;
+        }
+
+        /** Whether the pre-resolved get has been consumed or released. */
+        public boolean isReleased() {
+            return preResolvedGet == null;
+        }
+
+        @Override
+        public void close() {
+            final Engine.GetResult engineGetResult = preResolvedGet;
+            preResolvedGet = null;
+            request = null;
+            Releasables.close(engineGetResult);
+        }
     }
 
     /**
@@ -183,6 +315,9 @@ public class UpdateHelper {
     static String calculateRouting(GetResult getResult, @Nullable IndexRequest updateIndexRequest, @Nullable String requestRouting) {
         if (updateIndexRequest != null && updateIndexRequest.routing() != null) {
             return updateIndexRequest.routing();
+        } else if (getResult.getFields().containsKey(SliceIndexing.FIELD_NAME)) {
+            // A slice-enabled index surfaces the routing value as _slice rather than _routing.
+            return getResult.field(SliceIndexing.FIELD_NAME).getValue().toString();
         } else if (getResult.getFields().containsKey(RoutingFieldMapper.NAME)) {
             return getResult.field(RoutingFieldMapper.NAME).getValue().toString();
         } else {

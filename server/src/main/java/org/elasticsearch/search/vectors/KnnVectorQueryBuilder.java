@@ -481,7 +481,14 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             ).boost(boost).queryName(queryName).addFilterQueries(rewrittenQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         if (ctx.convertToInnerHitsRewriteContext() != null) {
-            QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity);
+            // Carry the query-time oversample so the exact query scores inner hits with the same fidelity this
+            // approximate query uses; otherwise their scores disagree.
+            QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(
+                queryVector,
+                fieldName,
+                vectorSimilarity,
+                rescoreVectorBuilder == null ? null : rescoreVectorBuilder.oversample()
+            );
             if (filterQueries.isEmpty()) {
                 return exactKnnQuery;
             } else {
@@ -568,14 +575,8 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         boolean sliceEnabled = context.getIndexSettings().isSliceEnabled();
         String sliceRouting = sliceEnabled ? context.getSliceRouting() : null;
         Float oversample = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.oversample();
-        if (filterQuery != null && (vectorFieldType.getIndexOptions() == null || vectorFieldType.getIndexOptions().isFlat() == false)) {
-            // Force the filter to be cacheable because it will be eagerly transformed into a bitset.
-            // Simple filters (e.g., term queries) are normally considered too cheap to cache by the
-            // default strategy, but once materialized as a bitset on every execution they become
-            // significantly more expensive, making caching essential.
-            filterQuery = new CachingEnableFilterQuery(filterQuery);
-        }
-
+        // Filter caching now happens inside the mapper so that PostFilterKnnQuery receives the raw filter:
+        // it evaluates the filter against a small candidate set and must avoid an eager full-index bitset build.
         return vectorFieldType.createKnnQuery(
             queryVector,
             k,

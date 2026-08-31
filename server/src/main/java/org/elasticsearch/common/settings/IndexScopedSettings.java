@@ -31,6 +31,7 @@ import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -134,6 +135,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.MAX_SHINGLE_DIFF_SETTING,
                 IndexSettings.MAX_RESCORE_WINDOW_SETTING,
                 IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
+                IndexSettings.MAX_NUMBER_OF_FRAGMENTS_SETTING,
                 IndexSettings.WEIGHT_MATCHES_MODE_ENABLED_SETTING,
                 IndexSettings.MAX_TERMS_COUNT_SETTING,
                 IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
@@ -211,6 +213,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE,
                 IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD,
                 IndexSettings.SLICE_ENABLED,
+                IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED,
                 IndexSettings.PREFER_ILM_SETTING,
                 DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING,
                 FieldMapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING,
@@ -272,6 +275,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         settings.add(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         settings.add(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD);
         settings.add(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
+        if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
+            settings.add(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING);
+        }
         settings.add(IndexSettings.INDEX_DISABLED_BY_DEFAULT);
         settings.add(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT);
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);

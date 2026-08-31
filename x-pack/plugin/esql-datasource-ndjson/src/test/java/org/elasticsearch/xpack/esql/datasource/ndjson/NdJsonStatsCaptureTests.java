@@ -14,6 +14,10 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
@@ -99,19 +103,110 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
         assertEquals(3L, SplitStats.of(c).rowCount());
     }
 
-    /** SKIP_ROW drops a malformed line, but the stats over the surviving lines are exact (fingerprint pins error_mode), so they commit. */
-    public void testSkipRowWithDroppedRowsCommitsStatsOverSurvivors() throws Exception {
+    /**
+     * SKIP_ROW plus a STRUCTURAL drop (a malformed line): decided while tokenising, before and independently of
+     * the projection, so every scan shape drops the same line. The statistics over the survivors are exact for
+     * every query carrying this identity and must commit -- the suppression below is scoped to projection-decided
+     * drops, not to drops.
+     */
+    public void testSkipRowStructuralDropCommitsStatsOverSurvivors() throws Exception {
         ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
         StorageObject o = obj("{\"a\":1}\nnot-a-json-object\n{\"a\":3}\n");
         Map<String, Object> published = capture(o, FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).build());
-        assertNotNull("a dropped line now commits the stats over surviving lines instead of publishing nothing", published);
+        assertNotNull("a structural drop is projection-independent; survivors must commit", published);
         SplitStats stats = SplitStats.of(published);
         assertNotNull(stats);
-        // The cache fingerprint pins error_mode, so a full scan drops the SAME line -- every statistic over the
-        // survivors (a in {1,3}, 2 lines) is exact vs that scan, so all commit and serve.
         assertEquals("row count over survivors", 2L, stats.rowCount());
         assertEquals(1, ((Number) stats.columnMin("a")).intValue());
         assertEquals(3, ((Number) stats.columnMax("a")).intValue());
+    }
+
+    /**
+     * SKIP_ROW plus a coercion failure of a PROJECTED column: the survivor set is a function of the query's
+     * projection, which the cache identity cannot carry -- a COUNT(*) scan of the same file decodes nothing,
+     * drops nothing and answers 3 where this scan measured 2. The whole publish must be suppressed. The bound
+     * readSchema types [a] as LONG deterministically, with no inference window in play, so the middle record's
+     * value must fail coercion rather than widen the column.
+     */
+    public void testSkipRowCoercionDropSuppressesPublish() throws Exception {
+        ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
+        StorageObject o = obj("{\"a\":1}\n{\"a\":\"not-a-long\"}\n{\"a\":3}\n");
+        List<Attribute> bound = List.of(new ReferenceAttribute(Source.EMPTY, "a", DataType.LONG));
+        long[] rows = new long[1];
+        Map<String, Object> published = captureCounting(
+            o,
+            FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).readSchema(bound).build(),
+            rows
+        );
+        assertEquals("the uncoercible record must actually drop", 2L, rows[0]);
+        assertNull("a projection-dependent (coercion) drop must suppress the publish", published);
+    }
+
+    /**
+     * SKIP_ROW plus a scalar/object shape conflict on a decoded field: the record drops through shapeConflict,
+     * the OTHER sink that discards a record under skip_row. Only a projected (decoded) field can conflict, so
+     * this drop is projection-dependent too and must suppress. Inference resolves [a] as a scalar from the first
+     * record -- first writer wins, so this is immune to the sample-window size and fires deterministically.
+     */
+    public void testSkipRowShapeConflictDropSuppressesPublish() throws Exception {
+        ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
+        StorageObject o = obj("{\"a\":1}\n{\"a\":{\"b\":2}}\n{\"a\":3}\n");
+        long[] rows = new long[1];
+        Map<String, Object> published = captureCounting(
+            o,
+            FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).build(),
+            rows
+        );
+        assertEquals("the shape-conflicted record must actually drop", 2L, rows[0]);
+        assertNull("a shape-conflict drop is projection-dependent and must suppress the publish", published);
+    }
+
+    /**
+     * Jackson validates its string-length limit LAZILY: an over-limit string in a field the query does not
+     * project is skipped undecoded and never trips it, so the line survives and the publish commits. This is the
+     * measured fact that makes the projected twin below a projection-DEPENDENT drop. Should a Jackson upgrade
+     * make the skip path enforce the limit, this test reddens and the constraints arm of projectionDependentDrop
+     * becomes over-broad -- still safe, but worth rescoping then.
+     */
+    public void testOverLimitStringUnprojectedSurvivesAndCommits() throws Exception {
+        ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
+        StorageObject o = obj(overLimitStringFixture());
+        List<Attribute> bound = List.of(new ReferenceAttribute(Source.EMPTY, "a", DataType.LONG));
+        long[] rows = new long[1];
+        Map<String, Object> published = captureCounting(
+            o,
+            FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).readSchema(bound).build(),
+            rows
+        );
+        assertEquals("the over-limit line survives when its string field is not projected", 3L, rows[0]);
+        assertNotNull("nothing dropped, so the publish commits", published);
+    }
+
+    /**
+     * The same file with [b] PROJECTED: the string-shaped decode arm reads the value, the lazy limit trips and
+     * the line drops -- a drop the unprojected twin above proves a COUNT(*) scan does not take. Projection
+     * decided it, so the publish must be suppressed.
+     */
+    public void testOverLimitStringProjectedDropsAndSuppressesPublish() throws Exception {
+        ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
+        StorageObject o = obj(overLimitStringFixture());
+        List<Attribute> bound = List.of(
+            new ReferenceAttribute(Source.EMPTY, "a", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "b", DataType.KEYWORD)
+        );
+        long[] rows = new long[1];
+        Map<String, Object> published = captureCounting(
+            o,
+            FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).readSchema(bound).build(),
+            rows
+        );
+        assertEquals("the over-limit line drops once its string field is projected", 2L, rows[0]);
+        assertNull("a lazily-validated constraint drop is projection-dependent and must suppress", published);
+    }
+
+    /** Three records; the middle one carries a string past Jackson's default 20,000,000-char limit. */
+    private static String overLimitStringFixture() {
+        return "{\"a\":1,\"b\":\"x\"}\n{\"a\":2,\"b\":\"" + "y".repeat(20_000_001) + "\"}\n{\"a\":3,\"b\":\"z\"}\n";
     }
 
     /** rowLimit-cut iteration ends without natural EOF → write suppressed. */
@@ -165,6 +260,23 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
             CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)
         ) {
             drain(it);
+        }
+        List<Map<String, Object>> c = sink.get(o.path().toString());
+        return c == null || c.isEmpty() ? null : c.get(0);
+    }
+
+    /** {@link #capture} plus the surviving row count, so a suppress assertion can never pass vacuously. */
+    private Map<String, Object> captureCounting(StorageObject o, FormatReadContext ctx, long[] rowsOut) throws Exception {
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                rowsOut[0] += page.getPositionCount();
+                page.releaseBlocks();
+            }
         }
         List<Map<String, Object>> c = sink.get(o.path().toString());
         return c == null || c.isEmpty() ? null : c.get(0);

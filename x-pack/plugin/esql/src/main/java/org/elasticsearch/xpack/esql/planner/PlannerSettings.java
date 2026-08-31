@@ -150,10 +150,9 @@ public class PlannerSettings {
     );
 
     /**
-     * Target number of rows per output page when the time-series aggregation operator chunks its partial/intermediate
-     * output. Each partial/intermediate emission is sliced into pages of about this many rows, bounding the size of
-     * each page sent to the coordinator. Specific to the time-series operator and independent of the regular
-     * aggregation emit settings.
+     * Target number of rows per output page when the time-series aggregation operator chunks its output. The same target
+     * applies to partial/intermediate output sent to the coordinator and final output emitted by the coordinator.
+     * Specific to the time-series operator and independent of the regular aggregation emit settings.
      */
     public static final Setting<Integer> TIME_SERIES_TARGET_CHUNK_ROWS = Setting.intSetting(
         "esql.time_series.target_chunk_rows",

@@ -113,6 +113,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     private final ParquetMetadata ownedFooter;
     /** See {@link #castBlockWarnings()}. */
     private final ErrorPolicy errorPolicy;
+    private final ParquetColumnDecoding.ListCorruptionHandler listCorruptionHandler;
     private final long rowCount;
     /**
      * Precomputed prefix sum of row counts over {@link #ownedFooter}'s blocks, with a leading
@@ -168,6 +169,14 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         this.ownedFooter = Objects.requireNonNull(ownedFooter, "ownedFooter");
         this.errorPolicy = Objects.requireNonNull(errorPolicy, "errorPolicy");
         this.warningSink = warningSink;
+        // Deduplicate recoveries: consecutive extract calls re-walk the same row-group rows, so the
+        // same malformed row would otherwise be charged to the error budget once per pass over it.
+        this.listCorruptionHandler = new ParquetColumnDecoding.ListCorruptionHandler(
+            errorPolicy,
+            storageObject.path().toString(),
+            warningSink,
+            /* deduplicateRecoveries = */ true
+        );
         List<BlockMetaData> blocks = ownedFooter.getBlocks();
         this.rowGroupOffsets = new long[blocks.size() + 1];
         long acc = 0;
@@ -633,8 +642,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * forced by the Block representation, so it happens under every {@code error_mode} and must be announced under
      * every {@code error_mode}. This keeps the deferred pass agreeing with the eager scan of the same file, which is
      * the invariant the whole extractor is built around — with one honest asymmetry: the notice caveats the rows this
-     * pass actually returned, and {@link #skipListRows} walks past the others without inspecting their definition
-     * levels, so a file whose null elements all sit in rows a TopN discarded warns on the eager scan and not here.
+     * pass actually returned, and {@link ParquetColumnDecoding#skipListValues} walks past the others without inspecting
+     * their definition levels, so a file whose null elements all sit in rows a TopN discarded warns on the eager scan
+     * and not here.
      */
     private SkipWarnings nullListElementWarnings() {
         if (nullListElementWarnings == null) {
@@ -783,9 +793,8 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
     /**
      * List-column sparse decode. parquet-mr's {@link ColumnReader} is repetition-aware so we
-     * walk the row-group rows in source order via {@link #skipListRows} (a sparse row-granular
-     * skip — {@code ParquetColumnDecoding#skipListValues} skips values, not rows, and would leave
-     * the data cursor stale here) and {@link ParquetColumnDecoding#readListColumn}, alternating skip/read runs in lock-step
+     * walk the row-group rows in source order via {@link ParquetColumnDecoding#skipListValues} and
+     * {@link ParquetColumnDecoding#readListColumn}, alternating skip/read runs in lock-step
      * with the unique survivor positions. Same in-memory chunks as the flat path; we only swap
      * the decoder.
      */
@@ -806,6 +815,15 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             createdBy != null ? createdBy : ""
         );
         ColumnReader cr = crs.getColumnReader(info.descriptor());
+        ParquetColumnDecoding.ListColumnReader listReader = ParquetColumnDecoding.ListColumnReader.bind(
+            cr,
+            info,
+            listCorruptionHandler,
+            columnName,
+            storageObject.path().toString(),
+            bucket.rowGroupIndex,
+            rowGroupOffsets[bucket.rowGroupIndex]
+        );
 
         int unique = bucket.uniqueCount;
         int[] positions = bucket.uniquePositions;
@@ -816,13 +834,12 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         List<Block> chunks = new ArrayList<>();
         int cursor = 0;
         int runStart = 0;
-        int maxDef = info.maxDefLevel();
         try {
             while (runStart < unique) {
                 int p = positions[runStart];
                 int gap = p - cursor;
                 if (gap > 0) {
-                    skipListRows(cr, maxDef, gap);
+                    ParquetColumnDecoding.skipListValues(listReader, gap);
                     cursor += gap;
                 }
                 int runEnd = runStart + 1;
@@ -834,7 +851,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 // dropped-null-element notice is unconditional and needs one regardless.
                 chunks.add(
                     ParquetColumnDecoding.readListColumn(
-                        cr,
+                        listReader,
                         info,
                         runLength,
                         blockFactory,
@@ -864,33 +881,6 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 Releasables.closeExpectNoException(c);
             }
             throw e;
-        }
-    }
-
-    /**
-     * Skip {@code rowsToSkip} entire list rows, advancing both the column reader's level cursor
-     * and its data cursor. {@link ParquetColumnDecoding#skipListValues} only calls
-     * {@link ColumnReader#consume}, which advances rep/def levels but leaves the underlying data
-     * cursor at the first value — fine when the column is read sequentially row-by-row (each
-     * read calls {@code getXxx()} or appendNull and the cursors stay in lock-step) but wrong for
-     * a sparse skip ahead of a {@link ParquetColumnDecoding#readListColumn} call: the next
-     * {@code getInteger()} would return a stale value from row 0. We therefore call
-     * {@link ColumnReader#skip} for every value with {@code def == maxDef} (the only values that
-     * are physically present in the page) so the data cursor advances in lock-step with the
-     * level cursor.
-     */
-    private static void skipListRows(ColumnReader cr, int maxDef, int rowsToSkip) {
-        for (int row = 0; row < rowsToSkip; row++) {
-            if (cr.getCurrentDefinitionLevel() == maxDef) {
-                cr.skip();
-            }
-            cr.consume();
-            while (cr.getCurrentRepetitionLevel() > 0) {
-                if (cr.getCurrentDefinitionLevel() == maxDef) {
-                    cr.skip();
-                }
-                cr.consume();
-            }
         }
     }
 

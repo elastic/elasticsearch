@@ -1204,10 +1204,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // usesBinaryDocValues() requires doc_values to be enabled and excludes the low-cardinality
-        // SORTED_SET encoding, which has no batch-friendly builder. copy_to/multi-fields have no
-        // equivalent in mapColumnBatch (no per-value dispatch to sub-mappers or other fields), so
-        // fields using them fall back to the row path.
+        // usesBinaryDocValues() requires doc_values to be enabledm which means synthetic-source stored-fallback is unreachable.
+        // Additionally, this excludes the low-cardinality SORTED_SET encoding.
+        // Copy_to/multi-fields have no equivalent in mapColumnBatch (no per-value dispatch to sub-mappers or other fields),
+        // so fields using them fall back to the row path.
+        // match_only_text has no ignore_above/null_value/normalizer
         return indexSettings.getMode().isStrictColumnar()
             && fieldType().usesBinaryDocValues()
             && copyTo().copyToFields().isEmpty()
@@ -1227,14 +1228,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         return b;
     }
 
-    /**
-     * Maps a batch of documents for this field from the supplied ESCF source column. match_only_text has no
-     * {@code ignore_above}/{@code null_value}/normalizer, so this is a simplified version of
-     * {@link KeywordFieldMapper#mapColumnBatch}: only the indexed (tokenized) field and the binary doc-values
-     * encoding need reproducing. The synthetic-source stored-fallback branch of {@link #parseCreateField} is
-     * unreachable here: it only applies when doc values are disabled, but {@link #supportsColumnarParse}
-     * requires {@code usesBinaryDocValues()}, which implies doc values are enabled.
-     */
     @Override
     public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = indexed;

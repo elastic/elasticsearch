@@ -158,7 +158,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
 
         @Override
         public ActionRequestValidationException validate() {
-            if (Strings.isNullOrBlank(datafeedId)) {
+            if (Strings.hasText(datafeedId) == false) {
                 ActionRequestValidationException e = new ActionRequestValidationException();
                 e.addValidationError(DatafeedConfig.ID.getPreferredName() + " cannot be empty");
                 return e;

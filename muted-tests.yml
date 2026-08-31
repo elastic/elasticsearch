@@ -121,6 +121,9 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/preview_datafeed/Test preview aggregation datafeed with doc_count}
   issue: https://github.com/elastic/elasticsearch/issues/158138
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
+  issue: https://github.com/elastic/elasticsearch/issues/158139
 
 # Examples:
 #

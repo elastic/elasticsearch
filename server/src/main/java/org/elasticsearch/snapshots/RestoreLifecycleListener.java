@@ -18,34 +18,30 @@ import org.elasticsearch.cluster.RestoreInProgress;
 public interface RestoreLifecycleListener {
 
     /**
-     * Called atomically within the cluster-state update that installs a new {@link RestoreInProgress} entry.
+     * Called within the cluster-state update that installs a new {@link RestoreInProgress} entry.
+     * Defaults to returning {@code state} unchanged.
      *
      * @param entry the newly installed restore entry, already present in {@code state}
      * @param state cluster state after {@link RestoreInProgress} installation
      * @return the cluster state to publish; must not be {@code null}
      */
-    ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state);
+    default ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
+        return state;
+    }
 
     /**
-     * Called atomically within the cluster-state update that removes a completed {@link RestoreInProgress} entry.
+     * Called within the cluster-state update that removes a completed {@link RestoreInProgress} entry.
+     * Defaults to returning {@code state} unchanged.
      *
      * @param entry the completed restore entry, still present in {@code state}; its
      *              {@link RestoreInProgress.Entry#state()} is terminal
      * @param state cluster state with the completed entry still present
      * @return the cluster state to publish; must not be {@code null}
      */
-    ClusterState onRestoreCompleted(RestoreInProgress.Entry entry, ClusterState state);
+    default ClusterState onRestoreCompleted(RestoreInProgress.Entry entry, ClusterState state) {
+        return state;
+    }
 
     /** No-op implementation used as the default before any listener is registered. */
-    RestoreLifecycleListener NOOP = new RestoreLifecycleListener() {
-        @Override
-        public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
-            return state;
-        }
-
-        @Override
-        public ClusterState onRestoreCompleted(RestoreInProgress.Entry entry, ClusterState state) {
-            return state;
-        }
-    };
+    RestoreLifecycleListener NOOP = new RestoreLifecycleListener() {};
 }

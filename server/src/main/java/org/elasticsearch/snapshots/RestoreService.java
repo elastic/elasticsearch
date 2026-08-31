@@ -1477,8 +1477,6 @@ public final class RestoreService implements ClusterStateApplier {
                     entry.state()
                 );
                 // Notify the listener before the entry disappears from cluster state.
-                // The listener may advance a persistent-task checkpoint to a finalizing state in
-                // the same atomic update, ensuring no window between completion and evidence.
                 currentState = lifecycleListener.onRestoreCompleted(entry, currentState);
                 changed = true;
             } else {
@@ -1908,9 +1906,7 @@ public final class RestoreService implements ClusterStateApplier {
             if (searchableSnapshotsIndices.isEmpty() == false) {
                 ensureSearchableSnapshotsRestorable(updatedClusterState, snapshotInfo, searchableSnapshotsIndices);
             }
-            // A restore that installs no RestoreInProgress entry produces no lifecycle events: there is
-            // no entry to complete, so firing onRestoreInitialized would leave the listener waiting for
-            // an onRestoreCompleted that never comes.
+
             if (restoreEntry != null) {
                 updatedClusterState = lifecycleListener.onRestoreInitialized(restoreEntry, updatedClusterState);
             }

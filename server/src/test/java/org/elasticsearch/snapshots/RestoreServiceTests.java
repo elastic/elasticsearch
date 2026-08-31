@@ -743,16 +743,11 @@ public class RestoreServiceTests extends ESTestCase {
         return ClusterState.builder(ClusterState.EMPTY_STATE).putCustom(RestoreInProgress.TYPE, rip).build();
     }
 
-    /** Builds a listener that is a no-op on initialization and applies {@code onCompleted} on completion. */
+    /** Builds a listener that applies {@code onCompleted} on completion and defaults on initialization. */
     private static RestoreLifecycleListener completionListener(
         BiFunction<RestoreInProgress.Entry, ClusterState, ClusterState> onCompleted
     ) {
         return new RestoreLifecycleListener() {
-            @Override
-            public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
-                return state;
-            }
-
             @Override
             public ClusterState onRestoreCompleted(RestoreInProgress.Entry entry, ClusterState state) {
                 return onCompleted.apply(entry, state);

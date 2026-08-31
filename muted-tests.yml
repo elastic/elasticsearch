@@ -752,9 +752,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=health/10_basic/cluster health basic test}
   issue: https://github.com/elastic/elasticsearch/issues/157740
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
-  method: testParquetFile {bad_ARROW-GH-43605}
-  issue: https://github.com/elastic/elasticsearch/issues/157747
 - class: org.elasticsearch.snapshots.RestoreOverOpenIndexIT
   method: testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore
   issue: https://github.com/elastic/elasticsearch/issues/157793

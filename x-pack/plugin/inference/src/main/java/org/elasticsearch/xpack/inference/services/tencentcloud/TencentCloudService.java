@@ -311,7 +311,7 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
     public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
         if (model instanceof TencentCloudEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
-            var similarity = serviceSettings.similarity() != null ? serviceSettings.similarity() : SimilarityMeasure.DOT_PRODUCT;
+            var similarity = serviceSettings.similarity() != null ? serviceSettings.similarity() : SimilarityMeasure.COSINE;
 
             var updatedServiceSettings = serviceSettings.updateEmbeddingDetails(embeddingSize, similarity);
             if (updatedServiceSettings.equals(serviceSettings)) {

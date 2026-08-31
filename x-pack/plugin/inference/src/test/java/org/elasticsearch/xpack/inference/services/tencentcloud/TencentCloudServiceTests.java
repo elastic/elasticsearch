@@ -285,4 +285,9 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
             return parser.map();
         }
     }
+
+    @Override
+    public SimilarityMeasure getDefaultSimilarity() {
+        return SimilarityMeasure.COSINE;
+    }
 }

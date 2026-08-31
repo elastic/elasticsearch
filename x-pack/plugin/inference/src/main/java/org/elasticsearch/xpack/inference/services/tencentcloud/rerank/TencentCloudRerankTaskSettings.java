@@ -12,7 +12,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,6 +23,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 
 /**
  * Task settings for TencentCloud rerank: {@code top_n} and {@code return_documents}.
@@ -44,7 +44,7 @@ public class TencentCloudRerankTaskSettings implements TaskSettings, TopNProvide
         }
 
         Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
-        Integer topN = extractOptionalPositiveInteger(map, TOP_N, ModelConfigurations.TASK_SETTINGS, validationException);
+        Integer topN = extractOptionalPositiveInteger(map, TOP_N, TASK_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 

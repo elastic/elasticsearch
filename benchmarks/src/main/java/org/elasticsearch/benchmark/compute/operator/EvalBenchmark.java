@@ -404,6 +404,28 @@ public class EvalBenchmark {
                 checkMvMinExpected(this, actual);
             }
         },
+        MV_MIN_WITH_NULLS("mv_min_with_nulls") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return mvMinEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkMvMinWithNullsExpected(this, actual);
+            }
+        },
+        ABS_BLOCK_SOME_NULLS("abs_block_some_nulls") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return absEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkAbsBlockSomeNullsExpected(this, actual);
+            }
+        },
         ROUND_TO_4_VIA_CASE("round_to_4_via_case") {
             @Override
             ExpressionEvaluator evaluator() {
@@ -1408,6 +1430,45 @@ public class EvalBenchmark {
         }
     }
 
+    private static void checkMvMinWithNullsExpected(Operation operation, Page actual) {
+        LongBlock b = actual.getBlock(1);
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            if (i % 8 == 0) {
+                if (b.isNull(i) == false) {
+                    throw new AssertionError("[" + operation + "] expected null at position [" + i + "]");
+                }
+            } else {
+                if (b.isNull(i)) {
+                    throw new AssertionError("[" + operation + "] unexpected null at position [" + i + "]");
+                }
+                long got = b.getLong(b.getFirstValueIndex(i));
+                if (got != i) {
+                    throw new AssertionError("[" + operation + "] expected [" + i + "] but was [" + got + "]");
+                }
+            }
+        }
+    }
+
+    private static void checkAbsBlockSomeNullsExpected(Operation operation, Page actual) {
+        LongBlock b = actual.getBlock(1);
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            if (i % 8 == 0) {
+                if (b.isNull(i) == false) {
+                    throw new AssertionError("[" + operation + "] expected null at position [" + i + "]");
+                }
+            } else {
+                if (b.isNull(i)) {
+                    throw new AssertionError("[" + operation + "] unexpected null at position [" + i + "]");
+                }
+                long expected = i * 100_000L;
+                long got = b.getLong(b.getFirstValueIndex(i));
+                if (got != expected) {
+                    throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + got + "]");
+                }
+            }
+        }
+    }
+
     private static void checkReplaceConstExpected(Operation operation, Page actual) {
         BytesRef expected0 = new BytesRef("X");
         BytesRef expected1 = new BytesRef("bar");
@@ -1668,6 +1729,32 @@ public class EvalBenchmark {
                     builder.appendLong(i + 1);
                     builder.appendLong(i + 2);
                     builder.endPositionEntry();
+                }
+                yield new Page(builder.build());
+            }
+            case MV_MIN_WITH_NULLS -> {
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    if (i % 8 == 0) {
+                        builder.appendNull();
+                    } else {
+                        builder.beginPositionEntry();
+                        builder.appendLong(i);
+                        builder.appendLong(i + 1);
+                        builder.appendLong(i + 2);
+                        builder.endPositionEntry();
+                    }
+                }
+                yield new Page(builder.build());
+            }
+            case ABS_BLOCK_SOME_NULLS -> {
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    if (i % 8 == 0) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendLong(i * 100_000L);
+                    }
                 }
                 yield new Page(builder.build());
             }

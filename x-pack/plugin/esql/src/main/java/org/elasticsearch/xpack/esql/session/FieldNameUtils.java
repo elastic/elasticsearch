@@ -508,6 +508,7 @@ public class FieldNameUtils {
             || p instanceof CompoundOutputEval<?>
             || p instanceof UnresolvedIpLocation
             || p instanceof Rename
+            || p instanceof Row
             || p instanceof TopN
             || p instanceof Row
             || p instanceof UnresolvedSourceRelation) == false;

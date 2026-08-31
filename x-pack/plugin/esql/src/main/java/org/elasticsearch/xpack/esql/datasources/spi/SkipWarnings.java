@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Nullable;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -47,6 +49,17 @@ public class SkipWarnings {
     public static final int MAX_ADDED_WARNINGS = 20;
 
     /**
+     * Formats the standard absent-declared-column informational warning for {@code columnName}.
+     * Used when a declared column is entirely absent from a source file (Parquet, ORC, CSV).
+     * SchemaAdaptingIterator, ParquetFormatReader, OrcFormatReader, and CsvFormatReader use this
+     * method so that InformationalWarningBudget's exact-string deduplication stays reliable across
+     * formats.
+     */
+    public static String absentDeclaredColumnMessage(String columnName) {
+        return "declared column [" + columnName + "] is not present in some source files and reads null there";
+    }
+
+    /**
      * The single "further warnings suppressed" line emitted once per collector when the per-event
      * cap is exceeded. Exposed as the one source of truth for the overflow text so a central budget
      * that caps the same channel (see {@code InformationalWarningBudget}) emits a byte-identical
@@ -66,6 +79,12 @@ public class SkipWarnings {
     public static final SkipWarnings NOOP = new SkipWarnings("") {
         @Override
         public void add(String detail) {}
+
+        // Also overridden (rather than left to delegate to the no-op add) because NOOP is a shared
+        // static: letting it populate an instance dedup set would accumulate unbounded state across
+        // every reader in the JVM, and from several threads at once.
+        @Override
+        public void addOnce(String detail) {}
     };
 
     private final String summary;
@@ -80,6 +99,9 @@ public class SkipWarnings {
     private int added;
     private boolean summaryEmitted;
     private boolean overflowEmitted;
+    /** Details already emitted through {@link #addOnce(String)}; {@code null} until that method is first used. */
+    @Nullable
+    private Set<String> emittedOnce;
 
     public SkipWarnings(String summary) {
         this(summary, null);
@@ -130,6 +152,29 @@ public class SkipWarnings {
         } else if (overflowEmitted == false) {
             emit(overflowMessage());
             overflowEmitted = true;
+        }
+    }
+
+    /**
+     * Records a skip/null-fill event whose detail is constant for the affected column rather than distinct per
+     * value, emitting each distinct message at most once. A decode loop that rediscovers such a condition on
+     * every batch must use this rather than {@link #add(String)}, because {@code add} counts duplicates against
+     * {@link #MAX_ADDED_WARNINGS}: after that many batches one self-repeating column would emit
+     * {@link #overflowMessage()}, telling the client warnings were dropped when in fact every distinct message
+     * had already been delivered, and with enough such columns it would spend the whole budget on the first one.
+     * Downstream value-dedup does not prevent that — the overflow line is itself a distinct message.
+     */
+    public void addOnce(String detail) {
+        if (overflowEmitted) {
+            // The cap has already been reported, so add() would emit nothing: returning here keeps the dedup set
+            // from growing without bound for a caller whose details are numerous rather than few-and-repeated.
+            return;
+        }
+        if (emittedOnce == null) {
+            emittedOnce = new HashSet<>();
+        }
+        if (emittedOnce.add(detail)) {
+            add(detail);
         }
     }
 

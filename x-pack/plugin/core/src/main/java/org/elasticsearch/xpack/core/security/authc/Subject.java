@@ -108,11 +108,22 @@ public class Subject {
         return version;
     }
 
+    /**
+     * Whether this subject is a user-managed service account rather than one of the built-in {@code elastic/*} accounts.
+     * Both kinds authenticate through the same realm, so the only thing distinguishing them is the marker that the
+     * account model writes into the authenticated user's metadata. The distinction decides where the subject's
+     * privileges come from; see {@link #getRoleReferenceIntersection}.
+     */
+    public boolean isUserManagedServiceAccount() {
+        return type == Type.SERVICE_ACCOUNT
+            && Boolean.TRUE.equals(user.metadata().get(ServiceAccountSettings.USER_MANAGED_SERVICE_ACCOUNT_FIELD));
+    }
+
     public RoleReferenceIntersection getRoleReferenceIntersection(@Nullable AnonymousUser anonymousUser) {
         return switch (type) {
             case CLOUD_API_KEY, USER -> buildRoleReferencesForUser(anonymousUser);
             case API_KEY -> buildRoleReferencesForApiKey();
-            case SERVICE_ACCOUNT -> new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
+            case SERVICE_ACCOUNT -> buildRoleReferencesForServiceAccount();
             case CROSS_CLUSTER_ACCESS -> buildRoleReferencesForCrossClusterAccess();
         };
     }
@@ -281,6 +292,16 @@ public class Subject {
             new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED),
             limitedByRoleReference
         );
+    }
+
+    private RoleReferenceIntersection buildRoleReferencesForServiceAccount() {
+        // A built-in account's privileges are fixed by the account definition and are looked up from its principal, so the
+        // user carries no roles. A user-managed account instead has roles assigned to it at creation, and is authorized
+        // from those names through the same role stores as a native user.
+        if (isUserManagedServiceAccount()) {
+            return new RoleReferenceIntersection(new RoleReference.NamedRoleReference(user.roles()));
+        }
+        return new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
     }
 
     // Package private for testing

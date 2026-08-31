@@ -500,6 +500,41 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     /**
+     * A renamed grouping shadows the same-named index field for the whole aggregate, so the filter's {@code languages} means
+     * {@code salary} — but a MarkJoin below the aggregate can only bind the index field. Rejected rather than counting the wrong column.
+     */
+    public void testRejectsStatsWhereInSubqueryShadowedByGroupingAlias() {
+        errorInSubquery(
+            """
+                FROM employees
+                | STATS cnt = COUNT(*) WHERE languages IN (FROM employees | KEEP emp_no) BY languages = salary
+                """,
+            containsString("IN subquery is not yet supported in an aggregate WHERE clause that references the grouping alias [languages]")
+        );
+    }
+
+    /**
+     * Same guard where the grouping alias is the only source of the name; this used to surface the internal
+     * "Unknown column [d] in left side of join" from join resolution instead.
+     */
+    public void testRejectsStatsWhereInSubqueryOnGroupingAliasOnly() {
+        errorInSubquery("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE d IN (FROM employees | KEEP emp_no) BY d = languages
+            """, containsString("IN subquery is not yet supported in an aggregate WHERE clause that references the grouping alias [d]"));
+    }
+
+    /**
+     * The guard is name-based: a renamed grouping that does not shadow the IN subquery's LHS still analyzes.
+     */
+    public void testStatsWhereInSubqueryWithUnrelatedGroupingAlias() {
+        analyzeInSubquery("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY g = salary
+            """);
+    }
+
+    /**
      * Verifies that an IN subquery in LIMIT BY clause is rejected.
      */
     public void testRejectsInSubqueryInLimitBy() {

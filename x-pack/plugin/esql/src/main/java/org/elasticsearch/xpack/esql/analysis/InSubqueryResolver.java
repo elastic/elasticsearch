@@ -41,7 +41,9 @@ import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -56,12 +58,21 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * {@code STATS} / {@code INLINE STATS} per-aggregate {@code WHERE} filters by rewriting them into
  * {@link SemiJoin}, {@link AntiJoin}, or {@link MarkJoin} nodes:
  * <ul>
- *   <li>In a {@link Filter}: an {@code InSubquery} (optionally wrapped in {@link Not}) at the top of an
- *       AND-conjunct becomes a row-filtering {@link SemiJoin} / {@link AntiJoin} stacked on top of the
- *       remaining filter — the most efficient shape, used for the common conjunctive case. An
- *       {@code InSubquery} reachable through {@link Or}, {@link IsNull}/{@link IsNotNull}, or a
- *       {@code CASE}/{@code COALESCE} call is replaced with a synthetic boolean mark attribute and a
- *       {@link MarkJoin} stacked below the rewritten {@link Filter}.</li>
+ *   <li>An {@code InSubquery} (optionally wrapped in {@link Not}) at the top of an AND-conjunct
+ *       in a {@link Filter} becomes a row-filtering {@link SemiJoin} / {@link AntiJoin} stacked on top of the
+ *       remaining filter — the most efficient shape, used for the common conjunctive case.</li>
+ *   <li>An {@code InSubquery} that appears as a child of {@link Or} (or of {@link Not} below an
+ *       {@link Or}) is replaced with a synthetic boolean attribute and a {@link MarkJoin}
+ *       is stacked below the rewritten {@link Filter}; the mark attribute carries the
+ *       three-valued {@code IN} result up into normal boolean evaluation.</li>
+ *   <li>An {@code InSubquery} inside a {@code STATS} {@code WHERE} filter (a {@link FilteredExpression}
+ *       on an {@link Aggregate}) is replaced with a synthetic boolean attribute and a {@link MarkJoin}
+ *       is stacked below the aggregate's child — MarkJoin-only. INLINE STATS is not supported.</li>
+ *   <li>An {@code InSubquery} inside a {@link IsNull}/{@link IsNotNull} operand, or inside any
+ *       argument of a {@code CASE} or {@code COALESCE} call, is replaced with a synthetic boolean
+ *       attribute and a {@link MarkJoin} is stacked below the rewritten {@link Filter} —
+ *       identical to the {@link Or} case above. These eligible expressions may themselves be
+ *       nested inside comparisons, arithmetic operators, or other ordinary expressions.</li>
  *   <li>In an {@link Eval}: only {@link MarkJoin} is ever created — EVAL preserves every row and
  *       produces a value, so the row-filtering {@link SemiJoin}/{@link AntiJoin} shape is never
  *       applicable. The rewrite allowlist is the same as for {@link Filter}: bare {@code InSubquery},
@@ -72,8 +83,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  *       {@code WHERE} filter (a {@link FilteredExpression} on an {@link Aggregate}) is replaced
  *       with a synthetic boolean attribute and a {@link MarkJoin} is stacked below the aggregate's
  *       child — MarkJoin-only, because the filter belongs to a single aggregate and must not drop
- *       rows (or whole groups) feeding the other aggregates. See
- *       {@link #resolveInSubqueryInAggregate}.</li>
+ *       rows (or whole groups) feeding the other aggregates. See {@link #resolveInSubqueryInAggregate}.</li>
  *   <li>An {@code InSubquery} wrapped in any other expression, or inside SORT / STATS BY / etc., is
  *       left in place; the post-resolution {@link #verify} step rejects the query with a
  *       {@link VerificationException}.</li>
@@ -131,11 +141,11 @@ public class InSubqueryResolver {
     }
 
     /**
-     * Returns {@code true} if the pre-resolution plan contains any InSubquery expression anywhere in its expression trees. Used by
-     * the session and {@link org.elasticsearch.xpack.esql.view.ViewResolver ViewResolver} to decide whether to run the resolution pass
-     * and whether to increment the {@code IN_SUBQUERY} telemetry counter.
+     * Returns {@code true} if the pre-resolution plan contains any InSubquery expression anywhere in its expression trees. Used by the
+     * session and {@code ViewResolver} to decide whether to run the resolution pass and whether to increment the {@code IN_SUBQUERY}
+     * telemetry counter.
      * <p>
-     * Conservatively checks all expressions in all plan nodes; unsupported positions (SORT, STATS BY) produce no rewrite in the resolver
+     * Conservatively checks all expressions in all plan nodes; unsupported positions (SORT, LIMIT BY) produce no rewrite in the resolver
      * but are then rejected by {@link #verify}.
      */
     public static boolean hasInSubquery(LogicalPlan plan) {
@@ -561,7 +571,7 @@ public class InSubqueryResolver {
     }
 
     /**
-     * Returns whether an {@link InSubquery} directly below {@code expr} can be replaced with a mark attribute.
+     * Returns whether an InSubquery directly below {@code expr} can be replaced with a mark attribute.
      */
     private static boolean canRewriteInSubqueryChildren(Expression expr) {
         if (expr instanceof And || expr instanceof Or || expr instanceof Not || expr instanceof IsNull || expr instanceof IsNotNull) {
@@ -730,6 +740,10 @@ public class InSubqueryResolver {
     }
 
     private static void checkInSubqueryUsage(LogicalPlan plan, Failures failures) {
+        // Collect InlineStats-owned Aggregates first so the validation pass below can skip them.
+        Set<LogicalPlan> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
+        plan.forEachDown(InlineStats.class, inlineStats -> inlineStatsAggregates.add(inlineStats.aggregate()));
+
         plan.forEachDown(p -> {
             switch (p) {
                 case Filter filter -> checkInSubqueryExpression(filter, filter.condition(), true, false, null, failures);

@@ -9,14 +9,19 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.join.QueryBitSetProducer;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.lookup.Source;
 
@@ -206,6 +211,59 @@ public class NestedStoredSourceLoaderTests extends MapperServiceTestCase {
 
             // All three nested docs share the same root (doc 3): root source loaded exactly once.
             assertEquals(1, storedFieldReads.get());
+        });
+    }
+
+    /**
+     * Runtime field queries visit every doc in the segment, including nested children, and source-backed runtime fields read
+     * _source per doc through the per-query cached SourceProvider. A second query on the same context re-reads the segment from
+     * doc 0, which threw "Cannot find object path for document" before the fix in NestedDocuments.findObjectPath (#156803).
+     * The runtime field is unrelated to the nested object - the nested field merely existing in the mapping is enough.
+     */
+    public void testRuntimeFieldQueryWithNestedMappingBackwardDocAccess() throws IOException {
+        MapperService mapperService = createMapperService("""
+            {
+                "_doc": {
+                    "runtime": {
+                        "rt": { "type": "keyword" }
+                    },
+                    "properties": {
+                        "children": {
+                            "type": "nested",
+                            "properties": {
+                                "value": { "type": "keyword" }
+                            }
+                        }
+                    }
+                }
+            }
+            """);
+
+        String firstValue = randomAlphaOfLength(8);
+        String secondValue = randomValueOtherThan(firstValue, () -> randomAlphaOfLength(8));
+
+        withLuceneIndex(mapperService, iw -> {
+            for (String value : new String[] { firstValue, secondValue }) {
+                ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+                    b.field("rt", value);
+                    b.startArray("children");
+                    b.startObject().field("value", randomAlphaOfLength(5)).endObject();
+                    b.endArray();
+                }));
+                iw.addDocuments(doc.docs());
+            }
+            // Force a single segment so both root docs' children share one cached source-loader leaf.
+            iw.forceMerge(1);
+        }, reader -> {
+            DirectoryReader wrapped = ElasticsearchDirectoryReader.wrap(reader, new ShardId(mapperService.index(), 0));
+            // Pass false to avoid random reader re-wrapping that would break the ElasticsearchLeafReader chain
+            // needed by BitsetFilterCache to resolve the shard ID.
+            SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(wrapped, false));
+
+            // Pass 1 visits all docs (children at doc ids 0 and 2), advancing the shared child iterators to doc 2.
+            assertEquals(1L, context.searcher().search(new TermQueryBuilder("rt", secondValue).toQuery(context), 10).totalHits.value());
+            // Pass 2 starts over at doc 0 with the child iterators still parked at doc 2.
+            assertEquals(1L, context.searcher().search(new TermQueryBuilder("rt", firstValue).toQuery(context), 10).totalHits.value());
         });
     }
 

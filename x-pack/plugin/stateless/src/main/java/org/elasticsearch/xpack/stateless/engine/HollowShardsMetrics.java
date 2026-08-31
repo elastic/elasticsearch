@@ -50,7 +50,7 @@ public record HollowShardsMetrics(
             "Amount of the current hollow shards on the node",
             "count"
         );
-        meterRegistry.registerLongGauge(
+        meterRegistry.registerLongAsyncGauge(
             HOLLOWABLE_SHARDS_TOTAL,
             "Amount of the current hollowable shards on the node",
             "count",

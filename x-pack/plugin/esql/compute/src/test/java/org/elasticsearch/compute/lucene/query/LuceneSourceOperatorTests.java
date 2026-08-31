@@ -28,9 +28,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
-import org.elasticsearch.compute.operator.topn.SharedMinCompetitiveTests;
-import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -41,6 +38,9 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitiveTests;
+import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
@@ -464,14 +464,11 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         SharedMinCompetitive.Supplier minCompetitiveSupplier = timestampDescMinCompetitiveSupplier(driverContext().blockFactory());
         SharedMinCompetitiveTests.offerLongDesc(driverContext().blockFactory(), minCompetitiveSupplier, minCompetitiveBound);
 
-        MinCompetitiveQuery.Factory minCompetitiveFactory = new MinCompetitiveQuery.Factory(
-            minCompetitiveSupplier,
-            (ignored, page) -> {
-                LongBlock block = page.getBlock(0);
-                long bound = block.getLong(0);
-                return SortedNumericDocValuesField.newSlowRangeQuery("s", bound, Long.MAX_VALUE);
-            }
-        );
+        MinCompetitiveQuery.Factory minCompetitiveFactory = new MinCompetitiveQuery.Factory(minCompetitiveSupplier, (ignored, page) -> {
+            LongBlock block = page.getBlock(0);
+            long bound = block.getLong(0);
+            return SortedNumericDocValuesField.newSlowRangeQuery("s", bound, Long.MAX_VALUE);
+        });
 
         LuceneSourceOperator.Factory factory = new LuceneSourceOperator.Factory(
             new IndexedByShardIdFromSingleton<>(ctx),

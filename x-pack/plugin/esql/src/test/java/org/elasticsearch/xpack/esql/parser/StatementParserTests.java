@@ -1247,7 +1247,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightOnFields() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
@@ -1262,7 +1261,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRequiresQueryAndOnClause() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         // Query and ON are currently required by grammar.
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\""));
@@ -1270,7 +1268,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightCustomPrefix() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"h_\" MATCH(title, \"x\") ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("h_"));
@@ -1280,7 +1277,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightEmptyPrefixParses() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         // Empty prefix overwrites the source column name.
         LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"\" \"elasticsearch\" ON content");
         Highlight highlight = as(plan, Highlight.class);
@@ -1290,7 +1286,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightFieldNamedPrefix() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON prefix");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
@@ -1308,7 +1303,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsUnknownModifier() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid modifier [bogus] in HIGHLIGHT, expected [prefix]"),
@@ -1317,7 +1311,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightWithOptions() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query(
             "FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"fragment_size\": 150, \"number_of_fragments\": 2 }"
         );
@@ -1327,7 +1320,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightAcceptsAllOptions() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("""
             FROM foo | HIGHLIGHT "elasticsearch" ON title WITH {
               "pre_tags": ["<b>"], "post_tags": ["</b>"], "encoder": "html",
@@ -1339,7 +1331,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsUnknownOption() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid option [bogus] in HIGHLIGHT"),
@@ -1348,7 +1339,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsMapOptionValue() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid value for option [pre_tags] in HIGHLIGHT, expected a constant, found [{ \"tag\": \"<b>\" }]"),
@@ -1357,7 +1347,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightAcceptsFunctionQuery() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT MATCH(title, \"x\") ON title");
         Highlight highlight = as(plan, Highlight.class);
         UnresolvedFunction match = as(highlight.query(), UnresolvedFunction.class);
@@ -1367,7 +1356,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightTerminatesInsideFork() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("""
             FROM foo
             | FORK ( HIGHLIGHT MATCH(title, "x") ON title )
@@ -1381,17 +1369,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsWildcardFields() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON *"));
-    }
-
-    public void testHighlightNotInReleaseBuild() {
-        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
-        expectThrows(
-            ParsingException.class,
-            containsString("mismatched input 'HIGHLIGHT'"),
-            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title")
-        );
     }
 
     public void testBasicSortCommand() {
@@ -4558,6 +4536,50 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.timeout(), equalTo(TimeValue.timeValueSeconds(30)));
     }
 
+    public void testDenseVectorType() {
+        assumeDenseVectorCommandEnabled();
+        var text = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"text\" }"),
+            DenseVector.class
+        );
+        assertThat(text.inputType(), equalTo(org.elasticsearch.inference.DataType.TEXT));
+
+        var image = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"image\" }"),
+            DenseVector.class
+        );
+        assertThat(image.inputType(), equalTo(org.elasticsearch.inference.DataType.IMAGE));
+    }
+
+    public void testDenseVectorTypeIsCaseInsensitive() {
+        assumeDenseVectorCommandEnabled();
+        for (String value : List.of("image", "IMAGE", "Image", "iMaGe")) {
+            var plan = as(
+                processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"" + value + "\" }"),
+                DenseVector.class
+            );
+            assertThat(plan.inputType(), equalTo(org.elasticsearch.inference.DataType.IMAGE));
+        }
+    }
+
+    public void testDenseVectorDefaultType() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.inputType(), equalTo(org.elasticsearch.inference.DataType.TEXT));
+    }
+
+    public void testDenseVectorInvalidType() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"audio\" }",
+            "Invalid value [audio] for option [type] in DENSE_VECTOR, expected one of [text, image]"
+        );
+        expectError(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"nonsense\" }",
+            "Invalid value [nonsense] for option [type] in DENSE_VECTOR, expected one of [text, image]"
+        );
+    }
+
     public void testDenseVectorDefaultTimeout() {
         assumeDenseVectorCommandEnabled();
         // When no timeout option is given, the plan carries a null timeout; the inference layer then applies its
@@ -4644,7 +4666,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assumeDenseVectorCommandEnabled();
         expectError(
             "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"foo\" : 3 }",
-            "Invalid option [foo] in DENSE_VECTOR, expected one of [[inference_id, timeout]]"
+            "Invalid option [foo] in DENSE_VECTOR, expected one of [[inference_id, timeout, type]]"
         );
     }
 

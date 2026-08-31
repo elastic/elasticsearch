@@ -368,6 +368,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         file('build.versions.toml') << '''\
 [libraries]
 checkstyle = "com.puppycrawl.tools:checkstyle:13.11"
+forbiddenApis = "de.thetaphi:forbiddenapis:3.10"
 '''
         settingsFile << '''
             dependencyResolutionManagement {

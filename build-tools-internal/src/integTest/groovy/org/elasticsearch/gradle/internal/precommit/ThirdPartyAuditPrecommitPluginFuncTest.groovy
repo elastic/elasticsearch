@@ -28,6 +28,7 @@ class ThirdPartyAuditPrecommitPluginFuncTest extends AbstractGradleInternalPlugi
     Class<? extends PrecommitPlugin> pluginClassUnderTest = ThirdPartyAuditPrecommitPlugin.class
 
     def setup() {
+        withVersionCatalogue()
         buildFile << """
         import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugin
         import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditTask

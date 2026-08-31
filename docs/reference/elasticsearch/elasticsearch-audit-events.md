@@ -411,7 +411,7 @@ $$$event-delete-user$$$
 
 $$$event-delete-user-managed-service-account$$$
 
-`delete_user_managed_service_account`
+`delete_user_managed_service_account` {applies_to}`stack: ga 9.6+`
 :   Logged when the delete user-managed service account API is invoked to delete a user-managed service account at `/_security/service/{namespace}/{service}`.
 
     You must include the `security_config_change` event type to audit the related event action.

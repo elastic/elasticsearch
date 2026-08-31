@@ -755,8 +755,8 @@ public class RBACEngine implements AuthorizationEngine {
             } catch (UnsupportedOperationException e) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        "Cannot retrieve privileges for API keys with assigned role descriptors. "
-                            + "Please use the Get API key information API https://ela.st/es-api-get-api-key",
+                        "Cannot retrieve privileges for a subject whose effective privileges are constrained by limited-by roles. "
+                            + "For API keys, use the Get API key information API https://ela.st/es-api-get-api-key",
                         e
                     )
                 );

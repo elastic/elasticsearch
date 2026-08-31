@@ -12,8 +12,8 @@ package org.elasticsearch.simdjson.internal;
 import org.elasticsearch.foreign.Critical;
 import org.elasticsearch.foreign.Function;
 import org.elasticsearch.foreign.LibrarySpecification;
-import org.elasticsearch.foreign.OffsetSegment;
 import org.elasticsearch.foreign.Platform;
+import org.elasticsearch.foreign.SlicedSegment;
 import org.elasticsearch.foreign.VectorSegment;
 
 import java.lang.foreign.MemorySegment;
@@ -59,9 +59,8 @@ public interface SimdJsonLibrary {
      * {@code outBuf}. Adds {@code offset} to each index so outputs are absolute positions.
      *
      * <p>Stage 1 copies its remainder block into a stack-local buffer padded with spaces, so
-     * the native code never reads past {@code buf[offset + len - 1]}. The {@code paddingBytes = 0}
-     * on the {@code @OffsetSegment} reflects this — the bounds check verifies
-     * {@code offset + len <= buf.byteSize()} with no extra slack. This is verified by guard-page
+     * the native code never reads past {@code buf[offset + len - 1]}. The {@code @SlicedSegment}
+     * bounds check verifies {@code offset + len <= buf.byteSize()}. This is verified by guard-page
      * tests in {@code SimdJsonLibraryTests} and {@code StructuralIndexerTests}.
      *
      * <p>This is the {@code @Critical} variant: {@code buf} and {@code outBuf} may be
@@ -74,7 +73,7 @@ public interface SimdJsonLibrary {
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     int stage1(
         MemorySegment ctx,
-        @OffsetSegment(offset = "offset", length = "len") MemorySegment buf,
+        @SlicedSegment(offsetParam = "offset", sizeParam = "len") MemorySegment buf,
         int offset,
         int len,
         @VectorSegment(countParam = "outBufCapacity", elementBits = 32) MemorySegment outBuf,

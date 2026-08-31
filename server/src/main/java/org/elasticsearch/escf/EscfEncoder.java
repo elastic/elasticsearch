@@ -76,6 +76,10 @@ public final class EscfEncoder implements SourceBatchEncoder {
         this.allowSimd = allowSimd;
     }
 
+    public void parseToScratch(BytesReference source, XContentType xContentType) throws IOException {
+        parseToScratch(source, xContentType, LeafSink.NO_OP);
+    }
+
     @Override
     public void parseToScratch(BytesReference source, XContentType xContentType, LeafSink sink) throws IOException {
         if (tryDirectWalkSingle(source, xContentType, sink)) {

@@ -17,36 +17,29 @@ import java.lang.foreign.MemorySegment;
 
 /**
  * An annotation applicable to {@link MemorySegment} parameters on {@code @Function} methods, where the
- * native function accesses a sub-range {@code [offset..offset+length)} of the segment, optionally with
- * additional readable padding bytes past that range.
+ * native function accesses a slice {@code [offset..offset+size)} of the segment.
  *
  * <p>The processor emits
- * {@code Objects.checkFromIndexSize((long) offset, (long) length + paddingBytes, segment.byteSize())}
+ * {@code Objects.checkFromIndexSize((long) offset, (long) size, segment.byteSize())}
  * at the top of the generated {@code $Impl} method, before the native call. This verifies that
- * {@code offset + length + paddingBytes <= segment.byteSize()}.
+ * {@code offset + size <= segment.byteSize()}.
  *
  * <pre>{@code
  * @Function("process_range")
  * int processRange(
- *     @OffsetSegment(offset = "offset", length = "len") MemorySegment buf,
+ *     @SlicedSegment(offsetParam = "offset", sizeParam = "size") MemorySegment buf,
  *     int offset,
- *     int len);
+ *     int size);
  * }</pre>
  */
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.PARAMETER)
 @BoundsCheck
-public @interface OffsetSegment {
+public @interface SlicedSegment {
 
     /** Name of the sibling {@code int}/{@code long} parameter holding the byte offset into the segment. */
-    String offset();
+    String offsetParam();
 
-    /** Name of the sibling {@code int}/{@code long} parameter holding the byte length of the accessed region. */
-    String length();
-
-    /**
-     * Constant number of additional readable bytes required past {@code offset + length}.
-     * Defaults to 0 (no extra padding required).
-     */
-    int paddingBytes() default 0;
+    /** Name of the sibling {@code int}/{@code long} parameter holding the byte size of the slice. */
+    String sizeParam();
 }

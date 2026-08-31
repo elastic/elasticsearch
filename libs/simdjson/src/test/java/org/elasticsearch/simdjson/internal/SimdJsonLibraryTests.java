@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Unit tests for the {@link SimdJsonLibrary} FFI binding, exercising the native library
  * directly (not through {@link StructuralIndexer}). Tests cover basic stage 1
- * functionality, the generated {@code @OffsetSegment} and {@code @VectorSegment} bounds
+ * functionality, the generated {@code @SlicedSegment} and {@code @VectorSegment} bounds
  * checks, and guard-page verification that stage 1 does not read past the declared range.
  *
  * <p>Parameterized to run with both {@link Arena#ofConfined()} and
@@ -535,7 +535,7 @@ public class SimdJsonLibraryTests extends ESTestCase {
     static final Class<IndexOutOfBoundsException> IOOBE = IndexOutOfBoundsException.class;
 
     // ---- Bounds check tests ----
-    // Verify that the generated @OffsetSegment and @VectorSegment bounds checks on
+    // Verify that the generated @SlicedSegment and @VectorSegment bounds checks on
     // stage1 throw IndexOutOfBoundsException when segments are too small.
 
     // Input buffer smaller than declared length should throw IndexOutOfBoundsException.

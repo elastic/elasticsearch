@@ -597,7 +597,7 @@ class ImplClassWriter {
 
     /**
      * Emits the fixed {@code Objects.checkFromIndexSize(0L, <shape>, segment.byteSize())} template for
-     * every {@code @VectorSegment}/{@code @MatrixSegment}-annotated parameter, in parameter order, at
+     * every {@code @VectorSegment}/{@code @MatrixSegment}/{@code @SlicedSegment}-annotated parameter, in parameter order, at
      * the very top of the method body — before the try block, so a failing check propagates its own
      * {@link IndexOutOfBoundsException} rather than being wrapped in {@link AssertionError}.
      */
@@ -608,7 +608,7 @@ class ImplClassWriter {
             switch (check) {
                 case BoundsCheckModel.VectorSegmentCheck v -> emitVectorSegmentCheck(cb, generatedDesc, paramTypes, slots, v);
                 case BoundsCheckModel.MatrixSegmentCheck m -> emitMatrixSegmentCheck(cb, generatedDesc, paramTypes, slots, m);
-                case BoundsCheckModel.OffsetSegmentCheck o -> emitOffsetSegmentCheck(cb, paramTypes, slots, o);
+                case BoundsCheckModel.SlicedSegmentCheck s -> emitSlicedSegmentCheck(cb, paramTypes, slots, s);
             }
         }
     }
@@ -702,21 +702,15 @@ class ImplClassWriter {
         cb.labelBinding(paddingOk);
     }
 
-    /**
-     * Emits {@code Objects.checkFromIndexSize((long) offset, (long) length + paddingBytes, segment.byteSize())}.
-     */
-    private static void emitOffsetSegmentCheck(
+    /** Emits {@code Objects.checkFromIndexSize((long) offset, (long) size, segment.byteSize())}. */
+    private static void emitSlicedSegmentCheck(
         CodeBuilder cb,
         List<NativeType> paramTypes,
         int[] slots,
-        BoundsCheckModel.OffsetSegmentCheck check
+        BoundsCheckModel.SlicedSegmentCheck check
     ) {
         emitLongParamLoad(cb, paramTypes.get(check.offsetParamIndex()), slots[check.offsetParamIndex()]);
-        emitLongParamLoad(cb, paramTypes.get(check.lengthParamIndex()), slots[check.lengthParamIndex()]);
-        if (check.paddingBytes() > 0) {
-            cb.ldc((long) check.paddingBytes());
-            cb.ladd();
-        }
+        emitLongParamLoad(cb, paramTypes.get(check.sizeParamIndex()), slots[check.sizeParamIndex()]);
         emitCheckFromIndexSize(cb, slots[check.segParamIndex()]);
     }
 

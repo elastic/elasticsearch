@@ -10,8 +10,8 @@
 package org.elasticsearch.foreign.processor;
 
 /**
- * Tests that {@code @VectorSegment}/{@code @MatrixSegment} (backed by {@code BoundsCheckModel})
- * emit the correct diagnostics for invalid parameter combinations.
+ * Tests that {@code @VectorSegment}/{@code @MatrixSegment}/{@code @SlicedSegment} (backed by
+ * {@code BoundsCheckModel}) emit the correct diagnostics for invalid parameter combinations.
  * Positive/structural cases (where a correctly-shaped {@code $Impl} class is generated) live in
  * {@link ImplClassWriterTests}, the test suite for class codegen.
  */
@@ -412,20 +412,20 @@ public class BoundsCheckTests extends ProcessorTestCase {
     }
 
     // -------------------------------------------------------------------------
-    // @OffsetSegment
+    // @SlicedSegment
     // -------------------------------------------------------------------------
 
-    public void testOffsetSegmentOnNonMemorySegmentParamFails() {
+    public void testSlicedSegmentOnNonMemorySegmentParamFails() {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.OffsetSegment;
+            import org.elasticsearch.foreign.SlicedSegment;
             @LibrarySpecification(name = "testlib")
             public interface BadLib {
                 @Function("native_fn")
-                int fn(@OffsetSegment(offset = "offset", length = "len") int offset, int len);
+                int fn(@SlicedSegment(offsetParam = "offset", sizeParam = "size") int offset, int size);
             }
             """;
 
@@ -438,17 +438,17 @@ public class BoundsCheckTests extends ProcessorTestCase {
         );
     }
 
-    public void testOffsetSegmentUnknownOffsetFails() {
+    public void testSlicedSegmentUnknownOffsetParamFails() {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.OffsetSegment;
+            import org.elasticsearch.foreign.SlicedSegment;
             @LibrarySpecification(name = "testlib")
             public interface BadLib {
                 @Function("native_fn")
-                int fn(@OffsetSegment(offset = "nope", length = "len") MemorySegment buf, int offset, int len);
+                int fn(@SlicedSegment(offsetParam = "nope", sizeParam = "size") MemorySegment buf, int offset, int size);
             }
             """;
 
@@ -456,22 +456,22 @@ public class BoundsCheckTests extends ProcessorTestCase {
 
         assertFalse("Expected compilation to fail", result.success());
         assertTrue(
-            "Expected error about unknown offset but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("@OffsetSegment.offset references unknown parameter [nope]"))
+            "Expected error about unknown offsetParam but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("@SlicedSegment.offsetParam references unknown parameter [nope]"))
         );
     }
 
-    public void testOffsetSegmentUnknownLengthFails() {
+    public void testSlicedSegmentUnknownSizeParamFails() {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.OffsetSegment;
+            import org.elasticsearch.foreign.SlicedSegment;
             @LibrarySpecification(name = "testlib")
             public interface BadLib {
                 @Function("native_fn")
-                int fn(@OffsetSegment(offset = "offset", length = "nope") MemorySegment buf, int offset, int len);
+                int fn(@SlicedSegment(offsetParam = "offset", sizeParam = "nope") MemorySegment buf, int offset, int size);
             }
             """;
 
@@ -479,22 +479,22 @@ public class BoundsCheckTests extends ProcessorTestCase {
 
         assertFalse("Expected compilation to fail", result.success());
         assertTrue(
-            "Expected error about unknown length but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("@OffsetSegment.length references unknown parameter [nope]"))
+            "Expected error about unknown sizeParam but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("@SlicedSegment.sizeParam references unknown parameter [nope]"))
         );
     }
 
-    public void testOffsetSegmentOffsetWrongTypeFails() {
+    public void testSlicedSegmentOffsetParamWrongTypeFails() {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.OffsetSegment;
+            import org.elasticsearch.foreign.SlicedSegment;
             @LibrarySpecification(name = "testlib")
             public interface BadLib {
                 @Function("native_fn")
-                int fn(@OffsetSegment(offset = "offset", length = "len") MemorySegment buf, MemorySegment offset, int len);
+                int fn(@SlicedSegment(offsetParam = "offset", sizeParam = "size") MemorySegment buf, MemorySegment offset, int size);
             }
             """;
 
@@ -502,22 +502,22 @@ public class BoundsCheckTests extends ProcessorTestCase {
 
         assertFalse("Expected compilation to fail", result.success());
         assertTrue(
-            "Expected error about offset type but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("@OffsetSegment.offset parameter [offset] must be int or long"))
+            "Expected error about offsetParam type but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("@SlicedSegment.offsetParam parameter [offset] must be int or long"))
         );
     }
 
-    public void testOffsetSegmentNegativePaddingBytesFails() {
+    public void testSlicedSegmentSizeParamWrongTypeFails() {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.OffsetSegment;
+            import org.elasticsearch.foreign.SlicedSegment;
             @LibrarySpecification(name = "testlib")
             public interface BadLib {
                 @Function("native_fn")
-                int fn(@OffsetSegment(offset = "offset", length = "len", paddingBytes = -1) MemorySegment buf, int offset, int len);
+                int fn(@SlicedSegment(offsetParam = "offset", sizeParam = "size") MemorySegment buf, int offset, MemorySegment size);
             }
             """;
 
@@ -525,22 +525,22 @@ public class BoundsCheckTests extends ProcessorTestCase {
 
         assertFalse("Expected compilation to fail", result.success());
         assertTrue(
-            "Expected error about negative paddingBytes but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("paddingBytes") && msg.contains("must be non-negative"))
+            "Expected error about sizeParam type but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("@SlicedSegment.sizeParam parameter [size] must be int or long"))
         );
     }
 
-    public void testOffsetSegmentValidCompiles() {
+    public void testSlicedSegmentValidCompiles() {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.OffsetSegment;
+            import org.elasticsearch.foreign.SlicedSegment;
             @LibrarySpecification(name = "testlib")
             public interface GoodLib {
                 @Function("native_fn")
-                int fn(@OffsetSegment(offset = "offset", length = "len") MemorySegment buf, int offset, int len);
+                int fn(@SlicedSegment(offsetParam = "offset", sizeParam = "size") MemorySegment buf, int offset, int size);
             }
             """;
 
@@ -549,17 +549,36 @@ public class BoundsCheckTests extends ProcessorTestCase {
         assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
     }
 
-    public void testOffsetSegmentWithPaddingCompiles() {
+    public void testSlicedSegmentValidCompilesWithLongParams() {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.OffsetSegment;
+            import org.elasticsearch.foreign.SlicedSegment;
             @LibrarySpecification(name = "testlib")
             public interface GoodLib {
                 @Function("native_fn")
-                int fn(@OffsetSegment(offset = "offset", length = "len", paddingBytes = 64) MemorySegment buf, int offset, int len);
+                int fn(@SlicedSegment(offsetParam = "offset", sizeParam = "size") MemorySegment buf, long offset, long size);
+            }
+            """;
+
+        CompilationResult result = compile("test.GoodLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+    }
+
+    public void testSlicedSegmentValidCompilesWithMixedIntLongParams() {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.SlicedSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface GoodLib {
+                @Function("native_fn")
+                int fn(@SlicedSegment(offsetParam = "offset", sizeParam = "size") MemorySegment buf, int offset, long size);
             }
             """;
 

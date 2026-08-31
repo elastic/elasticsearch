@@ -25,7 +25,7 @@ import java.util.function.Predicate;
  * Discovers eligible recovery sources from a snapshot for the data recovery API.
  * <p>
  * It filters candidates (excluding system, backing, and incomplete indices/streams),
- * applies a multi-target expression list, and returns a bounded, paginated result.
+ * applies a multi-target expression list, and returns a bounded result.
  */
 public final class RecoverySourceDiscovery {
 
@@ -117,18 +117,24 @@ public final class RecoverySourceDiscovery {
         if (expressions.isEmpty()) {
             return name -> true;
         }
-        List<String> positives = new ArrayList<>();
-        List<String> negatives = new ArrayList<>();
+        record Term(boolean positive, Predicate<String> matcher) {}
+        List<Term> terms = new ArrayList<>(expressions.size());
         for (String expr : expressions) {
             if (expr.startsWith("-")) {
-                negatives.add(expr.substring(1));
+                terms.add(new Term(false, Regex.simpleMatcher(expr.substring(1))));
             } else {
-                positives.add(expr);
+                terms.add(new Term(true, Regex.simpleMatcher(expr)));
             }
         }
-        Predicate<String> include = positives.isEmpty() ? name -> true : Regex.simpleMatcher(positives.toArray(String[]::new));
-        Predicate<String> exclude = negatives.isEmpty() ? name -> false : Regex.simpleMatcher(negatives.toArray(String[]::new));
-        return name -> include.test(name) && exclude.test(name) == false;
+        return name -> {
+            boolean included = false;
+            for (Term term : terms) {
+                if (term.matcher().test(name)) {
+                    included = term.positive();
+                }
+            }
+            return included;
+        };
     }
 
     private static Result filterAndCollect(int size, SortedSet<RecoverySource> candidates, Predicate<String> matcher) {

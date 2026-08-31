@@ -359,8 +359,21 @@ public class RecoverySourceDiscoveryTests extends ESTestCase {
     public void testNegativeWildcardExcludesMatchingNames() {
         List<String> names = List.of("logs-app", "logs-audit", "metrics-app");
         SnapshotInfo snap = successSnap(names);
-        RecoverySourceDiscovery.Result result = RecoverySourceDiscovery.discover(snap, projectMetaFor(names), List.of("-logs-*"), 10);
+        RecoverySourceDiscovery.Result result = RecoverySourceDiscovery.discover(snap, projectMetaFor(names), List.of("*", "-logs-*"), 10);
         assertThat(result.sources().stream().map(RecoverySource::name).toList(), contains("metrics-app"));
+        assertFalse(result.hasMore());
+    }
+
+    public void testLaterPositiveExpressionReincludesExcludedSources() {
+        List<String> names = List.of("logs-app", "metrics-app");
+        SnapshotInfo snap = successSnap(names);
+        RecoverySourceDiscovery.Result result = RecoverySourceDiscovery.discover(
+            snap,
+            projectMetaFor(names),
+            List.of("*", "-logs-*", "*"),
+            10
+        );
+        assertThat(result.sources().stream().map(RecoverySource::name).toList(), contains("logs-app", "metrics-app"));
         assertFalse(result.hasMore());
     }
 

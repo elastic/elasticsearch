@@ -1325,6 +1325,11 @@ public class EsqlCapabilities {
          */
         DENSE_VECTOR_COMMAND(Build.current().isSnapshot()),
         /**
+         * Adds the {@code type} option (text|image) and endpoint-driven multimodal routing to the DENSE_VECTOR command.
+         * Dev/snapshot-only, like {@link #DENSE_VECTOR_COMMAND}.
+         */
+        DENSE_VECTOR_COMMAND_V2(Build.current().isSnapshot()),
+        /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
         MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,

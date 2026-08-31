@@ -17,9 +17,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -27,18 +30,37 @@ import java.util.Set;
 
 public class AuditUtil {
 
+    private static final Logger logger = LogManager.getLogger(AuditUtil.class);
+
     // We need to expose this to allow-list as a header passed for cross cluster requests; see `CrossClusterAccessServerTransportFilter`
     public static final String AUDIT_REQUEST_ID = "_xpack_audit_request_id";
 
-    public static String restRequestContent(RestRequest request, int maxBytes, @Nullable CircuitBreaker circuitBreaker, String settingKey) {
+    /**
+     * Renders the body of {@code request} as a JSON string for inclusion in audit log events.
+     * <p>
+     * If {@code maxBytes > 0} and the rendered JSON length exceeds that limit, an
+     * {@link ElasticsearchStatusException} with status 413 is thrown so the caller can reject
+     * the request before it is written to the audit log.
+     *
+     * @param maxBytes   maximum allowed length of the rendered JSON string, in characters; {@code 0} = unlimited
+     * @param settingKey the cluster setting key to include in the error message; may be {@code null}
+     *                   when {@code maxBytes} is {@code 0}
+     */
+    public static String restRequestContent(RestRequest request, int maxBytes, String settingKey) {
         if (request.hasContent()) {
             var content = request.content();
+            final XContentType xContentType = request.getXContentType();
+            if (xContentType == null) {
+                final var parsedContentType = request.getParsedContentType();
+                final String mediaType = parsedContentType != null ? parsedContentType.mediaTypeWithoutParameters() : "unknown";
+                return "Unrecognized content type [" + mediaType + "]";
+            }
             try {
                 return XContentHelper.convertToJson(
                     content,
                     false,
                     false,
-                    request.getXContentType(),
+                    xContentType,
                     new XContentHelper.Budget(maxBytes, circuitBreaker, circuitBreaker != null ? "audit-body" : null)
                 );
             } catch (XContentHelper.TooLargeBodyException e) {
@@ -52,6 +74,7 @@ public class AuditUtil {
             } catch (CircuitBreakingException e) {
                 throw e;
             } catch (Exception e) {
+                logger.warn(() -> Strings.format("failed to read body of REST request [%s] for auditing", request.uri()), e);
                 return "Invalid Format: " + content.utf8ToString();
             }
         }

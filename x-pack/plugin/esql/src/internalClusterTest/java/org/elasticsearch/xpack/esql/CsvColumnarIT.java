@@ -196,6 +196,7 @@ public class CsvColumnarIT extends CsvIT {
         "unmapped_multi_stored_mixed",
         "unmapped_array_data",
         "unmapped_object_data",
+        "unmapped_edge_cases",
         "synthetic_source_partial_mapping",
         // no_mapping_sample_data has no explicit mapping; all its fields are unmapped. When
         // combined with other indices in a multi-index query and LOAD is used to load the

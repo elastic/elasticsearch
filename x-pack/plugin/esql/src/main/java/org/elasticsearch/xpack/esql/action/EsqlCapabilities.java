@@ -2986,6 +2986,18 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_EMPTY_STRING_NOT_NULL,
 
         /**
+         * External NDJSON resolves dotted field names correctly: {@code {"a":{"b":1}}} and {@code {"a.b":1}} both
+         * populate the column {@code a.b}; a scalar {@code a} alongside a dotted {@code a.b} yields two independent
+         * columns; duplicate spellings of one column within a record merge into a multivalue.
+         * <p>
+         * Gates the csv-spec tests that assert this, because it changes results for an ordinary NDJSON read: a
+         * pre-change node resolves dotted names by a schema heuristic instead. One of those cases lives in the
+         * shared cross-format {@code external-declared-schema.csv-spec}, which the mixed-cluster suite generates a
+         * per-file IT for in both coordinator directions, so the gate is what skips it against a pre-change node.
+         */
+        EXTERNAL_NDJSON_DOTTED_FIELD_RESOLUTION,
+
+        /**
          * Datasource file plugins (CSV, ORC, Parquet) no longer return {@code TEXT} types, only {@code KEYWORD}.
          * See <a href="https://github.com/elastic/elasticsearch/pull/145334">#145334</a>. Used to gate the affected
          * {@code external-basic.csv-spec} tests so they are skipped on mixed clusters where a pre-change coordinator

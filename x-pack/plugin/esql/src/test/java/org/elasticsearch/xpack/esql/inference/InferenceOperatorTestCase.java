@@ -105,9 +105,13 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                 Block[] blocks = new Block[inputsCount];
                 try {
                     for (int b = 0; b < inputsCount; b++) {
+                        // A null value produces no inference request, so a block of nothing but nulls reaches the inference
+                        // service as no request at all. One position per block is therefore always non-null, so that every
+                        // non-empty page issues at least one request and failure-injecting tests have something to fail.
+                        int nonNullPosition = length > 0 ? between(0, length - 1) : -1;
                         try (var builder = blockFactory.newBytesRefBlockBuilder(length)) {
                             for (int i = 0; i < length; i++) {
-                                if (randomInt() % 100 == 0) {
+                                if (i != nonNullPosition && randomInt() % 100 == 0) {
                                     builder.appendNull();
                                 } else {
                                     builder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));

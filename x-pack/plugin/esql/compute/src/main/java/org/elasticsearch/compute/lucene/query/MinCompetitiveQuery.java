@@ -65,6 +65,8 @@ public class MinCompetitiveQuery implements Releasable {
     private int matchNone;
     private int greaterThanMinCompetitive;
 
+    private int updateInvocations;
+
     private long updateNanos;
 
     private MinCompetitiveQuery(
@@ -82,6 +84,7 @@ public class MinCompetitiveQuery implements Releasable {
     }
 
     public void update(ShardContext ctx, LeafReaderContext leaf) throws IOException {
+        updateInvocations++;
         long start = System.nanoTime();
         this.disi = updatedDisi(ctx, leaf);
         updateNanos += System.nanoTime() - start;
@@ -104,7 +107,7 @@ public class MinCompetitiveQuery implements Releasable {
     }
 
     public Status status() {
-        return new Status(changedValue, matchAll, matchNone, greaterThanMinCompetitive, updateNanos);
+        return new Status(changedValue, matchAll, matchNone, greaterThanMinCompetitive, updateInvocations, updateNanos);
     }
 
     @Override
@@ -209,12 +212,16 @@ public class MinCompetitiveQuery implements Releasable {
         }
     }
 
-    public record Status(int changedValue, int matchAll, int matchNone, int greaterThanMinCompetitive, long updateNanos)
-        implements
-            Writeable,
-            ToXContentObject {
+    public record Status(
+        int changedValue,
+        int matchAll,
+        int matchNone,
+        int greaterThanMinCompetitive,
+        int updateInvocations,
+        long updateNanos
+    ) implements Writeable, ToXContentObject {
         public static Status readFrom(StreamInput in) throws IOException {
-            return new Status(in.readVInt(), in.readVInt(), in.readVInt(), in.readVInt(), in.readVLong());
+            return new Status(in.readVInt(), in.readVInt(), in.readVInt(), in.readVInt(), in.readVInt(), in.readVLong());
         }
 
         @Override
@@ -223,6 +230,7 @@ public class MinCompetitiveQuery implements Releasable {
             out.writeVInt(matchAll);
             out.writeVInt(matchNone);
             out.writeVInt(greaterThanMinCompetitive);
+            out.writeVInt(updateInvocations);
             out.writeVLong(updateNanos);
         }
 
@@ -233,6 +241,7 @@ public class MinCompetitiveQuery implements Releasable {
             builder.field("match_all", matchAll);
             builder.field("match_none", matchNone);
             builder.field("greater_than_min_competitive", greaterThanMinCompetitive);
+            builder.field("update_invocations", updateInvocations);
             builder.field("update_nanos", updateNanos);
             if (builder.humanReadable()) {
                 builder.field("update_time", TimeValue.timeValueNanos(updateNanos));

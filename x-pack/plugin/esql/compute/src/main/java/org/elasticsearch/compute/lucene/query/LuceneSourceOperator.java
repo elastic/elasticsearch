@@ -578,6 +578,11 @@ public class LuceneSourceOperator extends LuceneOperator {
         sb.append(", remainingDocs = ").append(remainingDocs);
     }
 
+    @Override
+    protected MinCompetitiveQuery.Status minCompetitiveStatus() {
+        return minCompetitiveQuery == null ? null : minCompetitiveQuery.status();
+    }
+
     private static class IntArrayPool implements Releasable {
         private int[] pool;
         private long usedBytes;

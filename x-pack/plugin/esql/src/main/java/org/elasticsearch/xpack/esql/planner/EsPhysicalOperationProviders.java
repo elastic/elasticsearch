@@ -515,7 +515,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         /**
          * Restrict the _source read to this field's own paths so a single unmapped reference does not force a full _source load.
          * For object/nested fields ({@link ObjectMapper}), {@code sourcePath} may return an empty set, which falls back to
-         * {@link StoredFieldsSpec#NEEDS_SOURCE} (full source load). The value at that path is a Map, so
+         * a full _source load. The value at that path is a Map, so
          * {@link UnmappedKeywordValues#collect} discards it; the net result is a null keyword column.
          */
         static BlockLoader unmappedKeywordBlockLoader(String name, DefaultShardContext context) {

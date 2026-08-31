@@ -485,7 +485,14 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         IntVector selected,
         GroupingAggregatorEvaluationContext ctx
     ) {
+        if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+            assert assertTimestampsWithinBuckets(selected, tsContext);
+            assert assertRawTimestampsWithinBuckets(rawBuffer, tsContext, (long) (dateFactor / 1000.0));
+        }
         flushRawBuffers();
+        if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+            assert assertTimestampsWithinBuckets(selected, tsContext);
+        }
         return this::evaluateIntermediate;
     }
 
@@ -763,10 +770,14 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             }
             long bucketStart = tsContext.rangeStartInMillis(group) * (long) (dateFactor / 1000.0);
             long bucketEnd = tsContext.rangeEndInMillis(group) * (long) (dateFactor / 1000.0);
-            assert state.firstTs() >= bucketStart
-                : describeMisbucketedGroup("firstTs " + state.firstTs() + " is before bucket start", group, state, bucketStart, bucketEnd);
-            assert state.lastTs() <= bucketEnd
-                : describeMisbucketedGroup("lastTs " + state.lastTs() + " is after bucket end", group, state, bucketStart, bucketEnd);
+            for (int intervalId : state.intervals) {
+                long firstTs = intervalBuffer.firstTs(intervalId);
+                long lastTs = intervalBuffer.lastTs(intervalId);
+                assert firstTs >= bucketStart
+                    : describeMisbucketedGroup("firstTs " + firstTs + " is before bucket start", group, state, bucketStart, bucketEnd);
+                assert lastTs < bucketEnd
+                    : describeMisbucketedGroup("lastTs " + lastTs + " is at or after bucket end", group, state, bucketStart, bucketEnd);
+            }
         }
         return true;
     }

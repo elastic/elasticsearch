@@ -412,7 +412,14 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
         IntVector selected,
         GroupingAggregatorEvaluationContext ctx
     ) {
+        if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+            assert assertTimestampsWithinBuckets(selected, tsContext);
+            assert assertRawTimestampsWithinBuckets(rawBuffer, tsContext, 1L);
+        }
         flushRawBuffers();
+        if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+            assert assertTimestampsWithinBuckets(selected, tsContext);
+        }
         return this::evaluateIntermediate;
     }
 
@@ -716,6 +723,49 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
             }
             blocks[offset] = rates.build();
         }
+    }
+
+    private boolean assertTimestampsWithinBuckets(IntVector selected, TimeSeriesGroupingAggregatorEvaluationContext context) {
+        for (int p = 0; p < selected.getPositionCount(); p++) {
+            int groupId = selected.getInt(p);
+            var state = groupId < reducedStates.size() ? reducedStates.get(groupId) : null;
+            if (state == null || state.samples == 0) {
+                continue;
+            }
+            long bucketStart = context.rangeStartInMillis(groupId);
+            long bucketEnd = context.rangeEndInMillis(groupId);
+            for (int intervalId : state.intervals) {
+                long firstTs = intervalBuffer.firstTs(intervalId);
+                long lastTs = intervalBuffer.lastTs(intervalId);
+                assert firstTs >= bucketStart
+                    : "firstTs "
+                        + firstTs
+                        + " is before bucket start "
+                        + bucketStart
+                        + " for group "
+                        + groupId
+                        + "; bucket=["
+                        + bucketStart
+                        + ", "
+                        + bucketEnd
+                        + "), intervalId="
+                        + intervalId;
+                assert lastTs < bucketEnd
+                    : "lastTs "
+                        + lastTs
+                        + " is at or after bucket end "
+                        + bucketEnd
+                        + " for group "
+                        + groupId
+                        + "; bucket=["
+                        + bucketStart
+                        + ", "
+                        + bucketEnd
+                        + "), intervalId="
+                        + intervalId;
+            }
+        }
+        return true;
     }
 
     @Override

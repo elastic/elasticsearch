@@ -78,7 +78,6 @@ public class PersistentTaskCreationFailureIT extends ESIntegTestCase {
                                 .stream()
                                 .filter(
                                     pendingClusterTask -> pendingClusterTask.getSource()
-                                        .string()
                                         .matches("finish project .* persistent task \\[.*] \\(failed\\)")
                                 )
                                 .count();

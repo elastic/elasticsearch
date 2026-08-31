@@ -80,6 +80,16 @@ public class VoyageAIResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
+    public void testBuildFailureStatusCodeException_ReturnsFor422() {
+        var exception = callHandleFailureStatusCode(422, "id");
+        assertFalse(exception.shouldRetry());
+        MatcherAssert.assertThat(
+            exception.getCause().getMessage(),
+            containsString("Received an input validation error response for request from inference entity id [id] status [422]")
+        );
+        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNPROCESSABLE_ENTITY));
+    }
+
     public void testBuildFailureStatusCodeException_ReturnsFor401() {
         var exception = callHandleFailureStatusCode(401, "inferenceEntityId");
         assertFalse(exception.shouldRetry());

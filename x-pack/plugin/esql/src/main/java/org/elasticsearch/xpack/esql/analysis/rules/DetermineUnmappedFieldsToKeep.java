@@ -12,7 +12,9 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
@@ -55,20 +57,20 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * Computes the {@link UnmappedFieldsPattern} describing which additional (currently unmapped)
-     * source fields would survive to the output of {@code plan}.
-     * <p>
-     * Two things restrict the pattern. KEEP/DROP/RENAME (as {@link ResolvingProject}) contribute the
-     * include/exclude patterns they were written with: each one adds a single OR group, while
-     * {@link UnmappedFieldsPattern#intersect} applies AND across chained commands. And every name that any
-     * node in the plan outputs is excluded: a mapped field, a name the query introduced (EVAL's aliases,
-     * RENAME's targets) and the synthetic {@code _unmapped_fields} column are all already columns of their
-     * own, so expanding a source field of that name would collide with them.
-     * <p>
-     * Non-unary plans fall back to {@link UnmappedFieldsPattern#ALL} so no field is ever accidentally
-     * suppressed; those queries are currently (and temporarily) rejected by the {@code Verifier}'s {@code LOAD_ALL} command allow-list.
+     * Computes the {@link UnmappedFieldsPattern} describing which additional (unreferenced and currently unmapped)
+     * {@code _source} fields would survive to the output of {@code plan} if it was in the output of an {@code EsRelation} that is the
+     * plan's only leaf. (Does not cover n-ary plans.)
      */
     private static UnmappedFieldsPattern computeUnmappedFieldsToKeep(LogicalPlan plan) {
+        if (plan instanceof InlineStats inlineStats) {
+            // INLINE STATS preserves input rows via a left join with its Aggregate. Walk the input, not the
+            // Aggregate: that node returns NONE so STATS can drop expansion, which must not apply here.
+            UnmappedFieldsPattern fromChild = computeUnmappedFieldsToKeep(inlineStats.aggregate().child());
+            return fromChild.withAdditionalExcludes(Expressions.names(plan.output()));
+        }
+        if (plan instanceof Aggregate) {
+            return UnmappedFieldsPattern.NONE;
+        }
         UnmappedFieldsPattern fromChild = plan instanceof UnaryPlan unary
             ? computeUnmappedFieldsToKeep(unary.child())
             : UnmappedFieldsPattern.ALL;

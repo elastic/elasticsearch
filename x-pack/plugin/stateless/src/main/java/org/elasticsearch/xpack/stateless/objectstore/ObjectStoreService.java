@@ -37,6 +37,8 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -150,27 +152,75 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         FS("location") {
             @Override
             @SuppressForbidden(reason = "creates path to external blobstore")
-            public Settings createRepositorySettings(String bucket, String client, String basePath) {
+            public Settings createRepositorySettings(
+                String bucket,
+                String client,
+                String basePath,
+                @Nullable ByteSizeValue multiPartThreshold
+            ) {
                 return Settings.builder().put("location", basePath != null ? PathUtils.get(bucket, basePath).toString() : bucket).build();
             }
         },
         MOCK("location") {
             @Override
-            public Settings createRepositorySettings(String bucket, String client, String basePath) {
-                return FS.createRepositorySettings(bucket, client, basePath);
+            public Settings createRepositorySettings(
+                String bucket,
+                String client,
+                String basePath,
+                @Nullable ByteSizeValue multiPartThreshold
+            ) {
+                return FS.createRepositorySettings(bucket, client, basePath, multiPartThreshold);
             }
         },
         S3("bucket") {
             @Override
-            public Settings createRepositorySettings(String bucket, String client, String basePath) {
-                return Settings.builder()
-                    .put(super.createRepositorySettings(bucket, client, basePath))
-                    .put("add_purpose_custom_query_parameter", "true")
-                    .build();
+            public Settings createRepositorySettings(
+                String bucket,
+                String client,
+                String basePath,
+                @Nullable ByteSizeValue multiPartThreshold
+            ) {
+                Settings.Builder builder = Settings.builder()
+                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold))
+                    .put("add_purpose_custom_query_parameter", "true");
+                if (multiPartThreshold != null) {
+                    builder.put(S3_MULTIPART_THRESHOLD_SETTING_KEY, multiPartThreshold.getStringRep());
+                }
+                return builder.build();
             }
         },
-        GCS("bucket"),
-        AZURE("container");
+        GCS("bucket") {
+            @Override
+            public Settings createRepositorySettings(
+                String bucket,
+                String client,
+                String basePath,
+                @Nullable ByteSizeValue multiPartThreshold
+            ) {
+                Settings.Builder builder = Settings.builder()
+                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold));
+                if (multiPartThreshold != null) {
+                    builder.put(GCS_MULTIPART_THRESHOLD_SETTING_KEY, multiPartThreshold.getStringRep());
+                }
+                return builder.build();
+            }
+        },
+        AZURE("container") {
+            @Override
+            public Settings createRepositorySettings(
+                String bucket,
+                String client,
+                String basePath,
+                @Nullable ByteSizeValue multiPartThreshold
+            ) {
+                Settings.Builder builder = Settings.builder()
+                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold));
+                if (multiPartThreshold != null) {
+                    builder.put(AZURE_MULTIPART_THRESHOLD_SETTING_KEY, multiPartThreshold.getStringRep());
+                }
+                return builder.build();
+            }
+        };
 
         private final String bucketSettingName;
 
@@ -178,7 +228,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             this.bucketSettingName = bucketSettingName;
         }
 
-        public Settings createRepositorySettings(String bucket, String client, String basePath) {
+        public Settings createRepositorySettings(
+            String bucket,
+            String client,
+            String basePath,
+            @Nullable ByteSizeValue multiPartThreshold
+        ) {
             Settings.Builder builder = Settings.builder();
             builder.put(bucketSettingName, bucket);
             builder.put("client", client);
@@ -287,6 +342,27 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         TimeValue.ZERO,
         Setting.Property.NodeScope
     );
+
+    /**
+     * Multipart upload threshold for the stateless object store. When set, this value is injected into the native multipart threshold
+     * setting for the configured backend ({@code buffer_size} for S3, {@code multipart_upload_size_threshold} for GCS,
+     * {@code max_single_part_upload_size} for Azure). Blobs smaller than this threshold use a single-part PUT; larger blobs use
+     * multipart. The minimum is 5 MB, matching the smallest valid part size across all supported object store backends.
+     * When unset, each backend uses its own default.
+     */
+    public static final Setting<ByteSizeValue> OBJECT_STORE_MULTIPART_THRESHOLD = Setting.byteSizeSetting(
+        "stateless.object_store.multipart_threshold",
+        ByteSizeValue.of(5, ByteSizeUnit.MB),
+        ByteSizeValue.of(5, ByteSizeUnit.MB),
+        ByteSizeValue.of(5, ByteSizeUnit.GB),
+        Setting.Property.NodeScope
+    );
+
+    // Repository modules are testImplementation-only dependencies; these duplicate the per-backend setting keys
+    // so ObjectStoreType can inject the threshold without a compile-time dependency on those modules.
+    static final String S3_MULTIPART_THRESHOLD_SETTING_KEY = "buffer_size";
+    static final String GCS_MULTIPART_THRESHOLD_SETTING_KEY = "multipart_upload_size_threshold";
+    static final String AZURE_MULTIPART_THRESHOLD_SETTING_KEY = "max_single_part_upload_size";
 
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
 
@@ -568,7 +644,15 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     protected Settings getRepositorySettings(ObjectStoreType type, Settings settings) {
-        return type.createRepositorySettings(BUCKET_SETTING.get(settings), CLIENT_SETTING.get(settings), BASE_PATH_SETTING.get(settings));
+        ByteSizeValue multiPartThreshold = settings.hasValue(OBJECT_STORE_MULTIPART_THRESHOLD.getKey())
+            ? OBJECT_STORE_MULTIPART_THRESHOLD.get(settings)
+            : null;
+        return type.createRepositorySettings(
+            BUCKET_SETTING.get(settings),
+            CLIENT_SETTING.get(settings),
+            BASE_PATH_SETTING.get(settings),
+            multiPartThreshold
+        );
     }
 
     private RepositoryMetadata getRepositoryMetadata(Settings settings) {

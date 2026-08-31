@@ -10,6 +10,7 @@
 package org.elasticsearch.test.fixtures.tls;
 
 import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.security.KeyFactory;
@@ -55,6 +56,11 @@ public class TestTlsCertificateTests extends ESTestCase {
             dnsNames.add(asInstanceOf(String.class, subjectAlternativeName.get(1)));
         }
         assertThat(dnsNames, containsInAnyOrder(hostName0, hostName1));
+
+        assertThat(
+            certificate.getExtendedKeyUsage(),
+            containsInAnyOrder(KeyPurposeId.id_kp_serverAuth.getId(), KeyPurposeId.id_kp_clientAuth.getId())
+        );
 
         final RSAPrivateCrtKey privateKey = asInstanceOf(RSAPrivateCrtKey.class, testTlsCertificate.privateKey());
         final var publicKey = KeyFactory.getInstance("RSA")

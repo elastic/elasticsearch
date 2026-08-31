@@ -35,11 +35,11 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
     }
 
     private long quantizeScore256(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, length, scratch::get, segment -> fourStripeBitDotProduct256(q, segment, 0L, length));
+        return IndexInputUtils.withSlice(in, length, scratch, segment -> fourStripeBitDotProduct256(q, segment, 0L, length));
     }
 
     private long quantizeScore128(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, length, scratch::get, segment -> fourStripeBitDotProduct128(q, segment, 0L, length));
+        return IndexInputUtils.withSlice(in, length, scratch, segment -> fourStripeBitDotProduct128(q, segment, 0L, length));
     }
 
     @Override
@@ -59,21 +59,19 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
 
     private void quantizeScore256Bulk(byte[] q, int count, float[] scores) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch::get, segment -> {
+        IndexInputUtils.withVoidSlice(in, datasetLengthInBytes, scratch, segment -> {
             for (int i = 0; i < count; i++) {
                 scores[i] = fourStripeBitDotProduct256(q, segment, (long) i * length, length);
             }
-            return null;
         });
     }
 
     private void quantizeScore128Bulk(byte[] q, int count, float[] scores) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch::get, segment -> {
+        IndexInputUtils.withVoidSlice(in, datasetLengthInBytes, scratch, segment -> {
             for (int i = 0; i < count; i++) {
                 scores[i] = fourStripeBitDotProduct128(q, segment, (long) i * length, length);
             }
-            return null;
         });
     }
 
@@ -93,7 +91,7 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
         if (length >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                 quantizeScore256Bulk(q, bulkSize, scores);
-                return applyCorrections256Bulk(
+                return applyCorrectionsBulk(
                     queryLowerInterval,
                     queryUpperInterval,
                     queryComponentSum,
@@ -107,7 +105,7 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
                 );
             } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
                 quantizeScore128Bulk(q, bulkSize, scores);
-                return applyCorrections128Bulk(
+                return applyCorrectionsBulk(
                     queryLowerInterval,
                     queryUpperInterval,
                     queryComponentSum,

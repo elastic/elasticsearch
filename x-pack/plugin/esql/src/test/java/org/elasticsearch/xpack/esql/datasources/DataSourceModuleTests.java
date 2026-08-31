@@ -1016,8 +1016,8 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     /**
-     * Test-only plugin registering a mock {@code parquet} format so {@code reader=java}/{@code reader=parquet-rs}
-     * resolve to a real registry entry without pulling in the actual (whole-file-compression-incompatible)
+     * Test-only plugin registering a mock {@code parquet} format so {@code reader=java}
+     * resolves to a real registry entry without pulling in the actual (whole-file-compression-incompatible)
      * Parquet reader.
      */
     private static class MockParquetFormatPlugin implements DataSourcePlugin {

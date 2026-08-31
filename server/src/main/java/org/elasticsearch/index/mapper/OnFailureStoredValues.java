@@ -15,20 +15,22 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * Stores the value that violated a strict {@code doc_values} constraint (currently just {@code multi_value=false}) when the field is
- * configured with {@code doc_values.on_failure=ignore}, so indexing can continue instead of rejecting the whole document.
- * <p>
- * Each field gets its own failure column, named by suffixing the field's full path, mirroring how {@link IgnoreMalformedStoredValues}
- * stores overflow from {@code ignore_above}/{@code ignore_malformed} - but kept as a separate column and suffix, since a value redirected
- * here is well-formed and simply violates a cardinality constraint, which is a different failure reason than a malformed value.
- * <p>
- * This is currently write-only: nothing reads this column back yet (it is not wired into synthetic source, block loaders, or search).
+ * Stores values that violated {@code doc_values.on_failure=ignore} (currently {@code multi_value=false}) so indexing continues.
+ * Each field gets its own sidecar column ({@link #ON_FAILURE_FIELD_NAME_SUFFIX}), read back by
+ * {@link CompositeSyntheticFieldLoader#onFailureValuesLayer}; invisible to block loaders, ESQL, and aggregations.
  */
 public final class OnFailureStoredValues {
 
     public static final String ON_FAILURE_FIELD_NAME_SUFFIX = "._on_failure";
 
     private OnFailureStoredValues() {}
+
+    /**
+     * Returns the name of the on-failure sidecar column for {@code fieldName}.
+     */
+    public static String name(String fieldName) {
+        return fieldName + ON_FAILURE_FIELD_NAME_SUFFIX;
+    }
 
     /**
      * Encodes the current parser value and stores it in the failure column for {@code fieldPath}, preserving encounter order and
@@ -46,7 +48,7 @@ public final class OnFailureStoredValues {
     static void storeEncoded(DocumentParserContext context, String fieldPath, BytesRef encoded) {
         MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
             context.doc(),
-            fieldPath + ON_FAILURE_FIELD_NAME_SUFFIX,
+            name(fieldPath),
             encoded,
             MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED,
             context.indexSettings().getIndexVersionCreated()

@@ -128,6 +128,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         final String indexName,
         final String dataStreamName,
         IndexMode templateIndexMode,
+        final boolean registryInstalledTemplate,
         final ProjectMetadata metadata,
         final Instant resolvedAt,
         Settings settings,

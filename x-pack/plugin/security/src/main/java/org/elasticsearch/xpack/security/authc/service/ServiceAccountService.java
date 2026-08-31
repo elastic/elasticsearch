@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNod
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.service.BuiltInServiceAccount;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -47,32 +50,53 @@ public class ServiceAccountService {
     private static final Logger logger = LogManager.getLogger(ServiceAccountService.class);
     private static final int MIN_TOKEN_SECRET_LENGTH = 10;
 
+    static final String USER_MANAGED_ACCOUNTS_UNAVAILABLE_MESSAGE =
+        "user-managed service accounts are not available in this cluster configuration";
+
     private final Client client;
+    @Nullable
     private final IndexServiceAccountTokenStore indexServiceAccountTokenStore;
     private final ServiceAccountTokenStore readOnlyServiceAccountTokenStore;
+    @Nullable
+    private final UserManagedServiceAccountStore userManagedServiceAccountStore;
 
     public ServiceAccountService(Client client, ServiceAccountTokenStore readOnlyServiceAccountTokenStore) {
-        this(client, readOnlyServiceAccountTokenStore, null);
+        this(client, readOnlyServiceAccountTokenStore, null, null);
     }
 
     public ServiceAccountService(
         Client client,
         ServiceAccountTokenStore readOnlyServiceAccountTokenStore,
-        @Nullable IndexServiceAccountTokenStore indexServiceAccountTokenStore
+        @Nullable IndexServiceAccountTokenStore indexServiceAccountTokenStore,
+        @Nullable UserManagedServiceAccountStore userManagedServiceAccountStore
     ) {
+        if (userManagedServiceAccountStore != null && indexServiceAccountTokenStore == null) {
+            throw new IllegalArgumentException(
+                "cannot support user-managed service accounts without an index-backed service account token store"
+            );
+        }
         this.client = client;
         this.readOnlyServiceAccountTokenStore = readOnlyServiceAccountTokenStore;
         this.indexServiceAccountTokenStore = indexServiceAccountTokenStore;
+        this.userManagedServiceAccountStore = userManagedServiceAccountStore;
     }
 
-    public static boolean isServiceAccountPrincipal(String principal) {
+    public static boolean isBuiltInServiceAccountPrincipal(String principal) {
         return ACCOUNTS.containsKey(principal);
     }
 
-    public static Collection<String> getServiceAccountPrincipals() {
+    public static Collection<String> getBuiltInServiceAccountPrincipals() {
         return ACCOUNTS.keySet();
     }
 
+    public static Map<String, BuiltInServiceAccount> getBuiltInServiceAccounts() {
+        return Map.copyOf(ACCOUNTS);
+    }
+
+    /**
+     * Retained under its original name for callers outside this repository. In-repo code uses
+     * {@link #getBuiltInServiceAccounts()}, which is the canonical accessor and states which accounts are returned.
+     */
     public static Map<String, ServiceAccount> getServiceAccounts() {
         return Map.copyOf(ACCOUNTS);
     }
@@ -105,23 +129,6 @@ public class ServiceAccountService {
     public void authenticateToken(ServiceAccountToken serviceAccountToken, String nodeName, ActionListener<Authentication> listener) {
         logger.trace("attempt to authenticate service account token [{}]", serviceAccountToken.getQualifiedName());
 
-        if (ElasticServiceAccounts.NAMESPACE.equals(serviceAccountToken.getAccountId().namespace()) == false) {
-            logger.debug(
-                "only [{}] service accounts are supported, but received [{}]",
-                ElasticServiceAccounts.NAMESPACE,
-                serviceAccountToken.getAccountId().asPrincipal()
-            );
-            listener.onFailure(createAuthenticationException(serviceAccountToken));
-            return;
-        }
-
-        final ServiceAccount account = ACCOUNTS.get(serviceAccountToken.getAccountId().asPrincipal());
-        if (account == null) {
-            logger.debug("the [{}] service account does not exist", serviceAccountToken.getAccountId().asPrincipal());
-            listener.onFailure(createAuthenticationException(serviceAccountToken));
-            return;
-        }
-
         if (serviceAccountToken.getSecret().length() < MIN_TOKEN_SECRET_LENGTH) {
             logger.debug(
                 "failing authentication for service account token [{}],"
@@ -131,6 +138,25 @@ public class ServiceAccountService {
                 serviceAccountToken.getSecret().length(),
                 MIN_TOKEN_SECRET_LENGTH
             );
+            listener.onFailure(createAuthenticationException(serviceAccountToken));
+            return;
+        }
+
+        if (isBuiltInNamespace(serviceAccountToken.getAccountId().namespace())) {
+            authenticateBuiltInToken(serviceAccountToken, nodeName, listener);
+        } else {
+            authenticateUserManagedToken(serviceAccountToken, nodeName, listener);
+        }
+    }
+
+    private void authenticateBuiltInToken(
+        ServiceAccountToken serviceAccountToken,
+        String nodeName,
+        ActionListener<Authentication> listener
+    ) {
+        final ServiceAccount account = ACCOUNTS.get(serviceAccountToken.getAccountId().asPrincipal());
+        if (account == null) {
+            logger.debug("the [{}] service account does not exist", serviceAccountToken.getAccountId().asPrincipal());
             listener.onFailure(createAuthenticationException(serviceAccountToken));
             return;
         }
@@ -148,6 +174,89 @@ public class ServiceAccountService {
         }, listener::onFailure));
     }
 
+    private void authenticateUserManagedToken(
+        ServiceAccountToken serviceAccountToken,
+        String nodeName,
+        ActionListener<Authentication> listener
+    ) {
+        final String principal = serviceAccountToken.getAccountId().asPrincipal();
+        if (userManagedServiceAccountStore == null) {
+            logger.debug("user-managed service account [{}] is not supported in this cluster configuration", principal);
+            listener.onFailure(createAuthenticationException(serviceAccountToken));
+            return;
+        }
+        userManagedServiceAccountStore.getByPrincipal(principal, ActionListener.wrap(account -> {
+            if (account == null || account.enabled() == false) {
+                logger.debug("the [{}] user-managed service account does not exist or is disabled", principal);
+                listener.onFailure(createAuthenticationException(serviceAccountToken));
+                return;
+            }
+            indexServiceAccountTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(storeAuthenticationResult -> {
+                if (storeAuthenticationResult.isSuccess()) {
+                    listener.onResponse(
+                        createAuthentication(account, serviceAccountToken, storeAuthenticationResult.getTokenSource(), nodeName)
+                    );
+                } else {
+                    final ElasticsearchSecurityException e = createAuthenticationException(serviceAccountToken);
+                    logger.debug(e.getMessage());
+                    listener.onFailure(e);
+                }
+            }, listener::onFailure));
+        }, listener::onFailure));
+    }
+
+    /**
+     * Creates the account, or replaces an existing one of the same name wholesale.
+     */
+    public void putUserManagedAccount(
+        ServiceAccountId accountId,
+        List<String> roles,
+        boolean enabled,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        ActionListener<UserManagedServiceAccountStore.PutResult> listener
+    ) {
+        if (userManagedServiceAccountStore == null) {
+            listener.onFailure(new IllegalStateException(USER_MANAGED_ACCOUNTS_UNAVAILABLE_MESSAGE));
+            return;
+        }
+        userManagedServiceAccountStore.putAccount(accountId, roles, enabled, refreshPolicy, listener);
+    }
+
+    /**
+     * A surviving token cannot authenticate once its account is gone, but recreating an account of the same name would
+     * bring it back to life, which is what the token check refuses rather than any live credential. It is not atomic
+     * with the delete: a token created in between survives, leaving the state {@code force} produces deliberately.
+     */
+    public void deleteUserManagedAccount(
+        ServiceAccountId accountId,
+        boolean force,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        ActionListener<Boolean> listener
+    ) {
+        if (userManagedServiceAccountStore == null) {
+            listener.onFailure(new IllegalStateException(USER_MANAGED_ACCOUNTS_UNAVAILABLE_MESSAGE));
+            return;
+        }
+        if (force) {
+            userManagedServiceAccountStore.deleteAccount(accountId, refreshPolicy, listener);
+            return;
+        }
+        indexServiceAccountTokenStore.hasTokensFor(accountId, listener.delegateFailureAndWrap((delegate, hasTokens) -> {
+            if (hasTokens) {
+                delegate.onFailure(
+                    new IllegalArgumentException(
+                        "cannot delete service account ["
+                            + accountId
+                            + "] because it has service tokens; delete the tokens first,"
+                            + " or set force=true to delete the account and leave its tokens in place"
+                    )
+                );
+            } else {
+                userManagedServiceAccountStore.deleteAccount(accountId, refreshPolicy, delegate);
+            }
+        }));
+    }
+
     public void createIndexToken(
         Authentication authentication,
         CreateServiceAccountTokenRequest request,
@@ -156,14 +265,33 @@ public class ServiceAccountService {
         if (indexServiceAccountTokenStore == null) {
             throw new IllegalStateException("Can't create token because index service account token store not configured");
         }
-        indexServiceAccountTokenStore.createToken(authentication, request, listener);
+        if (isBuiltInNamespace(request.getNamespace())) {
+            indexServiceAccountTokenStore.createBuiltInToken(authentication, request, listener);
+            return;
+        }
+        final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
+        resolveUserManagedAccount(
+            accountId,
+            listener.delegateFailureAndWrap(
+                (delegate, account) -> indexServiceAccountTokenStore.createUserManagedToken(authentication, request, delegate)
+            )
+        );
     }
 
+    /**
+     * Deletes a service account token. Unlike creating one, this does not resolve the account first: a token can
+     * outlive a force-deleted account, and those leftovers must remain removable — the credentials API lists them, so
+     * refusing to delete them would leave an operator able to see a token they cannot clean up.
+     */
     public void deleteIndexToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
         if (indexServiceAccountTokenStore == null) {
             throw new IllegalStateException("Can't delete token because index service account token store not configured");
         }
-        indexServiceAccountTokenStore.deleteToken(request, listener);
+        if (isBuiltInNamespace(request.getNamespace())) {
+            indexServiceAccountTokenStore.deleteBuiltInToken(request, listener);
+        } else {
+            indexServiceAccountTokenStore.deleteUserManagedToken(request, listener);
+        }
     }
 
     public void findTokensFor(GetServiceAccountCredentialsRequest request, ActionListener<GetServiceAccountCredentialsResponse> listener) {
@@ -178,18 +306,54 @@ public class ServiceAccountService {
     public static void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
         assert authentication.isServiceAccount() : "authentication is not for service account: " + authentication;
         final String principal = authentication.getEffectiveSubject().getUser().principal();
-        getRoleDescriptorForPrincipal(principal, listener);
+        getRoleDescriptorForBuiltInPrincipal(principal, listener);
     }
 
-    public static void getRoleDescriptorForPrincipal(String principal, ActionListener<RoleDescriptor> listener) {
-        final ServiceAccount account = ACCOUNTS.get(principal);
+    public static void getRoleDescriptorForBuiltInPrincipal(String principal, ActionListener<RoleDescriptor> listener) {
+        final BuiltInServiceAccount account = ACCOUNTS.get(principal);
         if (account == null) {
             listener.onFailure(
-                new ElasticsearchSecurityException("cannot load role for service account [" + principal + "] - no such service account")
+                new ElasticsearchSecurityException(
+                    "cannot load role for built-in service account [" + principal + "] - no such service account"
+                )
             );
             return;
         }
         listener.onResponse(account.roleDescriptor());
+    }
+
+    private static boolean isBuiltInNamespace(String namespace) {
+        return ElasticServiceAccounts.NAMESPACE.equals(namespace);
+    }
+
+    /**
+     * Resolves a user-managed account, failing when none exists. Whether the account is enabled is deliberately not
+     * consulted: that state governs authentication, and refusing to issue a credential for a suspended account would
+     * only prevent an operator from preparing one for the account's return. A token issued while the account is
+     * disabled cannot authenticate until it is enabled again.
+     *
+     * <p>
+     * A node without an account store cannot hold a user-managed account, so it reports absence rather than an
+     * unavailable feature. The caller named an account that does not exist, which is a fault in the request and the
+     * same answer this API gave for every unknown account before the namespace fork existed.
+     * </p>
+     */
+    private void resolveUserManagedAccount(ServiceAccountId accountId, ActionListener<UserManagedServiceAccount> listener) {
+        if (userManagedServiceAccountStore == null) {
+            listener.onFailure(accountDoesNotExist(accountId));
+            return;
+        }
+        userManagedServiceAccountStore.getByPrincipal(accountId.asPrincipal(), listener.delegateFailureAndWrap((delegate, account) -> {
+            if (account == null) {
+                delegate.onFailure(accountDoesNotExist(accountId));
+            } else {
+                delegate.onResponse(account);
+            }
+        }));
+    }
+
+    private static IllegalArgumentException accountDoesNotExist(ServiceAccountId accountId) {
+        return new IllegalArgumentException("service account [" + accountId + "] does not exist");
     }
 
     private static Authentication createAuthentication(

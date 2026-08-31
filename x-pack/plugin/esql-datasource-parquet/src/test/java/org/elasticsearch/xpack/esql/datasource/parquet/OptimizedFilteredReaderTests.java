@@ -873,6 +873,7 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         for (int row = 0; row < expectedRows; row++) {
             Page ePage = expected.get(ep);
             Page aPage = actual.get(ap);
+            assertThat("block count mismatch at row " + row, aPage.getBlockCount(), equalTo(ePage.getBlockCount()));
             for (int b = 0; b < ePage.getBlockCount(); b++) {
                 assertBlockValueEqual(ePage.getBlock(b), ePos, aPage.getBlock(b), aPos, row, b);
             }
@@ -895,20 +896,28 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         if (expected.isNull(ePos)) {
             return;
         }
+        int expectedValueCount = expected.getValueCount(ePos);
+        assertThat(ctx + " value count", actual.getValueCount(aPos), equalTo(expectedValueCount));
+        int expectedFirst = expected.getFirstValueIndex(ePos);
+        int actualFirst = actual.getFirstValueIndex(aPos);
+        for (int value = 0; value < expectedValueCount; value++) {
+            assertBlockValueEqual(expected, expectedFirst + value, actual, actualFirst + value, ctx + " value " + value);
+        }
+    }
+
+    private void assertBlockValueEqual(Block expected, int expectedIndex, Block actual, int actualIndex, String ctx) {
         if (expected instanceof IntBlock eb && actual instanceof IntBlock ab) {
-            assertThat(ctx, ab.getInt(ab.getFirstValueIndex(aPos)), equalTo(eb.getInt(eb.getFirstValueIndex(ePos))));
+            assertThat(ctx, ab.getInt(actualIndex), equalTo(eb.getInt(expectedIndex)));
         } else if (expected instanceof LongBlock eb && actual instanceof LongBlock ab) {
-            assertThat(ctx, ab.getLong(ab.getFirstValueIndex(aPos)), equalTo(eb.getLong(eb.getFirstValueIndex(ePos))));
+            assertThat(ctx, ab.getLong(actualIndex), equalTo(eb.getLong(expectedIndex)));
         } else if (expected instanceof DoubleBlock eb && actual instanceof DoubleBlock ab) {
-            assertThat(ctx, ab.getDouble(ab.getFirstValueIndex(aPos)), equalTo(eb.getDouble(eb.getFirstValueIndex(ePos))));
+            assertThat(ctx, ab.getDouble(actualIndex), equalTo(eb.getDouble(expectedIndex)));
         } else if (expected instanceof BooleanBlock eb && actual instanceof BooleanBlock ab) {
-            assertThat(ctx, ab.getBoolean(ab.getFirstValueIndex(aPos)), equalTo(eb.getBoolean(eb.getFirstValueIndex(ePos))));
+            assertThat(ctx, ab.getBoolean(actualIndex), equalTo(eb.getBoolean(expectedIndex)));
         } else if (expected instanceof BytesRefBlock eb && actual instanceof BytesRefBlock ab) {
-            assertThat(
-                ctx,
-                ab.getBytesRef(ab.getFirstValueIndex(aPos), new BytesRef()),
-                equalTo(eb.getBytesRef(eb.getFirstValueIndex(ePos), new BytesRef()))
-            );
+            assertThat(ctx, ab.getBytesRef(actualIndex, new BytesRef()), equalTo(eb.getBytesRef(expectedIndex, new BytesRef())));
+        } else {
+            fail(ctx + " type mismatch: " + expected.getClass().getSimpleName() + " vs " + actual.getClass().getSimpleName());
         }
     }
 

@@ -2941,6 +2941,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         private long[] columnUncompressedBytes;
         private long rowsRemainingInGroup;
         private long rowsBeforeCurrentGroup;
+        private boolean validateListExhaustion;
         private boolean exhausted = false;
         private int rowGroupOrdinal = -1;
         private int pageBatchIndexInRowGroup = 0;
@@ -3159,6 +3160,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     exhausted = true;
                     return false;
                 }
+                validateListExhaustion = rowGroup.getRowIndexes().isEmpty();
                 rowGroupOrdinal++;
                 pageBatchIndexInRowGroup = 0;
                 rowsRemainingInGroup = rowGroup.getRowCount();
@@ -3236,7 +3238,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     listColumnReaders = null;
                     columnUncompressedBytes = null;
                 }
-                if (rowsRemainingInGroup == 0) {
+                if (rowsRemainingInGroup == 0 && validateListExhaustion) {
                     validateListColumnsExhausted();
                 }
                 return rowsRemainingInGroup > 0;
@@ -3356,7 +3358,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
                 pageBatchIndexInRowGroup++;
                 rowsRemainingInGroup -= rowsToRead;
-                if (rowsRemainingInGroup == 0) {
+                if (rowsRemainingInGroup == 0 && validateListExhaustion) {
                     try {
                         validateListColumnsExhausted();
                     } catch (RuntimeException e) {

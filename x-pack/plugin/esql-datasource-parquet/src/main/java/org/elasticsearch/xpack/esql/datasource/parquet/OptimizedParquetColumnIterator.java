@@ -149,6 +149,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final PreloadedRowGroupMetadata preloadedMetadata;
     private final StorageObject storageObject;
     private final Set<String> projectedColumnPaths;
+    private final Set<String> listColumnPaths;
     private final Set<String> predicateColumnPaths;
     private final Set<String> projectionOnlyColumnPaths;
     private final CircuitBreaker breaker;
@@ -489,6 +490,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         this.triviallyPassesPredicate = lateMaterialization ? triviallyPassesPredicate : null;
 
         this.projectedColumnPaths = buildProjectedColumnPaths(columnInfos);
+        this.listColumnPaths = buildListColumnPaths(columnInfos);
         this.predicateColumnPaths = buildColumnPaths(columnInfos, isPredicateColumn, true);
         this.projectionOnlyColumnPaths = buildColumnPaths(columnInfos, isPredicateColumn, false);
         this.useTwoPhase = shouldUseTwoPhase(
@@ -593,6 +595,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 if (limitRanges != null) {
                     nextRowRanges = nextRowRanges == null ? limitRanges : nextRowRanges.intersect(limitRanges);
                 }
+                if (nextRowRanges != null && canSynchronizeListRows(nextOrdinal) == false) {
+                    nextRowRanges = null;
+                }
                 CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future;
                 if (nextRowRanges != null) {
                     future = ColumnChunkPrefetcher.prefetchAsync(
@@ -688,6 +693,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
         }
         return true;
+    }
+
+    /**
+     * Filtered repeated-column readers need page row indexes so parquet-mr can synchronize
+     * columns whose pages have different row boundaries. Without an OffsetIndex for every list
+     * column, fall back to full chunks and let the downstream RECHECK filter select rows.
+     */
+    private boolean canSynchronizeListRows(int ordinal) {
+        return listColumnPaths.isEmpty() || hasAllOffsetIndexes(ordinal, listColumnPaths);
     }
 
     private boolean rowGroupDominatedByThreshold(BlockMetaData block) {
@@ -1002,6 +1016,16 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             // sets feed the prefetcher and column-reader-store wiring, both of which only deal
             // with real on-disk columns. {@link #buildRowPositionBlock} fills its slot directly.
             if (info != null && info.isRowPosition() == false) {
+                paths.add(String.join(".", info.descriptor().getPath()));
+            }
+        }
+        return paths;
+    }
+
+    private static Set<String> buildListColumnPaths(ColumnInfo[] columnInfos) {
+        Set<String> paths = new HashSet<>();
+        for (ColumnInfo info : columnInfos) {
+            if (info != null && info.isRowPosition() == false && info.maxRepLevel() > 0) {
                 paths.add(String.join(".", info.descriptor().getPath()));
             }
         }
@@ -1345,6 +1369,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     // we already know all rows match, so leaving page filtering off is consistent and
                     // safe (RowRanges would be all() anyway).
                     RowRanges buildRowRanges = lateMaterialization ? null : currentRowRanges;
+                    if (buildRowRanges != null && canSynchronizeListRows(rowGroupOrdinal) == false) {
+                        buildRowRanges = null;
+                    }
                     if (syncFallback) {
                         // Delay the barrier until after the empty-range branch above. An empty
                         // row group needs no fallback and later queued prefetches remain useful.

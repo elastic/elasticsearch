@@ -1461,6 +1461,21 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         expected = new HashMap<>();
         expected.put("bar", Arrays.asList(new HashMap<>(), Collections.singletonMap("baz", "2")));
         assertEquals(expected, filtered);
+
+        // a top-level empty array under a granted field must survive filtering: with nothing to deny, the empty array is kept.
+        map = new HashMap<>();
+        map.put("a", new ArrayList<>());
+        include = new CharacterRunAutomaton(Automatons.patterns("a"));
+        filtered = FieldSubsetReader.filter(map, include, 0);
+        assertEquals(Collections.singletonMap("a", Collections.emptyList()), filtered);
+
+        // an empty array under a field that is only a prefix of a granted field (grant "a.b", value at "a") is likewise retained, even
+        // though "a" is not itself an accept state.
+        map = new HashMap<>();
+        map.put("a", new ArrayList<>());
+        include = new CharacterRunAutomaton(Automatons.patterns("a.b"));
+        filtered = FieldSubsetReader.filter(map, include, 0);
+        assertEquals(Collections.singletonMap("a", Collections.emptyList()), filtered);
     }
 
     public void testSourceFilteringWithSupplementaryCodePoints() {

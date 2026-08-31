@@ -311,7 +311,7 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         assertThat(result.isHidden(), equalTo(true));
     }
 
-    public void testNewMasterScansUnchangedIndicesForDemotion() {
+    public void testNewMasterScansUnchangedMetadataForDemotion() {
         IndexMetadata firstIndex = IndexMetadata.builder("user-index-1")
             .system(true)
             .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
@@ -320,7 +320,21 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
             .system(true)
             .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
             .build();
-        Metadata metadata = Metadata.builder().put(IndexMetadata.builder(firstIndex)).put(IndexMetadata.builder(secondIndex)).build();
+        String dataStreamName = ".old-system-data-stream";
+        IndexMetadata backingIndex = IndexMetadata.builder(DataStream.BACKING_INDEX_PREFIX + dataStreamName + "-1")
+            .system(true)
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+            .build();
+        DataStream dataStream = DataStream.builder(dataStreamName, List.of(backingIndex.getIndex()))
+            .setHidden(true)
+            .setSystem(true)
+            .build();
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder(firstIndex))
+            .put(IndexMetadata.builder(secondIndex))
+            .put(backingIndex, true)
+            .put(dataStream)
+            .build();
         DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
         DiscoveryNodes previousNodes = DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build();
         ClusterState previousState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
@@ -336,6 +350,8 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
 
         assertThat(result.metadata().getProject().index(firstIndex.getIndex().getName()).isSystem(), equalTo(false));
         assertThat(result.metadata().getProject().index(secondIndex.getIndex().getName()).isSystem(), equalTo(false));
+        assertThat(result.metadata().getProject().dataStreams().get(dataStreamName).isSystem(), equalTo(false));
+        assertThat(result.metadata().getProject().index(backingIndex.getIndex().getName()).isSystem(), equalTo(false));
     }
 
     public void testIsVisible() {

@@ -737,7 +737,10 @@ The events with `event.type` equal to `ip_filter` have one of the following `eve
 
 ### Audit event attributes of the `security_config_change` event type [security-config-change]
 
-The events with the `event.type` attribute equal to `security_config_change` have one of the following `event.action` attribute values: `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_service_token`, `put_user_managed_service_account`, `delete_user`, `delete_role`, `delete_role_mapping`, `delete_service_token`, `delete_user_managed_service_account`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, or `change_apikeys`.
+The events with the `event.type` attribute equal to `security_config_change` have one of the following `event.action` attribute values:
+
+    * {applies_to}`stack: ga 9.0+` `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_service_token`, `delete_user`, `delete_role`, `delete_role_mapping`, `delete_service_token`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, `change_apikeys`
+    * {applies_to}`stack: ga 9.6+` `put_user_managed_service_account`, `delete_user_managed_service_account`
 
 These events also have **one** of the following extra attributes (in addition to the common ones), which is specific to the `event.type` attribute. The attribute’s value is a nested JSON object:
 

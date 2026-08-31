@@ -253,10 +253,8 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * Registers a {@link RestoreLifecycleListener} that receives callbacks for every restore
-     * initialization and completion processed by this node. Replaces any previously registered
-     * listener. The listener is called from within master-service cluster-state updates and must
-     * not block or perform I/O.
+     * Registers the {@link RestoreLifecycleListener}, replacing any previous one. The listener runs
+     * inside master-service cluster-state updates and must not block or perform I/O.
      */
     public void setLifecycleListener(RestoreLifecycleListener listener) {
         this.lifecycleListener = Objects.requireNonNull(listener);
@@ -278,13 +276,9 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * Restores snapshot specified in the restore request using a caller-supplied restore UUID.
-     * The UUID is used as the {@link RestoreInProgress.Entry#uuid()} for the resulting restore entry,
-     * enabling the caller to correlate the restore with an external record (e.g. a persistent task)
-     * created before submitting the restore.
-     *
-     * <p>The UUID must be unique per logical restore: submitting a restore whose UUID matches an
-     * existing {@link RestoreInProgress} entry is treated as an idempotent retry and applies nothing.
+     * Restores a snapshot using a caller-supplied restore UUID so the caller can correlate the restore
+     * with an external record (e.g. a persistent task). A UUID matching an existing
+     * {@link RestoreInProgress} entry is treated as an idempotent retry and applies nothing.
      *
      * @param projectId   project for the restore
      * @param request     restore request
@@ -1474,10 +1468,9 @@ public final class RestoreService implements ClusterStateApplier {
     private volatile boolean cleanupInProgress = false;
 
     /**
-     * Notifies the {@link RestoreLifecycleListener} for each completed {@link RestoreInProgress} entry
-     * and removes those entries from cluster state. The listener fires before removal so any state it
-     * writes (e.g. a persistent-task checkpoint) is published atomically with the entry disappearing.
-     * Package-private to allow direct invocation from unit tests.
+     * Notifies the {@link RestoreLifecycleListener} for each completed {@link RestoreInProgress} entry,
+     * then removes those entries. The listener fires before removal so its writes publish atomically
+     * with the entry disappearing. Package-private for unit tests.
      */
     ClusterState executeRestoreCleanup(ClusterState currentState) {
         RestoreInProgress.Builder restoreInProgressBuilder = new RestoreInProgress.Builder();

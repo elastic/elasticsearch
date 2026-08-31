@@ -682,11 +682,7 @@ public class RestoreServiceTests extends ESTestCase {
 
     // ---- hook setter and executeRestoreCleanup tests (#4818) -----------------
 
-    /**
-     * Builds a minimal {@link RestoreService} instance using mocks so that
-     * {@link RestoreService#setLifecycleListener} and {@link RestoreService#executeRestoreCleanup}
-     * can be exercised without a full cluster.
-     */
+    /** Builds a minimal mocked {@link RestoreService} so instance methods can be exercised without a full cluster. */
     private RestoreService createMinimalRestoreService() {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);

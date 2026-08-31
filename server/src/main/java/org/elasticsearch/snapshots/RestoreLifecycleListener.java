@@ -12,40 +12,28 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 
 /**
- * Callback interface for the two atomic lifecycle events produced by {@link RestoreService}:
- * restore initialization and restore completion. Both methods run inside a master-service
- * cluster-state update and must return the (possibly modified) cluster state to publish.
- * Returning the input state unchanged is always safe.
- *
- * <p>Both events are keyed by a {@link RestoreInProgress.Entry}: a restore that installs no
- * entry (e.g. a metadata-only restore with no shards) produces no lifecycle events. Every
- * initialized restore therefore receives exactly one completion event.
- *
- * <p>The implementation is expected to be the persistent-task executor that coordinates
- * durable recovery checkpointing. It receives the exact entry so it can determine whether
- * the event belongs to the recovery it owns (via {@link RestoreInProgress.Entry#uuid()})
- * without scanning {@link RestoreInProgress}.
+ * Callbacks for restore initialization and completion, invoked by {@link RestoreService} inside
+ * master-service cluster-state updates. Each method returns the cluster state to publish;
+ * returning the input unchanged is always safe. A restore that installs no
+ * {@link RestoreInProgress} entry produces no events, so every initialized restore receives
+ * exactly one completion.
  */
 public interface RestoreLifecycleListener {
 
     /**
-     * Called atomically within the cluster-state update that installs a new
-     * {@link RestoreInProgress} entry. The entry is already present in {@code state}.
+     * Called atomically within the cluster-state update that installs a new {@link RestoreInProgress} entry.
      *
-     * @param entry the newly installed restore entry
+     * @param entry the newly installed restore entry, already present in {@code state}
      * @param state cluster state after {@link RestoreInProgress} installation
      * @return the cluster state to publish; must not be {@code null}
      */
     ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state);
 
     /**
-     * Called atomically within the cluster-state update that removes a completed
-     * {@link RestoreInProgress} entry. The entry is still present in {@code state} when
-     * this method is called; removal happens after this method returns.
+     * Called atomically within the cluster-state update that removes a completed {@link RestoreInProgress} entry.
      *
-     * @param entry the completed restore entry; its {@link RestoreInProgress.Entry#state()}
-     *              is terminal ({@link RestoreInProgress.State#SUCCESS} or
-     *              {@link RestoreInProgress.State#FAILURE})
+     * @param entry the completed restore entry, still present in {@code state}; its
+     *              {@link RestoreInProgress.Entry#state()} is terminal
      * @param state cluster state with the completed entry still present
      * @return the cluster state to publish; must not be {@code null}
      */

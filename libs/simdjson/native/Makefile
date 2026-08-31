@@ -5,10 +5,10 @@
 # your election, the "Elastic License 2.0", the "GNU Affero General Public
 # License v3.0 only", or the "Server Side Public License, v 1".
 
-# Builds libes_simdjson for all three targets:
-#   build/libs/es_simdjson/shared/aarch64/libes_simdjson.dylib  (darwin-aarch64)
-#   build/libs/es_simdjson/shared/aarch64/libes_simdjson.so     (linux-aarch64)
-#   build/libs/es_simdjson/shared/amd64/libes_simdjson.so       (linux-x64)
+# Builds libsimdjson for all three targets:
+#   build/libs/simdjson/shared/aarch64/libsimdjson.dylib  (darwin-aarch64)
+#   build/libs/simdjson/shared/aarch64/libsimdjson.so     (linux-aarch64)
+#   build/libs/simdjson/shared/amd64/libsimdjson.so       (linux-x64)
 #
 # simdjson handles ISA selection internally (AVX-512 vs AVX2 vs NEON etc.),
 # so we compile a single source file per platform — no tier-1/tier-2 split.
@@ -83,11 +83,11 @@ OBJ_LIN_ARM = build/obj/linux-aarch64
 OBJ_LIN_X64 = build/obj/linux-x64
 
 # Output files
-OUT_DIR_AARCH64 = build/libs/es_simdjson/shared/aarch64
-OUT_DIR_AMD64   = build/libs/es_simdjson/shared/amd64
-DYLIB  = $(OUT_DIR_AARCH64)/libes_simdjson.dylib
-SO_ARM = $(OUT_DIR_AARCH64)/libes_simdjson.so
-SO_X64 = $(OUT_DIR_AMD64)/libes_simdjson.so
+OUT_DIR_AARCH64 = build/libs/simdjson/shared/aarch64
+OUT_DIR_AMD64   = build/libs/simdjson/shared/amd64
+DYLIB  = $(OUT_DIR_AARCH64)/libsimdjson.dylib
+SO_ARM = $(OUT_DIR_AARCH64)/libsimdjson.so
+SO_X64 = $(OUT_DIR_AMD64)/libsimdjson.so
 
 # --- macOS SDK fetch (cached in build volume) ---
 

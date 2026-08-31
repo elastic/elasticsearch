@@ -38,7 +38,7 @@ production encoding uses per-document `parseToScratch` / `commitScratchTo`.
    cd libs/simdjson/native
    make local CLANG_CXX=clang++   # may need: sed -i 's/-fuse-ld=lld//g' Makefile
    mkdir -p release/linux-$(uname -m | sed 's/x86_64/x64/')
-   cp build/linux-*/libes_simdjson.so release/linux-*/
+   cp build/linux-*/libsimdjson.so release/linux-*/
    ```
 
 2. Download async-profiler 4.5+ for flamegraph profiling:
@@ -103,13 +103,13 @@ After-inlining method breakdown:
 | 16.86 | EscfBatchBuilder::drainScratchValue                       |
 | 16.42 | SimdJsonDirectWalker::walkObject                          |
 | 15.04 | SimdJsonDirectWalker::handleNumber                        |
-|  6.51 | libes_simdjson.so  stage1                                 |
+|  6.51 | libsimdjson.so  stage1                                 |
 |  3.03 | EscfEncoder::parseToScratch                               |
 |  2.85 | EscfDocumentHandler::stringField                          |
 |  2.59 | SimdJsonParserBenchmark::simdJsonEncode (benchmark harness)|
 |  1.82 | StubRoutines::vectorizedMismatch_stub                     |
 |  1.03 | StubRoutines::jint_disjoint_arraycopy_stub                |
-|  0.52 | es_stage1_run (JNI wrapper)                               |
+|  0.52 | simdjson_stage1_run (JNI wrapper)                               |
 |  0.52 | StubRoutines::jbyte_disjoint_arraycopy_stub               |
 
 Source distribution: 85.7% C2, 7.0% native, 3.6% runtime stubs, 1.5% kernel.
@@ -304,7 +304,7 @@ x64 (8 threads):
 
 ### B2: Move offset-add from native to Java — REVERTED
 
-The native `es_stage1_run` has an offset-add loop: when `offset != 0`,
+The native `simdjson_stage1_run` has an offset-add loop: when `offset != 0`,
 each structural index is incremented by `offset` in a scalar C++ loop
 instead of using `memcpy`. Hypothesis: moving this to Java would let JIT
 auto-vectorize it.

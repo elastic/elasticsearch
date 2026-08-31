@@ -19,7 +19,7 @@ import org.elasticsearch.foreign.VectorSegment;
 import java.lang.foreign.MemorySegment;
 
 /**
- * FFM binding for the {@code libes_simdjson} native library, which wraps
+ * FFM binding for the {@code libsimdjson} native library, which wraps
  * <a href="https://github.com/simdjson/simdjson">simdjson</a>'s stage 1
  * structural indexing with auto-selected SIMD backend (AVX-512, AVX2, SSE4.2, NEON).
  *
@@ -32,7 +32,7 @@ import java.lang.foreign.MemorySegment;
  * the Java array for the duration of the call. This eliminates the memcpy
  * that the non-critical variants require.
  */
-@LibrarySpecification(name = "es_simdjson", unavailableOn = { Platform.WINDOWS_X64, Platform.DARWIN_X64 })
+@LibrarySpecification(name = "simdjson", unavailableOn = { Platform.WINDOWS_X64, Platform.DARWIN_X64 })
 public interface SimdJsonLibrary {
 
     /**
@@ -43,7 +43,7 @@ public interface SimdJsonLibrary {
      *
      * @return an opaque context pointer, or {@link MemorySegment#NULL} on allocation failure
      */
-    @Function("es_stage1_create")
+    @Function("simdjson_stage1_create")
     MemorySegment create(int initialCapacity);
 
     /**
@@ -51,7 +51,7 @@ public interface SimdJsonLibrary {
      * {@link MemorySegment#NULL} (the native code treats a null pointer as a no-op).
      * Passing a Java {@code null} reference is not permitted and will throw {@link NullPointerException}.
      */
-    @Function("es_stage1_destroy")
+    @Function("simdjson_stage1_destroy")
     void destroy(MemorySegment ctx);
 
     /**
@@ -69,7 +69,7 @@ public interface SimdJsonLibrary {
      *
      * @return 0 on success, non-zero simdjson error code on failure, or -2 if output exceeds capacity
      */
-    @Function("es_stage1_run")
+    @Function("simdjson_stage1_run")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     int stage1(
         MemorySegment ctx,
@@ -85,6 +85,6 @@ public interface SimdJsonLibrary {
      * Returns a pointer to a static, null-terminated error message for an error code returned by
      * {@link #stage1}. The caller must read the string from the returned segment.
      */
-    @Function("es_stage1_error_message")
+    @Function("simdjson_stage1_error_message")
     MemorySegment errorMessage(int errorCode);
 }

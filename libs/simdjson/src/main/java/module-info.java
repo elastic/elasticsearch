@@ -11,7 +11,7 @@
  * JSON parsing support library adapted from
  * <a href="https://github.com/simdjson/simdjson-java">simdjson-java</a>.
  *
- * <p>Provides native-accelerated structural indexing (backed by the {@code libes_simdjson}
+ * <p>Provides native-accelerated structural indexing (backed by the {@code libsimdjson}
  * C++ library) and a fused stage 2 + token walk via
  * {@link org.elasticsearch.simdjson.SimdJsonDirectWalker}.
  *

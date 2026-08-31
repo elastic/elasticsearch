@@ -8,7 +8,7 @@
 # License v3.0 only", or the "Server Side Public License, v 1".
 #
 
-# Builds libes_simdjson for all platforms and uploads the artifact to Artifactory.
+# Builds libsimdjson for all platforms and uploads the artifact to Artifactory.
 #
 # Usage:
 #   ./publish_simdjson_binaries.sh                       # build all platforms and upload to Artifactory
@@ -87,7 +87,7 @@ ARTIFACTORY_REPOSITORY="${ARTIFACTORY_REPOSITORY:-https://artifactory.elastic.de
 TEMP=$(mktemp -d)
 
 if [ "$UPLOAD" = true ]; then
-  if curl -sS -I --fail --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/es-simdjson/${VERSION}/es-simdjson-${VERSION}.zip" > /dev/null 2>&1; then
+  if curl -sS -I --fail --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/simdjson/${VERSION}/simdjson-${VERSION}.zip" > /dev/null 2>&1; then
     echo "Error: Artifacts already exist for version '${VERSION}'. Bump version before republishing."
     exit 1;
   fi
@@ -99,26 +99,26 @@ run_make_all_in_toolchain
 mkdir -p "$TEMP/darwin-aarch64"
 mkdir -p "$TEMP/linux-aarch64"
 mkdir -p "$TEMP/linux-x64"
-cp build/libs/es_simdjson/shared/aarch64/libes_simdjson.dylib "$TEMP/darwin-aarch64/"
-cp build/libs/es_simdjson/shared/aarch64/libes_simdjson.so    "$TEMP/linux-aarch64/"
-cp build/libs/es_simdjson/shared/amd64/libes_simdjson.so      "$TEMP/linux-x64/"
+cp build/libs/simdjson/shared/aarch64/libsimdjson.dylib "$TEMP/darwin-aarch64/"
+cp build/libs/simdjson/shared/aarch64/libsimdjson.so    "$TEMP/linux-aarch64/"
+cp build/libs/simdjson/shared/amd64/libsimdjson.so      "$TEMP/linux-x64/"
 
 TEMP_DBG=$(mktemp -d)
 mkdir -p "$TEMP_DBG/darwin-aarch64"
 mkdir -p "$TEMP_DBG/linux-aarch64"
 mkdir -p "$TEMP_DBG/linux-x64"
-cp -r build/libs/es_simdjson/shared/aarch64/libes_simdjson.dylib.dSYM  "$TEMP_DBG/darwin-aarch64/"
-cp    build/libs/es_simdjson/shared/aarch64/libes_simdjson.so.debug   "$TEMP_DBG/linux-aarch64/"
-cp    build/libs/es_simdjson/shared/amd64/libes_simdjson.so.debug     "$TEMP_DBG/linux-x64/"
+cp -r build/libs/simdjson/shared/aarch64/libsimdjson.dylib.dSYM  "$TEMP_DBG/darwin-aarch64/"
+cp    build/libs/simdjson/shared/aarch64/libsimdjson.so.debug   "$TEMP_DBG/linux-aarch64/"
+cp    build/libs/simdjson/shared/amd64/libsimdjson.so.debug     "$TEMP_DBG/linux-x64/"
 
 if [ "$UPLOAD" = true ]; then
   echo 'Uploading to Artifactory...'
-  (cd "$TEMP" && zip -rq - .) | curl -sSf -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary @- --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/es-simdjson/${VERSION}/es-simdjson-${VERSION}.zip"
-  (cd "$TEMP_DBG" && zip -rq - .) | curl -sSf -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary @- --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/es-simdjson/${VERSION}/es-simdjson-${VERSION}-debuginfo.zip"
+  (cd "$TEMP" && zip -rq - .) | curl -sSf -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary @- --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/simdjson/${VERSION}/simdjson-${VERSION}.zip"
+  (cd "$TEMP_DBG" && zip -rq - .) | curl -sSf -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary @- --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/simdjson/${VERSION}/simdjson-${VERSION}-debuginfo.zip"
   rm -rf "$TEMP" "$TEMP_DBG"
 else
-  ZIP="$(pwd)/es-simdjson-${VERSION}-local.zip"
-  DBG_ZIP="$(pwd)/es-simdjson-${VERSION}-debuginfo-local.zip"
+  ZIP="$(pwd)/simdjson-${VERSION}-local.zip"
+  DBG_ZIP="$(pwd)/simdjson-${VERSION}-debuginfo-local.zip"
   (cd "$TEMP" && zip -rq "$ZIP" .)
   (cd "$TEMP_DBG" && zip -rq "$DBG_ZIP" .)
   rm -rf "$TEMP" "$TEMP_DBG"

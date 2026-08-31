@@ -54,7 +54,7 @@ repositories {
     filter {
       includeModule("org.elasticsearch", "zstd")
       includeModule("org.elasticsearch", "vec")
-      includeModule("org.elasticsearch", "es-simdjson")
+      includeModule("org.elasticsearch", "simdjson")
     }
   }
 }
@@ -84,10 +84,10 @@ dependencies {
     libs "org.elasticsearch:vec:${vecVersion}@zip"
   }
   // See `libs/simdjson/native/Makefile` for local builds.
-  // To use a locally built libes_simdjson, set LOCAL_SIMDJSON_BINARY=1 and copy the library to
-  // libs/native/libraries/build/platform/<os>-<arch>/libes_simdjson.so (or .dylib on macOS).
+  // To use a locally built libsimdjson, set LOCAL_SIMDJSON_BINARY=1 and copy the library to
+  // libs/native/libraries/build/platform/<os>-<arch>/libsimdjson.so (or .dylib on macOS).
   if (System.getenv("LOCAL_SIMDJSON_BINARY") == null) {
-    libs "org.elasticsearch:es-simdjson:${simdjsonVersion}@zip"
+    libs "org.elasticsearch:simdjson:${simdjsonVersion}@zip"
   }
 }
 

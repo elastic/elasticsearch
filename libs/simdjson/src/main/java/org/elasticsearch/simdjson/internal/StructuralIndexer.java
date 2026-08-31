@@ -24,7 +24,7 @@ import static java.lang.foreign.MemorySegment.ofArray;
  * Delegates stage 1 structural indexing to the native simdjson C++ library,
  * loaded through {@link SimdJsonSupport}.
  *
- * <p> Each instance holds a native context ({@code es_stage1_ctx*}) that is reused across
+ * <p> Each instance holds a native context ({@code simdjson_stage1_ctx*}) that is reused across
  * calls. Instances are <strong>not thread-safe</strong> - each thread should own its own
  * instance.
  */
@@ -46,7 +46,7 @@ public final class StructuralIndexer implements AutoCloseable {
         Objects.requireNonNull(LIB, "Native simdjson is not available");
         this.ctx = LIB.create(initialCapacity);
         if (ctx.equals(MemorySegment.NULL)) {
-            throw new IllegalStateException("Native es_stage1_create returned null");
+            throw new IllegalStateException("Native simdjson_stage1_create returned null");
         }
     }
 

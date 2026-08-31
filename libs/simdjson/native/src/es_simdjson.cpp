@@ -26,7 +26,7 @@
 
 using namespace simdjson;
 
-struct es_stage1_ctx {
+struct simdjson_stage1_ctx {
     std::unique_ptr<internal::dom_parser_implementation> impl;
 };
 
@@ -36,8 +36,8 @@ extern "C" {
  * Allocates a reusable stage 1 context sized for buffers up to `capacity`
  * bytes. Returns nullptr on allocation failure.
  */
-es_stage1_ctx* es_stage1_create(uint32_t capacity) {
-    auto ctx = new (std::nothrow) es_stage1_ctx();
+simdjson_stage1_ctx* simdjson_stage1_create(uint32_t capacity) {
+    auto ctx = new (std::nothrow) simdjson_stage1_ctx();
     if (!ctx) return nullptr;
 
     auto err = get_active_implementation()->create_dom_parser_implementation(
@@ -52,7 +52,7 @@ es_stage1_ctx* es_stage1_create(uint32_t capacity) {
 /*
  * Frees the context. Safe to call with nullptr.
  */
-void es_stage1_destroy(es_stage1_ctx* ctx) {
+void simdjson_stage1_destroy(simdjson_stage1_ctx* ctx) {
     delete ctx;
 }
 
@@ -62,7 +62,7 @@ void es_stage1_destroy(es_stage1_ctx* ctx) {
  * the original buffer. Stage 1 copies its remainder block to a stack-local
  * buffer, so no readable padding past offset+len is required.
  */
-int es_stage1_run(es_stage1_ctx* ctx,
+int simdjson_stage1_run(simdjson_stage1_ctx* ctx,
               const uint8_t* buf, uint32_t offset, uint32_t len,
               int32_t* out_buf, uint32_t out_buf_capacity,
               uint32_t* out_count) {
@@ -93,10 +93,10 @@ int es_stage1_run(es_stage1_ctx* ctx,
 
 /*
  * Returns a human-readable error message for the given error code returned by
- * es_stage1_run. Returns a static string — the caller must not free it.
+ * simdjson_stage1_run. Returns a static string — the caller must not free it.
  * Unknown codes yield "UNEXPECTED_ERROR".
  */
-const char* es_stage1_error_message(int err) {
+const char* simdjson_stage1_error_message(int err) {
     if (err == -1) return "null or invalid context";
     if (err == -2) return "output buffer too small";
     if (err >= 0 && err < static_cast<int>(error_code::NUM_ERROR_CODES)) {

@@ -753,7 +753,9 @@ These events also have **one** of the following extra attributes (in addition to
 :   The object representation of the security config that is being changed. It can be the `password`, `enable` or `disable`, config object for native or built-in users. If an API key is updated, the config object will be an `apikey`.
 
 `create`
-:   The object representation of the new security config that is being created. This is used for API keys and service account token auditing. If the API key is created using the [create API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key) it only contains an `apikey` config object. If the API key is created using the [grant API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-grant-api-key) it also contains a `grant` config object. If a service account token is created, it contains a `service_token` config object.
+:   The object representation of the new security config that is being created. This is used for API keys and service account token auditing. If the API key is created using the [create API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key) it only contains an `apikey` config object. If the API key is created using the [grant API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-grant-api-key) it also contains a `grant` config object. 
+
+    {applies_to}`stack: ga 9.6+` If a service account token is created, it contains a `service_token` config object.
 
 `invalidate`
 :   The object representation of the security configuration that is being invalidated. The only config that currently supports invalidation is `apikeys`, through the [invalidate API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-invalidate-api-key).

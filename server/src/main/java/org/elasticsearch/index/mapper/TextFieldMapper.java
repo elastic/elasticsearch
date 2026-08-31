@@ -80,7 +80,6 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -913,6 +912,11 @@ public final class TextFieldMapper extends FieldMapper {
             return useArrayOrderBinaryDocValues;
         }
 
+        /** Which framing a doc-values query has to decode for this field. */
+        private BinaryDocValuesFormat binaryFormat() {
+            return useArrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT;
+        }
+
         @Override
         public boolean eagerGlobalOrdinals() {
             return eagerGlobalOrdinals;
@@ -971,7 +975,7 @@ public final class TextFieldMapper extends FieldMapper {
             failIfNotIndexedNorDocValuesFallback(context);
 
             if (usesBinaryDocValues) {
-                return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), useArrayOrderBinaryDocValues);
+                return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), binaryFormat());
             } else {
                 return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
@@ -987,7 +991,7 @@ public final class TextFieldMapper extends FieldMapper {
 
             List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
             if (usesBinaryDocValues) {
-                return new ScanningBinaryDocValuesTermInSetQuery(name(), bytesRefs, useArrayOrderBinaryDocValues);
+                return new ScanningBinaryDocValuesTermInSetQuery(name(), bytesRefs, binaryFormat());
             } else {
                 return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
             }
@@ -1015,7 +1019,7 @@ public final class TextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                return new ScanningBinaryDocValuesPrefixQuery(name(), value, caseInsensitive, useArrayOrderBinaryDocValues);
+                return new ScanningBinaryDocValuesPrefixQuery(name(), value, caseInsensitive, binaryFormat());
             }
             if (caseInsensitive == false) {
                 return new PrefixQuery(new Term(name(), value), MultiTermQuery.DOC_VALUES_REWRITE);
@@ -1041,7 +1045,7 @@ public final class TextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                return new ScanningBinaryDocValuesWildcardQuery(name(), value, caseInsensitive, useArrayOrderBinaryDocValues);
+                return new ScanningBinaryDocValuesWildcardQuery(name(), value, caseInsensitive, binaryFormat());
             }
             if (caseInsensitive == false) {
                 Term term = new Term(name(), value);
@@ -1081,7 +1085,7 @@ public final class TextFieldMapper extends FieldMapper {
                     syntaxFlags,
                     matchFlags,
                     maxDeterminizedStates,
-                    useArrayOrderBinaryDocValues,
+                    binaryFormat(),
                     context.getCircuitBreaker()
                 );
             }
@@ -1388,10 +1392,7 @@ public final class TextFieldMapper extends FieldMapper {
                     if (docValuesParams != null && docValuesParams.multiValue() == false) {
                         return new BytesRefsFromBinaryBlockLoader(name());
                     }
-                    return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
-                        name(),
-                        useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE : ArrayOrderSource.NONE
-                    );
+                    return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name(), binaryFormat());
                 } else {
                     return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                 }
@@ -1604,7 +1605,7 @@ public final class TextFieldMapper extends FieldMapper {
                     CoreValuesSourceType.KEYWORD,
                     TextDocValuesField::new,
                     indexCreatedVersion,
-                    useArrayOrderBinaryDocValues
+                    binaryFormat()
                 );
             } else {
                 return new SortedSetOrdinalsIndexFieldData.Builder(

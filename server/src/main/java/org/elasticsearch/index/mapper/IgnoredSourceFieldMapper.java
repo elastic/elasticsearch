@@ -228,7 +228,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // Per-field ignored source is produced only by field (non-metadata) mappers, none of which
         // support columnar parsing yet. postColumnarParse is therefore a no-op for the current
         // empty-doc-only columnar batch scope. When field mappers gain columnar support they will

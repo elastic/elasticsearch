@@ -1262,7 +1262,7 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // Columnar support requires strict-columnar index mode or TIME_SERIES (for @timestamp),
         // and a doc-values date field. doc_values.multi_value and ignore_malformed are not
         // implemented by mapColumnBatch but are deliberately not rejected here — rejected at parse
@@ -1271,12 +1271,11 @@ public final class DateFieldMapper extends FieldMapper {
             && docValuesParameters.enabled()
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final EscfColumnData outData = switch (source.kind()) {
             case EscfColumnKind.STRING -> datesFromStrings(source);
             case EscfColumnKind.LONG -> datesFromLongs(source);

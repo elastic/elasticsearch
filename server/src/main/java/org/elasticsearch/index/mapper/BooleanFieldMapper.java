@@ -765,20 +765,19 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // doc_values.multi_value and ignore_malformed are not implemented by mapColumnBatch
         // but are not rejected here — they fall back per document at parse time.
         return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && docValuesParameters.enabled()
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
             && fieldType().isDimension() == false
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         switch (source.kind()) {
             case EscfColumnKind.BOOL, EscfColumnKind.STRING -> {
             } // handled below

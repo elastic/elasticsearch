@@ -249,7 +249,7 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * Whether this mapper can be driven through the columnar bulk batch-mapping path (see
+     * Whether this mapper including its multi-fields can be driven through the columnar bulk batch-mapping path (see
      * {@code ShardBatchMapper}), which invokes each mapper once per batch over whole columns rather
      * than once per document. Defaults to {@code false}; supported mappers override once they
      * implement the columnar mapping entry point.
@@ -257,24 +257,50 @@ public abstract class FieldMapper extends Mapper {
      * @param indexSettings the settings of the index being mapped, for mappers whose columnar
      *                       support depends on index-level configuration
      */
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    public final boolean supportsColumnarParse(IndexSettings indexSettings) {
+        if (doSupportsColumnarParse(indexSettings) == false) {
+            return false;
+        }
+        if (resolvesColumnGroup()) {
+            // A group mapper is dispatched through mapColumnGroupBatch over a whole subtree of leaves, which never fans out to
+            // multi-fields, so it cannot carry any. Defensive: flattened, the only group mapper today, already rejects [fields] at
+            // mapping-parse time.
+            return builderParams.multiFields.mappers.length == 0;
+        }
+        for (FieldMapper subMapper : builderParams.multiFields) {
+            // The recursive call covers mul.
+            if (subMapper.resolvesColumnGroup() || subMapper.supportsColumnarParse(indexSettings) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         return false;
     }
 
     /**
-     * Maps all documents in a batch for this field from the supplied ESCF source column. Called by
-     * the columnar bulk batch driver once per field per batch, only for mappers whose
+     * Maps all documents in a batch for this field from the supplied ESCF source column, then hands the same column to each
+     * multi-field sub-mapper. Called by the columnar bulk batch driver once per field per batch, only for mappers whose
      * {@link #supportsColumnarParse(IndexSettings)} returned {@code true}. Attaches the resulting
      * output columns to {@code ctx} via {@link BatchMappingContext#addColumn}.
      *
      * @param ctx    the batch mapping context; receives output columns via {@code addColumn}
      * @param source the Escf column holding the field's source values for the batch
      */
+    public final void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        doMapColumnBatch(ctx, source);
+        for (FieldMapper subMapper : builderParams.multiFields) {
+            subMapper.doMapColumnBatch(ctx, source);
+        }
+    }
+
     // TODO: See FieldMapper#parse. We need to migrate over multi-value and nullability restricts.
     // This should be straightforward. We would reject array columns for multi-value and force
     // dense columns or null replacement for no nullability. We might need to do a check if multi-value
     // is false and there is an array column scan down the array counts because size 0 or 1 is still valid
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         throw new UnsupportedOperationException(
             "mapColumnBatch not implemented for mapper [" + typeName() + "] on field [" + fullPath() + "]"
         );

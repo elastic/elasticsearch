@@ -1625,12 +1625,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         return indexSettings.getMode().isStrictColumnar()
             && supportsColumnarDocValues()
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
             && normalizerName == null
             && fieldType().isDimension() == false;
     }
@@ -1667,7 +1666,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored();
         final boolean emitFallback = storeIgnoredValuesForSyntheticSource();
         final boolean emitDvs = fieldType().hasDocValues();

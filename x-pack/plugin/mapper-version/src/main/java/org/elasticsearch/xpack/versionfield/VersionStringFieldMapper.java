@@ -414,13 +414,10 @@ public class VersionStringFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // version fields have no store/script/null_value/ignore_malformed/dimension parameters
-        // and are always both indexed and doc-valued, so only copy_to and multi-fields need gating.
-        return indexSettings.getMode().isStrictColumnar()
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false;
+        // and are always both indexed and doc-valued, so only copy_to needs gating.
+        return indexSettings.getMode().isStrictColumnar() && hasScript() == false && copyTo().copyToFields().isEmpty();
     }
 
     /**
@@ -458,7 +455,7 @@ public class VersionStringFieldMapper extends FieldMapper {
      * this case is muted with {@code @AwaitsFix} until that option is available.
      */
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final int docCount = ctx.docCount();
         // retainValues=false: every value is encoded within one loop iteration, before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);

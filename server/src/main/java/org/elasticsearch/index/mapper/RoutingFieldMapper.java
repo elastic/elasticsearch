@@ -403,7 +403,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     private static final IndexableFieldType ROUTING_DV_FIELD_TYPE = SortedDocValuesField.indexedField("", new BytesRef()).fieldType();
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         return true;
     }
 

@@ -2876,7 +2876,7 @@ public class NumberFieldMapper extends FieldMapper {
     private static final IndexableFieldType DOUBLE_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0.0).fieldType();
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // Neither doc_values.multi_value nor ignore_malformed is implemented by mapColumnBatch, but
         // neither is rejected up front either: both only matter for documents the columnar path
         // already refuses, and refusing late falls back to row path.
@@ -2885,13 +2885,12 @@ public class NumberFieldMapper extends FieldMapper {
             && indexTerms == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
             && (dimension == false || writeDimensionRouting == false)
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         switch (source.kind()) {
             case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING -> {
             } // handled below

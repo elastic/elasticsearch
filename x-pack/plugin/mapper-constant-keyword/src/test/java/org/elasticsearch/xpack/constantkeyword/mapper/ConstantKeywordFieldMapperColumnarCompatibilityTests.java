@@ -273,6 +273,32 @@ public class ConstantKeywordFieldMapperColumnarCompatibilityTests extends Abstra
         assertTrue("supportsColumnarParse must be true regardless of index mode", mapper.supportsColumnarParse(ms.getIndexSettings()));
     }
 
+    /**
+     * A {@code constant_keyword} sub-field is driven from its parent's source column like any other multi-field. It accepts the
+     * documents whose value matches its configured constant, and its {@code UnsupportedOperationException} bail-out for a
+     * mismatch still fires from the sub-field position, forcing the batch back to the row path.
+     */
+    public void testAsSubFieldOfKeyword() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("kind").field("type", "constant_keyword").field("value", "hello").endObject();
+            b.endObject();
+            b.endObject();
+        }), columnarSettings(), batch("constant_keyword sub-field", 1L, doc("d1", 1L, "{\"f\":\"hello\"}"), doc("d2", 2L, "{}")));
+    }
+
+    public void testSubFieldValueMismatchBailsOut() throws IOException {
+        MapperService ms = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("kind").field("type", "constant_keyword").field("value", "hello").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(ms, FIELD, "{\"f\":\"not-hello\"}"));
+    }
+
     public void testGate_copyTo() throws IOException {
         // copy_to is not supported by the columnar path. Use standard mode because columnar mode already
         // rejects copy_to at mapping-parse time (before the mapper is ever consulted).

@@ -293,32 +293,10 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             null,
             null,
             false,
-            false,
             false
         );
         assertNull(longSource(skipperLong).createSortedDocsProducerOrNull(reader, null));
         assertNull(longSource(skipperLong).createSortedDocsProducerOrNull(reader, Queries.ALL_DOCS_INSTANCE));
-
-        // an [index_terms] numeric has a dense index, but it is an inverted index rather than a BKD tree
-        MappedFieldType indexTermsLong = new NumberFieldMapper.NumberFieldType(
-            "number",
-            NumberFieldMapper.NumberType.LONG,
-            IndexType.terms(true, true),
-            false,
-            false,
-            null,
-            Collections.emptyMap(),
-            null,
-            false,
-            null,
-            null,
-            false,
-            false,
-            true
-        );
-        assertTrue(indexTermsLong.indexType().hasDenseIndex());
-        assertFalse(indexTermsLong.indexType().hasPoints());
-        assertNull(longSource(indexTermsLong).createSortedDocsProducerOrNull(reader, null));
 
         // a legacy archived date exposes points metadata derived from doc values, but still has no BKD tree
         MappedFieldType archivedDate = dateFieldType("@timestamp", IndexType.archivedPoints());

@@ -102,12 +102,12 @@ public class CsvSchemaInferrer {
         return widenSchema(schema, additionalRows, datetimeFormatter, new boolean[schema.size()]);
     }
 
-    /** As above, carrying the sample's whitespace-dialect evidence forward. */
+    /** As above, carrying the sample's undecodable-dialect evidence forward. */
     static List<Attribute> widenSchema(
         List<Attribute> schema,
         List<String[]> additionalRows,
         @Nullable DateFormatter datetimeFormatter,
-        boolean[] sawSpaceFormTemporal
+        boolean[] sawUndecodableTemporal
     ) {
         if (additionalRows.isEmpty()) {
             return schema;
@@ -144,7 +144,7 @@ public class CsvSchemaInferrer {
                     continue;
                 }
                 // All columns are confirmed by the initial sample (confirmed=true).
-                int newIdx = narrowCandidate(candidateIdx[col], true, value, datetimeFormatter, sawSpaceFormTemporal, col);
+                int newIdx = narrowCandidate(candidateIdx[col], true, value, datetimeFormatter, sawUndecodableTemporal, col);
                 if (newIdx != candidateIdx[col]) {
                     candidateIdx[col] = newIdx;
                     anyWidened = true;
@@ -159,7 +159,7 @@ public class CsvSchemaInferrer {
         }
         boolean anyDemotion = false;
         for (int col = 0; col < numCols; col++) {
-            if (sawSpaceFormTemporal[col] && TYPE_CANDIDATES[candidateIdx[col]] == DataType.DATE_NANOS) {
+            if (sawUndecodableTemporal[col] && TYPE_CANDIDATES[candidateIdx[col]] == DataType.DATE_NANOS) {
                 anyDemotion = true;
                 break;
             }
@@ -172,7 +172,7 @@ public class CsvSchemaInferrer {
         List<Attribute> widened = new ArrayList<>(numCols);
         for (int col = 0; col < numCols; col++) {
             Attribute original = schema.get(col);
-            DataType newType = demoteIfDialectCannotDecode(TYPE_CANDIDATES[candidateIdx[col]], sawSpaceFormTemporal[col]);
+            DataType newType = demoteIfDialectCannotDecode(TYPE_CANDIDATES[candidateIdx[col]], sawUndecodableTemporal[col]);
             if (newType != original.dataType()) {
                 widened.add(new ReferenceAttribute(Source.EMPTY, null, original.name(), newType, Nullability.TRUE, null, false));
             } else {
@@ -198,7 +198,7 @@ public class CsvSchemaInferrer {
     }
 
     /**
-     * As above, reporting per column whether the sample held a whitespace-separated timestamp.
+     * As above, reporting per column whether the sample held a timestamp the date_nanos rail cannot parse.
      * <p>
      * A caller that goes on to widen against a second window must pass the same array back, or a
      * column demoted here could be promoted again by a nanosecond value in that window with the
@@ -208,7 +208,7 @@ public class CsvSchemaInferrer {
         String[] columnNames,
         List<String[]> sampleRows,
         @Nullable DateFormatter datetimeFormatter,
-        boolean[] sawSpaceFormTemporal
+        boolean[] sawUndecodableTemporal
     ) {
         int numCols = columnNames.length;
         int[] candidateIdx = new int[numCols];
@@ -235,7 +235,7 @@ public class CsvSchemaInferrer {
                     typeConfirmed[col],
                     value,
                     datetimeFormatter,
-                    sawSpaceFormTemporal,
+                    sawUndecodableTemporal,
                     col
                 );
                 typeConfirmed[col] = true;
@@ -246,7 +246,7 @@ public class CsvSchemaInferrer {
         for (int col = 0; col < numCols; col++) {
             String name = columnNames[col].trim();
             DataType type = seenValue[col] ? TYPE_CANDIDATES[candidateIdx[col]] : DataType.KEYWORD;
-            type = demoteIfDialectCannotDecode(type, sawSpaceFormTemporal[col]);
+            type = demoteIfDialectCannotDecode(type, sawUndecodableTemporal[col]);
             attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, false));
         }
         return attributes;
@@ -257,7 +257,7 @@ public class CsvSchemaInferrer {
      * cannot decode.
      * <p>
      * Screening the forcing value alone is not enough: a column can be flipped by a well-formed
-     * {@code T}-form nanosecond value and still hold whitespace-separated cells elsewhere, which then
+     * nanosecond value and still hold cells in a dialect that rail cannot parse, which then
      * fail per-cell at read under the default FAIL_FAST policy — a file that reads today would stop
      * reading. Demoting to {@code datetime} keeps exactly the behaviour such a file has now. It costs
      * the sub-millisecond digits on that column, which is the same thing {@code datetime} has always
@@ -266,8 +266,8 @@ public class CsvSchemaInferrer {
      * Applied at resolution rather than during the walk, so the answer does not depend on whether the
      * space-form row came before or after the one that forced the flip.
      */
-    private static DataType demoteIfDialectCannotDecode(DataType resolved, boolean sawSpaceFormTemporal) {
-        return resolved == DataType.DATE_NANOS && sawSpaceFormTemporal ? DataType.DATETIME : resolved;
+    private static DataType demoteIfDialectCannotDecode(DataType resolved, boolean sawUndecodableTemporal) {
+        return resolved == DataType.DATE_NANOS && sawUndecodableTemporal ? DataType.DATETIME : resolved;
     }
 
     /**
@@ -295,10 +295,10 @@ public class CsvSchemaInferrer {
         boolean confirmed,
         String value,
         @Nullable DateFormatter datetimeFormatter,
-        boolean[] sawSpaceFormTemporal,
+        boolean[] sawUndecodableTemporal,
         int col
     ) {
-        int evidenceIdx = recognise(currentIdx, value, datetimeFormatter, sawSpaceFormTemporal, col);
+        int evidenceIdx = recognise(currentIdx, value, datetimeFormatter, sawUndecodableTemporal, col);
         if (confirmed == false) {
             return evidenceIdx;
         }
@@ -339,7 +339,7 @@ public class CsvSchemaInferrer {
         int fromIdx,
         String value,
         @Nullable DateFormatter datetimeFormatter,
-        boolean[] sawSpaceFormTemporal,
+        boolean[] sawUndecodableTemporal,
         int col
     ) {
         Temporal temporal = null; // computed on demand, and only if a temporal rung is reached
@@ -349,7 +349,7 @@ public class CsvSchemaInferrer {
                 if (temporal == null) {
                     temporal = classifyTemporal(value, datetimeFormatter);
                     if (temporal == Temporal.DATETIME_UNDECODABLE_AS_NANOS) {
-                        sawSpaceFormTemporal[col] = true;
+                        sawUndecodableTemporal[col] = true;
                     }
                 }
                 // DATETIME accepts the timestamps it reads without dropping digits; DATE_NANOS accepts
@@ -416,31 +416,25 @@ public class CsvSchemaInferrer {
     }
 
     /**
-     * Whether the {@code date_nanos} decode rail can read this timestamp.
+     * The formatter the {@code date_nanos} decode rail parses with. Asking it directly is the point:
+     * the CSV rail's own parser accepts dialects this one rejects, and a column holding one must never
+     * be typed {@code date_nanos}.
      * <p>
-     * The CSV rail's parser accepts two dialects that {@code strict_date_optional_time_nanos} rejects:
-     * the whitespace-separated form, and a time without seconds. Both are recognised by shape here
-     * rather than by a second parse, because this runs per value on every date-shaped column. That
-     * makes it a restatement of someone else's grammar, so
-     * {@code CsvSchemaInferrerTests#testInferenceOnlyCommitsDateNanosForValuesTheNanosRailCanDecode}
-     * holds it to the real rail over a randomized corpus, including columns that mix dialects.
+     * This replaced three successive attempts to restate that grammar by shape — first "has no space",
+     * then "has no space and has seconds", then also "has four unsigned year digits". Each was cheaper
+     * and each was wrong, because it is a restatement of someone else's parser and drifts the moment
+     * that parser accepts something new. The oracle costs a parse on values already known to be
+     * timestamps; the guesses cost correctness.
+     * <p>
+     * Note it is the DIALECT being asked about, not the range: a value this parses but that falls
+     * outside the representable window is deliberately kept (demoting on it would make a column's type
+     * depend on row order) and fails per-cell at read, exactly as a declared {@code date_nanos} schema
+     * makes it fail.
      */
+    private static final DateFormatter NANOS_RAIL_FORMAT = DateFormatter.forPattern("strict_date_optional_time_nanos");
+
     private static boolean nanosRailCanDecode(String value) {
-        int t = value.indexOf('T');
-        if (t < 0) {
-            // No time component at all is fine (a bare date decodes); the whitespace dialect is not.
-            return value.indexOf(' ') < 0;
-        }
-        int colons = 0;
-        for (int i = t + 1; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (c == ':') {
-                colons++;
-            } else if (c == '+' || c == '-' || c == 'Z' || c == 'z') {
-                break; // into the zone/offset; any colon past here is not part of the time
-            }
-        }
-        return colons >= 2; // HH:MM:SS — seconds are mandatory on the nanos rail
+        return NANOS_RAIL_FORMAT.tryParse(value) != null;
     }
 
     /**

@@ -512,7 +512,8 @@ public class CsvSchemaInferrerTests extends ESTestCase {
                 "2023-10-23T12:15:03.360Z",
                 "2023-10-23",
                 "1969-12-31T23:59:59.999999999Z",
-                "2263-01-01T00:00:00.123456789Z"
+                "2263-01-01T00:00:00.123456789Z",
+                "+12023-10-23T12:15:03.360103847Z"
             )
         );
         for (int i = 0; i < 200; i++) {
@@ -595,21 +596,21 @@ public class CsvSchemaInferrerTests extends ESTestCase {
      * sample demoted must not be promoted again by a nanosecond value that only appears in the window.
      */
     public void testSpaceFormEvidenceFromTheSampleSurvivesWidening() {
-        boolean[] sawSpaceForm = new boolean[1];
+        boolean[] sawUndecodable = new boolean[1];
         List<Attribute> schema = CsvSchemaInferrer.inferSchema(
             new String[] { "ts" },
             List.<String[]>of(new String[] { "2023-10-23 12:15:03" }),
             null,
-            sawSpaceForm
+            sawUndecodable
         );
         assertEquals(DataType.DATETIME, schema.get(0).dataType());
-        assertTrue("the sample's space-form evidence must be reported", sawSpaceForm[0]);
+        assertTrue("the sample's space-form evidence must be reported", sawUndecodable[0]);
 
         List<Attribute> widened = CsvSchemaInferrer.widenSchema(
             schema,
             List.<String[]>of(new String[] { "2023-10-23T12:15:03.360103847Z" }),
             null,
-            sawSpaceForm
+            sawUndecodable
         );
         assertEquals("a nanosecond value in the widening window must not undo the demotion", DataType.DATETIME, widened.get(0).dataType());
     }
@@ -647,7 +648,12 @@ public class CsvSchemaInferrerTests extends ESTestCase {
                 "2023-10-23T12:15Z",
                 "2023-10-23T12:15",
                 "2023-10-23T12:15:03.360Z",
-                "2023-10-23"
+                "2023-10-23",
+                // Years the CSV parser takes and the nanos rail does not: it wants exactly four
+                // unsigned digits. Fixed rather than generated because the generator could not produce
+                // this shape, which is precisely how it went unnoticed.
+                "+12023-10-23T12:15:03Z",
+                "+12023-10-23T12:15:03.360103847Z"
             )
         );
         for (int i = 0; i < 60; i++) {
@@ -714,10 +720,17 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         assertEquals(DataType.DATETIME, widened.get(0).dataType());
     }
 
-    /** The same, for the seconds-less dialect — the sibling the first version of the screen missed. */
-    public void testSecondsLessDialectAlsoKeepsAColumnOffTheNanosRail() {
-        assertEquals(DataType.DATETIME, inferOne("2023-10-23T12:15:03.360103847Z", "2023-10-23T12:15Z"));
-        assertEquals(DataType.DATETIME, inferOne("2023-10-23T12:15Z", "2023-10-23T12:15:03.360103847Z"));
+    /**
+     * Every dialect the CSV parser accepts and the {@code date_nanos} rail does not, each of which
+     * keeps its column off that rail in either row order. The list grew twice by review — seconds-less,
+     * then signed years — which is why the predicate now asks the rail instead of describing it.
+     */
+    public void testEveryUndecodableDialectKeepsAColumnOffTheNanosRail() {
+        String nanos = "2023-10-23T12:15:03.360103847Z";
+        for (String undecodable : List.of("2023-10-23 12:15:03", "2023-10-23T12:15Z", "+12023-10-23T12:15:03Z")) {
+            assertEquals(undecodable + " then nanos", DataType.DATETIME, inferOne(undecodable, nanos));
+            assertEquals("nanos then " + undecodable, DataType.DATETIME, inferOne(nanos, undecodable));
+        }
     }
 
     public void testSynthesizeColumnNames() {

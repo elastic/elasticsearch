@@ -1280,14 +1280,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
                 // The same array both ways: a column the sample demoted off the date_nanos rail must
                 // stay off it even if the widening window holds a nanosecond value.
-                boolean[] sawSpaceFormTemporal = new boolean[columnNames.length];
+                boolean[] sawUndecodableTemporal = new boolean[columnNames.length];
                 List<Attribute> schema = CsvSchemaInferrer.inferSchema(
                     columnNames,
                     sample.rows(),
                     options.datetimeFormatter(),
-                    sawSpaceFormTemporal
+                    sawUndecodableTemporal
                 );
-                return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter(), sawSpaceFormTemporal);
+                return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter(), sawUndecodableTemporal);
             } finally {
                 breaker.addWithoutBreaking(-wideningWindow.reservedBytes());
             }
@@ -1313,14 +1313,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     throw new IOException("CSV file has no data rows");
                 }
                 maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-                boolean[] sawSpaceFormTemporal = new boolean[syntheticColumnCount(sample.rows())];
+                boolean[] sawUndecodableTemporal = new boolean[syntheticColumnCount(sample.rows())];
                 List<Attribute> schema = inferSyntheticSchema(
                     sample.rows(),
                     options.columnPrefix(),
                     options.datetimeFormatter(),
-                    sawSpaceFormTemporal
+                    sawUndecodableTemporal
                 );
-                return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter(), sawSpaceFormTemporal);
+                return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter(), sawUndecodableTemporal);
             } finally {
                 breaker.addWithoutBreaking(-wideningWindow.reservedBytes());
             }
@@ -1404,16 +1404,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return columnCount;
     }
 
+    /**
+     * Infers a schema for a headerless sample, naming columns from {@code prefix}. Both call sites must
+     * guarantee {@code sampleRows} is non-empty.
+     */
     static List<Attribute> inferSyntheticSchema(
         List<String[]> sampleRows,
         String prefix,
         @Nullable DateFormatter datetimeFormatter,
-        boolean[] sawSpaceFormTemporal
+        boolean[] sawUndecodableTemporal
     ) {
         assert sampleRows.isEmpty() == false : "sampleRows must be non-empty for synthetic schema inference";
         int columnCount = syntheticColumnCount(sampleRows);
         String[] columnNames = synthesizeColumnNames(columnCount, prefix);
-        return CsvSchemaInferrer.inferSchema(columnNames, sampleRows, datetimeFormatter, sawSpaceFormTemporal);
+        return CsvSchemaInferrer.inferSchema(columnNames, sampleRows, datetimeFormatter, sawUndecodableTemporal);
     }
 
     static String[] synthesizeColumnNames(int count, String prefix) {
@@ -4088,14 +4092,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-            boolean[] sawSpaceFormTemporal = new boolean[columnNames.length];
+            boolean[] sawUndecodableTemporal = new boolean[columnNames.length];
             List<Attribute> schema = CsvSchemaInferrer.inferSchema(
                 columnNames,
                 sample.rows(),
                 options.datetimeFormatter(),
-                sawSpaceFormTemporal
+                sawUndecodableTemporal
             );
-            return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter(), sawSpaceFormTemporal);
+            return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter(), sawUndecodableTemporal);
         }
 
         private List<Attribute> inferSchemaHeaderlessFromBatchReader() throws IOException {
@@ -4116,14 +4120,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-            boolean[] sawSpaceFormTemporal = new boolean[syntheticColumnCount(sample.rows())];
+            boolean[] sawUndecodableTemporal = new boolean[syntheticColumnCount(sample.rows())];
             List<Attribute> schema = inferSyntheticSchema(
                 sample.rows(),
                 options.columnPrefix(),
                 options.datetimeFormatter(),
-                sawSpaceFormTemporal
+                sawUndecodableTemporal
             );
-            return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter(), sawSpaceFormTemporal);
+            return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter(), sawUndecodableTemporal);
         }
 
         /**

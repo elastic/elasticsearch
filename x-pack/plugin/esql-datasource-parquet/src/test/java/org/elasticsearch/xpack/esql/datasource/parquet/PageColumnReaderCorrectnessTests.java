@@ -52,6 +52,7 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
@@ -589,6 +590,86 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertOptimizedMatchesBaseline(data, columns);
     }
 
+    public void testCompressedUniqueStringsAcrossPages() throws IOException {
+        // PARQUET_1_0 PLAIN aliases the reused dest. Fixed-width values keep page uncompressed
+        // sizes equal so dest is reused rather than grown (a grow would leave the old array
+        // alive and hide a missing copy-out). PARQUET_2_0 DELTA_BYTE_ARRAY copies the page in
+        // initDecoders, so it would not catch a missing copy-out. Loop every dest-reuse codec:
+        // a destLen vs dest.length bug is codec-specific (Zstd).
+        for (CompressionCodecName codec : new CompressionCodecName[] {
+            CompressionCodecName.SNAPPY,
+            CompressionCodecName.ZSTD,
+            CompressionCodecName.GZIP,
+            CompressionCodecName.LZ4_RAW }) {
+            assertCompressedUniqueStringsAcrossPages(codec);
+        }
+    }
+
+    private void assertCompressedUniqueStringsAcrossPages(CompressionCodecName codec) throws IOException {
+        int rows = 200;
+        int batchSize = 128;
+        MessageType schema = Types.buildMessage()
+            .required(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("req")
+            .optional(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("opt")
+            .named("unique_str_reuse");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(codecFactory)
+                .withType(schema)
+                .withWriterVersion(ParquetProperties.WriterVersion.PARQUET_1_0)
+                .withCompressionCodec(codec)
+                .withDictionaryEncoding(false)
+                .withRowGroupSize(64L * 1024 * 1024)
+                .withPageSize(64)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                Group g = groupFactory.newGroup().append("req", String.format(Locale.ROOT, "req_%05d", i));
+                if (i % 7 != 0) {
+                    g.append("opt", String.format(Locale.ROOT, "opt_%05d", i));
+                }
+                writer.write(g);
+            }
+        }
+        byte[] data = out.toByteArray();
+        try (ParquetFileReader parquetReader = openReader(data)) {
+            OffsetIndex oi = parquetReader.readOffsetIndex(parquetReader.getRowGroups().getFirst().getColumns().getFirst());
+            assertNotNull(codec + " column must have an offset index", oi);
+            assertTrue(codec + " need ≥2 data pages so dest reuse can clobber", oi.getPageCount() >= 2);
+            assertTrue(codec + " batch must span page 0", batchSize > oi.getFirstRowIndex(1));
+        }
+        List<String> columns = List.of("req", "opt");
+        List<Page> pages = readAll(new ParquetFormatReader(blockFactory), data, columns, batchSize);
+        try {
+            assertEquals(codec + " first batch", batchSize, pages.getFirst().getPositionCount());
+            int pos = 0;
+            for (Page page : pages) {
+                BytesRefBlock req = (BytesRefBlock) page.getBlock(0);
+                BytesRefBlock opt = (BytesRefBlock) page.getBlock(1);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    assertBytesRefAt(req, i, String.format(Locale.ROOT, "req_%05d", pos));
+                    if (pos % 7 == 0) {
+                        assertTrue(codec + " opt null@" + pos, opt.isNull(i));
+                    } else {
+                        assertBytesRefAt(opt, i, String.format(Locale.ROOT, "opt_%05d", pos));
+                    }
+                    pos++;
+                }
+            }
+            assertEquals(codec + " rows", rows, pos);
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
+        assertOptimizedMatchesBaseline(data, columns);
+    }
+
     // --- Column spec for randomized tests ---
 
     private record ColSpec(
@@ -687,9 +768,13 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     // --- Read helpers ---
 
     private List<Page> readAll(ParquetFormatReader reader, byte[] data, List<String> columns) throws IOException {
+        return readAll(reader, data, columns, BATCH_SIZE);
+    }
+
+    private List<Page> readAll(ParquetFormatReader reader, byte[] data, List<String> columns, int batchSize) throws IOException {
         StorageObject so = storageObject(data);
         List<Page> pages = new ArrayList<>();
-        try (CloseableIterator<Page> iter = reader.read(so, FormatReadContext.of(columns, BATCH_SIZE))) {
+        try (CloseableIterator<Page> iter = reader.read(so, FormatReadContext.of(columns, batchSize))) {
             while (iter.hasNext()) {
                 pages.add(iter.next());
             }

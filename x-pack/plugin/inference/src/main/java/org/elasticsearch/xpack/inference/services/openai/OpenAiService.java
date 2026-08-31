@@ -257,6 +257,11 @@ public class OpenAiService extends SenderService<OpenAiModel> {
     }
 
     @Override
+    protected boolean supportsChatCompletionReasoning() {
+        return true;
+    }
+
+    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,

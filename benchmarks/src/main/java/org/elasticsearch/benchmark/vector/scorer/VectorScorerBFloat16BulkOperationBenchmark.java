@@ -10,9 +10,8 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
-import org.elasticsearch.nativeaccess.SimdVecLibrary.BFloat16QueryType;
+import org.elasticsearch.simdvec.SimdVecLibrary;
+import org.elasticsearch.simdvec.SimdVecLibrary.BFloat16QueryType;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -320,5 +319,5 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         return scores;
     }
 
-    private static final SimdVecLibrary VEC_LIBRARY = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
+    private static final SimdVecLibrary VEC_LIBRARY = SimdVecLibrary.instance().orElseThrow();
 }

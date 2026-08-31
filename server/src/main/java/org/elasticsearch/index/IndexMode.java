@@ -1079,8 +1079,9 @@ public enum IndexMode {
      * fields to doc-values-only access, which drops the structures that only retrieval uses: the vector index of a
      * {@code dense_vector}, the norms of a {@code text} field. Modes that return {@code true} keep those structures instead.
      * <p>
-     * Non-columnar modes return {@code false} because the exemption is meaningless for them: they never strip these structures by
-     * default, and returning {@code true} would override an explicitly configured {@link IndexSettings#INDEX_DISABLED_BY_DEFAULT}.
+     * For such modes this exemption is unconditional: keeping the retrieval structures is intrinsic to the mode, so it takes
+     * precedence even over an explicitly configured {@link IndexSettings#INDEX_DISABLED_BY_DEFAULT}. Non-columnar modes return
+     * {@code false} because the exemption is meaningless for them: they never strip these structures by default.
      */
     public boolean isSearchOptimizedColumnar() {
         return false;

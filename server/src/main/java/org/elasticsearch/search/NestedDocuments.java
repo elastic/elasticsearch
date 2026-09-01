@@ -150,6 +150,13 @@ public class NestedDocuments {
             String path = null;
             for (Map.Entry<String, Scorer> objectFilter : childScorers.entrySet()) {
                 DocIdSetIterator it = objectFilter.getValue().iterator();
+                if (it.docID() > doc) {
+                    // Callers are not required to advance in doc id order: a SourceLoader reading stored source during the query phase may
+                    // re-read the segment from the top for a second query clause (see ConcurrentSegmentSourceProvider).
+                    // DocIdSetIterators are forward-only, so pull a fresh scorer to rewind.
+                    objectFilter.setValue(getNestedChildWeight(ctx, objectFilter.getKey()).scorer(ctx));
+                    it = objectFilter.getValue().iterator();
+                }
                 if (it.docID() == doc || it.docID() < doc && it.advance(doc) == doc) {
                     if (path == null || path.length() > objectFilter.getKey().length()) {
                         path = objectFilter.getKey();

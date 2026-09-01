@@ -10,15 +10,23 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.mapping;
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 
 /**
  * An integration test for testing updating shard allocation/routing settings and
@@ -91,6 +99,19 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
 
         test = assertAllShardsOnNodes("test", firstNode, secondNode);
         assertThat("index: [test] expected to be rebalanced on both nodes", test.size(), equalTo(2));
+
+        Map<String, List<ShardRouting.RecoveryPriority>> recoveryPrioritiesByTargetNode = admin().indices()
+            .prepareRecoveries("test", "test_1")
+            .get()
+            .shardRecoveryStates()
+            .values()
+            .stream()
+            .flatMap(List::stream)
+            .collect(groupingBy(state -> state.getTargetNode().getName(), mapping(RecoveryState::getRecoveryPriority, toList())));
+        // All shards on firstNode should be from initial creation, and recovered with priority UNASSIGNED_NEW_PRIMARY:
+        assertThat(recoveryPrioritiesByTargetNode.get(firstNode), everyItem(equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY)));
+        // All shards on secondNode should be from rebalancing, and recovered with priority RELOCATE_REBALANCING:
+        assertThat(recoveryPrioritiesByTargetNode.get(secondNode), everyItem(equalTo(ShardRouting.RecoveryPriority.RELOCATE_REBALANCING)));
     }
 
     /**

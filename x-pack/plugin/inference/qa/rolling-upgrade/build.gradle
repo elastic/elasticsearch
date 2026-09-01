@@ -20,8 +20,6 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(path: xpackModule('inference'))
 
-  javaRestTestImplementation(testArtifact(project(":qa:rolling-upgrade"), "javaRestTest"))
-
   // allow these upgrade tests to import some helpers from the javaRestTest classes in x-pack:plugin:inference:qa:inference-service-tests
   javaRestTestImplementation(testArtifact(project(":x-pack:plugin:inference:qa:inference-service-tests"), "javaRestTest"))
 }

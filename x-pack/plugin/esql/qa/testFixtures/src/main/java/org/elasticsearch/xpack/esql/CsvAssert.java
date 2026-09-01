@@ -202,6 +202,12 @@ public final class CsvAssert {
         }
     }
 
+    public static void assertApproximationApplied(String expected, Boolean actual) {
+        if (expected != null) {
+            assertEquals("Incorrect approximation_applied", expected, String.valueOf(actual));
+        }
+    }
+
     private record DataFailure(int row, int column, Object expected, Object actual) {}
 
     public static void assertData(
@@ -275,8 +281,9 @@ public final class CsvAssert {
                     }
                     return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
                 } else if (value instanceof String s) {
-                    if ("NaN".equals(s)) {
-                        return Double.NaN;
+                    Double nonFinite = nonFiniteDouble(s);
+                    if (nonFinite != null) {
+                        return nonFinite;
                     }
                     return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
                 }
@@ -287,8 +294,11 @@ public final class CsvAssert {
                 }
             }
             if (type == CsvTestUtils.Type.DOUBLE) {
-                if (value instanceof String s && "NaN".equals(s)) {
-                    return Double.NaN;
+                if (value instanceof String s) {
+                    Double nonFinite = nonFiniteDouble(s);
+                    if (nonFinite != null) {
+                        return nonFinite;
+                    }
                 }
                 return ((Number) value).doubleValue();
             }
@@ -299,6 +309,19 @@ public final class CsvAssert {
                 return ((Number) value).longValue();
             }
             return value.toString();
+        }
+
+        /**
+         * JSON has no representation for non-finite doubles, so REST responses serialize them as the
+         * strings {@code "NaN"}, {@code "Infinity"} and {@code "-Infinity"}; map those back to doubles.
+         */
+        private static Double nonFiniteDouble(String s) {
+            return switch (s) {
+                case "NaN" -> Double.NaN;
+                case "Infinity" -> Double.POSITIVE_INFINITY;
+                case "-Infinity" -> Double.NEGATIVE_INFINITY;
+                default -> null;
+            };
         }
 
         private static String normalizedPoint(CsvTestUtils.Type type, double x, double y) {

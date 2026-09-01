@@ -18,12 +18,12 @@ dependencies {
   // Non-FIPS and FIPS Bouncy Castle artifacts share package names; never put both on the test classpath.
   if (buildParams.inFipsJvm) {
     if (buildParams.fipsMode == '140-3') {
-      compileOnly 'org.bouncycastle:bc-fips:2.0.1'
+      compileOnly 'org.bouncycastle:bc-fips:2.0.2'
       compileOnly 'org.bouncycastle:bctls-fips:2.0.24'
       compileOnly 'org.bouncycastle:bcutil-fips:2.0.7'
       compileOnly 'org.bouncycastle:bcpkix-fips:2.0.7'
     } else {
-      compileOnly 'org.bouncycastle:bc-fips:1.0.2.6'
+      compileOnly 'org.bouncycastle:bc-fips:1.0.2.7'
       compileOnly 'org.bouncycastle:bctls-fips:1.0.24'
       compileOnly 'org.bouncycastle:bcpkix-fips:1.0.7'
     }

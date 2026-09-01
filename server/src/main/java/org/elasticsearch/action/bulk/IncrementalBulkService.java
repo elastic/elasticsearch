@@ -289,6 +289,7 @@ public class IncrementalBulkService {
          */
         public void cancel(String reason, Runnable listener) {
             try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+                threadPool.getThreadContext().markAsSystemContext();
                 taskManager.cancelTaskAndDescendants(bulkSessionTask, reason, false, ActionListener.running(listener));
             }
         }

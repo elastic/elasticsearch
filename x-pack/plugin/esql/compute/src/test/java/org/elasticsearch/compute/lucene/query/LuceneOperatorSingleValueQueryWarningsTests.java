@@ -32,10 +32,12 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -195,8 +197,10 @@ public class LuceneOperatorSingleValueQueryWarningsTests extends ComputeTestCase
                 LuceneSourceOperator.Factory factory = docPartitionedFactory(shardContext, query, warnings);
                 assertThat("test setup needs at least 2 slices to share the shard's weight", factory.taskConcurrency(), not(1));
 
-                LuceneSourceOperator op1 = (LuceneSourceOperator) factory.get(driverContext());
-                LuceneSourceOperator op2 = (LuceneSourceOperator) factory.get(driverContext());
+                DriverContext dc1 = driverContext();
+                DriverContext dc2 = driverContext();
+                LuceneSourceOperator op1 = (LuceneSourceOperator) factory.get(dc1);
+                LuceneSourceOperator op2 = (LuceneSourceOperator) factory.get(dc2);
                 try {
                     // Interleave single getOutput() calls, exactly like two drivers pulling work from a
                     // shared queue would -- draining op1 to completion before touching op2 would let it
@@ -216,9 +220,19 @@ public class LuceneOperatorSingleValueQueryWarningsTests extends ComputeTestCase
                     // Consume the warnings emitted by the multi-valued docs (every other doc in the stub
                     // reports two values, triggering a registerException() call that creates Warnings
                     // lazily -- which is exactly what this test exercises).
-                    assertWarnings(
-                        "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
-                        "Line 1:1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+                    // Warnings live in each driver's per-driver sink; snapshot both and assert the expected
+                    // strings surfaced from the multi-valued docs (each driver reports the same pair).
+                    dc1.finish();
+                    dc2.finish();
+                    List<String> collected = new ArrayList<>(dc1.warnings());
+                    collected.addAll(dc2.warnings());
+                    assertThat(
+                        collected,
+                        // hasItems here because many threads may add duplicate warnings
+                        hasItems(
+                            "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
+                            "Line 1:1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+                        )
                     );
                 } finally {
                     op1.close();

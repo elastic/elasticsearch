@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.terminal.Terminal.JsonTerminal;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import static org.hamcrest.Matchers.is;
 
@@ -26,9 +27,8 @@ public class JsonTerminalTests extends ESTestCase {
     private MockTerminal mockTerminal;
     private Terminal jsonTerminal;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initTerminal() throws Exception {
         mockTerminal = MockTerminal.create();
         jsonTerminal = new JsonTerminal(mockTerminal);
     }

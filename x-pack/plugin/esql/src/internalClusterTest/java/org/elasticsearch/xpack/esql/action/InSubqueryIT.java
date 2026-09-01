@@ -36,6 +36,10 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
         assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
     }
 
+    private static void checkMultiColumnInSubquery() {
+        assumeTrue("Requires multi-column IN subquery support", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
+    }
+
     @Before
     public void setupIndices() {
         createAndPopulateIndex();
@@ -731,6 +735,154 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    // ---- EVAL IN subquery: filter path vs hash-join path ----
+
+    /**
+     * Parity check for a bare EVAL IN subquery mark. {@code EVAL m = id IN (subquery)} exposes
+     * a boolean mark column; both the filter path (default) and the hash-join path (threshold=0)
+     * must produce identical mark values for every row.
+     */
+    public void testEvalInSubqueryFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        String query = """
+            FROM test
+            | EVAL m = id IN (FROM test | WHERE color == "red" | KEEP id)
+            | SORT id
+            | KEEP id, m
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity check for EVAL IN subquery when the subquery's right side contains NULLs. A
+     * non-matching left row against a right side with NULLs receives a NULL mark (three-valued
+     * logic), not FALSE. Both execution paths must agree on the null-mark rows.
+     */
+    public void testEvalInSubqueryWithNullMarksFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        client().prepareBulk()
+            .add(new IndexRequest("test").id("7").source("id", 7))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        // Subquery right side: {"red", null}. Red rows get mark=TRUE; blue rows get mark=NULL.
+        String query = """
+            FROM test
+            | EVAL m = color IN (FROM test | WHERE id == 1 OR id == 7 | KEEP color)
+            | SORT id
+            | KEEP id, m
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity check for CASE wrapping an EVAL IN subquery mark. {@code CASE(id IN (subquery),
+     * "red", "other")} maps TRUE to "red" and FALSE to "other". Both execution paths must
+     * produce the same label for every row.
+     */
+    public void testEvalCaseWithInSubqueryFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        String query = """
+            FROM test
+            | EVAL label = CASE(id IN (FROM test | WHERE color == "red" | KEEP id), "red", "other")
+            | SORT id
+            | KEEP id, label
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity check for COALESCE wrapping an EVAL IN subquery mark when the right side contains
+     * NULLs. Non-matching left rows receive a NULL mark; {@code COALESCE(null, false)} must
+     * yield {@code false} on both execution paths.
+     */
+    public void testEvalCoalesceWithInSubqueryFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        client().prepareBulk()
+            .add(new IndexRequest("test").id("7").source("id", 7))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        // Subquery right side: {"red", null}. COALESCE(null mark, false) = false on both paths.
+        String query = """
+            FROM test
+            | EVAL m = COALESCE(color IN (FROM test | WHERE id == 1 OR id == 7 | KEEP color), false)
+            | SORT id
+            | KEEP id, m
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity check for IS NULL applied to an EVAL IN subquery mark when the right side contains
+     * NULLs. A NULL mark (non-matching row against a right side that has NULLs) gives IS NULL
+     * = TRUE; a TRUE or FALSE mark gives IS NULL = FALSE. Both paths must agree on every row.
+     */
+    public void testEvalIsNullOfInSubqueryFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        client().prepareBulk()
+            .add(new IndexRequest("test").id("7").source("id", 7))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        // Subquery right side: {"red", null}. Red rows: IS NULL=FALSE; blue rows: IS NULL=TRUE.
+        String query = """
+            FROM test
+            | EVAL m = (color IN (FROM test | WHERE id == 1 OR id == 7 | KEEP color)) IS NULL
+            | SORT id
+            | KEEP id, m
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity check for IS NOT NULL applied to an EVAL IN subquery mark when the right side
+     * contains NULLs. Complement of {@link #testEvalIsNullOfInSubqueryFilterAndHashJoinPathsAgree}:
+     * a non-null mark (TRUE or FALSE) yields IS NOT NULL = TRUE; a NULL mark yields FALSE.
+     * Both paths must agree on every row.
+     */
+    public void testEvalIsNotNullOfInSubqueryFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        client().prepareBulk()
+            .add(new IndexRequest("test").id("7").source("id", 7))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        String query = """
+            FROM test
+            | EVAL m = (color IN (FROM test | WHERE id == 1 OR id == 7 | KEEP color)) IS NOT NULL
+            | SORT id
+            | KEEP id, m
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
     // ---- views referenced from inside an IN subquery ----
 
     public void testInSubqueryReferencingSimpleView() {
@@ -791,6 +943,293 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
             }
         } finally {
             deleteViews("in_layer_1", "in_layer_2", "in_layer_3");
+        }
+    }
+
+    // ---- multi-column IN subquery ----
+
+    /**
+     * Multi-column IN subquery with a request-level filter.
+     */
+    public void testMultiColumnInSubqueryWithTopLevelFilter() {
+        checkMultiColumnInSubquery();
+        var request = syncEsqlQueryRequest("""
+            FROM test
+            | WHERE (id, color) IN (FROM test | WHERE color == "red" | KEEP id, color)
+            | SORT id
+            | KEEP id, color
+            """).filter(new RangeQueryBuilder("id").gte(3)).pragmas(getPragmas());
+        try (var resp = run(request)) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertValues(resp.values(), List.of(List.of(3, "red"), List.of(5, "red")));
+        }
+    }
+
+    /**
+     * Multi-column NOT IN subquery with a request-level filter.
+     */
+    public void testMultiColumnNotInSubqueryWithTopLevelFilter() {
+        checkMultiColumnInSubquery();
+        var request = syncEsqlQueryRequest("""
+            FROM test
+            | WHERE (id, color) NOT IN (FROM test | WHERE color == "red" | KEEP id, color)
+            | SORT id
+            | KEEP id, color
+            """).filter(new RangeQueryBuilder("id").gte(3)).pragmas(getPragmas());
+        try (var resp = run(request)) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertValues(resp.values(), List.of(List.of(4, "blue"), List.of(6, "blue")));
+        }
+    }
+
+    // ---- forced hash-join path for multi-column IN subquery ----
+
+    /**
+     * Forces the hash-join path for a two-column (id, color) IN subquery.
+     */
+    public void testMultiColumnInSubqueryHashJoinForced() {
+        checkMultiColumnInSubquery();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM test
+            | WHERE (id, color) IN (FROM test | SORT id | LIMIT 3 | KEEP id, color)
+            | SORT id
+            | KEEP id, color""").pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertValues(resp.values(), List.of(List.of(1, "red"), List.of(2, "blue"), List.of(3, "red")));
+        }
+    }
+
+    /**
+     * Forces the hash-join path for a two-column NOT IN subquery.
+     */
+    public void testMultiColumnNotInSubqueryHashJoinForced() {
+        checkMultiColumnInSubquery();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM test
+            | WHERE (id, color) NOT IN (FROM test | SORT id | LIMIT 3 | KEEP id, color)
+            | SORT id
+            | KEEP id, color""").pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertValues(resp.values(), List.of(List.of(4, "blue"), List.of(5, "red"), List.of(6, "blue")));
+        }
+    }
+
+    public void testMultiColumnInSubqueryHashJoinSelfJoin() {
+        checkMultiColumnInSubquery();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM test
+            | WHERE (id, color) IN (FROM test | KEEP id, color)
+            | SORT id
+            | KEEP id, color""").pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertValues(
+                resp.values(),
+                List.of(List.of(1, "red"), List.of(2, "blue"), List.of(3, "red"), List.of(4, "blue"), List.of(5, "red"), List.of(6, "blue"))
+            );
+        }
+    }
+
+    /**
+     * NULL in a left-side key column prevents any match. Row id=7 has no color (null color).
+     */
+    public void testMultiColumnInSubqueryHashJoinNullInOneKeyColumn() {
+        checkMultiColumnInSubquery();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        client().prepareBulk()
+            .add(new IndexRequest("test").id("7").source("id", 7))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM test
+            | WHERE (id, color) IN (FROM test | WHERE id == 1 OR id == 7 | KEEP id, color)
+            | SORT id
+            | KEEP id, color""").pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            // id=7 has null color — null in a key column prevents any match.
+            assertValues(resp.values(), List.of(List.of(1, "red")));
+        }
+    }
+
+    /**
+     * Empty multi-column subquery: (id, color) IN empty set → no rows (SEMI short-circuits to Filter(FALSE)).
+     */
+    public void testMultiColumnInSubqueryHashJoinEmptyResult() {
+        checkMultiColumnInSubquery();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM test
+            | WHERE (id, color) IN (FROM test | WHERE id > 100 | KEEP id, color)
+            | SORT id
+            | KEEP id""").pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
+    /**
+     * Empty multi-column subquery with NOT IN: (id, color) NOT IN empty set → all rows pass (ANTI short-circuits to Filter(TRUE)).
+     */
+    public void testMultiColumnNotInSubqueryHashJoinEmptyResult() {
+        checkMultiColumnInSubquery();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM test
+            | WHERE (id, color) NOT IN (FROM test | WHERE id > 100 | KEEP id, color)
+            | SORT id
+            | KEEP id""").pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(3), List.of(4), List.of(5), List.of(6)));
+        }
+    }
+
+    /**
+     * Multi-column hash-join correctness across multiple shards.
+     */
+    public void testMultiColumnInSubqueryHashJoinMultiShardCorrectness() {
+        checkMultiColumnInSubquery();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("multi")
+                .setSettings(Settings.builder().put("index.number_of_shards", 3))
+                .setMapping("id", "type=integer", "tag", "type=keyword")
+        );
+        var bulk = client().prepareBulk();
+        for (int i = 0; i < 30; i++) {
+            bulk.add(new IndexRequest("multi").id(String.valueOf(i)).source("id", i, "tag", i % 5 == 0 ? "match" : "other"));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        ensureYellow("multi");
+
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM multi
+            | WHERE (id, tag) IN (FROM multi | WHERE tag == "match" | KEEP id, tag)
+            | STATS cnt = COUNT(*)
+            """).pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("cnt"));
+            // ids 0, 5, 10, 15, 20, 25 match — all have tag="match".
+            assertValues(resp.values(), List.of(List.of(6L)));
+        }
+    }
+
+    /**
+     * Nested multi-column IN subqueries under forced hash-join: both the inner and outer subqueries
+     * take the hash-join path. Verifies successive {@code inlineData} calls don't interfere.
+     */
+    public void testMultiColumnNestedInSubqueryHashJoin() {
+        checkMultiColumnInSubquery();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM test
+            | WHERE (id, color) IN (
+                FROM test
+                | WHERE (id, color) IN (FROM test | WHERE color == "red" | KEEP id, color)
+                | WHERE id <= 3
+                | KEEP id, color
+              )
+            | SORT id
+            | KEEP id, color
+            """).pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertValues(resp.values(), List.of(List.of(1, "red"), List.of(3, "red")));
+        }
+    }
+
+    /**
+     * Parity check: filter path and hash-join path must produce identical results for a two-column (id, color) IN subquery.
+     */
+    public void testMultiColumnInSubqueryHashJoinAndFilterPathsAgree() {
+        checkMultiColumnInSubquery();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        String query = """
+            FROM test
+            | WHERE (id, color) IN (FROM test | WHERE color == "red" | KEEP id, color)
+            | SORT id
+            | KEEP id, color
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity check with a null in one key column on both sides. Row id=7 has no color, so the subquery emits (1, "red") and (7, null).
+     * Both filter and hash-join paths must agree for IN and NOT IN with null present in a key column.
+     */
+    public void testMultiColumnInSubqueryHashJoinAndFilterPathsAgreeWithNullKeyColumn() {
+        checkMultiColumnInSubquery();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        client().prepareBulk()
+            .add(new IndexRequest("test").id("7").source("id", 7))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        String inQuery = """
+            FROM test
+            | WHERE (id, color) IN (FROM test | WHERE id == 1 OR id == 7 | KEEP id, color)
+            | SORT id
+            | KEEP id
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(inQuery).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(inQuery).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+        String notInQuery = """
+            FROM test
+            | WHERE (id, color) NOT IN (FROM test | WHERE id == 1 OR id == 7 | KEEP id, color)
+            | SORT id
+            | KEEP id
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(notInQuery).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(notInQuery).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity check with a multi-valued left key column. Row id=7 has {@code color=["red","green"]}; for the multi-column (id, color) key,
+     * the MV color folds to NULL via {@code MvSingleValueOrNull}, preventing any match on both paths.
+     */
+    public void testTopLevelMultiColumnInSubqueryMvLeftKeyParity() {
+        checkMultiColumnInSubquery();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        indexMultiValuedColorRow();
+        String[] queries = new String[] {
+            // SEMI: MV color on left → MvSingleValueOrNull → null → no match → id=7 dropped.
+            """
+                FROM test
+                | WHERE (id, color) IN (FROM test | WHERE id == 1 or id == 7 | KEEP id, color)
+                | SORT id
+                | KEEP id
+                """,
+            // ANTI: MV color → null key → dropped by IsNotNull pre-filter before the LEFT join.
+            """
+                FROM test
+                | WHERE (id, color) NOT IN (FROM test | WHERE id == 1 or id == 7 | KEEP id, color)
+                | SORT id
+                | KEEP id
+                """ };
+        for (String query : queries) {
+            try (
+                var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+                var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+            ) {
+                assertEquals(
+                    "filter and hash-join paths disagree on MV left key for multi-column query:\n" + query,
+                    getValuesList(defaultResp),
+                    getValuesList(forcedResp)
+                );
+            }
         }
     }
 

@@ -1,5 +1,0 @@
-area: Infra/Core
-issues: []
-pr: 155598
-summary: Upgrade lz4-java to 1.11.1
-type: upgrade

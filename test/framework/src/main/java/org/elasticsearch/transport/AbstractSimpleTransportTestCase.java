@@ -217,11 +217,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceB.removeConnectionListener(waitForConnection);
     }
 
-    @Override
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
     private MockTransportService buildService(
         String name,
         VersionInformation version,
@@ -307,11 +302,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } finally {
             IOUtils.close(serviceA, serviceB, () -> terminate(threadPool));
         }
-    }
-
-    @Override
-    public final void tearDown() throws Exception {
-        super.tearDown();
     }
 
     public static void assertNumHandshakes(long expected, Transport transport) {

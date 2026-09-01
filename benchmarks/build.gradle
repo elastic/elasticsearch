@@ -56,6 +56,9 @@ dependencies {
   api(project(':x-pack:plugin:esql-datasource-parquet'))
   api(project(':x-pack:plugin:esql-datasource-orc'))
   api(project(':x-pack:plugin:esql-datasource-ndjson'))
+  // DissectParser for FlattenedFieldExtractBenchmark's `dissect` consumer; esql exposes grok transitively
+  // but keeps dissect as an `implementation` dep, so it is not on the benchmark compile classpath otherwise.
+  implementation project(':libs:dissect')
   // Writer-side dependencies for in-memory Parquet/ORC fixtures used by the format-reader
   // JMH benchmarks. The plugin projects above expose the reader classes only; the writers
   // (ExampleParquetWriter, OrcFile.createWriter) live in the underlying third-party jars
@@ -84,7 +87,6 @@ dependencies {
   api(project(':x-pack:plugin:analytics'))
   api(project(':x-pack:plugin:logsdb'))
   implementation project(path: ':libs:native')
-  implementation(testFixtures(project(':libs:native')))
   implementation project(path: ':libs:simdvec')
   implementation project(path: ':libs:columnar')
   implementation (testFixtures(project(path: ':libs:simdvec')))

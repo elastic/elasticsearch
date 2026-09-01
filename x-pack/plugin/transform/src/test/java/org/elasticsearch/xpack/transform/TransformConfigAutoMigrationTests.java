@@ -53,8 +53,7 @@ public class TransformConfigAutoMigrationTests extends ESTestCase {
     private TransformConfigAutoMigration autoMigration;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initAutoMigration() throws Exception {
         transformConfigManager = mock();
         auditor = mock();
         ThreadPool threadPool = mock();

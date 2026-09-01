@@ -16,16 +16,19 @@ import org.elasticsearch.columnar.ColumnarFieldType;
  * calls {@link #select} once per field at write time and then applies the format's block size to
  * the returned template to obtain the concrete {@link NumericPipeline}.
  *
- * <p>Implementations live outside {@code libs/columnar}: the server module supplies a concrete
- * implementation that inspects field type, index mode, and metric role via the mapper. The library
- * never imports mapper types. A typical server-side implementation closes over mapper context and
- * routes by field semantics using named pipeline factories as method references:
+ * <p>The selector only chooses the logical pipeline for a field. Implementations live outside
+ * {@code libs/columnar}: the server module supplies a concrete implementation that inspects field
+ * type, index mode, and metric role via the mapper. The library never imports mapper types. A
+ * typical server-side implementation routes by field semantics:
  *
  * <pre>{@code
- * new ColumNARDocValuesFormat((fieldName, type) -> switch (type) {
- *     case DOUBLE -> NumericPipeline::doubleGaugePipeline;
- *     default     -> NumericPipeline::defaultPipeline;
- * }, blockSize);
+ * new ColumNARDocValuesFormat(
+ *     (fieldName, type) -> switch (type) {
+ *         case DOUBLE -> NumericPipeline::doubleGaugePipeline;
+ *         default     -> NumericPipeline::defaultPipeline;
+ *     },
+ *     blockSize
+ * )
  * }</pre>
  *
  * <p>The no-arg {@link org.elasticsearch.columnar.ColumNARDocValuesFormat} constructor wires a

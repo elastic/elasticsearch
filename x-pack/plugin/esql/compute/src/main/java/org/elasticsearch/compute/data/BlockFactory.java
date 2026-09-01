@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.memory.rounding.RoundingPolicy;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -40,6 +41,15 @@ public class BlockFactory {
     public static final ByteSizeValue DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD = ByteSizeValue.ofMb(1);
     // The same as PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR
     public static final double DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR = 2.5;
+
+    /**
+     * Exact-fit rounding policy for the Arrow root allocator. We use {@code arrow-memory-unsafe},
+     * whose {@code UnsafeAllocationManager} is a straight malloc/free with no free list or size
+     * classes. The default power-of-two rounding exists to feed a pooled allocator
+     * ({@code arrow-memory-netty}); without that pool, it only wastes memory (up to 2x for
+     * sub-16 MiB allocations). Pass this policy to let the OS allocator handle alignment.
+     */
+    private static final RoundingPolicy EXACT_FIT_ROUNDING_POLICY = requestSize -> requestSize;
 
     private static final Logger log = LogManager.getLogger(BlockFactory.class);
 
@@ -81,6 +91,16 @@ public class BlockFactory {
         return breaker;
     }
 
+    /**
+     * Returns the Arrow {@link BufferAllocator} bound to this factory. One root allocator per
+     * top-level factory; child factories share it. There is no per-query close hook
+     * ({@code BlockFactory} is not {@link org.elasticsearch.core.Releasable}).
+     *
+     * @deprecated Do not allocate storage-read buffers here. Those paths use heap {@code byte[]}
+     *             charged to {@link #breaker()}. This allocator remains for wrapping Arrow vectors
+     *             (compute ArrowBuf blocks, Flight).
+     */
+    @Deprecated
     public BufferAllocator arrowAllocator() {
         // There's one root Arrow allocator per top-level block factory.
         // Ideally, we should have one child allocator per ESQL query to check buffer leaks at the end of each query, but there's no
@@ -92,8 +112,7 @@ public class BlockFactory {
                     if (this.parent == null) {
                         // Root block factory
                         var listener = new CircuitBreakerAllocationListener(breaker);
-                        // TODO: see if the default rounding policy (power of 2) is appropriate
-                        var allocator = new RootAllocator(listener, Long.MAX_VALUE);
+                        var allocator = new RootAllocator(listener, Long.MAX_VALUE, EXACT_FIT_ROUNDING_POLICY);
                         cleaner.register(this, () -> {
                             try {
                                 allocator.close();

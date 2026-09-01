@@ -26,6 +26,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -34,6 +35,7 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -353,7 +355,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
     }
 
-    public void testReallocationForReplicaDuringNodeReplace() throws Exception {
+    public void testReallocationForReplicaDuringNodeReplaceAfterShutdownOfPrimary() throws Exception {
         final String nodeA = internalCluster().startNode();
         final String nodeAId = getNodeId(nodeA);
         createIndex("myindex", 1, 1);
@@ -379,6 +381,45 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         // All shards for the index should be allocated
         ensureGreen("myindex");
+
+        Map<String, ShardRouting.RecoveryPriority> recoveryPriorities = retrieveRecoveryPrioritiesByTargetNodeName("myindex", 0);
+        // Node B got the original replica shard, which should be recovered with UNASSIGNED_EXPECTED priority:
+        assertThat(recoveryPriorities.get(nodeB), equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED));
+        // Node C got the replica shard after node A shutdown and its shard failed, so it should be recovered with UNASSIGNED_UNEXPECTED:
+        assertThat(recoveryPriorities.get(nodeC), equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED));
+    }
+
+    public void testReallocationForReplicaDuringNodeReplaceAfterShutdownOfReplica() throws Exception {
+        final String nodeA = internalCluster().startNode();
+        createIndex("myindex", 1, 1);
+        ensureYellow("myindex");
+
+        // Start a second node, so the replica will be on nodeB
+        final String nodeB = internalCluster().startNode();
+        final String nodeBId = getNodeId(nodeB);
+        ensureGreen("myindex");
+
+        final String nodeC = internalCluster().startNode();
+
+        putNodeShutdown(nodeBId, SingleNodeShutdownMetadata.Type.REPLACE, nodeC);
+
+        // Wait for the node replace shutdown to be complete
+        assertBusy(() -> assertNodeShutdownStatus(nodeBId, COMPLETE));
+
+        // Remove nodeB from the cluster (it's been terminated)
+        internalCluster().stopNode(nodeB);
+
+        // Restart nodeC, the replica which failed when nodeB shut down should be assigned to it when it comes up
+        internalCluster().restartNode(nodeC);
+
+        // All shards for the index should be allocated
+        ensureGreen("myindex");
+
+        Map<String, ShardRouting.RecoveryPriority> recoveryPriorities = retrieveRecoveryPrioritiesByTargetNodeName("myindex", 0);
+        // Node A got the original primary shard, which should be recovered with UNASSIGNED_NEW_PRIMARY priority:
+        assertThat(recoveryPriorities.get(nodeA), equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY));
+        // Node C got the replica shard after node B shutdown and its shard failed, so it should be recovered with UNASSIGNED_UNEXPECTED:
+        assertThat(recoveryPriorities.get(nodeC), equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED));
     }
 
     /**
@@ -602,5 +643,16 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     private void assertIndexSetting(String index, String setting, String expectedValue) {
         var response = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, index).get();
         assertThat(response.getSetting(index, setting), equalTo(expectedValue));
+    }
+
+    private static Map<String, ShardRouting.RecoveryPriority> retrieveRecoveryPrioritiesByTargetNodeName(String index, int id) {
+        return admin().indices()
+            .prepareRecoveries(index)
+            .get()
+            .shardRecoveryStates()
+            .get(index)
+            .stream()
+            .filter(state -> state.getShardId().id() == id)
+            .collect(Collectors.toMap(shard -> shard.getTargetNode().getName(), RecoveryState::getRecoveryPriority));
     }
 }

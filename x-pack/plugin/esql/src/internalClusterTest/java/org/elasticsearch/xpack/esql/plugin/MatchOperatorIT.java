@@ -427,4 +427,25 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             );
         }
     }
+
+    public void testMatchRuntimeExpressionWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | EVAL new_content = to_text(concat(content, " and a white cat"))
+            | WHERE new_content:"fox cat"
+            | KEEP id, _score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            // Runtime match scores one point per matched query term: every row gains "cat", docs 1 and 6 also
+            // contain "fox".
+            assertValues(
+                resp.values(),
+                List.of(List.of(1, 2.0), List.of(2, 1.0), List.of(3, 1.0), List.of(4, 1.0), List.of(5, 1.0), List.of(6, 2.0))
+            );
+        }
+    }
 }

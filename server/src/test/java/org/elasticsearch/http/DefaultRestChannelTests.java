@@ -194,6 +194,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         assertEquals("abc", headers.get(Task.X_OPAQUE_ID_HTTP_HEADER).get(0));
         assertEquals(Integer.toString(resp.content().length()), headers.get(DefaultRestChannel.CONTENT_LENGTH).get(0));
         assertEquals(resp.contentType(), headers.get(DefaultRestChannel.CONTENT_TYPE).get(0));
+        assertTrue(headers.containsKey(HttpUtils.DATE));
     }
 
     public void testNormallyNoConnectionClose() {

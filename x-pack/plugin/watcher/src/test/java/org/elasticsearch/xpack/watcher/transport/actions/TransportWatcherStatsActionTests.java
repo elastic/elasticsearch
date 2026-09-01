@@ -94,7 +94,7 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
             transportService,
             clusterService,
             threadPool,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             watcherLifeCycleService,
             executionService,
             triggerService,

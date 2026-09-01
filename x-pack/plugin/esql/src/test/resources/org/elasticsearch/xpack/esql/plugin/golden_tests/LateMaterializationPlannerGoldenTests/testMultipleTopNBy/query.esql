@@ -1,0 +1,6 @@
+FROM employees
+| keep hire_date, salary, languages, gender, emp_no
+| SORT hire_date
+| LIMIT 5 BY languages
+| SORT salary
+| LIMIT 3 BY gender

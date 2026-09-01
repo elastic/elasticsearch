@@ -84,8 +84,7 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
     private TestHarness testHarness;
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeTestHarness() throws Exception {
         if (testHarness != null) {
             testHarness.close();
         }

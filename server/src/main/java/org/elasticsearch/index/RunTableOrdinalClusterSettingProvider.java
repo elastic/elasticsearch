@@ -57,6 +57,7 @@ public final class RunTableOrdinalClusterSettingProvider implements IndexSetting
         final String indexName,
         final String dataStreamName,
         final IndexMode templateIndexMode,
+        final boolean registryInstalledTemplate,
         final ProjectMetadata projectMetadata,
         final Instant resolvedAt,
         final Settings indexTemplateAndCreateRequestSettings,

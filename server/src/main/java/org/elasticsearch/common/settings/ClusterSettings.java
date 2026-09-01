@@ -12,8 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.allocation.TransportGetAllocationStatsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
-import org.elasticsearch.action.bulk.ShardBatchIndexer;
+import org.elasticsearch.action.bulk.PreResolvedUpdates;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -233,6 +234,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
     public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = gateByFeatureFlag(
         Set.of(
+            RunTableOrdinalClusterSettingProvider.TIME_SERIES_RUN_TABLE_ORDINAL_CLUSTER_ENABLED_SETTING,
             AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING,
             AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING,
             AllocationBalancingRoundSummaryService.BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING,
@@ -283,7 +285,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
             IncrementalBulkService.INCREMENTAL_BULK,
             IncrementalBulkService.REQUEST_TIMEOUT,
-            ShardBatchIndexer.BATCH_INDEXING,
+            BatchIndexingEnabled.BATCH_INDEXING,
+            PreResolvedUpdates.PRE_RESOLVE_BULK_UPDATES,
             RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
             RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
             RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,
@@ -484,7 +487,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
             IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
             ES95CodecClusterSettingProvider.TIME_SERIES_ES95_CODEC_CLUSTER_ENABLED_SETTING,
-            RunTableOrdinalClusterSettingProvider.TIME_SERIES_RUN_TABLE_ORDINAL_CLUSTER_ENABLED_SETTING,
             ScriptService.SCRIPT_CACHE_SIZE_SETTING,
             ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
             ScriptService.SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING,
@@ -625,6 +627,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
             HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
             SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
+            SnapshotsService.SNAPSHOT_MONOTONIC_END_TIME_SETTING,
             RepositoriesService.DEFAULT_REPOSITORY_SETTING,
             RestoreService.REFRESH_REPO_UUID_ON_RESTORE_SETTING,
             FsHealthService.ENABLED_SETTING,
@@ -675,6 +678,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndicesClusterStateService.CONCURRENT_SHARD_CLOSE_LIMIT,
             IngestSettings.GROK_WATCHDOG_INTERVAL,
             IngestSettings.GROK_WATCHDOG_MAX_EXECUTION_TIME,
+            IngestSettings.MAX_PIPELINES,
+            IngestSettings.MAX_PIPELINE_SIZE,
+            IngestSettings.MAX_TOTAL_METADATA_SIZE,
             TDigestExecutionHint.SETTING,
             MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT_SETTING,
             MergePolicyConfig.DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT_SETTING,
@@ -682,6 +688,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
             ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING,
             ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
+            ThreadPoolMergeExecutorService.INDICES_MERGE_THREAD_POOL_MAX_SIZE_FACTOR_SETTING,
             TransportService.ENABLE_STACK_OVERFLOW_AVOIDANCE,
             DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING,
             DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING,

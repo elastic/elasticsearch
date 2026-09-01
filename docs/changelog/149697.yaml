@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 149697
+summary: "[Inference API] Add inference `CircuitBreaker` to prevent OOMs"
+type: enhancement

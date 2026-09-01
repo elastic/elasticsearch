@@ -10,8 +10,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -34,7 +33,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.nativeaccess.Int4TestUtils.packNibbles;
+import static org.elasticsearch.simdvec.Int4TestUtils.packNibbles;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomInt4Bytes;
 
 /**
@@ -102,7 +101,7 @@ public class VectorScorerInt4BulkOperationBenchmark {
         private final byte[] queryUnpacked;
 
         VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
-            super(numVectors, numVectorsToScore, random);
+            super(numVectors, numVectorsToScore, random, DataAccessPattern.RANDOM);
             packedVectors = new byte[numVectors][];
             for (int v = 0; v < numVectors; v++) {
                 byte[] unpacked = new byte[dims];
@@ -217,5 +216,5 @@ public class VectorScorerInt4BulkOperationBenchmark {
         return scores;
     }
 
-    private static final SimdVecLibrary VEC_LIBRARY = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
+    private static final SimdVecLibrary VEC_LIBRARY = SimdVecLibrary.instance().orElseThrow();
 }

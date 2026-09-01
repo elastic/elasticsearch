@@ -187,7 +187,7 @@ book_no:keyword
 ;
 
 matchPhraseWithFunctionPushedToLucene
-skip_flattened_rewrite: match_family_rejects_field_extract
+skip_flattened_rewrite: runtime_search_reorders_conjunct_warnings
 required_capability: match_phrase_function
 
 from hosts 
@@ -228,7 +228,6 @@ book_no:keyword | title:text
 ;
 
 matchPhraseMultivaluedField
-skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_phrase_function
 
 from employees 
@@ -246,7 +245,6 @@ emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 testMultiValuedFieldWithConjunction
-skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_phrase_function
 
 from employees 
@@ -259,7 +257,6 @@ emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 testMatchPhraseAndQueryStringFunctions
-skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_phrase_function
 required_capability: qstr_function
 
@@ -1014,14 +1011,18 @@ book_no:keyword | new_title:text
 # Tests for MATCH_PHRASE analyzer option on runtime text expressions
 #
 
+// The values analyzer of a runtime text column is declared through TO_TEXT's analyzer option; match_phrase's
+// own analyzer option covers the query string only and defaults to the values analyzer. The narrowing shipped
+// atomically with fn_to_text_analyzer, so that capability gates the query-only semantics too.
+
 matchPhraseOnRuntimeTextWithWhitespaceAnalyzer
 required_capability: match_phrase_function
-required_capability: fn_match_phrase_runtime_analyzer
+required_capability: fn_to_text_analyzer
 
-// the whitespace analyzer does not lowercase, unlike the standard analyzer
-ROW content = to_text(["a Brown Fox runs", "a brown fox runs"])
+// the whitespace analyzer, declared as the values analyzer, does not lowercase; the query analyzer defaults to it
+ROW content = to_text(["a Brown Fox runs", "a brown fox runs"], {"analyzer": "whitespace"})
 | MV_EXPAND content
-| WHERE match_phrase(content, "Brown Fox", {"analyzer": "whitespace"})
+| WHERE match_phrase(content, "Brown Fox")
 ;
 
 content:text
@@ -1030,12 +1031,12 @@ a Brown Fox runs
 
 matchPhraseOnRuntimeTextWithKeywordAnalyzer
 required_capability: match_phrase_function
-required_capability: fn_match_phrase_runtime_analyzer
+required_capability: fn_to_text_analyzer
 
 // the keyword analyzer emits the whole value as a single token, so the phrase must equal the entire value
-ROW content = to_text(["brown fox", "a brown fox"])
+ROW content = to_text(["brown fox", "a brown fox"], {"analyzer": "keyword"})
 | MV_EXPAND content
-| WHERE match_phrase(content, "brown fox", {"analyzer": "keyword"})
+| WHERE match_phrase(content, "brown fox")
 ;
 
 content:text
@@ -1044,25 +1045,56 @@ brown fox
 
 matchPhraseOnRuntimeTextWithEnglishAnalyzer
 required_capability: match_phrase_function
-required_capability: fn_match_phrase_runtime_analyzer
+required_capability: fn_to_text_analyzer
 
-// the english analyzer stems both sides: "dogs running" matches "dog runs"
-ROW content = to_text(["the dog runs", "the cat sleeps"])
+// the english analyzer stems both the values and (by default) the query: "dogs running" matches "dog runs"
+ROW content = to_text(["the dog runs", "the cat sleeps"], {"analyzer": "english"})
 | MV_EXPAND content
-| WHERE match_phrase(content, "dogs running", {"analyzer": "english"})
+| WHERE match_phrase(content, "dogs running")
 ;
 
 content:text
 the dog runs
 ;
 
+matchPhraseQueryAnalyzerAppliesToQueryStringOnly
+required_capability: match_phrase_function
+required_capability: fn_to_text_analyzer
+
+// match_phrase's analyzer option keeps the query's case while the values stay standard-analyzed
+// (lowercased), so the case-mismatched phrase matches nothing
+ROW content = to_text(["a Brown Fox runs", "a brown fox runs"])
+| MV_EXPAND content
+| WHERE match_phrase(content, "Brown Fox", {"analyzer": "whitespace"})
+;
+
+content:text
+;
+
+matchPhraseStopAnalyzerHonorsPositionGaps
+required_capability: match_phrase_function
+required_capability: fn_to_text_analyzer
+
+// the stop analyzer removes "and" from the query, leaving a position gap: quick@0, fox@2. Like on an indexed
+// stop-analyzed field, the phrase honors the gap: it matches a value whose surviving tokens sit exactly two
+// positions apart and rejects one where they are adjacent
+ROW content = to_text(["the quick brown fox", "the quick fox"], {"analyzer": "stop"})
+| MV_EXPAND content
+| WHERE match_phrase(content, "quick and fox")
+;
+
+content:text
+the quick brown fox
+;
+
 matchPhraseOnRuntimeTextWithAnalyzerAndSlop
 required_capability: match_phrase_function
-required_capability: fn_match_phrase_runtime_analyzer
+required_capability: fn_match_phrase_runtime_options
+required_capability: fn_to_text_analyzer
 
-ROW content = to_text(["the Brown quick Fox", "the brown quick fox"])
+ROW content = to_text(["the Brown quick Fox", "the brown quick fox"], {"analyzer": "whitespace"})
 | MV_EXPAND content
-| WHERE match_phrase(content, "Brown Fox", {"analyzer": "whitespace", "slop": 1})
+| WHERE match_phrase(content, "Brown Fox", {"slop": 1})
 ;
 
 content:text
@@ -1071,14 +1103,83 @@ the Brown quick Fox
 
 matchPhraseOnRuntimeTextWithIndexAndKeywordAnalyzer
 required_capability: match_phrase_function
-required_capability: fn_match_phrase_runtime_analyzer
+required_capability: fn_to_text_analyzer
 
 FROM books
-| EVAL new_title = to_text(concat("TITLE: ", title))
-| WHERE match_phrase(new_title, "TITLE: The Lord of the Rings - Boxed Set", {"analyzer": "keyword"})
+| EVAL new_title = to_text(concat("TITLE: ", title), {"analyzer": "keyword"})
+| WHERE match_phrase(new_title, "TITLE: The Lord of the Rings - Boxed Set")
 | KEEP book_no, new_title
 ;
 
 book_no:keyword | new_title:text
 2675            | TITLE: The Lord of the Rings - Boxed Set
+;
+
+matchPhraseOnRuntimeTextWithExplicitStandardAnalyzer
+required_capability: match_phrase_function
+required_capability: fn_to_text_analyzer
+
+// explicit "standard" declaration takes the fast token-stream path, same as the no-option default
+ROW content = to_text(["the quick brown fox", "the slow brown dog"], {"analyzer": "standard"})
+| MV_EXPAND content
+| WHERE match_phrase(content, "quick brown fox")
+;
+
+content:text
+the quick brown fox
+;
+
+matchPhraseOnRuntimeTextWithScore
+required_capability: match_phrase_function
+required_capability: metadata_score
+required_capability: fn_match_phrase_runtime_score
+
+// a runtime match_phrase scores the boost (1.0 by default) on match, not BM25: expressions have no index statistics
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match_phrase(content, "Lord of the Rings")
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 1.0
+2675            | 1.0
+2714            | 1.0
+;
+
+matchPhraseOnRuntimeTextWithBoostAndScore
+required_capability: match_phrase_function
+required_capability: metadata_score
+required_capability: fn_match_phrase_runtime_score
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match_phrase(content, "Lord of the Rings", {"boost": 2.5})
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 2.5
+2675            | 2.5
+2714            | 2.5
+;
+
+matchPhraseOnRuntimeKeywordWithScore
+required_capability: match_phrase_function
+required_capability: metadata_score
+required_capability: fn_match_phrase_runtime_score
+
+// keyword expressions match by exact value equality and score 1.0
+FROM employees METADATA _score
+| EVAL full_name = CONCAT(first_name, " ", last_name)
+| WHERE match_phrase(full_name, "Anneke Preusig")
+| KEEP emp_no, _score
+;
+
+emp_no:integer | _score:double
+10006          | 1.0
 ;

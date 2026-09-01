@@ -5,13 +5,25 @@
 | field | order | result |
 | --- | --- | --- |
 | boolean | keyword | boolean |
+| boolean | | boolean |
 | date | keyword | date |
+| date | | date |
 | date_nanos | keyword | date_nanos |
+| date_nanos | | date_nanos |
 | double | keyword | double |
+| double | | double |
 | integer | keyword | integer |
+| integer | | integer |
 | ip | keyword | ip |
+| ip | | ip |
 | keyword | keyword | keyword |
+| keyword | | keyword |
 | long | keyword | long |
+| long | | long |
 | text | keyword | keyword |
+| text | | keyword |
+| unsigned_long | keyword | unsigned_long |
+| unsigned_long | | unsigned_long |
 | version | keyword | version |
+| version | | version |
 

@@ -99,6 +99,7 @@ public class RunTableOrdinalClusterSettingProviderTests extends ESTestCase {
             "test-index",
             null,
             templateMode,
+            false,
             null,
             Instant.ofEpochMilli(0L),
             indexSettings,

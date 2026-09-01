@@ -55,6 +55,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private static final TransportVersion ESQL_TIMESTAMPS_INFO = TransportVersion.fromName("esql_timestamps_info");
     private static final TransportVersion ESQL_RESPONSE_TIMEZONE_FORMAT = TransportVersion.fromName("esql_response_timezone_format");
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
+    private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
+    private static final TransportVersion ESQL_APPROXIMATION_APPLIED = TransportVersion.fromName("esql_approximation_applied");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
@@ -65,6 +67,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private final long rowsEmitted;
     private final long bytesRead;
     private final long readNanos;
+    private final long readCpuNanos;
     private final long cpuNanos;
     private final Profile profile;
     private final boolean columnar;
@@ -79,6 +82,12 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     private final ZoneId zoneId;
 
+    /**
+     * Tri-state: null when query approximation was not requested (field omitted from the response),
+     * otherwise whether approximation was actually applied for the query.
+     */
+    private final Boolean approximationApplied;
+
     public EsqlQueryResponse(
         List<ColumnInfoImpl> columns,
         List<Page> pages,
@@ -87,6 +96,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         long rowsEmitted,
         long bytesRead,
         long readNanos,
+        long readCpuNanos,
         long cpuNanos,
         @Nullable Profile profile,
         boolean columnar,
@@ -96,15 +106,18 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         ZoneId zoneId,
         long startTimeMillis,
         long expirationTimeMillis,
-        EsqlExecutionInfo executionInfo
+        EsqlExecutionInfo executionInfo,
+        @Nullable Boolean approximationApplied
     ) {
         this.columns = columns;
         this.pages = pages;
         this.valuesLoaded = valuesLoaded;
         this.documentsFound = documentsFound;
+        this.approximationApplied = approximationApplied;
         this.rowsEmitted = rowsEmitted;
         this.bytesRead = bytesRead;
         this.readNanos = readNanos;
+        this.readCpuNanos = readCpuNanos;
         this.cpuNanos = cpuNanos;
         this.profile = profile;
         this.columnar = columnar;
@@ -141,6 +154,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             0L,
             0L,
             0L,
+            0L,
             profile,
             columnar,
             asyncExecutionId,
@@ -149,7 +163,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             zoneId,
             startTimeMillis,
             expirationTimeMillis,
-            executionInfo
+            executionInfo,
+            null
         );
     }
 
@@ -207,12 +222,16 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             long rowsEmitted = 0;
             long bytesRead = 0;
             long readNanos = 0;
+            long readCpuNanos = 0;
             long cpuNanos = 0;
             if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
                 rowsEmitted = in.readVLong();
                 bytesRead = in.readVLong();
                 readNanos = in.readVLong();
                 cpuNanos = in.readVLong();
+            }
+            if (in.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+                readCpuNanos = in.readVLong();
             }
             Profile profile = in.readOptionalWriteable(Profile::readFrom);
             boolean columnar = in.readBoolean();
@@ -230,6 +249,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             }
 
             EsqlExecutionInfo executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
+            Boolean approximationApplied = in.getTransportVersion().supports(ESQL_APPROXIMATION_APPLIED) ? in.readOptionalBoolean() : null;
             EsqlQueryResponse response = new EsqlQueryResponse(
                 columns,
                 pages,
@@ -238,6 +258,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 rowsEmitted,
                 bytesRead,
                 readNanos,
+                readCpuNanos,
                 cpuNanos,
                 profile,
                 columnar,
@@ -247,7 +268,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 zoneId,
                 startTimeMillis,
                 expirationTimeMillis,
-                executionInfo
+                executionInfo,
+                approximationApplied
             );
             success = true;
             return response;
@@ -275,6 +297,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             out.writeVLong(readNanos);
             out.writeVLong(cpuNanos);
         }
+        if (out.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+            out.writeVLong(readCpuNanos);
+        }
         out.writeOptionalWriteable(profile);
         out.writeBoolean(columnar);
 
@@ -288,6 +313,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
 
         out.writeOptionalWriteable(executionInfo);
+        if (out.getTransportVersion().supports(ESQL_APPROXIMATION_APPLIED)) {
+            out.writeOptionalBoolean(approximationApplied);
+        }
     }
 
     private static boolean supportsValuesLoaded(TransportVersion version) {
@@ -333,6 +361,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return readNanos;
     }
 
+    public long readCpuNanos() {
+        return readCpuNanos;
+    }
+
     public long cpuNanos() {
         return cpuNanos;
     }
@@ -343,6 +375,15 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     public long valuesLoaded() {
         return valuesLoaded;
+    }
+
+    /**
+     * Whether query approximation was actually applied, or {@code null} when approximation was not requested (in which
+     * case the {@code approximation_applied} response field is omitted).
+     */
+    @Nullable
+    public Boolean approximationApplied() {
+        return approximationApplied;
     }
 
     public Profile profile() {
@@ -412,12 +453,16 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             }));
         }
         content.add(ChunkedToXContentHelper.chunk((builder, p) -> {
+            if (approximationApplied != null) {
+                builder.field("approximation_applied", approximationApplied);
+            }
             builder //
                 .field("documents_found", documentsFound)
                 .field("values_loaded", valuesLoaded)
                 .field("rows_emitted", rowsEmitted)
                 .field("bytes_read", bytesRead)
                 .field("read_nanos", readNanos)
+                .field("read_cpu_nanos", readCpuNanos)
                 .field("cpu_nanos", cpuNanos);
 
             if (startTimeMillis != 0L) {
@@ -495,9 +540,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals))
             && documentsFound == that.documentsFound
             && valuesLoaded == that.valuesLoaded
+            && Objects.equals(approximationApplied, that.approximationApplied)
             && rowsEmitted == that.rowsEmitted
             && bytesRead == that.bytesRead
             && readNanos == that.readNanos
+            && readCpuNanos == that.readCpuNanos
             && cpuNanos == that.cpuNanos
             && Objects.equals(profile, that.profile)
             && Objects.equals(executionInfo, that.executionInfo);
@@ -513,9 +560,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             Iterators.hashCode(values(), row -> Iterators.hashCode(row, Objects::hashCode)),
             documentsFound,
             valuesLoaded,
+            approximationApplied,
             rowsEmitted,
             bytesRead,
             readNanos,
+            readCpuNanos,
             cpuNanos,
             profile,
             executionInfo

@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.telemetry.InferenceStats;
+import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.XPackSettings.ML_NATIVE_CODE_PLATFORMS;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.mockito.Mockito.mock;
@@ -74,6 +76,7 @@ public class InferencePluginTests extends ESTestCase {
     }
 
     public void testGetInferenceServiceFactories_includesElasticsearchServiceByDefault() throws IOException {
+        assumeTrue("ML native code required", ML_NATIVE_CODE_PLATFORMS.contains(Platforms.PLATFORM_NAME));
         assertTrue(serviceNamesFromFactories(Settings.EMPTY).contains(ElasticsearchInternalService.NAME));
     }
 

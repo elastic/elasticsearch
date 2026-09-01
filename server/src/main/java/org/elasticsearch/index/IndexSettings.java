@@ -1325,6 +1325,23 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    /**
+     * Whether a dynamically mapped string that becomes a {@code text} field also gets an automatic {@code .keyword}
+     * multi-field. Only consulted when {@link #DYNAMIC_STRINGS_AUTO_TEXT} is enabled, since otherwise the string is
+     * mapped as a keyword to begin with.
+     * <p>
+     * Strict columnar modes default to {@code false}: the text field already has its own doc-values column there, which
+     * serves value retrieval, aggregations and sorting, so the keyword multi-field would store a second copy of every
+     * dynamic string. Exact, case-sensitive term filtering still requires mapping such a field explicitly.
+     */
+    public static final Setting<Boolean> DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD = Setting.boolSetting(
+        "index.mapping.dynamic_strings.auto_keyword_subfield",
+        settings -> Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar() == false),
+        value -> {},
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     private final Index index;
     private final IndexVersion version;
     private final Logger logger;
@@ -1418,6 +1435,7 @@ public final class IndexSettings {
     private volatile boolean skipIgnoredSourceWrite;
     private volatile boolean skipIgnoredSourceRead;
     private volatile boolean dynamicStringsAutoText;
+    private volatile boolean dynamicStringsAutoKeywordSubfield;
     private final SourceFieldMapper.Mode indexMappingSourceMode;
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
@@ -1696,6 +1714,7 @@ public final class IndexSettings {
         }
         disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS.get(settings);
         dynamicStringsAutoText = DYNAMIC_STRINGS_AUTO_TEXT.get(settings);
+        dynamicStringsAutoKeywordSubfield = DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD.get(settings);
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
             mergePolicyConfig::setCompoundFormatThreshold
@@ -1796,6 +1815,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
         scopedSettings.addSettingsUpdateConsumer(INTRA_MERGE_PARALLELISM_ENABLED_SETTING, this::setIntraMergeParallelismEnabled);
         scopedSettings.addSettingsUpdateConsumer(DYNAMIC_STRINGS_AUTO_TEXT, this::setDynamicStringsAutoText);
+        scopedSettings.addSettingsUpdateConsumer(DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD, this::setDynamicStringsAutoKeywordSubfield);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -2610,5 +2630,17 @@ public final class IndexSettings {
      */
     public boolean getDynamicStringsAutoText() {
         return dynamicStringsAutoText;
+    }
+
+    private void setDynamicStringsAutoKeywordSubfield(boolean enabled) {
+        this.dynamicStringsAutoKeywordSubfield = enabled;
+    }
+
+    /**
+     * Returns <code>true</code> if a dynamically mapped {@code text} field should get an automatic {@code .keyword}
+     * multi-field. Only meaningful when {@link #getDynamicStringsAutoText()} is enabled.
+     */
+    public boolean getDynamicStringsAutoKeywordSubfield() {
+        return dynamicStringsAutoKeywordSubfield;
     }
 }

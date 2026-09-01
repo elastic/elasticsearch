@@ -25,7 +25,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -133,7 +133,7 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
             var action = createAction(getUrl(webServer), "secret", "model", sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of("input")), null, listener);
+            action.execute(new CompletionInput(List.of("input")), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -164,7 +164,7 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "secret", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new ChatCompletionInput(List.of("abc")), null, listener);
+        action.execute(new CompletionInput(List.of("abc")), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -184,7 +184,7 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "secret", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new ChatCompletionInput(List.of("abc")), null, listener);
+        action.execute(new CompletionInput(List.of("abc")), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -198,7 +198,7 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "secret", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new ChatCompletionInput(List.of("abc")), null, listener);
+        action.execute(new CompletionInput(List.of("abc")), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -256,7 +256,7 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
             var action = createAction(getUrl(webServer), "secret", "model", sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of("abc", "def")), null, listener);
+            action.execute(new CompletionInput(List.of("abc", "def")), null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -272,7 +272,7 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
             model,
             GoogleAiStudioService.COMPLETION_HANDLER,
             (chatCompletionInput) -> new GoogleAiStudioCompletionRequest(chatCompletionInput, model),
-            ChatCompletionInput.class
+            CompletionInput.class
         );
 
         var serviceErrorString = "Google AI Studio completion";

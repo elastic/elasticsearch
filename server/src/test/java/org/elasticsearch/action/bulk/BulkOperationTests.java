@@ -1153,7 +1153,7 @@ public class BulkOperationTests extends ESTestCase {
         return new NoOpNodeClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
-            public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
@@ -1167,20 +1167,7 @@ public class BulkOperationTests extends ESTestCase {
                     } catch (Exception responseException) {
                         notifyOnceListener.onFailure(responseException);
                     }
-                } else {
-                    fail("Unexpected client call to " + action.name());
-                }
-                return null;
-            }
-
-            @Override
-            @SuppressWarnings("unchecked")
-            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                if (LazyRolloverAction.INSTANCE.equals(action)) {
+                } else if (LazyRolloverAction.INSTANCE.equals(action)) {
                     ActionListener<RolloverResponse> notifyOnceListener = ActionListener.notifyOnce(
                         (ActionListener<RolloverResponse>) listener
                     );

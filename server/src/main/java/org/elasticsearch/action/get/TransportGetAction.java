@@ -240,7 +240,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             final var indexMetadata = projectResolver.getProjectMetadata(clusterService.state()).getIndexSafe(shardId.getIndex());
             var refreshRequest = new BasicReplicationRequest(shardId, SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId()));
             refreshRequest.setParentTask(request.getParentTask());
-            client.executeLocally(
+            client.execute(
                 TransportShardRefreshAction.TYPE,
                 refreshRequest,
                 listener.delegateFailureAndWrap((l, replicationResponse) -> super.asyncShardOperation(request, shardId, l))

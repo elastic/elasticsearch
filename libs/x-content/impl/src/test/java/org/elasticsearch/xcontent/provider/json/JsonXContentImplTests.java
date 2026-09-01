@@ -9,14 +9,20 @@
 
 package org.elasticsearch.xcontent.provider.json;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class JsonXContentImplTests extends ESTestCase {
@@ -41,5 +47,48 @@ public class JsonXContentImplTests extends ESTestCase {
         String utf8 = new String(new byte[] { (byte) 0xF0, (byte) 0x9F, (byte) 0x8E, (byte) 0xB5 }, StandardCharsets.ISO_8859_1);
         assertThat(latin1Output, containsString(utf8));
         assertThat(latin1Output, not(containsString("\\uD83C\\uDFB5")));
+    }
+
+    /**
+     * Verifies that old-format surrogate-escape bytes and new-format 4-byte UTF-8 bytes both
+     * parse to the same String value. A document stored with the old encoding (as produced by
+     * pre-9.6.0 Jackson) and one stored with the new encoding (as produced by
+     * {@link com.fasterxml.jackson.core.JsonGenerator.Feature#COMBINE_UNICODE_SURROGATES_IN_UTF8})
+     * are semantically identical. The generator always produces the new encoding, which is
+     * what serialized responses (e.g. aggregation keys) look like on current nodes.
+     */
+    public void testSupplementaryCharacterRoundTrip() throws IOException {
+        String emoji = "🎵"; // U+1F3B5 MUSICAL NOTE
+
+        // Old format: surrogate pair written as JSON Unicode escape sequences (pre-9.6.0 behavior)
+        byte[] oldFormat = ("{\"content\":\"" + asJsonUnicodeEscapes(emoji) + "\"}").getBytes(StandardCharsets.UTF_8); // \uD83C\uDFB5
+
+        // New format: written by XContentBuilder with COMBINE_UNICODE_SURROGATES_IN_UTF8 enabled
+        XContentBuilder builder = JsonXContentImpl.getContentBuilder();
+        builder.startObject().field("content", emoji).endObject();
+        byte[] newFormat = BytesReference.toBytes(BytesReference.bytes(builder)); // F0 9F 8E B5
+
+        // The two formats have different bytes
+        String utf8AsLatin1 = asLatin1(emoji.getBytes(StandardCharsets.UTF_8));
+        assertThat(new String(oldFormat, StandardCharsets.ISO_8859_1), not(containsString(utf8AsLatin1)));
+        assertThat(new String(newFormat, StandardCharsets.ISO_8859_1), containsString(utf8AsLatin1));
+
+        // But both parse to the same emoji value
+        Map<String, Object> fromOld = XContentHelper.convertToMap(new BytesArray(oldFormat), false, XContentType.JSON).v2();
+        Map<String, Object> fromNew = XContentHelper.convertToMap(new BytesArray(newFormat), false, XContentType.JSON).v2();
+        assertThat(fromOld.get("content"), equalTo(emoji));
+        assertThat(fromNew.get("content"), equalTo(emoji));
+    }
+
+    private static String asJsonUnicodeEscapes(String s) {
+        StringBuilder sb = new StringBuilder();
+        for (char c : s.toCharArray()) {
+            sb.append(String.format(Locale.ROOT, "\\u%04X", (int) c));
+        }
+        return sb.toString();
+    }
+
+    private static String asLatin1(byte[] bytes) {
+        return new String(bytes, StandardCharsets.ISO_8859_1);
     }
 }

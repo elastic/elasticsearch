@@ -384,8 +384,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         if (pinned.isEmpty()) {
             return false;
         }
-        String textMode = vector.get("text_mode");
-        boolean textModePinned = pinned.contains("text_mode");
+        // The EFFECTIVE dialect, not only a pinned one. A dataset can be unrepresentable in the format's
+        // own default -- mv_sample has no bytes in PLAIN, and PLAIN is what tsv defaults to -- so a vector
+        // pinning only `delimiter` still reads a tree that dataset was never written into. Scoping this to
+        // a pinned text_mode registered those cases against files the generator had correctly skipped, and
+        // they failed as "Object not found" rather than as anything meaningful.
+        String textMode = vector.getOrDefault("text_mode", dimensions.defaultValue("text_mode", vector.get("format")));
         CsvTestCase testCase = (CsvTestCase) baseTest[4];
         for (DatasetSource source : testCase.datasetSources) {
             String template = templateNameIn(source.resource());
@@ -399,7 +403,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             // dialect axis has this: a codec or a delimiter can render any dataset, while a bracket cell
             // holds commas that PLAIN and ESCAPED cannot disambiguate.
             String dataset = MATRIX.datasetForTemplate(template);
-            if (textModePinned && dataset != null && MATRIX.unrepresentableDialects(dataset).contains(textMode)) {
+            if (dataset != null
+                && textMode != null
+                && MATRIX.unrepresentableDialects(
+                    dataset,
+                    vector.getOrDefault("delimiter", dimensions.defaultValue("delimiter", vector.get("format")))
+                ).contains(textMode)) {
                 return true;
             }
         }
@@ -725,9 +734,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // vectors a defect appears under. Consulting only one token loses whichever set is not it.
         String ownToken = exclusionSuiteToken();
         String inheritedToken = FixtureMatrix.get().exclusionSource(ownToken);
-        FixtureExclusions.Exclusion exclusion = FixtureExclusions.get().find(ownToken, specName, testName, vector());
+        Map<String, String> lookupVector = exclusionLookupVector();
+        FixtureExclusions.Exclusion exclusion = FixtureExclusions.get().find(ownToken, specName, testName, lookupVector);
         if (exclusion == null && inheritedToken.equals(ownToken) == false) {
-            exclusion = FixtureExclusions.get().find(inheritedToken, specName, testName, vector());
+            exclusion = FixtureExclusions.get().find(inheritedToken, specName, testName, lookupVector);
         }
         assumeTrue(exclusion == null ? "" : testName + ": " + exclusion.reason(), exclusion == null);
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
@@ -1079,6 +1089,27 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     protected Map<String, String> vector() {
         return Map.of();
+    }
+
+    /**
+     * The vector as the exclusion table sees it, plus one derived slot the table cannot compute itself.
+     *
+     * <p>{@code rerendered} says the bytes under this vector were written by TextRowRenderer from parsed
+     * values rather than being the authored fixture. That loses byte detail the author put there on
+     * purpose -- trailing padding, and the difference between an absent field and an empty one -- so a
+     * case asserting either cannot hold on any re-rendered tree. Which SLOT caused the re-render is
+     * irrelevant, and enumerating them (@text_mode.escaped, @mv_syntax.brackets, @delimiter.pipe, ...)
+     * means every future byte-changing dimension silently needs another entry per case. One derived slot
+     * says the thing that is actually true.
+     */
+    private Map<String, String> exclusionLookupVector() {
+        Map<String, String> vector = vector();
+        if (vector.isEmpty()) {
+            return vector;
+        }
+        Map<String, String> withDerived = new LinkedHashMap<>(vector);
+        withDerived.put("rerendered", String.valueOf(fixturesBase().startsWith("vector/")));
+        return withDerived;
     }
 
     /**

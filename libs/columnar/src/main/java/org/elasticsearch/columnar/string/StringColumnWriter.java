@@ -151,20 +151,23 @@ public final class StringColumnWriter {
             StringColumnValues values = cursors.get();
             // Whether the values arrive in term order, which lets a search bisect them instead of comparing
             // every one. Free to know here: the values are already in hand, and the comparison is one memcmp.
+            // The first value out of order settles it, and the rest are written without being compared: what
+            // the comparison decides cannot be restored, and the value it would compare against is not kept.
             final BytesRefBuilder previous = new BytesRefBuilder();
             boolean hasPrevious = false;
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                 for (int i = 0, count = values.valueCount(); i < count; i++) {
                     values.nextValue();
                     final BytesRef value = values.value();
-                    if (hasPrevious && previous.get().compareTo(value) > 0) {
-                        sorted = false;
+                    if (sorted) {
+                        if (hasPrevious && previous.get().compareTo(value) > 0) {
+                            sorted = false;
+                        } else {
+                            previous.copyBytes(value);
+                            hasPrevious = true;
+                        }
                     }
                     stream.add(value);
-                    if (sorted) {
-                        previous.copyBytes(value);
-                        hasPrevious = true;
-                    }
                 }
             }
             written = stream.finish();

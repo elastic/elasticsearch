@@ -286,13 +286,8 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         final int size = dictionarySize;
         final BytesRef target = exact != null ? exact : prefix;
         final int from = firstTermAtLeast(target, size);
-        int to = from;
-        final BytesRef term = new BytesRef();
-        while (to < size && matches(termAt(to, term), prefix, exact)) {
-            to++;
-        }
         final int lowOrdinal = from;
-        final int highOrdinal = to;
+        final int highOrdinal = endOfRun(prefix, exact, from, size);
         // Nothing in the dictionary matches, and nothing escaped, so nothing can.
         if (lowOrdinal == highOrdinal && escapeCount == 0) {
             return DocIdSetIterator.empty();
@@ -349,6 +344,32 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     }
 
     /** The first ordinal whose term sorts at or after {@code target}, by bisection over the dictionary. */
+    /**
+     * The end of the run the target covers, as {@code [from, to)}.
+     *
+     * <p>A dictionary holds each term once, so a term is a run of one and the term at its start decides it. A
+     * prefix covers as many terms as carry it, and the dictionary being in term order puts them in one run
+     * whose end is a boundary in that order like its start, so it is bisected rather than walked. A prefix
+     * that most of the vocabulary carries would otherwise cost a term read apiece.
+     */
+    private int endOfRun(BytesRef prefix, BytesRef exact, int from, int size) throws IOException {
+        final BytesRef term = new BytesRef();
+        if (exact != null) {
+            return from < size && matches(termAt(from, term), prefix, exact) ? from + 1 : from;
+        }
+        int low = from;
+        int high = size;
+        while (low < high) {
+            final int mid = (low + high) >>> 1;
+            if (matches(termAt(mid, term), prefix, exact)) {
+                low = mid + 1;
+            } else {
+                high = mid;
+            }
+        }
+        return low;
+    }
+
     private int firstTermAtLeast(BytesRef target, int size) throws IOException {
         final BytesRef term = new BytesRef();
         int low = 0;

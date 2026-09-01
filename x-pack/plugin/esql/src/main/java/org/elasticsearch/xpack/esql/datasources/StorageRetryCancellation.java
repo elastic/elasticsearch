@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -138,7 +139,7 @@ public final class StorageRetryCancellation {
     public static <T> T getWithCancellationChecks(CompletableFuture<T> future) {
         while (true) {
             if (isCancelled()) {
-                future.cancel(true);
+                FutureUtils.cancel(future);
                 throw new TaskCancelledException(CANCELLED_MESSAGE);
             }
             try {
@@ -147,10 +148,10 @@ public final class StorageRetryCancellation {
                 // poll again
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                future.cancel(true);
+                FutureUtils.cancel(future);
                 throw new TaskCancelledException(CANCELLED_MESSAGE);
             } catch (CancellationException e) {
-                future.cancel(true);
+                FutureUtils.cancel(future);
                 throw new TaskCancelledException(CANCELLED_MESSAGE);
             } catch (ExecutionException e) {
                 Throwable cause = e.getCause();

@@ -267,12 +267,36 @@ class RetryableStorageObject implements StorageObject {
         ActionListener<DirectReadBuffer> listener
     ) {
         AtomicBoolean cancelled = new AtomicBoolean();
-        AtomicReference<Releasable> inflight = new AtomicReference<>(() -> {});
+        AtomicReference<InflightSlot> inflight = new AtomicReference<>(InflightSlot.NONE);
         readBytesAsyncWithRetry(position, length, factory, executor, listener, 0, System.nanoTime(), 0L, inflight, cancelled);
         return () -> {
             cancelled.set(true);
-            inflight.get().close();
+            inflight.get().handle().close();
         };
+    }
+
+    /**
+     * Generation-tagged cancel handle. A later retry must not be overwritten by a stale
+     * {@code startReadBytesAsync} return after an inline {@code onFailure} already started attempt N+1.
+     */
+    private record InflightSlot(int attempt, Releasable handle) {
+        static final InflightSlot NONE = new InflightSlot(-1, () -> {});
+    }
+
+    private static void registerInflight(int attempt, Releasable inner, AtomicReference<InflightSlot> inflight, AtomicBoolean cancelled) {
+        InflightSlot next = new InflightSlot(attempt, inner);
+        while (true) {
+            InflightSlot current = inflight.get();
+            if (current.attempt() > attempt) {
+                return;
+            }
+            if (inflight.compareAndSet(current, next)) {
+                if (cancelled.get()) {
+                    inner.close();
+                }
+                return;
+            }
+        }
     }
 
     private void readBytesAsyncWithRetry(
@@ -284,7 +308,7 @@ class RetryableStorageObject implements StorageObject {
         int attempt,
         long startNanos,
         long accumulatedBackoffMillis,
-        AtomicReference<Releasable> inflight,
+        AtomicReference<InflightSlot> inflight,
         AtomicBoolean cancelled
     ) {
         if (cancelled.get()) {
@@ -370,10 +394,7 @@ class RetryableStorageObject implements StorageObject {
                 }
             }
         });
-        inflight.set(inner);
-        if (cancelled.get()) {
-            inner.close();
-        }
+        registerInflight(attempt, inner, inflight, cancelled);
     }
 
     @Override

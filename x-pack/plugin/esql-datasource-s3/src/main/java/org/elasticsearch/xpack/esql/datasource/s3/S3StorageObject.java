@@ -20,6 +20,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -492,7 +493,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
             deliverRead(listener, buffer, startNanos);
         });
-        return () -> sdkFuture.cancel(true);
+        return () -> FutureUtils.cancel(sdkFuture);
     }
 
     @Override

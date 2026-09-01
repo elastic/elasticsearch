@@ -44,10 +44,12 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomizeCase;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class QuerySettingsTests extends ESTestCase {
@@ -800,6 +802,52 @@ public class QuerySettingsTests extends ESTestCase {
         ResolvedSettings resolved = QuerySettings.resolve(List.of(def), bad, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
         assertThat(resolved.get(def), equalTo("ok"));
         assertThat(def.clusterValueError(bad), containsString("cannot parse [bad]"));
+    }
+
+    public void testValidatorThrowingAtResolveTimeFallsBackAndIsReported() {
+        // Distinct from a validator that returns an error string: one that throws must not escape onto the query path
+        // either, and must still be reported rather than read as usable.
+        QuerySettingDef<String> def = QuerySettingDef.string("throwing_validator").withDefault("ok").withValidator((value, ctx) -> {
+            if (value.equals("boom")) {
+                throw new IllegalStateException("validator blew up");
+            }
+            return null;
+        }).withClusterDefault().build();
+        Settings boom = Settings.builder().put(def.clusterSetting().getKey(), "boom").build();
+
+        assertThat(QuerySettings.resolve(List.of(def), boom, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED).get(def), equalTo("ok"));
+        assertThat(def.clusterValueError(boom), equalTo("validator blew up"));
+    }
+
+    public void testCanonicalizerRejectingTheOperatorValueFallsBack() {
+        // canonicalize runs on every write into the resolved view, so a canonicalizer that rejects an operator value
+        // would otherwise throw on the query path — the one route left by which an operator could break every query.
+        QuerySettingDef<String> def = QuerySettingDef.string("picky_canonicalizer").withDefault("ok").canonicalize(value -> {
+            if (value.equals("unrepresentable")) {
+                throw new IllegalArgumentException("cannot canonicalize");
+            }
+            return value;
+        }).withClusterDefault().build();
+        Settings bad = Settings.builder().put(def.clusterSetting().getKey(), "unrepresentable").build();
+
+        assertThat(QuerySettings.resolve(List.of(def), bad, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED).get(def), equalTo("ok"));
+    }
+
+    public void testErrorIsReportedForAnExceptionCarryingNoMessage() {
+        // A null message must not read as "usable" — that would be a silent fallback with no operator signal. An
+        // anonymous throwable additionally has an empty simple name, which would put us back in the same place.
+        QuerySettingDef<String> def = QuerySettingDef.<String>string("silent_thrower", value -> {
+            if (value.equals("whatever")) {
+                throw new IllegalArgumentException() {};
+            }
+            return value;
+        }).withDefault("ok").withClusterDefault().build();
+        Settings any = Settings.builder().put(def.clusterSetting().getKey(), "whatever").build();
+
+        String error = def.clusterValueError(any);
+        assertThat(error, is(notNullValue()));
+        assertThat(error, is(not(emptyString())));
+        assertThat(QuerySettings.resolve(List.of(def), any, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED).get(def), equalTo("ok"));
     }
 
     public void testUsableOperatorValueReportsNoError() {

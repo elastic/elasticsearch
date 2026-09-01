@@ -1,0 +1,6 @@
+pr: 158302
+summary: Give the default codec an Elasticsearch name so field infos are deduplicated
+  on read
+area: Codec
+type: bug
+issues: []

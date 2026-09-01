@@ -1,0 +1,6 @@
+pr: 84510
+summary: Fix duplicates on GROUP BY constant (without aggregate projections)
+area: SQL
+type: bug
+issues:
+ - 74064

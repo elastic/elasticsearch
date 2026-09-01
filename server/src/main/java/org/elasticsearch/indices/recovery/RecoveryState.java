@@ -236,10 +236,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     public synchronized RecoveryState setStage(Stage stage) {
         switch (stage) {
             case CREATED -> {
-                assert false : "can't move recovery to stage [CREATED] from [" + stage + "]";
+                assert false : "can't move recovery to stage [CREATED] from [" + this.stage + "]";
                 throw new IllegalArgumentException(
                     "can't move recovery to stage [CREATED] from ["
-                        + stage
+                        + this.stage
                         + "]: CREATED is the initial stage of every recovery, not a valid transition target"
                 );
             }

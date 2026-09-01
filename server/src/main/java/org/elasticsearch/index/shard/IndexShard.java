@@ -2108,9 +2108,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (state != IndexShardState.RECOVERING) {
                 throw new IndexShardNotRecoveringException(shardId, state);
             }
-            final RecoveryState currentRecoveryState = recoveryState;
-            assert currentRecoveryState != null;
-            final RecoverySource.Type recoveryType = currentRecoveryState.getRecoverySource().getType();
+            final RecoverySource.Type recoveryType = recoveryState.getRecoverySource().getType();
             switch (recoveryType) {
                 case LOCAL_SHARDS, SNAPSHOT, EXISTING_STORE, EMPTY_STORE, PEER -> recoveryCancellationRequested = true;
                 case RESHARD_SPLIT -> throw new IllegalStateException(
@@ -2126,9 +2124,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /// Callers should let the exception propagate up the call stack, or catch it to forward it unchanged or wrapped
     /// (preserving it as the cause), e.g. via `onFailure`.
     public void ensureRecoveryNotCancelled() throws RecoveryCancelledException {
-        final RecoveryState currentRecoveryState = recoveryState;
-        assert currentRecoveryState != null : "ensureRecoveryNotCancelled should only be called while recovery is active";
         if (recoveryCancellationRequested) {
+            final RecoveryState currentRecoveryState = recoveryState;
             throw new RecoveryCancelledException(shardId, currentRecoveryState.getSourceNode(), currentRecoveryState.getTargetNode());
         }
     }

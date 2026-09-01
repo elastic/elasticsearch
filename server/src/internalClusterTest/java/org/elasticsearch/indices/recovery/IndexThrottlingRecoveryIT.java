@@ -40,10 +40,10 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
@@ -560,10 +560,16 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
             assertThat(recoveryResponse.evaluate(indexOne + ".shards.0.stage"), equalTo("INIT"));
             assertThat(recoveryResponse.evaluate(indexTwo + ".shards.0.stage"), equalTo("CREATED"));
 
-            final var catResponse = getRestClient().performRequest(new Request("GET", "/_cat/recovery"));
-            final String catBody = EntityUtils.toString(catResponse.getEntity());
-            assertThat("expected active recovery to be reported by /_cat/recovery", catBody, containsString(indexOne));
-            assertThat("expected queued recovery to be reported by /_cat/recovery", catBody, containsString(indexTwo));
+            final var catRequest = new Request("GET", "/_cat/recovery");
+            catRequest.addParameter("h", "index,stage");
+            final var catResponse = getRestClient().performRequest(catRequest);
+            final Map<String, String> catStageByIndex = EntityUtils.toString(catResponse.getEntity())
+                .lines()
+                .map(line -> line.trim().split("\\s+"))
+                .filter(cells -> cells.length == 2 && (cells[0].equals(indexOne) || cells[0].equals(indexTwo)))
+                .collect(Collectors.toMap(cells -> cells[0], cells -> cells[1]));
+            assertThat("expected active recovery to be reported by /_cat/recovery", catStageByIndex.get(indexOne), equalTo("init"));
+            assertThat("expected queued recovery to be reported by /_cat/recovery", catStageByIndex.get(indexTwo), equalTo("created"));
         } finally {
             proceedWithRecovery.countDown();
         }

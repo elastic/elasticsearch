@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.inference.textembedding;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -110,6 +112,26 @@ public class TextEmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTe
             Exception actual = expectThrows(Exception.class, () -> runner.run(createTolerantOperatorFactory(failingService)));
             assertThat(actual.getMessage(), containsString(fatal.getMessage()));
         }
+    }
+
+    /**
+     * A callback rejected by its executor reports the rejection and carries the failure it was delivering as a suppressed
+     * exception rather than as a cause. A cancellation reaching the operator in that shape is still fatal, so the query must
+     * fail rather than tolerate it as a per-row failure.
+     */
+    public void testRejectionCarryingFatalFailureIsNotTolerated() {
+        EsRejectedExecutionException rejection = new EsRejectedExecutionException("rejected execution");
+        rejection.addSuppressed(new TaskCancelledException("task cancelled"));
+
+        InferenceService failingService = mockedInferenceService(new AtomicBoolean(true), rejection);
+
+        DriverContext driverContext = driverContext();
+        var runner = new TestDriverRunner().builder(driverContext);
+        runner.input(simpleInput(runner.context().blockFactory(), between(1, 100)));
+
+        Exception actual = expectThrows(Exception.class, () -> runner.run(createTolerantOperatorFactory(failingService)));
+        assertThat(actual.getMessage(), containsString("rejected execution"));
+        assertThat(collectWarnings(driverContext), empty());
     }
 
     @Override

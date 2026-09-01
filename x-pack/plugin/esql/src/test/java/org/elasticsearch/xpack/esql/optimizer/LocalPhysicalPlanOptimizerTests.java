@@ -884,6 +884,192 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     /**
+     * mv_greater over an indexed numeric field pushes a bare one-sided range and drops the FilterExec (YES). The bare
+     * form is exclusive ({@code gt}); {@code include_bound: true} pushes {@code gte}.
+     */
+    public void testMvGreaterPushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_greater(salary, 25000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(plan).toString(), equalTo(unscore(rangeQuery("salary").from(25000, false)).toString()));
+
+        var inclusive = plannerOptimizer.plan("from test | where mv_greater(salary, 25000, {\"include_bound\": true})");
+        assertThat(inclusive.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(inclusive).toString(), equalTo(unscore(rangeQuery("salary").from(25000, true)).toString()));
+    }
+
+    /** NOT mv_greater over a numeric field pushes must_not(range) and drops the FilterExec (YES). */
+    public void testMvGreaterNotPushdown() {
+        var plan = plannerOptimizer.plan("from test | where not mv_greater(salary, 25000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = boolQuery().mustNot(unscore(rangeQuery("salary").from(25000, false)));
+        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /** mv_greater over keyword/ip/version is YES: drop FilterExec and push the real exclusivity. */
+    public void testMvGreaterKeywordIpVersionPushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_greater(first_name, \"m\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(plan).toString(), equalTo(unscore(rangeQuery("first_name").from("m", false)).toString()));
+
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var ip = plannerOptimizer.plan("from test | where mv_greater(ip, \"1.1.1.1\"::ip)", IS_SV_STATS, analyzer);
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(ip).toString(), equalTo(unscore(rangeQuery("ip").from("1.1.1.1", false)).toString()));
+
+        var version = plannerOptimizer.plan("from test | where mv_greater(version, \"1.0.0\"::version)", IS_SV_STATS, analyzer);
+        assertThat(version.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(version).toString(), equalTo(unscore(rangeQuery("version").from("1.0.0", false)).toString()));
+    }
+
+    /** A text field is never pushed for mv_greater. */
+    public void testMvGreaterTextNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where mv_greater(job, \"a\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan), nullValue());
+    }
+
+    /** A multivalued literal bound is never pushed for mv_greater. */
+    public void testMvGreaterMultivaluedBoundNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where mv_greater(salary, [25000, 26000])");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan), nullValue());
+    }
+
+    /** mv_greater over a date field is YES and pins the date formatting path. */
+    public void testMvGreaterDatePushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_greater(hire_date, \"2020-01-01\"::datetime)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = unscore(rangeQuery("hire_date").from("2020-01-01T00:00:00.000Z", false).format("strict_date_optional_time"));
+        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * mv_less over an indexed numeric field pushes a bare one-sided upper range and drops the FilterExec (YES).
+     */
+    public void testMvLessPushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_less(salary, 30000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(plan).toString(), equalTo(unscore(rangeQuery("salary").to(30000, false)).toString()));
+
+        var inclusive = plannerOptimizer.plan("from test | where mv_less(salary, 30000, {\"include_bound\": true})");
+        assertThat(inclusive.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(inclusive).toString(), equalTo(unscore(rangeQuery("salary").to(30000, true)).toString()));
+    }
+
+    /** NOT mv_less over a numeric field pushes must_not(range) and drops the FilterExec (YES). */
+    public void testMvLessNotPushdown() {
+        var plan = plannerOptimizer.plan("from test | where not mv_less(salary, 30000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = boolQuery().mustNot(unscore(rangeQuery("salary").to(30000, false)));
+        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /** mv_less over keyword/ip/version is YES: drop FilterExec and push the real exclusivity. */
+    public void testMvLessKeywordIpVersionPushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_less(first_name, \"m\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(plan).toString(), equalTo(unscore(rangeQuery("first_name").to("m", false)).toString()));
+
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var ip = plannerOptimizer.plan("from test | where mv_less(ip, \"2.2.2.2\"::ip)", IS_SV_STATS, analyzer);
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(ip).toString(), equalTo(unscore(rangeQuery("ip").to("2.2.2.2", false)).toString()));
+
+        var version = plannerOptimizer.plan("from test | where mv_less(version, \"2.0.0\"::version)", IS_SV_STATS, analyzer);
+        assertThat(version.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(version).toString(), equalTo(unscore(rangeQuery("version").to("2.0.0", false)).toString()));
+    }
+
+    /** A text field is never pushed for mv_less. */
+    public void testMvLessTextNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where mv_less(job, \"a\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan), nullValue());
+    }
+
+    /** A multivalued literal bound is never pushed for mv_less. */
+    public void testMvLessMultivaluedBoundNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where mv_less(salary, [25000, 26000])");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan), nullValue());
+    }
+
+    /** mv_less over a date field is YES and pins the date formatting path. */
+    public void testMvLessDatePushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_less(hire_date, \"2021-01-01\"::datetime)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = unscore(rangeQuery("hire_date").to("2021-01-01T00:00:00.000Z", false).format("strict_date_optional_time"));
+        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * NOT over exact byte-encoded types pushes must_not(range). Keyword/ip/version share the YES path with
+     * integral types (see testMvGreaterNotPushdown); only the double family stays RECHECK and unpushed under NOT.
+     */
+    public void testMvGreaterNotExactBytesRefPushdown() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var kw = plannerOptimizer.plan("from test | where not mv_greater(keyword, \"m\")", IS_SV_STATS, analyzer);
+        assertThat(kw.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(kw).toString(), equalTo(boolQuery().mustNot(unscore(rangeQuery("keyword").from("m", false))).toString()));
+
+        var ip = plannerOptimizer.plan("from test | where not mv_greater(ip, \"1.1.1.1\"::ip)", IS_SV_STATS, analyzer);
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(ip).toString(), equalTo(boolQuery().mustNot(unscore(rangeQuery("ip").from("1.1.1.1", false))).toString()));
+    }
+
+    /** NOT of a RECHECK-typed (double-family) mv_greater is not pushed at all. */
+    public void testMvGreaterNotRecheckTypeNotPushed() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        for (var field : List.of("double", "float", "half_float", "scaled_float")) {
+            var plan = plannerOptimizer.plan("from test | where not mv_greater(" + field + ", 1.0)", IS_SV_STATS, analyzer);
+            assertThat("NOT over " + field + " must retain the filter", plan.anyMatch(FilterExec.class::isInstance), is(true));
+            assertThat("NOT over " + field + " must not push a range", pushedQuery(plan), is(nullValue()));
+        }
+    }
+
+    /** NOT over exact byte-encoded types for mv_less pushes must_not(range). */
+    public void testMvLessNotExactBytesRefPushdown() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var kw = plannerOptimizer.plan("from test | where not mv_less(keyword, \"m\")", IS_SV_STATS, analyzer);
+        assertThat(kw.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(kw).toString(), equalTo(boolQuery().mustNot(unscore(rangeQuery("keyword").to("m", false))).toString()));
+
+        var ip = plannerOptimizer.plan("from test | where not mv_less(ip, \"2.2.2.2\"::ip)", IS_SV_STATS, analyzer);
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(ip).toString(), equalTo(boolQuery().mustNot(unscore(rangeQuery("ip").to("2.2.2.2", false))).toString()));
+    }
+
+    /** NOT of a RECHECK-typed (double-family) mv_less is not pushed at all. */
+    public void testMvLessNotRecheckTypeNotPushed() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        for (var field : List.of("double", "float", "half_float", "scaled_float")) {
+            var plan = plannerOptimizer.plan("from test | where not mv_less(" + field + ", 1.0)", IS_SV_STATS, analyzer);
+            assertThat("NOT over " + field + " must retain the filter", plan.anyMatch(FilterExec.class::isInstance), is(true));
+            assertThat("NOT over " + field + " must not push a range", pushedQuery(plan), is(nullValue()));
+        }
+    }
+
+    /**
+     * Exclusive vs inclusive push for RECHECK doubles: exclusivity stays in the evaluator; the pushed range is the
+     * inclusive superset, and a zero lower bound is widened outward to -0.0.
+     */
+    public void testMvGreaterDoubleRecheckInclusiveSuperset() {
+        var plan = plannerOptimizer.plan("from test | where mv_greater(double, 0.0)", IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan).toString(), equalTo(boolQuery().filter(unscore(rangeQuery("double").from(-0.0, true))).toString()));
+    }
+
+    /**
+     * RECHECK doubles for mv_less: exclusivity stays in the evaluator; the pushed range is the inclusive
+     * superset, and a zero upper bound stays +0.0 (widened outward on the less side).
+     */
+    public void testMvLessDoubleRecheckInclusiveSuperset() {
+        var plan = plannerOptimizer.plan("from test | where mv_less(double, 0.0)", IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan).toString(), equalTo(boolQuery().filter(unscore(rangeQuery("double").to(0.0, true))).toString()));
+    }
+
+    /**
      * mv_like over an indexed keyword field pushes a BARE wildcard query and drops the FilterExec entirely (YES).
      * The bare query is the predicate: a Lucene wildcard query already matches a document when any of the field's
      * terms matches. Critically it is NOT wrapped in SingleValueQuery — that wrap is what scalar LIKE gets

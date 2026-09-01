@@ -60,6 +60,7 @@ public final class AsyncExternalSourceBuffer {
     private final SubscribableListener<Void> completionFuture = new SubscribableListener<>();
 
     private final AtomicBoolean noMoreInputs = new AtomicBoolean(false);
+    private final Object failureLock = new Object();
     private volatile Throwable failure = null;
 
     /**
@@ -455,7 +456,15 @@ public final class AsyncExternalSourceBuffer {
      * surfaces the failure via {@link org.elasticsearch.compute.operator.SourceOperator#getOutput()}.
      */
     public void onFailure(Throwable t) {
-        this.failure = t;
+        synchronized (failureLock) {
+            if (failure != null) {
+                if (failure != t) {
+                    failure.addSuppressed(t);
+                }
+                return;
+            }
+            failure = t;
+        }
         noMoreInputs.set(true);
         notifyNotEmpty();
         notifyNotFull();

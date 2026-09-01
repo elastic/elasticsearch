@@ -37,7 +37,7 @@ public class FormatReaderRegistry {
      * resolves; the four codecs outside this set (bzip2, snappy, lz4, brotli) each return to the GA
      * surface once benchmarked (see elastic/esql-planning#938).
      */
-    static final Set<String> GA_TEXT_CODECS = Set.of("gzip", "zstd");
+    public static final Set<String> GA_TEXT_CODECS = Set.of("gzip", "zstd");
 
     private final Map<String, Supplier<FormatReader>> byName = new ConcurrentHashMap<>();
     private final Map<String, Supplier<FormatReader>> byExtension = new ConcurrentHashMap<>();

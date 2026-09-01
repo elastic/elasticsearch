@@ -41,7 +41,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
     private final int blockShift;
     private final int blockMask;
     private final NumericColumnMetadata.Skipper skipperMeta;
-    private final IndexInput data;
+    private final IndexInput skipIndex;
 
     private final BytesRefBuilder payload = new BytesRefBuilder();
     private long[] values = new long[8];
@@ -53,7 +53,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
         ColumnIterator iterator,
         int maxDoc,
         NumericColumnMetadata.Skipper skipperMeta,
-        IndexInput data
+        IndexInput skipIndex
     ) {
         this.reader = reader;
         this.iterator = iterator;
@@ -62,7 +62,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
         this.blockShift = Integer.numberOfTrailingZeros(reader.blockSize());
         this.blockMask = reader.blockSize() - 1;
         this.skipperMeta = skipperMeta;
-        this.data = data;
+        this.skipIndex = skipIndex;
     }
 
     @Override
@@ -216,7 +216,9 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
         }
         final ColumnIterator column = reader.iterator();
         final BlockMask mask = new BlockMask(lowerValue, upperValue);
-        final DocValuesSkipper skipper = skipperMeta == null ? null : SkipIndexCodec.forId(skipperMeta.codecId()).reader(skipperMeta, data);
+        final DocValuesSkipper skipper = skipperMeta == null
+            ? null
+            : SkipIndexCodec.forId(skipperMeta.codecId()).reader(skipperMeta, skipIndex);
         final TwoPhaseIterator twoPhase = skipper == null
             ? scanningTwoPhase(column, mask, lowerValue, upperValue)
             : skippingTwoPhase(column, mask, skipper, lowerValue, upperValue);

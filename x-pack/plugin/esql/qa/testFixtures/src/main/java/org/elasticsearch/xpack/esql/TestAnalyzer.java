@@ -945,30 +945,26 @@ public class TestAnalyzer {
      * {@link Analyzer} and call {@link Analyzer#analyze} directly, possibly against several different queries.
      */
     public Analyzer buildAnalyzer(Verifier verifier) {
-        lastContext = buildContext();
-        return new Analyzer(lastContext, verifier) {
+        lastAnalyzer = new Analyzer(buildContext(), verifier) {
             @Override
             public LogicalPlan analyze(LogicalPlan plan) {
                 resolveEnrichResolution(plan);
                 return super.analyze(plan);
             }
         };
+        return lastAnalyzer;
+    }
+
+    private Analyzer lastAnalyzer;
+
+    public Analyzer lastAnalyzer() {
+        return lastAnalyzer;
     }
 
     /**
      * Build an {@link AnalyzerContext} for advanced usage.
      * Prefer {@link #query} or {@link #error} if possible.
      */
-    private AnalyzerContext lastContext;
-
-    /**
-     * The {@link AnalyzerContext} used by the most recent {@link #buildAnalyzer} call, for assertions on the side-channel state
-     * analyzer rules record there (e.g. the {@code LOAD_ALL} unmapped-fields ordering).
-     */
-    public AnalyzerContext lastContext() {
-        return lastContext;
-    }
-
     public AnalyzerContext buildContext() {
         return new AnalyzerContext(
             configuration,

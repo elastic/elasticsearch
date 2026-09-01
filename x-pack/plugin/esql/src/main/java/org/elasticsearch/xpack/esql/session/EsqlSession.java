@@ -2545,7 +2545,7 @@ public class EsqlSession {
         );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed);
-        unmappedFieldsOrdering = analyzerContext.unmappedFieldsOrdering();
+        unmappedFieldsOrdering = analyzer.unmappedFieldsOrdering();
         plan.setAnalyzed();
         return plan;
     }

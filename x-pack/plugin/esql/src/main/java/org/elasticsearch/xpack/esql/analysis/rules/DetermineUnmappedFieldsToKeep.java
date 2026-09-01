@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.UnmappedFieldsOrdering;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * When {@code SET unmapped_fields="LOAD_ALL"} is in effect, annotates
@@ -43,6 +45,12 @@ import java.util.List;
  */
 public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
+    private final Consumer<UnmappedFieldsOrdering> registerUnmappedFieldsOrdering;
+
+    public DetermineUnmappedFieldsToKeep(Consumer<UnmappedFieldsOrdering> registerUnmappedFieldsOrdering) {
+        this.registerUnmappedFieldsOrdering = registerUnmappedFieldsOrdering;
+    }
+
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
         if (context.unmappedResolution().loadsAllUnmappedFields() == false) {
@@ -59,7 +67,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             return esr.withAdditionalAttribute(new UnmappedFieldsAttribute(Source.EMPTY, pattern));
         });
         // Captured while the ResolvingProjects still hold their resolvers - ResolvedProjects strips them two rules later.
-        context.unmappedFieldsOrdering(leaves -> withLeavesInPlaceOfSyntheticColumn(annotated, leaves).output());
+        registerUnmappedFieldsOrdering.accept(leaves -> withLeavesInPlaceOfSyntheticColumn(annotated, leaves).output());
         return annotated;
     }
 

@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests for {@link org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep}, the rule that annotates each non-LOOKUP
@@ -470,15 +471,30 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         );
     }
 
-    /** With nothing discovered the replay must reproduce the real columns exactly - this is the invariant {@code expand()} asserts. */
     public void testReplayWithNoDiscoveredFieldsReproducesTheRealColumns() {
         assertThat(orderFor("FROM test | KEEP emp_no, unmapped.* | RENAME emp_no AS id"), equalTo(List.of("id")));
+    }
+
+    public void testReusedAnalyzerDoesNotReportThePreviousQuerysOrdering() {
+        TestAnalyzer test = test();
+        test.statement(setUnmappedLoadAll("FROM test | KEEP emp_no, unmapped.*"));
+        Analyzer analyzer = test.lastAnalyzer();
+        assertThat(analyzer.unmappedFieldsOrdering(), notNullValue());
+
+        analyzer.analyze(EsqlTestUtils.TEST_PARSER.createStatement(setUnmappedLoadAll("FROM test | KEEP emp_no")).plan());
+        assertThat(analyzer.unmappedFieldsOrdering(), nullValue());
+    }
+
+    public void testNoOrderingRecordedWithoutLoadAll() {
+        TestAnalyzer test = test();
+        test.statement("FROM test | KEEP emp_no, first_name");
+        assertThat(test.lastAnalyzer().unmappedFieldsOrdering(), nullValue());
     }
 
     private static List<String> orderFor(String query, String... discovered) {
         TestAnalyzer analyzer = test();
         analyzer.statement(setUnmappedLoadAll(query));
-        UnmappedFieldsOrdering ordering = analyzer.lastContext().unmappedFieldsOrdering();
+        UnmappedFieldsOrdering ordering = analyzer.lastAnalyzer().unmappedFieldsOrdering();
         assertThat("no ordering captured for [" + query + "]", ordering, notNullValue());
         List<Attribute> leaves = Arrays.stream(discovered)
             .map(name -> (Attribute) new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD))

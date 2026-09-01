@@ -215,15 +215,9 @@ final class CoalescedRangeReader {
         try {
             for (MergedRange mr : merged) {
                 int length = (int) mr.length();
-                DirectReadBuffer result = factory.allocate(length);
+                DirectReadBuffer result = factory.allocateWritableWindow(length);
                 buffers.add(result);
                 ByteBuffer buffer = result.buffer();
-                if (buffer.capacity() < length) {
-                    throw new IllegalArgumentException(
-                        "Allocated buffer capacity [" + buffer.capacity() + "] is smaller than merged range length [" + length + "]"
-                    );
-                }
-                buffer.position(0).limit(length);
                 int read = 0;
                 while (read < length) {
                     int currentRead = storageObject.readBytes(mr.offset() + read, buffer);

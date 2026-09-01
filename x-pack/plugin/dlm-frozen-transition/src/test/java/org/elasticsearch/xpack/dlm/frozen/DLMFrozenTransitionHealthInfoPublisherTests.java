@@ -356,6 +356,51 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
         assertThat(info.overdueIndices().get(projectId2), equalTo(Map.of(indexName2, TransitionState.UNMARKED)));
     }
 
+    /**
+     * The publisher collects non-{@code MARKED} and {@code MARKED} indices in separate internal buckets, then merges
+     * them into a single result capped at {@code MAX_INDICES_TO_PUBLISH} total with non-{@code MARKED} entries first.
+     * This test puts {@code MAX_INDICES_TO_PUBLISH + 1} marked data streams and one unmarked data stream in the
+     * cluster state and asserts that:
+     * <ul>
+     *   <li>the total sample size is exactly {@code MAX_INDICES_TO_PUBLISH} (not 2×),</li>
+     *   <li>the single unmarked index appears despite the large MARKED backlog.</li>
+     * </ul>
+     */
+    public void testMarkedAndOtherIndicesAreSampledInSeparateBuckets() {
+        ProjectId projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
+
+        int overLimit = DLMFrozenTransitionHealthInfoPublisher.MAX_INDICES_TO_PUBLISH + 1;
+        for (int i = 0; i < overLimit; i++) {
+            addDataStreamWithFrozenLifecycle(projectBuilder, "marked-ds-" + i, oldIndexTime(), true, TimeValue.timeValueDays(30));
+        }
+        String unmarkedIndexName = addDataStreamWithFrozenLifecycle(
+            projectBuilder,
+            "unmarked-ds",
+            oldIndexTime(),
+            false,
+            TimeValue.timeValueDays(30)
+        );
+        setProjectState(projectBuilder);
+
+        DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
+
+        assertThat(info.totalOverdueIndicesCount(), is(overLimit + 1));
+        Map<String, TransitionState> sampledIndices = info.overdueIndices().get(projectId);
+        assertThat(
+            "total sample must not exceed MAX_INDICES_TO_PUBLISH",
+            sampledIndices.size(),
+            is(DLMFrozenTransitionHealthInfoPublisher.MAX_INDICES_TO_PUBLISH)
+        );
+        long otherCount = sampledIndices.values().stream().filter(s -> s != TransitionState.MARKED).count();
+        assertThat(otherCount, is(1L));
+        assertThat(
+            "unmarked index must appear in the sample despite the large MARKED backlog",
+            sampledIndices.containsKey(unmarkedIndexName),
+            is(true)
+        );
+    }
+
     public void testPublishHealthInfoSendsRequestToHealthNode() {
         ClusterState stateWithHealthNode = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
         setState(clusterService, stateWithHealthNode);

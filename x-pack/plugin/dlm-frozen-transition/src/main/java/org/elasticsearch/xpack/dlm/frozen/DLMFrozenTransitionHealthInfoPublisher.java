@@ -205,24 +205,55 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
 
     /**
      * Mutable accumulator for overdue indices. Tracks the total count independently of the capped sample so that
-     * callers can distinguish "no overdue indices" from "overdue indices that didn't fit in the sample". The cap
-     * ({@link #MAX_INDICES_TO_PUBLISH}) is applied across all projects combined, not per project.
+     * callers can distinguish "no overdue indices" from "overdue indices that didn't fit in the sample".
+     *
+     * <p>Indices are collected into two internal buckets — non-{@code MARKED} and {@code MARKED} — each capped at
+     * {@link #MAX_INDICES_TO_PUBLISH}. The {@link #sample()} method merges them into a single result capped at
+     * {@link #MAX_INDICES_TO_PUBLISH} total, placing all non-{@code MARKED} entries first and filling any remaining
+     * capacity with {@code MARKED} entries. This guarantees that a flood of {@code MARKED} indices can never displace
+     * a non-{@code MARKED} index from the final sample. The health indicator relies on this: if no non-{@code MARKED}
+     * indices appear in the sample, it can safely conclude that none exist.
      */
     private static final class OverdueIndices {
         private int totalCount;
-        private int sampledCount;
-        private final Map<ProjectId, Map<String, TransitionState>> sample = new HashMap<>();
+        private int markedSampledCount;
+        private int otherSampledCount;
+        private final Map<ProjectId, Map<String, TransitionState>> markedSample = new HashMap<>();
+        private final Map<ProjectId, Map<String, TransitionState>> otherSample = new HashMap<>();
 
         void add(ProjectId projectId, String indexName, TransitionState state) {
             totalCount++;
-            if (sampledCount < MAX_INDICES_TO_PUBLISH) {
-                sample.computeIfAbsent(projectId, ignored -> new HashMap<>()).put(indexName, state);
-                sampledCount++;
+            if (state == TransitionState.MARKED) {
+                if (markedSampledCount < MAX_INDICES_TO_PUBLISH) {
+                    markedSample.computeIfAbsent(projectId, ignored -> new HashMap<>()).put(indexName, state);
+                    markedSampledCount++;
+                }
+            } else {
+                if (otherSampledCount < MAX_INDICES_TO_PUBLISH) {
+                    otherSample.computeIfAbsent(projectId, ignored -> new HashMap<>()).put(indexName, state);
+                    otherSampledCount++;
+                }
             }
         }
 
         Map<ProjectId, Map<String, TransitionState>> sample() {
-            return sample;
+            Map<ProjectId, Map<String, TransitionState>> result = new HashMap<>();
+            otherSample.forEach((projectId, indices) -> result.computeIfAbsent(projectId, ignored -> new HashMap<>()).putAll(indices));
+            int remaining = MAX_INDICES_TO_PUBLISH - otherSampledCount;
+            for (Map.Entry<ProjectId, Map<String, TransitionState>> projectEntry : markedSample.entrySet()) {
+                if (remaining <= 0) {
+                    break;
+                }
+                Map<String, TransitionState> projectResult = result.computeIfAbsent(projectEntry.getKey(), ignored -> new HashMap<>());
+                for (Map.Entry<String, TransitionState> indexEntry : projectEntry.getValue().entrySet()) {
+                    if (remaining <= 0) {
+                        break;
+                    }
+                    projectResult.put(indexEntry.getKey(), indexEntry.getValue());
+                    remaining--;
+                }
+            }
+            return result;
         }
 
         int totalCount() {

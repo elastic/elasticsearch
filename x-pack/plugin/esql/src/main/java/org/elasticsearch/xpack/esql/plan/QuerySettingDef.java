@@ -32,9 +32,11 @@ import java.util.function.UnaryOperator;
  * <h2>Mental model</h2>
  *
  * A setting is a typed knob. Users always supply it via in-query {@code SET}. For tooling that
- * builds requests programmatically, a setting can also be exposed in the request body. We declare
- * the knob once; the framework wires both surfaces, resolves precedence automatically
- * ({@code default < body < SET}), and gives downstream code one typed read.
+ * builds requests programmatically, a setting can also be exposed in the request body, and an operator can be
+ * allowed to change its default for a whole cluster. We declare the knob once; the framework wires every surface,
+ * resolves precedence automatically ({@code default < cluster < body < SET}, ordered by whose decision a value is —
+ * the product's, the operator's, the calling application's, the query author's), and gives downstream code one
+ * typed read.
  *
  * <h2>What you specify</h2>
  *
@@ -48,6 +50,8 @@ import java.util.function.UnaryOperator;
  * <ul>
  *   <li>{@code withDefault} — value readers see when no source supplied one;</li>
  *   <li>{@code withRequestBody} — opt the setting into the body under {@code settings.<name>};</li>
+ *   <li>{@code withClusterDefault} — opt the setting into an operator-settable cluster-wide default at
+ *       {@code esql.query.settings.<name>};</li>
  *   <li>{@code withAliasAtRoot} / {@code withAliasAt} — extra body paths, used only for BWC with
  *       settings whose top-level body fields predate this framework ({@code time_zone},
  *       {@code project_routing}, {@code approximation});</li>
@@ -56,8 +60,9 @@ import java.util.function.UnaryOperator;
  *   <li>{@code withPreview}, {@code withSnapshotOnly}, {@code withServerlessOnly} — lifecycle.</li>
  * </ul>
  *
- * Inferred: body parser wiring, {@code SET} dispatch, the precedence fold
- * ({@code default < body < SET}, applied per setting via its reconciler), the read API. The one thing
+ * Inferred: body parser wiring, {@code SET} dispatch, the derived cluster setting and its registration, the
+ * precedence fold ({@code default < cluster < body < SET}; the cluster value substitutes for the default, and the
+ * per-query sources fold on top via the reconciler), the read API. The one thing
  * you write outside the declaration is adding the constant to {@link QuerySettings#ALL} to register it.
  *
  * <h2>How to declare a setting</h2>
@@ -127,7 +132,8 @@ import java.util.function.UnaryOperator;
  *
  * The same setting can arrive from default, body, and {@code SET} in one query, so reconciliation
  * is unavoidable. The framework folds the three in ascending precedence
- * {@code default < body < SET}. The default fold is last-wins — correct for any scalar. Override
+ * {@code default < body < SET}, on top of whatever {@link #effectiveDefault} established as the default.
+ * The default fold is last-wins — correct for any scalar. Override
  * with {@code withReconciler} only when a structured value's fields should combine across sources
  * rather than replace.
  *
@@ -313,17 +319,26 @@ public final class QuerySettingDef<T> {
      * on a stored value whose verdict has since changed. An operator's value is checked where the operator can see the
      * failure — on {@code PUT _cluster/settings} and on the {@code elasticsearch.yml} pass at startup. Here a value
      * that no longer parses or no longer validates falls back to the registry default rather than failing the query:
-     * the environment can drift under a value that was legitimate when it was written (a cluster restarted onto a
-     * different build, say), and an operator's stale configuration must neither fail every query nor quietly stay in
-     * force after it stopped being allowed. {@link #clusterValueError} reports the same condition for logging.
+     * an operator's stale configuration must neither fail every query nor quietly stay in force after it stopped
+     * being allowed. {@link #clusterValueError} reports the same condition for logging.
+     * <p>
+     * Reaching this is narrow, because the two paths that read persisted state check it first: an invalid value in
+     * {@code elasticsearch.yml} stops the node starting, and one in recovered cluster state is archived rather than
+     * applied ({@code AbstractScopedSettings#archiveUnknownOrInvalidSettings} calls {@code Setting#get}, so it runs
+     * this validator too). What is left is cluster state arriving over the wire without that pass — a node joining a
+     * running cluster, or a mixed-version cluster whose master accepted a value this node cannot use.
      */
     T effectiveDefault(Settings clusterDefaults) {
-        if (clusterSetting == null || clusterSetting.exists(clusterDefaults) == false) {
+        String raw = clusterSetting == null ? null : clusterDefaults.get(clusterSetting.getKey());
+        if (raw == null) {
+            // Covers both "no operator value" and an explicit null one. Testing Setting#exists as well would be dead
+            // weight: the key is absent exactly when the raw value is null, and a putNull entry is present with a
+            // null value, so either way this is the branch that fires.
             return defaultValue;
         }
         T parsed;
         try {
-            parsed = clusterParser.parse(clusterDefaults.get(clusterSetting.getKey()));
+            parsed = clusterParser.parse(raw);
         } catch (Exception e) {
             return defaultValue;
         }
@@ -346,14 +361,15 @@ public final class QuerySettingDef<T> {
      */
     @Nullable
     String clusterValueError(Settings clusterDefaults) {
-        if (clusterSetting == null || clusterSetting.exists(clusterDefaults) == false) {
+        String raw = clusterSetting == null ? null : clusterDefaults.get(clusterSetting.getKey());
+        if (raw == null) {
             return null;
         }
         T parsed;
         try {
-            parsed = clusterParser.parse(clusterDefaults.get(clusterSetting.getKey()));
+            parsed = clusterParser.parse(raw);
         } catch (Exception e) {
-            return e.getMessage();
+            return describe(e);
         }
         if (validator == null) {
             return null;
@@ -361,8 +377,17 @@ public final class QuerySettingDef<T> {
         try {
             return validator.validate(parsed, CLUSTER_UPDATE_CONTEXT);
         } catch (Exception e) {
-            return e.getMessage();
+            return describe(e);
         }
+    }
+
+    /**
+     * A non-null description of a throwable. {@link Exception#getMessage()} is nullable, and returning it raw would
+     * make this method report "usable" for a value {@link #effectiveDefault} is in fact falling back on — silent
+     * fallback with no operator signal, which is the one outcome this pair exists to prevent.
+     */
+    private static String describe(Exception e) {
+        return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
     }
 
     public List<RequestBodyBinding> aliases() {

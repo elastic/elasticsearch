@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.time.ZoneId;
@@ -85,6 +87,40 @@ public class ClusterQuerySettingsTests extends ESTestCase {
     public void testUnrelatedSettingsAreNotCarried() {
         var f = fixture(Settings.builder().put(TIME_ZONE_KEY, "Europe/Paris").put("esql.query.allow_partial_results", false).build());
         assertThat(f.holder().values().hasValue("esql.query.allow_partial_results"), equalTo(false));
+    }
+
+    public void testUnusableValueIsReportedOnTheOperatorChannel() {
+        // Silent fallback with no signal is the one outcome this design must not produce: resolution quietly uses the
+        // built-in default, so if nothing said why, an operator would see their configuration simply not applying.
+        String key = QuerySettingDef.CLUSTER_SETTING_PREFIX + QuerySettings.UNMAPPED_FIELDS.name();
+        Settings unusable = Settings.builder().put(key, "not_a_resolution").build();
+
+        MockLog.assertThatLogger(
+            () -> fixture(unusable),
+            ClusterQuerySettings.class,
+            new MockLog.SeenEventExpectation(
+                "unusable operator value",
+                ClusterQuerySettings.class.getCanonicalName(),
+                Level.WARN,
+                "*" + key + "*not usable*fall back*Invalid unmapped_fields resolution*"
+            )
+        );
+    }
+
+    public void testUsableValueIsNotReported() {
+        MockLog.assertThatLogger(
+            () -> fixture(Settings.builder().put(TIME_ZONE_KEY, "Europe/Paris").build()),
+            ClusterQuerySettings.class,
+            new MockLog.UnseenEventExpectation("no warning", ClusterQuerySettings.class.getCanonicalName(), Level.WARN, "*")
+        );
+    }
+
+    public void testNoOperatorValueIsNotReported() {
+        MockLog.assertThatLogger(
+            () -> fixture(Settings.EMPTY),
+            ClusterQuerySettings.class,
+            new MockLog.UnseenEventExpectation("no warning", ClusterQuerySettings.class.getCanonicalName(), Level.WARN, "*")
+        );
     }
 
     private static ZoneId resolvedTimeZone(ClusterQuerySettings holder) {

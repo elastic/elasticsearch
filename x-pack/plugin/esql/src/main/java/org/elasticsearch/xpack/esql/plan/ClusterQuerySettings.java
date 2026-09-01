@@ -56,11 +56,12 @@ public final class ClusterQuerySettings {
     }
 
     /**
-     * Log any configured value this cluster cannot use. A value is refused when it is written, so this can only fire
-     * when the environment has drifted underneath one that was legitimate at the time — most often a cluster that
-     * restarted onto a build where the stored value is no longer allowed. Resolution falls back to the registry
-     * default for such a value rather than failing queries, which would leave the operator with no signal at all;
-     * this is that signal, on the operator's own channel and once per observation rather than once per query.
+     * Log any configured value this node cannot use. A value is refused when it is written, and an invalid one in
+     * recovered cluster state is archived rather than applied, so this fires only for state that arrived over the
+     * wire without either check — a node joining a running cluster, or a mixed-version cluster whose master accepted
+     * a value this node cannot use. Resolution falls back to the built-in default for such a value rather than
+     * failing queries, which would otherwise leave the operator with no signal at all; this is that signal, on the
+     * operator's own channel and once per observation rather than once per query.
      */
     private static void reportUnusableValues(Settings settings) {
         for (QuerySettingDef<?> def : QuerySettings.all()) {

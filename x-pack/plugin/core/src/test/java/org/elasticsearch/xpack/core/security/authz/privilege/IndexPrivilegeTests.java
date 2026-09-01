@@ -97,6 +97,14 @@ public class IndexPrivilegeTests extends ESTestCase {
             findPrivilegesThatGrant(EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME),
             equalTo(List.of("delete_dataset", "manage_dataset", "manage", "all"))
         );
+        assertThat(
+            findPrivilegesThatGrant(EsqlDatasetActionNames.ESQL_ENABLE_DATASET_ACTION_NAME),
+            equalTo(List.of("manage_dataset", "manage", "all"))
+        );
+        assertThat(
+            findPrivilegesThatGrant(EsqlDatasetActionNames.ESQL_DISABLE_DATASET_ACTION_NAME),
+            equalTo(List.of("manage_dataset", "manage", "all"))
+        );
 
         Predicate<IndexPrivilege> failuresOnly = p -> p.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES;
         assertThat(findPrivilegesThatGrant(TransportSearchAction.TYPE.name(), failuresOnly), equalTo(List.of("read_failure_store")));
@@ -527,6 +535,8 @@ public class IndexPrivilegeTests extends ESTestCase {
         assertThat(manageDataset.predicate.test(EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME), is(true));
         assertThat(manageDataset.predicate.test(EsqlDatasetActionNames.ESQL_GET_DATASET_ACTION_NAME), is(true));
         assertThat(manageDataset.predicate.test(EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME), is(true));
+        assertThat(manageDataset.predicate.test(EsqlDatasetActionNames.ESQL_ENABLE_DATASET_ACTION_NAME), is(true));
+        assertThat(manageDataset.predicate.test(EsqlDatasetActionNames.ESQL_DISABLE_DATASET_ACTION_NAME), is(true));
         assertThat(manageDataset.predicate.test("indices:admin/esql/dataset/other"), is(true));
         assertThat(manageDataset.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
 

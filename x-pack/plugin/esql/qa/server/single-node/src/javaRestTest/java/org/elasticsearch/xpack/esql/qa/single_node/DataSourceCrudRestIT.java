@@ -421,6 +421,61 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         deleteDataSource(parent);
     }
 
+    public void testEnableDisableRoundTrip() throws IOException {
+        final String parent = "toggle_parent";
+        final String dataset = "toggle_child";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        putDataset(dataset, parent, "s3://x/", Map.of());
+
+        Map<String, Object> got = getDataSource(parent);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> dsHits = (List<Map<String, Object>>) got.get("data_sources");
+        assertThat(dsHits.get(0).get("enabled"), equalTo(true));
+
+        assertThat(
+            client().performRequest(new Request("POST", "/_query/data_source/" + parent + "/_disable")).getStatusLine().getStatusCode(),
+            equalTo(200)
+        );
+        got = getDataSource(parent);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> disabledHits = (List<Map<String, Object>>) got.get("data_sources");
+        assertThat(disabledHits.get(0).get("enabled"), equalTo(false));
+
+        ResponseException createEx = expectThrows(
+            ResponseException.class,
+            () -> putDataset("new_against_disabled", parent, "s3://y/", Map.of())
+        );
+        assertThat(createEx.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(createEx.getResponse().getEntity()), containsString("disabled data source"));
+
+        assertThat(
+            client().performRequest(new Request("POST", "/_query/data_source/" + parent + "/_enable")).getStatusLine().getStatusCode(),
+            equalTo(200)
+        );
+
+        Map<String, Object> dsetGot = getDataset(dataset);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> dsetHits = (List<Map<String, Object>>) dsetGot.get("datasets");
+        assertThat(dsetHits.get(0).get("enabled"), equalTo(true));
+
+        assertThat(
+            client().performRequest(new Request("POST", "/_query/dataset/" + dataset + "/_disable")).getStatusLine().getStatusCode(),
+            equalTo(200)
+        );
+        dsetGot = getDataset(dataset);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> disabledDset = (List<Map<String, Object>>) dsetGot.get("datasets");
+        assertThat(disabledDset.get(0).get("enabled"), equalTo(false));
+
+        assertThat(
+            client().performRequest(new Request("POST", "/_query/dataset/" + dataset + "/_enable")).getStatusLine().getStatusCode(),
+            equalTo(200)
+        );
+
+        deleteDataset(dataset);
+        deleteDataSource(parent);
+    }
+
     public void testValidatorRejectsUnknownType() throws IOException {
         ResponseException ex = expectThrows(
             ResponseException.class,

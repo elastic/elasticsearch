@@ -113,7 +113,9 @@ public class DataSourceService {
             }
         }
         final Map<String, DataSourceSetting> validated = validator.validateDatasource(request.rawSettings(), existingSecretKeys);
-        return new DataSource(request.name(), request.type(), request.description(), validated);
+        // PUT create defaults to enabled; PUT replace preserves the existing flag (dedicated enable/disable APIs flip it).
+        final boolean enabled = current == null || current.enabled();
+        return new DataSource(request.name(), request.type(), request.description(), validated, enabled);
     }
 
     /**
@@ -147,9 +149,16 @@ public class DataSourceService {
                 // concurrent operation could have cleared or removed a secret this request relies on carrying
                 // forward between that snapshot and this task running. Cheap (no I/O); throwing here fails the
                 // whole PUT instead of silently persisting a data source with incomplete credentials.
+                // Return value intentionally unused: called only for its exception side-effects.
                 validatePutDataSource(project, request);
                 final DataSourceSettings merged = mergeCarriedForwardSecrets(current, validated.type(), encryptedNew, request);
-                final DataSource encrypted = new DataSource(validated.name(), validated.type(), validated.description(), merged);
+                final DataSource encrypted = new DataSource(
+                    validated.name(),
+                    validated.type(),
+                    validated.description(),
+                    merged,
+                    current == null ? true : current.enabled()
+                );
                 final Map<String, DataSource> updated = new HashMap<>(metadata.dataSources());
                 updated.put(encrypted.name(), encrypted);
                 return ClusterState.builder(currentState)
@@ -328,6 +337,57 @@ public class DataSourceService {
             }
         };
         taskQueue.submitTask("delete-esql-data-source-metadata-" + names, task, task.timeout());
+    }
+
+    /**
+     * Enable or disable data sources by name. Idempotent if already in the target state.
+     * Fails with 404 if a name does not exist.
+     */
+    public void setDataSourcesEnabled(
+        ProjectId projectId,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        Collection<String> names,
+        boolean enabled,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        final ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
+        final DataSourceMetadata metadata = getMetadata(projectMetadata);
+        final Optional<String> notFound = names.stream().filter(n -> metadata.get(n) == null).findAny();
+        if (notFound.isPresent()) {
+            listener.onFailure(new ResourceNotFoundException("data source [{}] not found", notFound.get()));
+            return;
+        }
+        logger.debug("submitting set enabled={} for data sources {}", enabled, names);
+        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(masterNodeTimeout, ackTimeout, listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                final ProjectMetadata project = currentState.metadata().getProject(projectId);
+                final DataSourceMetadata current = getMetadata(project);
+                final Map<String, DataSource> updated = new HashMap<>(current.dataSources());
+                boolean changed = false;
+                for (String name : names) {
+                    final DataSource existing = updated.get(name);
+                    if (existing == null) {
+                        throw new ResourceNotFoundException("data source [{}] not found", name);
+                    }
+                    final DataSource next = existing.withEnabled(enabled);
+                    if (next != existing) {
+                        updated.put(name, next);
+                        changed = true;
+                    }
+                }
+                if (changed == false) {
+                    return currentState;
+                }
+                return ClusterState.builder(currentState)
+                    .putProjectMetadata(
+                        ProjectMetadata.builder(project).putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(updated))
+                    )
+                    .build();
+            }
+        };
+        taskQueue.submitTask("set-enabled-esql-data-source-metadata-" + names, task, task.timeout());
     }
 
 }

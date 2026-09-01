@@ -43,14 +43,15 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
 
     @Override
     protected Dataset mutateInstance(Dataset instance) {
-        return switch (randomIntBetween(0, 5)) {
+        return switch (randomIntBetween(0, 6)) {
             case 0 -> new Dataset(
                 randomValueOtherThan(instance.name(), () -> randomAlphaOfLength(8).toLowerCase(Locale.ROOT)),
                 instance.dataSource(),
                 instance.resource(),
                 instance.description(),
                 instance.settings(),
-                instance.mapping()
+                instance.mapping(),
+                instance.enabled()
             );
             case 1 -> new Dataset(
                 instance.name(),
@@ -58,7 +59,8 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
                 instance.resource(),
                 instance.description(),
                 instance.settings(),
-                instance.mapping()
+                instance.mapping(),
+                instance.enabled()
             );
             case 2 -> new Dataset(
                 instance.name(),
@@ -66,7 +68,8 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
                 randomValueOtherThan(instance.resource(), () -> "s3://" + randomAlphaOfLength(6) + "/" + randomAlphaOfLength(6)),
                 instance.description(),
                 instance.settings(),
-                instance.mapping()
+                instance.mapping(),
+                instance.enabled()
             );
             case 3 -> new Dataset(
                 instance.name(),
@@ -74,7 +77,8 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
                 instance.resource(),
                 randomValueOtherThan(instance.description(), () -> randomAlphaOfLengthBetween(1, 16)),
                 instance.settings(),
-                instance.mapping()
+                instance.mapping(),
+                instance.enabled()
             );
             case 4 -> new Dataset(
                 instance.name(),
@@ -82,16 +86,28 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
                 instance.resource(),
                 instance.description(),
                 randomValueOtherThan(instance.settings(), DatasetTests::randomSettings),
-                instance.mapping()
+                instance.mapping(),
+                instance.enabled()
             );
-            default -> new Dataset(
+            case 5 -> new Dataset(
                 instance.name(),
                 instance.dataSource(),
                 instance.resource(),
                 instance.description(),
                 instance.settings(),
-                randomValueOtherThan(instance.mapping(), DatasetTests::randomMappingOrNull)
+                randomValueOtherThan(instance.mapping(), DatasetTests::randomMappingOrNull),
+                instance.enabled()
             );
+            case 6 -> new Dataset(
+                instance.name(),
+                instance.dataSource(),
+                instance.resource(),
+                instance.description(),
+                instance.settings(),
+                instance.mapping(),
+                instance.enabled() == false
+            );
+            default -> throw new AssertionError("unexpected mutation index");
         };
     }
 
@@ -102,7 +118,8 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
             "s3://" + randomAlphaOfLength(8) + "/" + randomAlphaOfLength(6) + ".parquet",
             randomBoolean() ? null : randomAlphaOfLengthBetween(0, 32),
             randomSettings(),
-            randomMappingOrNull()
+            randomMappingOrNull(),
+            randomBoolean()
         );
     }
 

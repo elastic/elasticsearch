@@ -448,6 +448,12 @@ ds_dataset_delete:
     - names: [ 'security_it_ds_*' ]
       privileges: [ 'delete_dataset' ]
 
+ds_dataset_manage:
+  cluster: []
+  indices:
+    - names: [ 'security_it_ds_*' ]
+      privileges: [ 'manage_dataset' ]
+
 # read on the dataset names, no datasource grant — sufficient to query FROM <dataset>.
 ds_dataset_query_no_datasource:
   cluster: []

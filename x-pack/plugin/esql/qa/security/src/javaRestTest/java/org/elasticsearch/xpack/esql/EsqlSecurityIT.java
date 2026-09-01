@@ -125,6 +125,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("ds_dataset_create_read_metadata_datasource", "x-pack-test-password", "ds_dataset_create_read_metadata_datasource", false)
         .user("ds_dataset_read_metadata", "x-pack-test-password", "ds_dataset_read_metadata", false)
         .user("ds_dataset_delete", "x-pack-test-password", "ds_dataset_delete", false)
+        .user("ds_dataset_manage", "x-pack-test-password", "ds_dataset_manage", false)
         .user("ds_dataset_query_no_datasource", "x-pack-test-password", "ds_dataset_query_no_datasource", false)
         .user("ds_dataset_query_dls", "x-pack-test-password", "ds_dataset_query_dls", false)
         .user("ds_dataset_query_fls", "x-pack-test-password", "ds_dataset_query_fls", false)
@@ -2495,6 +2496,67 @@ public class EsqlSecurityIT extends ESRestTestCase {
         Request delete = new Request("DELETE", "/_query/data_source/" + name);
         setUser(delete, "test-admin");
         assertOK(client().performRequest(delete));
+    }
+
+    public void testDisableDataSourceRequiresManagePrivilege() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        Request forbidden = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_disable");
+        setUser(forbidden, "ds_read_metadata_datasource");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(forbidden));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(ex.getMessage(), containsString("cluster:admin/esql/data_source/disable"));
+
+        Request forbiddenEnable = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_enable");
+        setUser(forbiddenEnable, "ds_read_metadata_datasource");
+        ResponseException enableEx = expectThrows(ResponseException.class, () -> client().performRequest(forbiddenEnable));
+        assertThat(enableEx.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(enableEx.getMessage(), containsString("cluster:admin/esql/data_source/enable"));
+
+        Request allowed = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_disable");
+        setUser(allowed, "ds_manage_datasource");
+        assertOK(client().performRequest(allowed));
+        Request reenable = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_enable");
+        setUser(reenable, "ds_manage_datasource");
+        assertOK(client().performRequest(reenable));
+    }
+
+    public void testDisableDatasetRequiresManageDatasetPrivilege() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String datasetName = "security_it_ds_toggle_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        Request put = new Request("PUT", "/_query/dataset/" + datasetName);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("data_source", SECURITY_IT_SHARED_DATASOURCE);
+        builder.field("resource", "s3://bucket/path/*.parquet");
+        builder.endObject();
+        put.setJsonEntity(Strings.toString(builder));
+        setUser(put, "test-admin");
+        assertOK(client().performRequest(put));
+        try {
+            Request forbidden = new Request("POST", "/_query/dataset/" + datasetName + "/_disable");
+            setUser(forbidden, "ds_dataset_read_metadata");
+            ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(forbidden));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+
+            Request forbiddenEnable = new Request("POST", "/_query/dataset/" + datasetName + "/_enable");
+            setUser(forbiddenEnable, "ds_dataset_read_metadata");
+            ResponseException enableEx = expectThrows(ResponseException.class, () -> client().performRequest(forbiddenEnable));
+            assertThat(enableEx.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+            assertThat(enableEx.getMessage(), containsString("indices:admin/esql/dataset/enable"));
+
+            Request allowed = new Request("POST", "/_query/dataset/" + datasetName + "/_disable");
+            setUser(allowed, "ds_dataset_manage");
+            assertOK(client().performRequest(allowed));
+            Request reenable = new Request("POST", "/_query/dataset/" + datasetName + "/_enable");
+            setUser(reenable, "ds_dataset_manage");
+            assertOK(client().performRequest(reenable));
+        } finally {
+            Request delete = new Request("DELETE", "/_query/dataset/" + datasetName);
+            setUser(delete, "test-admin");
+            client().performRequest(delete);
+        }
     }
 
     public void testPutDatasetForbiddenWithoutCreateDatasetPrivilege() throws IOException {

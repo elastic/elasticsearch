@@ -235,3 +235,84 @@ setup:
   - do:
       esql.delete_data_source:
         name: parent
+
+---
+"enable-disable-data-source-and-dataset":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query/data_source/{name}/_disable
+          capabilities: [data_source_dataset_enable_disable]
+      test_runner_features: capabilities
+      reason: "enable/disable APIs for data sources and datasets"
+
+  - do:
+      esql.put_data_source:
+        name: toggle_parent
+        body:
+          type: s3
+          settings:
+            auth: anonymous
+
+  - do:
+      esql.put_dataset:
+        name: toggle_child
+        body:
+          data_source: toggle_parent
+          resource: "s3://x/*.csv"
+
+  - do:
+      esql.get_data_source:
+        name: toggle_parent
+
+  - match: { data_sources.0.enabled: true }
+
+  - do:
+      esql.disable_data_source:
+        name: toggle_parent
+
+  - do:
+      esql.get_data_source:
+        name: toggle_parent
+
+  - match: { data_sources.0.enabled: false }
+
+  - do:
+      catch: /disabled data source/
+      esql.put_dataset:
+        name: new_against_disabled
+        body:
+          data_source: toggle_parent
+          resource: "s3://y/*.csv"
+
+  - do:
+      esql.enable_data_source:
+        name: toggle_parent
+
+  - do:
+      esql.get_dataset:
+        name: toggle_child
+
+  - match: { datasets.0.enabled: true }
+
+  - do:
+      esql.disable_dataset:
+        name: toggle_child
+
+  - do:
+      esql.get_dataset:
+        name: toggle_child
+
+  - match: { datasets.0.enabled: false }
+
+  - do:
+      esql.enable_dataset:
+        name: toggle_child
+
+  - do:
+      esql.delete_dataset:
+        name: toggle_child
+
+  - do:
+      esql.delete_data_source:
+        name: toggle_parent

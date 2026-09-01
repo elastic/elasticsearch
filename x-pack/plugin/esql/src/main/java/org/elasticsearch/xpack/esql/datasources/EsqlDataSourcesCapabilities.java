@@ -23,5 +23,13 @@ public final class EsqlDataSourcesCapabilities {
      */
     public static final String DATA_SOURCES_SERVERLESS_SCOPE = "data_sources_serverless_scope";
 
+    /**
+     * Signals that this node exposes enable/disable endpoints for data sources and datasets
+     * ({@code POST /_query/data_source/{name}/_enable|_disable} and
+     * {@code POST /_query/dataset/{name}/_enable|_disable}), and that GET responses include an
+     * {@code enabled} field.
+     */
+    public static final String DATA_SOURCE_DATASET_ENABLE_DISABLE = "data_source_dataset_enable_disable";
+
     private EsqlDataSourcesCapabilities() {}
 }

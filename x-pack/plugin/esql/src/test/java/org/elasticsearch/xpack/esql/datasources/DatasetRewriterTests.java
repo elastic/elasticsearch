@@ -250,6 +250,25 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("unknown data source [missing_parent]"));
     }
 
+    public void testDisabledDatasetFailsWithVerificationException() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of(), null, false);
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("logs"), project));
+        assertThat(ex.getMessage(), containsString("dataset [logs] is disabled"));
+    }
+
+    public void testDisabledParentDataSourceFailsWithVerificationException() {
+        DataSource parent = new DataSource("s3_parent", "test", null, Map.of(), false);
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("logs"), project));
+        assertThat(ex.getMessage(), containsString("data source [s3_parent]"));
+        assertThat(ex.getMessage(), containsString("is disabled"));
+    }
+
     public void testNonSecretSettingsArriveAsTheirOriginalValue() {
         // Non-secret settings are placed in the carrier as their underlying Object (String, Integer,
         // Boolean...). Asserts that mergeSettings does not transform them.

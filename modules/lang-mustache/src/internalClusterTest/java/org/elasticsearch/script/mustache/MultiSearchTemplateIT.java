@@ -228,10 +228,14 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         sb.append("]}");
         String largeTemplate = sb.toString();
 
-        // Tighten the REQUEST breaker to 10 KB. The render estimate for the first item (~32 KB)
-        // already exceeds this limit, so the breaker trips immediately and every slot is a CBE.
+        // Tighten the REQUEST breaker to 1 byte so that any positive charge trips it immediately,
+        // regardless of any pre-existing state in the breaker. The render estimate for the first
+        // item alone is 512 B (RENDER_BASE_OVERHEAD), which already exceeds this limit. Using
+        // "1b" instead of a KB-range value avoids races where the breaker's accumulated bytes
+        // from concurrent or preceding operations happen to leave just enough room under a larger
+        // limit for the charge to succeed.
         updateClusterSettings(
-            Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10kb")
+            Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "1b")
         );
         try {
             int numRequests = 20;

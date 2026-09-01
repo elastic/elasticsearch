@@ -202,7 +202,7 @@ The document is accepted. The behavior depends on which constraint was violated:
 Redirected values are visible in [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) only. The failure column is **not** searchable, not returned by the `fields` API, and not visible to aggregations or ES|QL — the field continues to present itself as single-valued to all of those paths. Only the first value per document participates in search, aggregation, and ES|QL queries.
 ::::
 
-The following example demonstrates the single-field round-trip. Indexing `["val1","val2","val3"]` into a field mapped with `multi_value: false, on_failure: ignore` keeps `val1` as the queryable doc value and redirects `val2` and `val3` to the sidecar. The `_source` reconstruction returns all three values in their original order; `_ignored` records the field name; and a `term` query on the redirected values finds no documents:
+The following example shows the single-field round trip:
 
 ```console
 PUT my-on-failure-index
@@ -212,20 +212,22 @@ PUT my-on-failure-index
     "properties": {
       "kw": {
         "type": "keyword",
-        "doc_values": { "multi_value": false, "on_failure": "ignore" }
+        "doc_values": { "multi_value": false, "on_failure": "ignore" } <1>
       }
     }
   }
 }
 
 PUT my-on-failure-index/_doc/1
-{ "kw": ["val1", "val2", "val3"] }
+{ "kw": ["val1", "val2", "val3"] } <2>
 
-GET my-on-failure-index/_doc/1?stored_fields=_ignored
+GET my-on-failure-index/_doc/1?stored_fields=_ignored <3>
 ```
 % TEST[skip:requires the doc_values_on_failure feature flag]
 
-The response returns `_source.kw: ["val1","val2","val3"]` and `_ignored: ["kw"]`. A `term` query on `val2` or `val3` returns zero hits.
+1. `kw` keeps only the first value per document; extra values are redirected to the hidden `kw._on_failure` column instead of rejecting the document.
+2. Indexes three values. `val1` becomes the queryable doc value; `val2` and `val3` are redirected to the sidecar.
+3. `_source.kw` returns all three original values in their original order; `_ignored` contains `"kw"`. A `term` query on `val2` or `val3` returns zero hits.
 
 ### Interaction with multi-fields [doc-values-on-failure-multi-fields]
 
@@ -241,7 +243,7 @@ The index-level defaults ([`index.mapping.doc_values.multi_value`](#doc-values-m
 A sub-field with `multi_value: false` at the default `on_failure: fail` rejects the entire document. This occurs even when its parent is configured to ignore the violation, because each field's `on_failure` setting is evaluated independently.
 ::::
 
-The following example illustrates the asymmetry. The parent `kw` is configured with `multi_value: false, on_failure: ignore`, while the sub-field `kw.raw` uses the defaults. Indexing `["val1","val2"]` keeps `val1` in `kw` and indexes both values in `kw.raw`:
+The following example shows the asymmetry between a parent field and its multi-field:
 
 ```console
 PUT my-on-failure-multifield-index
@@ -251,9 +253,9 @@ PUT my-on-failure-multifield-index
     "properties": {
       "kw": {
         "type": "keyword",
-        "doc_values": { "multi_value": false, "on_failure": "ignore" },
+        "doc_values": { "multi_value": false, "on_failure": "ignore" }, <1>
         "fields": {
-          "raw": { "type": "keyword" }
+          "raw": { "type": "keyword" } <2>
         }
       }
     }
@@ -261,16 +263,19 @@ PUT my-on-failure-multifield-index
 }
 
 PUT my-on-failure-multifield-index/_doc/1
-{ "kw": ["val1", "val2"] }
+{ "kw": ["val1", "val2"] } <3>
 
 GET my-on-failure-multifield-index/_search
 {
-  "query": { "term": { "kw.raw": "val2" } }
+  "query": { "term": { "kw.raw": "val2" } } <4>
 }
 ```
 % TEST[skip:requires the doc_values_on_failure feature flag]
 
-After indexing, a `term` query on `kw: "val2"` returns zero hits, but a `term` query on `kw.raw: "val2"` returns one hit. The document's `_ignored` field contains `"kw"` (the parent) but not `"kw.raw"` (the multi-field).
+1. `kw` keeps only the first value and redirects the rest. `_ignored` records `"kw"` for the redirected value.
+2. `kw.raw` uses the defaults and indexes every value passed to it, including values that the parent redirected.
+3. `kw` stores only `val1`; `kw.raw` stores both `val1` and `val2`. `_ignored` contains `"kw"` but not `"kw.raw"`.
+4. Returns one hit. The same `term` query on `kw: "val2"` returns zero hits.
 
 ## Multi-valued doc values ordering
 

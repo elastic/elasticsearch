@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.logging.Logger;
@@ -213,6 +214,7 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -2655,22 +2657,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan.withInferenceResolutionError(inferenceId, error);
             }
 
-            if (resolvedInference.taskType() != plan.taskType()) {
+            EnumSet<TaskType> acceptedTaskTypes = plan.acceptedTaskTypes();
+            if (acceptedTaskTypes.contains(resolvedInference.taskType()) == false) {
                 String error = "cannot use inference endpoint ["
                     + inferenceId
                     + "] with task type ["
                     + resolvedInference.taskType()
                     + "] within a "
                     + plan.nodeName()
-                    + " command. Only inference endpoints with the task type ["
-                    + plan.taskType()
-                    + "] are supported.";
+                    + " command. Only inference endpoints with the task type "
+                    + acceptedTaskTypes
+                    + " are supported.";
                 return plan.withInferenceResolutionError(inferenceId, error);
             }
 
             if (plan.isFoldable()) {
                 // Transform foldable InferencePlan to Eval with function call
                 return transformToEval(plan, inferenceId);
+            }
+
+            // DENSE_VECTOR routes text inputs by the endpoint's task type, so record it on the node for the planner.
+            if (plan instanceof DenseVector denseVector) {
+                return denseVector.withEndpointTaskType(resolvedInference.taskType());
             }
 
             return plan;

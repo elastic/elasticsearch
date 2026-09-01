@@ -427,16 +427,16 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         Arrays.stream(nodeIds).forEach(id -> nodesBuilder.add(DiscoveryNodeUtils.create(id)));
         DiscoveryNodes nodes = nodesBuilder.build();
-        final Set<ShardSearchContextId> freedContexts = new CopyOnWriteArraySet<>();
+        final Set<ShardSearchContextId> markedContexts = new CopyOnWriteArraySet<>();
         SearchTransportService searchTransportService = new SearchTransportService(mockTransportService, null, null) {
 
             @Override
-            public void sendFreeContext(
+            public void sendMarkContextAsRelocating(
                 Transport.Connection connection,
                 ShardSearchContextId contextId,
                 ActionListener<SearchFreeContextResponse> listener
             ) {
-                freedContexts.add(contextId);
+                markedContexts.add(contextId);
             }
 
             @Override
@@ -474,10 +474,10 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 nodes,
                 logger
             );
-            assertEquals(0, freedContexts.size());
+            assertEquals(0, markedContexts.size());
             assertSame(reEncodedId, pointInTimeBuilder.getEncodedId());
         }
-        freedContexts.clear();
+        markedContexts.clear();
         {
             // case 2, some results are from different nodes but have same context Ids
             ArrayList<SearchPhaseResult> results = new ArrayList<>();
@@ -529,15 +529,15 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 assertNotNull(reEncoded);
                 if (shardsWithSwappedNodes.contains(shardId)) {
                     assertNotEquals(original.getNode(), reEncoded.getNode());
-                    assertTrue(freedContexts.contains(reEncoded.getSearchContextId()));
+                    assertTrue(markedContexts.contains(reEncoded.getSearchContextId()));
                 } else {
                     assertEquals(original.getNode(), reEncoded.getNode());
-                    assertFalse(freedContexts.contains(reEncoded.getSearchContextId()));
+                    assertFalse(markedContexts.contains(reEncoded.getSearchContextId()));
                 }
                 assertEquals(original.getSearchContextId(), reEncoded.getSearchContextId());
             }
         }
-        freedContexts.clear();
+        markedContexts.clear();
         {
             // case 3, result shard ids are identical to original PIT id but some are missing. Stay with original PIT id in this case
             ArrayList<SearchPhaseResult> results = new ArrayList<>();

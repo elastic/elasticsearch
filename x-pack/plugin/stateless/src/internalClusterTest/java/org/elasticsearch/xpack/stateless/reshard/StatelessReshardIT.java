@@ -3622,9 +3622,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         var setup = startHandoffRestartCluster();
 
         // Throw rather than block so the cluster applier thread is never parked inside the intercept.
-        // Parking it would stall ack of the new master's first publication, deadlocking the restart.
-        // ConnectTransportException is a master-channel exception, so ShardStateAction re-registers
-        // a ClusterStateObserver retry — the applier thread stays free to ack the publication.
+        // Parking it might stall ack of the new master's first publication, deadlocking the restart.
         AtomicBoolean suppressShardStarted = new AtomicBoolean(true);
         AtomicReference<String> retryThread = new AtomicReference<>();
         CountDownLatch masterStopped = new CountDownLatch(1);

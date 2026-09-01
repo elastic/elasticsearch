@@ -231,12 +231,9 @@ public final class QuerySettings {
     }
 
     /**
-     * The cluster settings derived from the registry — one per setting declared with
-     * {@link QuerySettingDef.Builder#withClusterDefault()}. Registered by
-     * {@link org.elasticsearch.xpack.esql.plugin.EsqlPlugin#getSettings()}; a setting without an operator default
-     * contributes nothing, so its key stays unknown and is rejected as a typo.
-     * <p>
-     * Derived, never hand-maintained: opting a setting in is one word at its declaration, and this list follows.
+     * The cluster settings derived from the registry, for {@code EsqlPlugin.getSettings()} to register. A setting
+     * without an operator default contributes nothing, so its key stays unknown and a typo is rejected. Public only
+     * because the plugin is in another package.
      */
     public static List<Setting<?>> clusterSettings() {
         List<Setting<?>> out = new ArrayList<>();
@@ -357,14 +354,10 @@ public final class QuerySettings {
     /**
      * Folds {@code registry default < cluster < request body < in-query SET} into a single {@link ResolvedSettings},
      * applying each setting's {@link QuerySettingDef#reconciler()} at every step. The chain is ordered by whose
-     * decision a value is: the product's default, then the operator's, then the calling application's, then the
-     * query author's, each narrower scope of authority overriding the broader one.
+     * decision a value is: the product's, the operator's, the calling application's, the query author's.
      *
-     * @param clusterDefaults the cluster settings as an operator left them — see
-     *     {@link ClusterQuerySettings}. Only keys an operator actually set contribute a layer; the fold reads
-     *     presence, never the derived setting's declared default, so an unset key leaves resolution exactly as it
-     *     was before operator defaults existed. {@link Settings#EMPTY} is the correct value for a caller with no
-     *     cluster context.
+     * @param clusterDefaults the cluster settings as an operator left them, see {@link ClusterQuerySettings};
+     *     {@link Settings#EMPTY} for a caller with no cluster context
      */
     public static ResolvedSettings resolve(
         Settings clusterDefaults,
@@ -375,8 +368,7 @@ public final class QuerySettings {
         return resolve(all(), clusterDefaults, requestParams, statement, ctx);
     }
 
-    // Package-private + parameterized over the registry, so the fold is unit-testable against a purpose-built
-    // setting without registering one JVM-globally — same seam, and same reason, as byName(List) above.
+    // Parameterized over the registry so the fold is testable against a purpose-built setting, as byName(List) is.
     static ResolvedSettings resolve(
         List<QuerySettingDef<?>> defs,
         Settings clusterDefaults,
@@ -409,10 +401,8 @@ public final class QuerySettings {
         SettingsValidationContext ctx,
         Map<QuerySettingDef<?>, Object> resolved
     ) {
-        // The bottom of the chain is the setting's default as it stands on this cluster: an operator's value if one
-        // is configured and usable, the registry default otherwise. The operator layer is not a separate fold step —
-        // it changes what the default IS, so it replaces rather than reconciles, and it is never treated as
-        // userSupplied: an operator's value was checked where the operator could see the failure.
+        // Never userSupplied: an operator's value was checked where the operator could see the failure, and must
+        // not be revalidated under the query-time context.
         T value = def.effectiveDefault(clusterDefaults);
         boolean userSupplied = false;
 

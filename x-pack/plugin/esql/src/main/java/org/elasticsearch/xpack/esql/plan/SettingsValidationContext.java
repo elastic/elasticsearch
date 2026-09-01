@@ -12,12 +12,10 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.transport.RemoteClusterService;
 
 /*
- * NOTE for anyone adding a field here: a field that cannot be determined when an operator WRITES a cluster setting
- * must not be readable by any setting declared with withClusterDefault(). Cluster-setting validation runs under a
- * static context built at class initialization (see QuerySettingDef), where only build-type-like facts are truthful;
- * crossProjectEnabled is already a placeholder there. The guard is structural but indirect — build() refuses
- * withClusterDefault() on a serverlessOnly setting, which today is exactly the set whose validators read the
- * placeholder. If you add a field in that category, extend that guard rather than relying on the correlation holding.
+ * Adding a field: cluster-setting validation runs under a static context (see QuerySettingDef), where only
+ * build-type facts are truthful and crossProjectEnabled is already a placeholder. build() keeps such validators off
+ * that path by refusing withClusterDefault() on serverlessOnly settings — today exactly the set that reads it. A new
+ * field in that category needs that guard extended, not the correlation trusted.
  */
 public record SettingsValidationContext(boolean crossProjectEnabled, boolean isSnapshot) {
 

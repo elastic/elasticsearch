@@ -16,19 +16,14 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.List;
 
 /**
- * The operator-supplied defaults currently in force, as a live view of the cluster settings derived from
- * {@link QuerySettings#clusterSettings()}. Read once per query by {@link QuerySettings#resolve} to contribute the
- * cluster layer of {@code default < cluster < body < SET}.
+ * The operator-supplied defaults currently in force, read once per query by {@link QuerySettings#resolve}.
  *
- * <p>Holds a {@link Settings} rather than a map of parsed values because the fold needs to know whether an operator
- * <b>set</b> a key, not what it would read if they had not. Each derived setting declares the registry default as
- * its own default, so a value-shaped view could not tell an unset key from one an operator set to the default —
- * a distinction that matters to a merging reconciler and to every check that asks whether a setting is
- * operator-configured.
+ * <p>Holds raw {@link Settings} rather than parsed values because each derived setting declares the registry default
+ * as its own, so a value-shaped view could not tell an unset key from one set to the default.
  *
- * <p>Updates arrive through the grouped settings-update consumer, which hands over the merged node and cluster-state
- * settings filtered to these keys. That single view therefore covers both write paths: a value in
- * {@code elasticsearch.yml} and one written with {@code PUT _cluster/settings}.
+ * <p>Updates arrive through the grouped settings-update consumer, which hands over node and cluster-state settings
+ * merged and filtered to these keys — so one view covers both {@code elasticsearch.yml} and
+ * {@code PUT _cluster/settings}.
  */
 public final class ClusterQuerySettings {
 
@@ -45,8 +40,8 @@ public final class ClusterQuerySettings {
 
     public ClusterQuerySettings(ClusterService clusterService) {
         List<Setting<?>> derived = QuerySettings.clusterSettings();
-        // Seed from node settings so a value in elasticsearch.yml is in force before the first cluster state is
-        // applied; the update consumer does not fire on registration, only on change.
+        // The update consumer does not fire on registration, so seed from node settings or an elasticsearch.yml
+        // value would not apply until something unrelated changed.
         this.values = filterToDerived(clusterService.getSettings(), derived);
         reportUnusableValues(this.values);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(updated -> {
@@ -56,12 +51,9 @@ public final class ClusterQuerySettings {
     }
 
     /**
-     * Log any configured value this node cannot use. A value is refused when it is written, and an invalid one in
-     * recovered cluster state is archived rather than applied, so this fires only for state that arrived over the
-     * wire without either check — a node joining a running cluster, or a mixed-version cluster whose master accepted
-     * a value this node cannot use. Resolution falls back to the built-in default for such a value rather than
-     * failing queries, which would otherwise leave the operator with no signal at all; this is that signal, on the
-     * operator's own channel and once per observation rather than once per query.
+     * Log any configured value this node cannot use. Resolution falls back to the built-in default for such a value
+     * rather than failing queries, so without this the operator would have no signal at all. Fires once per
+     * observation, not once per query.
      */
     private static void reportUnusableValues(Settings settings) {
         for (QuerySettingDef<?> def : QuerySettings.all()) {

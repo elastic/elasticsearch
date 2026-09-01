@@ -294,13 +294,9 @@ public final class QuerySettingDef<T> {
 
     /**
      * The cluster setting backing this setting's default, or {@code null} if it was not declared with
-     * {@link Builder#withClusterDefault()}. Derived at {@code build()} from the factory's own string parser;
-     * registered with the node by {@link QuerySettings#clusterSettings()}.
-     * <p>
-     * Its declared default <b>is</b> {@link #defaultValue()} — there is one default in the system, and an operator
-     * overrides it rather than adding a second, so {@code include_defaults} reports the value queries actually get.
-     * Resolution does not read this {@link Setting} at all: see {@link #effectiveDefault}, which reads the raw value
-     * and parses it without validating.
+     * {@link Builder#withClusterDefault()}. Its declared default is {@link #defaultValue()}, so
+     * {@code include_defaults} reports the value queries actually get. Resolution does not read it — see
+     * {@link #effectiveDefault}.
      */
     @Nullable
     public Setting<T> clusterSetting() {
@@ -308,33 +304,22 @@ public final class QuerySettingDef<T> {
     }
 
     /**
-     * This setting's default, as it stands on this cluster: the operator's value if one is configured and usable, and
-     * the registry default otherwise. This is the bottom of the precedence chain — a per-query source still overrides
-     * whatever comes back.
+     * This setting's default as it stands on this cluster: the operator's value when one is configured and usable,
+     * the registry default otherwise. An operator changes what the default is, so their value replaces it rather than
+     * reconciling with it — reconciling would merge a structured value with the product's default.
      * <p>
-     * The operator's value <b>replaces</b> the registry default rather than reconciling with it. There is one default
-     * in the system and an operator changes what it is; folding the two through the reconciler would merge a
-     * structured value with the product's default instead of substituting it.
-     * <p>
-     * Deliberately <b>not</b> {@link Setting#get(Settings)}, which re-runs the validator on every read and would throw
-     * on a stored value whose verdict has since changed. An operator's value is checked where the operator can see the
-     * failure — on {@code PUT _cluster/settings} and on the {@code elasticsearch.yml} pass at startup. Here a value
-     * that no longer parses or no longer validates falls back to the registry default rather than failing the query:
-     * an operator's stale configuration must neither fail every query nor quietly stay in force after it stopped
-     * being allowed. {@link #clusterValueError} reports the same condition for logging.
-     * <p>
-     * Reaching this is narrow, because the two paths that read persisted state check it first: an invalid value in
-     * {@code elasticsearch.yml} stops the node starting, and one in recovered cluster state is archived rather than
-     * applied ({@code AbstractScopedSettings#archiveUnknownOrInvalidSettings} calls {@code Setting#get}, so it runs
-     * this validator too). What is left is cluster state arriving over the wire without that pass — a node joining a
-     * running cluster, or a mixed-version cluster whose master accepted a value this node cannot use.
+     * Not {@link Setting#get(Settings)}, which validates on every read and would throw on a stored value whose verdict
+     * has since changed. An operator's value is checked where the operator sees the failure, on
+     * {@code PUT _cluster/settings} and at startup for {@code elasticsearch.yml}; a value that has since stopped being
+     * usable falls back here rather than failing the query, and {@link #clusterValueError} reports why. That is
+     * reachable only for cluster state arriving over the wire, since yml is validated at startup and recovered state
+     * is archived rather than applied.
      */
     T effectiveDefault(Settings clusterDefaults) {
         String raw = clusterSetting == null ? null : clusterDefaults.get(clusterSetting.getKey());
         if (raw == null) {
-            // Covers both an absent key and a present-but-null one. Testing Setting#exists as well would add
-            // nothing: an absent key reads as null, and a putNull entry is present yet also reads as null, so this
-            // branch is the one that fires either way — and "unset" is the right reading of both.
+            // Absent and present-but-null both read as null here, and "unset" is the right reading of both, so
+            // testing Setting#exists as well would add nothing.
             return defaultValue;
         }
         T parsed;
@@ -353,9 +338,7 @@ public final class QuerySettingDef<T> {
             }
         }
         try {
-            // Canonicalized here rather than only on the way into the resolved view, so that a canonicalizer which
-            // rejects this value falls back too. It is the one remaining path by which an operator's value could
-            // otherwise throw on the query path.
+            // The one remaining path by which an operator's value could otherwise throw on the query path.
             canonicalizer.apply(parsed);
         } catch (Exception e) {
             return defaultValue;
@@ -364,9 +347,9 @@ public final class QuerySettingDef<T> {
     }
 
     /**
-     * Why this setting's configured operator value cannot be used on this cluster, or {@code null} if there is no
-     * configured value or it is usable. Lets {@link ClusterQuerySettings} report a stale or inapplicable operator
-     * value on the operator's own channel, once when it is observed, rather than on every query.
+     * Why this setting's configured operator value cannot be used here, or {@code null} if there is none or it is
+     * usable. The counterpart to {@link #effectiveDefault}'s silent fallback: without it an operator would see their
+     * configuration simply not apply.
      */
     @Nullable
     String clusterValueError(Settings clusterDefaults) {
@@ -390,11 +373,7 @@ public final class QuerySettingDef<T> {
         }
     }
 
-    /**
-     * A non-null description of a throwable. {@link Exception#getMessage()} is nullable, and returning it raw would
-     * make this method report "usable" for a value {@link #effectiveDefault} is in fact falling back on — silent
-     * fallback with no operator signal, which is the one outcome this pair exists to prevent.
-     */
+    /** Never null: a null message here would report "usable" for a value {@link #effectiveDefault} is falling back on. */
     private static String describe(Exception e) {
         if (e.getMessage() != null) {
             return e.getMessage();

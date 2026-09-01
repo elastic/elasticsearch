@@ -466,8 +466,12 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
                 return true;
             }
         }
-        // If this shard is inactive for unexceptional events (with a slightly different definition to that used by getInactivePrimaryHealth
-        // above) and within the allowed grace period (aka buffer time) then it is considered provisionally inactive:
+        // If this shard is inactive for unexceptional events and within the allowed grace period (aka buffer time) then it is considered
+        // provisionally inactive:
+        // Note that the class of events considered "unexceptional" here is not the same as that implemented by getInactivePrimaryHealth and
+        // used above. Currently, getInactivePrimaryHealth() takes RecoverySource.Type into consideration (RESHARD_SPLITs are always
+        // unexceptional, incompleted PEER and EXISTING_STORE recoveries always exceptional), which this does not; and this takes
+        // UnassignedInfo.Reason.isExpectedTransient() into consideration, which getInactivePrimaryHealth().
         UnassignedInfo unassignedInfo = routing.unassignedInfo();
         return unassignedInfo != null
             && unassignedInfo.failedAllocations() == 0

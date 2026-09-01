@@ -122,7 +122,7 @@ public class GoogleCloudBlobStoreTests extends ESTestCase {
     public void testMultipartUploadSizeThresholdFlowsToBlobStore() {
         final ByteSizeValue threshold = ByteSizeValue.ofMb(10);
         final GoogleCloudStorageRepository repository = createRepositoryWithSetting(
-            GoogleCloudStorageRepository.MULTIPART_UPLOAD_SIZE_THRESHOLD.getKey(),
+            GoogleCloudStorageRepository.RESUMABLE_UPLOAD_SIZE_THRESHOLD.getKey(),
             threshold.getStringRep()
         );
         final GoogleCloudStorageBlobStore blobStore = repository.createBlobStore();

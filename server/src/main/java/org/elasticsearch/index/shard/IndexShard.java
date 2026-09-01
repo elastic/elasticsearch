@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -159,6 +160,7 @@ import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.RecoveryStateFactory;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -339,7 +341,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @SuppressWarnings("this-escape")
     public IndexShard(
         final ShardRouting shardRouting,
-        final RecoveryState recoveryState,
+        final RecoveryStateFactory recoveryStateFactory,
+        final DiscoveryNode localNode,
+        @Nullable final DiscoveryNode sourceNode,
         final IndexSettings indexSettings,
         final ShardPath path,
         final Store store,
@@ -372,14 +376,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
 
-        assert recoveryState.getShardId().equals(shardId)
-            : "recoveryState shardId [" + recoveryState.getShardId() + "] not equal to [" + shardId + "]";
-        final RecoverySource recoverySource = shardRouting.recoverySource();
-        assert recoveryState.getRecoverySource().equals(recoverySource)
-            : "recoveryState recovery source [" + recoveryState.getRecoverySource() + "] not equal to [" + recoverySource + "]";
-        assert recoveryState.getStage() == RecoveryState.Stage.CREATED : recoveryState.getStage();
-        this.recoveryState = Objects.requireNonNull(recoveryState);
-
+        assert localNode.getId().equals(shardRouting.currentNodeId())
+            : "localNode [" + localNode.getId() + "] must match shardRouting currentNodeId [" + shardRouting.currentNodeId() + "]";
+        this.recoveryState = Objects.requireNonNull(recoveryStateFactory.newRecoveryState(shardRouting, localNode, sourceNode));
         final Settings settings = indexSettings.getSettings();
         this.codecService = new CodecService(
             mapperService,

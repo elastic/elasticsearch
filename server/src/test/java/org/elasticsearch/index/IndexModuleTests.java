@@ -93,6 +93,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.RecoveryStateFactory;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ReaderContext;
@@ -694,7 +695,7 @@ public class IndexModuleTests extends ESTestCase {
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
 
         RecoveryState recoveryState = mock(RecoveryState.class);
-        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = singletonMap(
+        final Map<String, RecoveryStateFactory> recoveryStateFactories = singletonMap(
             "test_recovery",
             (shardRouting, targetNode, sourceNode) -> recoveryState
         );
@@ -720,7 +721,10 @@ public class IndexModuleTests extends ESTestCase {
 
         ShardRouting shard = createInitializedShardRouting();
 
-        assertThat(indexService.createRecoveryState(shard, mock(DiscoveryNode.class), mock(DiscoveryNode.class)), is(recoveryState));
+        assertThat(
+            indexService.getRecoveryStateFactory().newRecoveryState(shard, mock(DiscoveryNode.class), mock(DiscoveryNode.class)),
+            is(recoveryState)
+        );
 
         closeIndexService(indexService);
     }
@@ -781,10 +785,10 @@ public class IndexModuleTests extends ESTestCase {
             IndexService indexService = newIndexService(module);
             closeables.add(() -> closeIndexService(indexService));
 
-            final var recoveryState = new RecoveryState(shardRouting, DiscoveryNodeUtils.create("_node_id", "_node_id"), null);
             IndexShard indexShard = indexService.createShard(
                 shardRouting,
-                recoveryState,
+                DiscoveryNodeUtils.create("_node_id", "_node_id"),
+                null,
                 IndexShardTestCase.NOOP_GCP_SYNCER,
                 RetentionLeaseSyncer.EMPTY
             );

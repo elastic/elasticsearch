@@ -31,13 +31,7 @@ public class NoOpEngineRecoveryTests extends IndexShardTestCase {
 
         final ShardRouting shardRouting = indexShard.routingEntry();
         final ShardRouting reinitRouting = initWithSameId(shardRouting, ExistingStoreRecoverySource.INSTANCE);
-        IndexShard primary = reinitShard(
-            indexShard,
-            reinitRouting,
-            newRecoveryState(reinitRouting, null),
-            indexShard.indexSettings().getIndexMetadata(),
-            NoOpEngine::new
-        );
+        IndexShard primary = reinitShard(indexShard, reinitRouting, null, indexShard.indexSettings().getIndexMetadata(), NoOpEngine::new);
         recoverShardFromStore(primary);
         assertEquals(primary.seqNoStats().getMaxSeqNo(), primary.getMaxSeqNoOfUpdatesOrDeletes());
         assertEquals(nbDocs, primary.docStats().getCount());

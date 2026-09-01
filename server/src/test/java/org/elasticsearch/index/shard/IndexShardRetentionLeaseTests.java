@@ -235,7 +235,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
                 indexShard.routingEntry(),
                 RecoverySource.ExistingStoreRecoverySource.INSTANCE
             );
-            final IndexShard recoveredShard = reinitShard(indexShard, reinitRouting, newRecoveryState(reinitRouting, null));
+            final IndexShard recoveredShard = reinitShard(indexShard, reinitRouting, null);
             try {
                 recoverShardFromStore(recoveredShard);
                 final RetentionLeases recoveredRetentionLeases = recoveredShard.getEngine().config().retentionLeasesSupplier().get();
@@ -250,7 +250,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
                 indexShard.routingEntry(),
                 RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE
             );
-            final IndexShard forceRecoveredShard = reinitShard(indexShard, reinitRouting, newRecoveryState(reinitRouting, null));
+            final IndexShard forceRecoveredShard = reinitShard(indexShard, reinitRouting, null);
             try {
                 recoverShardFromStore(forceRecoveredShard);
                 final RetentionLeases recoveredRetentionLeases = forceRecoveredShard.getEngine().config().retentionLeasesSupplier().get();

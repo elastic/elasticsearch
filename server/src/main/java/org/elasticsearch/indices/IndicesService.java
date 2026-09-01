@@ -147,7 +147,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryListener;
-import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.RecoveryStateFactory;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
 import org.elasticsearch.node.Node;
@@ -273,7 +273,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final MetaStateService metaStateService;
     private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
-    private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
+    private final Map<String, RecoveryStateFactory> recoveryStateFactories;
     private final IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListeners;
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
     private final CountDownLatch stopLatch = new CountDownLatch(1);
@@ -1001,7 +1001,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final Consumer<IndexShard.ShardFailure> onShardFailure,
         final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final DiscoveryNode targetNode,
+        final DiscoveryNode localNode,
         final DiscoveryNode sourceNode,
         long clusterStateVersion
     ) throws IOException {
@@ -1009,14 +1009,13 @@ public class IndicesService extends AbstractLifecycleComponent
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
-        RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-        IndexShard indexShard = indexService.createShard(shardRouting, recoveryState, globalCheckpointSyncer, retentionLeaseSyncer);
+        IndexShard indexShard = indexService.createShard(shardRouting, localNode, sourceNode, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
 
         throttlingRecoveryService.enqueue(
             projectId,
             recoveryListener,
-            recoveryState,
+            indexShard.recoveryState(),
             indexService.getMetadata(),
             shardRouting.allocationId().getId(),
             indexShard.recoveryStats(),
@@ -1041,7 +1040,7 @@ public class IndicesService extends AbstractLifecycleComponent
                         ),
                         repositoriesService,
                         (mapping, l) -> {
-                            assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                            assert indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
                                 : "mapping update consumer only required by local shards recovery";
                             AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
                                 // concrete index - no name clash, it uses uuid

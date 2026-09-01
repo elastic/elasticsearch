@@ -10,9 +10,7 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -20,7 +18,7 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
-import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.RecoveryStateFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -70,23 +68,11 @@ public interface IndexStorePlugin {
     Map<String, DirectoryFactory> getDirectoryFactories();
 
     /**
-     * An interface that allows to create a new {@link RecoveryState} per shard.
-     */
-    @FunctionalInterface
-    interface RecoveryStateFactory {
-        /**
-         * Creates a new {@link RecoveryState} per shard. This method is called once per shard on shard creation.
-         * @return a new RecoveryState instance
-         */
-        RecoveryState newRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode);
-    }
-
-    /**
      * The {@link RecoveryStateFactory} mappings for this plugin. When an index is created the recovery type setting
      * {@link org.elasticsearch.index.IndexModule#INDEX_RECOVERY_TYPE_SETTING} on the index will be examined and either use the default
      * or looked up among all the recovery state factories from {@link IndexStorePlugin} plugins.
      *
-     * @return a map from recovery type to an recovery state factory
+     * @return a map from recovery type to a recovery state factory
      */
     default Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
         return Collections.emptyMap();

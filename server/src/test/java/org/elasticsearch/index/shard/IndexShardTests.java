@@ -738,10 +738,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
                 .withAllocationId(AllocationId.newRelocation(AllocationId.newInitializing()))
                 .build();
-            indexShard = newShard(
-                relocationTargetRouting,
-                newRecoveryState(relocationTargetRouting, DiscoveryNodeUtils.create("other_node"))
-            );
+            indexShard = newShard(relocationTargetRouting, DiscoveryNodeUtils.create("other_node"));
             assertEquals(0, indexShard.getActiveOperationsCount());
             isPrimaryMode = false;
         } else if (randomBoolean()) {
@@ -989,7 +986,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 final DiscoveryNode sourceNode = routing.recoverySource().getType() == RecoverySource.Type.PEER
                     ? DiscoveryNodeUtils.builder("sourceNode").build()
                     : null;
-                indexShard = newShard(routing, newRecoveryState(routing, sourceNode));
+                indexShard = newShard(routing, sourceNode);
                 engineClosed = true;
             }
             case 2 -> {
@@ -1227,7 +1224,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final AtomicBoolean synced = new AtomicBoolean();
         final IndexShard primaryShard = newShard(
             shardRouting,
-            newRecoveryState(shardRouting, null),
+            null,
             indexMetadata.build(),
             null,
             new InternalEngineFactory(),
@@ -1293,7 +1290,7 @@ public class IndexShardTests extends IndexShardTestCase {
         AtomicBoolean synced = new AtomicBoolean();
         IndexShard primaryShard = newShard(
             shardRouting,
-            newRecoveryState(shardRouting, null),
+            null,
             indexMetadata.build(),
             null,
             new InternalEngineFactory(),
@@ -1590,7 +1587,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1);
         IndexShard shard = newShard(
             shardRouting,
-            newRecoveryState(shardRouting, null),
+            null,
             indexMetadata.build(),
             null,
             new InternalEngineFactory(),
@@ -1728,7 +1725,7 @@ public class IndexShardTests extends IndexShardTestCase {
         try (Store store = createStore(shardId, new IndexSettings(metadata, Settings.EMPTY), directory)) {
             IndexShard shard = newShard(
                 shardRouting,
-                newRecoveryState(shardRouting, null),
+                null,
                 shardPath,
                 metadata,
                 i -> store,
@@ -2566,7 +2563,7 @@ public class IndexShardTests extends IndexShardTestCase {
             true,
             ShardRoutingState.INITIALIZING
         ).withRecoverySource(RecoverySource.ExistingStoreRecoverySource.INSTANCE).build();
-        IndexShard newShard = reinitShard(shard, reinitRouting, newRecoveryState(reinitRouting, null));
+        IndexShard newShard = reinitShard(shard, reinitRouting, null);
         newShard.markAsRecovering("store");
         assertTrue(recoverFromStore(newShard));
         assertEquals(replayedOps, newShard.recoveryState().getTranslog().recoveredOperations());
@@ -2632,7 +2629,7 @@ public class IndexShardTests extends IndexShardTestCase {
             true,
             ShardRoutingState.INITIALIZING
         ).withRecoverySource(RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE).build();
-        IndexShard newShard = reinitShard(shard, reinitRouting, newRecoveryState(reinitRouting, null));
+        IndexShard newShard = reinitShard(shard, reinitRouting, null);
         newShard.markAsRecovering("store");
         assertTrue(recoverFromStore(newShard));
         IndexShardTestCase.updateRoutingEntry(
@@ -2657,7 +2654,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardRouting primaryTargetRouting = primarySource.routingEntry().getTargetRelocatingShard();
         final IndexShard primaryTarget = newShard(
             primaryTargetRouting,
-            newRecoveryState(primaryTargetRouting, DiscoveryNodeUtils.builder(primarySource.routingEntry().currentNodeId()).build())
+            DiscoveryNodeUtils.builder(primarySource.routingEntry().currentNodeId()).build()
         );
         updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetadata());
         recoverReplica(primaryTarget, primarySource, true);
@@ -2697,7 +2694,7 @@ public class IndexShardTests extends IndexShardTestCase {
             primaryShardRouting,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE
         );
-        IndexShard newShard = reinitShard(otherShard, reinitRouting, newRecoveryState(reinitRouting, null));
+        IndexShard newShard = reinitShard(otherShard, reinitRouting, null);
         newShard.markAsRecovering("store");
         assertTrue(recoverFromStore(newShard));
         assertEquals(1, newShard.recoveryState().getTranslog().recoveredOperations());
@@ -2728,7 +2725,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 primaryShardRouting,
                 RecoverySource.ExistingStoreRecoverySource.INSTANCE
             );
-            newShard = reinitShard(newShard, loopReinitRouting, newRecoveryState(loopReinitRouting, null));
+            newShard = reinitShard(newShard, loopReinitRouting, null);
             newShard.markAsRecovering("store");
             assertTrue(recoverFromStore(newShard));
             try (Translog.Snapshot snapshot = getTranslog(newShard).newSnapshot()) {
@@ -2749,7 +2746,7 @@ public class IndexShardTests extends IndexShardTestCase {
             shardRouting,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
-        IndexShard newShard = reinitShard(shard, reinitRouting, newRecoveryState(reinitRouting, null));
+        IndexShard newShard = reinitShard(shard, reinitRouting, null);
 
         newShard.markAsRecovering("store");
         assertTrue(recoverFromStore(newShard));
@@ -2801,7 +2798,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         final ShardRouting reinitRouting = ShardRoutingHelper.initWithSameId(routing, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
-        newShard = reinitShard(newShard, reinitRouting, newRecoveryState(reinitRouting, null));
+        newShard = reinitShard(newShard, reinitRouting, null);
         newShard.markAsRecovering("store");
         assertTrue("recover even if there is nothing to recover", recoverFromStore(newShard));
 
@@ -2870,7 +2867,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ).withRecoverySource(RecoverySource.ExistingStoreRecoverySource.INSTANCE).build();
         IndexShard newShard = newShard(
             newShardRouting,
-            newRecoveryState(newShardRouting, null),
+            null,
             shard.shardPath(),
             newShardIndexMetadata,
             null,
@@ -2934,7 +2931,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 new IndexId("test", UUIDs.randomBase64UUID(random()))
             )
         );
-        target = reinitShard(target, routing, newRecoveryState(routing, null));
+        target = reinitShard(target, routing, null);
         Store sourceStore = source.store();
         Store targetStore = target.store();
 
@@ -3006,7 +3003,7 @@ public class IndexShardTests extends IndexShardTestCase {
         );
         IndexShard newShard = newShard(
             newShardRouting,
-            newRecoveryState(newShardRouting, null),
+            null,
             shard.shardPath(),
             shard.indexSettings().getIndexMetadata(),
             null,
@@ -3145,7 +3142,7 @@ public class IndexShardTests extends IndexShardTestCase {
         );
         IndexShard newShard = newShard(
             newShardRouting,
-            newRecoveryState(newShardRouting, null),
+            null,
             shard.shardPath(),
             shard.indexSettings().getIndexMetadata(),
             null,
@@ -3663,7 +3660,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard targetShard;
         Map<String, MappingMetadata> requestedMappingUpdates = ConcurrentCollections.newConcurrentMap();
         {
-            targetShard = newShard(targetRouting, newRecoveryState(targetRouting, null));
+            targetShard = newShard(targetRouting, null);
             targetShard.markAsRecovering("store");
 
             BiConsumer<MappingMetadata, ActionListener<Void>> mappingConsumer = (mapping, listener) -> {
@@ -4083,7 +4080,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         IndexShard corruptedShard = newShard(
             shardRouting,
-            newRecoveryState(shardRouting, null),
+            null,
             shardPath,
             indexMetadata,
             null,
@@ -4170,7 +4167,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // try to start shard on corrupted files
         final IndexShard corruptedShard = newShard(
             shardRouting,
-            newRecoveryState(shardRouting, null),
+            null,
             shardPath,
             indexMetadata,
             null,
@@ -4204,7 +4201,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // try to start another time shard on corrupted files
         final IndexShard corruptedShard2 = newShard(
             shardRouting,
-            newRecoveryState(shardRouting, null),
+            null,
             shardPath,
             indexMetadata,
             null,
@@ -4258,7 +4255,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .build();
         final IndexShard newShard = newShard(
             shardRouting,
-            newRecoveryState(shardRouting, isPrimary ? null : DiscoveryNodeUtils.builder("fake-source-node").build()),
+            isPrimary ? null : DiscoveryNodeUtils.builder("fake-source-node").build(),
             indexShard.shardPath(),
             indexMetadata,
             null,
@@ -5549,7 +5546,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard readonlyShard = reinitShard(
             shard,
             readonlyShardRouting,
-            newRecoveryState(readonlyShardRouting, null),
+            null,
             shard.indexSettings.getIndexMetadata(),
             engineConfig -> new ReadOnlyEngine(engineConfig, null, null, true, Function.identity(), true, randomBoolean()) {
                 @Override
@@ -6026,7 +6023,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
         final IndexShard replicaShard = newShard(
             shardRouting,
-            newRecoveryState(shardRouting, DiscoveryNodeUtils.builder(primary.routingEntry().currentNodeId()).build()),
+            DiscoveryNodeUtils.builder(primary.routingEntry().currentNodeId()).build(),
             shardPath,
             primary.indexSettings().getIndexMetadata(),
             null,
@@ -6176,7 +6173,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .build();
         IndexShard shard = newShard(
             shardRouting,
-            newRecoveryState(shardRouting, null),
+            null,
             new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId),
             IndexMetadata.builder("index")
                 .settings(indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())

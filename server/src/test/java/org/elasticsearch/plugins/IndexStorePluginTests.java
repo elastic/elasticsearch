@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.RecoveryStateFactory;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.test.ESTestCase;
 
@@ -85,7 +86,7 @@ public class IndexStorePluginTests extends ESTestCase {
         }
     }
 
-    public static class RecoveryFactory implements IndexStorePlugin.RecoveryStateFactory {
+    public static class RecoveryFactory implements RecoveryStateFactory {
         @Override
         public RecoveryState newRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, DiscoveryNode sourceNode) {
             return new RecoveryState(shardRouting, targetNode, sourceNode);

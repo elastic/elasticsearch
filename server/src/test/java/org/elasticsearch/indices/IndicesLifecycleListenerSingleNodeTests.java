@@ -124,8 +124,13 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
                 .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
             final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-            final RecoveryState recoveryState = new RecoveryState(newRouting, localNode, null);
-            IndexShard shard = index.createShard(newRouting, recoveryState, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
+            IndexShard shard = index.createShard(
+                newRouting,
+                localNode,
+                null,
+                IndexShardTestCase.NOOP_GCP_SYNCER,
+                RetentionLeaseSyncer.EMPTY
+            );
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(5, counter.get());
             shard.markAsRecovering("store");
@@ -172,8 +177,13 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
                 .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
             final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-            final RecoveryState recoveryState = new RecoveryState(newRouting, localNode, null);
-            IndexShard shard = index.createShard(newRouting, recoveryState, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
+            IndexShard shard = index.createShard(
+                newRouting,
+                localNode,
+                null,
+                IndexShardTestCase.NOOP_GCP_SYNCER,
+                RetentionLeaseSyncer.EMPTY
+            );
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             shard.markAsRecovering("store");
             IndexShardTestCase.recoverFromStore(shard);

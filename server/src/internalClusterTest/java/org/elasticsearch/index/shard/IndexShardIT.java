@@ -815,7 +815,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final var localNode = DiscoveryNodeUtils.builder(initializingShardRouting.currentNodeId()).build();
         return new IndexShard(
             initializingShardRouting,
-            new RecoveryState(initializingShardRouting, localNode, null),
+            RecoveryState::new,
+            localNode,
+            null,
             indexService.getIndexSettings(),
             shard.shardPath(),
             shard.store(),

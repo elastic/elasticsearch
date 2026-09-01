@@ -118,7 +118,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             .primaryTerm(0, primaryTerm)
             .putMapping("{\"_source\":{\"enabled\": false}}")
             .build();
-        IndexShard shard = newShard(shardRouting, newRecoveryState(shardRouting, null), metadata, null, new InternalEngineFactory());
+        IndexShard shard = newShard(shardRouting, null, metadata, null, new InternalEngineFactory());
         recoverShardFromStore(shard);
 
         for (int i = 0; i < 1; i++) {
@@ -177,7 +177,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
             .build();
         IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, primaryTerm).build();
-        IndexShard shard = newShard(shardRouting, newRecoveryState(shardRouting, null), metadata, null, new InternalEngineFactory());
+        IndexShard shard = newShard(shardRouting, null, metadata, null, new InternalEngineFactory());
         recoverShardFromStore(shard);
         SnapshotId snapshotId = new SnapshotId("test", "test");
         IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
@@ -235,7 +235,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 .settings(settings)
                 .primaryTerm(0, primaryTerm)
                 .build();
-            IndexShard shard = newShard(shardRouting, newRecoveryState(shardRouting, null), metadata, null, new InternalEngineFactory());
+            IndexShard shard = newShard(shardRouting, null, metadata, null, new InternalEngineFactory());
             recoverShardFromStore(shard);
             SnapshotId snapshotId = new SnapshotId("test", "test");
             IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
@@ -506,7 +506,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         );
         IndexShard restoredShard = newShard(
             shardRouting,
-            newRecoveryState(shardRouting, null),
+            null,
             metadata,
             null,
             SourceOnlySnapshotRepository.getEngineFactory(),
@@ -594,13 +594,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             .settings(settings)
             .primaryTerm(0, primaryTerm);
         metadata.putMapping(mapping);
-        IndexShard targetShard = newShard(
-            targetShardRouting,
-            newRecoveryState(targetShardRouting, null),
-            metadata.build(),
-            null,
-            new InternalEngineFactory()
-        );
+        IndexShard targetShard = newShard(targetShardRouting, null, metadata.build(), null, new InternalEngineFactory());
         boolean success = false;
         try {
             recoverShardFromStore(targetShard);

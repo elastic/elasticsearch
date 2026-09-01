@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.RamUsageEstimates;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -133,8 +134,7 @@ public record IndexMetadataStats(IndexWriteLoad indexWriteLoad, AverageShardSize
 
     @Override
     public long ramBytesUsed() {
-        // averageShardSize holds only primitives, so its shallow size is a complete accounting.
-        return BASE_RAM_BYTES_USED + indexWriteLoad.ramBytesUsed() + RamUsageEstimator.shallowSizeOf(averageShardSize);
+        return BASE_RAM_BYTES_USED + indexWriteLoad.ramBytesUsed() + RamUsageEstimates.shallowSizeOfPrimitiveOnly(averageShardSize);
     }
 
     public record AverageShardSize(long totalSizeInBytes, int numberOfShards) implements Writeable, ToXContentFragment {

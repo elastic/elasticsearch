@@ -64,6 +64,11 @@ public final class ReshardSearchFilters implements Closeable {
         IOUtils.closeWhileHandlingException(unownedBitsetCache);
     }
 
+    // visible for testing
+    ReshardUnownedBitsetCache unownedBitsetCache() {
+        return unownedBitsetCache;
+    }
+
     public DirectoryReader maybeWrapDirectoryReaderForPitRelocation(
         DirectoryReader reader,
         ShardId shardId,

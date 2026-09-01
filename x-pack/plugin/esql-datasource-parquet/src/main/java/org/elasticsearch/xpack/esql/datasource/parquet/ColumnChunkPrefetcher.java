@@ -160,9 +160,9 @@ final class ColumnChunkPrefetcher {
      * Pages whose row span does not overlap with {@code rowRanges} are excluded, reducing
      * the number of bytes fetched from remote storage.
      *
-     * <p>Dictionary pages (which sit before data pages) are always included since they are
-     * needed to decode any surviving page. Adjacent page ranges are merged by the caller
-     * via {@link CoalescedRangeReader#mergeRanges}.
+     * <p>Dictionary pages are included via {@link #dictionaryPageRange} when encodings
+     * advertise one and the OffsetIndex leaves a positive gap before the first data page.
+     * Adjacent page ranges are merged by the caller via {@link CoalescedRangeReader#mergeRanges}.
      *
      * @param block metadata for the row group
      * @param rowRanges selected row ranges (null = fall back to whole chunks)
@@ -200,13 +200,14 @@ final class ColumnChunkPrefetcher {
                 continue;
             }
 
-            long dictOffset = col.getDictionaryPageOffset();
-            long firstDataPageOffset = oi.getOffset(0);
-            if (dictOffset > 0 && dictOffset < firstDataPageOffset) {
-                ranges.add(new CoalescedRangeReader.ByteRange(dictOffset, firstDataPageOffset - dictOffset));
+            int pageCount = oi.getPageCount();
+            if (pageCount > 0) {
+                CoalescedRangeReader.ByteRange dictRange = dictionaryPageRange(col, oi.getOffset(0));
+                if (dictRange != null) {
+                    ranges.add(dictRange);
+                }
             }
 
-            int pageCount = oi.getPageCount();
             for (int p = 0; p < pageCount; p++) {
                 long pageStart = oi.getFirstRowIndex(p);
                 long pageEnd = (p + 1 < pageCount) ? oi.getFirstRowIndex(p + 1) : rowGroupRowCount;
@@ -228,6 +229,33 @@ final class ColumnChunkPrefetcher {
             result.add(new CoalescedRangeReader.ByteRange(mr.offset(), mr.length()));
         }
         return result;
+    }
+
+    /**
+     * Byte range covering the dictionary page of a filtered column chunk, or {@code null} when
+     * there is no dictionary to fetch.
+     *
+     * <p>{@code dictionary_page_offset == 0} means the Thrift field was omitted, not file offset
+     * 0 ({@code PAR1}). When encodings advertise a dictionary and that field is unset, the page
+     * sits in {@code [getStartingPos(), firstIndexedDataPageOffset)} — the same gap a sequential
+     * walk already consumes as {@code DICTIONARY_PAGE}. Writers may leave {@code data_page_offset}
+     * equal to the chunk start while the OffsetIndex points at the first real data page, so the
+     * offset-index bound is the one that locates the gap.
+     *
+     * @param column column chunk metadata
+     * @param firstIndexedDataPageOffset {@link OffsetIndex#getOffset(int) OffsetIndex.getOffset(0)} for this column
+     * @return range {@code [dictStart, firstIndexedDataPageOffset)}, or {@code null}
+     */
+    static CoalescedRangeReader.ByteRange dictionaryPageRange(ColumnChunkMetaData column, long firstIndexedDataPageOffset) {
+        if (column.hasDictionaryPage() == false) {
+            return null;
+        }
+        long dictOffset = column.getDictionaryPageOffset();
+        long dictStart = dictOffset > 0 ? dictOffset : column.getStartingPos();
+        if (dictStart > 0 && dictStart < firstIndexedDataPageOffset) {
+            return new CoalescedRangeReader.ByteRange(dictStart, firstIndexedDataPageOffset - dictStart);
+        }
+        return null;
     }
 
     /**

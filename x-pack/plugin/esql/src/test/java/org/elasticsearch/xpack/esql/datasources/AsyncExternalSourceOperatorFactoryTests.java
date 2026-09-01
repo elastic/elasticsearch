@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -71,6 +72,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.zip.GZIPOutputStream;
 
+import static org.hamcrest.Matchers.contains;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
@@ -692,10 +694,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             new SchemaReconciliation.FileSchemaInfo(fileSchema, mapping, null)
         );
 
-        DriverContext driverContext = mock(DriverContext.class);
-        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
-        doAnswer(inv -> null).when(driverContext).addAsyncAction();
-        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+        // A real context rather than this suite's usual mock: the absent-column warning is delivered into its warning
+        // sink, which a stub would swallow, leaving the assertion at the end of this method nothing to read.
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
@@ -730,8 +731,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             }
             operator.close();
         }
-        // Absent-column warnings are buffered on the producer thread and re-emitted from operator.close().
-        assertWarnings(SkipWarnings.absentDeclaredColumnMessage("city"));
+        driverContext.finish();
+        assertThat(driverContext.warnings(), contains(SkipWarnings.absentDeclaredColumnMessage("city")));
+        Releasables.close(driverContext.getSnapshot());
     }
 
     /**

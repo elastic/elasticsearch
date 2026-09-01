@@ -54,8 +54,9 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
- * Resolves {@link InSubquery} expressions in {@link Filter} conditions and {@link Eval} field definitions
- * by rewriting them into {@link SemiJoin}, {@link AntiJoin}, or {@link MarkJoin} nodes:
+ * Resolves {@link InSubquery} expressions in {@link Filter} conditions, {@link Eval} field definitions, and
+ * {@code STATS} / {@code INLINE STATS} per-aggregate {@code WHERE} filters by rewriting them into
+ * {@link SemiJoin}, {@link AntiJoin}, or {@link MarkJoin} nodes:
  * <ul>
  *   <li>An {@code InSubquery} (optionally wrapped in {@link Not}) at the top of an AND-conjunct
  *       in a {@link Filter} becomes a row-filtering {@link SemiJoin} / {@link AntiJoin} stacked on top of the
@@ -78,9 +79,14 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  *       {@link And}/{@link Or}/{@link Not}, {@link IsNull}/{@link IsNotNull}, and {@code CASE}/
  *       {@code COALESCE}. {@code InSubquery} wrapped in any other expression is left in place for
  *       {@link #verify} to reject.</li>
- *   <li>An {@code InSubquery} directly wrapped in any other expression, or nested inside a
- *       scope-bearing expression such as a lambda, is left in place; the post-resolution
- *       {@link #verify} step rejects the query with a {@link VerificationException}.</li>
+ *   <li>An {@code InSubquery} inside a {@code STATS} or {@code INLINE STATS} per-aggregate
+ *       {@code WHERE} filter (a {@link FilteredExpression} on an {@link Aggregate}) is replaced
+ *       with a synthetic boolean attribute and a {@link MarkJoin} is stacked below the aggregate's
+ *       child — MarkJoin-only, because the filter belongs to a single aggregate and must not drop
+ *       rows (or whole groups) feeding the other aggregates. See {@link #resolveInSubqueryInAggregate}.</li>
+ *   <li>An {@code InSubquery} wrapped in any other expression, or inside SORT / STATS BY / etc., is
+ *       left in place; the post-resolution {@link #verify} step rejects the query with a
+ *       {@link VerificationException}.</li>
  * </ul>
  * <p>
  * This runs before {@link PreAnalyzer} so the subquery plans, originally embedded inside
@@ -96,9 +102,10 @@ public class InSubqueryResolver {
 
     /**
      * Resolves all {@link InSubquery} expressions in {@link Filter} conditions, {@link Eval} field
-     * definitions, and {@code STATS} {@code WHERE} filters, and validates the result. Throws a
-     * {@link VerificationException} when an {@link InSubquery} survived rewriting (e.g. inside a
-     * SORT, STATS BY clause, or wrapped in a non-boolean expression).
+     * definitions, and {@code STATS} / {@code INLINE STATS} per-aggregate {@code WHERE} filters, and
+     * validates the result. Throws a {@link VerificationException} when an {@link InSubquery} survived
+     * rewriting (e.g. inside a SORT, a {@code STATS BY} or {@code LIMIT BY} clause, or wrapped in a
+     * non-supported expression).
      * <p>
      * Synchronous — does no I/O. Async callers should invoke this inside an
      * {@link org.elasticsearch.action.ActionListener#delegateFailureAndWrap delegateFailureAndWrap}
@@ -117,40 +124,20 @@ public class InSubqueryResolver {
         return resolved;
     }
 
-    private static LogicalPlan resolveInSubqueries(LogicalPlan plan) {
-        return resolveInSubqueries(plan, false);
-    }
-
     /**
      * Apply {@link #resolveInSubqueryInFilter} to every {@link Filter}, {@link #resolveInSubqueryInEval} to every {@link Eval},
-     * and {@link #resolveInSubqueryInAggregate} to every {@link Aggregate} except the one owned by an {@link InlineStats}
-     * (INLINE STATS will be supported in a follow-up PR).
+     * and {@link #resolveInSubqueryInAggregate} to every {@link Aggregate} — including the one owned by an
+     * {@link InlineStats}, whose per-aggregate {@code WHERE} filters are resolved the same way.
      */
-    private static LogicalPlan resolveInSubqueries(LogicalPlan plan, boolean ownedByInlineStats) {
-        boolean childOwnedByInlineStats = plan instanceof InlineStats;
-        List<LogicalPlan> children = plan.children();
-        List<LogicalPlan> newChildren = null;
-        for (int i = 0; i < children.size(); i++) {
-            LogicalPlan child = children.get(i);
-            LogicalPlan resolved = resolveInSubqueries(child, childOwnedByInlineStats);
-            if (resolved != child) {
-                if (newChildren == null) {
-                    newChildren = new ArrayList<>(children);
-                }
-                newChildren.set(i, resolved);
-            }
-        }
-        LogicalPlan p = newChildren == null ? plan : plan.replaceChildrenSameSize(newChildren);
-        if (p instanceof Filter filter) {
-            return resolveInSubqueryInFilter(filter);
-        }
-        if (p instanceof Eval eval) {
-            return resolveInSubqueryInEval(eval);
-        }
-        if (ownedByInlineStats == false && p instanceof Aggregate aggregate) {
-            return resolveInSubqueryInAggregate(aggregate);
-        }
-        return p;
+    private static LogicalPlan resolveInSubqueries(LogicalPlan plan) {
+        // Note: rewriting an Aggregate must always yield an Aggregate (resolveInSubqueryInAggregate uses Aggregate#with) — an
+        // InlineStats parent rebuilds itself with a hard cast of its child to Aggregate.
+        return plan.transformUp(p -> switch (p) {
+            case Filter filter -> resolveInSubqueryInFilter(filter);
+            case Eval eval -> resolveInSubqueryInEval(eval);
+            case Aggregate aggregate -> resolveInSubqueryInAggregate(aggregate);
+            default -> p;
+        });
     }
 
     /**
@@ -396,7 +383,8 @@ public class InSubqueryResolver {
      * {@code NamedExpressions#mergeOutputAttributes(resolvedGroupings, inputAttributes)}, which drops a child field colliding with a
      * grouping outright, so inside an aggregate {@code WHERE} clause such a name means the alias and never the field. A
      * {@link MarkJoin} hoisted below the aggregate's child cannot honour that: the alias does not exist there. Callers therefore decline
-     * to rewrite those filters and let {@link #checkInAggregate} reject them.
+     * to rewrite those filters and let {@link #checkInAggregate} reject them. This applies equally to {@code INLINE STATS}, whose
+     * {@link Aggregate} the analyzer resolves the same way.
      * <p>
      * A bare {@code BY field} grouping is excluded — it denotes the very column the child field of that name denotes, so nothing is
      * shadowed. The degenerate identity rename {@code BY x = x} is deliberately not excluded: it would in fact bind correctly, but
@@ -417,7 +405,7 @@ public class InSubqueryResolver {
     }
 
     /**
-     * Returns the first {@link InSubquery}/{@link MultiColumnInSubquery} in {@code filter} whose left-hand side is an {@link Attribute}
+     * Returns the first {@link InSubquery}/{@link MultiColumnInSubquery} in {@code expr} whose left-hand side is an {@link Attribute}
      * named after one of {@code groupingAliasNames}, or {@code null} when there is none — see {@link #groupingAliasNames} for why such a
      * subquery cannot be rewritten.
      * <p>
@@ -520,8 +508,13 @@ public class InSubqueryResolver {
      * An {@link InSubquery} is eligible if its direct parent is one of the "eligible boolean-composing nodes":
      * <ul>
      *   <li>{@link And}, {@link Or}, {@link Not} — standard boolean connectives.</li>
-     *   <li>{@link IsNull}, {@link IsNotNull} — e.g. {@code (x IN (sub)) IS [NOT] NULL}.</li>
-     *   <li>An {@link UnresolvedFunction} whose name is {@code CASE} or {@code COALESCE} (case-insensitive).</li>
+     *   <li>{@link IsNull}, {@link IsNotNull} — {@code (x IN (sub)) IS [NOT] NULL}; the operand is a {@code valueExpression} in the
+     *       grammar so it must be parenthesized, but the resulting {@link IsNull}/{@link IsNotNull} node wraps the {@link InSubquery}
+     *       directly.</li>
+     *   <li>An {@link UnresolvedFunction} whose name is {@code CASE} or {@code COALESCE} (case-insensitive): every argument position may
+     *       contain an {@link InSubquery} because all {@code functionParam} grammar alternatives accept a full {@code booleanExpression}.
+     *       Note: at this stage the plan is pre-analysis, so these appear as {@link UnresolvedFunction}, not as the resolved
+     *       {@code Case}/{@code Coalesce} classes.</li>
      * </ul>
      * <p>
      * The resolver uses a recursive traversal to find these nodes. When it encounters an eligible wrapper, it re-enables rewriting for
@@ -754,12 +747,12 @@ public class InSubqueryResolver {
         plan.forEachDown(p -> {
             switch (p) {
                 case Filter filter -> checkInSubqueryExpression(filter, filter.condition(), true, false, null, failures);
+                case Aggregate aggregate -> checkInAggregate(aggregate, failures);
                 case Eval eval -> {
                     for (Alias field : eval.fields()) {
                         checkInSubqueryExpression(eval, field.child(), true, false, null, failures);
                     }
                 }
-                case Aggregate aggregate when inlineStatsAggregates.contains(aggregate) == false -> checkInAggregate(aggregate, failures);
                 default -> {
                     p.forEachExpression(
                         InSubquery.class,

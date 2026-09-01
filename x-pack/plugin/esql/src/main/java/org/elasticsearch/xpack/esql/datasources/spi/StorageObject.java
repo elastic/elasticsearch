@@ -117,11 +117,12 @@ public interface StorageObject {
      * {@link #supportsNativeAsync()} returns true.
      * <p>
      * <b>Returned buffer contract:</b> the {@link DirectReadBuffer#buffer()} delivered to the
-     * listener has {@code capacity() == length} (the requested length) and {@code remaining()}
-     * equal to the number of bytes actually read. On a short read these differ — consumers must
-     * use {@code remaining()} (or {@code limit() - position()}) to size their work, never
-     * {@code capacity()}. The buffer is not required to be direct; production factories
-     * return a heap {@code byte[]} view.
+     * listener has {@code remaining()} equal to the number of bytes actually read, and
+     * {@code capacity()} of at least {@code length}. Callers must not assume exact capacity —
+     * consumers must use {@code remaining()} (or {@code limit() - position()}) to size their
+     * work. Implementations call {@link DirectBufferFactory#allocateWritableWindow(int)} so an
+     * over-sized factory buffer cannot be filled past the request. The buffer is not required
+     * to be direct; production factories return a heap {@code byte[]} view.
      * <p>
      * On end-of-content at {@code position} the buffer is delivered with {@code remaining() == 0}.
      *
@@ -140,8 +141,8 @@ public interface StorageObject {
      * @param position the starting byte position
      * @param length the number of bytes to read
      * @param factory produces the {@link DirectReadBuffer} the bytes are read into; the storage
-     *            object calls {@link DirectBufferFactory#allocate(int)} exactly once with
-     *            {@code length}
+     *            object allocates from it exactly once, through
+     *            {@link DirectBufferFactory#allocateWritableWindow(int)} with {@code length}
      * @param executor executor for running the async operation
      * @param listener callback for the result or failure
      */
@@ -166,7 +167,7 @@ public interface StorageObject {
         final DirectReadBuffer drb;
         boolean submitted = false;
         try {
-            drb = factory.allocate((int) length);
+            drb = factory.allocateWritableWindow((int) length);
         } catch (Exception e) {
             listener.onFailure(e);
             return;

@@ -22,6 +22,7 @@ import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -39,6 +40,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -46,6 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -584,6 +587,38 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         assertPagesEqual(baselinePages, pushedPages);
     }
 
+    public void testFilteredListProjectionSkipsPagesWithoutReportingCorruption() throws IOException {
+        byte[] parquetData = createListProjectionFile();
+        FilterPredicate filter = FilterApi.and(
+            FilterApi.gtEq(FilterApi.intColumn("id"), 500),
+            FilterApi.lt(FilterApi.intColumn("id"), 750)
+        );
+        assertLeadingRowsArePagePruned(parquetData, filter);
+
+        List<Page> baselinePages = readWithFilter(parquetData, filter, false);
+        List<Page> optimizedPages = readWithFilter(parquetData, filter, true);
+        try {
+            assertPagesEqual(baselinePages, optimizedPages);
+            assertTrue(optimizedPages.stream().mapToInt(Page::getPositionCount).sum() > 0);
+        } finally {
+            releasePages(baselinePages);
+            releasePages(optimizedPages);
+        }
+    }
+
+    public void testLateMaterializationSkipsAllFilteredListRows() throws IOException {
+        byte[] parquetData = createListProjectionFile();
+        ReferenceAttribute tag = new ReferenceAttribute(Source.EMPTY, "tag", DataType.KEYWORD);
+        Expression noMatch = new WildcardLike(Source.EMPTY, tag, new WildcardPattern("*missing*"));
+
+        List<Page> pages = readWithPushedExpressions(parquetData, noMatch);
+        try {
+            assertEquals(0, pages.stream().mapToInt(Page::getPositionCount).sum());
+        } finally {
+            releasePages(pages);
+        }
+    }
+
     // --- Pre-warm dictionary-pages parity tests ---
 
     /**
@@ -694,6 +729,25 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         });
     }
 
+    private byte[] createListProjectionFile() throws IOException {
+        Type id = Types.required(INT32).named("id");
+        Type tag = Types.required(BINARY).as(LogicalTypeAnnotation.stringType()).named("tag");
+        Type values = Types.optionalList().optionalElement(INT32).named("values");
+        MessageType schema = new MessageType("filtered_list_test", id, tag, values);
+        return createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < TOTAL_ROWS; i++) {
+                Group group = factory.newGroup().append("id", i).append("tag", "row_" + i);
+                Group list = group.addGroup("values");
+                for (int value = 0; value < 16; value++) {
+                    list.addGroup("list").append("element", i * 16 + value);
+                }
+                groups.add(group);
+            }
+            return groups;
+        });
+    }
+
     private byte[] createEmptyThenMatchingLargeRowGroups() throws IOException {
         MessageType schema = Types.buildMessage()
             .required(INT32)
@@ -771,6 +825,18 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         }
     }
 
+    private void assertLeadingRowsArePagePruned(byte[] parquetData, FilterPredicate filter) throws IOException {
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(FilterCompat.get(filter));
+        StorageObject storageObject = createStorageObject(parquetData);
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, FormatReadContext.of(null, 1024))) {
+            OptimizedParquetColumnIterator optimized = (OptimizedParquetColumnIterator) iterator;
+            RowRanges ranges = optimized.rowRanges(0);
+            assertNotNull(ranges);
+            assertFalse(ranges.isAll());
+            assertTrue("fixture must skip leading pages", ranges.rangeStart(0) > 0);
+        }
+    }
+
     /**
      * Reads using the optimized path with a {@link ParquetPushedExpressions} filter.
      * This exercises the full RowRanges code path: resolveFilterPredicate → ColumnIndexRowRangesComputer
@@ -789,6 +855,12 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         }
     }
 
+    private static void releasePages(List<Page> pages) {
+        for (Page page : pages) {
+            page.releaseBlocks();
+        }
+    }
+
     private void assertPagesEqual(List<Page> expected, List<Page> actual) {
         int expectedRows = expected.stream().mapToInt(Page::getPositionCount).sum();
         int actualRows = actual.stream().mapToInt(Page::getPositionCount).sum();
@@ -799,6 +871,7 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         for (int row = 0; row < expectedRows; row++) {
             Page ePage = expected.get(ep);
             Page aPage = actual.get(ap);
+            assertThat("block count mismatch at row " + row, aPage.getBlockCount(), equalTo(ePage.getBlockCount()));
             for (int b = 0; b < ePage.getBlockCount(); b++) {
                 assertBlockValueEqual(ePage.getBlock(b), ePos, aPage.getBlock(b), aPos, row, b);
             }
@@ -821,20 +894,28 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         if (expected.isNull(ePos)) {
             return;
         }
+        int expectedValueCount = expected.getValueCount(ePos);
+        assertThat(ctx + " value count", actual.getValueCount(aPos), equalTo(expectedValueCount));
+        int expectedFirst = expected.getFirstValueIndex(ePos);
+        int actualFirst = actual.getFirstValueIndex(aPos);
+        for (int value = 0; value < expectedValueCount; value++) {
+            assertBlockValueEqual(expected, expectedFirst + value, actual, actualFirst + value, ctx + " value " + value);
+        }
+    }
+
+    private void assertBlockValueEqual(Block expected, int expectedIndex, Block actual, int actualIndex, String ctx) {
         if (expected instanceof IntBlock eb && actual instanceof IntBlock ab) {
-            assertThat(ctx, ab.getInt(ab.getFirstValueIndex(aPos)), equalTo(eb.getInt(eb.getFirstValueIndex(ePos))));
+            assertThat(ctx, ab.getInt(actualIndex), equalTo(eb.getInt(expectedIndex)));
         } else if (expected instanceof LongBlock eb && actual instanceof LongBlock ab) {
-            assertThat(ctx, ab.getLong(ab.getFirstValueIndex(aPos)), equalTo(eb.getLong(eb.getFirstValueIndex(ePos))));
+            assertThat(ctx, ab.getLong(actualIndex), equalTo(eb.getLong(expectedIndex)));
         } else if (expected instanceof DoubleBlock eb && actual instanceof DoubleBlock ab) {
-            assertThat(ctx, ab.getDouble(ab.getFirstValueIndex(aPos)), equalTo(eb.getDouble(eb.getFirstValueIndex(ePos))));
+            assertThat(ctx, ab.getDouble(actualIndex), equalTo(eb.getDouble(expectedIndex)));
         } else if (expected instanceof BooleanBlock eb && actual instanceof BooleanBlock ab) {
-            assertThat(ctx, ab.getBoolean(ab.getFirstValueIndex(aPos)), equalTo(eb.getBoolean(eb.getFirstValueIndex(ePos))));
+            assertThat(ctx, ab.getBoolean(actualIndex), equalTo(eb.getBoolean(expectedIndex)));
         } else if (expected instanceof BytesRefBlock eb && actual instanceof BytesRefBlock ab) {
-            assertThat(
-                ctx,
-                ab.getBytesRef(ab.getFirstValueIndex(aPos), new BytesRef()),
-                equalTo(eb.getBytesRef(eb.getFirstValueIndex(ePos), new BytesRef()))
-            );
+            assertThat(ctx, ab.getBytesRef(actualIndex, new BytesRef()), equalTo(eb.getBytesRef(expectedIndex, new BytesRef())));
+        } else {
+            fail(ctx + " type mismatch: " + expected.getClass().getSimpleName() + " vs " + actual.getClass().getSimpleName());
         }
     }
 
@@ -905,7 +986,7 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
                 try {
                     int offset = Math.toIntExact(position);
                     int bytes = Math.toIntExact(Math.min(length, data.length - position));
-                    allocated = factory.allocate(bytes);
+                    allocated = factory.allocateWritableWindow(bytes);
                     ByteBuffer buffer = allocated.buffer();
                     buffer.put(data, offset, bytes);
                     buffer.flip();

@@ -47,10 +47,14 @@ public class FixtureExclusionsTests extends ESTestCase {
      */
     public void testAnExclusionDoesNotLeakToASameNamedCaseInAnotherSpec() {
         FixtureExclusions exclusions = FixtureExclusions.get();
-        // Declared against external-multifile-temporal for the ndjson suite.
-        assertThat(exclusions.find("ndjson", "external-multifile-temporal", "temporalWidensToMinMax"), notNullValue());
-        // The csv twin declares an identically-named case; it must NOT be caught by that entry.
-        assertThat(exclusions.find("ndjson", "csv-multifile-temporal", "temporalWidensToMinMax"), nullValue());
+        // Declared against external-multifile-temporal for the orc suite. (This anchored on ndjson until
+        // esql-planning#1798 was fixed upstream and those entries were deleted -- the property under test
+        // is the lookup's spec scoping, not the particular defect, so it re-anchors rather than retires.)
+        assertThat(exclusions.find("orc", "external-multifile-temporal", "temporalWidensToMinMax"), notNullValue());
+        // A spec that does not declare this case must NOT be caught by that entry. The name is deliberately
+        // one no spec uses: a find() that ignored its spec argument would return the entry above and fail
+        // here, which is exactly the leak this pins.
+        assertThat(exclusions.find("orc", "csv-multifile-temporal", "temporalWidensToMinMax"), nullValue());
     }
 
     public void testSuitesAreNamedByTheirFormatToken() {
@@ -79,18 +83,36 @@ public class FixtureExclusionsTests extends ESTestCase {
     }
 
     public void testTheSameCaseCanBeExcludedFromMoreThanOneSuiteIndependently() {
-        // typeDriftFilterIsStringComparison fails on Java Parquet (pushdown against the pre-widening
-        // type) AND on parquet-rs (no reconciliation cast at all) -- different reasons, same case.
+        // strictCount is excluded for ndjson AND its compressed twin -- two entries, looked up per suite.
         FixtureExclusions exclusions = FixtureExclusions.get();
-        FixtureExclusions.Exclusion onParquet = exclusions.find("parquet", "typeDriftFilterIsStringComparison");
-        FixtureExclusions.Exclusion onRs = exclusions.find("parquet-rs", "typeDriftFilterIsStringComparison");
-        assertThat(onParquet, not(nullValue()));
-        assertThat(onRs, not(nullValue()));
-        // Different KINDS as well as different reasons, which is the sharper form of the same point: on
-        // Java Parquet it is a defect owed a fix (elastic/esql-planning#1772), while parquet-rs is out of
-        // scope by decision, so nothing is owed there and its exclusion is a rule.
-        assertThat(onParquet.kind(), equalTo(FixtureExclusions.Kind.BUG));
-        assertThat(onRs.kind(), equalTo(FixtureExclusions.Kind.RULE));
+        FixtureExclusions.Exclusion onNdjson = exclusions.find("ndjson", "external-multifile-resolution", "strictCount");
+        FixtureExclusions.Exclusion onCompressed = exclusions.find("ndjson-compressed", "external-multifile-resolution", "strictCount");
+        assertThat(onNdjson, not(nullValue()));
+        assertThat(onCompressed, not(nullValue()));
+        // And a suite with no entry for it sees nothing, which is what makes the two above independent
+        // rather than a single global entry matching everywhere.
+        assertThat(exclusions.find("parquet", "external-multifile-resolution", "strictCount"), nullValue());
+    }
+
+    /**
+     * Kind is a property of the individual entry, not of the case or the suite: a defect owed a fix carries
+     * BUG and a permanent constraint carries RULE, and the loader must keep them apart. This anchored on the
+     * same case excluded as BUG on parquet and RULE on parquet-rs until parquet-rs was removed upstream
+     * (elastic/elasticsearch#157769) and its 45 entries went with it; the two kinds now come from different
+     * cases, which pins the same distinction with the data that exists.
+     */
+    public void testKindDistinguishesADefectFromAPermanentConstraint() {
+        FixtureExclusions exclusions = FixtureExclusions.get();
+        FixtureExclusions.Exclusion defect = exclusions.find(
+            "parquet",
+            "external-multifile-type-drift",
+            "typeDriftFilterIsStringComparison"
+        );
+        FixtureExclusions.Exclusion constraint = exclusions.find("ndjson", "external-multifile-resolution", "strictCount");
+        assertThat(defect, not(nullValue()));
+        assertThat(constraint, not(nullValue()));
+        assertThat(defect.kind(), equalTo(FixtureExclusions.Kind.BUG));
+        assertThat(constraint.kind(), equalTo(FixtureExclusions.Kind.RULE));
     }
 
 }

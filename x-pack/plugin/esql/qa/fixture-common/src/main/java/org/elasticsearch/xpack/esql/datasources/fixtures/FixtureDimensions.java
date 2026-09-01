@@ -83,7 +83,7 @@ public final class FixtureDimensions {
     private final Map<String, Set<String>> appliesToByName;
     private final Map<String, String> bindsByName;
     private final Map<String, String> directiveKeyByName;
-    private final Map<String, Map<String, String>> directiveValuesByName;
+    private final Map<String, Map<String, String>> settingValuesByName;
     private final Map<String, String> derivedByName;
     private final Map<String, Map<String, String>> derivedValuesByName;
     private final Map<String, String> readKeyByName;
@@ -102,7 +102,7 @@ public final class FixtureDimensions {
         Map<String, Set<String>> appliesToByName,
         Map<String, String> bindsByName,
         Map<String, String> directiveKeyByName,
-        Map<String, Map<String, String>> directiveValuesByName,
+        Map<String, Map<String, String>> settingValuesByName,
         Map<String, String> derivedByName,
         Map<String, Map<String, String>> derivedValuesByName,
         Map<String, String> readKeyByName,
@@ -120,7 +120,7 @@ public final class FixtureDimensions {
         this.appliesToByName = Map.copyOf(appliesToByName);
         this.bindsByName = Map.copyOf(bindsByName);
         this.directiveKeyByName = Map.copyOf(directiveKeyByName);
-        this.directiveValuesByName = Map.copyOf(directiveValuesByName);
+        this.settingValuesByName = Map.copyOf(settingValuesByName);
         this.derivedByName = Map.copyOf(derivedByName);
         this.derivedValuesByName = Map.copyOf(derivedValuesByName);
         this.readKeyByName = Map.copyOf(readKeyByName);
@@ -139,11 +139,43 @@ public final class FixtureDimensions {
     }
 
     /**
-     * What a dimension's value becomes in the {@code WITH} clause -- the value itself unless the
-     * declaration maps it to a different spelling.
+     * What a dimension's value becomes in a SETTING -- the value itself unless the declaration maps it
+     * to a different spelling.
+     *
+     * <p>Named for the setting rather than the directive because every path needs it: a directive-bound
+     * dimension spells its value into the {@code WITH} clause, and a fixture-bound one with a
+     * {@code read_key} spells it into the setting that tells the reader how the bytes were written.
+     * {@code delimiter} is the first of the latter -- its slot is named {@code semicolon} while the
+     * reader wants {@code ;} -- and while this was called directiveValue the reader and pragma paths
+     * skipped the mapping silently and would have announced the slot name instead of the spelling.
      */
-    public String directiveValue(String dimension, String value) {
-        return directiveValuesByName.getOrDefault(dimension, Map.of()).getOrDefault(value, value);
+    public String settingValue(String dimension, String value) {
+        return settingValuesByName.getOrDefault(dimension, Map.of()).getOrDefault(value, value);
+    }
+
+    /**
+     * The single character a {@code delimiter} slot renders and reads with.
+     *
+     * <p>Derived from the contract's own {@code value.<v>} mapping rather than re-switched in each
+     * generator: the writer chooses the byte and the reader is told which byte to expect, and if those
+     * two ever disagree the fixture is unreadable in a way that looks like a reader bug. One mapping,
+     * consulted by both, cannot disagree with itself.
+     */
+    public char delimiterChar(String value) {
+        String spelling = settingValue("delimiter", value);
+        if (spelling.length() != 1) {
+            throw new IllegalStateException(
+                "delimiter ["
+                    + value
+                    + "] spells ["
+                    + spelling
+                    + "], which is not one character; "
+                    + "dimension.delimiter.value."
+                    + value
+                    + " must map to a single char"
+            );
+        }
+        return spelling.charAt(0);
     }
 
     /** The reader setting a fixture-bound value announces itself under, or null when it needs none. */
@@ -251,7 +283,7 @@ public final class FixtureDimensions {
             if (key == null || slot.getValue().equals(defaultValue(slot.getKey(), format))) {
                 continue;
             }
-            out.put(key, slot.getValue());
+            out.put(key, settingValue(slot.getKey(), slot.getValue()));
         }
         return out;
     }
@@ -270,7 +302,7 @@ public final class FixtureDimensions {
             if (key == null || slot.getValue().equals(defaultValue(slot.getKey(), format))) {
                 continue;
             }
-            out.put(key, slot.getValue());
+            out.put(key, settingValue(slot.getKey(), slot.getValue()));
         }
         return out;
     }
@@ -299,7 +331,7 @@ public final class FixtureDimensions {
             if (derivedByName.containsKey(dimension)) {
                 continue;
             }
-            out.put(key, directiveValue(dimension, slot.getValue()));
+            out.put(key, settingValue(dimension, slot.getValue()));
         }
         return out;
     }
@@ -877,7 +909,15 @@ public final class FixtureDimensions {
      * <p>{@code text_codec} is fixture-bound too but is not here: compressed variants are produced at
      * fixture-load time from whatever tree already exists, so a codec needs no directory of its own.
      */
-    private static final List<String> DIALECT_SLOTS = List.of("text_mode", "header_row", "mv_syntax");
+    /**
+     * The slots whose value changes the BYTES, so a vector pinning one reads a separately rendered tree.
+     *
+     * <p>Public because {@code AbstractExternalSourceSpecTestCase.vectorFixturesBase} needs exactly this
+     * list to build the path it reads from, and it previously kept its own copy. Two lists that must
+     * agree do not: add a slot here and the generator writes a tree the suite never looks in, which
+     * reads as "the dimension does nothing" rather than as a wiring bug.
+     */
+    public static final List<String> DIALECT_SLOTS = List.of("text_mode", "header_row", "mv_syntax", "delimiter");
 
     /**
      * The distinct dialect variants a format needs on disk, as slug to the slots it pins.

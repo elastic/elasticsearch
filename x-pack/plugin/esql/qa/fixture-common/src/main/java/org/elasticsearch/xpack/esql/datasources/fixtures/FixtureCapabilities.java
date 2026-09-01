@@ -64,6 +64,17 @@ public final class FixtureCapabilities {
         "text_mode=quoted@tsv",
         "text_mode=escaped@tsv",
         "mv_syntax=brackets@tsv",
+        // The field separator. Off-default per format, so the rows differ: csv defaults to comma and tsv
+        // to tab, and a row for a format's own default would claim a cell no vector carries. A csv
+        // fixture rendered with tabs is a real configuration -- the extension picks the reader, the
+        // delimiter picks the bytes -- so tab@csv and comma@tsv are both meaningful cells, not the two
+        // formats collapsing into each other.
+        "delimiter=tab@csv",
+        "delimiter=semicolon@csv",
+        "delimiter=pipe@csv",
+        "delimiter=comma@tsv",
+        "delimiter=semicolon@tsv",
+        "delimiter=pipe@tsv",
         // Codec-specific parquet trees written by compressed-parquet-fixtures.gradle into
         // standalone-<codec>/. These bytes predate the vector regime -- ParquetCompressedFormatSpecIT has
         // read them all along -- so no generator work earned these rows either, only the selection added

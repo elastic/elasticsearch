@@ -79,7 +79,8 @@ public final class TsvFixtureGenerator {
                 default -> throw new IllegalArgumentException("unknown text_mode [" + textMode + "]");
             };
             boolean headerRow = "false".equals(pinned.get("header_row")) == false;
-            TextRowRenderer renderer = new TextRowRenderer('\t', dialect, headerRow);
+            char delimiter = dimensions.delimiterChar(pinned.getOrDefault("delimiter", dimensions.defaultValue("delimiter", format)));
+            TextRowRenderer renderer = new TextRowRenderer(delimiter, dialect, headerRow);
             Path slugRoot = outputRoot.resolve("vector").resolve(slug.getKey()).resolve("standalone");
             Files.createDirectories(slugRoot);
             for (String dataset : matrix.datasetsFor(format)) {
@@ -321,4 +322,5 @@ public final class TsvFixtureGenerator {
         }
         return '"' + cell.replace("\"", "\"\"") + '"';
     }
+
 }

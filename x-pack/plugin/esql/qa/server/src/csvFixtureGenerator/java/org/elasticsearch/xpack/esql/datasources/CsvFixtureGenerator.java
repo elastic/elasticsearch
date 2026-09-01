@@ -91,7 +91,8 @@ public final class CsvFixtureGenerator {
             Map<String, String> pinned = slug.getValue();
             TextRowRenderer.Dialect dialect = dialectOf(pinned.getOrDefault("text_mode", dimensions.defaultValue("text_mode", format)));
             boolean headerRow = "false".equals(pinned.get("header_row")) == false;
-            TextRowRenderer renderer = new TextRowRenderer(',', dialect, headerRow);
+            char delimiter = dimensions.delimiterChar(pinned.getOrDefault("delimiter", dimensions.defaultValue("delimiter", format)));
+            TextRowRenderer renderer = new TextRowRenderer(delimiter, dialect, headerRow);
             Path slugRoot = outputRoot.resolve("vector").resolve(slug.getKey()).resolve("standalone");
             Files.createDirectories(slugRoot);
             for (String dataset : matrix.datasetsFor(format)) {
@@ -168,4 +169,5 @@ public final class CsvFixtureGenerator {
             logger.info("Generated CSV Hive partition: {} ({} rows)", outputPath, bucket.getValue().size());
         }
     }
+
 }

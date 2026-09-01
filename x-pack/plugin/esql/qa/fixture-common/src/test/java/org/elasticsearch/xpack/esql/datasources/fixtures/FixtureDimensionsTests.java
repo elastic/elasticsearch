@@ -289,8 +289,8 @@ public class FixtureDimensionsTests extends ESTestCase {
     /** The declaration maps a value to a different spelling only where it says so. */
     public void testAValueMappingIsAppliedAndOthersPassThrough() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.directiveValue("datetime_format", "custom"), equalTo("strict_date_optional_time"));
-        assertThat(d.directiveValue("error_mode", "skip_row"), equalTo("skip_row"));
+        assertThat(d.settingValue("datetime_format", "custom"), equalTo("strict_date_optional_time"));
+        assertThat(d.settingValue("error_mode", "skip_row"), equalTo("skip_row"));
     }
 
     /** The baseline has no off-default slot, so it must not render as an empty name. */
@@ -424,8 +424,8 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testDirectiveExpressibleCountsPerFormat() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(225));
-        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(207));
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(315));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(297));
         assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(81));
         assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(31));
     }
@@ -464,7 +464,7 @@ public class FixtureDimensionsTests extends ESTestCase {
         // 10,997 rather than 11,685: the declared value-disjoint pair removes 688 vectors the reader
         // cannot be configured to run. A declared, counted removal of the unconstructible -- not lost
         // coverage, and not a number to adjust when it drifts.
-        assertThat(seen[0], equalTo(10997));
+        assertThat(seen[0], equalTo(11237));
     }
 
     /** No vector may survive carrying a combination the reader rejects outright. */
@@ -488,8 +488,8 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testDisjointRemovalLeavesEveryFormatsSelectionUntouched() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(225));
-        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(207));
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(315));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(297));
         assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(81));
         assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(31));
     }
@@ -610,7 +610,7 @@ public class FixtureDimensionsTests extends ESTestCase {
         // same three codecs, so the symmetry is the claim. They differ only in WHICH values are off
         // default (csv defaults to quoted, tsv to plain), never in how many. ndjson has the codecs and
         // no dialects, which is the 27.
-        Map<String, Integer> expectedGap = Map.of("csv", 153, "tsv", 153, "ndjson", 27);
+        Map<String, Integer> expectedGap = Map.of("csv", 243, "tsv", 243, "ndjson", 27);
         for (String format : List.of("csv", "tsv", "ndjson")) {
             assertThat(
                 "the fixture seam is load-bearing on " + format,

@@ -1113,7 +1113,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             return "standalone-" + codec;
         }
 
-        for (String slot : List.of("text_mode", "header_row", "mv_syntax")) {
+        for (String slot : FixtureDimensions.DIALECT_SLOTS) {
             String value = vector().get(slot);
             if (value != null && value.equals(dimensions.defaultValue(slot, baseFormat)) == false) {
                 pinned.put(slot, value);

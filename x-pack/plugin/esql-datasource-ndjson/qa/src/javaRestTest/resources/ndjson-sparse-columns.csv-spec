@@ -1,0 +1,31 @@
+// NDJSON-only spec: behaviour that exists because NDJSON omits absent fields entirely.
+//
+// Every other format carries a column in every file -- a CSV header names it even when every value is
+// null, and Parquet/ORC keep it in the schema. NDJSON does not: a record simply has no key. So a file
+// can genuinely contain NONE of the columns a query projects, which is a state no other format can
+// reach, and it is why these cases cannot live in the shared external-hive-partitioned-shadow spec.
+
+// A hive partition whose files omit the partition column entirely (the __HIVE_DEFAULT_PARTITION__
+// bucket) is still read, and the absent column reads null there with a warning naming it.
+//
+// This pins the fix for elastic/esql-planning#1791: split discovery used to drop a whole file when it
+// shared no column with the projection, silently losing its rows. The 10 rows counted under `null`
+// below are that file. Without this case the fix has no test in this corpus -- the shared spec cannot
+// carry it, because no other format emits the warning.
+sparsePartitionFileIsReadAndWarnsForTheAbsentColumn
+required_capability: dataset_in_from_command
+dataset: employees_hive_shadow_sparse: "{{employees_hive_shadow}}" WITH {"partition_detection": "none"}
+
+FROM employees_hive_shadow_sparse
+| STATS count = COUNT(*) BY languages
+| SORT languages NULLS LAST;
+warningRegex:declared column \[languages\] is not present in some source files and reads null there
+
+count:long | languages:integer
+15         | 1
+19         | 2
+17         | 3
+18         | 4
+21         | 5
+10         | null
+;

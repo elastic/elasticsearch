@@ -817,7 +817,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         private DirectReadBuffer allocateAndFill(long position, long length, DirectBufferFactory factory) throws IOException {
             int offset = Math.toIntExact(position);
             int bytes = Math.toIntExact(Math.min(length, data.length - position));
-            DirectReadBuffer allocated = factory.allocate(bytes);
+            DirectReadBuffer allocated = factory.allocateWritableWindow(bytes);
             try {
                 allocated.buffer().put(data, offset, bytes).flip();
                 return allocated;
@@ -986,7 +986,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         private DirectReadBuffer allocateAndFill(long position, long length, DirectBufferFactory factory) throws IOException {
             int offset = Math.toIntExact(position);
             int bytes = Math.toIntExact(Math.min(length, data.length - position));
-            DirectReadBuffer allocated = factory.allocate(bytes);
+            DirectReadBuffer allocated = factory.allocateWritableWindow(bytes);
             try {
                 allocated.buffer().put(data, offset, bytes).flip();
                 return allocated;

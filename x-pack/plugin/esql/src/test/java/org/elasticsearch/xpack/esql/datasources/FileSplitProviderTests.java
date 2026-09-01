@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -751,6 +752,39 @@ public class FileSplitProviderTests extends ESTestCase {
 
     public void testNewlineAlignedCsvMacroSplitsAreDisjointAndMarked() throws IOException {
         assertNewlineAlignedMacroSplitsDisjointAndMarked(".csv", "csv-macro-test", "a,b,c\n", "s3://b/*.csv");
+    }
+
+    public void testSplitProbeIoFailureIsClientError() throws IOException {
+        SegmentableFormatReader mockReader = mock(SegmentableFormatReader.class);
+        when(mockReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
+        when(mockReader.minimumSegmentSize()).thenReturn(1L);
+        RecordSplitter mockSplitter = mock(RecordSplitter.class);
+        when(mockReader.recordSplitter(anyInt())).thenReturn(mockSplitter);
+        when(mockSplitter.supportsStridedProbing()).thenReturn(true);
+        when(mockSplitter.findNextRecordBoundary(any())).thenThrow(new IOException("injected split probe failure"));
+
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy("ndjson-probe-failure", (s, bf) -> mockReader, Settings.EMPTY, null);
+        formatRegistry.registerExtension(".ndjson", "ndjson-probe-failure");
+        formatRegistry.byName("ndjson-probe-failure");
+
+        byte[] payload = new byte[4096];
+        FileSplitProvider splitter = new FileSplitProvider(
+            1024,
+            new DecompressionCodecRegistry(),
+            createPayloadStorageRegistry(payload),
+            formatRegistry,
+            Settings.EMPTY
+        );
+        StoragePath path = StoragePath.of("s3://b/data.ndjson");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, payload.length, Instant.EPOCH)), "s3://b/*.ndjson");
+        SplitDiscoveryContext context = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
+
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> splitter.discoverSplits(context));
+
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
+        assertThat(e.getMessage(), containsString("Failed to discover splits"));
+        assertThat(e.getMessage(), containsString("injected split probe failure"));
     }
 
     private void assertNewlineAlignedMacroSplitsDisjointAndMarked(

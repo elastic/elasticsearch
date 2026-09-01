@@ -1625,13 +1625,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             try {
                 closePageColumnReaders();
             } catch (RuntimeException | AssertionError cleanupEx) {
-                e.addSuppressed(cleanupEx);
+                if (cleanupEx != e) {
+                    e.addSuppressed(cleanupEx);
+                }
             }
             if (rowGroup != null) {
                 try {
                     rowGroup.close();
                 } catch (Exception closeEx) {
-                    e.addSuppressed(closeEx);
+                    if (closeEx != e) {
+                        e.addSuppressed(closeEx);
+                    }
                 }
                 rowGroup = null;
             }

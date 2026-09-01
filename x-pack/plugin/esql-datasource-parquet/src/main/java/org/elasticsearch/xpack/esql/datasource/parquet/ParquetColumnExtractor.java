@@ -297,7 +297,6 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         // bucket has been decoded so the layout-vs-arrival distinction is local to this method.
         Block[][] perBucketBlocks = new Block[colCount][buckets.size()];
         Block[] result = new Block[colCount];
-        boolean built = false;
         try {
             decodeBucketsAsTheyArrive(buckets, infos, schema, columnNames, projection, futures, perBucketBlocks, blockFactory);
             for (int c = 0; c < colCount; c++) {
@@ -314,22 +313,25 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                     result[c] = coerceToTarget(stitched, infos[c].esqlType(), target, columnNames[c], count, blockFactory);
                 }
             }
-            built = true;
             return result;
-        } finally {
+        } catch (Throwable e) {
             // Defensive cleanup: anything left in perBucketBlocks (e.g. when decode partially
             // completed before failing, or stitchAndGather threw between two columns) needs
-            // releasing. Built columns in result are released only on the failure path.
+            // releasing. On success all entries are null (stitchAndGather nulls them), so this
+            // path is failure-only in practice.
             for (Block[] perBucket : perBucketBlocks) {
                 for (Block b : perBucket) {
                     if (b != null) {
-                        Releasables.closeWhileHandlingException(b);
+                        ParquetReadFailures.closePreservingCause(e, b);
                     }
                 }
             }
-            if (built == false) {
-                Releasables.closeWhileHandlingException(result);
+            for (Block b : result) {
+                if (b != null) {
+                    ParquetReadFailures.closePreservingCause(e, b);
+                }
             }
+            throw e;
         }
     }
 
@@ -529,28 +531,30 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             }
             // The shared helper resolves the element type from the first non-NULL bucket block, so
             // an all-null leading bucket cannot poison a ConstantNullBlock builder. It closes the
-            // per-bucket blocks on success; null the slots so the finally below and the caller's
-            // defensive cleanup do not double-close. On a throw it leaves them for the finally.
+            // per-bucket blocks on success; null the slots so the catch below and the caller's
+            // defensive cleanup do not double-close. On a throw it leaves them for the catch.
             concatenated = BlockChunks.concat(Arrays.asList(perBucketBlocks), blockFactory);
             Arrays.fill(perBucketBlocks, null);
             int[] gather = buildGatherPermutation(buckets, totalCount);
             // mayContainDuplicates is true: the same bucket position may serve multiple caller
             // slots when localPositions repeats a row.
-            return concatenated.filter(true, gather);
-        } finally {
-            if (concatenated != null) {
-                Releasables.closeWhileHandlingException(concatenated);
-            }
+            Block filtered = concatenated.filter(true, gather);
+            Releasables.closeExpectNoException(concatenated);
+            concatenated = null;
+            return filtered;
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, concatenated);
             // Per-bucket blocks live until stitch completes; release any still-present slot here so
             // the caller doesn't have to track them. Null the slots out so the caller's defensive
             // cleanup doesn't double-close.
             for (int i = 0; i < perBucketBlocks.length; i++) {
                 Block b = perBucketBlocks[i];
                 if (b != null) {
-                    Releasables.closeWhileHandlingException(b);
+                    ParquetReadFailures.closePreservingCause(e, b);
                     perBucketBlocks[i] = null;
                 }
             }
+            throw e;
         }
     }
 

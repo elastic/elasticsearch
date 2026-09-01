@@ -148,8 +148,8 @@ public class ParquetCleanupExceptionMaskingTests extends ESTestCase {
             return StackWalker.getInstance()
                 .walk(
                     frames -> frames.anyMatch(
-                        frame -> frame.getClassName().equals("org.elasticsearch.core.Releasables")
-                            && frame.getMethodName().equals("closeExpectNoException")
+                        frame -> frame.getClassName().equals("org.elasticsearch.xpack.esql.datasource.parquet.ParquetReadFailures")
+                            && frame.getMethodName().equals("closePreservingCause")
                     )
                 );
         }
@@ -234,8 +234,7 @@ public class ParquetCleanupExceptionMaskingTests extends ESTestCase {
                 masked.add("charge " + failAt + ": surfaced " + rootCause(thrown) + " instead of the rejection at top level");
             } else {
                 // Verify that closePreservingCause actually ran: the cleanup failure must be
-                // attached as suppressed on the CBE. In assertion-enabled builds closeExpectNoException
-                // converts the ISE to AssertionError, so check toString() to cover both cases.
+                // attached as suppressed on the CBE.
                 boolean cleanupSuppressed = Arrays.stream(thrown.getSuppressed())
                     .anyMatch(s -> s.toString().contains(FailingReleaseBreaker.RELEASE_FAILURE));
                 if (cleanupSuppressed == false) {
@@ -305,41 +304,6 @@ public class ParquetCleanupExceptionMaskingTests extends ESTestCase {
                 boolean matches = i >= FIRST_MATCHING_ROW && i % 2 == 0;
                 String url = matches ? "https://www.google.com/search?q=" + i : "https://example.org/page?id=" + i;
                 groups.add(factory.newGroup().append("url", url).append("search_phrase", "phrase_" + i).append("counter", (long) i));
-            }
-            return groups;
-        });
-    }
-
-    /**
-     * The same row shape as {@link #urlFileWithZeroMatchBatches} plus a LIST&lt;INT64&gt; column
-     * ({@code tags}, standard 3-level encoding). Its presence disables two-phase I/O and routes
-     * its decode through {@code ColumnReader}, which is what exposes the Phase-3 fallback arm in
-     * the partially-matching final batch.
-     */
-    private byte[] urlFileWithListColumnAndZeroMatchBatches() throws IOException {
-        MessageType schema = Types.buildMessage()
-            .required(BINARY)
-            .as(LogicalTypeAnnotation.stringType())
-            .named("url")
-            .optionalGroup()
-            .as(LogicalTypeAnnotation.listType())
-            .repeatedGroup()
-            .optional(INT64)
-            .named("element")
-            .named("list")
-            .named("tags")
-            .named("late_mat_list_breaker_test");
-
-        return writeParquet(schema, factory -> {
-            List<Group> groups = new ArrayList<>(ROWS);
-            for (int i = 0; i < ROWS; i++) {
-                boolean matches = i >= FIRST_MATCHING_ROW && i % 2 == 0;
-                String url = matches ? "https://www.google.com/search?q=" + i : "https://example.org/page?id=" + i;
-                Group group = factory.newGroup().append("url", url);
-                Group tags = group.addGroup("tags");
-                tags.addGroup("list").add("element", (long) i);
-                tags.addGroup("list").add("element", (long) i * 2);
-                groups.add(group);
             }
             return groups;
         });

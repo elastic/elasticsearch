@@ -38,17 +38,16 @@ final class ParquetReadFailures {
     private ParquetReadFailures() {}
 
     /**
-     * Closes {@code releasables} via {@link Releasables#closeExpectNoException}, adding any
-     * thrown exception as suppressed on {@code cause} rather than letting it propagate and mask
-     * {@code cause}. {@link AssertionError} is caught in addition to {@link RuntimeException}:
-     * with Java assertions enabled {@code closeExpectNoException} turns a failing close into
-     * {@code assert false}, which is an {@code Error} and would otherwise escape a
-     * {@code RuntimeException}-only catch, replacing {@code cause} in precisely the builds
-     * most likely to be used for diagnosis.
+     * Closes {@code releasables} via {@link Releasables#close}, adding any thrown exception as
+     * suppressed on {@code cause} rather than letting it propagate and mask {@code cause}.
+     * {@link AssertionError} is caught in addition to {@link RuntimeException} to cover any
+     * {@code assert} statement inside a {@code close()} implementation. The self-suppression
+     * guard prevents the {@link IllegalArgumentException} that {@link Throwable#addSuppressed}
+     * throws when a releasable rethrows the same instance as the in-flight cause.
      */
     static void closePreservingCause(Throwable cause, Releasable... releasables) {
         try {
-            Releasables.closeExpectNoException(releasables);
+            Releasables.close(releasables);
         } catch (RuntimeException | AssertionError cleanupFailure) {
             if (cleanupFailure != cause) {
                 cause.addSuppressed(cleanupFailure);

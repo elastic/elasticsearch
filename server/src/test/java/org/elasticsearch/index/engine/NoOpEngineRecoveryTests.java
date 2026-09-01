@@ -30,9 +30,11 @@ public class NoOpEngineRecoveryTests extends IndexShardTestCase {
         flushAndCloseShardNoCheck(indexShard);
 
         final ShardRouting shardRouting = indexShard.routingEntry();
+        final ShardRouting reinitRouting = initWithSameId(shardRouting, ExistingStoreRecoverySource.INSTANCE);
         IndexShard primary = reinitShard(
             indexShard,
-            initWithSameId(shardRouting, ExistingStoreRecoverySource.INSTANCE),
+            reinitRouting,
+            newRecoveryState(reinitRouting, null),
             indexShard.indexSettings().getIndexMetadata(),
             NoOpEngine::new
         );

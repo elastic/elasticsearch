@@ -103,6 +103,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             );
             shard = newShard(
                 shardRouting,
+                newRecoveryState(shardRouting, null),
                 shard.shardPath(),
                 shard.indexSettings().getIndexMetadata(),
                 null,

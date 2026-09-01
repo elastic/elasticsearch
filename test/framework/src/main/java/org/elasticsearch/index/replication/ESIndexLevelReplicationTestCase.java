@@ -75,6 +75,7 @@ import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -198,6 +199,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
             primary = newShard(
                 primaryRouting,
+                newRecoveryState(primaryRouting, null),
                 indexMetadata,
                 null,
                 getEngineFactory(primaryRouting),
@@ -319,8 +321,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         public IndexShard addReplica() throws IOException {
             final ShardRouting replicaRouting = createShardRouting("s" + replicaId.incrementAndGet(), false);
+            final var recoveryState = new RecoveryState(
+                replicaRouting,
+                getDiscoveryNode(replicaRouting.currentNodeId()),
+                getDiscoveryNode(primary.routingEntry().currentNodeId())
+            );
             final IndexShard replica = newShard(
                 replicaRouting,
+                recoveryState,
                 indexMetadata,
                 null,
                 getEngineFactory(replicaRouting),
@@ -350,9 +358,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             final ShardRouting shardRouting = shardRoutingBuilder(shardId, nodeId, false, ShardRoutingState.INITIALIZING)
                 .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
                 .build();
-
+            final var recoveryState = new RecoveryState(
+                shardRouting,
+                getDiscoveryNode(nodeId),
+                getDiscoveryNode(primary.routingEntry().currentNodeId())
+            );
             final IndexShard newReplica = newShard(
                 shardRouting,
+                recoveryState,
                 shardPath,
                 indexMetadata,
                 null,

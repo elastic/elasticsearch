@@ -132,7 +132,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
                 new IndexId("test", UUIDs.randomBase64UUID(random()))
             )
         );
-        target = reinitShard(target, routing);
+        target = reinitShard(target, routing, newRecoveryState(routing, null));
         Store sourceStore = source.store();
         Store targetStore = target.store();
 

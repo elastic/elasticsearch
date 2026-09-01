@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -53,7 +54,11 @@ public class IndexShardCacheWarmerTests extends IndexShardTestCase {
             .withRole(ShardRouting.Role.INDEX_ONLY)
             .build();
 
-        indexShard = reinitShard(indexShard, copyShardRoutingWithIndexOnlyRole);
+        indexShard = reinitShard(
+            indexShard,
+            copyShardRoutingWithIndexOnlyRole,
+            newRecoveryState(copyShardRoutingWithIndexOnlyRole, DiscoveryNodeUtils.create("source-node"))
+        );
         indexShard.markAsRecovering("simulated");
 
         indexShardCacheWarmer.preWarmIndexShardCache(indexShard);
@@ -96,7 +101,11 @@ public class IndexShardCacheWarmerTests extends IndexShardTestCase {
             .withRole(ShardRouting.Role.INDEX_ONLY)
             .build();
 
-        indexShard = reinitShard(indexShard, copyShardRoutingWithIndexOnlyRole);
+        indexShard = reinitShard(
+            indexShard,
+            copyShardRoutingWithIndexOnlyRole,
+            newRecoveryState(copyShardRoutingWithIndexOnlyRole, DiscoveryNodeUtils.create("source-node"))
+        );
         indexShard.markAsRecovering("simulated");
 
         try (var mockLog = MockLog.capture(IndexShardCacheWarmer.class)) {

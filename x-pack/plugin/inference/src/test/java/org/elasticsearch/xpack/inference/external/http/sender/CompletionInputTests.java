@@ -11,20 +11,20 @@ import org.elasticsearch.inference.InferenceObjectRamBytesUsedTest;
 
 import java.util.List;
 
-public class ChatCompletionInputTests extends InferenceObjectRamBytesUsedTest<ChatCompletionInput> {
+public class CompletionInputTests extends InferenceObjectRamBytesUsedTest<CompletionInput> {
 
     @Override
-    public ChatCompletionInput objectToEstimate() {
-        return new ChatCompletionInput(List.of("A string"));
+    public CompletionInput objectToEstimate() {
+        return new CompletionInput(List.of("A string"));
     }
 
     @Override
-    public List<ChatCompletionInput> objectsToEstimateWithLargerInput() {
+    public List<CompletionInput> objectsToEstimateWithLargerInput() {
         return List.of(
             // More elements each having the same size
-            new ChatCompletionInput(List.of("A string", "A string")),
+            new CompletionInput(List.of("A string", "A string")),
             // One larger string
-            new ChatCompletionInput(List.of("A string".repeat(10)))
+            new CompletionInput(List.of("A string".repeat(10)))
         );
     }
 }

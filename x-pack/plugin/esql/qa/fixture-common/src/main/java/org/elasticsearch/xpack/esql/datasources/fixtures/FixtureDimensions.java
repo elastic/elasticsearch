@@ -163,6 +163,11 @@ public final class FixtureDimensions {
      */
     public char delimiterChar(String value) {
         String spelling = settingValue("delimiter", value);
+        // A tab cannot be written literally: Properties would decode it and the parser trims every value,
+        // so it is carried as the two-character escape and decoded here.
+        if (spelling.equals("\\t")) {
+            return '\t';
+        }
         if (spelling.length() != 1) {
             throw new IllegalStateException(
                 "delimiter ["

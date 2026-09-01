@@ -121,25 +121,37 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.dataset.DatasetService;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.DisableDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.EnableDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.RestDeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.RestDisableDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.RestEnableDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.RestGetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.RestPutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.TransportDeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.TransportDisableDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.TransportEnableDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.TransportGetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.TransportPutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.DisableDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.EnableDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.GetDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.RestDeleteDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.RestDisableDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.RestEnableDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.RestGetDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.RestPutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.RestTestDataSourceConnectionAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestDataSourceConnectionAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestDataSourceNodeAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportDeleteDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TransportDisableDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TransportEnableDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportGetDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportPutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportTestDataSourceConnectionAction;
@@ -814,9 +826,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
             new ActionHandler(TestDataSourceConnectionAction.INSTANCE, TransportTestDataSourceConnectionAction.class),
             new ActionHandler(TestDataSourceNodeAction.TYPE, TestDataSourceNodeAction.TransportAction.class),
+            new ActionHandler(EnableDataSourceAction.INSTANCE, TransportEnableDataSourceAction.class),
+            new ActionHandler(DisableDataSourceAction.INSTANCE, TransportDisableDataSourceAction.class),
             new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class),
             new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class),
-            new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class)
+            new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class),
+            new ActionHandler(EnableDatasetAction.INSTANCE, TransportEnableDatasetAction.class),
+            new ActionHandler(DisableDatasetAction.INSTANCE, TransportDisableDatasetAction.class)
         );
     }
 
@@ -885,9 +901,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             if (RestTestDataSourceConnectionAction.ESQL_DATA_SOURCE_TEST_CONNECTION_FEATURE_FLAG.isEnabled()) {
                 handlers.add(new RestTestDataSourceConnectionAction(dataSourceSecretSettingNames));
             }
+            handlers.add(new RestEnableDataSourceAction());
+            handlers.add(new RestDisableDataSourceAction());
             handlers.add(new RestPutDatasetAction(dataSourceSecretSettingNames));
             handlers.add(new RestGetDatasetAction());
             handlers.add(new RestDeleteDatasetAction());
+            handlers.add(new RestEnableDatasetAction());
+            handlers.add(new RestDisableDatasetAction());
         }
         return handlers;
     }

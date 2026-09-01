@@ -90,6 +90,8 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 | [Create or update](#create-or-update-a-data-source) | `PUT /_query/data_source/{name}` | [Create or update an ES\|QL data source]({{es-apis}}operation/operation-esql-put-data-source) |
 | [Get](#get-a-data-source) | `GET /_query/data_source/{name}` | [Get ES\|QL data sources]({{es-apis}}operation/operation-esql-get-data-source) |
 | [List all](#list-all-data-sources) | `GET /_query/data_source` | [Get ES\|QL data sources]({{es-apis}}operation/operation-esql-get-data-source) |
+| [Enable](#enable-or-disable-a-data-source) | `POST /_query/data_source/{name}/_enable` | Enable an ES\|QL data source |
+| [Disable](#enable-or-disable-a-data-source) | `POST /_query/data_source/{name}/_disable` | Disable an ES\|QL data source |
 | [Delete](#delete-a-data-source) | `DELETE /_query/data_source/{name}` | [Delete ES\|QL data sources]({{es-apis}}operation/operation-esql-delete-data-source) |
 
 This section is a quick reference for each operation. For the complete request and response details, follow the API reference links in the table.
@@ -206,6 +208,18 @@ curl -X GET "${ELASTICSEARCH_URL}/_query/data_source" \
 :::
 
 ::::
+
+### Enable or disable a data source [enable-or-disable-a-data-source]
+
+Admin cost control: disable a data source to stop queries that depend on it (and to reject creating new datasets against it), then re-enable after investigation. Requires `global.data_source` `manage` (or cluster `manage`). GET responses include an `enabled` field. Create defaults to enabled; replace preserves the current flag. Use these endpoints to flip it.
+
+```console
+POST /_query/data_source/prod_s3_logs/_disable
+```
+
+```console
+POST /_query/data_source/prod_s3_logs/_enable
+```
 
 ### Delete a data source [delete-a-data-source]
 

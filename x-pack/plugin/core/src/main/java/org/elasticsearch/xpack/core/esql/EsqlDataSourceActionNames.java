@@ -13,4 +13,6 @@ public class EsqlDataSourceActionNames {
     public static final String ESQL_GET_DATA_SOURCE_ACTION_NAME = "cluster:admin/esql/data_source/get";
     public static final String ESQL_DELETE_DATA_SOURCE_ACTION_NAME = "cluster:admin/esql/data_source/delete";
     public static final String ESQL_TEST_DATA_SOURCE_CONNECTION_ACTION_NAME = "cluster:admin/esql/data_source/test_connection";
+    public static final String ESQL_ENABLE_DATA_SOURCE_ACTION_NAME = "cluster:admin/esql/data_source/enable";
+    public static final String ESQL_DISABLE_DATA_SOURCE_ACTION_NAME = "cluster:admin/esql/data_source/disable";
 }

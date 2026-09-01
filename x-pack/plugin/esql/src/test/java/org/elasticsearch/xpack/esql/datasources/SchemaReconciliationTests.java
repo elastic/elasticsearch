@@ -28,6 +28,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -1208,4 +1209,28 @@ public class SchemaReconciliationTests extends ESTestCase {
             return "test";
         }
     }
+
+    /**
+     * The keyword-widening warning goes to the supplied sink and nowhere else. The resolver passes its buffered sink
+     * because reconciliation runs on its executor chain, where a response header is lost.
+     */
+    public void testUnionByNameKeywordWideningWarningGoesToSink() {
+        StoragePath f1 = path("s3://b/f1.csv");
+        StoragePath f2 = path("s3://b/f2.csv");
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(
+            f1,
+            meta(List.of(attr("col", DataType.INTEGER))),
+            f2,
+            meta(List.of(attr("col", DataType.KEYWORD)))
+        );
+        List<String> sink = new ArrayList<>();
+
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, sink::add);
+
+        assertEquals(DataType.KEYWORD, result.unifiedSchema().attributes().get(0).dataType());
+        assertThat(sink, hasItem(containsString("widened columns to keyword")));
+        assertThat(sink, hasItem(containsString("col")));
+        assertNoResponseWarnings();
+    }
+
 }

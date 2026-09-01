@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.math.BigInteger;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -561,4 +562,22 @@ public class HivePartitionDetectorTests extends ESTestCase {
     private static StorageEntry entry(String path) {
         return new StorageEntry(StoragePath.of(path), 100, Instant.EPOCH);
     }
+
+    /** With a sink the rename notice goes there, not to the response headers of whatever thread ran detection. */
+    public void testReservedMetadataNameRenameWarningGoesToSink() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/_index=alpha/year=2024/file1.parquet"));
+        List<String> sink = new ArrayList<>();
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, sink::add);
+
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("_partition._index"));
+        assertEquals(
+            List.of(
+                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
+                "partition column [_index] surfaced as [_partition._index]"
+            ),
+            sink
+        );
+    }
+
 }

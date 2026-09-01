@@ -62,7 +62,8 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
         "readConfig",
         "declaredDateFormats",
         "declaredProvenanceBinding",
-        "directBlockEnabled"
+        "directBlockEnabled",
+        "configWarning"
     );
 
     /** Internally mutable fields written during reads. */

@@ -69,7 +69,7 @@ public class ExternalSourceCacheService implements Closeable {
      */
     private final Cache<SchemaCacheKey, SchemaCacheEntry> datasetAggregateCache;
     private final Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache;
-    private final Cache<ListingCacheKey, FileList> listingCache;
+    private final Cache<ListingCacheKey, CachedListing> listingCache;
     private final long maxTotalBytes;
     private volatile boolean enabled;
 
@@ -180,7 +180,7 @@ public class ExternalSourceCacheService implements Closeable {
             .setExpireAfterWrite(listingTtl)
             .build();
 
-        this.listingCache = CacheBuilder.<ListingCacheKey, FileList>builder()
+        this.listingCache = CacheBuilder.<ListingCacheKey, CachedListing>builder()
             .setMaximumWeight(listingBudget)
             .setExpireAfterWrite(listingTtl)
             .weigher((key, value) -> value.estimatedBytes())
@@ -288,7 +288,8 @@ public class ExternalSourceCacheService implements Closeable {
             location,
             Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount),
             Map.of(),
-            System.currentTimeMillis()
+            System.currentTimeMillis(),
+            List.of()
         );
         datasetAggregateCache.put(key, entry);
     }
@@ -398,7 +399,20 @@ public class ExternalSourceCacheService implements Closeable {
      * Returns a cached file listing or stores the provided one. The loader is only invoked
      * on a cache miss. When the cache is disabled, the loader is called directly (bypassing the cache).
      */
+    /**
+     * Listing-only form for callers that raise no notices while listing. Production goes through
+     * {@link #getOrComputeCachedListing}; this remains for tests that exercise the listing cache directly.
+     */
     public FileList getOrComputeListing(ListingCacheKey key, CacheLoader<ListingCacheKey, FileList> loader) throws Exception {
+        return getOrComputeCachedListing(key, k -> CachedListing.of(loader.load(k))).files();
+    }
+
+    /**
+     * Like {@link #getOrComputeListing} but carrying the notices raised while producing the listing, so a hit can replay
+     * them; see {@link CachedListing}.
+     */
+    public CachedListing getOrComputeCachedListing(ListingCacheKey key, CacheLoader<ListingCacheKey, CachedListing> loader)
+        throws Exception {
         if (enabled == false) {
             return loader.load(key);
         }
@@ -1580,7 +1594,7 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     // Visible for testing
-    Cache<ListingCacheKey, FileList> listingCache() {
+    Cache<ListingCacheKey, CachedListing> listingCache() {
         return listingCache;
     }
 }

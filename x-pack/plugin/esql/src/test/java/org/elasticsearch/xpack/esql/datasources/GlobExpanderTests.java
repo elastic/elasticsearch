@@ -1979,4 +1979,30 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(2, result.fileCount());
     }
+
+    /**
+     * The exclusion notice goes to the supplied sink and nowhere else. The resolver passes its buffered sink because
+     * expansion runs on its executor chain, where a response header is lost.
+     */
+    public void testExpandRoutesExclusionWarningToSink() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/_SUCCESS", 0),
+            entry("s3://bucket/data/file1.parquet", 100),
+            entry("s3://bucket/data/file2.parquet", 200)
+        );
+        StubProvider provider = new StubProvider(listing);
+        List<String> sink = new ArrayList<>();
+
+        FileList result = GlobExpander.expand("s3://bucket/data/*", provider, null, null, Integer.MAX_VALUE, Integer.MAX_VALUE, sink::add);
+
+        assertEquals(2, result.fileCount());
+        assertEquals(
+            List.of(
+                "1 of 3 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                    + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+            ),
+            sink
+        );
+    }
+
 }

@@ -38,6 +38,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Expands glob patterns and comma-separated path lists into resolved {@link FileList} instances.
@@ -95,7 +96,21 @@ public final class GlobExpander {
         int maxDiscoveredFiles,
         int maxGlobExpansion
     ) throws IOException {
-        FileList expanded = expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
+        return expandAndCompact(path, provider, hints, config, storagePath, maxDiscoveredFiles, maxGlobExpansion, null);
+    }
+
+    /** See {@link #expand(String, StorageProvider, List, Map, int, int, Consumer)} for {@code warningSink}. */
+    public static FileList expandAndCompact(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        StoragePath storagePath,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        @Nullable Consumer<String> warningSink
+    ) throws IOException {
+        FileList expanded = expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion, warningSink);
         if (expanded.isResolved() == false || expanded.fileCount() == 0) {
             return expanded;
         }
@@ -123,11 +138,39 @@ public final class GlobExpander {
         int maxDiscoveredFiles,
         int maxGlobExpansion
     ) throws IOException {
+        return expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion, null);
+    }
+
+    /**
+     * @param warningSink where client-facing notices raised during expansion go (objects dropped by
+     *                    {@code file_exclusions}, partition columns renamed off reserved names). Expansion runs on the
+     *                    resolver's executor chain, where a direct {@code HeaderWarning} write never reaches the client,
+     *                    so production callers pass the resolver's buffered sink. The sink-less overloads keep the
+     *                    direct write and are used by tests only.
+     */
+    public static FileList expand(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        @Nullable Consumer<String> warningSink
+    ) throws IOException {
         PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
         ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
         return hasTopLevelComma(path)
-            ? doExpandCommaSeparated(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter)
-            : expandGlobWithRewriteFallback(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
+            ? doExpandCommaSeparated(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter, warningSink)
+            : expandGlobWithRewriteFallback(
+                path,
+                provider,
+                hints,
+                partitionConfig,
+                maxDiscoveredFiles,
+                maxGlobExpansion,
+                nameFilter,
+                warningSink
+            );
     }
 
     /**
@@ -150,23 +193,42 @@ public final class GlobExpander {
         PartitionConfig partitionConfig,
         int maxDiscoveredFiles,
         int maxGlobExpansion,
-        ExclusionConfig.NameFilter nameFilter
+        ExclusionConfig.NameFilter nameFilter,
+        @Nullable Consumer<String> warningSink
     ) throws IOException {
         if (effectivePattern(pattern, hints, partitionConfig).equals(pattern)) {
-            return doExpandGlob(pattern, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
+            return doExpandGlob(pattern, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter, warningSink);
         }
         // The retry drops the rewrite but keeps the exact _file.* filters, so it can only come back empty when the
         // un-rewritten glob genuinely matches nothing.
         List<PartitionFilterHint> fileHintsOnly = fileMetadataHints(hints);
         FileList expanded;
         try {
-            expanded = doExpandGlob(pattern, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
+            expanded = doExpandGlob(
+                pattern,
+                provider,
+                hints,
+                partitionConfig,
+                maxDiscoveredFiles,
+                maxGlobExpansion,
+                nameFilter,
+                warningSink
+            );
         } catch (IOException e) {
             // The rewritten prefix may name a folder that does not exist; the local filesystem throws where object
             // stores return empty. Both mean the rewrite, not the dataset, emptied the listing — retry either way.
             logger.debug(() -> "Rewritten listing of [" + pattern + "] failed; re-listing without the glob rewrite", e);
             try {
-                return doExpandGlob(pattern, provider, fileHintsOnly, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
+                return doExpandGlob(
+                    pattern,
+                    provider,
+                    fileHintsOnly,
+                    partitionConfig,
+                    maxDiscoveredFiles,
+                    maxGlobExpansion,
+                    nameFilter,
+                    warningSink
+                );
             } catch (IOException retryFailure) {
                 retryFailure.addSuppressed(e);
                 throw retryFailure;
@@ -176,7 +238,16 @@ public final class GlobExpander {
             logger.debug("Rewrite of [{}] narrowed to an empty listing; re-listing without the glob rewrite", pattern);
             // A full re-list can exceed max_discovered_files and throw, exactly as the un-filtered query would; that
             // cap error is preserved deliberately — deciding spelling-miss vs genuinely-empty needs the full listing.
-            return doExpandGlob(pattern, provider, fileHintsOnly, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
+            return doExpandGlob(
+                pattern,
+                provider,
+                fileHintsOnly,
+                partitionConfig,
+                maxDiscoveredFiles,
+                maxGlobExpansion,
+                nameFilter,
+                warningSink
+            );
         }
         return expanded;
     }
@@ -247,7 +318,16 @@ public final class GlobExpander {
         @Nullable Map<String, Object> config
     ) throws IOException {
         ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
-        return doExpandGlob(pattern, provider, hints, PartitionConfig.fromConfig(config), Integer.MAX_VALUE, Integer.MAX_VALUE, nameFilter);
+        return doExpandGlob(
+            pattern,
+            provider,
+            hints,
+            PartitionConfig.fromConfig(config),
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            nameFilter,
+            null
+        );
     }
 
     public static FileList expandGlob(
@@ -259,7 +339,16 @@ public final class GlobExpander {
         int maxGlobExpansion
     ) throws IOException {
         ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
-        return doExpandGlob(pattern, provider, hints, PartitionConfig.fromConfig(config), maxDiscoveredFiles, maxGlobExpansion, nameFilter);
+        return doExpandGlob(
+            pattern,
+            provider,
+            hints,
+            PartitionConfig.fromConfig(config),
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            nameFilter,
+            null
+        );
     }
 
     static FileList doExpandGlob(
@@ -269,7 +358,8 @@ public final class GlobExpander {
         PartitionConfig partitionConfig,
         int maxDiscoveredFiles,
         int maxGlobExpansion,
-        ExclusionConfig.NameFilter nameFilter
+        ExclusionConfig.NameFilter nameFilter,
+        @Nullable Consumer<String> warningSink
     ) throws IOException {
         Check.notNull(pattern, "pattern cannot be null");
         Check.notNull(provider, "provider cannot be null");
@@ -286,7 +376,7 @@ public final class GlobExpander {
             var obj = provider.newObject(storagePath);
             if (obj.exists()) {
                 StorageEntry entry = new StorageEntry(storagePath, obj.length(), obj.lastModified());
-                PartitionMetadata partitionMetadata = detectPartitions(List.of(entry), partitionConfig);
+                PartitionMetadata partitionMetadata = detectPartitions(List.of(entry), partitionConfig, warningSink);
                 return new GenericFileList(List.of(entry), pattern, partitionMetadata);
             }
             return FileList.EMPTY;
@@ -321,7 +411,7 @@ public final class GlobExpander {
                 return FileList.EMPTY;
             }
             matched.sort(Comparator.comparing(e -> e.path().toString()));
-            PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig);
+            PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, warningSink);
             return new GenericFileList(matched, pattern, partitionMetadata);
         }
 
@@ -384,7 +474,8 @@ public final class GlobExpander {
             // Fires for the default list too: a user who never configured exclusion is precisely the one who cannot
             // guess why a file they can see in the bucket is missing from their results. Counted against everything
             // the resource pattern selected, which is the kept objects plus the dropped ones.
-            HeaderWarning.addWarning(
+            emitWarning(
+                warningSink,
                 excludedCount
                     + " of "
                     + (matched.size() + excludedCount)
@@ -412,7 +503,7 @@ public final class GlobExpander {
 
         matched.sort(Comparator.comparing(e -> e.path().toString()));
 
-        PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig);
+        PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, warningSink);
 
         return new GenericFileList(matched, pattern, partitionMetadata);
     }
@@ -430,10 +521,30 @@ public final class GlobExpander {
     }
 
     /**
+     * Routes a client-facing notice to {@code sink}. Every production caller passes the resolver's buffered sink; the
+     * {@code HeaderWarning} fallback exists for the sink-less overloads, which only tests use.
+     */
+    private static void emitWarning(@Nullable Consumer<String> sink, String message) {
+        if (sink != null) {
+            sink.accept(message);
+        } else {
+            HeaderWarning.addWarning(message);
+        }
+    }
+
+    /**
      * The partition columns a listing carries, decided entirely by the resolved {@link PartitionConfig}. One input,
      * one decision: no separate enable flag and no raw settings map alongside it.
      */
     static PartitionMetadata detectPartitions(List<StorageEntry> files, PartitionConfig partitionConfig) {
+        return detectPartitions(files, partitionConfig, null);
+    }
+
+    static PartitionMetadata detectPartitions(
+        List<StorageEntry> files,
+        PartitionConfig partitionConfig,
+        @Nullable Consumer<String> warningSink
+    ) {
         if (PartitionConfig.Strategy.NONE == partitionConfig.strategy()) {
             return null;
         }
@@ -441,7 +552,7 @@ public final class GlobExpander {
         if (detector == null) {
             return null;
         }
-        PartitionMetadata result = detector.detect(files);
+        PartitionMetadata result = detector.detect(files, warningSink);
         if (result == null || result.isEmpty()) {
             return null;
         }
@@ -475,7 +586,8 @@ public final class GlobExpander {
             PartitionConfig.fromConfig(config),
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            ExclusionConfig.fromConfig(config).compile()
+            ExclusionConfig.fromConfig(config).compile(),
+            null
         );
     }
 
@@ -494,7 +606,8 @@ public final class GlobExpander {
             PartitionConfig.fromConfig(config),
             maxDiscoveredFiles,
             maxGlobExpansion,
-            ExclusionConfig.fromConfig(config).compile()
+            ExclusionConfig.fromConfig(config).compile(),
+            null
         );
     }
 
@@ -505,7 +618,8 @@ public final class GlobExpander {
         PartitionConfig partitionConfig,
         int maxDiscoveredFiles,
         int maxGlobExpansion,
-        ExclusionConfig.NameFilter nameFilter
+        ExclusionConfig.NameFilter nameFilter,
+        @Nullable Consumer<String> warningSink
     ) throws IOException {
         Check.notNull(pathList, "pathList cannot be null");
         Check.notNull(provider, "provider cannot be null");
@@ -525,7 +639,8 @@ public final class GlobExpander {
                     partitionConfig,
                     remainingBudget,
                     maxGlobExpansion,
-                    nameFilter
+                    nameFilter,
+                    warningSink
                 );
                 if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {
                     allEntries.addAll(g.files());
@@ -545,7 +660,7 @@ public final class GlobExpander {
 
         allEntries.sort(Comparator.comparing(e -> e.path().toString()));
 
-        PartitionMetadata partitionMetadata = detectPartitions(allEntries, partitionConfig);
+        PartitionMetadata partitionMetadata = detectPartitions(allEntries, partitionConfig, warningSink);
 
         return new GenericFileList(allEntries, pathList, partitionMetadata);
     }

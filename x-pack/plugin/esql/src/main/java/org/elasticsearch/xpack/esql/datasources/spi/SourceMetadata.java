@@ -66,6 +66,16 @@ public interface SourceMetadata {
     }
 
     /**
+     * Client-facing notices raised while resolving this metadata, e.g. a config option the reader could not honour or
+     * a hint derived from the schema sample. They live on the metadata rather than being emitted where raised because
+     * resolution runs on an executor thread whose response headers never reach the client, and because a cached
+     * resolution must replay them too or the same query would warn on its first run and not its second.
+     */
+    default List<String> warnings() {
+        return List.of();
+    }
+
+    /**
      * Returns optional partition column names.
      * For partitioned data sources, this indicates which columns
      * are used for partitioning.

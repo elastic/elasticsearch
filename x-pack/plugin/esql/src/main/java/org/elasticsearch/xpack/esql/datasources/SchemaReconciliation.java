@@ -26,6 +26,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Schema reconciliation algorithms for multi-file external sources.
@@ -340,6 +341,15 @@ public final class SchemaReconciliation {
      * @return reconciliation result with unified schema and per-file mappings
      */
     public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata) {
+        return reconcileUnionByName(fileMetadata, null);
+    }
+
+    /**
+     * @param warningSink where the keyword-widening warning goes. Callers on the resolver's async chain must pass a
+     *                    buffered sink; {@code null} writes straight to {@code HeaderWarning}, which only reaches the
+     *                    client from the request thread.
+     */
+    public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata, @Nullable Consumer<String> warningSink) {
         LinkedHashMap<String, MergeEntry> unified = new LinkedHashMap<>();
         // Per-column accumulator. We record *every* file's inferred type for every column up
         // front (it's cheap and gives the warning emitter a complete contributor list), then
@@ -371,7 +381,7 @@ public final class SchemaReconciliation {
             }
         }
 
-        emitKeywordFallbackWarnings(unified, contributions);
+        emitKeywordFallbackWarnings(unified, contributions, warningSink);
 
         // Mark columns as nullable when missing from any file
         for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
@@ -576,7 +586,8 @@ public final class SchemaReconciliation {
 
     private static void emitKeywordFallbackWarnings(
         LinkedHashMap<String, MergeEntry> unified,
-        LinkedHashMap<String, KeywordFallback> contributions
+        LinkedHashMap<String, KeywordFallback> contributions,
+        @Nullable Consumer<String> warningSink
     ) {
         // Decide which columns warrant a warning: column degraded to KEYWORD *and* at least one
         // contributing file inferred a non-string type. A column that was KEYWORD in every file
@@ -595,13 +606,11 @@ public final class SchemaReconciliation {
         if (warned.isEmpty()) {
             return;
         }
-        // Fire-and-forget: SkipWarnings#add deposits headers on the current thread context via
-        // HeaderWarning.addWarning. The local is not stored anywhere — the side effect *is* the
-        // emit. Same pattern as other SkipWarnings callers (e.g. format readers under non-strict
-        // error policy).
+        // The local is not stored anywhere; the side effect of add() is the emit.
         SkipWarnings warnings = new SkipWarnings(
             "Schema reconciliation widened columns to keyword due to cross-file type disagreement;"
-                + " values are returned as strings. Hint: use schema_resolution = \"strict\" to fail instead."
+                + " values are returned as strings. Hint: use schema_resolution = \"strict\" to fail instead.",
+            warningSink
         );
         for (KeywordFallback fb : warned) {
             warnings.add(fb.buildDetail());

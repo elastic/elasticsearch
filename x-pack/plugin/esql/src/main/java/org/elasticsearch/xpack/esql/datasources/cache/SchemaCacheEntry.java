@@ -34,7 +34,8 @@ public record SchemaCacheEntry(
     String location,
     Map<String, Object> safeMetadata,
     Map<String, Object> connectorConfig,
-    long cachedAtMillis
+    long cachedAtMillis,
+    List<String> warnings
 ) {
     public SchemaCacheEntry {
         if (columnNames.length != columnTypes.length
@@ -44,6 +45,7 @@ public record SchemaCacheEntry(
         }
         safeMetadata = safeMetadata != null ? Map.copyOf(safeMetadata) : Map.of();
         connectorConfig = connectorConfig != null ? Map.copyOf(connectorConfig) : Map.of();
+        warnings = warnings != null ? List.copyOf(warnings) : List.of();
     }
 
     /**
@@ -61,7 +63,8 @@ public record SchemaCacheEntry(
             location,
             metadata,
             connectorConfig,
-            cachedAtMillis
+            cachedAtMillis,
+            warnings
         );
     }
 
@@ -71,6 +74,18 @@ public record SchemaCacheEntry(
         String location,
         Map<String, Object> metadata,
         Map<String, Object> connectorConfig
+    ) {
+        return from(schema, sourceType, location, metadata, connectorConfig, List.of());
+    }
+
+    /** @param warnings see {@link SourceMetadata#warnings()}; cached so a warm resolve replays them like a cold one. */
+    public static SchemaCacheEntry from(
+        List<Attribute> schema,
+        String sourceType,
+        String location,
+        Map<String, Object> metadata,
+        Map<String, Object> connectorConfig,
+        List<String> warnings
     ) {
         int size = schema.size();
         String[] names = new String[size];
@@ -93,7 +108,8 @@ public record SchemaCacheEntry(
             location,
             metadata,
             connectorConfig,
-            System.currentTimeMillis()
+            System.currentTimeMillis(),
+            warnings
         );
     }
 
@@ -122,7 +138,7 @@ public record SchemaCacheEntry(
         Map<String, Object> enrichedMeta = meta.statistics()
             .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
             .orElse(meta.sourceMetadata());
-        return from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config());
+        return from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config(), meta.warnings());
     }
 
     public long estimatedBytes() {
@@ -138,6 +154,9 @@ public record SchemaCacheEntry(
         bytes += columnSynthetics.length;
         bytes += sourceType != null ? sourceType.length() * (long) Character.BYTES : 0;
         bytes += location != null ? location.length() * (long) Character.BYTES : 0;
+        for (String warning : warnings) {
+            bytes += 40 + warning.length() * (long) Character.BYTES;
+        }
         // rough estimate: ~100B per metadata entry (key String + value Object); nested map values
         // (per-stripe stats under _stats.stripe.<k>) weigh their inner entries the same way so a
         // many-striped file doesn't under-count against the cache budget

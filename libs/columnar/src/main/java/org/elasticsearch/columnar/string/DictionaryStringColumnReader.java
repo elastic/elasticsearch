@@ -22,6 +22,7 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.function.Predicate;
 
 /**
  * A column that names its values with ordinals into a dictionary of terms. An ordinal is stable for the
@@ -195,17 +196,16 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     }
 
     /**
-     * One search a term rather than one a document. A term the dictionary holds is decided here, and a
+     * One test a term rather than one a document. A term the dictionary holds is decided here, and a
      * column that let nothing escape is decided here entirely. Only a value that escaped has to be
-     * searched on its own.
+     * tested on its own.
      */
     @Override
-    protected DocIdSetIterator containsMatches(BytesRef term) throws IOException {
+    protected DocIdSetIterator valueMatches(Predicate<BytesRef> matcher) throws IOException {
         final FixedBitSet matching = new FixedBitSet(dictionarySize);
         final BytesRef scratchTerm = new BytesRef();
         for (int ordinal = 0; ordinal < dictionarySize; ordinal++) {
-            final BytesRef candidate = termAt(ordinal, scratchTerm);
-            if (ESVectorUtil.contains(candidate.bytes, candidate.offset, candidate.length, term.bytes, term.offset, term.length)) {
+            if (matcher.test(termAt(ordinal, scratchTerm))) {
                 matching.set(ordinal);
             }
         }
@@ -230,9 +230,9 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
                         return true;
                     }
                     if (mask.escaped(address)) {
-                        // Nothing names this value, so its own bytes are searched.
+                        // Nothing names this value, so its own bytes are tested.
                         escapes.get(escapeRankOf(address), value);
-                        if (ESVectorUtil.contains(value.bytes, value.offset, value.length, term.bytes, term.offset, term.length)) {
+                        if (matcher.test(value)) {
                             return true;
                         }
                     }

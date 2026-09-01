@@ -16,10 +16,12 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * Reads a string column written by {@link StringColumnWriter}.
@@ -199,14 +201,30 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * values are looked at either way.
      */
     public DocIdSetIterator matchContains(BytesRef term) throws IOException {
+        return match(value -> ESVectorUtil.contains(value.bytes, value.offset, value.length, term.bytes, term.offset, term.length));
+    }
+
+    /**
+     * Documents holding a value {@code matcher} accepts.
+     *
+     * <p>The test is opaque, so nothing about the order of the values narrows it and every distinct value has
+     * to be offered. What the column's shape decides is how many that is: a dictionary column asks once a
+     * term and lets every value naming it inherit the answer, a column of runs asks once a run, and a column
+     * of neither asks once a value. A caller that knows more than a predicate says, a term or a prefix,
+     * should say so through {@link #matchTerm} or {@link #matchPrefix} instead, which can bisect.
+     *
+     * <p>The {@link BytesRef} handed to {@code matcher} points into a buffer this reader reuses, so it is
+     * only valid for the duration of the call.
+     */
+    public DocIdSetIterator match(Predicate<BytesRef> matcher) throws IOException {
         if (meta.numDocsWithField() == 0) {
             return DocIdSetIterator.empty();
         }
-        return containsMatches(term);
+        return valueMatches(matcher);
     }
 
-    /** Documents holding {@code term} inside a value, for a column that knows how its values are reached. */
-    protected abstract DocIdSetIterator containsMatches(BytesRef term) throws IOException;
+    /** Documents holding a value {@code matcher} accepts, for a column that knows how its values are reached. */
+    protected abstract DocIdSetIterator valueMatches(Predicate<BytesRef> matcher) throws IOException;
 
     /**
      * Documents whose value equals {@code exact}, or starts with {@code prefix} when {@code exact} is null.

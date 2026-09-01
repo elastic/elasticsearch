@@ -14,9 +14,9 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
-import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 /**
  * A column that stores its values. Nothing names a value but its own bytes, so every filter the column's
@@ -53,7 +53,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
     }
 
     @Override
-    protected DocIdSetIterator containsMatches(BytesRef term) throws IOException {
+    protected DocIdSetIterator valueMatches(Predicate<BytesRef> matcher) throws IOException {
         final ColumnIterator presence = iterator();
         final BytesRef value = new BytesRef();
         final LastSeen lastSeen = new LastSeen();
@@ -64,19 +64,12 @@ public final class PlainStringColumnReader extends StringColumnReader {
                 final long first = firstValueAddress(rank);
                 final long count = valueCount(rank);
                 if (count == 1) {
-                    // A value repeating the one before it contains what it contained.
+                    // A value repeating the one before it answers as it answered.
                     final long identity = values.read(first, value);
                     if (identity == lastSeen.identity && value.length == lastSeen.length) {
                         return lastSeen.matched;
                     }
-                    final boolean matched = ESVectorUtil.contains(
-                        value.bytes,
-                        value.offset,
-                        value.length,
-                        term.bytes,
-                        term.offset,
-                        term.length
-                    );
+                    final boolean matched = matcher.test(value);
                     lastSeen.identity = identity;
                     lastSeen.length = value.length;
                     lastSeen.matched = matched;
@@ -84,7 +77,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
                 }
                 for (long i = 0; i < count; i++) {
                     values.get(first + i, value);
-                    if (ESVectorUtil.contains(value.bytes, value.offset, value.length, term.bytes, term.offset, term.length)) {
+                    if (matcher.test(value)) {
                         return true;
                     }
                 }

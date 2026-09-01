@@ -13,11 +13,16 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 
@@ -399,6 +404,168 @@ public class StringMatchTests extends ColumnarStringTestCase {
                 }
             );
         }
+    }
+
+    /**
+     * A test the column cannot narrow, which is what a pattern comes to once it is an automaton. Nothing about
+     * the order of the values helps, so every distinct value has to be offered it and the column's shape only
+     * decides how many that is. Whatever it decides, the documents have to be the ones a test of every value
+     * would find.
+     */
+    public void testMatchPredicate() throws IOException {
+        for (Shape shape : shapes()) {
+            withColumn(
+                shape.values(),
+                randomValidBlockSize(),
+                randomChunkCodec(),
+                randomTargetChunkBytes(),
+                shape.policy(),
+                (metadata, reader) -> {
+                    for (String pattern : PATTERNS) {
+                        final ByteRunAutomaton automaton = byteRunAutomaton(pattern);
+                        assertEquals(
+                            shape.name() + " matching [" + pattern + "]",
+                            accepted(shape.values(), automaton),
+                            matched(reader.match(run(automaton)))
+                        );
+                    }
+                }
+            );
+        }
+    }
+
+    /**
+     * The point of naming values with ordinals: a term the dictionary holds is tested once however many
+     * documents name it, so what a match costs follows the number of distinct values rather than the number of
+     * documents. Only a value that escaped the dictionary is tested on its own.
+     */
+    public void testADictionaryTestsATermOnce() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(2000, 4000)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = d % 41 == 3 ? new BytesRef("escaped-" + d) : new BytesRef(TERMS[d % (TERMS.length - 1)]);
+        }
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertTrue("expected a dictionary", reader.hasDictionary());
+            assertTrue("expected values to have escaped it", reader.escapeCount() > 0);
+            final ByteRunAutomaton automaton = byteRunAutomaton("al.*");
+            final AtomicInteger tests = new AtomicInteger();
+            final DocIdSetIterator matches = reader.match(value -> {
+                tests.incrementAndGet();
+                return automaton.run(value.bytes, value.offset, value.length);
+            });
+            assertEquals("documents", accepted(docValues, automaton), matched(matches));
+            assertTrue(
+                "expected at most one test a distinct value, got " + tests.get() + " over " + docValues.length + " documents",
+                tests.get() <= reader.dictionarySize() + reader.escapeCount()
+            );
+            assertTrue("expected fewer tests than documents", tests.get() < docValues.length);
+        });
+    }
+
+    /** Collecting a window of an opaque test has to find the same documents as asking one at a time. */
+    public void testWindowedPredicateAgreesWithPerDocument() throws IOException {
+        for (Shape shape : shapes()) {
+            withColumn(
+                shape.values(),
+                randomValidBlockSize(),
+                randomChunkCodec(),
+                randomTargetChunkBytes(),
+                shape.policy(),
+                (metadata, reader) -> {
+                    for (String pattern : PATTERNS) {
+                        final ByteRunAutomaton automaton = byteRunAutomaton(pattern);
+                        assertWindowedAgrees(
+                            shape.name() + " matching [" + pattern + "]",
+                            shape.values().length,
+                            () -> reader.match(run(automaton))
+                        );
+                    }
+                }
+            );
+        }
+    }
+
+    /** A column no document has a value in answers nothing, whatever it is asked. */
+    public void testMatchPredicateOnEmptyColumn() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(400, 1500)];
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertEquals(List.of(), matched(reader.match(value -> true)));
+        });
+    }
+
+    /** A pattern anchored on nothing, so the answer is every document that has a value at all. */
+    public void testMatchPredicateAcceptingEverything() throws IOException {
+        for (Shape shape : shapes()) {
+            withColumn(
+                shape.values(),
+                randomValidBlockSize(),
+                randomChunkCodec(),
+                randomTargetChunkBytes(),
+                shape.policy(),
+                (metadata, reader) -> {
+                    final List<Integer> withAValue = new ArrayList<>();
+                    for (int d = 0; d < shape.values().length; d++) {
+                        if (shape.values()[d] != null) {
+                            withAValue.add(d);
+                        }
+                    }
+                    assertEquals(shape.name() + " accepting everything", withAValue, matched(reader.match(value -> true)));
+                }
+            );
+        }
+    }
+
+    /** The pattern as a test of bytes, determinized the way a query would determinize it. */
+    private static ByteRunAutomaton byteRunAutomaton(String pattern) {
+        return new ByteRunAutomaton(Operations.determinize(new RegExp(pattern).toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
+    }
+
+    private static Predicate<BytesRef> run(ByteRunAutomaton automaton) {
+        return value -> automaton.run(value.bytes, value.offset, value.length);
+    }
+
+    /** Inside a term, anchored at either end, spanning nothing, and matching nothing the column holds. */
+    private static final String[] PATTERNS = { "al.*", ".*pha", "alpha", "[bc].*", ".*", "(alpha)?", "zzz.*", "escaped-.*" };
+
+    /** The documents a test of every value would find. */
+    private static List<Integer> accepted(BytesRef[] docValues, ByteRunAutomaton automaton) {
+        final List<Integer> docs = new ArrayList<>();
+        for (int d = 0; d < docValues.length; d++) {
+            final BytesRef value = docValues[d];
+            if (value != null && automaton.run(value.bytes, value.offset, value.length)) {
+                docs.add(d);
+            }
+        }
+        return docs;
+    }
+
+    /** The shape of a column, and the values that give it that shape. */
+    private record Shape(String name, BytesRef[] values, DictionaryPolicy policy) {}
+
+    /** Every way a column answers a test of its values, including the two that mix decided and undecided ones. */
+    private List<Shape> shapes() {
+        final BytesRef[] plain = repeated(between(400, 1500));
+        final BytesRef[] withEscapes = new BytesRef[between(600, 1500)];
+        for (int d = 0; d < withEscapes.length; d++) {
+            withEscapes[d] = d % 40 == 3 ? new BytesRef("escaped-" + d) : new BytesRef(TERMS[d % (TERMS.length - 1)]);
+        }
+        final BytesRef[] sparse = repeated(between(400, 1500));
+        for (int d = 0; d < sparse.length; d += 5) {
+            sparse[d] = null;
+        }
+        final BytesRef[] mostlyEmpty = new BytesRef[between(600, 1500)];
+        for (int d = 0; d < mostlyEmpty.length; d++) {
+            mostlyEmpty[d] = random().nextDouble() < 0.88 ? new BytesRef("") : new BytesRef("phrase " + random().nextInt(200));
+        }
+        return List.of(
+            new Shape("plain", plain, DictionaryPolicy.NONE),
+            new Shape("sorted plain", sorted(repeated(between(400, 1500))), DictionaryPolicy.NONE),
+            new Shape("dictionary", plain, ROOMY),
+            new Shape("dictionary with escapes", withEscapes, ROOMY),
+            new Shape("sparse", sparse, DictionaryPolicy.NONE),
+            new Shape("mostly empty", mostlyEmpty, DictionaryPolicy.NONE),
+            new Shape("mostly empty with a dictionary", mostlyEmpty, ROOMY)
+        );
     }
 
     /** The documents a search of every value would find. */

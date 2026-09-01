@@ -346,7 +346,7 @@ tasks.named('processCsvSpecTestResources').configure {
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   // Vector crossing puts thousands of cases in this task, past randomizedtesting's 600s default.
   // Raising the ceiling lets it finish; it does not make it faster.
-  systemProperty 'tests.timeoutSuite', '3600000!'
+  systemProperty 'tests.timeoutSuite', '14400000!'
   dependsOn generateParquetFixtures
   dependsOn generateEsqlSpecTests
   usesDefaultDistribution("to be triaged")
@@ -369,7 +369,7 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
 def vectorSpecTests = tasks.register('vectorSpecTests', StandaloneRestIntegTestTask) {
   // Vector crossing puts thousands of cases in this task, past randomizedtesting's 600s default.
   // Raising the ceiling lets it finish; it does not make it faster.
-  systemProperty 'tests.timeoutSuite', '3600000!'
+  systemProperty 'tests.timeoutSuite', '14400000!'
   dependsOn generateParquetFixtures
   dependsOn generateEsqlSpecTests
   usesDefaultDistribution("to be triaged")

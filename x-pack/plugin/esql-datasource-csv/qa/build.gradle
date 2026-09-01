@@ -382,10 +382,14 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'
   // The vector suites cross the corpus with every expressible vector, so this task carries thousands of
-  // cases rather than hundreds: csv measured 13,594 at ~44ms. That is past randomizedtesting's 600s
-  // default. Raising the ceiling lets the suite FINISH; it does not make it faster, and the wall clock is
-  // why the full crossing belongs in a nightly pipeline rather than on the PR path.
-  systemProperty 'tests.timeoutSuite', '3600000!'
+  // cases rather than hundreds, and the count grows with every dimension declared. That is far past
+  // randomizedtesting's 600s default. Raising the ceiling lets the suite FINISH; it does not make it
+  // faster, and the wall clock is why the full crossing belongs in a nightly pipeline, not the PR path.
+  //
+  // 240 minutes, sized to sit INSIDE the pipeline step's 300. It was 60, which the crossing outgrew: the
+  // ndjson and parquet suites were killed mid-run at exactly 3600000ms having executed ~16,500 cases
+  // each, and reported it as two failures -- a timeout reads as a red suite, not as "needs longer".
+  systemProperty 'tests.timeoutSuite', '14400000!'
   // The vector suites are NOT part of the PR path: they cross every routed case with every
   // expressible vector, measured at 75 minutes across the four formats. They live in
   // vectorSpecTests, which nothing adds to `check`.
@@ -407,10 +411,14 @@ def vectorSpecTests = tasks.register('vectorSpecTests', StandaloneRestIntegTestT
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'
   // The vector suites cross the corpus with every expressible vector, so this task carries thousands of
-  // cases rather than hundreds: csv measured 13,594 at ~44ms. That is past randomizedtesting's 600s
-  // default. Raising the ceiling lets the suite FINISH; it does not make it faster, and the wall clock is
-  // why the full crossing belongs in a nightly pipeline rather than on the PR path.
-  systemProperty 'tests.timeoutSuite', '3600000!'
+  // cases rather than hundreds, and the count grows with every dimension declared. That is far past
+  // randomizedtesting's 600s default. Raising the ceiling lets the suite FINISH; it does not make it
+  // faster, and the wall clock is why the full crossing belongs in a nightly pipeline, not the PR path.
+  //
+  // 240 minutes, sized to sit INSIDE the pipeline step's 300. It was 60, which the crossing outgrew: the
+  // ndjson and parquet suites were killed mid-run at exactly 3600000ms having executed ~16,500 cases
+  // each, and reported it as two failures -- a timeout reads as a red suite, not as "needs longer".
+  systemProperty 'tests.timeoutSuite', '14400000!'
   filter { includeTestsMatching '*VectorSpecIT' }
 }
 

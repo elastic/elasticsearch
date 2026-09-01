@@ -133,7 +133,7 @@ def distributedSpecTests = tasks.register('distributedSpecTests', StandaloneRest
   systemProperty 'tests.rest.socket_timeout', '60'
   // Same reason the single-node vector tasks raise it: thousands of cases past randomizedtesting's 600s
   // default. It lets the suite finish; it does not make it faster.
-  systemProperty 'tests.timeoutSuite', '3600000!'
+  systemProperty 'tests.timeoutSuite', '14400000!'
   filter { includeTestsMatching '*ExternalDistributedSpecIT' }
 }
 

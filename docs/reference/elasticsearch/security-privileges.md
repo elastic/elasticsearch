@@ -34,7 +34,7 @@ When creating roles, refer to this page for a complete list of available privile
 :   All cluster administration operations, like snapshotting, node shutdown/restart, settings update, rerouting, or managing users and roles.
 
     ::::{note}
-    This privilege automatically includes any new cluster operations added in future versions of Elasticsearch.
+    This privilege is not limited to a fixed set of operations. It also grants any cluster operations added to {{es}} after you create the role.
     ::::
 
 `cancel_task`

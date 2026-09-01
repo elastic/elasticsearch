@@ -41,25 +41,15 @@ import java.util.Map;
  */
 final class RoaringBitmapAggregator extends MetricsAggregator {
 
-    // Circuit breaker accounting runs in two tiers because MutableBitmap#ramBytesUsed() is expensive,
-    // so measuring on every insertion would make collection quadratic. Both tiers go through the
-    // MutableBitmap API: what a value costs in bytes is that class's concern, not this one's.
-    //
-    // 1. Estimate, every BREAKER_RESERVATION_VALUES values: reserve
-    // MutableBitmap#estimateGrowthBytes for the batch. That is O(1), so it can run often, and it
-    // bounds how much unreserved growth can pile up -- a runaway aggregation trips the breaker
-    // during a batch rather than after it has already allocated.
-    // 2. Measure, every VALUES_PER_MEASUREMENT values: replace every estimate made so far with
-    // MutableBitmap#ramBytesUsed(). The estimate is a worst case, so without this correction a
-    // bitmap that compresses well would trip the breaker on reservations it never needed.
-    //
-    // reservedBytes is the single source of truth: it always holds what has been handed to the
-    // breaker, estimated or measured, so a measurement only has to release the difference.
-    //
-    // TODO drop the estimate tier once ramBytesUsed() is cheap; measuring the real delta per value
-    // would then replace the rate, the batching and the interval.
-    static final int BREAKER_RESERVATION_VALUES = 1 << 10;
-    private static final int VALUES_PER_MEASUREMENT = 1 << 18;
+    // The breaker only ever sees measured bytes, so nothing is charged for a value until the bitmap has
+    // actually grown by it and repeated values cost nothing. Measuring per value would be quadratic
+    // though, because MutableBitmap#ramBytesUsed() walks every container, so measurements are spaced
+    // one interval further apart each time, the interval being a fraction of the values collected so
+    // far. The bitmap can therefore outgrow its reservation by roughly that same fraction of itself
+    // before the breaker sees it, which is bounded because collection grows the bitmap in small
+    // increments -- unlike the reduce path, which allocates a whole bitmap at once and reserves up front.
+    static final int MIN_VALUES_PER_MEASUREMENT = 1 << 10;
+    private static final int MEASUREMENT_GROWTH_FRACTION = 4;
 
     private final ValuesSource.Numeric valuesSource;
     private final InternalRoaringBitmap.BitmapFormat width;
@@ -67,8 +57,8 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
     private final int termLength;
     private InternalRoaringBitmap.MutableBitmap bitmap;
     private long reservedBytes;
-    private int valuesUntilNextEstimate;
-    private int valuesUntilNextMeasurement = VALUES_PER_MEASUREMENT;
+    private long valuesCollected;
+    private long measureAtValueCount = MIN_VALUES_PER_MEASUREMENT;
 
     RoaringBitmapAggregator(
         String name,
@@ -229,8 +219,8 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
         // This does NOT cover the array's full lifetime: AggregatorCollector calls
         // releaseAggregations() immediately after buildTopLevel(), and AggregatorBase#close() then
         // drops all of requestBytesUsed while the array stays reachable from the result tree. That
-        // gap is not specific to this aggregation -- every InternalAggregation outlives its
-        // aggregator -- so it is left open rather than worked around here.
+        // gap is not specific to this aggregation -- InternalCardinality likewise leaves its
+        // retained sketch unaccounted -- so it is left open rather than worked around here.
         addRequestCircuitBreakerBytes(serialized.length);
         return new InternalRoaringBitmap(name, width, serialized, metadata());
     }
@@ -248,33 +238,19 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
         measureBitmap();
     }
 
-    /**
-     * Accounts for one value about to be added: reserves the pessimistic estimate in batches, and
-     * periodically replaces the accumulated estimates with a measurement of the real bitmap.
-     */
+    /** Counts one value about to be added, measuring the bitmap when enough have accumulated. */
     private void accountForValue() {
-        if (--valuesUntilNextEstimate <= 0) {
-            // Cancellation rides along with the batch because both want the same cheap periodic hook.
-            checkCancelled();
-            reserveEstimateFor(BREAKER_RESERVATION_VALUES);
-            valuesUntilNextEstimate = BREAKER_RESERVATION_VALUES;
+        if (++valuesCollected < measureAtValueCount) {
+            return;
         }
-        if (--valuesUntilNextMeasurement <= 0) {
-            measureBitmap();
-        }
-    }
-
-    /** Reserves the bitmap's own worst-case estimate for {@code valueCount} values, without measuring it. */
-    private void reserveEstimateFor(long valueCount) {
-        long reservation = getOrCreateBitmap().estimateGrowthBytes(valueCount);
-        addRequestCircuitBreakerBytes(reservation);
-        reservedBytes += reservation;
+        // Cancellation rides along because both want the same cheap periodic hook.
+        checkCancelled();
+        measureBitmap();
     }
 
     /**
-     * Replaces every reservation made so far -- estimated or measured -- with the bitmap's real size,
-     * releasing the difference. No estimate is left standing afterwards, so the next value starts a
-     * fresh batch.
+     * Brings the reservation up to the bitmap's real size, releasing the difference if it shrank, and
+     * schedules the next measurement one interval further out than the last.
      */
     private void measureBitmap() {
         if (bitmap == null) {
@@ -286,7 +262,6 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
             addRequestCircuitBreakerBytes(difference);
         }
         reservedBytes = measuredBytes;
-        valuesUntilNextEstimate = 0;
-        valuesUntilNextMeasurement = VALUES_PER_MEASUREMENT;
+        measureAtValueCount = valuesCollected + Math.max(MIN_VALUES_PER_MEASUREMENT, valuesCollected / MEASUREMENT_GROWTH_FRACTION);
     }
 }

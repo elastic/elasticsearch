@@ -55,14 +55,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.LongUnaryOperator;
 
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -300,6 +298,35 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    /**
+     * An unmapped field takes the {@code createUnmapped} path, which never reaches
+     * {@code doCreateInternal}, so the multi-bucket restriction has to be enforced before that split or
+     * the aggregator is built anyway and then asked to build one result per parent bucket.
+     */
+    public void testRejectsMultiBucketParentAggregationForUnmappedField() throws Exception {
+        try (Directory directory = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
+            for (String category : List.of("books", "music")) {
+                Document document = new Document();
+                document.add(new StringField(CATEGORY, category, Field.Store.NO));
+                document.add(new SortedSetDocValuesField(CATEGORY, new BytesRef(category)));
+                writer.addDocument(document);
+            }
+
+            try (IndexReader reader = writer.getReader()) {
+                AggregationBuilder parent = new TermsAggregationBuilder("parent").field(CATEGORY)
+                    .subAggregation(new RoaringBitmapAggregationBuilder("ids").field("missing_field"));
+                IllegalArgumentException exception = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> searchAndReduce(reader, new AggTestConfig(parent, keywordField(CATEGORY)))
+                );
+                assertThat(
+                    exception.getMessage(),
+                    containsString("cannot be nested inside an aggregation that collects more than a single bucket")
+                );
+            }
+        }
+    }
+
     public void testTermsIndexRejectsNegativeMinimumBeforeCollection() throws Exception {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -408,14 +435,18 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
         assertThat(breaker.getUsed(), equalTo(baseline));
     }
 
-    public void testCollectionTripsBreakerBeforeBitmapGrowth() throws Exception {
+    public void testCollectionTripsBreakerOnMeasuredGrowth() throws Exception {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD, NumberFieldMapper.NumberType.LONG);
         CircuitBreakerService breakerService = LimitedBreaker.service(CircuitBreaker.REQUEST, ByteSizeValue.ofKb(128));
         CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
         long baseline = breaker.getUsed();
         try (Directory directory = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
             Document document = new Document();
-            document.add(new SortedNumericDocValuesField(FIELD, 1L << 32));
+            // One value per high word is the shape costing the most heap per value, and enough of them
+            // to carry the bitmap past a measurement point well over the limit.
+            for (int i = 0; i < 4 * RoaringBitmapAggregator.MIN_VALUES_PER_MEASUREMENT; i++) {
+                document.add(new SortedNumericDocValuesField(FIELD, (long) i << 32));
+            }
             writer.addDocument(document);
             try (
                 IndexReader reader = writer.getReader();
@@ -433,16 +464,52 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
             ) {
                 Aggregator aggregator = createAggregator(new RoaringBitmapAggregationBuilder("ids").field(FIELD), context);
                 aggregator.preCollection();
-                CircuitBreakingException exception = expectThrows(
-                    CircuitBreakingException.class,
-                    () -> context.searcher().search(context.query(), aggregator.asCollector())
-                );
-                assertThat(
-                    exception.getBytesWanted(),
-                    equalTo(
-                        (long) RoaringBitmapAggregator.BREAKER_RESERVATION_VALUES * InternalRoaringBitmap.LONG_ESTIMATED_BYTES_PER_VALUE
-                    )
-                );
+                expectThrows(CircuitBreakingException.class, () -> context.searcher().search(context.query(), aggregator.asCollector()));
+            }
+        }
+        assertThat(breaker.getUsed(), equalTo(baseline));
+    }
+
+    /**
+     * Only measured bytes are ever charged, so a value already in the bitmap costs nothing. This
+     * collects 400,000 copies of one value under a breaker far too small to survive a charge per
+     * collected value.
+     */
+    public void testRepeatedValuesDoNotTripBreaker() throws Exception {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD, NumberFieldMapper.NumberType.LONG);
+        CircuitBreakerService breakerService = LimitedBreaker.service(CircuitBreaker.REQUEST, ByteSizeValue.ofKb(128));
+        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        long baseline = breaker.getUsed();
+        long value = 1L << 32;
+        try (Directory directory = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
+            for (int i = 0; i < 400; i++) {
+                Document document = new Document();
+                for (int j = 0; j < 1000; j++) {
+                    // SortedNumericDocValues keeps duplicates, so all of these reach the collector.
+                    document.add(new SortedNumericDocValuesField(FIELD, value));
+                }
+                writer.addDocument(document);
+            }
+            try (
+                IndexReader reader = writer.getReader();
+                AggregationContext context = createAggregationContext(
+                    reader,
+                    createIndexSettings(),
+                    Queries.ALL_DOCS_INSTANCE,
+                    breakerService,
+                    0,
+                    DEFAULT_MAX_BUCKETS,
+                    false,
+                    false,
+                    fieldType
+                )
+            ) {
+                Aggregator aggregator = createAggregator(new RoaringBitmapAggregationBuilder("ids").field(FIELD), context);
+                aggregator.preCollection();
+                context.searcher().search(context.query(), aggregator.asCollector());
+                aggregator.postCollection();
+                InternalRoaringBitmap result = (InternalRoaringBitmap) aggregator.buildTopLevel();
+                assertThat(drain(LongBitmap.deserializePortable(result.bitmap())), equalTo(List.of(value)));
             }
         }
         assertThat(breaker.getUsed(), equalTo(baseline));
@@ -487,16 +554,6 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
         InternalRoaringBitmap.MutableBitmap bitmap = InternalRoaringBitmap.mutable(InternalRoaringBitmap.BitmapFormat.INT);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> bitmap.add(1L + Integer.MAX_VALUE));
         assertThat(exception.getMessage(), containsString("integer field produced out-of-range value"));
-    }
-
-    // This checks that the reservation rate stays clear of ramBytesUsed()'s own worst-case growth for
-    // these patterns, with real margin -- not that ramBytesUsed() itself tracks true JVM heap use. That
-    // latter guarantee comes from the overhead-correction factors on IntMutableBitmap/LongMutableBitmap
-    // #ramBytesUsed, calibrated against JVM heap measurements from code review, which this in-JVM test
-    // has no portable way to re-verify independently.
-    public void testBreakerReservationsCoverWorstCaseContainerGrowth() {
-        assertReservationCoversReportedGrowth(InternalRoaringBitmap.BitmapFormat.INT, value -> value << 16);
-        assertReservationCoversReportedGrowth(InternalRoaringBitmap.BitmapFormat.LONG, value -> value << 32);
     }
 
     public void testReducerRejectsWidthMismatch() throws Exception {
@@ -706,16 +763,6 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
         InternalRoaringBitmap.MutableBitmap bitmap = InternalRoaringBitmap.mutable(width);
         bitmap.add(value);
         return bitmap.ramBytesUsed();
-    }
-
-    private static void assertReservationCoversReportedGrowth(InternalRoaringBitmap.BitmapFormat width, LongUnaryOperator value) {
-        InternalRoaringBitmap.MutableBitmap bitmap = InternalRoaringBitmap.mutable(width);
-        long initialBytes = bitmap.ramBytesUsed();
-        for (int i = 0; i < RoaringBitmapAggregator.BREAKER_RESERVATION_VALUES; i++) {
-            bitmap.add(value.applyAsLong(i));
-        }
-        long reportedGrowth = bitmap.ramBytesUsed() - initialBytes;
-        assertThat(reportedGrowth, lessThanOrEqualTo(bitmap.estimateGrowthBytes(RoaringBitmapAggregator.BREAKER_RESERVATION_VALUES)));
     }
 
     private static List<Long> drain(BitmapValues values) throws IOException {

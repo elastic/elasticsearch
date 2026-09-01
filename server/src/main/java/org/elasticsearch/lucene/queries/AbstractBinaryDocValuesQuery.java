@@ -26,6 +26,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueArrayOrderInlineNullBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
@@ -106,9 +107,20 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
         }
         if (counts != null) {
             return multiValuedIterator(values, counts, matcher, matchCost);
-        } else {
-            return singleValuedIterator(values, matcher, matchCost);
         }
+        if (values instanceof StringColumnSource columnar) {
+            // A column that can answer for itself offers the matcher its distinct values rather than every
+            // document's, which on a dictionary column is once a term however many documents name it.
+            //
+            // Sound only where the blob is the value, which is what having no .counts companion says: a lone
+            // value is written as its own bytes under both encodings, and a document holding several is the
+            // branch above. That companion is written unconditionally beside a keyword field, so today this
+            // is reached only by a writer that does not write one. It becomes the path a keyword field takes
+            // once the column decodes what it is handed rather than storing the blob, at which point the
+            // column knows its own value counts and this can ask it instead.
+            return columnar.reader().match(matcher);
+        }
+        return singleValuedIterator(values, matcher, matchCost);
     }
 
     protected abstract float matchCost();

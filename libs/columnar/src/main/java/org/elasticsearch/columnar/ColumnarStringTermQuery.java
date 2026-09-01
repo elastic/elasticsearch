@@ -26,13 +26,14 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnSource;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Documents whose keyword column holds {@code term}, or a value starting with it, answered by the column
- * rather than by an inverted index.
+ * Documents whose keyword column holds {@code term}, or a value starting with it or carrying it somewhere
+ * inside, answered by the column rather than by an inverted index.
  *
  * <p>What that costs depends on the column's shape, which it decides for itself: a column in term order
  * bisects to the run of matches, a dictionary column matches over ordinals without reading a value, and
@@ -41,24 +42,36 @@ import java.util.Objects;
  */
 public final class ColumnarStringTermQuery extends Query {
 
+    /** Where in a value the bytes have to sit for it to match. */
+    private enum Where {
+        WHOLE,
+        START,
+        ANYWHERE
+    }
+
     private final String field;
     private final BytesRef term;
-    private final boolean prefix;
+    private final Where where;
 
     /** Documents whose value is exactly {@code term}. */
     public static ColumnarStringTermQuery term(String field, BytesRef term) {
-        return new ColumnarStringTermQuery(field, term, false);
+        return new ColumnarStringTermQuery(field, term, Where.WHOLE);
     }
 
     /** Documents holding a value that starts with {@code prefix}. */
     public static ColumnarStringTermQuery prefix(String field, BytesRef prefix) {
-        return new ColumnarStringTermQuery(field, prefix, true);
+        return new ColumnarStringTermQuery(field, prefix, Where.START);
     }
 
-    private ColumnarStringTermQuery(String field, BytesRef term, boolean prefix) {
+    /** Documents holding a value that has {@code term} somewhere inside it. */
+    public static ColumnarStringTermQuery contains(String field, BytesRef term) {
+        return new ColumnarStringTermQuery(field, term, Where.ANYWHERE);
+    }
+
+    private ColumnarStringTermQuery(String field, BytesRef term, Where where) {
         this.field = Objects.requireNonNull(field);
         this.term = BytesRef.deepCopyOf(Objects.requireNonNull(term));
-        this.prefix = prefix;
+        this.where = where;
     }
 
     @Override
@@ -74,7 +87,11 @@ public final class ColumnarStringTermQuery extends Query {
                 }
                 if (values instanceof StringColumnSource columnar) {
                     final StringColumnReader column = columnar.reader();
-                    final DocIdSetIterator matches = prefix ? column.matchPrefix(term) : column.matchTerm(term);
+                    final DocIdSetIterator matches = switch (where) {
+                        case WHOLE -> column.matchTerm(term);
+                        case START -> column.matchPrefix(term);
+                        case ANYWHERE -> column.matchContains(term);
+                    };
                     return ConstantScoreScorerSupplier.fromIterator(matches, score(), scoreMode, reader.maxDoc());
                 }
 
@@ -85,16 +102,26 @@ public final class ColumnarStringTermQuery extends Query {
                     @Override
                     public boolean matches() throws IOException {
                         final BytesRef candidate = values.binaryValue();
-                        if (prefix) {
-                            if (candidate.length < term.length) {
-                                return false;
+                        return switch (where) {
+                            case WHOLE -> candidate.bytesEquals(term);
+                            case START -> {
+                                if (candidate.length < term.length) {
+                                    yield false;
+                                }
+                                value.bytes = candidate.bytes;
+                                value.offset = candidate.offset;
+                                value.length = term.length;
+                                yield value.bytesEquals(term);
                             }
-                            value.bytes = candidate.bytes;
-                            value.offset = candidate.offset;
-                            value.length = term.length;
-                            return value.bytesEquals(term);
-                        }
-                        return candidate.bytesEquals(term);
+                            case ANYWHERE -> ESVectorUtil.contains(
+                                candidate.bytes,
+                                candidate.offset,
+                                candidate.length,
+                                term.bytes,
+                                term.offset,
+                                term.length
+                            );
+                        };
                     }
 
                     @Override
@@ -126,7 +153,11 @@ public final class ColumnarStringTermQuery extends Query {
 
     @Override
     public String toString(String defaultField) {
-        return field + ":" + term.utf8ToString() + (prefix ? "*" : "");
+        return switch (where) {
+            case WHOLE -> field + ":" + term.utf8ToString();
+            case START -> field + ":" + term.utf8ToString() + "*";
+            case ANYWHERE -> field + ":*" + term.utf8ToString() + "*";
+        };
     }
 
     @Override
@@ -135,13 +166,13 @@ public final class ColumnarStringTermQuery extends Query {
             return true;
         }
         if (other instanceof ColumnarStringTermQuery q) {
-            return prefix == q.prefix && field.equals(q.field) && term.bytesEquals(q.term);
+            return where == q.where && field.equals(q.field) && term.bytesEquals(q.term);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, term, prefix);
+        return Objects.hash(field, term, where);
     }
 }

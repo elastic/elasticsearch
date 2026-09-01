@@ -34,6 +34,8 @@ import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.DisableDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.EnableDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
@@ -821,6 +823,61 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
+    public void testEnableDisableDataSourceAndDataset() throws Exception {
+        final String dsName = "toggle_ds";
+        final String datasetName = "toggle_dataset";
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, dsName, "test://logs/*.parquet", Map.of())));
+
+        GetDataSourceAction.Response dsResp = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(dsName)).get();
+        assertThat(dsResp.getDataSources().iterator().next().enabled(), equalTo(true));
+        GetDatasetAction.Response dsetResp = client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(datasetName)).get();
+        assertThat(dsetResp.getDatasets().iterator().next().enabled(), equalTo(true));
+
+        assertAcked(client().execute(DisableDataSourceAction.INSTANCE, disableDataSourceRequest(dsName)));
+        dsResp = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(dsName)).get();
+        assertThat(dsResp.getDataSources().iterator().next().enabled(), equalTo(false));
+
+        // PUT replace preserves disabled flag
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "eu-west-1"))));
+        dsResp = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(dsName)).get();
+        assertThat(dsResp.getDataSources().iterator().next().enabled(), equalTo(false));
+        assertThat(dsResp.getDataSources().iterator().next().settings().get("region").nonSecretValue(), equalTo("eu-west-1"));
+
+        // New dataset against disabled parent is rejected; existing replace still works
+        ExecutionException createEx = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("new_child", dsName, "test://x/", Map.of())).get()
+        );
+        assertThat(createEx.getCause().getMessage(), containsString("disabled data source"));
+        assertAcked(
+            client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, dsName, "test://logs2/*.parquet", Map.of()))
+        );
+        dsetResp = client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(datasetName)).get();
+        assertThat(dsetResp.getDatasets().iterator().next().enabled(), equalTo(true));
+        assertThat(dsetResp.getDatasets().iterator().next().resource(), equalTo("test://logs2/*.parquet"));
+
+        assertAcked(client().execute(EnableDataSourceAction.INSTANCE, enableDataSourceRequest(dsName)));
+        assertAcked(client().execute(DisableDatasetAction.INSTANCE, disableDatasetRequest(datasetName)));
+        dsetResp = client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(datasetName)).get();
+        assertThat(dsetResp.getDatasets().iterator().next().enabled(), equalTo(false));
+
+        // PUT replace preserves dataset disabled flag
+        assertAcked(
+            client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, dsName, "test://logs3/*.parquet", Map.of()))
+        );
+        dsetResp = client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(datasetName)).get();
+        assertThat(dsetResp.getDatasets().iterator().next().enabled(), equalTo(false));
+
+        assertAcked(client().execute(EnableDatasetAction.INSTANCE, enableDatasetRequest(datasetName)));
+        // Idempotent enable
+        assertAcked(client().execute(EnableDatasetAction.INSTANCE, enableDatasetRequest(datasetName)));
+
+        assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(datasetName)));
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+    }
+
     static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name, "test", null, new HashMap<>(settings));
     }
@@ -872,6 +929,22 @@ public class DataSourceCrudIT extends ESIntegTestCase {
 
     private static DeleteDatasetAction.Request deleteDatasetRequest(String name) {
         return new DeleteDatasetAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
+    }
+
+    private static EnableDataSourceAction.Request enableDataSourceRequest(String name) {
+        return new EnableDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
+    }
+
+    private static DisableDataSourceAction.Request disableDataSourceRequest(String name) {
+        return new DisableDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
+    }
+
+    private static EnableDatasetAction.Request enableDatasetRequest(String name) {
+        return new EnableDatasetAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
+    }
+
+    private static DisableDatasetAction.Request disableDatasetRequest(String name) {
+        return new DisableDatasetAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
     }
 
     private void expectDataSourceMissing(String name) {

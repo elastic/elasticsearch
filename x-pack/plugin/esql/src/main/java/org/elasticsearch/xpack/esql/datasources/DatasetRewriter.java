@@ -396,6 +396,9 @@ public final class DatasetRewriter {
         List<NamedExpression> metadataFields
     ) {
         Dataset dataset = datasets.get(name);
+        if (dataset.enabled() == false) {
+            throw new VerificationException("dataset [" + name + "] is disabled");
+        }
         DataSource parent = dataSources.get(dataset.dataSource().getName());
         // DataSourceService.deleteDataSources rejects (409) on orphans, so a null parent here
         // means a broken-invariant state (e.g. corrupt cluster-state restore) — throw with context.
@@ -403,6 +406,9 @@ public final class DatasetRewriter {
             throw new IllegalStateException(
                 "dataset [" + name + "] references unknown data source [" + dataset.dataSource().getName() + "]"
             );
+        }
+        if (parent.enabled() == false) {
+            throw new VerificationException("data source [" + parent.name() + "] referenced by dataset [" + name + "] is disabled");
         }
         Map<String, Object> merged = mergeSettings(parent, dataset);
         Literal path = Literal.keyword(source, dataset.resource());

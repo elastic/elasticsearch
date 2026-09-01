@@ -47,9 +47,11 @@ Dataset operations are authorized by the standard {{es}} [index privileges](../.
 | Query a dataset | `read` | Index, on the dataset name |
 | Create, read, or delete a dataset | `manage` or `all` | Index, on the dataset name |
 | Dataset administration granted on its own | `create_dataset`, `read_dataset_metadata`, `delete_dataset`, `manage_dataset` | Index, on the dataset name |
+| Enable or disable a dataset | `manage_dataset`, `manage`, or `all` | Index, on the dataset name |
 | Create or replace a data source | `global.data_source` `create` / `cluster.manage` | Global (fine-grained) / Cluster |
 | Read a data source definition | `global.data_source` `read_metadata` / `cluster.manage` | Global (fine-grained) / Cluster |
 | Delete a data source | `global.data_source` `delete` / `cluster.manage` | Global (fine-grained) / Cluster |
+| Enable or disable a data source | `global.data_source` `manage` / `cluster.manage` | Global (fine-grained) / Cluster |
 | Reference a data source from a dataset | `global.data_source` `read` / `cluster.manage` | Global (fine-grained) / Cluster |
 | All data source operations | `global.data_source` `manage` / `cluster.manage` | Global (fine-grained) / Cluster |
 

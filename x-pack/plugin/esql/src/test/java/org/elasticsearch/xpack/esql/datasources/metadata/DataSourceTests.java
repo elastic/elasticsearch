@@ -43,30 +43,41 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
 
     @Override
     protected DataSource mutateInstance(DataSource instance) {
-        return switch (randomIntBetween(0, 3)) {
+        return switch (randomIntBetween(0, 4)) {
             case 0 -> new DataSource(
                 randomValueOtherThan(instance.name(), () -> randomAlphaOfLength(8).toLowerCase(Locale.ROOT)),
                 instance.type(),
                 instance.description(),
-                instance.settings()
+                instance.settings(),
+                instance.enabled()
             );
             case 1 -> new DataSource(
                 instance.name(),
                 randomValueOtherThan(instance.type(), () -> randomFrom("s3", "gcs", "azure")),
                 instance.description(),
-                instance.settings()
+                instance.settings(),
+                instance.enabled()
             );
             case 2 -> new DataSource(
                 instance.name(),
                 instance.type(),
                 randomValueOtherThan(instance.description(), () -> randomAlphaOfLengthBetween(1, 16)),
-                instance.settings()
+                instance.settings(),
+                instance.enabled()
+            );
+            case 3 -> new DataSource(
+                instance.name(),
+                instance.type(),
+                instance.description(),
+                randomValueOtherThan(instance.settings(), DataSourceTests::randomSettings),
+                instance.enabled()
             );
             default -> new DataSource(
                 instance.name(),
                 instance.type(),
                 instance.description(),
-                randomValueOtherThan(instance.settings(), DataSourceTests::randomSettings)
+                instance.settings(),
+                instance.enabled() == false
             );
         };
     }
@@ -76,7 +87,8 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
             randomAlphaOfLength(8).toLowerCase(Locale.ROOT),
             randomFrom("s3", "gcs", "azure"),
             randomBoolean() ? null : randomAlphaOfLengthBetween(0, 32),
-            randomSettings()
+            randomSettings(),
+            randomBoolean()
         );
     }
 

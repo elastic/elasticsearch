@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -215,32 +216,81 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
-        executeAsyncWithOrigin(
-            client,
-            INFERENCE_ORIGIN,
-            GetTrainedModelsAction.INSTANCE,
-            new GetTrainedModelsAction.Request(request.getInferenceEntityId()),
-            listener.delegateFailureAndWrap((delegate, trainedModelsResponse) -> {
-                if (trainedModelsResponse.getResources().count() > 0) {
-                    delegate.onFailure(
-                        ExceptionsHelper.badRequestException(
-                            Messages.INFERENCE_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT,
-                            request.getInferenceEntityId()
-                        )
-                    );
-                    return;
-                }
-                parseAndStoreModel(
-                    service.get(),
-                    request.getInferenceEntityId(),
-                    resolvedTaskType,
-                    requestAsMap,
-                    resolveTimeoutForTaskType(resolvedTaskType, request.getTimeout()),
-                    state,
-                    delegate
-                );
-            })
+        try {
+            executeAsyncWithOrigin(
+                client,
+                INFERENCE_ORIGIN,
+                GetTrainedModelsAction.INSTANCE,
+                new GetTrainedModelsAction.Request(request.getInferenceEntityId()),
+                ActionListener.wrap(trainedModelsResponse -> {
+                    if (trainedModelsResponse.getResources().count() > 0) {
+                        listener.onFailure(
+                            ExceptionsHelper.badRequestException(
+                                Messages.INFERENCE_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT,
+                                request.getInferenceEntityId()
+                            )
+                        );
+                        return;
+                    }
+                    parseAndStoreModelAfterTrainedModelLookup(service.get(), request, resolvedTaskType, requestAsMap, state, listener);
+                }, e -> {
+                    if (isMissingTrainedModelLookup(e) || isUnregisteredMlAction(e)) {
+                        parseAndStoreModelAfterTrainedModelLookup(service.get(), request, resolvedTaskType, requestAsMap, state, listener);
+                    } else {
+                        listener.onFailure(e);
+                    }
+                })
+            );
+        } catch (IllegalStateException e) {
+            if (isUnregisteredMlAction(e)) {
+                parseAndStoreModelAfterTrainedModelLookup(service.get(), request, resolvedTaskType, requestAsMap, state, listener);
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    private void parseAndStoreModelAfterTrainedModelLookup(
+        InferenceService service,
+        PutInferenceModelAction.Request request,
+        TaskType resolvedTaskType,
+        Map<String, Object> requestAsMap,
+        ClusterState state,
+        ActionListener<PutInferenceModelAction.Response> listener
+    ) {
+        parseAndStoreModel(
+            service,
+            request.getInferenceEntityId(),
+            resolvedTaskType,
+            requestAsMap,
+            resolveTimeoutForTaskType(resolvedTaskType, request.getTimeout()),
+            state,
+            listener
         );
+    }
+
+    /**
+     * Exact trained-model IDs are required matches even when {@code allow_no_match} is true, so a missing ID is a 404.
+     */
+    private static boolean isMissingTrainedModelLookup(Exception e) {
+        return ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException;
+    }
+
+    /**
+     * {@link GetTrainedModelsAction} is only registered when ML trained-model features are enabled; inference must still work
+     * when the action is absent (see {@code MachineLearning#getActions}).
+     */
+    private static boolean isUnregisteredMlAction(Throwable throwable) {
+        for (Throwable current = throwable; current != null; current = current.getCause()) {
+            if (current instanceof IllegalStateException == false) {
+                continue;
+            }
+            String message = current.getMessage();
+            if (message != null && message.contains("failed to find action")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void parseAndStoreModel(

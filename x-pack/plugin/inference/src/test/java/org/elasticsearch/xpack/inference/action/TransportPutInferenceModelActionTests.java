@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -97,7 +98,10 @@ public class TransportPutInferenceModelActionTests extends ESTestCase {
     @Before
     public void createAction() throws Exception {
         super.setUp();
+        action = createAction(Settings.EMPTY);
+    }
 
+    private TransportPutInferenceModelAction createAction(Settings settings) throws Exception {
         var licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(any(LicensedFeature.class))).thenReturn(true);
 
@@ -127,7 +131,7 @@ public class TransportPutInferenceModelActionTests extends ESTestCase {
         when(mockClient.threadPool()).thenReturn(mockThreadPool);
         stubTrainedModelLookupReturnsEmpty();
 
-        action = new TransportPutInferenceModelAction(
+        return new TransportPutInferenceModelAction(
             mock(TransportService.class),
             clusterServiceMock,
             mockThreadPool,
@@ -136,7 +140,7 @@ public class TransportPutInferenceModelActionTests extends ESTestCase {
             mockModelRegistry,
             mockServiceRegistry,
             mockClient,
-            Settings.EMPTY,
+            settings,
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             featureServiceMock
         );
@@ -148,6 +152,28 @@ public class TransportPutInferenceModelActionTests extends ESTestCase {
             trainedModelsListener.onResponse(new GetTrainedModelsAction.Response(new QueryPage<>(List.of(), 0, mock(ParseField.class))));
             return null;
         }).when(mockClient).execute(eq(GetTrainedModelsAction.INSTANCE), any(), any());
+    }
+
+    private void stubTrainedModelLookupReturnsMissingModel() {
+        doAnswer(invocation -> {
+            ActionListener<GetTrainedModelsAction.Response> trainedModelsListener = invocation.getArgument(2);
+            trainedModelsListener.onFailure(ExceptionsHelper.missingTrainedModel(INFERENCE_ID));
+            return null;
+        }).when(mockClient).execute(eq(GetTrainedModelsAction.INSTANCE), any(), any());
+    }
+
+    private void stubTrainedModelLookupThrowsMissingAction() {
+        doAnswer(
+            invocation -> { throw new IllegalStateException("failed to find action [cluster:monitor/xpack/ml/inference/get] to execute"); }
+        ).when(mockClient).execute(eq(GetTrainedModelsAction.INSTANCE), any(), any());
+    }
+
+    private void stubStoreModelToSucceed() {
+        doAnswer(invocation -> {
+            ActionListener<Boolean> listener = invocation.getArgument(1);
+            listener.onResponse(true);
+            return null;
+        }).when(mockModelRegistry).storeModel(any(), any(), any());
     }
 
     private void stubTrainedModelLookupReturnsModel(TrainedModelConfig trainedModelConfig) {
@@ -241,6 +267,51 @@ public class TransportPutInferenceModelActionTests extends ESTestCase {
             actualException.getMessage(),
             containsString("Inference endpoint IDs must be unique. Requested inference endpoint ID [" + INFERENCE_ID + "]")
         );
+        verify(mockModelRegistry, never()).storeModel(any(), any(), any());
+    }
+
+    public void testCreateWhenTrainedModelLookup404ShouldStoreEndpoint() throws Exception {
+        action = createAction(Settings.builder().put(InferencePlugin.SKIP_VALIDATE_AND_START.getKey(), true).build());
+        stubTrainedModelLookupReturnsMissingModel();
+        var model = mock(Model.class);
+        when(model.getInferenceEntityId()).thenReturn(INFERENCE_ID);
+        when(model.getConfigurations()).thenReturn(mock());
+        stubParseRequestConfigToReturnModel(model);
+        stubStoreModelToSucceed();
+
+        var listener = callMasterOperation();
+
+        assertNotNull(listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        verify(mockModelRegistry).storeModel(any(), any(), any());
+    }
+
+    public void testCreateWhenGetTrainedModelsActionMissingShouldStoreEndpoint() throws Exception {
+        action = createAction(Settings.builder().put(InferencePlugin.SKIP_VALIDATE_AND_START.getKey(), true).build());
+        stubTrainedModelLookupThrowsMissingAction();
+        var model = mock(Model.class);
+        when(model.getInferenceEntityId()).thenReturn(INFERENCE_ID);
+        when(model.getConfigurations()).thenReturn(mock());
+        stubParseRequestConfigToReturnModel(model);
+        stubStoreModelToSucceed();
+
+        var listener = callMasterOperation();
+
+        assertNotNull(listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        verify(mockModelRegistry).storeModel(any(), any(), any());
+    }
+
+    public void testCreateWhenTrainedModelLookupFailsUnexpectedlyShouldRejectRequest() throws Exception {
+        var lookupException = new RuntimeException("lookup failed");
+        doAnswer(invocation -> {
+            ActionListener<GetTrainedModelsAction.Response> trainedModelsListener = invocation.getArgument(2);
+            trainedModelsListener.onFailure(lookupException);
+            return null;
+        }).when(mockClient).execute(eq(GetTrainedModelsAction.INSTANCE), any(), any());
+
+        var listener = callMasterOperation();
+
+        var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(actualException, sameInstance(lookupException));
         verify(mockModelRegistry, never()).storeModel(any(), any(), any());
     }
 

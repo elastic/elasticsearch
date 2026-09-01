@@ -357,7 +357,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         assertThat(throttle.queuedRelocationCount(), equalTo(2));
 
         // targetNode2 departs
-        throttle.cancelPendingRelocationsWithTargetNode(targetNode2);
+        throttle.cancelPendingRelocationsOnTargetNodeClosed(targetNode2);
 
         assertThat(throttle.queuedRelocationCount(), equalTo(1));
         assertThat(failures, hasSize(1));
@@ -409,7 +409,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
 
         assertThat(throttle.queuedRelocationCount(), equalTo(1));
 
-        throttle.cancelAllPendingRelocations();
+        throttle.cancelAllPendingRelocationsOnNodeClosed();
 
         assertThat(throttle.queuedRelocationCount(), equalTo(0));
         assertThat(failures, hasSize(1));
@@ -450,7 +450,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
 
         assertThat(throttle.queuedRelocationCount(), equalTo(1));
 
-        throttle.cancelPendingRelocationsForShard(shard2);
+        throttle.cancelPendingRelocationsOnShardClosed(shard2);
 
         assertThat(throttle.queuedRelocationCount(), equalTo(0));
         assertThat(failures, hasSize(1));

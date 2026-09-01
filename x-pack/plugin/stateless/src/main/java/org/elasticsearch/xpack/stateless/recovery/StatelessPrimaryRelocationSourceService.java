@@ -63,9 +63,10 @@ import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -81,7 +82,7 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
 
 /// Source-side stateless primary relocation: outgoing concurrency throttle, node lifecycle, and the start-relocation
-/// protocol. Mirrors [PeerRecoverySourceService].
+/// protocol. Mirrors [org.elasticsearch.indices.recovery.PeerRecoverySourceService].
 ///
 /// Transport sends (prewarm / primary-context handoff) are supplied as callbacks by [TransportStatelessPrimaryRelocationAction].
 /// Target-side handlers live on [StatelessPrimaryRelocationTargetService].
@@ -153,11 +154,11 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             this::startRelocationWithFreshClusterState
         );
 
+        clusterService.getClusterSettings()
+            .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
+        clusterService.getClusterSettings()
+            .initializeAndWatch(ID_LOOKUP_RECENCY_THRESHOLD_SETTING, value -> this.idLookupRecencyThreshold = value);
         if (hasIndexRole) {
-            clusterService.getClusterSettings()
-                .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
-            clusterService.getClusterSettings()
-                .initializeAndWatch(ID_LOOKUP_RECENCY_THRESHOLD_SETTING, value -> this.idLookupRecencyThreshold = value);
             clusterService.getClusterSettings()
                 .initializeAndWatchIfRegistered(
                     PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
@@ -194,7 +195,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         if (hasIndexRole) {
             // Stop accepting source-side relocation requests and drain the queue.
             throttledPrimaryRelocations.close();
-            throttledPrimaryRelocations.cancelAllPendingRelocations();
+            throttledPrimaryRelocations.cancelAllPendingRelocationsOnNodeClosed();
             clusterService.removeListener(this);
         }
     }
@@ -218,7 +219,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
-            throttledPrimaryRelocations.cancelPendingRelocationsForShard(indexShard);
+            throttledPrimaryRelocations.cancelPendingRelocationsOnShardClosed(indexShard);
         }
     }
 
@@ -226,7 +227,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.nodesRemoved()) {
             for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
-                throttledPrimaryRelocations.cancelPendingRelocationsWithTargetNode(removedNode);
+                throttledPrimaryRelocations.cancelPendingRelocationsOnTargetNodeClosed(removedNode);
             }
         }
     }
@@ -282,7 +283,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
 
             final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
-            final Engine engine = indexShard.getEngineOrNull();
+            final var engine = indexShard.getEngineOrNull();
             boolean hasRecentIdLookup = engine != null && engine.hasRecentIdLookup(idLookupRecencyThreshold);
 
             // If the shard is not about to be hollowed, then send an action to the target node to begin warming the cache immediately.
@@ -673,7 +674,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         private int maxConcurrentRelocations;
         private int activeRelocationCount = 0;
 
-        private final Deque<PendingRelocation> pendingRelocations = new ArrayDeque<>();
+        private final Queue<PendingRelocation> pendingRelocations = new ArrayDeque<>();
 
         private boolean closed = false;
 
@@ -740,12 +741,12 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         }
 
         // visible for testing
-        void cancelPendingRelocationsWithTargetNode(DiscoveryNode node) {
+        void cancelPendingRelocationsOnTargetNodeClosed(DiscoveryNode node) {
             cancelPendingRelocations(pending -> pending.request().targetNode().equals(node), new NodeClosedException(node));
         }
 
         // visible for testing
-        void cancelPendingRelocationsForShard(IndexShard shard) {
+        void cancelPendingRelocationsOnShardClosed(IndexShard shard) {
             cancelPendingRelocations(
                 pending -> pending.shard() == shard,
                 new AlreadyClosedException(Strings.format("cancelling pending relocation for closed shard %s", shard.shardId()))
@@ -753,7 +754,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         }
 
         // visible for testing
-        void cancelAllPendingRelocations() {
+        void cancelAllPendingRelocationsOnNodeClosed() {
             cancelPendingRelocations(ignored -> true, new NodeClosedException(clusterService.localNode()));
         }
 
@@ -807,14 +808,15 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             final List<PendingRelocation> cancelled;
             synchronized (this) {
                 cancelled = new ArrayList<>();
-                pendingRelocations.removeIf(pending -> {
+                final Iterator<PendingRelocation> it = pendingRelocations.iterator();
+                while (it.hasNext()) {
+                    final PendingRelocation pending = it.next();
                     if (predicate.test(pending)) {
-                        cancelled.add(pending);
                         pending.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
-                        return true;
+                        cancelled.add(pending);
+                        it.remove();
                     }
-                    return false;
-                });
+                }
             }
             for (PendingRelocation cancelledRelocation : cancelled) {
                 cancelledRelocation.listener().onFailure(reason);

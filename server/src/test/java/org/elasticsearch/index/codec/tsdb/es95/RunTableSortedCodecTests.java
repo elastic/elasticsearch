@@ -77,6 +77,26 @@ public class RunTableSortedCodecTests extends ESTestCase {
         );
     }
 
+    public void testSingleSeriesRunTableRoundTrip() throws IOException {
+        final int numDocs = randomIntBetween(64, 512);
+        final String[] termByDoc = piecewiseConstant(numDocs, numDocs);
+
+        try (Directory dir = new ByteBuffersDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, writerConfig(runTableFormat(NUMERIC_BLOCK_SHIFT)))) {
+                for (int i = 0; i < numDocs; i++) {
+                    final Document doc = new Document();
+                    doc.add(new SortedDocValuesField(DIM_FIELD, new BytesRef(termByDoc[i])));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals(1, reader.leaves().size());
+                assertSortedValues(reader.leaves().get(0), termByDoc);
+            }
+        }
+    }
+
     public void testSparseContiguousRunTableRoundTrip() throws IOException {
         // Whole series spans are absent (contiguous), the shape run-table sparse support targets. The layout
         // must round-trip: absent docs report no value, present docs read the right term, and the terms

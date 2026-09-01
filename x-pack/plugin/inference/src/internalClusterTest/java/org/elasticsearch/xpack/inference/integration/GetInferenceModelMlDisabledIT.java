@@ -95,8 +95,6 @@ public class GetInferenceModelMlDisabledIT extends ESSingleNodeTestCase {
         expectThrows(ElasticsearchStatusException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
     }
 
-    // -------------------- helpers --------------------
-
     private ModelRegistry modelRegistry() {
         return node().injector().getInstance(ModelRegistry.class);
     }

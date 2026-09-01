@@ -80,8 +80,6 @@ public class TransportGetInferenceModelActionTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    // -------------------- get-all tests --------------------
-
     public void testGetAllModels_SkipsElasticsearchEndpoint_WhenMlDisabled() {
         var esEndpoint = unparsedModel(ES_ENDPOINT_ID, ElasticsearchInternalService.NAME);
         var testEndpoint = unparsedModel(TEST_ENDPOINT_ID, TEST_SERVICE_NAME);
@@ -194,8 +192,6 @@ public class TransportGetInferenceModelActionTests extends ESTestCase {
         assertThat(response.getEndpoints().get(1).getInferenceEntityId(), is(TEST_ENDPOINT_ID_2));
     }
 
-    // -------------------- get-by-task-type tests --------------------
-
     public void testGetModelsByTaskType_SkipsElasticsearchEndpoint_WhenMlDisabled() {
         var esEndpoint = unparsedModel(ES_ENDPOINT_ID, ElasticsearchInternalService.NAME);
         var testEndpoint = unparsedModel(TEST_ENDPOINT_ID, TEST_SERVICE_NAME);
@@ -215,8 +211,6 @@ public class TransportGetInferenceModelActionTests extends ESTestCase {
         assertThat(response.getEndpoints(), hasSize(1));
         assertThat(response.getEndpoints().get(0).getInferenceEntityId(), is(TEST_ENDPOINT_ID));
     }
-
-    // -------------------- single-model tests --------------------
 
     public void testGetSingleModel_ThrowsUnknownService_ForElasticsearchService_WhenMlDisabled() {
         // The single-endpoint path (GET _inference/<id>) intentionally does NOT skip the error —
@@ -252,8 +246,6 @@ public class TransportGetInferenceModelActionTests extends ESTestCase {
         var exception = expectThrows(ElasticsearchStatusException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
     }
-
-    // -------------------- helpers --------------------
 
     private TransportGetInferenceModelAction createAction(Settings settings) {
         return new TransportGetInferenceModelAction(

@@ -104,7 +104,7 @@ public class CsvColumnarIT extends CsvIT {
      * Datasets excluded from the columnar variant because they either fail index creation in
      * columnar mode or produce legitimately different results by design. Each entry has a comment
      * naming the reason, cross-referenced to the catalogue in
-     * {@code CrossIndexModeGenerativeRestTest.EXCLUDED_DATASETS} and
+     * {@code CrossIndexModeGenerativeRestRunner.EXCLUDED_DATASETS} and
      * {@code LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT} where applicable.
      *
      * <p>Note: several entries in the generative-test catalogue
@@ -125,7 +125,7 @@ public class CsvColumnarIT extends CsvIT {
         "airports_not_indexed_nor_doc_values",
         // geo_point fields are stored at different precision in columnar mode: to_string() returns
         // slightly different coordinates (e.g. "POINT (116.072 5.975)" vs "POINT (116.073 5.975)").
-        // See CrossIndexModeGenerativeRestTest.EXCLUDED_DATASETS.
+        // See CrossIndexModeGenerativeRestRunner.EXCLUDED_DATASETS.
         "airports",
         "airports_web",
         // Mapping designed to be type-incompatible with the standard employees dataset; its CSV
@@ -152,10 +152,6 @@ public class CsvColumnarIT extends CsvIT {
         // Contains a plain txt:text field with no doc_values; fails index creation in columnar
         // mode because text without doc_values cannot be reconstructed from doc values.
         "text_state_mapped",
-        // Contains a plain text field; querying in columnar mode crashes the server.
-        // TODO: file an issue and reference it here.
-        "json_logs",
-        "voyager",
         // cartesian_shape field cannot be stored via doc_values for synthetic source, so bulk
         // indexing fails in columnar mode (zero documents indexed).
         "cartesian_multipolygons",

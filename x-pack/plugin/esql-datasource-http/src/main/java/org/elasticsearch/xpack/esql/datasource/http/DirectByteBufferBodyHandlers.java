@@ -63,8 +63,13 @@ final class DirectByteBufferBodyHandlers {
         // Cross-callback fields are volatile as defense-in-depth. The Reactive Streams contract
         // guarantees serial signals with happens-before, but making the visibility explicit avoids
         // depending on each publisher implementation honoring that subtlety correctly.
+        //
+        // Volatile is sufficient here, unlike the destinationLock that KnownLengthAsyncResponseTransformer
+        // needs on the S3 path: every signal that can release this destination is a Flow.Subscriber
+        // callback, and those are serialized by the publisher. There is no out-of-band failure
+        // callback, and cancelling the body future never re-enters the subscriber. Do not "restore
+        // symmetry" by adding a lock that would guard against nothing.
         private volatile DirectReadBuffer destinationBuf;
-        private volatile ByteBuffer destination;
         private int offset;
         private volatile Flow.Subscription subscription;
         private volatile boolean failed;
@@ -84,13 +89,22 @@ final class DirectByteBufferBodyHandlers {
                 return;
             }
             this.subscription = subscription;
+            DirectReadBuffer allocated;
             try {
-                this.destinationBuf = factory.allocate(expectedLength);
-                this.destination = destinationBuf.buffer();
+                allocated = allocateIfBodyOpen(factory, expectedLength, body, subscription);
             } catch (Exception e) {
                 failed = true;
                 subscription.cancel();
                 body.completeExceptionally(e);
+                return;
+            }
+            if (allocated == null) {
+                return;
+            }
+            this.destinationBuf = allocated;
+            if (body.isDone() || failed) {
+                releaseOnFailure();
+                subscription.cancel();
                 return;
             }
             try {
@@ -104,10 +118,11 @@ final class DirectByteBufferBodyHandlers {
 
         @Override
         public void onNext(List<ByteBuffer> items) {
-            if (failed) {
-                return;
-            }
             for (ByteBuffer chunk : items) {
+                DirectReadBuffer drb = destinationBuf;
+                if (drb == null || failed) {
+                    return;
+                }
                 int remaining = chunk.remaining();
                 if (remaining > expectedLength - offset) {
                     fail(
@@ -120,7 +135,7 @@ final class DirectByteBufferBodyHandlers {
                     );
                     return;
                 }
-                DirectByteBufferCopies.copyChunkIntoDestination(destination, offset, chunk);
+                DirectByteBufferCopies.copyChunkIntoDestination(drb.buffer(), offset, chunk);
                 offset += remaining;
             }
         }
@@ -148,14 +163,15 @@ final class DirectByteBufferBodyHandlers {
                 );
                 return;
             }
-            destination.position(0).limit(offset);
-            // Transfer ownership of the buffer to the caller.
-            // Null out the field so releaseOnFailure (if ever invoked after this point) does not
-            // double-close it. The destination ByteBuffer's position/limit set above is observable
-            // through transferred.buffer() since they share the same NIO view.
             DirectReadBuffer transferred = destinationBuf;
             destinationBuf = null;
-            body.complete(transferred);
+            if (transferred == null) {
+                return;
+            }
+            transferred.buffer().position(0).limit(offset);
+            if (body.complete(transferred) == false) {
+                transferred.close();
+            }
         }
 
         @Override
@@ -188,9 +204,8 @@ final class DirectByteBufferBodyHandlers {
         private final int length;
         private final DirectBufferFactory factory;
         private final CompletableFuture<DirectReadBuffer> body = new CompletableFuture<>();
-        // See FixedLengthDirectSubscriber for the volatility rationale.
+        // See FixedLengthDirectSubscriber for the volatility rationale and for why no lock is needed.
         private volatile DirectReadBuffer destinationBuf;
-        private volatile ByteBuffer destination;
         private long skipRemaining;
         private int fillOffset;
         private volatile Flow.Subscription subscription;
@@ -216,13 +231,22 @@ final class DirectByteBufferBodyHandlers {
                 return;
             }
             this.subscription = subscription;
+            DirectReadBuffer allocated;
             try {
-                this.destinationBuf = factory.allocate(length);
-                this.destination = destinationBuf.buffer();
+                allocated = allocateIfBodyOpen(factory, length, body, subscription);
             } catch (Exception e) {
                 failed = true;
                 subscription.cancel();
                 body.completeExceptionally(e);
+                return;
+            }
+            if (allocated == null) {
+                return;
+            }
+            this.destinationBuf = allocated;
+            if (body.isDone() || failed) {
+                releaseOnFailure();
+                subscription.cancel();
                 return;
             }
             try {
@@ -236,10 +260,11 @@ final class DirectByteBufferBodyHandlers {
 
         @Override
         public void onNext(List<ByteBuffer> items) {
-            if (failed) {
-                return;
-            }
             for (ByteBuffer chunk : items) {
+                DirectReadBuffer drb = destinationBuf;
+                if (drb == null || failed) {
+                    return;
+                }
                 if (skipRemaining > 0) {
                     long toSkip = Math.min(skipRemaining, chunk.remaining());
                     chunk.position(chunk.position() + (int) toSkip);
@@ -249,7 +274,7 @@ final class DirectByteBufferBodyHandlers {
                     int toCopy = Math.min(chunk.remaining(), length - fillOffset);
                     ByteBuffer slice = chunk.slice();
                     slice.limit(toCopy);
-                    DirectByteBufferCopies.copyChunkIntoDestination(destination, fillOffset, slice);
+                    DirectByteBufferCopies.copyChunkIntoDestination(drb.buffer(), fillOffset, slice);
                     chunk.position(chunk.position() + toCopy);
                     fillOffset += toCopy;
                 }
@@ -289,11 +314,15 @@ final class DirectByteBufferBodyHandlers {
                 );
                 return;
             }
-            destination.position(0).limit(fillOffset);
-            // Transfer ownership of the buffer to the caller; see FixedLengthDirectSubscriber.
             DirectReadBuffer transferred = destinationBuf;
             destinationBuf = null;
-            body.complete(transferred);
+            if (transferred == null) {
+                return;
+            }
+            transferred.buffer().position(0).limit(fillOffset);
+            if (body.complete(transferred) == false) {
+                transferred.close();
+            }
         }
 
         @Override
@@ -308,6 +337,29 @@ final class DirectByteBufferBodyHandlers {
                 drb.close();
             }
         }
+    }
+
+    /**
+     * Allocates a writable destination only if {@code body} is still open. Returns {@code null}
+     * when the body was already cancelled or completed, after closing any unused allocation.
+     */
+    private static DirectReadBuffer allocateIfBodyOpen(
+        DirectBufferFactory factory,
+        int length,
+        CompletableFuture<DirectReadBuffer> body,
+        Flow.Subscription subscription
+    ) throws IOException {
+        if (body.isDone()) {
+            subscription.cancel();
+            return null;
+        }
+        DirectReadBuffer allocated = factory.allocateWritableWindow(length);
+        if (body.isDone()) {
+            allocated.close();
+            subscription.cancel();
+            return null;
+        }
+        return allocated;
     }
 
     /**

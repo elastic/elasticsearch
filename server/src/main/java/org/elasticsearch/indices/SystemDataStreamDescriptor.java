@@ -89,8 +89,17 @@ public class SystemDataStreamDescriptor implements SystemResourceDescriptor {
         String origin,
         ExecutorNames executorNames
     ) {
-        this(dataStreamName, description, type, composableIndexTemplate, componentTemplates, allowedElasticProductOrigins, origin,
-            executorNames, true);
+        this(
+            dataStreamName,
+            description,
+            type,
+            composableIndexTemplate,
+            componentTemplates,
+            allowedElasticProductOrigins,
+            origin,
+            executorNames,
+            true
+        );
     }
 
     /**

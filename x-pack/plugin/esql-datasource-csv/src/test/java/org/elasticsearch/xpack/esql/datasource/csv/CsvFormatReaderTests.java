@@ -7268,6 +7268,48 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * The reader has TWO tokenizers, and every other test here exercises only the house one. Jackson takes over
+     * whenever {@code jacksonGrammarApplies()} — trim_spaces on, or escaped mode — and it counts a row's fields by
+     * its own grammar, so the bound has to hold against that count too. Both triggers, both bindings: declared must
+     * reach the same verdict as inference on the same file.
+     */
+    public void testDeclaredBindingRowWidthValidationUnderJacksonGrammar() throws Exception {
+        // trim_spaces:true is the trigger the csv-spec harness injects; mode:escaped is the other one
+        // (decodesEscapes() is escaping && quoting == false).
+        List<Map<String, Object>> jacksonConfigs = List.of(
+            Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 100, "trim_spaces", true),
+            Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 100, "mode", "escaped")
+        );
+        for (Map<String, Object> config : jacksonConfigs) {
+            String desc = "config=" + config;
+            // Inference over the same file and the same grammar, as the parity reference.
+            // Direct-block off so the read takes the batch route, where jacksonGrammarApplies() picks the tokenizer:
+            // trim_spaces alone does not disqualify the direct walkers (directEligible only excludes decodesEscapes).
+            int inferredRows = readRowCount(
+                (CsvFormatReader) new CsvFormatReader(blockFactory).withDirectBlockEnabled(false).withConfig(config),
+                createStorageObject(RAGGED_MV_CSV),
+                null,
+                List.of("id", "tags")
+            );
+            List<String> inferredWarnings = drainWarnings();
+
+            CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withDirectBlockEnabled(false)
+                .withConfig(config)
+                .withDeclaredProvenanceBinding(true);
+            int declaredRows = readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of("id", "tags"));
+            List<String> declaredWarnings = drainWarnings();
+
+            assertEquals(desc + " inference rejects the 5-field row", 1, inferredRows);
+            assertFalse(desc + " inference warns", inferredWarnings.isEmpty());
+            assertEquals(desc + " declared must reach the same verdict", inferredRows, declaredRows);
+            assertTrue(
+                desc + " expected a header-width warning, got: " + declaredWarnings,
+                declaredWarnings.stream().anyMatch(w -> w.contains("CSV row has [5] columns but the file's header defines [3] columns"))
+            );
+        }
+    }
+
+    /**
      * A headerless file defines no width of its own — its physical names ARE positions — so a wide row cannot be told
      * apart from a legitimately wide file and stays accepted.
      */

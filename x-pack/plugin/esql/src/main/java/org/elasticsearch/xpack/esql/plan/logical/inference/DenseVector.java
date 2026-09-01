@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical.inference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -48,8 +49,40 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  */
 public class DenseVector extends InferencePlan<DenseVector> implements TelemetryAware, PostAnalysisVerificationAware {
 
-    /** Suffix appended to each input field name to build the generated column name (e.g. {@code title} -> {@code title_dense_vector}). */
+    /**
+     * Default suffix appended to each input field name to build the generated column name
+     * (e.g. {@code title} -> {@code title_dense_vector}), used when the query names no suffix of its own.
+     */
     public static final String OUTPUT_SUFFIX = "_dense_vector";
+
+    /**
+     * How the generated columns are named. The two forms are mutually exclusive:
+     * <ul>
+     *   <li>{@code explicitName} set — {@code DENSE_VECTOR vec = description} names the single generated column outright.
+     *       Only valid for one input field, since one name cannot serve several.</li>
+     *   <li>{@code explicitName} null — {@code suffix} is appended to each input field's name, for any number of fields.
+     *       {@code DENSE_VECTOR suffix = "_dv" ON title, description} yields {@code title_dv} and {@code description_dv};
+     *       with no suffix clause at all this is {@link #OUTPUT_SUFFIX}.</li>
+     * </ul>
+     */
+    public record OutputNaming(@Nullable String explicitName, String suffix) {
+
+        /** Naming for a query that requests neither form: every field gets {@link #OUTPUT_SUFFIX}. */
+        public static final OutputNaming DEFAULT = new OutputNaming(null, OUTPUT_SUFFIX);
+
+        public static OutputNaming explicit(String name) {
+            return new OutputNaming(name, OUTPUT_SUFFIX);
+        }
+
+        public static OutputNaming suffixed(String suffix) {
+            return new OutputNaming(null, suffix);
+        }
+
+        /** Name of the column generated for {@code field}. */
+        public String nameFor(NamedExpression field) {
+            return explicitName != null ? explicitName : field.name() + suffix;
+        }
+    }
 
     public static final String TIMEOUT_OPTION_NAME = "timeout";
 
@@ -93,6 +126,9 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
     /** Input fields to embed (unresolved names before analysis, resolved attributes after). */
     private final List<NamedExpression> fields;
 
+    /** How {@link #generatedFields} are named. Consumed by the analyzer when it resolves {@link #fields}. */
+    private final OutputNaming naming;
+
     /** Input modality ({@code text} or {@code image}) selected by the {@code type} option. */
     private final org.elasticsearch.inference.DataType inputType;
 
@@ -119,6 +155,10 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
     private List<Attribute> lazyOutput;
 
     public DenseVector(Source source, LogicalPlan child, Expression rowLimit, List<NamedExpression> fields) {
+        this(source, child, rowLimit, fields, OutputNaming.DEFAULT);
+    }
+
+    public DenseVector(Source source, LogicalPlan child, Expression rowLimit, List<NamedExpression> fields, OutputNaming naming) {
         this(
             source,
             child,
@@ -126,6 +166,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             rowLimit,
             fields,
             List.of(),
+            naming,
             null,
             DEFAULT_INPUT_TYPE,
             null,
@@ -140,6 +181,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         Expression rowLimit,
         List<NamedExpression> fields,
         List<Attribute> generatedFields,
+        OutputNaming naming,
         TimeValue timeout,
         org.elasticsearch.inference.DataType inputType,
         TaskType endpointTaskType,
@@ -148,6 +190,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         super(source, child, inferenceId, rowLimit, timeout);
         this.fields = fields;
         this.generatedFields = generatedFields;
+        this.naming = naming;
         this.inputType = inputType;
         this.endpointTaskType = endpointTaskType;
         this.inferenceIdIsFallback = inferenceIdIsFallback;
@@ -161,6 +204,11 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(NamedExpression.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
+            // A node without the naming forms only ever produced the derived <field>_dense_vector names, which the
+            // generatedFields read above already spell out, so the default reconstructs what that node meant.
+            in.getTransportVersion().supports(ESQL_DENSE_VECTOR_OUTPUT_NAMING)
+                ? new OutputNaming(in.readOptionalString(), in.readString())
+                : OutputNaming.DEFAULT,
             in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null,
             in.getTransportVersion().supports(ESQL_DENSE_VECTOR_TYPE_OPTION)
                 ? org.elasticsearch.inference.DataType.fromString(in.readString())
@@ -179,6 +227,10 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         super.writeTo(out);
         out.writeNamedWriteableCollection(fields);
         out.writeNamedWriteableCollection(generatedFields);
+        if (out.getTransportVersion().supports(ESQL_DENSE_VECTOR_OUTPUT_NAMING)) {
+            out.writeOptionalString(naming.explicitName());
+            out.writeString(naming.suffix());
+        }
         if (out.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT)) {
             out.writeOptionalTimeValue(timeout());
         }
@@ -200,17 +252,22 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         return fields;
     }
 
+    /** How the generated columns are named. */
+    public OutputNaming naming() {
+        return naming;
+    }
+
     /**
-     * Builds nullable {@code <field>_dense_vector} attributes (one per input field), typed {@link DataType#DENSE_VECTOR}.
+     * Builds nullable attributes (one per input field) named per {@code naming} and typed {@link DataType#DENSE_VECTOR}.
      * A generated name that collides with an existing output shadows the earlier column.
      */
-    public static List<Attribute> generatedAttributesFor(Source source, List<? extends NamedExpression> fields) {
+    public static List<Attribute> generatedAttributesFor(Source source, List<? extends NamedExpression> fields, OutputNaming naming) {
         return fields.stream()
             .map(
                 f -> (Attribute) new ReferenceAttribute(
                     f.source(),
                     null,
-                    f.name() + OUTPUT_SUFFIX,
+                    naming.nameFor(f),
                     DataType.DENSE_VECTOR,
                     Nullability.TRUE,
                     null,
@@ -237,6 +294,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             rowLimit(),
             fields,
             generatedFields,
+            naming,
             timeout(),
             inputType,
             endpointTaskType,
@@ -256,6 +314,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             rowLimit(),
             fields,
             generatedFields,
+            naming,
             newTimeout,
             inputType,
             endpointTaskType,
@@ -279,6 +338,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             rowLimit(),
             fields,
             generatedFields,
+            naming,
             timeout(),
             newInputType,
             endpointTaskType,
@@ -310,6 +370,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             rowLimit(),
             fields,
             generatedFields,
+            naming,
             timeout(),
             inputType,
             newEndpointTaskType,
@@ -326,6 +387,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             rowLimit(),
             fields,
             generatedFields,
+            naming,
             timeout(),
             inputType,
             endpointTaskType,
@@ -345,6 +407,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             rowLimit(),
             resolvedFields,
             resolvedGeneratedFields,
+            naming,
             timeout(),
             inputType,
             endpointTaskType,
@@ -365,6 +428,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             rowLimit(),
             prunedFields,
             prunedGeneratedFields,
+            naming,
             timeout(),
             inputType,
             endpointTaskType,
@@ -440,6 +504,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             rowLimit(),
             fields,
             renamed,
+            naming,
             timeout(),
             inputType,
             endpointTaskType,
@@ -463,8 +528,9 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
                 return false;
             }
         }
-        // An empty field list is a resolved no-op: the command generates no columns.
-        // Non-empty results always have generatedFields populated 1:1 with fields.
+        // generatedFields is populated 1:1 with fields, so resolving the fields resolves the node. A node with no fields is
+        // resolved too, but no query produces one: the parser rejects an empty field list and column pruning removes the whole
+        // node rather than emptying it, leaving deserialization and test construction as the only ways to build one.
         return true;
     }
 
@@ -499,6 +565,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             rowLimit(),
             fields,
             generatedFields,
+            naming,
             timeout(),
             inputType,
             endpointTaskType,
@@ -514,6 +581,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         DenseVector other = (DenseVector) o;
         return Objects.equals(fields, other.fields)
             && Objects.equals(generatedFields, other.generatedFields)
+            && Objects.equals(naming, other.naming)
             && inputType == other.inputType
             && endpointTaskType == other.endpointTaskType
             && inferenceIdIsFallback == other.inferenceIdIsFallback;
@@ -521,7 +589,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fields, generatedFields, inputType, endpointTaskType, inferenceIdIsFallback);
+        return Objects.hash(super.hashCode(), fields, generatedFields, naming, inputType, endpointTaskType, inferenceIdIsFallback);
     }
 
     @Override

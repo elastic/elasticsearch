@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.inference.textembedding;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -37,7 +38,14 @@ public class TextEmbeddingOperator extends InferenceOperator {
         super(
             driverContext,
             inferenceService,
-            new TextEmbeddingRequestIterator.Factory(inferenceId, TaskType.TEXT_EMBEDDING, inputEvaluator, batchSize, timeout),
+            new TextEmbeddingRequestIterator.Factory(
+                inferenceId,
+                TaskType.TEXT_EMBEDDING,
+                inputEvaluator,
+                batchSize,
+                timeout,
+                Warnings.createOnlyWarnings(driverContext, source)
+            ),
             new EmbeddingOutputBuilder(driverContext.blockFactory(), tolerateFailures),
             source,
             tolerateFailures

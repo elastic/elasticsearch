@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.inference.embedding;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.DataType;
@@ -43,8 +44,15 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
     private final DataType dataType;
     private final TimeValue timeout;
 
-    EmbeddingRequestIterator(String inferenceId, BytesRefBlock textBlock, DataType dataType, int batchSize, TimeValue timeout) {
-        super(inferenceId, TaskType.EMBEDDING, textBlock, batchSize);
+    EmbeddingRequestIterator(
+        String inferenceId,
+        BytesRefBlock textBlock,
+        DataType dataType,
+        int batchSize,
+        TimeValue timeout,
+        Warnings warnings
+    ) {
+        super(inferenceId, TaskType.EMBEDDING, textBlock, batchSize, warnings);
         this.dataType = dataType;
         this.timeout = timeout;
     }
@@ -79,12 +87,20 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
         ExpressionEvaluator textEvaluator,
         DataType dataType,
         int batchSize,
-        TimeValue timeout
+        TimeValue timeout,
+        Warnings warnings
     ) implements BulkInferenceRequestItemIterator.Factory {
 
         @Override
         public BulkInferenceRequestItemIterator create(Page inputPage) {
-            return new EmbeddingRequestIterator(inferenceId, (BytesRefBlock) textEvaluator.eval(inputPage), dataType, batchSize, timeout);
+            return new EmbeddingRequestIterator(
+                inferenceId,
+                (BytesRefBlock) textEvaluator.eval(inputPage),
+                dataType,
+                batchSize,
+                timeout,
+                warnings
+            );
         }
 
         @Override

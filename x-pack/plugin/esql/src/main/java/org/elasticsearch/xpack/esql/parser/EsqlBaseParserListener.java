@@ -961,6 +961,42 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitDenseVectorCommand(EsqlBaseParser.DenseVectorCommandContext ctx);
   /**
+   * Enter a parse tree produced by the {@code denseVectorTargetName}
+   * labeled alternative in {@link EsqlBaseParser#denseVectorNaming}.
+   * @param ctx the parse tree
+   */
+  void enterDenseVectorTargetName(EsqlBaseParser.DenseVectorTargetNameContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code denseVectorTargetName}
+   * labeled alternative in {@link EsqlBaseParser#denseVectorNaming}.
+   * @param ctx the parse tree
+   */
+  void exitDenseVectorTargetName(EsqlBaseParser.DenseVectorTargetNameContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code denseVectorSuffix}
+   * labeled alternative in {@link EsqlBaseParser#denseVectorNaming}.
+   * @param ctx the parse tree
+   */
+  void enterDenseVectorSuffix(EsqlBaseParser.DenseVectorSuffixContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code denseVectorSuffix}
+   * labeled alternative in {@link EsqlBaseParser#denseVectorNaming}.
+   * @param ctx the parse tree
+   */
+  void exitDenseVectorSuffix(EsqlBaseParser.DenseVectorSuffixContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code denseVectorLiteralInput}
+   * labeled alternative in {@link EsqlBaseParser#denseVectorNaming}.
+   * @param ctx the parse tree
+   */
+  void enterDenseVectorLiteralInput(EsqlBaseParser.DenseVectorLiteralInputContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code denseVectorLiteralInput}
+   * labeled alternative in {@link EsqlBaseParser#denseVectorNaming}.
+   * @param ctx the parse tree
+   */
+  void exitDenseVectorLiteralInput(EsqlBaseParser.DenseVectorLiteralInputContext ctx);
+  /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree

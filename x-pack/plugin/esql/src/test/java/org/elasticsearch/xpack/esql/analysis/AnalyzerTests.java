@@ -197,6 +197,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
@@ -4809,6 +4810,132 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(denseVector.fields(), hasSize(1));
         assertThat(denseVector.generatedAttributes(), hasSize(1));
         assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), notNullValue());
+    }
+
+    private static void assumeDenseVectorNamingEnabled() {
+        assumeTrue("DENSE_VECTOR naming requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND_V3.isEnabled());
+    }
+
+    public void testDenseVectorExplicitOutputNameResolves() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR vec = title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.generatedAttributes(), hasSize(1));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("vec"));
+        Attribute generated = getAttributeByName(denseVector.output(), "vec");
+        assertThat(generated, notNullValue());
+        assertThat(generated.dataType(), equalTo(DataType.DENSE_VECTOR));
+        // The default name is not produced alongside the explicit one.
+        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), nullValue());
+        // The source column survives; DENSE_VECTOR appends rather than replaces.
+        assertThat(getAttributeByName(denseVector.output(), "title"), notNullValue());
+    }
+
+    public void testDenseVectorSuffixResolvesForEachField() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR suffix = "_dv" ON title, description WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.generatedAttributes(), hasSize(2));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("title_dv"));
+        assertThat(denseVector.generatedAttributes().get(1).name(), equalTo("description_dv"));
+        assertThat(getAttributeByName(denseVector.output(), "title_dv"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "description_dv"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), nullValue());
+    }
+
+    /**
+     * An explicit name that collides with an existing column replaces it, the same shadowing rule EVAL follows. The surviving
+     * column carries the generated {@code dense_vector} type rather than the shadowed column's type.
+     */
+    public void testDenseVectorExplicitNameShadowsExistingColumn() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR description = title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        Attribute shadowed = getAttributeByName(denseVector.output(), "description");
+        assertThat(shadowed, notNullValue());
+        assertThat(shadowed.dataType(), equalTo(DataType.DENSE_VECTOR));
+        assertThat(denseVector.output().stream().filter(a -> a.name().equals("description")).count(), equalTo(1L));
+    }
+
+    /**
+     * Naming the output after its own input leaves the embedding in place of the source text, so the source column is no longer
+     * reachable downstream.
+     */
+    public void testDenseVectorOutputNameMatchingInputReplacesIt() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title = title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        Attribute title = getAttributeByName(denseVector.output(), "title");
+        assertThat(title, notNullValue());
+        assertThat(title.dataType(), equalTo(DataType.DENSE_VECTOR));
+        assertThat(denseVector.output().stream().filter(a -> a.name().equals("title")).count(), equalTo(1L));
+    }
+
+    /** Chained clauses naming the same output column: the later clause shadows the earlier one. */
+    public void testDenseVectorChainedClausesWithSameOutputName() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR vec = title WITH { "inference_id" : "text-embedding-inference-id" }
+            | DENSE_VECTOR vec = description WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector outer = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(outer.fields().get(0).name(), equalTo("description"));
+        assertThat(outer.output().stream().filter(a -> a.name().equals("vec")).count(), equalTo(1L));
+        assertThat(getAttributeByName(outer.output(), "vec").dataType(), equalTo(DataType.DENSE_VECTOR));
+    }
+
+    /** A suffix that reproduces an existing column's name shadows it, exactly as the default suffix would. */
+    public void testDenseVectorSuffixShadowsExistingColumn() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | EVAL title_dv = "placeholder"
+            | DENSE_VECTOR suffix = "_dv" ON title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        Attribute shadowed = getAttributeByName(denseVector.output(), "title_dv");
+        assertThat(shadowed, notNullValue());
+        assertThat(shadowed.dataType(), equalTo(DataType.DENSE_VECTOR));
+        assertThat(denseVector.output().stream().filter(a -> a.name().equals("title_dv")).count(), equalTo(1L));
+    }
+
+    public void testDenseVectorNamedOutputOnNonTextFieldFails() {
+        assumeDenseVectorNamingEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR vec = year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
+        );
+        books().error(
+            "FROM books | DENSE_VECTOR suffix = \"_dv\" ON year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
+        );
+    }
+
+    public void testDenseVectorNamedOutputOnUnknownColumnFails() {
+        assumeDenseVectorNamingEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR vec = no_such_column WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("Unknown column [no_such_column]")
+        );
     }
 
     public void testResolveGroupingsBeforeResolvingImplicitReferencesToGroupings() {

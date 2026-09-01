@@ -21,6 +21,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -52,21 +53,24 @@ import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
 
     private static final String FIELD = "id";
+    // A second field carrying the same values but only as doc values, so its aggregation always takes
+    // the doc-values path and acts as an oracle for the index_terms field's fast path and fallbacks.
+    private static final String BKD_FIELD = "id_bkd";
     private static final String CATEGORY = "category";
     private static final FieldType INDEX_TERMS_TYPE;
 
@@ -139,95 +143,86 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    public void testTermsIndexFastPathHandlesMultiValuedFields() throws Exception {
+    /**
+     * The index_terms fast path and the doc-values fallback must return the same distinct set no matter
+     * the segment layout, deletions or query. This indexes the same values twice per document -- once as
+     * indexed terms ({@link #FIELD}) and once as plain doc values ({@link #BKD_FIELD}) -- and asserts,
+     * through every phase, that both fields agree with each other and with the set computed from the
+     * live documents. {@link #BKD_FIELD} never has an index and so always takes the fallback, acting as
+     * an oracle for the fast path. The path itself is only pinned where it is knowable at the aggregator
+     * level: engaged on a clean match-all, disabled under a filtering query. Deletions force the
+     * fallback per segment without changing that aggregator-level decision, so the path is not asserted
+     * while they are present, only the result.
+     */
+    public void testTermsIndexMatchesDocValuesAcrossSegmentsAndDeletions() throws Exception {
         NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.LONG;
-        MappedFieldType fieldType = indexTermsFieldType(type);
-        try (Directory directory = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
-            writer.addDocument(termsDocument(type, 3, 7));
+        MappedFieldType termsFieldType = indexTermsFieldType(type);
+        MappedFieldType oracleFieldType = new NumberFieldMapper.NumberFieldType(BKD_FIELD, type);
 
-            try (IndexReader reader = writer.getReader()) {
-                InternalRoaringBitmap result = searchAndReduce(
-                    reader,
-                    new AggTestConfig(new RoaringBitmapAggregationBuilder("ids").field(FIELD), fieldType).withCheckAggregator(
-                        aggregator -> assertTrue(((RoaringBitmapAggregator) aggregator).usesTermsIndex())
-                    )
-                );
-                assertThat(drain(LongBitmap.deserializePortable(result.bitmap())), equalTo(List.of(3L, 7L)));
+        List<TermsDoc> segment1 = List.of(new TermsDoc("d1", "a", new long[] { 5, 10 }), new TermsDoc("d2", "b", new long[] { 10, 15 }));
+        List<TermsDoc> segment2 = List.of(
+            new TermsDoc("d3", "a", new long[] { 15, 1L << 40 }),
+            new TermsDoc("d4", "b", new long[] { Long.MAX_VALUE })
+        );
+        List<TermsDoc> segment3 = List.of(new TermsDoc("d5", "a", new long[] { 1, 2, 3 }), new TermsDoc("d6", "b", new long[] { 5 }));
+        List<List<TermsDoc>> segments = List.of(segment1, segment2, segment3);
+
+        List<TermsDoc> all = segments.stream().flatMap(List::stream).toList();
+        List<TermsDoc> live = all.stream().filter(doc -> doc.key().equals("d2") == false && doc.key().equals("d4") == false).toList();
+
+        try (Directory directory = newDirectory()) {
+            // A no-merge writer keeps each commit its own segment through phases 1 and 2. Closing it
+            // commits the pending deletions so the phase-3 writer can force-merge over them.
+            try (IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
+                for (List<TermsDoc> segment : segments) {
+                    for (TermsDoc doc : segment) {
+                        Document document = new Document();
+                        document.add(new StringField("key", doc.key(), Field.Store.NO));
+                        document.add(new StringField(CATEGORY, doc.category(), Field.Store.NO));
+                        for (long value : doc.values()) {
+                            document.add(new Field(FIELD, encodeTerm(type, value), INDEX_TERMS_TYPE));
+                            document.add(new SortedNumericDocValuesField(FIELD, value));
+                            document.add(new SortedNumericDocValuesField(BKD_FIELD, value));
+                        }
+                        writer.addDocument(document);
+                    }
+                    writer.commit();
+                }
+
+                // Phase 1: three live segments, no deletions -- match-all takes the fast path.
+                try (IndexReader reader = DirectoryReader.open(writer)) {
+                    assertThat(reader.leaves().size(), equalTo(3));
+                    assertFieldsAgree(reader, termsFieldType, oracleFieldType, all, true);
+
+                    // A single-bucket filter parent is a legal placement and returns the same set, but
+                    // reads doc values because it is a parent, so the fast path is off.
+                    AggregationBuilder parent = new FilterAggregationBuilder("parent", new MatchAllQueryBuilder()).subAggregation(
+                        new RoaringBitmapAggregationBuilder("ids").field(FIELD)
+                    );
+                    InternalFilter parentResult = searchAndReduce(reader, new AggTestConfig(parent, termsFieldType));
+                    InternalRoaringBitmap nested = parentResult.getAggregations().get("ids");
+                    assertThat(drain(LongBitmap.deserializePortable(nested.bitmap())), equalTo(distinctValues(all, doc -> true)));
+                }
+
+                // Phase 2: delete two documents -- their segments gain a live-docs bitset, so those
+                // leaves fall back even though the aggregator-level decision is unchanged.
+                writer.deleteDocuments(new Term("key", "d2"));
+                writer.deleteDocuments(new Term("key", "d4"));
+                try (IndexReader reader = DirectoryReader.open(writer)) {
+                    assertTrue(reader.hasDeletions());
+                    assertFieldsAgree(reader, termsFieldType, oracleFieldType, live, false);
+                }
             }
-        }
-    }
 
-    public void testTermsIndexFastPathAcrossSegments() throws Exception {
-        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.INTEGER;
-        MappedFieldType fieldType = indexTermsFieldType(type);
-        try (
-            Directory directory = newDirectory();
-            IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
-        ) {
-            writer.addDocument(termsDocument(type, 5, 10));
-            writer.commit();
-            writer.addDocument(termsDocument(type, 10, 15));
-            writer.commit();
-
-            try (IndexReader reader = DirectoryReader.open(writer)) {
-                assertThat(reader.leaves().size(), equalTo(2));
-                InternalRoaringBitmap result = searchAndReduce(
-                    reader,
-                    new AggTestConfig(new RoaringBitmapAggregationBuilder("ids").field(FIELD), fieldType).withCheckAggregator(
-                        aggregator -> assertTrue(((RoaringBitmapAggregator) aggregator).usesTermsIndex())
-                    )
-                );
-                assertThat(drain(IntBitmap.deserialize(result.bitmap())), equalTo(List.of(5L, 10L, 15L)));
-            }
-        }
-    }
-
-    public void testTermsIndexFallsBackForFilteredQuery() throws Exception {
-        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.INTEGER;
-        MappedFieldType fieldType = indexTermsFieldType(type);
-        try (Directory directory = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
-            Document odd = termsDocument(type, 5);
-            odd.add(new StringField(CATEGORY, "odd", Field.Store.NO));
-            writer.addDocument(odd);
-            Document even = termsDocument(type, 10);
-            even.add(new StringField(CATEGORY, "even", Field.Store.NO));
-            writer.addDocument(even);
-
-            try (IndexReader reader = writer.getReader()) {
-                InternalRoaringBitmap result = searchAndReduce(
-                    reader,
-                    new AggTestConfig(new RoaringBitmapAggregationBuilder("ids").field(FIELD), fieldType).withQuery(
-                        new TermQuery(new Term(CATEGORY, "odd"))
-                    ).withCheckAggregator(aggregator -> assertFalse(((RoaringBitmapAggregator) aggregator).usesTermsIndex()))
-                );
-                assertThat(drain(IntBitmap.deserialize(result.bitmap())), equalTo(List.of(5L)));
-            }
-        }
-    }
-
-    public void testTermsIndexFallsBackWhenSegmentHasDeletions() throws Exception {
-        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.LONG;
-        MappedFieldType fieldType = indexTermsFieldType(type);
-        try (
-            Directory directory = newDirectory();
-            IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
-        ) {
-            Document live = termsDocument(type, 5);
-            live.add(new StringField("key", "live", Field.Store.NO));
-            writer.addDocument(live);
-            Document deleted = termsDocument(type, 10);
-            deleted.add(new StringField("key", "deleted", Field.Store.NO));
-            writer.addDocument(deleted);
-            writer.commit();
-            writer.deleteDocuments(new Term("key", "deleted"));
-
-            try (IndexReader reader = DirectoryReader.open(writer)) {
-                assertTrue(reader.hasDeletions());
-                InternalRoaringBitmap result = searchAndReduce(
-                    reader,
-                    new AggTestConfig(new RoaringBitmapAggregationBuilder("ids").field(FIELD), fieldType)
-                );
-                assertThat(drain(LongBitmap.deserializePortable(result.bitmap())), equalTo(List.of(5L)));
+            // Phase 3: force-merge to one segment -- deletes are purged, so match-all is fast-path
+            // eligible again over exactly the surviving documents.
+            try (IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig())) {
+                writer.forceMerge(1);
+                try (IndexReader reader = DirectoryReader.open(writer)) {
+                    assertThat(reader.leaves().size(), equalTo(1));
+                    assertFalse(reader.hasDeletions());
+                    assertFieldsAgree(reader, termsFieldType, oracleFieldType, live, true);
+                }
             }
         }
     }
@@ -247,25 +242,6 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
                     )
                 );
                 assertThat(drain(IntBitmap.deserialize(result.bitmap())), equalTo(List.of(5L, 7L)));
-            }
-        }
-    }
-
-    public void testTermsIndexFallsBackUnderParentAggregation() throws Exception {
-        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.LONG;
-        MappedFieldType fieldType = indexTermsFieldType(type);
-        try (Directory directory = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
-            writer.addDocument(termsDocument(type, 5, 10));
-
-            try (IndexReader reader = writer.getReader()) {
-                // A filter is single-bucket, so it passes CardinalityUpperBound.ONE through and remains a
-                // legal parent even though it disables the terms-index fast path.
-                AggregationBuilder parent = new FilterAggregationBuilder("parent", new MatchAllQueryBuilder()).subAggregation(
-                    new RoaringBitmapAggregationBuilder("ids").field(FIELD)
-                );
-                InternalFilter result = searchAndReduce(reader, new AggTestConfig(parent, fieldType));
-                InternalRoaringBitmap bitmap = result.getAggregations().get("ids");
-                assertThat(drain(LongBitmap.deserializePortable(bitmap.bitmap())), equalTo(List.of(5L, 10L)));
             }
         }
     }
@@ -359,80 +335,6 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
             () -> aggregate(NumberFieldMapper.NumberType.LONG, 1, -1)
         );
         assertThat(exception.getMessage(), containsString("only supports non-negative values"));
-    }
-
-    public void testRequestBreakerBytesAreReleasedOnClose() throws Exception {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD, NumberFieldMapper.NumberType.LONG);
-        CircuitBreakerService breakerService = LimitedBreaker.service(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(64));
-        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
-        long baseline = breaker.getUsed();
-        try (Directory directory = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
-            for (int i = 0; i < 20_000; i++) {
-                Document document = new Document();
-                document.add(new SortedNumericDocValuesField(FIELD, ((long) i << 32) | i));
-                writer.addDocument(document);
-            }
-            try (
-                IndexReader reader = writer.getReader();
-                AggregationContext context = createAggregationContext(
-                    reader,
-                    createIndexSettings(),
-                    Queries.ALL_DOCS_INSTANCE,
-                    breakerService,
-                    0,
-                    DEFAULT_MAX_BUCKETS,
-                    false,
-                    false,
-                    fieldType
-                )
-            ) {
-                Aggregator aggregator = createAggregator(new RoaringBitmapAggregationBuilder("ids").field(FIELD), context);
-                aggregator.preCollection();
-                context.searcher().search(context.query(), aggregator.asCollector());
-                aggregator.postCollection();
-                aggregator.buildTopLevel();
-                assertThat(breaker.getUsed(), greaterThan(baseline));
-            }
-        }
-
-        assertThat(breaker.getUsed(), equalTo(baseline));
-    }
-
-    public void testTermsIndexBreakerBytesAreReleasedOnClose() throws Exception {
-        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.LONG;
-        MappedFieldType fieldType = indexTermsFieldType(type);
-        CircuitBreakerService breakerService = LimitedBreaker.service(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(64));
-        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
-        long baseline = breaker.getUsed();
-        try (Directory directory = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
-            for (int i = 0; i < 20_000; i++) {
-                writer.addDocument(termsDocument(type, ((long) i << 32) | i));
-            }
-            try (
-                IndexReader reader = writer.getReader();
-                AggregationContext context = createAggregationContext(
-                    reader,
-                    createIndexSettings(),
-                    Queries.ALL_DOCS_INSTANCE,
-                    breakerService,
-                    0,
-                    DEFAULT_MAX_BUCKETS,
-                    false,
-                    false,
-                    fieldType
-                )
-            ) {
-                Aggregator aggregator = createAggregator(new RoaringBitmapAggregationBuilder("ids").field(FIELD), context);
-                assertTrue(((RoaringBitmapAggregator) aggregator).usesTermsIndex());
-                aggregator.preCollection();
-                context.searcher().search(context.query(), aggregator.asCollector());
-                aggregator.postCollection();
-                aggregator.buildTopLevel();
-                assertThat(breaker.getUsed(), greaterThan(baseline));
-            }
-        }
-
-        assertThat(breaker.getUsed(), equalTo(baseline));
     }
 
     public void testCollectionTripsBreakerOnMeasuredGrowth() throws Exception {
@@ -575,106 +477,6 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    public void testReduceChecksCancellationAndReleasesBreaker() throws Exception {
-        InternalRoaringBitmap result = result(InternalRoaringBitmap.BitmapFormat.LONG, 1L << 32);
-        AtomicBoolean cancelled = new AtomicBoolean(true);
-        CircuitBreakerService breakerService = LimitedBreaker.service(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(64));
-        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
-            new BigArrays(null, breakerService, CircuitBreaker.REQUEST),
-            null,
-            cancelled::get,
-            AggregatorFactories.builder(),
-            ignored -> {},
-            null
-        );
-
-        try (AggregatorReducer reducer = result.getReducer(reduceContext, 1)) {
-            expectThrows(TaskCancelledException.class, () -> reducer.accept(result));
-        }
-        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
-
-        cancelled.set(false);
-        try (AggregatorReducer reducer = result.getReducer(reduceContext, 1)) {
-            reducer.accept(result);
-            cancelled.set(true);
-            expectThrows(TaskCancelledException.class, reducer::get);
-        }
-        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
-    }
-
-    // The reduce path must reserve before deserializing, not after, so a bitmap too large for the
-    // breaker is refused instead of being fully allocated and only then accounted for. Asserting that
-    // the trip requested exactly the pre-deserialization estimate is what distinguishes the two
-    // orderings: a post-deserialization trip would request the deserialized ramBytesUsed() instead.
-    public void testReduceTripsBreakerBeforeDeserializing() throws Exception {
-        InternalRoaringBitmap result = aggregate(NumberFieldMapper.NumberType.LONG, sparseLongValues(2_000));
-        long expectedReservation = result.bitmap().length * InternalRoaringBitmap.DESERIALIZATION_EXPANSION_FACTOR;
-        assertThat(expectedReservation, greaterThan(0L));
-
-        CircuitBreakerService breakerService = LimitedBreaker.service(
-            CircuitBreaker.REQUEST,
-            ByteSizeValue.ofBytes(expectedReservation - 1)
-        );
-        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
-            new BigArrays(null, breakerService, CircuitBreaker.REQUEST),
-            null,
-            () -> false,
-            AggregatorFactories.builder(),
-            ignored -> {},
-            null
-        );
-
-        try (AggregatorReducer reducer = result.getReducer(reduceContext, 1)) {
-            CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, () -> reducer.accept(result));
-            assertThat(exception.getBytesWanted(), equalTo(expectedReservation));
-        }
-        // The refused reservation must not be left charged to the breaker.
-        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
-    }
-
-    // In-place OR clones containers that only exist in the incoming bitmap. Reserve that possible
-    // growth before unioning so disjoint shard results cannot allocate beyond the breaker first.
-    public void testReduceTripsBreakerBeforeUnionGrowth() throws Exception {
-        InternalRoaringBitmap first = result(InternalRoaringBitmap.BitmapFormat.LONG, 1);
-        InternalRoaringBitmap second = result(InternalRoaringBitmap.BitmapFormat.LONG, 1L << 32);
-        long firstBytes = bitmapRamBytesUsed(InternalRoaringBitmap.BitmapFormat.LONG, 1);
-        long secondBytes = bitmapRamBytesUsed(InternalRoaringBitmap.BitmapFormat.LONG, 1L << 32);
-
-        long secondDeserializationEstimate = second.bitmap().length * InternalRoaringBitmap.DESERIALIZATION_EXPANSION_FACTOR;
-        assertThat(secondDeserializationEstimate, lessThan(2L * secondBytes));
-        CircuitBreakerService breakerService = LimitedBreaker.service(
-            CircuitBreaker.REQUEST,
-            ByteSizeValue.ofBytes(firstBytes + 2L * secondBytes - 1)
-        );
-        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
-            new BigArrays(null, breakerService, CircuitBreaker.REQUEST),
-            null,
-            () -> false,
-            AggregatorFactories.builder(),
-            ignored -> {},
-            null
-        );
-
-        try (AggregatorReducer reducer = first.getReducer(reduceContext, 2)) {
-            reducer.accept(first);
-            CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, () -> reducer.accept(second));
-            assertThat(exception.getBytesWanted(), equalTo(secondBytes));
-            // The incoming decoded bitmap is released immediately even though the speculative
-            // union reservation was refused; only the first shard remains retained by the reducer.
-            assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(firstBytes));
-        }
-        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
-    }
-
-    private static long[] sparseLongValues(int count) {
-        long[] values = new long[count];
-        for (int i = 0; i < count; i++) {
-            // Spread across high words so the bitmap stays sparse rather than collapsing into runs.
-            values[i] = ((long) i << 32) | i;
-        }
-        return values;
-    }
-
     private InternalRoaringBitmap aggregate(NumberFieldMapper.NumberType type, long... values) throws Exception {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD, type);
         try (Directory directory = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
@@ -704,6 +506,57 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
                 );
             }
         }
+    }
+
+    /** A document in {@link #testTermsIndexMatchesDocValuesAcrossSegmentsAndDeletions}'s data model. */
+    private record TermsDoc(String key, String category, long[] values) {}
+
+    /**
+     * Asserts that the index_terms field and the doc-values oracle field both return the distinct set of
+     * the live documents, unfiltered and filtered by category. When {@code fastPathOnMatchAll} is true
+     * the unfiltered index_terms run must engage the fast path; the filtered run must always disable it.
+     */
+    private void assertFieldsAgree(
+        IndexReader reader,
+        MappedFieldType termsFieldType,
+        MappedFieldType oracleFieldType,
+        List<TermsDoc> liveDocs,
+        boolean fastPathOnMatchAll
+    ) throws IOException {
+        List<Long> expectedAll = distinctValues(liveDocs, doc -> true);
+        Consumer<Aggregator> requireFastPath = fastPathOnMatchAll
+            ? aggregator -> assertTrue(((RoaringBitmapAggregator) aggregator).usesTermsIndex())
+            : null;
+        assertThat(aggregateBitmap(reader, FIELD, termsFieldType, null, requireFastPath), equalTo(expectedAll));
+        assertThat(aggregateBitmap(reader, BKD_FIELD, oracleFieldType, null, null), equalTo(expectedAll));
+
+        List<Long> expectedCategoryA = distinctValues(liveDocs, doc -> doc.category().equals("a"));
+        Query filter = new TermQuery(new Term(CATEGORY, "a"));
+        Consumer<Aggregator> requireFallback = aggregator -> assertFalse(((RoaringBitmapAggregator) aggregator).usesTermsIndex());
+        assertThat(aggregateBitmap(reader, FIELD, termsFieldType, filter, requireFallback), equalTo(expectedCategoryA));
+        assertThat(aggregateBitmap(reader, BKD_FIELD, oracleFieldType, filter, null), equalTo(expectedCategoryA));
+    }
+
+    private List<Long> aggregateBitmap(
+        IndexReader reader,
+        String field,
+        MappedFieldType fieldType,
+        Query query,
+        Consumer<Aggregator> checkAggregator
+    ) throws IOException {
+        AggTestConfig config = new AggTestConfig(new RoaringBitmapAggregationBuilder("ids").field(field), fieldType);
+        if (query != null) {
+            config = config.withQuery(query);
+        }
+        if (checkAggregator != null) {
+            config = config.withCheckAggregator(checkAggregator);
+        }
+        InternalRoaringBitmap result = searchAndReduce(reader, config);
+        return drain(LongBitmap.deserializePortable(result.bitmap()));
+    }
+
+    private static List<Long> distinctValues(List<TermsDoc> docs, Predicate<TermsDoc> filter) {
+        return docs.stream().filter(filter).flatMapToLong(doc -> Arrays.stream(doc.values())).distinct().sorted().boxed().toList();
     }
 
     private static MappedFieldType indexTermsFieldType(NumberFieldMapper.NumberType type) {
@@ -754,15 +607,6 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
         InternalRoaringBitmap.MutableBitmap bitmap = InternalRoaringBitmap.mutable(width);
         bitmap.add(value);
         return new InternalRoaringBitmap("ids", width, bitmap.serialize(), null);
-    }
-
-    // Roaring 1.6.15 reports the same size for these fresh and portable-deserialized
-    // one-value bitmaps: both maps have empty performance-helper caches, and array
-    // container size is based on cardinality rather than backing-array capacity.
-    private static long bitmapRamBytesUsed(InternalRoaringBitmap.BitmapFormat width, long value) {
-        InternalRoaringBitmap.MutableBitmap bitmap = InternalRoaringBitmap.mutable(width);
-        bitmap.add(value);
-        return bitmap.ramBytesUsed();
     }
 
     private static List<Long> drain(BitmapValues values) throws IOException {

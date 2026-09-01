@@ -41,13 +41,10 @@ import java.util.Map;
  */
 final class RoaringBitmapAggregator extends MetricsAggregator {
 
-    // The breaker only ever sees measured bytes, so nothing is charged for a value until the bitmap has
-    // actually grown by it and repeated values cost nothing. Measuring per value would be quadratic
-    // though, because MutableBitmap#ramBytesUsed() walks every container, so measurements are spaced
-    // one interval further apart each time, the interval being a fraction of the values collected so
-    // far. The bitmap can therefore outgrow its reservation by roughly that same fraction of itself
-    // before the breaker sees it, which is bounded because collection grows the bitmap in small
-    // increments -- unlike the reduce path, which allocates a whole bitmap at once and reserves up front.
+    // How often to measure the bitmap's memory use, which is what the breaker is charged for:
+    // MutableBitmap#ramBytesUsed() walks every container, so it cannot run per value. Measure at least
+    // every MIN_VALUES_PER_MEASUREMENT values, then once per MEASUREMENT_GROWTH_FRACTION of the values
+    // collected so far, which also bounds how far the bitmap can outgrow its reservation in between.
     static final int MIN_VALUES_PER_MEASUREMENT = 1 << 10;
     private static final int MEASUREMENT_GROWTH_FRACTION = 4;
 

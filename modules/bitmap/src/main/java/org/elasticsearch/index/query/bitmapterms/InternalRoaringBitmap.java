@@ -68,25 +68,17 @@ public final class InternalRoaringBitmap extends InternalAggregation {
         BitmapFormat width();
     }
 
-    // TODO delete the constants below once Roaring reports its heap use both cheaply and accurately;
-    // getLongSizeInBytes() walks every container and, by its own javadoc, can under-report by ~10x.
-    //
-    // getLongSizeInBytes() is payload-only: it excludes object headers, array headers, the Container[]
-    // reference array and char[] slack. A plain multiplier cannot bound that, because what it misses is
-    // per container, so the ratio to cover grows as containers get emptier -- INT therefore corrects
-    // structurally via the public RoaringBitmap#getContainerCount(), and LONG keeps a multiplier only
-    // because Roaring64NavigableMap exposes no equivalent, over-reserving dense bitmaps in exchange.
-    // Both were checked against Lucene's RamUsageTester on JDK 25 over 144 bitmap shapes, which the
-    // previous 7x and 4x under-charged on 67 and 33 of, the worst by 1.7x.
+    // TODO delete these once Roaring reports its heap use both cheaply and accurately.
+    // Values for estimating a bitmap's heap use, since getLongSizeInBytes() counts payload only: INT
+    // adds a structural allowance per container from RoaringBitmap#getContainerCount(), while LONG has
+    // to scale the payload instead because Roaring64NavigableMap exposes no container count.
     private static final long PAYLOAD_SLACK_FACTOR = 2;
     private static final long INT_BYTES_PER_CONTAINER = 64;
     private static final long BITMAP_BASE_BYTES = 512;
     private static final long LONG_RAM_OVERHEAD_FACTOR = 8;
 
-    // Deserializing a portable Roaring bitmap expands well past its serialized size (7-9x from
-    // serialized bytes to heap in the same measurements). Reserve against that estimate before
-    // deserializing so the breaker sees the cost before the allocation happens, then true up against
-    // the corrected ramBytesUsed() above once the real object exists.
+    // Measured serialized-to-heap expansion, to reserve against before deserializing allocates the
+    // whole bitmap in one go, after which ramBytesUsed() above trues the reservation up.
     static final long DESERIALIZATION_EXPANSION_FACTOR = 9;
 
     private final BitmapFormat width;

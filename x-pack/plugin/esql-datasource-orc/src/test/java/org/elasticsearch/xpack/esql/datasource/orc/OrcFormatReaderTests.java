@@ -1877,10 +1877,11 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory); // PLAIN reader: no declaredTypeColumns => inferred
         List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.INTEGER));
+        List<String> warnings = new ArrayList<>();
         try (
             CloseableIterator<Page> it = reader.readRange(
                 storageObject,
-                new RangeReadContext(List.of("n"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.STRICT)
+                new RangeReadContext(List.of("n"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.STRICT, warnings::add)
             )
         ) {
             Page page = it.next();
@@ -1889,12 +1890,12 @@ public class OrcFormatReaderTests extends ESTestCase {
             assertTrue(page.getBlock(0).isNull(1));
             page.releaseBlocks();
         }
-        List<String> warnings = drainWarnings();
-        assertFalse("inferred incompatibility must emit a response Warning", warnings.isEmpty());
+        assertFalse("inferred incompatibility must emit a structured warning", warnings.isEmpty());
         assertTrue(
             "warning must name the incompatibility, got: " + warnings,
             warnings.toString().contains("incompatible with planner type")
         );
+        assertTrue("the supplied sink must replace ambient response headers", drainWarnings().isEmpty());
     }
 
     public void testLongToDoubleCoerces() throws Exception {
@@ -2044,7 +2045,7 @@ public class OrcFormatReaderTests extends ESTestCase {
 
     public void testCoercionUnparseableValueEmitsWarningAndNull() throws Exception {
         // Per-cell leniency under an explicit null_field (PERMISSIVE) error policy: a token the declared type
-        // cannot coerce nulls THAT cell and records a response Warning header; the surrounding cells still decode.
+        // cannot coerce nulls THAT cell and records structured warnings; the surrounding cells still decode.
         // (The default policy is STRICT — see testDefaultErrorPolicyIsStrict — so leniency is opt-in.)
         TypeDescription schema = TypeDescription.createStruct().addField("n", TypeDescription.createString());
         byte[] orcData = createOrcFile(schema, batch -> {
@@ -2056,10 +2057,11 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = declaredReader("n");
         List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG));
+        List<String> warnings = new ArrayList<>();
         try (
             CloseableIterator<Page> it = reader.readRange(
                 storageObject,
-                new RangeReadContext(List.of("n"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.PERMISSIVE)
+                new RangeReadContext(List.of("n"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.PERMISSIVE, warnings::add)
             )
         ) {
             Page page = it.next();
@@ -2070,7 +2072,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             assertEquals(43L, longs.getLong(longs.getFirstValueIndex(2)));
             page.releaseBlocks();
         }
-        List<String> warnings = drainWarnings();
+        assertTrue("the supplied sink must replace ambient response headers", drainWarnings().isEmpty());
         // 1 summary + 1 detail
         assertEquals("Expected summary + 1 detail, got: " + warnings, 2, warnings.size());
         assertTrue("Summary should mention coercion, got: " + warnings.get(0), warnings.get(0).contains("coerced"));

@@ -305,6 +305,11 @@ tasks.register('generateStandaloneTsvFixtures') {
 
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.tsv'
+  // The per-vector fixture trees are GENERATED, and for the tab delimiter the tab IS the payload -- a
+  // tab-delimited .csv is exactly what dimension.delimiter declares. The existing *.tsv exclusion covered
+  // this while tabs only ever appeared in files named .tsv; the delimiter dimension made a tab-delimited
+  // .csv a legitimate fixture, so the exclusion follows the generated tree rather than the extension.
+  exclude '**/iceberg-fixtures/vector/**'
 }
 
 sourceSets.javaRestTest.resources {

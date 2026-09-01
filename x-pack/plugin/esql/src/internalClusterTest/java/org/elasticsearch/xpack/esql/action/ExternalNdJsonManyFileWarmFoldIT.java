@@ -121,7 +121,8 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggrega
      * file-set change (a file added, a file's mtime touched) must MISS it — the next query re-scans and
      * returns the new truth — and the re-scan's reconcile re-materializes the aggregate for the NEW set,
      * so the query after that warms again. Serving a stale count at any step is the wrong-answer failure
-     * this arm exists to catch.
+     * this arm exists to catch. The listing cache is dropped after each mutation so the resolver sees the
+     * live set; a TTL-hot listing would keep the old fingerprint and is not the failure mode under test.
      */
     public void testNdjsonFileSetChangeInvalidatesDatasetAggregate() throws Exception {
         Path dir = createTempDir();
@@ -136,8 +137,14 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggrega
         );
         assertWarmCountShortCircuits(dataset, total);
 
+        ExternalSourceCacheService cacheService = internalCluster().getInstance(PlanExecutor.class, internalCluster().getMasterName())
+            .cacheService();
+
         // ADD a file: the aggregate for the old set must not serve; the scan returns the new total.
+        // Drop the listing first. Default inferred UNION_BY_NAME now shares cachedListing, so a
+        // TTL-hot listing would keep the old fingerprint and the stale aggregate would hit.
         long newTotal = total + writeNdjsonFile(dir.resolve("part-added.ndjson"), total);
+        ExternalSourceCacheTestAccess.invalidateListings(cacheService);
         String query = "FROM " + dataset + " | STATS c = COUNT(*)";
         try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
             assertCount(response, newTotal);
@@ -152,6 +159,7 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggrega
         // TOUCH one file's mtime (content unchanged): still a different set identity — must re-scan.
         Path touched = dir.resolve("part-0.ndjson");
         Files.setLastModifiedTime(touched, FileTime.fromMillis(Files.getLastModifiedTime(touched).toMillis() + 2_000));
+        ExternalSourceCacheTestAccess.invalidateListings(cacheService);
         try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
             assertCount(response, newTotal);
             assertThat("a touched mtime must re-scan, not serve the stale aggregate", response.documentsFound(), equalTo(newTotal));

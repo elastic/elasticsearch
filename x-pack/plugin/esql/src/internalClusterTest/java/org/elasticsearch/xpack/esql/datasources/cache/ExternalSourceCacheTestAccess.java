@@ -48,4 +48,13 @@ public final class ExternalSourceCacheTestAccess {
         }
         return victims.size();
     }
+
+    /**
+     * Drops every listing-cache entry. File-set mutation tests must re-list after adding or touching
+     * files: the listing TTL is 30s, and a cached listing keeps the old fingerprint so the dataset
+     * aggregate would hit instead of miss.
+     */
+    public static void invalidateListings(ExternalSourceCacheService service) {
+        service.listingCache().invalidateAll();
+    }
 }

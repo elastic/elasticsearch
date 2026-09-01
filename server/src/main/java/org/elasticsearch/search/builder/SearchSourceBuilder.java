@@ -1540,7 +1540,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     postQueryBuilder = parseTopLevelQuery(parser, searchUsage::trackQueryUsage, getQueryParsingReleasables());
                     searchUsage.trackSectionUsage(POST_FILTER_FIELD.getPreferredName());
                 } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    knnBuilders = List.of(KnnSearchBuilder.fromXContent(parser));
+                    knnBuilders = List.of(KnnSearchBuilder.fromXContent(parser, getQueryParsingReleasables()));
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else if (RANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (RANK_SUPPORTED == false) {
@@ -1581,7 +1581,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                             searchUsage.trackSectionUsage(AGGS_FIELD.getPreferredName());
                         }
                     } else if (HIGHLIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        highlightBuilder = HighlightBuilder.fromXContent(parser);
+                        highlightBuilder = HighlightBuilder.fromXContent(parser, getQueryParsingReleasables());
                         if (highlightBuilder.fields().size() > 0) {
                             searchUsage.trackSectionUsage(HIGHLIGHT_FIELD.getPreferredName());
                         }
@@ -1597,7 +1597,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         }
                     } else if (RESCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         rescoreBuilders = new ArrayList<>();
-                        rescoreBuilders.add(RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage));
+                        rescoreBuilders.add(
+                            RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage, getQueryParsingReleasables())
+                        );
                         searchUsage.trackSectionUsage(RESCORE_FIELD.getPreferredName());
                     } else if (EXT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         extBuilders = new ArrayList<>();
@@ -1685,7 +1687,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (RESCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     rescoreBuilders = new ArrayList<>();
                     while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        rescoreBuilders.add(RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage));
+                        rescoreBuilders.add(
+                            RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage, getQueryParsingReleasables())
+                        );
                     }
                     searchUsage.trackSectionUsage(RESCORE_FIELD.getPreferredName());
                 } else if (STATS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -1723,7 +1727,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.START_OBJECT) {
-                            knnBuilders.add(KnnSearchBuilder.fromXContent(parser));
+                            knnBuilders.add(KnnSearchBuilder.fromXContent(parser, getQueryParsingReleasables()));
                         } else {
                             throw new XContentParseException(
                                 parser.getTokenLocation(),
@@ -1743,7 +1747,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     }
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.START_OBJECT) {
-                            subSearchSourceBuilders.add(SubSearchSourceBuilder.fromXContent(parser, searchUsage));
+                            subSearchSourceBuilders.add(
+                                SubSearchSourceBuilder.fromXContent(parser, searchUsage, getQueryParsingReleasables())
+                            );
                         } else {
                             throw new XContentParseException(
                                 parser.getTokenLocation(),

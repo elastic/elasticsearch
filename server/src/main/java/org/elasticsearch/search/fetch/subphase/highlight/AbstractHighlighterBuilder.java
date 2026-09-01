@@ -11,11 +11,11 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -30,10 +30,10 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.xcontent.ObjectParser.fromList;
@@ -650,7 +650,14 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         }
     }
 
-    static <HB extends AbstractHighlighterBuilder<HB>> BiFunction<XContentParser, HB, HB> setupParser(ObjectParser<HB, Void> parser) {
+    /**
+     * Configures all highlight fields on {@code parser}. The context type is {@code List<Releasable>} (nullable):
+     * when non-null the highlight_query is tracked for later release via the request circuit breaker;
+     * when null (e.g. from {@link HighlightBuilder#fromXContent(XContentParser)}) queries are parsed
+     * without holding charges, matching the pre-breaker behaviour.
+     * After calling {@link ObjectParser#parse}, callers must validate pre/post tags themselves.
+     */
+    static <HB extends AbstractHighlighterBuilder<HB>> void setupParser(ObjectParser<HB, List<Releasable>> parser) {
         parser.declareStringArray(fromList(String.class, HB::preTags), PRE_TAGS_FIELD);
         parser.declareStringArray(fromList(String.class, HB::postTags), POST_TAGS_FIELD);
         parser.declareString(HB::order, ORDER_FIELD);
@@ -675,34 +682,20 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         parser.declareBoolean((builder, value) -> {}, FORCE_SOURCE_FIELD);  // force_source is ignored
         parser.declareInt(HB::phraseLimit, PHRASE_LIMIT_FIELD);
         parser.declareInt(HB::maxAnalyzedOffset, MAX_ANALYZED_OFFSET_FIELD);
-        parser.declareObject(HB::options, (XContentParser p, Void c) -> {
+        parser.declareObject(HB::options, (XContentParser p, List<Releasable> c) -> {
             try {
                 return p.map();
             } catch (IOException e) {
                 throw new RuntimeException("Error parsing options", e);
             }
         }, OPTIONS_FIELD);
-        parser.declareObject(HB::highlightQuery, (XContentParser p, Void c) -> {
+        parser.declareObject(HB::highlightQuery, (XContentParser p, List<Releasable> c) -> {
             try {
-                return parseTopLevelQuery(p);
+                return parseTopLevelQuery(p, q -> {}, c);
             } catch (IOException e) {
                 throw new RuntimeException("Error parsing query", e);
             }
         }, HIGHLIGHT_QUERY_FIELD);
-        return (XContentParser p, HB hb) -> {
-            try {
-                parser.parse(p, hb, null);
-                if (hb.preTags() != null && hb.postTags() == null) {
-                    throw new ParsingException(p.getTokenLocation(), "pre_tags are set but post_tags are not set");
-                }
-                if (hb.preTags() != null && hb.postTags() != null && (hb.preTags().length == 0 || hb.postTags().length == 0)) {
-                    throw new ParsingException(p.getTokenLocation(), "pre_tags or post_tags must not be empty");
-                }
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            return hb;
-        };
     }
 
     @Override

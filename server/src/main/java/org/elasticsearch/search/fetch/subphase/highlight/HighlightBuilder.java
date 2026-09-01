@@ -11,10 +11,12 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -35,7 +37,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.xcontent.ObjectParser.fromList;
 
@@ -205,20 +206,33 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
         return builder;
     }
 
-    private static final BiFunction<XContentParser, HighlightBuilder, HighlightBuilder> PARSER;
+    private static final ObjectParser<HighlightBuilder, List<Releasable>> PARSER;
     static {
-        ObjectParser<HighlightBuilder, Void> parser = new ObjectParser<>("highlight");
+        ObjectParser<HighlightBuilder, List<Releasable>> parser = new ObjectParser<>("highlight");
         parser.declareNamedObjects(
             HighlightBuilder::fields,
             Field.PARSER,
             (HighlightBuilder hb) -> hb.useExplicitFieldOrder(true),
             FIELDS_FIELD
         );
-        PARSER = setupParser(parser);
+        setupParser(parser);
+        PARSER = parser;
     }
 
-    public static HighlightBuilder fromXContent(XContentParser p) {
-        return PARSER.apply(p, new HighlightBuilder());
+    public static HighlightBuilder fromXContent(XContentParser p) throws IOException {
+        return fromXContent(p, null);
+    }
+
+    public static HighlightBuilder fromXContent(XContentParser p, List<Releasable> releasables) throws IOException {
+        HighlightBuilder hb = new HighlightBuilder();
+        PARSER.parse(p, hb, releasables);
+        if (hb.preTags() != null && hb.postTags() == null) {
+            throw new ParsingException(p.getTokenLocation(), "pre_tags are set but post_tags are not set");
+        }
+        if (hb.preTags() != null && hb.postTags() != null && (hb.preTags().length == 0 || hb.postTags().length == 0)) {
+            throw new ParsingException(p.getTokenLocation(), "pre_tags or post_tags must not be empty");
+        }
+        return hb;
     }
 
     public SearchHighlightContext build(SearchExecutionContext context) throws IOException {
@@ -391,13 +405,23 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
     }
 
     public static final class Field extends AbstractHighlighterBuilder<Field> {
-        static final NamedObjectParser<Field, Void> PARSER;
+        static final NamedObjectParser<Field, List<Releasable>> PARSER;
         static {
-            ObjectParser<Field, Void> parser = new ObjectParser<>("highlight_field");
+            ObjectParser<Field, List<Releasable>> parser = new ObjectParser<>("highlight_field");
             parser.declareInt(Field::fragmentOffset, FRAGMENT_OFFSET_FIELD);
             parser.declareStringArray(fromList(String.class, Field::matchedFields), MATCHED_FIELDS_FIELD);
-            BiFunction<XContentParser, Field, Field> decoratedParser = setupParser(parser);
-            PARSER = (XContentParser p, Void c, String name) -> decoratedParser.apply(p, new Field(name));
+            setupParser(parser);
+            PARSER = (XContentParser p, List<Releasable> c, String name) -> {
+                Field field = new Field(name);
+                parser.parse(p, field, c);
+                if (field.preTags() != null && field.postTags() == null) {
+                    throw new ParsingException(p.getTokenLocation(), "pre_tags are set but post_tags are not set");
+                }
+                if (field.preTags() != null && field.postTags() != null && (field.preTags().length == 0 || field.postTags().length == 0)) {
+                    throw new ParsingException(p.getTokenLocation(), "pre_tags or post_tags must not be empty");
+                }
+                return field;
+            };
         }
 
         private final String name;

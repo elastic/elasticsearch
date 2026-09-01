@@ -1396,6 +1396,27 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testBreakerReleasedWhenSubsequentFieldFailsAfterSuccessfulQuery() throws IOException {
+        long perClause = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        // 2 non-root clauses (bool is root/depth-1, 2 match_all are depth-2 and charged): 2 * 256 = 512 bytes
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(perClause * 10));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            String json = "{\"query\":{\"bool\":{\"should\":[{\"match_all\":{}},{\"match_all\":{}}]}},\"not_a_field\":42}";
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), new BytesArray(json))) {
+                expectThrows(ParsingException.class, () -> {
+                    try (SearchSourceBuilder parsed = new SearchSourceBuilder()) {
+                        parsed.parseXContent(parser, true, new UsageService().getSearchUsageHolder(), nf -> false);
+                    }
+                });
+            }
+            // Query charges committed during parse, released by close() when the subsequent ParsingException propagated
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
     private SearchSourceBuilder rewrite(SearchSourceBuilder searchSourceBuilder) throws IOException {
         return Rewriteable.rewrite(searchSourceBuilder, new QueryRewriteContext(parserConfig(), null, Long.valueOf(1)::longValue));
     }

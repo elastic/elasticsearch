@@ -35,7 +35,9 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
@@ -174,6 +176,11 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
 
         CircuitBreakingException renderCbe = null; // set on first render-phase CBE; fills subsequent slots
         for (int i = 0; i < n; i++) {
+            // Cooperative cancellation check: MultiSearchTemplateRequest always creates a CancellableTask.
+            if (((CancellableTask) task).isCancelled()) {
+                safeListener.onFailure(new TaskCancelledException("request cancelled"));
+                return;
+            }
             if (renderCbe != null) {
                 // A prior item's render tripped the breaker — fill remaining slots without further work.
                 items[i] = new MultiSearchTemplateResponse.Item(null, renderCbe);

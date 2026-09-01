@@ -9,6 +9,7 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -36,7 +37,10 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelHelper;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -871,6 +875,74 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
             assertNotNull("inner multiSearch must have a parent task set", parentTask);
             assertThat("parent task node ID must match getLocalNodeId()", parentTask.getNodeId(), equalTo("local-node"));
             assertThat("parent task ID must match the outer task", parentTask.getId(), equalTo(taskId));
+        } finally {
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    /**
+     * Verifies cooperative mid-render cancellation: when the outer task is cancelled after some items
+     * have already been rendered (but before {@code client.multiSearch()} is dispatched), the action
+     * must call {@code onFailure} with a {@link TaskCancelledException}, skip the remaining items, and
+     * release all breaker bytes it charged during the partial render.
+     *
+     * <p>The script service cancels the task on its second {@code compile} call, so item 0 renders
+     * normally, item 1 renders (triggering the cancel as a side effect), and item 2 triggers the
+     * cancellation check at the top of the loop — never reaching {@code convert()}.
+     */
+    public void testRenderPhaseCancellationStopsLoopAndReleasesBreaker() throws Exception {
+        ClusterService clusterService = clusterServiceWithDataNodes(1);
+        TrackingCircuitBreaker tracker = new TrackingCircuitBreaker();
+        AtomicInteger multiSearchCalls = new AtomicInteger();
+        AtomicInteger compileCalls = new AtomicInteger();
+
+        int numRequests = 3;
+        MultiSearchTemplateRequest request = new MultiSearchTemplateRequest();
+        for (int i = 0; i < numRequests; i++) {
+            request.add(templateRequest());
+        }
+        CancellableTask task = (CancellableTask) request.createTask(1L, "type", "action", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+
+        Settings settings = Settings.builder().put("node.name", getTestName()).build();
+        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        try {
+            NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.DEFAULT_PROJECT_ONLY) {
+                @Override
+                public void multiSearch(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
+                    multiSearchCalls.incrementAndGet();
+                    listener.onFailure(new RuntimeException("multiSearch must not be called after render-phase cancellation"));
+                }
+
+                @Override
+                public String getLocalNodeId() {
+                    return "local";
+                }
+            };
+
+            ScriptService scriptService = mock(ScriptService.class);
+            when(scriptService.compile(any(Script.class), eq(TemplateScript.CONTEXT))).thenAnswer(inv -> {
+                if (compileCalls.incrementAndGet() == 2) {
+                    TaskCancelHelper.cancel(task, "test cancellation");
+                }
+                TemplateScript.Factory factory = params -> new TemplateScript(params) {
+                    @Override
+                    public String execute() {
+                        return "{\"size\": 0}";
+                    }
+                };
+                return factory;
+            });
+
+            TransportMultiSearchTemplateAction action = buildAction(threadPool, client, clusterService, tracker, scriptService);
+            PlainActionFuture<MultiSearchTemplateResponse> future = new PlainActionFuture<>();
+            action.execute(task, request, future);
+
+            Exception thrown = expectThrows(Exception.class, future::actionGet);
+            assertThat(ExceptionsHelper.unwrapCause(thrown), instanceOf(TaskCancelledException.class));
+            assertThat("multiSearch must not be called when the render loop is cancelled", multiSearchCalls.get(), equalTo(0));
+            assertThat("compile must have been called exactly twice (cancel fires on 2nd)", compileCalls.get(), equalTo(2));
+            assertThat("breaker must have charged something during the partial render", tracker.getPeakNetBytes(), greaterThan(0L));
+            assertThat("breaker must be fully released after render-phase cancellation", tracker.getUsed(), equalTo(0L));
         } finally {
             assertTrue(terminate(threadPool));
         }

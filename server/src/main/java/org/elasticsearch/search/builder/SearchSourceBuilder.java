@@ -232,13 +232,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     /**
      * Releases the circuit-breaker charge held for query clauses parsed via {@link #parseXContent}.
+     * The builder itself remains fully usable after close; only the breaker accounting is released.
      * Safe to call multiple times and from concurrent threads; subsequent calls are no-ops.
      */
     @Override
     public synchronized void close() {
         if (queryParsingReleasables != null) {
-            Releasables.close(queryParsingReleasables);
+            List<Releasable> toClose = queryParsingReleasables;
             queryParsingReleasables = null;
+            Releasables.close(toClose);
         }
     }
 
@@ -1286,6 +1288,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     /**
      * Create a shallow copy of this builder with a new slice configuration.
+     * {@code queryParsingReleasables} is intentionally not copied: {@link org.elasticsearch.action.search.TransportSearchAction}
+     * captures the original (pre-rewrite) source and calls {@link #close()} on it, so the charge is always released via the original.
      */
     public SearchSourceBuilder shallowCopy() {
         return shallowCopy(
@@ -1520,7 +1524,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 if (RETRIEVER.match(currentFieldName, parser.getDeprecationHandler())) {
                     retrieverBuilder = RetrieverBuilder.parseTopLevelRetrieverBuilder(
                         parser,
-                        new RetrieverParserContext(searchUsage, clusterSupportsFeature)
+                        new RetrieverParserContext(searchUsage, clusterSupportsFeature, getQueryParsingReleasables())
                     );
                     searchUsage.trackSectionUsage(RETRIEVER.getPreferredName());
                 } else if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

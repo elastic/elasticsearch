@@ -203,7 +203,10 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         // nothing is set that we can't support
         validateSearchRequest(request);
 
-        // The original request is added as-is (if normal indices exist), minus the rollup indices
+        // The original request is added as-is (if normal indices exist), minus the rollup indices.
+        // Note: request.source() is shared across multiple SearchRequests in this msearch; the first sub-request to
+        // complete will close() the shared SearchSourceBuilder, which is idempotent and safe, but means the breaker
+        // charge is released slightly early while other sub-requests may still reference the same heap.
         final SearchRequest originalRequest = new SearchRequest(context.getLiveIndices(), request.source());
         MultiSearchRequest msearch = new MultiSearchRequest();
         if (context.hasLiveIndices()) {

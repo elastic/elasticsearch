@@ -813,6 +813,7 @@ class NodeConstruction {
             settingsModule.getClusterSettings()
         );
         AbstractQueryBuilder.setQueryParsingBreaker(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
+        resourcesToClose.add(() -> AbstractQueryBuilder.setQueryParsingBreaker(null));
         PageCacheRecycler pageCacheRecycler = serviceProvider.newPageCacheRecycler(pluginsService, settings);
         BigArrays bigArrays = serviceProvider.newBigArrays(pluginsService, pageCacheRecycler, circuitBreakerService);
 

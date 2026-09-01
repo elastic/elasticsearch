@@ -167,6 +167,8 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
             for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
                 BytesReference bytes = XContentHelper.toXContent(bigQuery, type, false);
                 try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    // DisMax uses a manual parsing loop so namedObject() throws CircuitBreakingException directly (no ObjectParser
+                    // wrapping)
                     expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
                 }
             }

@@ -620,11 +620,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return maxNestedDepth;
     }
 
-    /** Returns the circuit breaker currently used for parse-time clause accounting, or {@code null} if none is set. */
-    public static CircuitBreaker getQueryParsingBreaker() {
-        return queryParsingBreaker;
-    }
-
     @Override
     public final String toString() {
         return Strings.toString(this, true, true);

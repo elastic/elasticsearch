@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -1328,6 +1329,67 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 assertEquals(clauses * perClause, breaker.getUsed());
             }
             // charge is released after close()
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
+    public void testQueryAndPostFilterBreakerChargesAreCumulative() throws IOException {
+        int queryClauses = 2;
+        int postFilterClauses = 3;
+        long perClause = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        long total = (queryClauses + postFilterClauses) * perClause;
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(total));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            BoolQueryBuilder query = new BoolQueryBuilder();
+            for (int i = 0; i < queryClauses; i++) {
+                query.should(new MatchAllQueryBuilder());
+            }
+            BoolQueryBuilder postFilter = new BoolQueryBuilder();
+            for (int i = 0; i < postFilterClauses; i++) {
+                postFilter.must(new MatchAllQueryBuilder());
+            }
+            SearchSourceBuilder source = new SearchSourceBuilder().query(query).postFilter(postFilter);
+            BytesReference bytes = XContentHelper.toXContent(source, XContentType.JSON, false);
+            try (SearchSourceBuilder parsed = new SearchSourceBuilder()) {
+                try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
+                    parsed.parseXContent(parser, true, new UsageService().getSearchUsageHolder(), nf -> false);
+                }
+                // both query and post_filter charges are held
+                assertEquals(total, breaker.getUsed());
+            }
+            // both released together on close()
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
+    public void testPartialBreakerChargeReleasedOnParseFailure() throws IOException {
+        int clauses = 3;
+        long perClause = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        // limit allows only 1 non-root clause — parsing a 3-clause bool will trip the breaker
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(perClause));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            BoolQueryBuilder query = new BoolQueryBuilder();
+            for (int i = 0; i < clauses; i++) {
+                query.should(new MatchAllQueryBuilder());
+            }
+            SearchSourceBuilder source = new SearchSourceBuilder().query(query);
+            BytesReference bytes = XContentHelper.toXContent(source, XContentType.JSON, false);
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
+                // ObjectParser wraps the CircuitBreakingException in an XContentParseException
+                XContentParseException ex = expectThrows(XContentParseException.class, () -> {
+                    try (SearchSourceBuilder parsed = new SearchSourceBuilder()) {
+                        parsed.parseXContent(parser, true, new UsageService().getSearchUsageHolder(), nf -> false);
+                    }
+                });
+                assertThat(ex.getCause(), instanceOf(CircuitBreakingException.class));
+            }
+            // partial charges must be released — breaker returns to zero after failed parse
             assertEquals(0L, breaker.getUsed());
         } finally {
             AbstractQueryBuilder.setQueryParsingBreaker(null);

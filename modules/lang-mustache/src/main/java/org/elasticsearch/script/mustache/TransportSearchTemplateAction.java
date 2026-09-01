@@ -138,7 +138,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         SearchRequest searchRequest = searchTemplateRequest.getRequest();
 
         SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
-        boolean transferred = false;
+        boolean transferred = false; // true means builder is owned by searchRequest; do not close it in finally
         try {
             XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
                 .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);

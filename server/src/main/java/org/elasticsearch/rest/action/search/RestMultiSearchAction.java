@@ -172,14 +172,40 @@ public class RestMultiSearchAction extends BaseRestHandler {
             maxConcurrentShardRequests = null;
         }
 
-        parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
-            searchRequest.source(new SearchSourceBuilder().parseXContent(parser, false, searchUsageHolder, clusterSupportsFeature));
-            RestSearchAction.validateSearchRequest(restRequest, searchRequest);
-            if (searchRequest.pointInTimeBuilder() != null) {
-                RestSearchAction.preparePointInTime(searchRequest, restRequest);
+        boolean allAdded = false;
+        try {
+            parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
+                // Build source separately so we can close it on any failure before multiRequest.add().
+                SearchSourceBuilder builder = new SearchSourceBuilder();
+                boolean added = false;
+                try {
+                    builder.parseXContent(parser, false, searchUsageHolder, clusterSupportsFeature);
+                    searchRequest.source(builder);
+                    RestSearchAction.validateSearchRequest(restRequest, searchRequest);
+                    if (searchRequest.pointInTimeBuilder() != null) {
+                        RestSearchAction.preparePointInTime(searchRequest, restRequest);
+                    }
+                    multiRequest.add(searchRequest);
+                    added = true;
+                } finally {
+                    if (added == false) {
+                        // Always close builder: after source(builder) it is the same object as searchRequest.source();
+                        // before it, it is the one holding any partial charges. Either way builder.close() is correct.
+                        builder.close();
+                    }
+                }
+            }, extraParamParser, crossProjectEnabled, multiRequest.getProjectRouting());
+            allAdded = true;
+        } finally {
+            if (allAdded == false) {
+                // An exception escaped — close already-accumulated sub-requests to release breaker charges.
+                for (SearchRequest request : multiRequest.requests()) {
+                    if (request.source() != null) {
+                        request.source().close();
+                    }
+                }
             }
-            multiRequest.add(searchRequest);
-        }, extraParamParser, crossProjectEnabled, multiRequest.getProjectRouting());
+        }
         List<SearchRequest> requests = multiRequest.requests();
         for (SearchRequest request : requests) {
             // preserve if it's set on the request

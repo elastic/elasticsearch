@@ -183,7 +183,7 @@ public class TransportUpdateActionTests extends ESTestCase {
     }
 
     public void testBasicRequestWorks() throws InterruptedException, ExecutionException, TimeoutException {
-        UpdateRequest request = new UpdateRequest().index("test");
+        UpdateRequest request = new UpdateRequest("test", "id");
         request.shardId = new ShardId("test", "_na_", 0);
         PlainActionFuture<UpdateResponse> listener = new PlainActionFuture<>();
         setState(clusterService, ClusterStateCreationUtils.state(projectId, "test", randomBoolean(), ShardRoutingState.STARTED));
@@ -194,7 +194,7 @@ public class TransportUpdateActionTests extends ESTestCase {
     }
 
     public void testFailureWithoutRetry() throws Exception {
-        UpdateRequest request = new UpdateRequest().index("test");
+        UpdateRequest request = new UpdateRequest("test", "id");
         request.shardId = new ShardId("test", "_na_", 0);
         PlainActionFuture<UpdateResponse> listener = new PlainActionFuture<>();
         setState(clusterService, ClusterStateCreationUtils.state(projectId, "test", randomBoolean(), ShardRoutingState.STARTED));
@@ -223,7 +223,7 @@ public class TransportUpdateActionTests extends ESTestCase {
     }
 
     public void testSuccessAfterRetryWithClusterStateUpdate() throws Exception {
-        UpdateRequest request = new UpdateRequest().index("test");
+        UpdateRequest request = new UpdateRequest("test", "id");
         request.shardId = new ShardId("test", "_na_", 0);
         PlainActionFuture<UpdateResponse> listener = new PlainActionFuture<>();
         boolean local = randomBoolean();
@@ -239,7 +239,7 @@ public class TransportUpdateActionTests extends ESTestCase {
     }
 
     public void testSuccessAfterRetryWithExceptionFromTransport() throws Exception {
-        UpdateRequest request = new UpdateRequest().index("test");
+        UpdateRequest request = new UpdateRequest("test", "id");
         request.shardId = new ShardId("test", "_na_", 0);
         PlainActionFuture<UpdateResponse> listener = new PlainActionFuture<>();
         boolean local = randomBoolean();
@@ -258,7 +258,7 @@ public class TransportUpdateActionTests extends ESTestCase {
     }
 
     public void testRetryOfAnAlreadyTimedOutRequest() throws Exception {
-        UpdateRequest request = new UpdateRequest().index("test").timeout(new TimeValue(0, TimeUnit.MILLISECONDS));
+        UpdateRequest request = new UpdateRequest("test", "id").timeout(new TimeValue(0, TimeUnit.MILLISECONDS));
         request.shardId = new ShardId("test", "_na_", 0);
         PlainActionFuture<UpdateResponse> listener = new PlainActionFuture<>();
         setState(clusterService, ClusterStateCreationUtils.state(projectId, "test", randomBoolean(), ShardRoutingState.STARTED));

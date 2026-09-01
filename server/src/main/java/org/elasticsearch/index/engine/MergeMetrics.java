@@ -41,13 +41,13 @@ public class MergeMetrics {
 
     public MergeMetrics(MeterRegistry meterRegistry) {
         mergeSizeInBytes = meterRegistry.registerLongCounter(MERGE_SEGMENTS_SIZE, "Total size of segments merged", "bytes");
-        meterRegistry.registerLongGauge(
+        meterRegistry.registerLongAsyncGauge(
             MERGE_SEGMENTS_QUEUED_USAGE,
             "Total usage of segments queued to be merged",
             "bytes",
             () -> new LongWithAttributes(queuedMergeSizeInBytes.get())
         );
-        meterRegistry.registerLongGauge(
+        meterRegistry.registerLongAsyncGauge(
             MERGE_SEGMENTS_RUNNING_USAGE,
             "Total usage of segments currently being merged",
             "bytes",
@@ -60,7 +60,7 @@ public class MergeMetrics {
         );
         mergeNumDocs = meterRegistry.registerLongCounter(MERGE_DOCS_TOTAL, "Total number of documents merged", "documents");
         mergeTimeInSeconds = meterRegistry.registerLongHistogram(MERGE_TIME_IN_SECONDS, "Merge time in seconds", "seconds");
-        meterRegistry.registerLongGauge(
+        meterRegistry.registerLongAsyncGauge(
             MERGE_QUEUED_ESTIMATED_MEMORY_SIZE,
             "Estimated memory usage for queued merges",
             "bytes",

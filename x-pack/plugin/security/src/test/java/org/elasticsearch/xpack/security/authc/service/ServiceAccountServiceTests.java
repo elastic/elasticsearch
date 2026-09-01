@@ -13,11 +13,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -41,6 +44,7 @@ import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.stubbing.Answer;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -56,23 +60,31 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ServiceAccountServiceTests extends ESTestCase {
 
+    private static final ServiceAccountId USER_MANAGED_ACCOUNT_ID = new ServiceAccountId("engineering", "deploy_bot");
+    private static final ServiceAccountId BUILT_IN_ACCOUNT_ID = new ServiceAccountId(ElasticServiceAccounts.NAMESPACE, "fleet-server");
+
     private Client client;
     private ThreadPool threadPool;
     private FileServiceAccountTokenStore fileServiceAccountTokenStore;
     private IndexServiceAccountTokenStore indexServiceAccountTokenStore;
+    private UserManagedServiceAccountStore userManagedServiceAccountStore;
     private ServiceAccountService serviceAccountService;
 
     @Before
@@ -81,18 +93,18 @@ public class ServiceAccountServiceTests extends ESTestCase {
         threadPool = new TestThreadPool("service account service tests");
         fileServiceAccountTokenStore = mock(FileServiceAccountTokenStore.class);
         indexServiceAccountTokenStore = mock(IndexServiceAccountTokenStore.class);
+        userManagedServiceAccountStore = mock(UserManagedServiceAccountStore.class);
         when(fileServiceAccountTokenStore.getTokenSource()).thenReturn(TokenInfo.TokenSource.FILE);
         when(indexServiceAccountTokenStore.getTokenSource()).thenReturn(TokenInfo.TokenSource.INDEX);
+        stubNoUserManagedAccounts();
+        stubTokenAuthentication(fileServiceAccountTokenStore, false);
+        stubTokenAuthentication(indexServiceAccountTokenStore, false);
+        stubHasTokensFor(false);
+        stubDeleteAccount(false);
+        stubTokenWrites();
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
-        serviceAccountService = new ServiceAccountService(
-            client,
-            new CompositeServiceAccountTokenStore(
-                List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
-                threadPool.getThreadContext()
-            ),
-            indexServiceAccountTokenStore
-        );
+        serviceAccountService = newServiceAccountService(userManagedServiceAccountStore);
     }
 
     @After
@@ -100,10 +112,42 @@ public class ServiceAccountServiceTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testGetServiceAccountPrincipals() {
+    private ServiceAccountService newServiceAccountService(@Nullable UserManagedServiceAccountStore accountStore) {
+        return new ServiceAccountService(
+            client,
+            new CompositeServiceAccountTokenStore(
+                List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
+                threadPool.getThreadContext()
+            ),
+            indexServiceAccountTokenStore,
+            accountStore
+        );
+    }
+
+    public void testGetBuiltInServiceAccountPrincipals() {
         assertThat(
-            ServiceAccountService.getServiceAccountPrincipals(),
+            ServiceAccountService.getBuiltInServiceAccountPrincipals(),
             containsInAnyOrder("elastic/auto-ops", "elastic/fleet-server", "elastic/fleet-server-remote", "elastic/kibana")
+        );
+    }
+
+    /**
+     * A user-managed account whose tokens have nowhere to live could never authenticate, so the combination is refused
+     * at construction rather than left to fail per request.
+     */
+    public void testUserManagedAccountsRequireAnIndexBackedTokenStore() {
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ServiceAccountService(
+                client,
+                new CompositeServiceAccountTokenStore(List.of(fileServiceAccountTokenStore), threadPool.getThreadContext()),
+                null,
+                userManagedServiceAccountStore
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("cannot support user-managed service accounts without an index-backed service account token store")
         );
     }
 
@@ -376,17 +420,18 @@ public class ServiceAccountServiceTests extends ESTestCase {
         Loggers.setLevel(sasLogger, Level.TRACE);
 
         try (var mockLog = MockLog.capture(ServiceAccountService.class)) {
-            // non-elastic service account
+            // A namespace outside the reserved one now names a user-managed account, so it is looked for in the
+            // account store rather than rejected outright.
             final ServiceAccountId accountId1 = new ServiceAccountId(
                 randomValueOtherThan(ElasticServiceAccounts.NAMESPACE, () -> randomAlphaOfLengthBetween(3, 8)),
                 randomAlphaOfLengthBetween(3, 8)
             );
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
-                    "non-elastic service account",
+                    "unknown user-managed service account",
                     ServiceAccountService.class.getName(),
                     Level.DEBUG,
-                    "only [elastic] service accounts are supported, but received [" + accountId1.asPrincipal() + "]"
+                    "the [" + accountId1.asPrincipal() + "] user-managed service account does not exist or is disabled"
                 )
             );
             final SecureString secret = new SecureString(randomAlphaOfLength(20).toCharArray());
@@ -410,7 +455,12 @@ public class ServiceAccountServiceTests extends ESTestCase {
             // Unknown elastic service name
             final ServiceAccountId accountId2 = new ServiceAccountId(
                 ElasticServiceAccounts.NAMESPACE,
-                randomValueOtherThan("fleet-server", () -> randomAlphaOfLengthBetween(3, 8))
+                randomValueOtherThanMany(
+                    serviceName -> ServiceAccountService.isBuiltInServiceAccountPrincipal(
+                        ElasticServiceAccounts.NAMESPACE + "/" + serviceName
+                    ),
+                    () -> randomAlphaOfLengthBetween(3, 8)
+                )
             );
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
@@ -597,22 +647,273 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final PlainActionFuture<RoleDescriptor> future2 = new PlainActionFuture<>();
         ServiceAccountService.getRoleDescriptor(auth2, future2);
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future2::actionGet);
-        assertThat(e.getMessage(), containsString("cannot load role for service account [" + username + "] - no such service account"));
+        assertThat(
+            e.getMessage(),
+            containsString("cannot load role for built-in service account [" + username + "] - no such service account")
+        );
+    }
+
+    /**
+     * The reserved namespace is the whole of what selects the built-in path, so an account name in it must never be
+     * looked for among the user-managed accounts — including one no built-in account carries.
+     */
+    public void testReservedNamespaceIsNeverResolvedAgainstTheUserManagedStore() {
+        final ServiceAccountId accountId = new ServiceAccountId(
+            ElasticServiceAccounts.NAMESPACE,
+            randomValueOtherThanMany(
+                serviceName -> ServiceAccountService.isBuiltInServiceAccountPrincipal(ElasticServiceAccounts.NAMESPACE + "/" + serviceName),
+                () -> randomAlphaOfLengthBetween(3, 8)
+            )
+        );
+        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+        serviceAccountService.authenticateToken(newTokenFor(accountId), randomAlphaOfLengthBetween(3, 8), future);
+        expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        verify(userManagedServiceAccountStore, never()).getByPrincipal(any(), any());
+    }
+
+    public void testUserManagedTokenAuthenticatesAsTheStoredAccountsNamedRoles() {
+        final UserManagedServiceAccount account = new UserManagedServiceAccount(
+            USER_MANAGED_ACCOUNT_ID,
+            List.of("deploy_bot_role_a", "deploy_bot_role_b"),
+            true
+        );
+        stubUserManagedAccount(account);
+        stubIndexTokenAuthentication(true);
+
+        final String nodeName = randomAlphaOfLengthBetween(3, 8);
+        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+        serviceAccountService.authenticateToken(newTokenFor(USER_MANAGED_ACCOUNT_ID), nodeName, future);
+
+        final Authentication authentication = future.actionGet();
+        final User user = authentication.getEffectiveSubject().getUser();
+        assertThat(user.principal(), equalTo(USER_MANAGED_ACCOUNT_ID.asPrincipal()));
+        assertThat(user.roles(), arrayContaining("deploy_bot_role_a", "deploy_bot_role_b"));
+        // Without the marker the authorization layer would resolve a built-in account of the same name instead of the
+        // roles above, so the routing decision has to survive into the Authentication this method produces.
+        assertThat(authentication.isUserManagedServiceAccount(), is(true));
+        // A file-backed token is written by an operator for a built-in account, so it must not be able to authenticate
+        // a user-managed one. Only the index-backed store is consulted, never the composite the built-in path uses.
+        verify(fileServiceAccountTokenStore, never()).authenticate(any(), any());
+    }
+
+    public void testUserManagedTokenIsRejectedWhenTheCredentialDoesNotVerify() {
+        stubUserManagedAccount(enabledAccount());
+        stubIndexTokenAuthentication(false);
+
+        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+        serviceAccountService.authenticateToken(newTokenFor(USER_MANAGED_ACCOUNT_ID), randomAlphaOfLengthBetween(3, 8), future);
+        assertUnauthorized(future);
+        verify(userManagedServiceAccountStore).getByPrincipal(eq(USER_MANAGED_ACCOUNT_ID.asPrincipal()), any());
+    }
+
+    /**
+     * Resolving the account before verifying the credential is what makes disabling — and deleting — an account take
+     * effect immediately, rather than once the token cache expires.
+     */
+    public void testDisablingAnAccountDeniesItsTokensWithoutConsultingTheTokenStore() {
+        stubUserManagedAccount(new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), false));
+
+        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+        serviceAccountService.authenticateToken(newTokenFor(USER_MANAGED_ACCOUNT_ID), randomAlphaOfLengthBetween(3, 8), future);
+        assertUnauthorized(future);
+        verify(indexServiceAccountTokenStore, never()).authenticate(any(), any());
+    }
+
+    public void testUserManagedTokenIsRejectedWhereTheAccountStoreIsNotConfigured() {
+        final ServiceAccountService service = newServiceAccountService(null);
+        stubUserManagedAccount(enabledAccount());
+        stubIndexTokenAuthentication(true);
+
+        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+        service.authenticateToken(newTokenFor(USER_MANAGED_ACCOUNT_ID), randomAlphaOfLengthBetween(3, 8), future);
+        assertUnauthorized(future);
+        // Even a token that would otherwise verify must not authenticate: with no account store there is no account.
+        verify(indexServiceAccountTokenStore, never()).authenticate(any(), any());
+    }
+
+    /**
+     * The check sits above the namespace fork, so it must hold for both kinds of account — asserted in one run rather
+     * than one kind per run, since a check that had slipped into a single branch would otherwise pass half the time.
+     */
+    public void testAnUnderLengthSecretIsRejectedBeforeAnyLookup() {
+        stubUserManagedAccount(enabledAccount());
+        stubIndexTokenAuthentication(true);
+
+        for (ServiceAccountId accountId : List.of(BUILT_IN_ACCOUNT_ID, USER_MANAGED_ACCOUNT_ID)) {
+            final ServiceAccountToken token = newMockServiceAccountToken(
+                accountId,
+                randomAlphaOfLengthBetween(3, 8),
+                new SecureString(randomAlphaOfLengthBetween(1, 9).toCharArray())
+            );
+            final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+            serviceAccountService.authenticateToken(token, randomAlphaOfLengthBetween(3, 8), future);
+            assertUnauthorized(future);
+        }
+        verify(userManagedServiceAccountStore, never()).getByPrincipal(any(), any());
+        verify(indexServiceAccountTokenStore, never()).authenticate(any(), any());
     }
 
     public void testCreateIndexTokenWillDelegate() {
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
-        final CreateServiceAccountTokenRequest request = mock(CreateServiceAccountTokenRequest.class);
+        final CreateServiceAccountTokenRequest request = newCreateTokenRequest(BUILT_IN_ACCOUNT_ID);
         final ActionListener<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
         serviceAccountService.createIndexToken(authentication, request, future);
-        verify(indexServiceAccountTokenStore).createToken(eq(authentication), eq(request), eq(future));
+        verify(indexServiceAccountTokenStore).createBuiltInToken(eq(authentication), eq(request), eq(future));
+        verify(userManagedServiceAccountStore, never()).getByPrincipal(any(), any());
     }
 
     public void testDeleteIndexTokenWillDelegate() {
-        final DeleteServiceAccountTokenRequest request = mock(DeleteServiceAccountTokenRequest.class);
+        final DeleteServiceAccountTokenRequest request = newDeleteTokenRequest(BUILT_IN_ACCOUNT_ID);
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         serviceAccountService.deleteIndexToken(request, future);
-        verify(indexServiceAccountTokenStore).deleteToken(eq(request), eq(future));
+        verify(indexServiceAccountTokenStore).deleteBuiltInToken(eq(request), eq(future));
+    }
+
+    /**
+     * The account lookup here is the only thing standing between a caller and a working credential for an account that
+     * does not exist: the token store writes whatever principal it is handed and cannot consult the account store.
+     */
+    public void testCreatingATokenRequiresTheUserManagedAccountToExist() {
+        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
+        final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
+        serviceAccountService.createIndexToken(authentication, newCreateTokenRequest(USER_MANAGED_ACCOUNT_ID), future);
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(e.getMessage(), equalTo("service account [" + USER_MANAGED_ACCOUNT_ID + "] does not exist"));
+        verify(indexServiceAccountTokenStore, never()).createUserManagedToken(any(), any(), any());
+    }
+
+    /**
+     * A disabled account is suspended, not gone; a token created for it simply cannot authenticate until it is enabled
+     * again, so there is nothing to be gained by refusing to prepare one.
+     */
+    public void testCreatingATokenIgnoresWhetherTheUserManagedAccountIsEnabled() {
+        for (boolean enabled : List.of(true, false)) {
+            clearInvocations(indexServiceAccountTokenStore);
+            stubUserManagedAccount(new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), enabled));
+
+            final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
+            final CreateServiceAccountTokenRequest request = newCreateTokenRequest(USER_MANAGED_ACCOUNT_ID);
+            serviceAccountService.createIndexToken(authentication, request, new PlainActionFuture<>());
+            verify(indexServiceAccountTokenStore).createUserManagedToken(eq(authentication), eq(request), any());
+            verify(indexServiceAccountTokenStore, never()).createBuiltInToken(any(), any(), any());
+        }
+    }
+
+    /**
+     * The create-token API accepts any namespace and has always answered a name no account carries with a request
+     * fault. A node without an account store can hold no user-managed account, so it must keep giving that answer
+     * rather than reporting the feature as unavailable: the caller can act on a name it got wrong, and turning a
+     * client error into a server one would regress every caller that mistypes a namespace.
+     */
+    public void testCreatingATokenWhereTheAccountStoreIsNotConfiguredReportsTheAccountAsMissing() {
+        final ServiceAccountService service = newServiceAccountService(null);
+        final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
+        service.createIndexToken(
+            AuthenticationTestHelper.builder().serviceAccount().build(),
+            newCreateTokenRequest(USER_MANAGED_ACCOUNT_ID),
+            future
+        );
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(e.getMessage(), equalTo("service account [" + USER_MANAGED_ACCOUNT_ID + "] does not exist"));
+        verify(indexServiceAccountTokenStore, never()).createUserManagedToken(any(), any(), any());
+    }
+
+    /**
+     * Force-deleting an account leaves its tokens behind, and the credentials API still lists them. Requiring the
+     * account to exist would make those leftovers permanently undeletable, so deleting a token resolves nothing.
+     */
+    public void testDeletingATokenDoesNotRequireTheUserManagedAccountToExist() {
+        final DeleteServiceAccountTokenRequest request = newDeleteTokenRequest(USER_MANAGED_ACCOUNT_ID);
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        serviceAccountService.deleteIndexToken(request, future);
+        verify(indexServiceAccountTokenStore).deleteUserManagedToken(eq(request), eq(future));
+        verify(userManagedServiceAccountStore, never()).getByPrincipal(any(), any());
+        verify(indexServiceAccountTokenStore, never()).deleteBuiltInToken(any(), any());
+    }
+
+    public void testPutUserManagedAccountDelegatesToTheAccountStore() {
+        final List<String> roles = randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 8));
+        final boolean enabled = randomBoolean();
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final UserManagedServiceAccountStore.PutResult result = randomFrom(UserManagedServiceAccountStore.PutResult.values());
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<UserManagedServiceAccountStore.PutResult> listener = (ActionListener<
+                UserManagedServiceAccountStore.PutResult>) invocation.getArguments()[4];
+            listener.onResponse(result);
+            return null;
+        }).when(userManagedServiceAccountStore).putAccount(any(), any(), anyBoolean(), any(), any());
+
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        serviceAccountService.putUserManagedAccount(USER_MANAGED_ACCOUNT_ID, roles, enabled, refreshPolicy, future);
+        assertThat(future.actionGet(), is(result));
+        verify(userManagedServiceAccountStore).putAccount(eq(USER_MANAGED_ACCOUNT_ID), eq(roles), eq(enabled), eq(refreshPolicy), any());
+    }
+
+    public void testPutUserManagedAccountFailsWhereTheAccountStoreIsNotConfigured() {
+        final ServiceAccountService service = newServiceAccountService(null);
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        service.putUserManagedAccount(USER_MANAGED_ACCOUNT_ID, List.of("a_role"), true, RefreshPolicy.NONE, future);
+
+        final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(e.getMessage(), equalTo("user-managed service accounts are not available in this cluster configuration"));
+        verify(userManagedServiceAccountStore, never()).putAccount(any(), any(), anyBoolean(), any(), any());
+    }
+
+    /**
+     * Recreating an account of the same name would bring surviving tokens back to life, which is what the guard is
+     * protecting against rather than any token being live in the meantime.
+     */
+    public void testDeletingAnAccountIsRefusedWhileItStillHasTokens() {
+        stubHasTokensFor(true);
+
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        serviceAccountService.deleteUserManagedAccount(USER_MANAGED_ACCOUNT_ID, false, RefreshPolicy.NONE, future);
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "cannot delete service account ["
+                    + USER_MANAGED_ACCOUNT_ID
+                    + "] because it has service tokens; delete the tokens first,"
+                    + " or set force=true to delete the account and leave its tokens in place"
+            )
+        );
+        verify(userManagedServiceAccountStore, never()).deleteAccount(any(), any(), any());
+    }
+
+    public void testDeletingAnAccountProceedsWhenItHasNoTokens() {
+        stubHasTokensFor(false);
+        final boolean found = randomBoolean();
+        stubDeleteAccount(found);
+
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        serviceAccountService.deleteUserManagedAccount(USER_MANAGED_ACCOUNT_ID, false, refreshPolicy, future);
+        assertThat(future.actionGet(), is(found));
+        verify(userManagedServiceAccountStore).deleteAccount(eq(USER_MANAGED_ACCOUNT_ID), eq(refreshPolicy), any());
+    }
+
+    public void testForceDeletingAnAccountSkipsTheTokenCheck() {
+        stubDeleteAccount(true);
+
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        serviceAccountService.deleteUserManagedAccount(USER_MANAGED_ACCOUNT_ID, true, RefreshPolicy.NONE, future);
+        assertThat(future.actionGet(), is(true));
+        verify(indexServiceAccountTokenStore, never()).hasTokensFor(any(), any());
+    }
+
+    public void testDeletingAnAccountFailsWhereTheAccountStoreIsNotConfigured() {
+        final ServiceAccountService service = newServiceAccountService(null);
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        service.deleteUserManagedAccount(USER_MANAGED_ACCOUNT_ID, randomBoolean(), RefreshPolicy.NONE, future);
+
+        final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(e.getMessage(), equalTo("user-managed service accounts are not available in this cluster configuration"));
+        verify(indexServiceAccountTokenStore, never()).hasTokensFor(any(), any());
     }
 
     public void testFindTokensFor() {
@@ -650,6 +951,114 @@ public class ServiceAccountServiceTests extends ESTestCase {
         assertThat(response.getPrincipal(), equalTo(accountId.asPrincipal()));
         assertThat(response.getNodesResponse(), is(fileTokensResponse));
         assertThat(response.getIndexTokenInfos(), equalTo(indexTokenInfos));
+    }
+
+    private UserManagedServiceAccount enabledAccount() {
+        return new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), true);
+    }
+
+    private ServiceAccountToken newTokenFor(ServiceAccountId accountId) {
+        return newMockServiceAccountToken(
+            accountId,
+            randomAlphaOfLengthBetween(3, 8),
+            new SecureString(randomAlphaOfLengthBetween(10, 20).toCharArray())
+        );
+    }
+
+    private CreateServiceAccountTokenRequest newCreateTokenRequest(ServiceAccountId accountId) {
+        return new CreateServiceAccountTokenRequest(accountId.namespace(), accountId.serviceName(), ValidationTests.randomTokenName());
+    }
+
+    private DeleteServiceAccountTokenRequest newDeleteTokenRequest(ServiceAccountId accountId) {
+        return new DeleteServiceAccountTokenRequest(accountId.namespace(), accountId.serviceName(), ValidationTests.randomTokenName());
+    }
+
+    private void stubNoUserManagedAccounts() {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<UserManagedServiceAccount> listener = (ActionListener<UserManagedServiceAccount>) invocation
+                .getArguments()[1];
+            listener.onResponse(null);
+            return null;
+        }).when(userManagedServiceAccountStore).getByPrincipal(any(), any());
+    }
+
+    private void stubUserManagedAccount(UserManagedServiceAccount account) {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<UserManagedServiceAccount> listener = (ActionListener<UserManagedServiceAccount>) invocation
+                .getArguments()[1];
+            listener.onResponse(account);
+            return null;
+        }).when(userManagedServiceAccountStore).getByPrincipal(eq(account.id().asPrincipal()), any());
+    }
+
+    private void stubIndexTokenAuthentication(boolean success) {
+        stubTokenAuthentication(indexServiceAccountTokenStore, success);
+    }
+
+    private void stubTokenAuthentication(CachingServiceAccountTokenStore store, boolean success) {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult> listener = (ActionListener<
+                ServiceAccountTokenStore.StoreAuthenticationResult>) invocation.getArguments()[1];
+            listener.onResponse(ServiceAccountTokenStore.StoreAuthenticationResult.fromBooleanResult(store.getTokenSource(), success));
+            return null;
+        }).when(store).authenticate(any(), any());
+    }
+
+    /**
+     * The four token write paths answer their listener but are otherwise inert. No test asserts on what they return —
+     * each verifies which of them was called — but leaving them unstubbed would turn a wrong dispatch into a hung
+     * suite rather than a failed assertion.
+     */
+    private void stubTokenWrites() {
+        final CreateServiceAccountTokenResponse created = CreateServiceAccountTokenResponse.created(
+            ValidationTests.randomTokenName(),
+            new SecureString(randomAlphaOfLength(20).toCharArray())
+        );
+        final Answer<Void> respondCreated = invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<CreateServiceAccountTokenResponse> listener = (ActionListener<
+                CreateServiceAccountTokenResponse>) invocation.getArguments()[2];
+            listener.onResponse(created);
+            return null;
+        };
+        doAnswer(respondCreated).when(indexServiceAccountTokenStore).createBuiltInToken(any(), any(), any());
+        doAnswer(respondCreated).when(indexServiceAccountTokenStore).createUserManagedToken(any(), any(), any());
+
+        final Answer<Void> respondNotFound = invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            listener.onResponse(false);
+            return null;
+        };
+        doAnswer(respondNotFound).when(indexServiceAccountTokenStore).deleteBuiltInToken(any(), any());
+        doAnswer(respondNotFound).when(indexServiceAccountTokenStore).deleteUserManagedToken(any(), any());
+    }
+
+    private void stubHasTokensFor(boolean hasTokens) {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            listener.onResponse(hasTokens);
+            return null;
+        }).when(indexServiceAccountTokenStore).hasTokensFor(any(), any());
+    }
+
+    private void stubDeleteAccount(boolean found) {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
+            listener.onResponse(found);
+            return null;
+        }).when(userManagedServiceAccountStore).deleteAccount(any(), any(), any());
+    }
+
+    private void assertUnauthorized(PlainActionFuture<Authentication> future) {
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
+        assertThat(e.getMessage(), containsString("failed to authenticate service account ["));
     }
 
     private SecureString createBearerString(List<byte[]> bytesList) throws IOException {

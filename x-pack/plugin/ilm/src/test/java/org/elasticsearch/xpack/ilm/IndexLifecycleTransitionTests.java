@@ -17,6 +17,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -449,6 +451,32 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         policyMetadatas.add(new LifecyclePolicyMetadata(oldPolicy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong()));
         ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
         Index index = project.index(indexName).getIndex();
+        Index[] indices = new Index[] { index };
+        List<String> failedIndexes = new ArrayList<>();
+
+        ProjectMetadata newProject = IndexLifecycleTransition.removePolicyForIndexes(indices, project, failedIndexes);
+
+        assertTrue(failedIndexes.isEmpty());
+        assertIndexNotManagedByILM(newProject, index);
+    }
+
+    public void testRemovePolicyForLookupIndex() {
+        String indexName = randomAlphaOfLength(10);
+        String oldPolicyName = "old_policy";
+        Step.StepKey currentStep = new Step.StepKey(randomAlphaOfLength(10), MockAction.NAME, randomAlphaOfLength(10));
+        LifecyclePolicy oldPolicy = createPolicy(oldPolicyName, currentStep, null);
+        Settings.Builder indexSettingsBuilder = settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName)
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP);
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setPhase(currentStep.phase());
+        lifecycleState.setAction(currentStep.action());
+        lifecycleState.setStep(currentStep.name());
+        List<LifecyclePolicyMetadata> policyMetadatas = new ArrayList<>();
+        policyMetadatas.add(new LifecyclePolicyMetadata(oldPolicy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong()));
+        ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
+        Index index = project.index(indexName).getIndex();
+        // Even when a lookup index has lifecycle state, is still not considered managed by ILM
+        assertThat(project.isIndexManagedByILM(project.index(index)), is(false));
         Index[] indices = new Index[] { index };
         List<String> failedIndexes = new ArrayList<>();
 

@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
@@ -29,8 +32,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -46,7 +52,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * behind the unit tests' hand-built resolvers. Pins: PUT with a Parquet-resolved format fails naming
  * the setting and the format; PUT with an undeterminable format tells the user to pin {@code format};
  * a dataset already carrying the setting in cluster state still reads instead of failing with
- * "unknown option" (elastic/elasticsearch#155636).
+ * "unknown option", and says so in a response {@code Warning} header (elastic/elasticsearch#155636).
  */
 public class DatasetSchemaSampleSizeValidationIT extends AbstractExternalDataSourceIT {
 
@@ -151,18 +157,65 @@ public class DatasetSchemaSampleSizeValidationIT extends AbstractExternalDataSou
      * The legacy shape this fix exists for: {@code schema_sample_size} already in cluster state on a
      * Parquet dataset (the pass-through {@code test}-type validator stores it unvalidated, like a
      * pre-tightening registration), with a settings-less parent — so no {@code _datasource} envelope
-     * reaches the query config. The query must read the file and ignore the setting.
+     * reaches the query config. The query must read the file and ignore the setting — and the ignore
+     * must be told to the client as a response {@code Warning} header. Both halves are captured from
+     * one execution: a second query could serve the schema from cache and skip validation entirely,
+     * and a warning written on the wrong thread would pass a query-succeeds-only check.
      */
-    public void testStoredSchemaSampleSizeOnParquetDatasetIsIgnoredAtQueryTime() throws Exception {
+    public void testStoredSchemaSampleSizeOnParquetDatasetIsIgnoredAtQueryTimeWithWarning() throws Exception {
         Path dir = createTempDir().resolve("ssz_legacy");
         Files.createDirectories(dir);
         writeParquet(dir.resolve("legacy.parquet"), 3, 100);
 
         registerDataset("ssz_legacy", StoragePath.fileUri(dir) + "/legacy.parquet", Map.of("schema_sample_size", 100));
 
-        try (var response = run(syncEsqlQueryRequest("FROM ssz_legacy | STATS n = COUNT(*)"), TIMEOUT)) {
-            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        // Pin the coordinator (the warning is emitted during coordinator-side resolution) and read
+        // that same node's response Warning headers, mirroring
+        // ExternalCsvHivePartitionedIT#testHivePartitionShadowWarningReachesClient. Do NOT close the
+        // response inside the listener: the transport framework's respondAndRelease wrapper calls
+        // decRef() after onResponse returns, and a manual close double-releases.
+        DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
+        List<String> warnings = new CopyOnWriteArrayList<>();
+        AtomicReference<Long> count = new AtomicReference<>();
+        AtomicReference<Exception> queryFailure = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        client(coordinator.getName()).execute(
+            EsqlQueryAction.INSTANCE,
+            syncEsqlQueryRequest("FROM ssz_legacy | STATS n = COUNT(*)"),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(EsqlQueryResponse response) {
+                    try {
+                        count.set(((Number) getValuesList(response).get(0).get(0)).longValue());
+                        warnings.addAll(
+                            internalCluster().getInstance(TransportService.class, coordinator.getName())
+                                .getThreadPool()
+                                .getThreadContext()
+                                .getResponseHeaders()
+                                .getOrDefault("Warning", List.of())
+                        );
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    queryFailure.set(e);
+                    latch.countDown();
+                }
+            }
+        );
+        assertTrue("query did not complete within timeout", latch.await(30, TimeUnit.SECONDS));
+        if (queryFailure.get() != null) {
+            throw queryFailure.get();
         }
+        assertThat(count.get(), equalTo(3L));
+        String expected = FileDataSourceValidator.notSupportedByFormatError("schema_sample_size", "parquet") + "; ignored";
+        assertTrue(
+            "the ignored setting must reach the client as a response Warning header; headers seen: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains(expected))
+        );
     }
 
     /**

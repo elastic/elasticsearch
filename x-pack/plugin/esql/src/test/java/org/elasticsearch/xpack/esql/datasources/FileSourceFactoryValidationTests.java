@@ -156,14 +156,21 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
     public void testLegacyVocabularyKeyIsIgnoredWithWarningWhenReaderDoesNotClaimIt() {
         FileSourceFactory factory = newStubParquetFactory();
         String location = "s3://bucket/data.parquet";
+        String expectedWarning = FileDataSourceValidator.notSupportedByFormatError("schema_sample_size", "stub-parquet") + "; ignored";
 
         // Dataset-originated shape: parent settings ride in under _datasource.
         factory.validateConfig(location, Map.of("schema_sample_size", "50", ExternalSourceResolver.DATASOURCE_CONFIG_KEY, Map.of()));
-        assertWarnings(FileDataSourceValidator.notSupportedByFormatError("schema_sample_size", "stub-parquet") + "; ignored");
+        assertWarnings(expectedWarning);
 
         // Inline shape (no envelope, e.g. an empty-settings data source or a WITH clause): same tolerance.
         factory.validateConfig(location, Map.of("schema_sample_size", "50"));
-        assertWarnings(FileDataSourceValidator.notSupportedByFormatError("schema_sample_size", "stub-parquet") + "; ignored");
+        assertWarnings(expectedWarning);
+
+        // The resolver-driven form (what production calls, from the metadata-read executor): the warning
+        // must go to the caller's sink, not the executor thread's HeaderWarning context.
+        List<String> sink = new ArrayList<>();
+        factory.validateConfig(location, Map.of("schema_sample_size", "50"), sink::add);
+        assertEquals(List.of(expectedWarning), sink);
 
         // The tolerance is scoped to LEGACY_VOCABULARY_KEYS: a genuinely unknown key still fails.
         expectThrows(IllegalArgumentException.class, () -> factory.validateConfig(location, Map.of("not_a_setting", "x")));

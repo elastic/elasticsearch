@@ -172,6 +172,29 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         latch.await(10, TimeUnit.SECONDS);
     }
 
+    public void testConcurrentBulkExecutionsSharingTheSameExecutor() throws Exception {
+        // Permits and the pending queue are shared per executor, so bulks only contend when they go through the same one. A single
+        // outstanding request makes every bulk but one park on the queue, which is where a lost hand-off would stall the execution.
+        BulkInferenceExecutor bulkExecutor = new BulkInferenceExecutor(mockInferenceRunner(invocation -> {
+            runWithRandomDelay(() -> {
+                ActionListener<InferenceAction.Response> l = invocation.getArgument(1);
+                l.onResponse(mockInferenceResponse());
+            });
+            return null;
+        }), threadPool, new BulkInferenceExecutionConfig(between(1, 10), 1));
+
+        int bulks = between(10, 50);
+        CountDownLatch latch = new CountDownLatch(bulks);
+
+        for (int i = 0; i < bulks; i++) {
+            List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 50));
+            ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> latch.countDown(), ESTestCase::fail);
+            threadPool.generic().execute(() -> bulkExecutor.execute(requestIterator(requests), listener));
+        }
+
+        assertTrue("bulk executions did not complete: a queued bulk request was never resumed", latch.await(30, TimeUnit.SECONDS));
+    }
+
     private BulkInferenceExecutor bulkExecutor(InferenceRunner inferenceRunner) {
         return new BulkInferenceExecutor(inferenceRunner, threadPool, randomBulkExecutionConfig());
     }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -46,6 +48,7 @@ import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.FakeTimeThreadPool;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -73,6 +76,7 @@ import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -205,6 +209,25 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         when(indexShard.routingEntry()).thenReturn(self);
         when(indexShard.shardId()).thenReturn(self.shardId());
         return indexShard;
+    }
+
+    /**
+     * A stand-in for the directory being warmed. {@link SharedBlobCacheWarmingService#searchRecoveryWarmingListener} only reads two
+     * counters off it, but the real {@link BlobStoreCacheDirectory} implementations need a live shared blob cache, an object store and a
+     * commit installed via {@code updateCommit} before those counters mean anything, none of which these tests set up. The warmed-bytes
+     * counter is stubbed with two consecutive values: the baseline read when the listener is built, then the value read when the timeout
+     * fires.
+     */
+    private static BlobStoreCacheDirectory mockDirectory(long dataSetSizeInBytes, long bytesWarmedAtStart, long bytesWarmedAtTimeout) {
+        BlobStoreCacheDirectory directory = mock(BlobStoreCacheDirectory.class);
+        when(directory.estimateDataSetSizeInBytes()).thenReturn(dataSetSizeInBytes);
+        when(directory.totalBytesWarmedFromObjectStore()).thenReturn(bytesWarmedAtStart, bytesWarmedAtTimeout);
+        return directory;
+    }
+
+    /** A {@link #mockDirectory} with zeroed counters, for tests that do not assert on the timeout log message. */
+    private static BlobStoreCacheDirectory mockDirectory() {
+        return mockDirectory(0L, 0L, 0L);
     }
 
     /** One primary-replica pair: {@link ShardRouting.Role#INDEX_ONLY} primary, {@link ShardRouting.Role#SEARCH_ONLY} replica. */
@@ -811,7 +834,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 state,
                 mockIndexShard(self),
                 null,
-                null,
+                mockDirectory(),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
                 resume
             );
@@ -930,7 +953,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 state,
                 mockIndexShard(self),
                 null,
-                null,
+                mockDirectory(),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), new WarmTarget(1L, 1L, 1L)),
                 resume
             );
@@ -1020,6 +1043,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
                 randomAlphaOfLength(10),
                 randomMockIndexShard(),
+                mockDirectory(),
+                randomNonNegativeLong(),
                 resume
             );
             // deterministic here: the timeout cannot fire on its own, the test holds the captured command
@@ -1049,6 +1074,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
                 randomAlphaOfLength(10),
                 randomMockIndexShard(),
+                mockDirectory(),
+                randomNonNegativeLong(),
                 resume
             );
             warmingListener.onResponse(null);
@@ -1075,6 +1102,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                     TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
                     randomAlphaOfLength(10),
                     randomMockIndexShard(),
+                    mockDirectory(),
+                    randomNonNegativeLong(),
                     resumeListener
                 ).onFailure(failure)
             );
@@ -1165,6 +1194,74 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             )
             .routingTable(GlobalRoutingTable.builder().put(DEFAULT_PROJECT_ID, RoutingTable.builder().add(routingBuilder).build()).build())
             .build();
+    }
+
+    /// The timeout branch reports how much of the shard was warmed before the deadline: the shard's data set size, the bytes offline
+    /// warming was targeting, and the bytes actually warmed since the listener was built.
+    public void testSearchRecoveryWarmingListenerLogsWarmingProgressOnTimeout() {
+        final var dataSetSize = ByteSizeValue.ofGb(4);
+        final var bytesToWarm = ByteSizeValue.ofMb(512);
+        final var bytesWarmedBefore = ByteSizeValue.ofMb(128);
+        final var bytesWarmed = ByteSizeValue.ofMb(64);
+        final var shardId = new ShardId("logs", IndexMetadata.INDEX_UUID_NA_VALUE, 2);
+        final var timeout = TimeValue.timeValueSeconds(30);
+        final var timeoutContext = "relocation source shutting down";
+
+        try (var threadPool = new CapturingScheduleThreadPool(getTestName())) {
+            final var service = newWarmingService(threadPool);
+            final var resume = new PlainActionFuture<Void>();
+            final var warmingListener = service.searchRecoveryWarmingListener(
+                timeout,
+                timeoutContext,
+                mockIndexShard(TestShardRouting.newShardRouting(shardId, randomIdentifier(), true, STARTED)),
+                // the baseline is read when the listener is built, so only the 64mb warmed afterwards must be reported
+                mockDirectory(dataSetSize.getBytes(), bytesWarmedBefore.getBytes(), bytesWarmedBefore.getBytes() + bytesWarmed.getBytes()),
+                bytesToWarm.getBytes(),
+                resume
+            );
+            assertThatLogger(() -> {
+                threadPool.scheduledCommand.get().run();
+                safeGet(resume);
+            },
+                SharedBlobCacheWarmingService.class,
+                new MockLog.SeenEventExpectation(
+                    "warming timeout reporting sizes",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    Level.WARN,
+                    "Search shard recovery cache warming timed out after [30s] (relocation source shutting down) for [logs][2], "
+                        + "shard data set size [4gb], bytes to warm [512mb], bytes warmed [64mb]"
+                ),
+                new MockLog.SeenEventExpectation(
+                    "data set size field",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    Level.WARN,
+                    "elasticsearch.search_recovery.data_set_size_in_bytes=\"" + dataSetSize.getBytes() + '"'
+                ),
+                new MockLog.SeenEventExpectation(
+                    "bytes to warm field",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    Level.WARN,
+                    "elasticsearch.search_recovery.bytes_to_warm=\"" + bytesToWarm.getBytes() + '"'
+                ),
+                new MockLog.SeenEventExpectation(
+                    "bytes warmed field",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    Level.WARN,
+                    "elasticsearch.search_recovery.bytes_warmed=\"" + bytesWarmed.getBytes() + '"'
+                )
+            );
+            // warming completing after losing the race is discarded, so it must not log a second timeout
+            assertThatLogger(
+                () -> warmingListener.onResponse(null),
+                SharedBlobCacheWarmingService.class,
+                new MockLog.UnseenEventExpectation(
+                    "no timeout warning for the discarded event",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    Level.WARN,
+                    "Search shard recovery cache warming timed out"
+                )
+            );
+        }
     }
 
     /**

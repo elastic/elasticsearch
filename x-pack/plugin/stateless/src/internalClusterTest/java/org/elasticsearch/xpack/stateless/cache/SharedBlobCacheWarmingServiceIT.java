@@ -1646,6 +1646,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                         TimeValue.timeValueMinutes(1),
                         "test: awaiting warming",
                         indexShard,
+                        directory,
+                        endTargetsToWarm == null ? 0L : sumBytesToWarm(endTargetsToWarm),
                         resumeRecoveryListener
                     )
                 );

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
@@ -810,6 +811,7 @@ public class SharedBlobCacheWarmingService {
             ? searchRecoveryTimeout(clusterState, indexShard, endTargetsToWarm)
             : SearchRecoveryTimeout.skip();
         if (plan.awaitWarming()) {
+            assert endTargetsToWarm != null;
             warmCacheAndTimeIt(
                 Type.SEARCH,
                 indexShard,
@@ -817,7 +819,14 @@ public class SharedBlobCacheWarmingService {
                 directory,
                 endTargetsToWarm,
                 false,
-                searchRecoveryWarmingListener(plan.timeout(), plan.timeoutContext(), indexShard, resumeRecoveryListener)
+                searchRecoveryWarmingListener(
+                    plan.timeout(),
+                    plan.timeoutContext(),
+                    indexShard,
+                    directory,
+                    sumBytesToWarm(endTargetsToWarm),
+                    resumeRecoveryListener
+                )
             );
         } else {
             warmCacheAndTimeIt(Type.SEARCH, indexShard, commit, directory, endTargetsToWarm, false, ActionListener.noop());
@@ -1004,6 +1013,17 @@ public class SharedBlobCacheWarmingService {
     }
 
     /**
+     * Total number of bytes that offline warming is going to fetch: each {@link WarmTarget#endOffset()} is the exclusive up-to offset of
+     * the prefix to warm in its blob. Reported by {@link #searchRecoveryWarmingListener} when warming times out, to distinguish a stalled
+     * object store from a shard that was simply too large to warm within the timeout.
+     *
+     * visible for testing
+     */
+    protected static long sumBytesToWarm(Map<BlobFile, WarmTarget> endTargetsToWarm) {
+        return endTargetsToWarm.values().stream().mapToLong(WarmTarget::endOffset).sum();
+    }
+
+    /**
      * Search shard recovery warming for the internal replicated-files path: {@link #timeout()} drives the race in
      * {@link #searchRecoveryWarmingListener}; {@link TimeValue#ZERO} means do not await warming. Use {@link #awaitWarming()} to branch.
      */
@@ -1060,15 +1080,24 @@ public class SharedBlobCacheWarmingService {
      * {@link SearchRecoveryWaitOutcome#WARMING_COMPLETE} depending on which of those two won the race. A warming failure that beats the
      * timeout also records the metric (attributed to {@link SearchRecoveryWaitOutcome#WARMING_COMPLETE}) and then fails
      * {@code resumeRecoveryListener}.
+     *
+     * {@code directory} and {@code bytesToWarm} only feed the timeout log line. The data set size comes from {@code directory}, not from
+     * {@link IndexShard#storeStats}, because the latter calls {@code ensureOpen()} and fails the shard on {@link IOException}; neither is
+     * acceptable while logging on a path where the store may already be closing.
      */
     public ActionListener<Void> searchRecoveryWarmingListener(
         TimeValue timeout,
         String timeoutContext,
         IndexShard indexShard,
+        BlobStoreCacheDirectory directory,
+        long bytesToWarm,
         ActionListener<Void> resumeRecoveryListener
     ) {
         assert timeout.millis() > 0;
         final long startedMillis = threadPool.relativeTimeInMillis();
+        // Baseline for the warming progress reported on timeout. This listener is built before warming is scheduled, so the delta only
+        // covers this warming run and excludes whatever the directory already warmed while reading the shard state.
+        final long bytesWarmedAtStart = directory.totalBytesWarmedFromObjectStore();
         // First of the two events to complete `race` wins and decides the recorded outcome. The second event is discarded. Events:
         // - timeout: the scheduled task completes it with TIMEOUT
         // - warming completing (the listener returned to warmCache): completes it with WARMING_COMPLETE
@@ -1089,11 +1118,27 @@ public class SharedBlobCacheWarmingService {
                 assert outcome == SearchRecoveryWaitOutcome.TIMEOUT || outcome == SearchRecoveryWaitOutcome.WARMING_COMPLETE
                     : "expected TIMEOUT || WARMING_COMPLETE; was " + outcome;
                 if (outcome == SearchRecoveryWaitOutcome.TIMEOUT) {
+                    final long dataSetSizeInBytes = directory.estimateDataSetSizeInBytes();
+                    final long bytesWarmed = directory.totalBytesWarmedFromObjectStore() - bytesWarmedAtStart;
+                    final String context = timeoutContext.isEmpty() ? "default" : timeoutContext;
+                    // Note that bytesWarmed covers every object store warm on this directory, including the header/footer regions that are
+                    // not part of the offline warming targets counted by bytesToWarm, so the two are not a ratio.
                     logger.warn(
-                        "Search shard recovery cache warming timed out after [{}] ({}) for {}",
-                        timeout,
-                        timeoutContext.isEmpty() ? "default" : timeoutContext,
-                        indexShard.shardId()
+                        new ESLogMessage(
+                            "Search shard recovery cache warming timed out after [{}] ({}) for {}, "
+                                + "shard data set size [{}], bytes to warm [{}], bytes warmed [{}]",
+                            timeout,
+                            context,
+                            indexShard.shardId(),
+                            ByteSizeValue.ofBytes(dataSetSizeInBytes),
+                            ByteSizeValue.ofBytes(bytesToWarm),
+                            ByteSizeValue.ofBytes(bytesWarmed)
+                        ).field("elasticsearch.search_recovery.shard", indexShard.shardId().toString())
+                            .field("elasticsearch.search_recovery.warming_timeout_millis", timeout.millis())
+                            .field("elasticsearch.search_recovery.warming_timeout_context", context)
+                            .field("elasticsearch.search_recovery.data_set_size_in_bytes", dataSetSizeInBytes)
+                            .field("elasticsearch.search_recovery.bytes_to_warm", bytesToWarm)
+                            .field("elasticsearch.search_recovery.bytes_warmed", bytesWarmed)
                     );
                 }
                 recordSearchRecoveryWaitDuration(startedMillis, outcome);

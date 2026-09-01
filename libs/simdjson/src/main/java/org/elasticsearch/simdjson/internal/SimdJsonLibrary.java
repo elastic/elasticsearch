@@ -65,12 +65,13 @@ public interface SimdJsonLibrary {
      *
      * <p>This is the {@code @Critical} variant: {@code buf} and {@code outBuf} may be
      * heap-backed segments (e.g. {@code MemorySegment.ofArray(byte[])}), avoiding off-heap
-     * buffer copies entirely.
+     * buffer copies entirely. On JDK 21, {@link SimdJsonStage1HeapFallback} stages heap
+     * segments instead.
      *
      * @return 0 on success, non-zero simdjson error code on failure, or -2 if output exceeds capacity
      */
     @Function("simdjson_stage1_run")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
+    @Critical(fallbackAdapter = SimdJsonStage1HeapFallback.class)
     int stage1(
         MemorySegment ctx,
         @SlicedSegment(offsetParam = "offset", sizeParam = "len") MemorySegment buf,

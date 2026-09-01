@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -388,6 +389,9 @@ public final class ColumnMapping implements Writeable {
                 }
             }
             return new Page(positions, blocks);
+        } catch (ElasticsearchException e) {
+            Releasables.closeExpectNoException(blocks);
+            throw e;
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
             throw new RuntimeException("Failed to map page", e);

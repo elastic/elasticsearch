@@ -21,12 +21,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnSource;
-import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -95,45 +93,11 @@ public final class ColumnarStringTermQuery extends Query {
                     return ConstantScoreScorerSupplier.fromIterator(matches, score(), scoreMode, reader.maxDoc());
                 }
 
-                // The column reached through something else, as an updated field is: its values are read one
-                // document at a time and compared, which every binary doc values answers.
-                final BytesRef value = new BytesRef();
-                final TwoPhaseIterator twoPhase = new TwoPhaseIterator(values) {
-                    @Override
-                    public boolean matches() throws IOException {
-                        final BytesRef candidate = values.binaryValue();
-                        return switch (where) {
-                            case WHOLE -> candidate.bytesEquals(term);
-                            case START -> {
-                                if (candidate.length < term.length) {
-                                    yield false;
-                                }
-                                value.bytes = candidate.bytes;
-                                value.offset = candidate.offset;
-                                value.length = term.length;
-                                yield value.bytesEquals(term);
-                            }
-                            case ANYWHERE -> ESVectorUtil.contains(
-                                candidate.bytes,
-                                candidate.offset,
-                                candidate.length,
-                                term.bytes,
-                                term.offset,
-                                term.length
-                            );
-                        };
-                    }
-
-                    @Override
-                    public float matchCost() {
-                        return 10f;
-                    }
-                };
-                return ConstantScoreScorerSupplier.fromIterator(
-                    TwoPhaseIterator.asDocIdSetIterator(twoPhase),
-                    score(),
-                    scoreMode,
-                    reader.maxDoc()
+                throw new IllegalStateException(
+                    "field ["
+                        + field
+                        + "] is not a string column, so it has no column to answer from; "
+                        + "a columnar query is only built for a field this format wrote"
                 );
             }
 

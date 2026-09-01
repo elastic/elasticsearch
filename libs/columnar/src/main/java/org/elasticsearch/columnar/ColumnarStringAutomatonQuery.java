@@ -22,7 +22,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
@@ -51,8 +50,8 @@ import java.util.Objects;
  * query is built, so what goes into the cache key is the cheap query rather than a pattern that has to be
  * recognised again on every rewrite.
  *
- * <p>A field this format did not write has no such column, and the query reads its values one document at a
- * time rather than declining, which every binary doc values answers.
+ * <p>The caller decides where this query is used: a field this format did not write has no such column, and
+ * the query says so rather than reading the values a document at a time on its own.
  */
 public final class ColumnarStringAutomatonQuery extends Query {
 
@@ -156,25 +155,11 @@ public final class ColumnarStringAutomatonQuery extends Query {
                     return ConstantScoreScorerSupplier.fromIterator(matches, score(), scoreMode, reader.maxDoc());
                 }
 
-                // The column reached through something else, as an updated field is: its values are read one
-                // document at a time and run through the automaton, which every binary doc values answers.
-                final TwoPhaseIterator twoPhase = new TwoPhaseIterator(values) {
-                    @Override
-                    public boolean matches() throws IOException {
-                        final BytesRef candidate = values.binaryValue();
-                        return automaton.run(candidate.bytes, candidate.offset, candidate.length);
-                    }
-
-                    @Override
-                    public float matchCost() {
-                        return 100f;
-                    }
-                };
-                return ConstantScoreScorerSupplier.fromIterator(
-                    TwoPhaseIterator.asDocIdSetIterator(twoPhase),
-                    score(),
-                    scoreMode,
-                    reader.maxDoc()
+                throw new IllegalStateException(
+                    "field ["
+                        + field
+                        + "] is not a string column, so it has no column to answer from; "
+                        + "a columnar query is only built for a field this format wrote"
                 );
             }
 

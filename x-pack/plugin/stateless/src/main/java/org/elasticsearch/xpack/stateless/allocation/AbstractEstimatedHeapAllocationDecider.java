@@ -115,10 +115,10 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
     /** Whether this decider is currently enabled. */
     protected abstract boolean isEnabled();
 
-    /** Low-watermark threshold as a percentage (0–100). */
+    /** Low-watermark threshold as a percentage of total capacity (0–100). */
     protected abstract double getLowWatermarkPercent();
 
-    /** High-watermark threshold as a percentage (0–100). */
+    /** High-watermark threshold as a percentage of total capacity (0–100). */
     protected abstract double getHighWatermarkPercent();
 
     /** Whether the high-watermark check in {@code canRemain} is active. */

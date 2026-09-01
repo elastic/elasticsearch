@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -202,6 +203,39 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("filesScanned reports survivors only, so it must be 0 when nothing survives", 0, result.filesScanned());
         assertTrue("a filter-contradiction prune of a resolved, non-empty fileList is exhaustive", result.exhaustivelyPruned());
         assertTrue("the fileList itself is still resolved and non-empty", fileList.isResolved() && fileList.fileCount() > 0);
+    }
+
+    /**
+     * The other certified producer of {@code exhaustivelyPruned}: every file is dropped because a WHERE
+     * conjunct references a column absent from that file (UNKNOWN → FALSE). Same coordinator signal as
+     * {@link #testAllPartitionsPrunedYieldsNoSplitsAndExhaustivePrune}.
+     */
+    public void testAllFilesDroppedByMissingColumnFilterAreExhaustivePrune() {
+        StoragePath pathA = StoragePath.of("s3://b/a.parquet");
+        StoragePath pathB = StoragePath.of("s3://b/b.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(pathA, 100, Instant.EPOCH), new StorageEntry(pathB, 200, Instant.EPOCH)),
+            "s3://b/*.parquet"
+        );
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
+        schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("name"))), null, null));
+        schemaInfo.put(pathB, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, null));
+        Expression filter = new GreaterThan(SRC, fieldAttr("price"), intLiteral(100), null);
+        // 7-arg ctor so schemaMap is populated; the 5-arg ctor would skip the missing-column check.
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaInfo,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(filter),
+            ExternalSchema.EMPTY
+        );
+        SplitDiscoveryResult result = provider.discoverSplits(ctx);
+
+        assertTrue("a missing-column filter contradiction must prune every file", result.splits().isEmpty());
+        assertEquals(0, result.filesScanned());
+        assertTrue("a missing-column prune of a resolved, non-empty fileList is exhaustive", result.exhaustivelyPruned());
     }
 
     /**
@@ -715,6 +749,39 @@ public class FileSplitProviderTests extends ESTestCase {
 
     public void testNewlineAlignedCsvMacroSplitsAreDisjointAndMarked() throws IOException {
         assertNewlineAlignedMacroSplitsDisjointAndMarked(".csv", "csv-macro-test", "a,b,c\n", "s3://b/*.csv");
+    }
+
+    public void testSplitProbeIoFailureIsClientError() throws IOException {
+        SegmentableFormatReader mockReader = mock(SegmentableFormatReader.class);
+        when(mockReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
+        when(mockReader.minimumSegmentSize()).thenReturn(1L);
+        RecordSplitter mockSplitter = mock(RecordSplitter.class);
+        when(mockReader.recordSplitter(anyInt())).thenReturn(mockSplitter);
+        when(mockSplitter.supportsStridedProbing()).thenReturn(true);
+        when(mockSplitter.findNextRecordBoundary(any())).thenThrow(new IOException("injected split probe failure"));
+
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy("ndjson-probe-failure", (s, bf) -> mockReader, Settings.EMPTY, null);
+        formatRegistry.registerExtension(".ndjson", "ndjson-probe-failure");
+        formatRegistry.byName("ndjson-probe-failure");
+
+        byte[] payload = new byte[4096];
+        FileSplitProvider splitter = new FileSplitProvider(
+            1024,
+            new DecompressionCodecRegistry(),
+            createPayloadStorageRegistry(payload),
+            formatRegistry,
+            Settings.EMPTY
+        );
+        StoragePath path = StoragePath.of("s3://b/data.ndjson");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, payload.length, Instant.EPOCH)), "s3://b/*.ndjson");
+        SplitDiscoveryContext context = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
+
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> splitter.discoverSplits(context));
+
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
+        assertThat(e.getMessage(), containsString("Failed to discover splits"));
+        assertThat(e.getMessage(), containsString("injected split probe failure"));
     }
 
     private void assertNewlineAlignedMacroSplitsDisjointAndMarked(
@@ -3783,9 +3850,14 @@ public class FileSplitProviderTests extends ESTestCase {
         return registry;
     }
 
-    // -- UNION_BY_NAME file skipping --
+    // -- UNION_BY_NAME file retention --
 
-    public void testSkipsFileWithNoProjColumnOverlap() {
+    /**
+     * A file whose schema is disjoint from the query projection still contributes all-NULL rows
+     * (the null group under {@code STATS BY}, {@code IS NULL} matches, {@code SORT}/{@code LIMIT}
+     * positions). Keep it; the per-file mapping is a count-only / null-fill read, not a drop.
+     */
+    public void testKeepsFileWithNoProjColumnOverlap() {
         StoragePath pathA = StoragePath.of("s3://b/a.parquet");
         StoragePath pathB = StoragePath.of("s3://b/b.parquet");
         StoragePath pathC = StoragePath.of("s3://b/c.parquet");
@@ -3823,9 +3895,10 @@ public class FileSplitProviderTests extends ESTestCase {
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
-        assertEquals(2, splits.size());
+        assertEquals(3, splits.size());
         assertEquals(pathA, ((FileSplit) splits.get(0)).path());
         assertEquals(pathB, ((FileSplit) splits.get(1)).path());
+        assertEquals(pathC, ((FileSplit) splits.get(2)).path());
     }
 
     public void testKeepsFileWithPartialOverlap() {
@@ -3965,7 +4038,7 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("File without schema info entry is kept (conservative)", 2, splits.size());
     }
 
-    public void testSkippingWithPartitionPruningCombined() {
+    public void testPartitionPruneKeepsDisjointSchemaFile() {
         StoragePath pathA = StoragePath.of("s3://b/year=2024/a.parquet");
         StoragePath pathB = StoragePath.of("s3://b/year=2024/b.parquet");
         StoragePath pathC = StoragePath.of("s3://b/year=2023/c.parquet");
@@ -4005,9 +4078,11 @@ public class FileSplitProviderTests extends ESTestCase {
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
-        // pathC pruned by partition filter (year=2023), pathB pruned by column skipping (only 'bonus')
-        assertEquals(1, splits.size());
+        // pathC pruned by partition filter (year=2023). pathB has no overlap with [id, name] but is
+        // kept: all-NULL rows still contribute.
+        assertEquals(2, splits.size());
         assertEquals(pathA, ((FileSplit) splits.get(0)).path());
+        assertEquals(pathB, ((FileSplit) splits.get(1)).path());
     }
 
     // -- filter-based file skipping --

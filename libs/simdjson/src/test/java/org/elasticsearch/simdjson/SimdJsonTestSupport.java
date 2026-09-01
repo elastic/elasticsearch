@@ -223,6 +223,7 @@ public final class SimdJsonTestSupport {
      * emitted as {@code startObject/endObject} pairs (for Jackson comparison).
      */
     static List<String> walkJson(String json, boolean normalizeEmptyObject) {
+        SimdJsonSupport.isSupported();
         byte[] buffer = json.getBytes(StandardCharsets.UTF_8);
         int len = buffer.length;
 

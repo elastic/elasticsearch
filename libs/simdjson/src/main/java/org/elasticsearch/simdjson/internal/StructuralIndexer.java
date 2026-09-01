@@ -13,7 +13,6 @@ import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdjson.JsonParsingException;
-import org.elasticsearch.simdjson.SimdJsonSupport;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 
 import java.lang.foreign.MemorySegment;
@@ -23,7 +22,7 @@ import static java.lang.foreign.MemorySegment.ofArray;
 
 /**
  * Delegates stage 1 structural indexing to the native simdjson C++ library,
- * loaded through {@link SimdJsonSupport}.
+ * loaded through {@link SimdJsonNativeSupport}.
  *
  * <p> Each instance holds a native context ({@code simdjson_stage1_ctx*}) that is reused across
  * calls. Instances are <strong>not thread-safe</strong> - each thread should own its own
@@ -33,7 +32,7 @@ public final class StructuralIndexer implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(StructuralIndexer.class);
 
-    private static final SimdJsonLibrary LIB = SimdJsonSupport.LIB;
+    private static final SimdJsonLibrary LIB = SimdJsonNativeSupport.library();
 
     /** True when the native simdjson C++ library is loaded and available. */
     public static boolean available() {

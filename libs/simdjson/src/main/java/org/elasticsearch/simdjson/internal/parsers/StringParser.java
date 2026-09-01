@@ -41,15 +41,19 @@ import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.hexToIn
  *       {@link #doParseStringScalar} tail for remaining bytes.</li>
  *   <li>{@link #storeCodePointInStringBuffer} emits U+FFFD for invalid {@code \\u} sequences
  *       instead of throwing.</li>
- *   <li>Uses {@link org.elasticsearch.simdjson.SimdJsonSupport#BYTE_SPECIES} for vector width
- *       selection instead of upstream {@code VectorUtils}.</li>
+ *   <li>Uses {@link SimdJsonVectorSupport} for vector width selection instead of upstream
+ *       {@code VectorUtils}.</li>
  *   <li>Omits upstream {@code parseChar} and length-prefixed {@code parseString} overloads not
  *       needed by the ESCF walker.</li>
  * </ul>
  */
 public final class StringParser {
 
-    private static final VectorSpecies<Byte> BYTE_SPECIES = SimdJsonSupport.BYTE_SPECIES;
+    static {
+        SimdJsonSupport.isSupported();
+    }
+
+    private static final VectorSpecies<Byte> BYTE_SPECIES = SimdJsonVectorSupport.byteSpecies();
     private static final byte BACKSLASH = '\\';
     private static final byte QUOTE = '"';
     private static final int BYTES_PROCESSED = BYTE_SPECIES.vectorByteSize();

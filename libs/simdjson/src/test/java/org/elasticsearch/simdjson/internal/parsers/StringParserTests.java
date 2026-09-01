@@ -9,7 +9,9 @@
 
 package org.elasticsearch.simdjson.internal.parsers;
 
+import org.elasticsearch.simdjson.SimdJsonSupport;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -17,6 +19,12 @@ import java.util.Arrays;
 import static org.elasticsearch.simdjson.SimdJsonTestSupport.makeJsonString;
 
 public class StringParserTests extends ESTestCase {
+
+    @BeforeClass
+    public static void requireVectorSupport() {
+        SimdJsonSupport.isSupported();
+        assumeTrue("jdk.incubator.vector required for StringParser", SimdJsonVectorSupport.isAvailable());
+    }
 
     private final StringParser parser = new StringParser();
 

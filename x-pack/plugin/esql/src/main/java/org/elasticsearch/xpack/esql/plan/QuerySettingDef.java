@@ -375,8 +375,7 @@ public final class QuerySettingDef<T> {
 
     /**
      * The operator's configured value as written, or {@code null} if there is none. Cluster state wins over
-     * {@code elasticsearch.yml}, which is the precedence {@code AbstractScopedSettings} itself applies when it merges
-     * the two — read here from the same two sources rather than from a mirror of them.
+     * {@code elasticsearch.yml}, the precedence {@code AbstractScopedSettings} applies when it merges the two.
      */
     @Nullable
     private String rawOperatorValue(Settings clusterState, Settings nodeSettings) {

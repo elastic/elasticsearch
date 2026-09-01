@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -57,8 +56,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class QuerySettingsTests extends ESTestCase {
 
@@ -700,12 +697,8 @@ public class QuerySettingsTests extends ESTestCase {
         // matters more than usual here: the fallback is silent by design, so a registration that never happened has
         // no symptom at all. An integration test cannot cover this — PUT _cluster/settings refuses any value that
         // would warn, which is the whole point of the write-time check.
-        Settings node = Settings.EMPTY;
-        ClusterSettings clusterSettings = new ClusterSettings(node, new HashSet<>(QuerySettings.clusterSettings()));
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getSettings()).thenReturn(node);
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        QuerySettings.watchClusterDefaults(clusterService);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(QuerySettings.clusterSettings()));
+        QuerySettings.watchClusterDefaults(clusterSettings);
 
         String key = QuerySettingDef.CLUSTER_SETTING_PREFIX + QuerySettings.UNMAPPED_FIELDS.name();
         MockLog.assertThatLogger(

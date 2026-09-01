@@ -447,7 +447,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         // An operator default this node cannot use is ignored at resolution and the built-in default applies, so
         // without this warning the operator would see their configuration silently not take effect.
-        QuerySettings.watchClusterDefaults(services.clusterService());
+        QuerySettings.watchClusterDefaults(services.clusterService().getClusterSettings());
 
         // Create DataSourceModule with all discovered plugins.
         // This executor backs SPI coordination, decompression, and async-I/O plugin callbacks (e.g. the HTTP

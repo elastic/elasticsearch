@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.esql.plan;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -237,9 +237,9 @@ public final class QuerySettings {
     }
 
     /**
-     * The cluster settings derived from the registry, for {@code EsqlPlugin.getSettings()} to register. A setting
-     * without an operator default contributes nothing, so its key stays unknown and a typo is rejected. Public only
-     * because the plugin is in another package.
+     * The cluster settings derived from the registry — what {@code EsqlPlugin.getSettings()} registers, and what
+     * {@link #watchClusterDefaults} watches. A setting without an operator default contributes nothing, so its key
+     * stays unknown and a typo is rejected. Public only because the plugin is in another package.
      */
     public static List<Setting<?>> clusterSettings() {
         List<Setting<?>> out = new ArrayList<>();
@@ -379,8 +379,8 @@ public final class QuerySettings {
      * Log any operator default this node cannot use. Resolution falls back to the built-in default for such a value
      * rather than failing queries, so without this the operator would have no signal at all.
      *
-     * @param effectiveSettings node and cluster-state settings already merged, as the grouped settings-update
-     *     consumer supplies them
+     * @param effectiveSettings node and cluster-state settings already merged and filtered to these keys, as the
+     *     grouped settings-update consumer supplies them
      */
     public static void warnUnusableClusterDefaults(Settings effectiveSettings) {
         for (QuerySettingDef<?> def : all()) {
@@ -418,8 +418,8 @@ public final class QuerySettings {
      * value in {@code elasticsearch.yml} already stops the node starting, and cluster state does not exist yet when
      * components are constructed.
      */
-    public static void watchClusterDefaults(ClusterService clusterService) {
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(QuerySettings::warnUnusableClusterDefaults, clusterSettings());
+    public static void watchClusterDefaults(ClusterSettings clusterSettings) {
+        clusterSettings.addSettingsUpdateConsumer(QuerySettings::warnUnusableClusterDefaults, QuerySettings.clusterSettings());
     }
 
     /** Resolve with no operator defaults in play. */

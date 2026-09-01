@@ -117,7 +117,10 @@ public abstract class AbstractEmbeddingRequestIterator implements BulkInferenceR
 
     @Override
     public int estimatedSize() {
-        return textReader.estimatedSize();
+        // One request carries up to batchSize embeddable texts, so the request count is the position count divided by the batch
+        // size (rounded up). This is a lower bound: a trailing all-null run can add one extra request, which only costs one list
+        // growth in the caller and is not worth tracking precisely here.
+        return Math.ceilDiv(textReader.estimatedSize(), batchSize);
     }
 
     @Override

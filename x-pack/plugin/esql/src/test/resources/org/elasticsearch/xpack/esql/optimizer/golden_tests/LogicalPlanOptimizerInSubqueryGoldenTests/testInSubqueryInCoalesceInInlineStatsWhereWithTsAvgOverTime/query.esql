@@ -1,0 +1,6 @@
+FROM employees
+| EVAL s = to_double(salary)
+| INLINE STATS c = COUNT(*) WHERE COALESCE(s IN (TS k8s
+                                                 | STATS r = max(avg_over_time(to_double(network.total_bytes_in))) BY cluster
+                                                 | KEEP r),
+                                           false)

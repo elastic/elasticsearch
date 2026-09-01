@@ -27,11 +27,6 @@ import static org.hamcrest.Matchers.containsString;
 public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
 
     @Before
-    public void checkCapability() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-    }
-
-    @Before
     public void setupIndices() {
         assertAcked(
             client().admin()
@@ -67,14 +62,6 @@ public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
     public void testRejectsInSubqueryInStatsBy() {
         var e = expectThrows(VerificationException.class, () -> run("FROM test | STATS c = COUNT(*) BY id IN (FROM test | KEEP id)"));
         assertThat(e.getMessage(), containsString("IN subquery is not supported in [STATS c = COUNT(*) BY id IN (FROM test | KEEP id)]"));
-    }
-
-    public void testRejectsInSubqueryInStatsWhereFilter() {
-        var e = expectThrows(VerificationException.class, () -> run("FROM test | STATS c = COUNT(*) WHERE id IN (FROM test | KEEP id)"));
-        assertThat(
-            e.getMessage(),
-            containsString("IN subquery is not supported in [STATS c = COUNT(*) WHERE id IN (FROM test | KEEP id)]")
-        );
     }
 
     public void testRejectInSubqueryUsedInWhereInsideMvContains() {

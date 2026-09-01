@@ -60,7 +60,8 @@ final class DecompressingStorageObject implements StorageObject {
             return new DecompressedStream(decompressed, raw);
         } catch (IOException | RuntimeException e) {
             try {
-                raw.close();
+                // Abort rather than close so providers like S3 skip the draining connection teardown.
+                delegate.abortStream(raw);
             } catch (IOException suppressed) {
                 e.addSuppressed(suppressed);
             }

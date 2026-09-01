@@ -53,12 +53,12 @@ restResources {
 
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
-  maxParallelForks = 1
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   usesDefaultDistribution("to be triaged")
+  // AbstractEsqlSpecIT declares its cluster with shared(true), which is incompatible with parallel forks
   maxParallelForks = 1
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
   testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
@@ -73,6 +73,7 @@ tasks.named('check').configure { dependsOn csvSpecTests }
 // system properties. No test classes are modified.
 tasks.register('javaRestTestSecure', StandaloneRestIntegTestTask) {
   usesDefaultDistribution("to be triaged")
+  // Runs the csvSpecTest source set, whose cluster is shared(true)
   maxParallelForks = 1
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
   testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
@@ -88,7 +89,6 @@ tasks.register('javaRestTestSecure', StandaloneRestIntegTestTask) {
 
 tasks.named('yamlRestTest') {
   usesDefaultDistribution("to be triaged")
-  maxParallelForks = 1
 }
 
 // Uncomment this to start automatically running this as part of CI

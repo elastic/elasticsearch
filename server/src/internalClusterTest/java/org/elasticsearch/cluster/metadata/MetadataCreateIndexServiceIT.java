@@ -103,6 +103,7 @@ public class MetadataCreateIndexServiceIT extends ESIntegTestCase {
 
         final var preExistingIndexName = addRandomIndexNameNoCollision(allIndexNames);
         createIndex(preExistingIndexName);
+        ensureGreen(preExistingIndexName);
 
         final ClusterStateListener listener = event -> {
             final var projectMetadata = event.state().metadata().getProject(ProjectId.DEFAULT);

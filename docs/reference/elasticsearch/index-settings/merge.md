@@ -31,7 +31,12 @@ This is in order to prevent that the temporary disk space, which is required whi
 The merge scheduler supports the following *dynamic* settings:
 
 `index.merge.scheduler.max_thread_count`
-:   The maximum number of threads on a **single** shard that may be merging at once. Defaults to `Math.max(1, Math.min(4, <<node.processors, node.processors>> / 2))` which works well for a good solid-state-disk (SSD). If your index is on spinning platter drives instead, decrease this to 1.
+:   The maximum number of threads on a **single** shard that may be merging at once. Defaults to half the number of processors the JVM sees on the node, with a minimum of 1, which works well for a good solid-state-disk (SSD). If your index is on spinning platter drives instead, decrease this to 1. This default is independent of [`node.processors`](/reference/elasticsearch/configuration-reference/thread-pool-settings.md#node.processors). With `include_defaults`, the reported default is the unclamped value computed on the responding node; it may differ from the value a data node actually uses after clamping to `max_merge_count`, and from data nodes with a different processor count.
+
+    If `max_thread_count` would exceed `index.merge.scheduler.max_merge_count`, Elasticsearch reduces it to `max_merge_count` when the index is opened or its settings change, and logs a warning. That can happen when `max_thread_count` is left unset and `max_merge_count` is set explicitly, especially across nodes with different processor counts, or when both are set with `max_thread_count` greater than `max_merge_count`.
+
+`index.merge.scheduler.max_merge_count`
+:   The maximum number of merges that may be running or waiting on a **single** shard at once. Defaults to `index.merge.scheduler.max_thread_count + 5`.
 
 `indices.merge.disk.check_interval`
 :   The time interval for checking the available disk space. Defaults to `5s`.

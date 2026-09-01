@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.tasks.CancellableTask;
@@ -20,14 +21,17 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.startsWith;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -42,7 +46,7 @@ import static org.mockito.Mockito.when;
 public class IncrementalBulkServiceTests extends ESTestCase {
 
     /**
-     * Builds a service whose requests run on {@code taskQueue}'s simulated clock. A null
+     * Builds a service whose requests run on {@code threadPool}'s simulated clock. A null
      * {@code requestTimeout} configures the {@link IncrementalBulkService#REQUEST_TIMEOUT} setting to its
      * disabled default.
      *
@@ -53,7 +57,7 @@ public class IncrementalBulkServiceTests extends ESTestCase {
      * can be constructed and parented. {@code Client} is mocked because these tests only exercise timeout
      * scheduling and never issue a bulk request.
      */
-    private static IncrementalBulkService newService(DeterministicTaskQueue taskQueue, TimeValue requestTimeout, TaskManager taskManager) {
+    private static IncrementalBulkService newService(ThreadPool threadPool, TimeValue requestTimeout, TaskManager taskManager) {
         CancellableTask task = new CancellableTask(
             1L,
             IncrementalBulkService.BULK_SESSION_TASK_TYPE,
@@ -76,15 +80,44 @@ public class IncrementalBulkServiceTests extends ESTestCase {
             new IndexingPressure(Settings.EMPTY),
             MeterRegistry.NOOP,
             taskManager,
-            taskQueue.getThreadPool(),
+            threadPool,
             clusterSettings
         );
+    }
+
+    /**
+     * The timeout fires on a context that {@link ThreadPool#schedule} preserved from the REST caller, but the
+     * {@code internal:admin/tasks/ban} request that cancellation fans out to can never be granted to a user. So
+     * {@code cancel} must stash and mark the context as the system context before calling into the
+     * {@link TaskManager}, and must restore the caller's context afterwards.
+     */
+    public void testCancellationRunsInSystemContext() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        ThreadPool threadPool = taskQueue.getThreadPool();
+        ThreadContext threadContext = threadPool.getThreadContext();
+        TaskManager taskManager = mock(TaskManager.class);
+
+        AtomicBoolean systemContextWhileCancelling = new AtomicBoolean();
+        doAnswer(invocation -> {
+            systemContextWhileCancelling.set(threadContext.isSystemContext());
+            return null;
+        }).when(taskManager).cancelTaskAndDescendants(any(), startsWith("request timed out"), eq(false), any());
+
+        IncrementalBulkService service = newService(threadPool, TimeValue.timeValueSeconds(30), taskManager);
+        try (var handler = service.newBulkRequest()) {
+            assertFalse("the request itself must not run as the system user", threadContext.isSystemContext());
+
+            taskQueue.runAllTasksInTimeOrder();
+
+            assertTrue("cancellation must run as the system user", systemContextWhileCancelling.get());
+            assertFalse("the system context must not leak past cancellation", threadContext.isSystemContext());
+        }
     }
 
     public void testTimeoutTriggersCancellation() {
         DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         TaskManager taskManager = mock(TaskManager.class);
-        IncrementalBulkService service = newService(taskQueue, TimeValue.timeValueSeconds(30), taskManager);
+        IncrementalBulkService service = newService(taskQueue.getThreadPool(), TimeValue.timeValueSeconds(30), taskManager);
 
         try (var handler = service.newBulkRequest()) {
             assertTrue("a timeout task should be scheduled", taskQueue.hasDeferredTasks());
@@ -101,7 +134,7 @@ public class IncrementalBulkServiceTests extends ESTestCase {
         // MINUS_ONE disables the timeout; a sub-millisecond value rounds down to a 0ms delay and must also be
         // treated as disabled rather than scheduling a task that cancels the request immediately.
         for (TimeValue timeout : new TimeValue[] { null, TimeValue.MINUS_ONE, TimeValue.timeValueNanos(500_000) }) {
-            IncrementalBulkService service = newService(taskQueue, timeout, mock(TaskManager.class));
+            IncrementalBulkService service = newService(taskQueue.getThreadPool(), timeout, mock(TaskManager.class));
             try (var handler = service.newBulkRequest()) {
                 assertFalse("no timeout task should be scheduled when disabled", taskQueue.hasDeferredTasks());
             }
@@ -111,7 +144,7 @@ public class IncrementalBulkServiceTests extends ESTestCase {
     public void testCloseCancelsPendingTimeout() {
         DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         TaskManager taskManager = mock(TaskManager.class);
-        IncrementalBulkService service = newService(taskQueue, TimeValue.timeValueSeconds(30), taskManager);
+        IncrementalBulkService service = newService(taskQueue.getThreadPool(), TimeValue.timeValueSeconds(30), taskManager);
 
         var handler = service.newBulkRequest();
         assertTrue(taskQueue.hasDeferredTasks());

@@ -19,6 +19,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
@@ -398,7 +399,18 @@ public class DISIAccumulatorTests extends ESTestCase {
     private void doTestRandom(Directory dir) throws IOException {
         Random random = random();
         final int maxStep = TestUtil.nextInt(random, 1, 1 << TestUtil.nextInt(random, 2, 20));
-        final int numDocs = TestUtil.nextInt(random, 1, Math.min(100000, (Integer.MAX_VALUE - 1) / maxStep));
+        // SparseFixedBitSet.blockCount() has an assertion that overflows for lengths >= 2_147_479_553
+        // in Lucene 10.5 (fixed in https://github.com/apache/lucene/pull/14922, not backported to 10.5.1).
+        // Cap numDocs so that numDocs * maxStep + 99 (the max possible maxDoc) stays below that threshold.
+        // TODO: remove this cap after upgrading Lucene past 10.5.1 (expected in 10.6).
+        assert Version.LUCENE_10_5_1.onOrAfter(Version.LATEST)
+            : "Lucene has been upgraded past 10.5.1; remove the SparseFixedBitSet range cap in doTestRandom";
+        final int sparseFixedBitSetSafeCap = (int) (2_147_479_453L / maxStep);
+        final int numDocs = TestUtil.nextInt(
+            random,
+            1,
+            Math.min(Math.min(100000, (Integer.MAX_VALUE - 1) / maxStep), sparseFixedBitSetSafeCap)
+        );
         BitSet docs = new SparseFixedBitSet(numDocs * maxStep + 1);
         int lastDoc = -1;
         for (int doc = -1, i = 0; i < numDocs; ++i) {

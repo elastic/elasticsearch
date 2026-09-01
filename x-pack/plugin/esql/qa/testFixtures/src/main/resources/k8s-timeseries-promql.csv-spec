@@ -1771,6 +1771,21 @@ set_union:double | step:datetime            | cluster:keyword
 7403.0           | 2024-05-10T01:00:00.000Z | staging
 ;
 
+// Same union query on a date_nanos @timestamp index (datenanos-k8s loads the same k8s.csv). The step column must
+// still be exposed as datetime (epoch-millis), matching the plain-date variant above.
+set_operator_union_combines_series_date_nanos
+required_capability: promql_command_v0
+required_capability: promql_set_operator_union
+required_capability: fix_promql_date_nanos_step
+PROMQL index=datenanos-k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in))
+| SORT cluster;
+
+set_union:double | step:datetime            | cluster:keyword
+10277.0          | 2024-05-10T01:00:00.000Z | prod
+10797.0          | 2024-05-10T01:00:00.000Z | qa
+7403.0           | 2024-05-10T01:00:00.000Z | staging
+;
+
 // Left precedence: prod appears in both operands with the same grouping, so the left (max) value wins
 // over the right (sum) value.
 set_operator_union_left_precedence

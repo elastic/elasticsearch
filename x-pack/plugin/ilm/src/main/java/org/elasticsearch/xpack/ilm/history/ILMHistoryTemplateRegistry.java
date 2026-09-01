@@ -49,8 +49,6 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
         return true;
     }
 
-    private final boolean ilmHistoryEnabled;
-
     public ILMHistoryTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
@@ -60,7 +58,6 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
         FeatureService featureService
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService);
-        this.ilmHistoryEnabled = LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
     }
 
     private final Map<String, ComposableIndexTemplate> composableIndexTemplates = parseComposableTemplates(
@@ -69,7 +66,7 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        if (this.ilmHistoryEnabled) {
+        if (clusterService.getClusterSettings().get(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING)) {
             return composableIndexTemplates;
         } else {
             return Map.of();
@@ -88,7 +85,7 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<LifecyclePolicy> getLifecyclePolicies() {
-        if (ilmHistoryEnabled) {
+        if (clusterService.getClusterSettings().get(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING)) {
             return lifecyclePolicies;
         } else {
             return List.of();

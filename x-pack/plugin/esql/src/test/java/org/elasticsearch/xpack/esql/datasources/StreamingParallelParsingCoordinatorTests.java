@@ -66,7 +66,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
@@ -1665,6 +1667,56 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    /**
+     * Regression guard: when the executor rejects the segmentator task (e.g. pool shut down or
+     * saturated with no queue) {@link StreamingParallelParsingCoordinator.StreamingParallelIterator}
+     * must close the decompressed stream promptly via {@code onSegmentatorLaunchRejected}, not wait
+     * until the consumer calls {@link CloseableIterator#close()}.
+     */
+    public void testSegmentatorRejectionClosesDecompressedStream() throws Exception {
+        AtomicBoolean streamClosed = new AtomicBoolean(false);
+        InputStream trackingStream = new InputStream() {
+            private final ByteArrayInputStream backing = new ByteArrayInputStream("line-0000\n".getBytes(StandardCharsets.UTF_8));
+
+            @Override
+            public int read() throws IOException {
+                return backing.read();
+            }
+
+            @Override
+            public void close() {
+                streamClosed.set(true);
+            }
+        };
+        LineFormatReader reader = new LineFormatReader(1024);
+        Executor rejectingExecutor = r -> { throw new RejectedExecutionException("pool is shut down"); };
+
+        StreamingParallelParsingCoordinator.StreamingParallelIterator iterator =
+            new StreamingParallelParsingCoordinator.StreamingParallelIterator(
+                reader,
+                trackingStream,
+                null,
+                List.of("line"),
+                50,
+                4,
+                rejectingExecutor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            );
+        // The rejection is synchronous: onSegmentatorLaunchRejected fires during admission.submit()
+        // inside the constructor, so the stream is already closed before the constructor returns.
+        assertTrue("stream must be closed promptly on segmentator rejection", streamClosed.get());
+        // Calling close() after the fact must be safe (CAS no-op on the already-closed stream).
+        iterator.close();
+        assertTrue("stream must remain closed after iterator.close()", streamClosed.get());
     }
 
     private static RecordSplitter neverBoundarySplitter(int maxRecordBytes) {

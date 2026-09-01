@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 157161
+summary: Null-safe async instrument
+type: bug

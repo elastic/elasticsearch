@@ -54,6 +54,8 @@ public class ToLongSurrogate extends EsqlScalarFunction implements OnlySurrogate
 
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToLongSurrogate.class)
         .binary(ToLongSurrogate::new)
+        // Reject doubles at the exactly representable 2^63 boundary instead of saturating to Long.MAX_VALUE.
+        .capabilities("fix_double_to_long_overflow")
         .name("to_long");
 
     @FunctionInfo(

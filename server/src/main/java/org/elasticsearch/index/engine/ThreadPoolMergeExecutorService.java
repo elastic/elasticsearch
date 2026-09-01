@@ -457,13 +457,12 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             // (in the other case, merging IS blocked until the first update for the available disk space)
             availableDiskSpaceUpdateConsumer.accept(ByteSizeValue.ofBytes(Long.MAX_VALUE));
         }
+        // in case the settings are updated together (in the same PUT settings call), the consumer is invoked ONCE for the update
+        // this avoids spurious computations based on a mix of old and new values, if there were separate consumers for each setting
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
-            availableDiskSpacePeriodicMonitor::setHighStageWatermark
-        );
-        clusterSettings.addSettingsUpdateConsumer(
             INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING,
-            availableDiskSpacePeriodicMonitor::setHighStageMaxHeadroom
+            availableDiskSpacePeriodicMonitor::setHighStageConfig
         );
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
@@ -476,8 +475,11 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         private static final Logger LOGGER = LogManager.getLogger(AvailableDiskSpacePeriodicMonitor.class);
         private final NodeEnvironment.DataPath[] dataPaths;
         private final ThreadPool threadPool;
-        private volatile RelativeByteSizeValue highStageWatermark;
-        private volatile ByteSizeValue highStageMaxHeadroom;
+
+        private record HighStageConfig(RelativeByteSizeValue watermark, ByteSizeValue maxHeadroom) {}
+
+        private volatile HighStageConfig highStageConfig;
+
         private volatile TimeValue checkInterval;
         private final Consumer<ByteSizeValue> updateConsumer;
         private volatile boolean closed;
@@ -493,8 +495,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         ) {
             this.dataPaths = dataPaths;
             this.threadPool = threadPool;
-            this.highStageWatermark = highStageWatermark;
-            this.highStageMaxHeadroom = highStageMaxHeadroom;
+            this.highStageConfig = new HighStageConfig(highStageWatermark, highStageMaxHeadroom);
             this.checkInterval = checkInterval;
             this.updateConsumer = updateConsumer;
             this.closed = false;
@@ -506,12 +507,8 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             reschedule();
         }
 
-        void setHighStageWatermark(RelativeByteSizeValue highStageWatermark) {
-            this.highStageWatermark = highStageWatermark;
-        }
-
-        void setHighStageMaxHeadroom(ByteSizeValue highStageMaxHeadroom) {
-            this.highStageMaxHeadroom = highStageMaxHeadroom;
+        void setHighStageConfig(RelativeByteSizeValue watermark, ByteSizeValue maxHeadroom) {
+            this.highStageConfig = new HighStageConfig(watermark, maxHeadroom); // single volatile write
         }
 
         private synchronized void reschedule() {
@@ -567,8 +564,9 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 return;
             }
             long mostAvailableDiskSpaceBytes = mostAvailablePath.getAvailable().getBytes();
-            // subtract the configured free disk space threshold
-            mostAvailableDiskSpaceBytes -= getFreeBytesThreshold(mostAvailablePath.getTotal(), highStageWatermark, highStageMaxHeadroom)
+            // read both settings together, in case they are both updated together, to avoid spurious computations based on an old/new pair
+            HighStageConfig config = this.highStageConfig;
+            mostAvailableDiskSpaceBytes -= getFreeBytesThreshold(mostAvailablePath.getTotal(), config.watermark(), config.maxHeadroom())
                 .getBytes();
             // clamp available space to 0
             long maxMergeSizeLimit = Math.max(0L, mostAvailableDiskSpaceBytes);

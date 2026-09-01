@@ -270,11 +270,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic
     );
 
-    private static final boolean CHUNKED_FETCH_PHASE_FEATURE_FLAG = new FeatureFlag("chunked_fetch_phase_enabled").isEnabled();
-
     public static final Setting<Boolean> FETCH_PHASE_CHUNKED_ENABLED = Setting.boolSetting(
         "search.fetch_phase_chunked_enabled",
-        CHUNKED_FETCH_PHASE_FEATURE_FLAG,
+        true,
         Property.NodeScope,
         Property.Dynamic
     );
@@ -1361,7 +1359,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, wrapFailureListener(listener, readerContext, markAsUsed));
+        }, wrapFailureListener(listener, markAsUsed, e -> processScrollContinuationFailure(readerContext, e)));
         // we successfully submitted the async task to the search pool so let's prewarm the shard
         if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
             onlinePrewarmingService.prewarm(readerContext.indexShard());
@@ -1502,8 +1500,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         },
             wrapFailureListener(
                 releaseCircuitBreakerOnResponse(listener, result -> result.result().fetchResult()),
-                readerContext,
-                markAsUsed
+                markAsUsed,
+                e -> processScrollContinuationFailure(readerContext, e)
             )
         );
     }
@@ -2061,6 +2059,31 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return context instanceof LegacyReaderContext && context.singleSession() == false;
     }
 
+    /**
+     * Whether the failure is a transient search-thread-pool rejection (queue full) rather than
+     * a rejection caused by executor shutdown.
+     * Visible for testing.
+     */
+    static boolean isTransientRejection(Exception exc) {
+        Throwable rejected = ExceptionsHelper.unwrap(exc, EsRejectedExecutionException.class);
+        return rejected instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() == false;
+    }
+
+    /**
+     * Failure handler for scroll continuation ({@link InternalScrollSearchRequest}) query/fetch paths.
+     * Keeps the reader context on transient search-thread-pool rejection so the client can retry with
+     * the same {@code scroll_id}; otherwise delegates to {@link #processFailure}.
+     */
+    private void processScrollContinuationFailure(ReaderContext context, Exception exc) {
+        if (isTransientRejection(exc)) {
+            // Rejection is raised at executor submission, before the task body runs, so
+            // ScrollContext.lastEmittedDoc is unchanged and a client retry is safe.
+            logger.trace(() -> format("keeping scroll context [%s] after transient rejected execution", context.id()));
+            return;
+        }
+        processFailure(context, exc);
+    }
+
     private void processFailure(ReaderContext context, Exception exc) {
         if (context.singleSession() || isScrollContext(context)) {
             // we release the reader on failure if the request is a normal search or a scroll
@@ -2171,6 +2194,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 );
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);
+            } catch (StackOverflowError e) {
+                throw new IllegalArgumentException("The aggregations are too deeply nested to build");
             }
         }
         if (source.suggest() != null) {

@@ -758,6 +758,149 @@ Fields with copy_to and skip_ignored_source_read workaround:
   - match: { hits.total.value: 1 }
 
 ---
+Fields without index or doc values in logsdb - uses _ignored_source doc values:
+  # logsdb stores _ignored_source in binary doc values with a companion .counts field. FLS re-encodes the surviving entries in a format
+  # that carries its own count, so the stale .counts must not leak through to the reader, otherwise decoding the filtered source fails.
+  - do:
+      indices.create:
+        index: index_fls_logsdb
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              name:
+                type: keyword
+                index: false
+                doc_values: false
+              secret:
+                type: keyword
+                index: false
+                doc_values: false
+
+  - do:
+      bulk:
+        index: index_fls_logsdb
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"@timestamp": "2026-07-07T08:09:00Z", "name": "A", "secret": [ "squirrel", "walrus" ] }'
+          - '{"create": { }}'
+          - '{"@timestamp": "2026-07-07T08:10:00Z", "name": "B", "secret": "badger" }'
+          - '{"create": { }}'
+          - '{"@timestamp": "2026-07-07T08:11:00Z", "secret": "otter" }'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls_logsdb" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "@timestamp", "name" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls_logsdb
+        sort: "@timestamp"
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.secret: [ "squirrel", "walrus" ] }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.secret: badger }
+  - match: { hits.hits.2._source.secret: otter }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls_logsdb
+        sort: "@timestamp"
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._source.name: A }
+  - is_false: "hits.hits.0._source.secret"
+  - match: { hits.hits.1._source.name: B }
+  - is_false: "hits.hits.1._source.secret"
+  # every ignored-source entry of the third document is filtered out
+  - is_false: "hits.hits.2._source.name"
+  - is_false: "hits.hits.2._source.secret"
+
+---
+Fields without index or doc values in logsdb - nothing filtered out:
+  - do:
+      indices.create:
+        index: index_fls_logsdb
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              name:
+                type: keyword
+                index: false
+                doc_values: false
+              secret:
+                type: keyword
+                index: false
+                doc_values: false
+
+  - do:
+      bulk:
+        index: index_fls_logsdb
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"@timestamp": "2026-07-07T08:09:00Z", "name": "A", "secret": [ "squirrel", "walrus" ] }'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls_logsdb" ]
+                  privileges: [ "read" ]
+                  # granted explicitly rather than via "*", which would bypass field filtering altogether
+                  field_security:
+                    grant: [ "@timestamp", "name", "secret" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With FLS API Key: no entry is dropped, but _ignored_source is still re-encoded by the FLS wrapper
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls_logsdb
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.secret: [ "squirrel", "walrus" ] }
+
+---
 METRICS_INFO with field level security granting specific fields:
   - requires:
       test_runner_features: [ capabilities, headers, allowed_warnings_regex ]

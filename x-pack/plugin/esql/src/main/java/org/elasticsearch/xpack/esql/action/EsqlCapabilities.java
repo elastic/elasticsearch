@@ -1139,6 +1139,13 @@ public class EsqlCapabilities {
         IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
 
         /**
+         * When multiple aliases are defined in a single EVAL, an implicit CASTing is missed because of a premature exit due
+         * to failing to immediately resolve a field referenced in one of the EVALed aliases.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/155979">#155979</a>.
+         */
+        FIX_MISSED_IMPLICIT_CASTING_INSIDE_INTERLEAVED_EVALS,
+
+        /**
          * LOOKUP JOIN
          */
         JOIN_LOOKUP_V12,
@@ -1472,6 +1479,14 @@ public class EsqlCapabilities {
          * correct time-series index when a join presents.
          */
         WHERE_IN_SUBQUERY_WITH_TS,
+
+        /**
+         * Fix for {@code PropagateEmptyRelation} not folding away {@code AbstractSubqueryJoin} nodes when their left side is an empty
+         * {@code LocalRelation}. Without the fix, a {@code WHERE false} followed by a {@code WHERE … OR field IN (subquery) AND match(…)}
+         * caused the server to hang or error out because the {@code LuceneQueryExpressionEvaluator} found no Lucene shard contexts.
+         */
+        PROPAGATE_EMPTY_RELATION_PAST_WHERE_IN_SUBQUERY,
+
         /**
          * Support for views in cluster state (and REST API).
          */
@@ -2297,6 +2312,16 @@ public class EsqlCapabilities {
          * PromQL uses TSTEP instead of TBUCKET, with corrected open-ended range query bounds.
          */
         FIX_PROMQL_TIME_BUCKET_V2(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
+
+        /**
+         * On a {@code date_nanos} {@code @timestamp} index, PromQL evaluates in the millisecond domain: the
+         * {@code @timestamp} is normalized to {@code datetime} (epoch-millis) up front, so the time buckets, the
+         * windowing, and the built-in {@code step} column all behave exactly as on a plain {@code date} index. In
+         * particular the {@code step} column is always {@code datetime} regardless of the index resolution; without
+         * this, a {@code date_nanos} index produced a {@code date_nanos} {@code step} column that tripped the
+         * post-optimization output verifier.
+         */
+        FIX_PROMQL_DATE_NANOS_STEP(FIX_PROMQL_TIME_BUCKET_V2.isEnabled()),
 
         /**
          * PromQL {@code round(v, to_nearest)} uses the Prometheus formula, fixing wrong rounding
@@ -3475,6 +3500,45 @@ public class EsqlCapabilities {
          * See: <a href="https://github.com/elastic/elasticsearch/issues/153389">#153389</a>
          */
         FIX_BUCKET_LARGE_NUMBER_OF_BUCKETS,
+
+        /**
+         * A {@code TS} aggregation whose time bucket is named after the timestamp field, e.g.
+         * {@code TS metrics | STATS max(cost) BY @timestamp = BUCKET(@timestamp, 1 minute)}, no longer fails with
+         * {@code optimized incorrectly due to missing references [@timestamp]}: the internal first-pass bucket alias no
+         * longer shadows the field that the per-time-series aggregation reads.
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/153030">#153030</a>
+         */
+        FIX_TS_TIME_BUCKET_NAMED_AFTER_TIMESTAMP,
+
+        /**
+         * When {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate} expands a
+         * {@code TS} {@code STATS} with PackDims, drop second-pass aggregate aliases whose names collide with a
+         * grouping key (grouping wins), matching non-TS {@code STATS} shadowing via
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride}. Without this, the rewrite
+         * emits {@code Project[[alias, grouping]]} with duplicate names and post-optimization verification fails.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/153507">#153507</a>.
+         */
+        FIX_TS_STATS_ALIAS_GROUPING_SHADOW,
+
+        /**
+         * Fix for {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource} pushing only a
+         * pushable <em>prefix</em> of a compound {@code SORT}'s keys together with the full {@code LIMIT}. Lucene then
+         * truncated to {@code LIMIT} documents ordered by that prefix alone, so when the prefix had ties straddling the
+         * limit boundary, documents the full sort would have ranked into the top-N were dropped at the source and could
+         * never be recovered - returning wrong results (e.g. {@code SORT score, ABS(x) | LIMIT n}). The compound TopN is
+         * now pushed only when every sort key is pushable.
+         * See <a href="https://github.com/elastic/elasticsearch/pull/155923">#155923</a>.
+         */
+        FIX_PARTIAL_PREFIX_COMPOUND_TOPN_PUSHDOWN,
+
+        /**
+         * Fix for {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate} placing
+         * constant literal aggregates (e.g. {@code metric_type = "cost"}) in the inner {@code TimeSeriesAggregate}
+         * instead of the outer {@code Aggregate}. Without this fix the outer aggregate does not produce the literal
+         * column, causing {@code Plan [...] optimized incorrectly due to missing references} after
+         * {@code CombineProjections} drops it.
+         */
+        TS_STATS_LITERAL_AGG_FIX,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -16,6 +16,10 @@ apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.fwc-test'
 apply plugin: 'elasticsearch.bc-upgrade-test'
 
+// Each suite is parameterized over the upgrade phases and an earlier phase sets up the cluster state a later phase asserts on,
+// so a phase that passed must still run when a later phase is retried.
+smartRetry.pruneIndividualTests.set(false)
+
 testArtifacts {
   registerTestArtifactFromSourceSet(sourceSets.javaRestTest)
 }

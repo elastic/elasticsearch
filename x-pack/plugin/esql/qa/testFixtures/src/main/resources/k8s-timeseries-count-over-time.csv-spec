@@ -200,23 +200,25 @@ last_up:long | cluster:keyword | time_bucket:date_nanos
 5            | staging         | 2024-05-10T00:20:00.000Z
 ;
 
-count_over_time_of_date_nanos_promql-Ignore
+count_over_time_of_date_nanos_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_date_nanos_step
 
+# datenanos-k8s carries a date_nanos @timestamp; the built-in step column is still exposed as datetime
+# (epoch-millis), matching the plain-date variant count_over_time_of_date_promql over the same data.
 PROMQL index=datenanos-k8s step=10m last_up=(max by (cluster) (count_over_time(network.eth0.last_up[10m])))
 | SORT step, cluster | LIMIT 10;
 
-last_up:double | step:date_nanos          | cluster:keyword
-10.0           | 2024-05-10T00:00:00.000Z | prod
-14.0           | 2024-05-10T00:00:00.000Z | qa
-10.0           | 2024-05-10T00:00:00.000Z | staging
-11.0           | 2024-05-10T00:10:00.000Z | prod
+last_up:double | step:datetime            | cluster:keyword
+10.0           | 2024-05-10T00:10:00.000Z | prod
 14.0           | 2024-05-10T00:10:00.000Z | qa
-11.0           | 2024-05-10T00:10:00.000Z | staging
-3.0            | 2024-05-10T00:20:00.000Z | prod
-3.0            | 2024-05-10T00:20:00.000Z | qa
-5.0            | 2024-05-10T00:20:00.000Z | staging
+10.0           | 2024-05-10T00:10:00.000Z | staging
+12.0           | 2024-05-10T00:20:00.000Z | prod
+14.0           | 2024-05-10T00:20:00.000Z | qa
+12.0           | 2024-05-10T00:20:00.000Z | staging
+3.0            | 2024-05-10T00:30:00.000Z | prod
+3.0            | 2024-05-10T00:30:00.000Z | qa
+4.0            | 2024-05-10T00:30:00.000Z | staging
 ;
 
 count_over_time_of_date

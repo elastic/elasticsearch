@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.SortPreserving;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
@@ -109,19 +110,21 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
 
     /**
      * Build the terminal plan when the right side has zero rows. {@code x IN ()} ≡ FALSE for SEMI / MARK; {@code x NOT IN ()} ≡ TRUE for
-     * ANTI. MarkJoin produces an Eval that sets the mark attribute to FALSE.
+     * ANTI. SemiJoin collapses to an empty {@code LocalRelation}, AntiJoin keeps every row, and MarkJoin produces an Eval that sets the
+     * mark attribute to FALSE.
      */
     protected abstract LogicalPlan buildEmptyRightSidePlan(Source source);
 
     /**
      * Build the terminal plan when the right side contains a NULL value that forces the predicate to a constant for every left row.
-     * For SEMI this only fires when every right value is NULL ({@code allRightNull == true}) and produces {@code Filter(FALSE)}.
-     * For ANTI any NULL on the right is fatal, so it overrides {@link #shortCircuitOnAnyRightNull()} and likewise produces
-     * {@code Filter(FALSE)}. MarkJoin does not short-circuit on any NULL — it keeps the row counts unchanged and emits
-     * {@code Eval($m = NULL)} when every right value is NULL.
+     * For SEMI this only fires when every right value is NULL ({@code allRightNull == true}); for ANTI any NULL on the right is fatal,
+     * so it overrides {@link #shortCircuitOnAnyRightNull()}. In both cases no left row can survive, so the join collapses to an empty
+     * {@code LocalRelation} — the same rewrite {@code PruneFilters} applies to a constant-false filter, inlined here because subquery
+     * substitution happens after the coordinator logical optimizer ran. MarkJoin does not short-circuit on any NULL — it keeps the row
+     * counts unchanged and emits {@code Eval($m = NULL)} when every right value is NULL.
      */
     protected LogicalPlan buildShortCircuitPlan(Source source, boolean allRightNull) {
-        return new Filter(source, left(), Literal.FALSE);
+        return new LocalRelation(source, output(), EmptyLocalSupplier.EMPTY);
     }
 
     /**

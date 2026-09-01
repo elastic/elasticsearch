@@ -687,6 +687,7 @@ FROM partial_mapping_sample_data
 replaceUnmappedFieldFromEmptyMapping
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM no_mapping_date_extract_fields
@@ -703,6 +704,7 @@ date_string:date
 aggregateUnmappedFieldFromEmptyMapping
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM no_mapping_date_extract_fields

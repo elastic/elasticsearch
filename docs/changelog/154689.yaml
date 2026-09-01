@@ -1,5 +1,0 @@
-area: Search
-issues: []
-pr: 154689
-summary: Bound numeric string length before parsing
-type: bug

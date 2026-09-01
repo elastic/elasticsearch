@@ -31,11 +31,15 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -58,6 +62,7 @@ import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
@@ -73,14 +78,18 @@ import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.LongConsumer;
 import java.util.stream.IntStream;
@@ -88,6 +97,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -886,6 +896,199 @@ public class FetchSearchPhaseTests extends ESTestCase {
         }
     }
 
+    public void testStreamingFetchAccountsAndReleasesSourceBytes() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        String body = "{ \"thefield\": \" " + randomAlphaOfLength(1_200_000) + "\" }";
+        for (int i = 0; i < 3; i++) {
+            Document document = new Document();
+            document.add(new StringField("id", Integer.toString(i), Field.Store.YES));
+            document.add(new StoredField("_source", new BytesRef(body)));
+            w.addDocument(document);
+        }
+        IndexReader r = w.getReader();
+        w.close();
+        ContextIndexSearcher contextIndexSearcher = createSearcher(r);
+
+        AtomicLong used = new AtomicLong();
+        List<String> sourceCharges = new CopyOnWriteArrayList<>();
+        CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                used.addAndGet(bytes);
+                if (label.startsWith("fetch[source]")) {
+                    sourceCharges.add(label);
+                }
+            }
+
+            @Override
+            public void addWithoutBreaking(long bytes) {
+                used.addAndGet(bytes);
+            }
+        };
+
+        SearchContext searchContext = createSearchContext(contextIndexSearcher, true, breaker);
+        try {
+            setTotalHits(searchContext, 3);
+            FetchPhase fetchPhase = createSourceCopyingFetchPhase();
+            PageCacheRecycler recycler = new PageCacheRecycler(Settings.EMPTY);
+            AtomicReference<Exception> failure = new AtomicReference<>();
+            fetchPhase.execute(
+                searchContext,
+                new int[] { 0, 1, 2 },
+                null,
+                null,
+                streamingWriter(recycler, breaker),
+                1,
+                Math.toIntExact(ByteSizeValue.ofMb(1).getBytes()),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                ActionListener.noop(),
+                ActionListener.wrap(ignored -> {}, failure::set)
+            );
+            assertThat(failure.get(), nullValue());
+            // each of the 3 fetched hits' source should be charged against the request breaker under the fetch[source] label
+            assertThat(sourceCharges, hasSize(3));
+        } finally {
+            // releasing the fetch result frees the retained last-chunk pages; after that the breaker must be back to baseline
+            Releasables.close(searchContext);
+            r.close();
+            dir.close();
+        }
+        assertThat("all fetch-phase circuit breaker bytes should be released", used.get(), is(0L));
+    }
+
+    public void testStreamingFetchReleasesLeakedBytesOnFailure() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        String body = "{ \"thefield\": \" " + randomAlphaOfLength(1_200_000) + "\" }";
+        Document document = new Document();
+        document.add(new StringField("id", "0", Field.Store.YES));
+        document.add(new StoredField("_source", new BytesRef(body)));
+        w.addDocument(document);
+        IndexReader r = w.getReader();
+        w.close();
+        ContextIndexSearcher contextIndexSearcher = createSearcher(r);
+
+        long innerHitsLikeBytes = 1_200_000L;
+        LowLimitCircuitBreaker breaker = new LowLimitCircuitBreaker(1_500_000L);
+
+        SearchContext searchContext = createSearchContext(contextIndexSearcher, true, breaker);
+        try {
+            setTotalHits(searchContext, 1);
+            FetchPhase fetchPhase = new FetchPhase(List.of(fetchContext -> new FetchSubPhaseProcessor() {
+                @Override
+                public void setNextReader(LeafReaderContext readerContext) {}
+
+                @Override
+                public void process(FetchSubPhase.HitContext hitContext) {
+                    fetchContext.chargeScriptFieldsBytes(innerHitsLikeBytes);
+                    Source source = hitContext.source();
+                    hitContext.hit().sourceRef(source.internalSourceRef());
+                }
+
+                @Override
+                public StoredFieldsSpec storedFieldsSpec() {
+                    return StoredFieldsSpec.NEEDS_SOURCE;
+                }
+            }));
+            PageCacheRecycler recycler = new PageCacheRecycler(Settings.EMPTY);
+            AtomicReference<Exception> failure = new AtomicReference<>();
+            fetchPhase.execute(
+                searchContext,
+                new int[] { 0 },
+                null,
+                null,
+                streamingWriter(recycler, breaker),
+                1,
+                Math.toIntExact(ByteSizeValue.ofMb(1).getBytes()),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                ActionListener.noop(),
+                ActionListener.wrap(ignored -> {}, failure::set)
+            );
+            assertThat(failure.get(), instanceOf(CircuitBreakingException.class));
+        } finally {
+            Releasables.close(searchContext);
+            r.close();
+            dir.close();
+        }
+        assertThat("bytes held for the hit that never reached onHitSerialized() must be released", breaker.getUsed(), is(0L));
+    }
+
+    private static final class LowLimitCircuitBreaker extends NoopCircuitBreaker {
+        private final AtomicLong used = new AtomicLong();
+        private final long limit;
+
+        LowLimitCircuitBreaker(long limit) {
+            super(CircuitBreaker.REQUEST);
+            this.limit = limit;
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            long newUsed = used.addAndGet(bytes);
+            if (newUsed > limit) {
+                used.addAndGet(-bytes);
+                throw new CircuitBreakingException("test breaker tripped", bytes, limit, Durability.TRANSIENT);
+            }
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            used.addAndGet(bytes);
+        }
+
+        @Override
+        public long getUsed() {
+            return used.get();
+        }
+
+        @Override
+        public long getLimit() {
+            return limit;
+        }
+    }
+
+    private static void setTotalHits(SearchContext searchContext, int totalHits) {
+        searchContext.queryResult()
+            .topDocs(
+                new TopDocsAndMaxScore(new TopDocs(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                new DocValueFormat[0]
+            );
+    }
+
+    private static FetchPhase createSourceCopyingFetchPhase() {
+        return new FetchPhase(List.of(fetchContext -> new FetchSubPhaseProcessor() {
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) {}
+
+            @Override
+            public void process(FetchSubPhase.HitContext hitContext) {
+                Source source = hitContext.source();
+                hitContext.hit().sourceRef(source.internalSourceRef());
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NEEDS_SOURCE;
+            }
+        }));
+    }
+
+    private static FetchPhaseResponseChunk.Writer streamingWriter(PageCacheRecycler recycler, CircuitBreaker breaker) {
+        return new FetchPhaseResponseChunk.Writer() {
+            @Override
+            public void writeResponseChunk(FetchPhaseResponseChunk chunk, ActionListener<Void> listener) {
+                // Acknowledge immediately so streaming production runs to completion inline on the direct executor.
+                listener.onResponse(null);
+            }
+
+            @Override
+            public RecyclerBytesStreamOutput newNetworkBytesStream() {
+                return new RecyclerBytesStreamOutput(new BytesRefRecycler(recycler), breaker);
+            }
+        };
+    }
+
     public void testTimerStoppedAndSubPhasesExceptionsPropagate() throws IOException {
         // if the timer is not stopped properly whilst profiling the fetch phase the exceptions
         // in sub phases#setNextReader will not propagate as the cause that failed the fetch phase (instead a timer illegal state exception
@@ -1059,6 +1262,11 @@ public class FetchSearchPhaseTests extends ESTestCase {
             @Override
             public IdLoader newIdLoader() {
                 return new IdLoader.StoredIdLoader();
+            }
+
+            @Override
+            public SearchShardTarget shardTarget() {
+                return new SearchShardTarget("node", request.shardId(), null);
             }
 
             @Override

@@ -80,7 +80,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         );
         action = new TransportCancelRecoveriesAction(
             MockUtils.setupTransportServiceWithThreadpoolExecutor(),
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             clusterService,
             indicesService,
             throttlingRecoveryService

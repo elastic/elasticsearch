@@ -197,6 +197,9 @@ public abstract class LlamaServiceSettings extends FilteredXContentObject implem
             new ParseField(RateLimitSettings.FIELD_NAME),
             ObjectParser.ValueType.OBJECT_OR_NULL
         );
+        // api_key appears in the same JSON block as service settings in update requests; DefaultSecretSettings extracts it separately.
+        // Declare it here as a no-op so the strict update parser does not reject it as an unknown field.
+        parser.declareString((u, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
     }
 
     /**

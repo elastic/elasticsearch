@@ -207,6 +207,8 @@ tasks.named("yamlRestCompatTestTransform").configure(
     )
     task.skipTest("esql/180_match_operator/match on eval column", "Match works now with non-mapped columns")
     task.skipTest("esql/180_match_operator/match on overwritten column", "Match works now with non-mapped columns")
+    // Expected deprecation warning to compat yaml tests:
+    task.addAllowedWarningRegex("Legacy monitoring API _monitoring/bulk is deprecated for removal in Elasticsearch 10\\.0\\.")
   }
 )
 

@@ -33,6 +33,7 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FilterIterator;
+import org.apache.lucene.util.IOBooleanSupplier;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -305,7 +306,10 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     @Override
     public NumericDocValues getNumericDocValues(String field) throws IOException {
-        return hasField(field) ? super.getNumericDocValues(field) : null;
+        if (hasField(field) == false || isIgnoredSourceCountsField(field)) {
+            return null;
+        }
+        return super.getNumericDocValues(field);
     }
 
     @Override
@@ -327,6 +331,20 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     private boolean isIgnoredSourceDocValues(BinaryDocValues dv, String field) {
         return dv != null
             && IgnoredSourceFieldMapper.NAME.equals(field)
+            && ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
+    }
+
+    /**
+     * Returns whether this is the companion {@code .counts} field of the {@code _ignored_source} binary doc values.
+     * <p>
+     * These counts must be hidden from callers: {@link FilteredIgnoredSourceDocValues} re-encodes the surviving values in the
+     * {@link MultiValuedBinaryDocValuesField.IntegratedCount} format, but
+     * {@link MultiValuedSortedBinaryDocValues#fromMultiValued(LeafReader, String, BinaryDocValues)} picks the decoding format based on
+     * whether a {@code .counts} field is present. Leaving it visible makes the filtered payload be read as
+     * {@link MultiValuedBinaryDocValuesField.SeparateCount} against unfiltered counts, which mis-decodes the values.
+     */
+    private boolean isIgnoredSourceCountsField(String field) {
+        return (IgnoredSourceFieldMapper.NAME + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX).equals(field)
             && ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
     }
 
@@ -706,6 +724,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         @Override
         public boolean seekExact(BytesRef term) throws IOException {
             return accept(term) && in.seekExact(term);
+        }
+
+        @Override
+        public IOBooleanSupplier prepareSeekExact(BytesRef term) throws IOException {
+            // TermStates uses this method before seekExact(term, state), so the field filter must be applied at both stages.
+            return accept(term) ? in.prepareSeekExact(term) : null;
         }
 
         @Override

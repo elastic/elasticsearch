@@ -68,7 +68,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
@@ -727,7 +726,7 @@ public class InferencePlugin extends Plugin
         factories.add(context -> new Ai21Service(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new OpenShiftAiService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new NvidiaService(httpFactory.get(), serviceComponents.get(), context));
-        if (XPackSettings.MACHINE_LEARNING_ENABLED.get(settings) && XPackSettings.NLP_ENABLED.get(settings)) {
+        if (ElasticsearchInternalService.isSupported(settings)) {
             factories.add(ElasticsearchInternalService::new);
         }
         factories.add(context -> new CustomService(httpFactory.get(), serviceComponents.get(), context));

@@ -2,5 +2,5 @@ area: Distributed
 issues:
  - 151326
 pr: 156903
-summary: Fix synthetic id `seekCeil` skipper overshoot
+summary: Fix deletes silently skipped on TSDB indices that use synthetic `_id`
 type: bug

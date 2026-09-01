@@ -168,13 +168,6 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         // addresses_text: ref_employees (keyword) and ref_employees_gender_text (text) produce a
         // type conflict under ref_* wildcards, while cand_* consistently sees keyword in columnar.
         "employees_gender_text",
-        // Contains a `payload: text` field that survives columnar index creation (other fields
-        // provide doc_values) but causes the server to crash when queried in columnar mode.
-        // Until root-caused, exclude to prevent cluster instability during the generative test run.
-        "json_logs",
-        // Contains a `notes: text` field with the same issue as json_logs: cand_voyager creates
-        // successfully but querying it in columnar mode crashes the server.
-        "voyager",
         // Multi-value date fields (rows carry [1952,1962] and [2003,1998]) cause COUNT to diverge:
         // standard mode counts individual MV values while columnar mode counts documents. Same root
         // cause as all_types_mv (SearchContextStats#detectSingleValue + PushStatsToSource push

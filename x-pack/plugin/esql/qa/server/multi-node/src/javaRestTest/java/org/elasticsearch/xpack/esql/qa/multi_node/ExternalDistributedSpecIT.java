@@ -18,6 +18,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
@@ -46,7 +47,16 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
         }
     }
 
-    private static final List<String> DISTRIBUTION_MODES = List.of("coordinator_only", "round_robin", "adaptive");
+    /**
+     * The distribution modes this suite crosses, read from the contract rather than listed here.
+     *
+     * <p>The hard-coded list had drifted: it named coordinator_only, round_robin and adaptive, while
+     * dimension.distribution declares a fourth, weighted_round_robin. So the one mode most in need of a
+     * multi-node cluster had never run on one -- on a single node there is nothing to distribute to.
+     * Reading the declaration means a value added there is crossed here without an edit, and cannot be
+     * silently one short again.
+     */
+    private static final List<String> DISTRIBUTION_MODES = FixtureDimensions.get().values("distribution");
 
     private static final ElasticsearchCluster CLUSTER_INSTANCE = ExternalDistributedClusters.testCluster(() -> s3Fixture.getAddress());
 

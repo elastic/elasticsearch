@@ -114,6 +114,27 @@ tasks.named('javaRestTest') {
 
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'
+
+  // The external distributed spec suite crosses every routed case with every declared distribution mode
+  // on a MULTI-NODE cluster -- the most expensive shape we run, and it grows whenever a distribution
+  // value is declared. It belongs beside the other crossings in the nightly pipeline, not on the PR path.
+  filter { excludeTestsMatching '*ExternalDistributedSpecIT' }
+}
+
+// The multi-node external crossing. Deliberately NOT on `check`: a second cluster per case, crossed with
+// every declared distribution mode. Invoked by the esql-datasource-vectors-manual pipeline alongside the
+// single-node vector crossings, so both read the same contract and neither reaches a pull request.
+def distributedSpecTests = tasks.register('distributedSpecTests', StandaloneRestIntegTestTask) {
+  dependsOn generateParquetFixtures
+  usesDefaultDistribution("to be triaged")
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+  // Same reason the single-node vector tasks raise it: thousands of cases past randomizedtesting's 600s
+  // default. It lets the suite finish; it does not make it faster.
+  systemProperty 'tests.timeoutSuite', '3600000!'
+  filter { includeTestsMatching '*ExternalDistributedSpecIT' }
 }
 
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {

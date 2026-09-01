@@ -41,3 +41,17 @@ steps:
           image: family/elasticsearch-ubuntu-2404
           machineType: custom-32-98304
           buildDirectory: /dev/shm/bk
+
+      # The multi-node external crossing. Outside the matrix above because it lives in a different module
+      # and runs a SECOND CLUSTER per case -- the most expensive shape we have, and the only one that
+      # exercises distribution modes against something to actually distribute to. It was on the PR path
+      # until now, inside javaRestTest; it crosses every routed case with every declared distribution
+      # mode and grows whenever a value is added to dimension.distribution, so it belongs here.
+      - label: "multi-node / external distributed crossing"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:server:multi-node:distributedSpecTests
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk

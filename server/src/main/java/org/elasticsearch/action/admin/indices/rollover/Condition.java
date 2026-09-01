@@ -93,7 +93,19 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
      */
     @Override
     public final long ramBytesUsed() {
-        return RamUsageEstimator.shallowSizeOf(this) + RamUsageEstimator.sizeOf(name) + RamUsageEstimator.sizeOfObject(value);
+        return RamUsageEstimator.shallowSizeOf(this) + RamUsageEstimator.sizeOf(name) + sizeOfValue(value);
+    }
+
+    private static long sizeOfValue(Object value) {
+        if (value == null) {
+            return 0;
+        }
+        return switch (value) {
+            case Long l -> RamUsageEstimator.sizeOf(l);
+            case Integer i -> RamUsageEstimator.sizeOf(i);
+            case Accountable a -> a.ramBytesUsed();
+            default -> RamUsageEstimator.shallowSizeOf(value);
+        };
     }
 
     /**

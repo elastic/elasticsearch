@@ -133,7 +133,7 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
         verify(listener).onFailure(assertArg(e -> {
             assertThat(e, isA(UnifiedChatCompletionException.class));
             assertThat(((UnifiedChatCompletionException) e).status(), is(RestStatus.BAD_REQUEST));
-            assertThat(e.getMessage(), containsString("does not support non-streaming chat_completion"));
+            assertThat(e.getMessage(), containsString("does not support non-streaming for the chat completion task type"));
         }));
     }
 

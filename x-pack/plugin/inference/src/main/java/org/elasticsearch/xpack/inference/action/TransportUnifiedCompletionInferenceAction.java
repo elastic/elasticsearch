@@ -82,7 +82,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
         if (request.isStreaming() == false && service.supportsNonStreamingChatCompletion() == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "The [{}] service does not support non-streaming chat_completion",
+                    "The [{}] service does not support non-streaming for the chat completion task type",
                     RestStatus.BAD_REQUEST,
                     service.name()
                 )

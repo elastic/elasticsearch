@@ -1,0 +1,90 @@
+// Tests for the PromQL limit_ratio() function.
+//
+// limit_ratio(r, v) returns ceil(r * N) arbitrary elements from N series, preserving full label
+// identity. Selection uses a streaming Bresenham counter: a row is accepted when
+//   ratio * (total + 1) > accepted
+// giving ceil(r * N) rows in storage (tsid) order with no buffering.
+//
+// The k8s prod cluster has three pods in tsid order: pod=one (947), pod=two (10277),
+// pod=three (9969). All expected values are derived from the acceptance formula above.
+
+// r=1.0: shortcut path; every series is accepted unconditionally.
+limit_ratio_r_one
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(limit_ratio(1.0, network.total_bytes_in{cluster="prod"}))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+;
+
+// r=0.0: 0.0 * (total+1) = 0 which is never > accepted (>= 0), so no row is accepted.
+limit_ratio_r_zero
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(limit_ratio(0.0, network.total_bytes_in{cluster="prod"}))
+| SORT result;
+
+result:double | step:datetime | _timeseries:keyword
+;
+
+// r=0.5, 3 prod series: Bresenham trace
+//   pod=one:   0.5*(0+1)=0.5 > 0 -> ACCEPT  (total=1, accepted=1)
+//   pod=two:   0.5*(1+1)=1.0 > 1? no -> SKIP (total=2, accepted=1)
+//   pod=three: 0.5*(2+1)=1.5 > 1 -> ACCEPT  (total=3, accepted=2)
+// Result: pod=one (947) and pod=three (9969).
+limit_ratio_bare
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.total_bytes_in{cluster="prod"}))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+;
+
+// r=0.5 evaluated per step.
+// step 00:20: only pod=three has samples in the 5-min window; 1 series -> ceil(0.5)=1, accepted.
+// step 00:25: pod=one and pod=two have samples; 2 series:
+//   pod=one:  0.5*(0+1)=0.5 > 0 -> ACCEPT
+//   pod=two:  0.5*(1+1)=1.0 > 1? no -> SKIP
+limit_ratio_multi_step
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(limit_ratio(0.5, network.total_bytes_in{cluster="prod"}))
+| SORT step, result;
+
+result:double | step:datetime            | _timeseries:keyword
+9969.0        | 2024-05-10T00:20:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+947.0         | 2024-05-10T00:25:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+;
+
+// `by (pod)` partitions the ratio across all clusters. r=1.0 returns every series in each group,
+// making the result independent of storage order. Full identity is preserved.
+limit_ratio_by_grouping
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(limit_ratio(1.0, network.total_bytes_in) by (pod))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+5187.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+6637.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+7286.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+7403.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+8568.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+10797.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+;

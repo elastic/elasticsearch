@@ -1,5 +1,5 @@
 area: Machine Learning
 issues: []
 pr: 157565
-summary: Re-audit datafeed extraction errors periodically
+summary: Re-audit repeated datafeed extraction errors instead of reporting once
 type: bug

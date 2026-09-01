@@ -24,12 +24,12 @@ import java.util.concurrent.Flow;
 import static org.elasticsearch.xpack.core.inference.DequeUtils.dequeEquals;
 import static org.elasticsearch.xpack.core.inference.DequeUtils.dequeHashCode;
 import static org.elasticsearch.xpack.core.inference.DequeUtils.readDeque;
-import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResults.COMPLETION;
+import static org.elasticsearch.xpack.core.inference.results.CompletionResults.COMPLETION;
 
 /**
  * Chat Completion results that only contain a Flow.Publisher.
  */
-public record StreamingChatCompletionResults(Flow.Publisher<? extends InferenceServiceResults.Result> publisher)
+public record StreamingCompletionResults(Flow.Publisher<? extends InferenceServiceResults.Result> publisher)
     implements
         InferenceServiceResults {
 

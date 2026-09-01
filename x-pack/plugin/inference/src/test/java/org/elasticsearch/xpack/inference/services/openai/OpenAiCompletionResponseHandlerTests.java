@@ -23,7 +23,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class OpenAiChatCompletionResponseHandlerTests extends ESTestCase {
+public class OpenAiCompletionResponseHandlerTests extends ESTestCase {
 
     public void testHandle429InputAndOutputTokensTooLarge_ThrowWithoutRetrying() {
         String responseBody = """
@@ -50,7 +50,7 @@ public class OpenAiChatCompletionResponseHandlerTests extends ESTestCase {
 
         var mockRequest = RequestTests.mockRequest("id");
         var httpResult = new HttpResult(httpResponse, responseBodyStream.readAllBytes());
-        var handler = new OpenAiChatCompletionResponseHandler("", (request, result) -> null);
+        var handler = new OpenAiCompletionResponseHandler("", (request, result) -> null);
 
         var retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
 

@@ -7,8 +7,8 @@
 //                           rows: charlie(50, paris), dave(60, london)
 // The mixed-temporal (ts:date/date_nanos) and lossy-representation (code:integer/keyword) columns live in the
 // SEPARATE {{employees_multifile_temporal}} and {{employees_multifile_type_drift}} fixtures, used only by the
-// parquetUbnMixedTemporal* / parquetUbnMixedRepresentation tests below, so they do not perturb this fixture's
-// first-file-wins and widened-column tests.
+// parquetUbnMixedTemporal* / parquetUbnMixedRepresentation* / parquetUbnFilterTypeDriftedColumn tests below,
+// so they do not perturb this fixture's first-file-wins and widened-column tests.
 //
 // Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. ParquetFormatSpecIT
 // registers the dataset on every storage backend and runs the FROM query verbatim. The dataset name encodes
@@ -98,6 +98,25 @@ warningRegex:Schema reconciliation widened columns to keyword due to cross-file 
 
 lo:keyword | hi:keyword
 10         | 9
+;
+
+// Filter on the type-drifted `code` column: INTEGER in A {2,9}, KEYWORD in B {10,11}, widened to
+// KEYWORD. UNION_BY_NAME remints withPushedFilter(null) on the INT file; that clear must stick so
+// FilterExec re-applies lexicographically on the unified page. "9" > "5"; "2"/"10"/"11" do not.
+parquetUbnFilterTypeDriftedColumn
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: employees_type_drift_union: "{{employees_multifile_type_drift}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_type_drift_union
+| WHERE code > "5"
+| KEEP id, code
+| SORT id ASC;
+warningRegex:Column \[code\] widened to keyword:.*distinct types: \[integer, keyword\]
+warningRegex:Schema reconciliation widened columns to keyword due to cross-file type disagreement.*
+
+id:integer | code:keyword
+2          | 9
 ;
 
 parquetUbnFilterWidenedColumn

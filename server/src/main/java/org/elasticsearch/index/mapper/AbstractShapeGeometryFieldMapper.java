@@ -102,20 +102,16 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             }
         }
 
-        private static class BoundsReader implements BlockLoader.ColumnAtATimeReader {
+        private static class BoundsReader extends BlockDocValuesReader {
             private final GeometryDocValueReader reader = new GeometryDocValueReader();
-            private final CircuitBreaker breaker;
             /**
-             * Forward-only iterator, so it is what makes this reader unable to revisit a document. See {@link #canReuse}.
+             * Forward-only, so this reader cannot revisit a document. See {@link #canReuse}.
              */
             private final BinaryDocValues binaryDocValues;
-            private final Thread creationThread;
-            private int docId = -1;
 
             private BoundsReader(CircuitBreaker breaker, BinaryDocValues binaryDocValues) {
-                this.breaker = breaker;
+                super(breaker);
                 this.binaryDocValues = binaryDocValues;
-                this.creationThread = Thread.currentThread();
             }
 
             @Override
@@ -130,8 +126,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             }
 
             private void read(int doc, BlockLoader.IntBuilder builder) throws IOException {
-                assert doc >= docId : "docs must be read in order, got [" + doc + "] after [" + docId + "]";
-                docId = doc;
+                assert doc >= docId() : "docs must be read in order, got [" + doc + "] after [" + docId() + "]";
                 if (binaryDocValues.advanceExact(doc) == false) {
                     builder.appendNull();
                     return;
@@ -141,8 +136,13 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             }
 
             @Override
-            public boolean canReuse(int startingDocID) {
-                return creationThread == Thread.currentThread() && docId <= startingDocID;
+            protected int docId() {
+                return binaryDocValues.docID();
+            }
+
+            @Override
+            public String toString() {
+                return "ShapeBounds";
             }
 
             private void writeExtent(BlockLoader.IntBuilder builder, Extent extent) {
@@ -193,22 +193,18 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             }
         }
 
-        private static class CentroidReader implements BlockLoader.ColumnAtATimeReader {
+        private static class CentroidReader extends BlockDocValuesReader {
             private final GeometryDocValueReader reader = new GeometryDocValueReader();
-            private final CircuitBreaker breaker;
             /**
-             * Forward-only iterator, so it is what makes this reader unable to revisit a document. See {@link #canReuse}.
+             * Forward-only, so this reader cannot revisit a document. See {@link #canReuse}.
              */
             private final BinaryDocValues binaryDocValues;
             private final CoordinateEncoder encoder;
-            private final Thread creationThread;
-            private int docId = -1;
 
             private CentroidReader(CircuitBreaker breaker, BinaryDocValues binaryDocValues, CoordinateEncoder encoder) {
-                this.breaker = breaker;
+                super(breaker);
                 this.binaryDocValues = binaryDocValues;
                 this.encoder = encoder;
-                this.creationThread = Thread.currentThread();
             }
 
             @Override
@@ -223,8 +219,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             }
 
             private void read(int doc, BlockLoader.DoubleBuilder builder) throws IOException {
-                assert doc >= docId : "docs must be read in order, got [" + doc + "] after [" + docId + "]";
-                docId = doc;
+                assert doc >= docId() : "docs must be read in order, got [" + doc + "] after [" + docId() + "]";
                 if (binaryDocValues.advanceExact(doc) == false) {
                     builder.appendNull();
                     return;
@@ -234,8 +229,13 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             }
 
             @Override
-            public boolean canReuse(int startingDocID) {
-                return creationThread == Thread.currentThread() && docId <= startingDocID;
+            protected int docId() {
+                return binaryDocValues.docID();
+            }
+
+            @Override
+            public String toString() {
+                return "ShapeCentroid";
             }
 
             private void writeCentroid(BlockLoader.DoubleBuilder builder) throws IOException {
@@ -300,17 +300,14 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             }
         }
 
-        private static class BoundsAndCentroidReader implements BlockLoader.ColumnAtATimeReader {
+        private static class BoundsAndCentroidReader extends BlockDocValuesReader {
             private final GeometryDocValueReader reader = new GeometryDocValueReader();
-            private final CircuitBreaker breaker;
             /**
-             * Forward-only iterator, so it is what makes this reader unable to revisit a document. See {@link #canReuse}.
+             * Forward-only, so this reader cannot revisit a document. See {@link #canReuse}.
              */
             private final BinaryDocValues binaryDocValues;
             private final CoordinateEncoder encoder;
             private final BoundsAndCentroidBlockLoader loader;
-            private final Thread creationThread;
-            private int docId = -1;
 
             private BoundsAndCentroidReader(
                 CircuitBreaker breaker,
@@ -318,11 +315,10 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                 CoordinateEncoder encoder,
                 BoundsAndCentroidBlockLoader loader
             ) {
-                this.breaker = breaker;
+                super(breaker);
                 this.binaryDocValues = binaryDocValues;
                 this.encoder = encoder;
                 this.loader = loader;
-                this.creationThread = Thread.currentThread();
             }
 
             @Override
@@ -337,8 +333,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             }
 
             private void read(int doc, BlockLoader.DoubleBuilder builder) throws IOException {
-                assert doc >= docId : "docs must be read in order, got [" + doc + "] after [" + docId + "]";
-                docId = doc;
+                assert doc >= docId() : "docs must be read in order, got [" + doc + "] after [" + docId() + "]";
                 if (binaryDocValues.advanceExact(doc) == false) {
                     builder.appendNull();
                     return;
@@ -348,8 +343,13 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             }
 
             @Override
-            public boolean canReuse(int startingDocID) {
-                return creationThread == Thread.currentThread() && docId <= startingDocID;
+            protected int docId() {
+                return binaryDocValues.docID();
+            }
+
+            @Override
+            public String toString() {
+                return "ShapeBoundsAndCentroid";
             }
 
             private void writeBoundsAndCentroid(BlockLoader.DoubleBuilder builder, Extent extent) throws IOException {

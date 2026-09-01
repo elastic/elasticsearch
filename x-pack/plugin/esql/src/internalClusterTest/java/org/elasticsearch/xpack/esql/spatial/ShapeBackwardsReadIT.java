@@ -7,25 +7,25 @@
 
 package org.elasticsearch.xpack.esql.spatial;
 
-import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.not;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * A {@code SORT}/{@code LIMIT} makes {@code LuceneTopNSourceOperator} emit pages in sort order, so a later page can start behind a
@@ -35,15 +35,30 @@ import static org.hamcrest.Matchers.not;
  * compressed blocks, so revisiting an earlier document resolved against the still-loaded later block and threw
  * {@link ArrayIndexOutOfBoundsException} for a negative block-relative index.
  * <p>
- * {@code @SuppressCodecs("*")} matters: {@link org.elasticsearch.test.ESIntegTestCase} otherwise forces
- * {@code index.codec=lucene_default} through its random index template, which bypasses {@code PerFieldFormatSupplier} and therefore
- * never selects the TSDB doc values format these readers need in order to reproduce the failure.
+ * Three preconditions are load-bearing and each is asserted rather than assumed, because if any silently fails the queries all pass
+ * while never reaching {@code canReuse}:
+ * <ul>
+ *     <li>{@code index.codec} must be a real Elasticsearch codec. {@link org.elasticsearch.test.ESIntegTestCase} puts
+ *     {@code index.codec=lucene_default} on its random index template, which bypasses {@code PerFieldFormatSupplier} and so never
+ *     selects the TSDB doc values format. The create-request setting below overrides the template
+ *     ({@code MetadataCreateIndexService} applies request settings last).</li>
+ *     <li>{@code page_size} must be well below the query {@code LIMIT}, or the whole TopN result arrives as one page and no reader is
+ *     ever handed a document it has passed. {@link #getPragmas()} pins it; {@code randomPragmas()} can otherwise pick a page size
+ *     larger than the limit.</li>
+ *     <li>The index must be one segment, or {@code ValuesSourceReaderOperator} takes the many-segments path, which consults
+ *     {@code positionFieldWorkDocGuaranteedAscending} and never calls {@code canReuse} at all.</li>
+ * </ul>
+ * <p>
+ * If this test fails, expect the unhelpful message {@code AssertionError: timeout} rather than a description of the backwards read.
+ * Assertions are enabled on test nodes, so the reader's order assert (or the one in {@code AbstractTSDBDocValuesProducer}) fires first,
+ * and an {@link AssertionError} is an {@link Error}: nothing in {@code compute/operator} catches {@link Throwable}, so it escapes to the
+ * thread pool's uncaught handler and the query's listener never completes. Re-run with {@code -Dtests.asserts=false} to see the
+ * underlying {@link ArrayIndexOutOfBoundsException} and its negative index, which names the block and the document.
  */
-@SuppressCodecs("*")
 public class ShapeBackwardsReadIT extends AbstractEsqlIntegTestCase {
 
-    /** Enough documents, with fat enough geometries, to spill the binary doc values across several compressed blocks. */
     private static final int NUM_DOCS = 6000;
+    private static final int LIMIT = 5000;
     private static final int VERTICES = 60;
 
     @Override
@@ -51,77 +66,85 @@ public class ShapeBackwardsReadIT extends AbstractEsqlIntegTestCase {
         return List.of(SpatialPlugin.class, TestEncryptionServicePlugin.class, EsqlPluginWithEnterpriseOrTrialLicense.class);
     }
 
+    @Override
+    protected QueryPragmas getPragmas() {
+        // Must stay well under LIMIT so the TopN result spans several pages; that is what lets a reader be reused for an earlier doc.
+        return new QueryPragmas(Settings.builder().put(QueryPragmas.PAGE_SIZE.getKey(), 512).build());
+    }
+
     /**
-     * {@code columnar} index mode enables the TSDB doc values format by default and routes {@code shape} value reads through
-     * {@code GeometrySourceBlockLoader}, so a plain {@code KEEP} after a {@code SORT} is enough.
+     * One query per affected reader. {@code columnar} index mode enables the TSDB doc values format by default and routes {@code shape}
+     * value reads through {@code GeometrySourceBlockLoader}, so a plain {@code KEEP} after a {@code SORT} reaches it.
      */
     public void testShapeReadsAfterTopNOnColumnarIndex() throws Exception {
         String index = "shape_columnar";
-        createShapeIndex(index, Settings.builder().put("index.mode", "columnar").put("index.codec", "default"));
+        createShapeIndex(index);
 
-        assertQueriesSucceed(
-            index,
-            "SORT sort_key | LIMIT 5000 | KEEP location",
-            "SORT sort_key DESC | LIMIT 5000 | KEEP location",
-            "SORT sort_key | LIMIT 5000 | EVAL wkt = TO_STRING(location) | KEEP wkt",
-            "SORT sort_key | LIMIT 5000 | STATS extent = ST_EXTENT_AGG(location)",
-            "SORT sort_key | LIMIT 5000 | STATS centroid = ST_CENTROID_AGG(location)",
-            "SORT sort_key | LIMIT 5000 | STATS e = ST_EXTENT_AGG(location), c = ST_CENTROID_AGG(location)"
-        );
+        // GeometrySourceReader: also checks the values, so a silent wrong-document read cannot pass.
+        assertDistinctGeometries(index, "SORT sort_key | LIMIT " + LIMIT + " | KEEP location");
+        // BoundsReader, CentroidReader, BoundsAndCentroidReader.
+        assertRows(index, "SORT sort_key | LIMIT " + LIMIT + " | STATS extent = ST_EXTENT_AGG(location)", 1);
+        assertRows(index, "SORT sort_key | LIMIT " + LIMIT + " | STATS centroid = ST_CENTROID_AGG(location)", 1);
+        assertRows(index, "SORT sort_key | LIMIT " + LIMIT + " | STATS e = ST_EXTENT_AGG(location), c = ST_CENTROID_AGG(location)", 1);
+    }
+
+    private void assertRows(String index, String tail, int expectedRows) {
+        String query = "FROM " + index + " | " + tail;
+        List<List<Object>> values;
+        try (var resp = run(query)) {
+            values = getValuesList(resp.values());
+        }
+        assertThat(query, values.size(), equalTo(expectedRows));
     }
 
     /**
-     * Runs every query and reports all of them, rather than stopping at the first, so a partial regression cannot hide behind an
-     * earlier failure.
+     * Every document carries a distinct geometry, so reading the wrong document shows up as a duplicate even when nothing throws --
+     * the silent manifestation of a backwards read, which is what happens on formats that address binary doc values randomly.
      */
-    private void assertQueriesSucceed(String index, String... tails) {
-        List<String> failures = new ArrayList<>();
-        for (String tail : tails) {
-            String query = "FROM " + index + " | " + tail;
-            try (var resp = run(query)) {
-                assertThat(resp.columns(), not(empty()));
-            } catch (Exception e) {
-                Throwable root = e;
-                while (root.getCause() != null) {
-                    root = root.getCause();
+    private void assertDistinctGeometries(String index, String tail) {
+        String query = "FROM " + index + " | " + tail;
+        List<List<Object>> values;
+        try (var resp = run(query)) {
+            values = getValuesList(resp.values());
+        }
+        assertThat(query, values.size(), equalTo(LIMIT));
+        Set<Object> distinct = new HashSet<>();
+        for (List<Object> row : values) {
+            distinct.add(row.getFirst());
+        }
+        assertThat(query + " returned a document's geometry more than once", distinct.size(), equalTo(LIMIT));
+    }
+
+    private void createShapeIndex(String index) throws Exception {
+        assertAcked(
+            prepareCreate(index).setSettings(
+                Settings.builder()
+                    .put("index.mode", "columnar")
+                    // See the class javadoc: the random index template would otherwise pin lucene_default.
+                    .put("index.codec", "default")
+                    .put("index.number_of_shards", 1)
+                    .build()
+            ).setMapping("""
+                {
+                  "properties" : {
+                    "location": { "type" : "shape" },
+                    "sort_key": { "type" : "long" }
+                  }
                 }
-                failures.add(tail + " -> " + root.getClass().getSimpleName() + ": " + root.getMessage());
-            }
-        }
-        assertThat("queries must not fail on a reused reader", failures, empty());
-    }
+                """)
+        );
 
-    private void createShapeIndex(String index, Settings.Builder settings) throws Exception {
-        assertAcked(prepareCreate(index).setSettings(settings.put("index.number_of_shards", 1).build()).setMapping("""
-            {
-              "properties" : {
-                "location": { "type" : "shape" },
-                "sort_key": { "type" : "long" }
-              }
-            }
-            """));
-
-        List<IndexRequest> batch = new ArrayList<>();
+        List<IndexRequestBuilder> docs = new ArrayList<>(NUM_DOCS);
         for (int i = 0; i < NUM_DOCS; i++) {
-            batch.add(new IndexRequest(index).id(Integer.toString(i)).source("location", polygon(i), "sort_key", scrambled(i)));
-            if (batch.size() == 500) {
-                indexBatch(batch);
-                batch = new ArrayList<>();
-            }
+            docs.add(prepareIndex(index).setId(Integer.toString(i)).setSource("location", polygon(i), "sort_key", scrambled(i)));
         }
-        if (batch.isEmpty() == false) {
-            indexBatch(batch);
-        }
-        // One segment, so the reader is retained across pages instead of being dropped at a segment boundary.
-        client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
-        client().admin().indices().prepareRefresh(index).get();
-        ensureYellow(index);
-    }
+        // indexRandom asserts that no document failed to index; a mapping rejection would otherwise leave an empty index on which
+        // every query below trivially passes.
+        indexRandom(true, false, docs);
+        assertHitCount(prepareSearch(index).setSize(0), NUM_DOCS);
 
-    private void indexBatch(List<IndexRequest> batch) {
-        BulkRequestBuilder bulk = client().prepareBulk();
-        batch.forEach(bulk::add);
-        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE).get();
+        // Asserts no shard failed and that each shard really ended up with a single segment.
+        forceMerge(true);
     }
 
     /** Uncorrelated with the document id, so sorting on it genuinely shuffles documents across pages. */
@@ -129,8 +152,9 @@ public class ShapeBackwardsReadIT extends AbstractEsqlIntegTestCase {
         return (i * 2654435761L) % 1000003L;
     }
 
+    /** A regular {@link #VERTICES}-gon whose centre is unique per document, so no two documents share a geometry. */
     private static String polygon(int i) {
-        double cx = i % 100;
+        double cx = (i % 100) + (i / 100) * 0.001;
         double cy = i % 50;
         double r = 0.4;
         StringBuilder sb = new StringBuilder("POLYGON((");
@@ -139,7 +163,7 @@ public class ShapeBackwardsReadIT extends AbstractEsqlIntegTestCase {
             if (v > 0) {
                 sb.append(", ");
             }
-            sb.append(String.format(Locale.ROOT, "%.6f %.6f", cx + r * Math.cos(angle), cy + r * Math.sin(angle)));
+            sb.append(cx + r * Math.cos(angle)).append(' ').append(cy + r * Math.sin(angle));
         }
         return sb.append("))").toString();
     }

@@ -147,7 +147,6 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryListener;
-import org.elasticsearch.indices.recovery.RecoveryStateFactory;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
 import org.elasticsearch.node.Node;
@@ -273,7 +272,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final MetaStateService metaStateService;
     private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
-    private final Map<String, RecoveryStateFactory> recoveryStateFactories;
+    private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListeners;
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
     private final CountDownLatch stopLatch = new CountDownLatch(1);

@@ -160,7 +160,6 @@ import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryStateFactory;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -341,7 +340,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @SuppressWarnings("this-escape")
     public IndexShard(
         final ShardRouting shardRouting,
-        final RecoveryStateFactory recoveryStateFactory,
+        final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         final DiscoveryNode localNode,
         @Nullable final DiscoveryNode sourceNode,
         final IndexSettings indexSettings,

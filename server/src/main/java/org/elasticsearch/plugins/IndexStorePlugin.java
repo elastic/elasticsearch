@@ -10,7 +10,9 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -18,7 +20,7 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
-import org.elasticsearch.indices.recovery.RecoveryStateFactory;
+import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -66,6 +68,21 @@ public interface IndexStorePlugin {
      * @return a map from store type to an directory factory
      */
     Map<String, DirectoryFactory> getDirectoryFactories();
+
+    /**
+     * An interface that allows to create a new {@link RecoveryState} per shard.
+     */
+    @FunctionalInterface
+    interface RecoveryStateFactory {
+        /**
+         * Creates a new {@link RecoveryState} for the given shard. Called once per shard at creation time.
+         *
+         * @param shardRouting the routing entry for the shard being created
+         * @param localNode    the node on which the shard is being created
+         * @param sourceNode   the node from which the shard is being recovered, or {@code null} for non-peer recoveries
+         */
+        RecoveryState newRecoveryState(ShardRouting shardRouting, DiscoveryNode localNode, @Nullable DiscoveryNode sourceNode);
+    }
 
     /**
      * The {@link RecoveryStateFactory} mappings for this plugin. When an index is created the recovery type setting

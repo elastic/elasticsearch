@@ -64,7 +64,6 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryStateFactory;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -109,7 +108,7 @@ public final class IndexModule {
 
     private static final FsDirectoryFactory DEFAULT_DIRECTORY_FACTORY = new FsDirectoryFactory();
 
-    private static final RecoveryStateFactory DEFAULT_RECOVERY_STATE_FACTORY = RecoveryState::new;
+    private static final IndexStorePlugin.RecoveryStateFactory DEFAULT_RECOVERY_STATE_FACTORY = RecoveryState::new;
 
     public static final Setting<String> INDEX_STORE_TYPE_SETTING = Setting.simpleString(
         "index.store.type",
@@ -191,7 +190,7 @@ public final class IndexModule {
     private final IndexNameExpressionResolver expressionResolver;
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final BooleanSupplier allowExpensiveQueries;
-    private final Map<String, RecoveryStateFactory> recoveryStateFactories;
+    private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
     private final SetOnce<MutableOperationGate> mutableOperationGate = new SetOnce<>();
     private final MapperMetrics mapperMetrics;
@@ -217,7 +216,7 @@ public final class IndexModule {
         final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
-        final Map<String, RecoveryStateFactory> recoveryStateFactories,
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         final ActionLoggingFieldsProvider loggingFieldsProvider,
         final MapperMetrics mapperMetrics,
         final List<SearchOperationListener> searchOperationListeners,
@@ -524,7 +523,7 @@ public final class IndexModule {
             .get() == null ? (shard) -> null : indexReaderWrapper.get();
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
-        final RecoveryStateFactory recoveryStateFactory = getRecoveryStateFactory(indexSettings, recoveryStateFactories);
+        final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory = getRecoveryStateFactory(indexSettings, recoveryStateFactories);
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier = getSnapshotCommitSupplier(
             indexSettings,
             snapshotCommitSuppliers
@@ -643,9 +642,9 @@ public final class IndexModule {
         return factory;
     }
 
-    private static RecoveryStateFactory getRecoveryStateFactory(
+    private static IndexStorePlugin.RecoveryStateFactory getRecoveryStateFactory(
         final IndexSettings indexSettings,
-        final Map<String, RecoveryStateFactory> recoveryStateFactories
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories
     ) {
         final String recoveryType = indexSettings.getValue(INDEX_RECOVERY_TYPE_SETTING);
 
@@ -653,7 +652,7 @@ public final class IndexModule {
             return DEFAULT_RECOVERY_STATE_FACTORY;
         }
 
-        RecoveryStateFactory factory = recoveryStateFactories.get(recoveryType);
+        IndexStorePlugin.RecoveryStateFactory factory = recoveryStateFactories.get(recoveryType);
         if (factory == null) {
             throw new IllegalArgumentException("Unknown recovery type [" + recoveryType + "]");
         }

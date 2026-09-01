@@ -55,7 +55,6 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.recovery.RecoveryStateFactory;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
@@ -616,8 +615,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
-        final Map<String, RecoveryStateFactory> factories = new HashMap<>();
+    public Map<String, IndexStorePlugin.RecoveryStateFactory> getRecoveryStateFactories() {
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> factories = new HashMap<>();
         filterPlugins(IndexStorePlugin.class).forEach(p -> factories.putAll(p.getRecoveryStateFactories()));
         return factories;
     }

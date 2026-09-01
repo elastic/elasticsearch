@@ -91,7 +91,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.recovery.RecoveryStateFactory;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -132,7 +131,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ShardStoreDeleter shardStoreDeleter;
     private final IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener;
     private final IndexStorePlugin.DirectoryFactory directoryFactory;
-    private final RecoveryStateFactory recoveryStateFactory;
+    private final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory;
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final Engine.IndexCommitListener indexCommitListener;
@@ -208,7 +207,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         BooleanSupplier allowExpensiveQueries,
         IndexNameExpressionResolver expressionResolver,
         ValuesSourceRegistry valuesSourceRegistry,
-        RecoveryStateFactory recoveryStateFactory,
+        IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         Engine.IndexCommitListener indexCommitListener,
@@ -755,7 +754,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     // visible for testing
-    RecoveryStateFactory getRecoveryStateFactory() {
+    IndexStorePlugin.RecoveryStateFactory getRecoveryStateFactory() {
         return recoveryStateFactory;
     }
 

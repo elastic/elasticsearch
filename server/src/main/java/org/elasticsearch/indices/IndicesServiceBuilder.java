@@ -35,7 +35,6 @@ import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.recovery.RecoveryStateFactory;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
@@ -81,7 +80,7 @@ public class IndicesServiceBuilder {
     Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories = Map.of();
     @Nullable
     ValuesSourceRegistry valuesSourceRegistry;
-    Map<String, RecoveryStateFactory> recoveryStateFactories = Map.of();
+    Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = Map.of();
     List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners = List.of();
     Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers = Map.of();
     @Nullable

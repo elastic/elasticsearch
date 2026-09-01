@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryStateFactory;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.test.ESTestCase;
 
@@ -69,7 +68,7 @@ public class IndexStorePluginTests extends ESTestCase {
         }
 
         @Override
-        public Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
+        public Map<String, IndexStorePlugin.RecoveryStateFactory> getRecoveryStateFactories() {
             return Collections.singletonMap("recovery-type", new RecoveryFactory());
         }
     }
@@ -81,12 +80,12 @@ public class IndexStorePluginTests extends ESTestCase {
         }
 
         @Override
-        public Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
+        public Map<String, IndexStorePlugin.RecoveryStateFactory> getRecoveryStateFactories() {
             return Collections.singletonMap("recovery-type", new RecoveryFactory());
         }
     }
 
-    public static class RecoveryFactory implements RecoveryStateFactory {
+    public static class RecoveryFactory implements IndexStorePlugin.RecoveryStateFactory {
         @Override
         public RecoveryState newRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, DiscoveryNode sourceNode) {
             return new RecoveryState(shardRouting, targetNode, sourceNode);

@@ -93,7 +93,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryStateFactory;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ReaderContext;
@@ -696,7 +695,7 @@ public class IndexModuleTests extends ESTestCase {
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
 
         RecoveryState recoveryState = mock(RecoveryState.class);
-        final Map<String, RecoveryStateFactory> recoveryStateFactories = singletonMap(
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = singletonMap(
             "test_recovery",
             (shardRouting, targetNode, sourceNode) -> recoveryState
         );

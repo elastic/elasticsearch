@@ -254,8 +254,6 @@ To set the default timezone for the query, use the `time_zone` parameter in the 
 
 This parameter accepts both an offset (e.g. `+01:00`) or a timezone ID (e.g. `Europe/Paris`).
 
-The timezone can also be set with `SET` in the query, or given a cluster-wide default. Refer to [{{esql}} query settings](/reference/query-languages/esql/esql-query-settings.md) for the full order of precedence.
-
 This will affect the following:
 
 - Functions working with dates, like `DATE_DIFF`, will use it if possible.

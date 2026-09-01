@@ -979,25 +979,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * How a declared (by-name) schema is bound to ONE file: the raw field index each declared column reads, and the
-     * file's own column count, which bounds how wide a row of that file may be.
+     * How a declared (by-name) schema binds to ONE file: the raw field index per declared column
+     * ({@link #ABSENT_FIELD} where the file lacks it), and the file's own column count.
      *
-     * <p>The two travel together because they are one fact derived from one header, and because a binding route that
-     * supplied the index without the width would silently disable row-width validation — the defect this type exists
-     * to make unrepresentable (esql-planning#1842).
-     *
-     * @param fieldIndex      raw field index per declared schema position, {@link #ABSENT_FIELD} where the file has no
-     *                        such column
-     * @param fileColumnCount the file's own column count, or {@link #NO_FILE_WIDTH} for a headerless file
+     * <p>They travel together because a route that supplied the index without the width would silently disable
+     * row-width validation — esql-planning#1842, which this type exists to make unrepresentable.
      */
     private record DeclaredBinding(int[] fieldIndex, int fileColumnCount) {
-        /**
-         * A headerless file's physical names ARE positions ({@code col4} -> field 4), so it declares no width of its
-         * own and a row wider than any other cannot be told apart from a legitimately wide file.
-         */
+        /** A headerless file's names ARE positions ({@code col4} -> field 4), so it states no width to bound rows by. */
         static final int NO_FILE_WIDTH = Integer.MAX_VALUE;
 
-        /** A binding to a headerless file, which supplies no width of its own. */
         static DeclaredBinding headerless(int[] fieldIndex) {
             return new DeclaredBinding(fieldIndex, NO_FILE_WIDTH);
         }
@@ -3108,27 +3099,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final int[] schemaFieldIndex;
         private int[] projectedIdx;
         /**
-         * Widest row this schema accepts before it reads as drift. The bound is always the FILE's own width; the three
-         * bindings differ only in where that width comes from:
-         * <ul>
-         * <li>positional (inferred provenance, {@code schemaFieldIndex == null}) — {@code schema.size()}, which IS the
-         * header's width because inference derived the schema from that header.</li>
-         * <li>declared provenance over a headered file — the header's field count ({@link #declaredFileColumnCount}).
-         * A declaration NARROWER or WIDER than the file stays legitimate (name 5 columns of a 105-column file): the
-         * bound is the file's width, never the declaration's. What it rejects is a ROW wider than the file's own
-         * header, which is drift the inference path rejects on the same file — that parity is the point.</li>
-         * <li>declared provenance over a headerless file — {@link DeclaredBinding#NO_FILE_WIDTH}. A headerless file's physical
-         * names ARE positions ({@code col4} -> field 4), so it defines no width of its own and a wide row cannot be
-         * told apart from a legitimately wide file.</li>
-         * </ul>
-         * Rows too NARROW to hold a bound index are not this field's concern — the short-row handling null-fills them.
+         * Widest row this schema accepts before it reads as drift — always the FILE's own width, never the
+         * declaration's, so naming 5 columns of a 105-column file still bounds rows at 105. Positional binding takes
+         * {@code schema.size()} (which IS the header's width, inference having derived it from that header); declared
+         * binding takes {@link #declaredFileColumnCount}. Short rows are not this field's concern — they null-fill.
          */
         private int rowWidthLimit;
-        /**
-         * The bound file's own column count under declared binding, {@link DeclaredBinding#NO_FILE_WIDTH} otherwise.
-         * Its own field only because the width is known at bind time and consumed at projection time; it is never read
-         * except to resolve {@link #rowWidthLimit}.
-         */
+        /** The bound file's column count, or {@link DeclaredBinding#NO_FILE_WIDTH}; resolves {@link #rowWidthLimit}. */
         private final int declaredFileColumnCount;
         /**
          * One past the widest raw field index any projected column binds — the addressable length of
@@ -4230,10 +4207,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * The width guard's message. The number it names is the one the guard actually compared against, which is not
-         * the same thing on both bindings: a positional schema IS the file's columns, so it reads "schema defines"; a
-         * declared schema may name fewer or more columns than the file carries, so naming the declaration's width there
-         * would report a number the guard never used — it reads "the file's header defines" instead.
+         * The width guard's message, naming the number the guard actually compared against: the schema's width under
+         * positional binding, the file's header width under declared binding (where the two differ).
          */
         private String rowTooWideMessage(int actualFields) {
             return schemaFieldIndex == null

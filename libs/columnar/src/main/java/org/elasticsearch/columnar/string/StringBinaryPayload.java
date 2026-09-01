@@ -52,19 +52,6 @@ public final class StringBinaryPayload {
     private StringBinaryPayload() {}
 
     /**
-     * Encodes {@code slots} in document order, a {@code null} element denoting a null slot, into a payload of
-     * its own. Callers encoding a document per iteration use a {@link Builder} instead — it reuses its buffer
-     * where this allocates one.
-     */
-    public static BytesRef encode(Collection<BytesRef> slots) {
-        final Builder builder = new Builder();
-        for (BytesRef slot : slots) {
-            builder.appendSlot(slot);
-        }
-        return BytesRef.deepCopyOf(builder.build());
-    }
-
-    /**
      * Builds one document's payload, a slot at a time. Reusable through {@link #reset}, so a caller encoding a
      * whole segment allocates one buffer rather than one per document.
      *
@@ -85,6 +72,20 @@ public final class StringBinaryPayload {
 
         public Builder() {
             blob.grow(COUNT_RESERVE);
+        }
+
+        /**
+         * Encodes {@code slots} in document order, a {@code null} element denoting a null slot, discarding whatever this builder
+         * held. For a caller that has the whole document in hand at once; one that learns its slots one at a time appends them
+         * with {@link #appendSlot} instead. Either way the bytes come out of {@link #build}, so there is one encoding of the
+         * format rather than one per caller shape.
+         */
+        public BytesRef encode(Collection<BytesRef> slots) {
+            reset();
+            for (BytesRef slot : slots) {
+                appendSlot(slot);
+            }
+            return build();
         }
 
         /** Appends one slot to the document under construction; {@code null} denotes a null slot. */

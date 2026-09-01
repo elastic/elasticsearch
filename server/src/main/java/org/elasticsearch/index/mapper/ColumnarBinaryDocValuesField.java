@@ -83,6 +83,12 @@ public class ColumnarBinaryDocValuesField extends MultiValuedBinaryDocValuesFiel
         return fieldInfo != null && ColumnarFieldType.STRING.name().equals(fieldInfo.getAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE));
     }
 
+    /**
+     * Encodes this document's payload. Held on the field rather than made per call, so a document is encoded through the buffer this
+     * accumulator already owns instead of allocating one and copying out of it.
+     */
+    private final StringBinaryPayload.Builder payload = new StringBinaryPayload.Builder();
+
     public ColumnarBinaryDocValuesField(String name, ValueOrdering ordering) {
         super(name, ordering);
     }
@@ -100,16 +106,19 @@ public class ColumnarBinaryDocValuesField extends MultiValuedBinaryDocValuesFiel
         values.add(null);
     }
 
-    // TODO: cut the per-document allocation on the indexing path. This eagerly allocates its backing collection and
-    // encodes through a fresh builder and a copy, where ArrayOrderInlineNull holds a lone slot in a field and only
-    // promotes to a list on the second one. These are high-cardinality keyword fields, so the single-valued document
-    // is the common case and pays for all of it.
+    /**
+     * This document's slots as a payload. The bytes are the builder's own, so they are valid until the next call on this field — which
+     * is all Lucene needs, since it copies the value into the doc-values writer as soon as it is handed over.
+     */
+    // TODO: the backing collection is still allocated for every document, where ArrayOrderInlineNull holds a lone slot in a field and
+    // only promotes to a list on the second one. A single-valued document is the common shape for these fields, so it is worth the
+    // same treatment.
     @Override
     public BytesRef binaryValue() {
         if (ordering == ValueOrdering.SORTED && values instanceof ArrayList<BytesRef> list) {
             list.sort(Comparator.naturalOrder());
         }
-        return StringBinaryPayload.encode(values);
+        return payload.encode(values);
     }
 
     /**

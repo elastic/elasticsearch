@@ -67,10 +67,11 @@ public class StringBinaryPayloadTests extends ESTestCase {
     }
 
     /**
-     * The slot-at-a-time path, where the count is only known once the document closes. A builder reused across
-     * documents has to produce exactly what encoding each of them on its own would.
+     * The slot-at-a-time path, where the count is only known once the document closes. One builder carried across documents has to
+     * produce, for each of them, exactly what a builder that had seen nothing else would — which is what makes reuse safe on both the
+     * mapper's write path and the batch one.
      */
-    public void testBuilderAgreesWithEncode() {
+    public void testReusedBuilderAgreesWithAFreshOne() {
         final StringBinaryPayload.Builder builder = new StringBinaryPayload.Builder();
         for (int iter = 0; iter < 200; iter++) {
             final List<BytesRef> slots = new ArrayList<>();
@@ -81,7 +82,7 @@ public class StringBinaryPayloadTests extends ESTestCase {
             for (BytesRef slot : slots) {
                 builder.appendSlot(slot);
             }
-            assertEquals("built slot by slot", StringBinaryPayload.encode(slots), builder.build());
+            assertEquals("built slot by slot", encode(slots), builder.build());
         }
     }
 
@@ -90,11 +91,11 @@ public class StringBinaryPayloadTests extends ESTestCase {
         final StringBinaryPayload.Builder builder = new StringBinaryPayload.Builder();
         builder.appendSlot(new BytesRef("a"));
         builder.appendSlot(null);
-        assertEquals(StringBinaryPayload.encode(Arrays.asList(new BytesRef("a"), null)), builder.build());
+        assertEquals(encode(Arrays.asList(new BytesRef("a"), null)), builder.build());
         builder.reset();
         assertEquals("nothing carried over", StringBinaryPayload.EMPTY, builder.build());
         builder.appendSlot(new BytesRef("b"));
-        assertEquals(StringBinaryPayload.encode(List.of(new BytesRef("b"))), builder.build());
+        assertEquals(encode(List.of(new BytesRef("b"))), builder.build());
     }
 
     /** {@link StringBinaryPayload.Builder#build} may be called more than once for the same document. */
@@ -116,7 +117,7 @@ public class StringBinaryPayloadTests extends ESTestCase {
                 nulls += isNull ? 1 : 0;
             }
             final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
-            decoder.reset(StringBinaryPayload.encode(slots));
+            decoder.reset(encode(slots));
             assertEquals("null slots", nulls, decoder.nullSlotCount());
             // Asking again mid-iteration must not disturb the cursor.
             assertEquals("first slot", slots.get(0), decoder.next());
@@ -132,7 +133,7 @@ public class StringBinaryPayloadTests extends ESTestCase {
             for (int i = 0; i < between(1, 10); i++) {
                 slots.add(randomBoolean() ? null : new BytesRef(randomAlphaOfLengthBetween(0, 30)));
             }
-            final int count = decoder.reset(StringBinaryPayload.encode(slots));
+            final int count = decoder.reset(encode(slots));
             assertEquals("slot count", slots.size(), count);
             for (BytesRef expected : slots) {
                 assertEquals(expected, decoder.next());
@@ -145,12 +146,12 @@ public class StringBinaryPayloadTests extends ESTestCase {
         assertRoundTrip(List.of());
         final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
         assertEquals("the empty payload", 0, decoder.reset(StringBinaryPayload.EMPTY));
-        assertEquals(StringBinaryPayload.EMPTY, StringBinaryPayload.encode(List.of()));
+        assertEquals(StringBinaryPayload.EMPTY, encode(List.of()));
     }
 
     private static void assertRoundTrip(List<BytesRef> slots) throws IOException {
         final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
-        final BytesRef payload = StringBinaryPayload.encode(slots);
+        final BytesRef payload = encode(slots);
         assertEquals("slot count", slots.size(), decoder.reset(payload));
         for (int i = 0; i < slots.size(); i++) {
             assertEquals("slot " + i, slots.get(i), decoder.next());
@@ -159,6 +160,14 @@ public class StringBinaryPayloadTests extends ESTestCase {
 
     private static List<BytesRef> slots(BytesRef... slots) {
         return Arrays.asList(slots);
+    }
+
+    /**
+     * Encodes {@code slots} through a builder of their own, so the payload owns its bytes and outlives any other builder these tests
+     * drive. The reference every assertion here compares against.
+     */
+    private static BytesRef encode(List<BytesRef> slots) {
+        return BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(slots));
     }
 
 }

@@ -45,6 +45,7 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
 /**
@@ -105,9 +106,12 @@ final class PageColumnReader implements Releasable {
     private final ColumnDescriptor descriptor;
     private final ColumnInfo info;
     private final RowRanges rowRanges;
-    /** Per-value declared-coercion failure sink ({@code null} = strict); see the 5-arg constructor. */
+    /** Per-value declared-coercion failure sink ({@code null} = strict); see the 6-arg constructor. */
     @Nullable
     private final SkipWarnings coercionWarnings;
+    /** Relay for unconditional read-time notices that must survive execution away from the coordinator. */
+    @Nullable
+    private final Consumer<String> informationalWarningSink;
     /**
      * Per-batch row-drop sink for {@code skip_row} mode ({@code null} = not in skip_row mode).
      * Positions reported are relative to the current batch (0-based within {@link #readBatch}'s
@@ -164,26 +168,30 @@ final class PageColumnReader implements Releasable {
     private long pendingPrejumped;
 
     PageColumnReader(PageReader pageReader, ColumnDescriptor descriptor, ColumnInfo info, RowRanges rowRanges) {
-        this(pageReader, descriptor, info, rowRanges, null);
+        this(pageReader, descriptor, info, rowRanges, null, null);
     }
 
     /**
      * @param coercionWarnings sink for per-value declared-coercion failures (nulled cell +
      *                         response Warning header), shared across the read so the warning cap
      *                         is per read. {@code null} = strict: a coercion failure propagates.
+     * @param informationalWarningSink relay for unconditional read-time notices, or {@code null} to emit directly
+     *                                 to the current thread's response headers
      */
     PageColumnReader(
         PageReader pageReader,
         ColumnDescriptor descriptor,
         ColumnInfo info,
         RowRanges rowRanges,
-        @Nullable SkipWarnings coercionWarnings
+        @Nullable SkipWarnings coercionWarnings,
+        @Nullable Consumer<String> informationalWarningSink
     ) {
         this.pageReader = pageReader;
         this.descriptor = descriptor;
         this.info = info;
         this.rowRanges = rowRanges;
         this.coercionWarnings = coercionWarnings;
+        this.informationalWarningSink = informationalWarningSink;
         this.maxDefLevel = descriptor.getMaxDefinitionLevel();
         this.columnExhausted = false;
         this.rowPositionInRowGroup = 0;
@@ -1800,7 +1808,7 @@ final class PageColumnReader implements Releasable {
                 if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
                 return blockFactory.newLongArrayVector(values, produced).asBlock();
             }
-            ParquetColumnDecoding.warnTimestampOutOfRange(info);
+            ParquetColumnDecoding.warnTimestampOutOfRange(info, informationalWarningSink);
             Block allNull = ConstantBlockDetection.tryAllNull(overflow.toBitSet(), produced, blockFactory);
             if (allNull != null) {
                 return allNull;
@@ -1829,7 +1837,7 @@ final class PageColumnReader implements Releasable {
         }
         boolean anyOverflow = scaleDateNanosMasked(values, produced, micros, nulls);
         if (anyOverflow) {
-            ParquetColumnDecoding.warnTimestampOutOfRange(info);
+            ParquetColumnDecoding.warnTimestampOutOfRange(info, informationalWarningSink);
         }
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);

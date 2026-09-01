@@ -125,7 +125,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      */
     private final long[] rowGroupOffsets;
     /**
-     * Relay for per-value declared-coercion warnings, or {@code null} to fall back to emitting directly via
+     * Relay for read-time informational warnings, or {@code null} to fall back to emitting directly via
      * {@code HeaderWarning}. Production always supplies one: it is the budget-gated wrapper that caps the whole
      * source and ends in {@code DriverContext#addWarning}. Running on the driver thread is not enough to make the
      * fallback correct — when the scan runs on a node other than the coordinator that thread's response headers do
@@ -155,7 +155,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * @param errorPolicy   the read's error policy, inherited from the iterator that produced the
      *                      row identities so the deferred columns fail (or warn+null) exactly like
      *                      the eagerly scanned ones
-     * @param warningSink   where per-value coercion warnings are relayed (budget-gated, ending in the driver's
+     * @param warningSink   where read-time informational warnings are relayed (budget-gated, ending in the driver's
      *                      warning sink), or {@code null} for direct {@code HeaderWarning} emission
      */
     ParquetColumnExtractor(
@@ -770,13 +770,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * the row-group rows in source order, alternating skips and reads to produce exactly the
      * surviving rows.
      */
-    private static Block decodeFlat(
-        Bucket bucket,
-        ColumnInfo info,
-        PrefetchedPageReadStore store,
-        int rgRowCount,
-        BlockFactory blockFactory
-    ) {
+    private Block decodeFlat(Bucket bucket, ColumnInfo info, PrefetchedPageReadStore store, int rgRowCount, BlockFactory blockFactory) {
         PageReader pr = store.getPageReader(info.descriptor());
         try (
             PageColumnReader pageReader = new PageColumnReader(
@@ -785,7 +779,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 info,
                 // RowRanges.all() lets every page through loadNextPage()'s page-skip check; the
                 // sparse loop drives skip/read by in-group position from there.
-                RowRanges.all(rgRowCount)
+                RowRanges.all(rgRowCount),
+                null,
+                warningSink
             )
         ) {
             return pageReader.readBatchSparse(rgRowCount, blockFactory, bucket.uniquePositions, bucket.uniqueCount);
@@ -859,6 +855,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                         columnName,
                         null,
                         null,
+                        warningSink,
                         nullListElementWarnings()
                     )
                 );

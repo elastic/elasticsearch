@@ -46,8 +46,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
@@ -59,16 +61,16 @@ import static org.hamcrest.Matchers.hasItem;
  * every external distribution mode.
  *
  * <p>An ES|QL multivalue cannot hold null, so a list element that is null is dropped on read and the reader announces
- * the loss with one {@code Warning} per affected column (elastic/esql-planning#1799). The notice travels a different
- * route depending on where the scan runs: a coordinator-local scan writes it into the REST request's own
- * {@code ThreadContext}, while a scan shipped to another node has to get it back across the wire. The existing
- * coverage — {@code ListColumnParityTests} at the decoder and the parquet csv-spec suites on a single-node cluster —
- * exercises neither split, because on one node the coordinator <em>is</em> the data node.
+ * the loss with one {@code Warning} per affected column (elastic/esql-planning#1799). The notice must travel through
+ * the driver's warning channel: a scan node's own response headers do not reach the client when the scan was shipped
+ * away from the coordinator. The existing coverage — {@code ListColumnParityTests} at the decoder and the parquet
+ * csv-spec suites on a single-node cluster — exercises neither placement, because on one node the coordinator
+ * <em>is</em> the data node.
  *
- * <p>So this suite runs the identical read under {@code coordinator_only} (never leaves the coordinator),
- * {@code round_robin} (always shipped to an eligible data node) and {@code adaptive} (production's default, which for
- * this one-row-group file stays local), and requires the notice in all three. A mode that returns the right values
- * with no notice is the silent-loss regression the notice exists to prevent.
+ * <p>So this suite runs the identical read under {@code coordinator_only}, {@code round_robin}, and {@code adaptive}
+ * from every coordinator, verifies from the profiles that at least one round-robin assignment differs from its
+ * coordinator-only counterpart, and requires the notice in every response. A mode that returns the right values with
+ * no notice is the silent-loss regression the notice exists to prevent.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class ParquetNullListElementWarningIT extends AbstractFromDatasetSubqueryRestTestCase {
@@ -124,11 +126,12 @@ public class ParquetNullListElementWarningIT extends AbstractFromDatasetSubquery
 
         // Every combination is run before anything is asserted, so a failure report names all of them rather than
         // stopping at the first. Each mode is issued once per node: under a distributing mode the one split lands on a
-        // fixed node, so sweeping the coordinator across the cluster is what guarantees the shipped-elsewhere case is
-        // covered instead of leaving it to which node the client happened to pick.
+        // fixed node, so sweeping the coordinator across the cluster gives the assignment a chance to differ. The
+        // profile assertion below proves that it actually did rather than assuming placement from the pragma alone.
         Map<String, QueryOutcome> outcomes = new LinkedHashMap<>();
+        Map<String, RestClient> coordinators = perNodeClients();
         for (String mode : DISTRIBUTION_MODES) {
-            for (Map.Entry<String, RestClient> coordinator : perNodeClients().entrySet()) {
+            for (Map.Entry<String, RestClient> coordinator : coordinators.entrySet()) {
                 outcomes.put(mode + " @ " + coordinator.getKey(), runQueryWithMode(coordinator.getValue(), query, mode));
             }
         }
@@ -138,6 +141,23 @@ public class ParquetNullListElementWarningIT extends AbstractFromDatasetSubquery
         });
         Map<String, String> report = new LinkedHashMap<>();
         outcomes.forEach((label, outcome) -> report.put(label, "scan on " + outcome.scanNodes() + " warnings " + outcome.warnings()));
+        outcomes.forEach(
+            (label, outcome) -> assertFalse(
+                "[" + label + "] profile names no external scan node; per run: " + report,
+                outcome.scanNodes().isEmpty()
+            )
+        );
+        boolean observedOffCoordinatorAssignment = coordinators.keySet()
+            .stream()
+            .anyMatch(
+                coordinator -> outcomes.get("coordinator_only @ " + coordinator)
+                    .scanNodes()
+                    .equals(outcomes.get("round_robin @ " + coordinator).scanNodes()) == false
+            );
+        assertTrue(
+            "round_robin never changed the external scan node relative to coordinator_only for the same coordinator; per run: " + report,
+            observedOffCoordinatorAssignment
+        );
         outcomes.forEach((label, outcome) -> {
             assertThat("[" + label + "] summary notice; per run: " + report, outcome.warnings(), hasItem(SUMMARY_WARNING));
             assertThat("[" + label + "] per-column notice; per run: " + report, outcome.warnings(), hasItem(COLUMN_WARNING));
@@ -189,12 +209,12 @@ public class ParquetNullListElementWarningIT extends AbstractFromDatasetSubquery
          * the warnings so a failure says where the read happened rather than only that the notice went missing.
          */
         @SuppressWarnings("unchecked")
-        List<String> scanNodes() {
+        Set<String> scanNodes() {
             Map<String, Object> profile = (Map<String, Object>) body.get("profile");
             if (profile == null) {
-                return List.of("<no profile>");
+                return Set.of();
             }
-            List<String> nodes = new ArrayList<>();
+            Set<String> nodes = new LinkedHashSet<>();
             for (Map<String, Object> driver : (List<Map<String, Object>>) profile.get("drivers")) {
                 for (Map<String, Object> operator : (List<Map<String, Object>>) driver.get("operators")) {
                     if (String.valueOf(operator.get("operator")).contains("ExternalDataSourceOperator")) {
@@ -215,7 +235,7 @@ public class ParquetNullListElementWarningIT extends AbstractFromDatasetSubquery
     private static QueryOutcome runQueryWithMode(RestClient coordinator, String query, String mode) throws IOException {
         Request req = new Request("POST", "/_query");
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().field("query", query).field("profile", true);
+            b.startObject().field("query", query).field("profile", true).field("accept_pragma_risks", true);
             b.startObject("pragma").field("external_distribution", mode).endObject();
             b.endObject();
             req.setJsonEntity(Strings.toString(b));

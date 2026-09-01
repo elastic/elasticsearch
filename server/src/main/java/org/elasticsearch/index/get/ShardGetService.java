@@ -335,9 +335,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             ifPrimaryTerm,
             fetchSourceContext,
             false,
-            SplitShardCountSummary.UNSET,
+            splitShardCountSummary,
             false,
-            indexShard::get
+            (get, summary) -> indexShard.getForUpdate(get)
         );
     }
 
@@ -410,8 +410,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         currentMetric.inc();
         final long now = System.nanoTime();
         try {
-            // must not carry seq_no OCC: a conflict thrown here would abort pre-resolution for the whole bulk;
-            // the conditions are validated per item when the pre-resolved get is consumed
+            // Must not carry seq_no OCC: a conflict thrown here would abort pre-resolution for the whole bulk;
+            // the conditions are validated per item when the pre-resolved get is consumed.
+            // No special handling to account for resharding is needed here.
+            // This is called in scope of `TransportShardBulkAction` under a primary permit,
+            // meaning that resharding split can not happen concurrently.
             var engineGet = newEngineGet(
                 id,
                 routing,
@@ -421,7 +424,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 UNASSIGNED_SEQ_NO,
                 UNASSIGNED_PRIMARY_TERM
             );
-            final Engine.GetResult getResult = indexShard.get(engineGet, splitShardCountSummary);
+            final Engine.GetResult getResult = indexShard.getForUpdate(engineGet);
 
             // counted in addition to the consuming get: the id resolution and the fetch are accounted separately
             if (getResult.exists()) {

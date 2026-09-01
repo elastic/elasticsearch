@@ -149,7 +149,8 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
                         continue;
                     }
 
-                    throw serviceNotFoundException(unparsedModel.service(), unparsedModel.inferenceEntityId());
+                    listener.onFailure(serviceNotFoundException(unparsedModel.service(), unparsedModel.inferenceEntityId()));
+                    return;
                 }
                 var list = parsedModelsByService.computeIfAbsent(service.get().name(), s -> new ArrayList<>());
                 list.add(service.get().parsePersistedConfig(unparsedModel));
@@ -189,7 +190,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
     }
 
     private ElasticsearchStatusException serviceNotFoundException(String service, String inferenceId) {
-        throw new ElasticsearchStatusException(
+        return new ElasticsearchStatusException(
             "Unknown service [{}] for inference endpoint [{}].",
             RestStatus.INTERNAL_SERVER_ERROR,
             service,

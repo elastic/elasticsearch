@@ -103,9 +103,7 @@ public final class ScanningBinaryDocValuesAutomatonQuery extends AbstractBinaryD
             return false;
         }
         ScanningBinaryDocValuesAutomatonQuery that = (ScanningBinaryDocValuesAutomatonQuery) o;
-        return Objects.equals(fieldName, that.fieldName)
-            && Objects.equals(automaton, that.automaton)
-            && binaryFormat == that.binaryFormat;
+        return Objects.equals(fieldName, that.fieldName) && Objects.equals(automaton, that.automaton) && binaryFormat == that.binaryFormat;
     }
 
     @Override

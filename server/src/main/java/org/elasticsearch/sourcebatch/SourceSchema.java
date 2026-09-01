@@ -16,6 +16,7 @@ import org.apache.lucene.util.UnicodeUtil;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.List;
 
 /**
@@ -42,6 +43,18 @@ public final class SourceSchema {
 
     private final FieldLevel nonLeaves;
     private final FieldLevel leaves;
+
+    /**
+     * Tracks leaves that have been written at least once as an empty object
+     * ({@link org.elasticsearch.escf.EscfRowBuffer#emptyObject}).
+     */
+    private final BitSet emptyObjectSeen = new BitSet();
+    /**
+     * Tracks leaves that have been written at least once as a real value (non-empty-object).
+     * A leaf is considered "always empty-object" iff {@link #emptyObjectSeen} is set and
+     * {@link #realValueSeen} is not — meaning the sequential path would also index no data for it.
+     */
+    private final BitSet realValueSeen = new BitSet();
 
     /**
      * Creates a new schema with root automatically added as non-leaf index 0.
@@ -147,6 +160,35 @@ public final class SourceSchema {
             sb.append('.');
         }
         sb.append(nonLeaves.getName(nonLeafIdx));
+    }
+
+    /**
+     * Records that {@code leafIdx} was written as an empty-object leaf in at least one row.
+     * Called from {@link org.elasticsearch.escf.EscfRowBuffer#emptyObject}.
+     */
+    public void noteEmptyObject(int leafIdx) {
+        emptyObjectSeen.set(leafIdx);
+    }
+
+    /**
+     * Records that {@code leafIdx} was written as a non-empty-object leaf in at least one row.
+     * Called from all value-writing methods in {@link org.elasticsearch.escf.EscfRowBuffer} except
+     * {@link org.elasticsearch.escf.EscfRowBuffer#emptyObject}.
+     */
+    public void noteRealValue(int leafIdx) {
+        realValueSeen.set(leafIdx);
+    }
+
+    /**
+     * Returns {@code true} if {@code leafIdx} has only ever been written as an empty-object leaf
+     * (i.e. {@link #noteEmptyObject} was called and {@link #noteRealValue} was never called).
+     *
+     * <p>This lets {@link org.elasticsearch.index.mapper.ShardBatchMapper} skip unmapped empty-object
+     * leaves rather than falling back to sequential indexing — the sequential path also produces no
+     * index writes for empty objects under {@code subobjects: DISABLED}.
+     */
+    public boolean isAlwaysEmptyObject(int leafIdx) {
+        return emptyObjectSeen.get(leafIdx) && realValueSeen.get(leafIdx) == false;
     }
 
     /**

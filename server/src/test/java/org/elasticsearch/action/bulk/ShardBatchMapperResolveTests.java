@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.ColumnGroupResolver;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupLookup;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupResolution;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -196,8 +198,15 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         // redundant with the per-mapper guard, so this test is intentionally narrow).
     }
 
-    public void testTextMapperNotSupported() throws IOException {
+    public void testTextMapperIsSupported() throws IOException {
         MapperService ms = mapper(mapping(b -> { b.startObject("t").field("type", "text").endObject(); }));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("t"), ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertThat(resolution.columnMappers()[0], instanceOf(TextFieldMapper.class));
+    }
+
+    public void testTextMapperWithIndexPhrasesFallsBack() throws IOException {
+        MapperService ms = mapper(mapping(b -> { b.startObject("t").field("type", "text").field("index_phrases", true).endObject(); }));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("t"), ms.mappingLookup(), indexSettings);
         assertNull(resolution);
     }
@@ -223,12 +232,26 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         assertThat(resolution.columnMappers()[0], instanceOf(IpFieldMapper.class));
     }
 
-    public void testKeywordWithMultiFieldsFallsBack() throws IOException {
+    public void testKeywordWithColumnarCapableMultiFieldIsSupported() throws IOException {
         MapperService ms = mapper(mapping(b -> {
             b.startObject("host");
             b.field("type", "keyword");
             b.startObject("fields");
             b.startObject("lower").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertThat(resolution.columnMappers()[0], instanceOf(KeywordFieldMapper.class));
+    }
+
+    public void testKeywordWithNonColumnarMultiFieldFallsBack() throws IOException {
+        MapperService ms = mapper(mapping(b -> {
+            b.startObject("host");
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("phrases").field("type", "text").field("index_phrases", true).endObject();
             b.endObject();
             b.endObject();
         }));
@@ -503,11 +526,14 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
 
     /**
      * A per-leaf mapper gets one {@code mapColumnBatch} call per column, so a document spelling the same field both
-     * ways ({@code {"a":{"b":1},"a.b":3}}) would emit two independent outputs where the sequential path emits one
-     * merged multi-valued field — for a keyword, two doc-value blobs and two count entries instead of one of each.
-     * The batch must fall back.
+     * ways ({@code {"a":{"b":1},"a.b":3}}) can't be resolved as two independent leaf mappers the way group mappers
+     * are — the two schema leaves are merged into one {@link ShardBatchMapper.AliasedLeafResolution} and dispatched
+     * through a single {@code mapColumnBatch} call instead. This is only safe because {@code indexSettings} here is
+     * strictly columnar, which guarantees {@code subobjects: false} (see the mode-gating note on
+     * {@code ShardBatchMapper#resolveMappers}); {@link #testAliasedPerLeafColumnsFallBackOutsideStrictColumnar}
+     * covers the other modes.
      */
-    public void testAliasedPerLeafColumnsFallBack() throws IOException {
+    public void testAliasedPerLeafColumnsMergeIntoOneMapper() throws IOException {
         MapperService ms = mapper(mapping(b -> {
             b.startObject("a");
             b.startObject("properties");
@@ -520,16 +546,22 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         assertEquals("a.b", schema.getFullPath(0));
         assertEquals("a.b", schema.getFullPath(1));
 
-        assertNull(ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertNull("both leaves are dispatched via aliasedLeaves, not as individual columns", resolution.columnMappers()[0]);
+        assertNull("both leaves are dispatched via aliasedLeaves, not as individual columns", resolution.columnMappers()[1]);
+        assertEquals(1, resolution.aliasedLeaves().length);
+        assertTrue(resolution.aliasedLeaves()[0].mapper() instanceof KeywordFieldMapper);
+        assertArrayEquals(new int[] { 0, 1 }, resolution.aliasedLeaves()[0].leafIndexes());
     }
 
     /**
      * The aliasing check is batch-wide rather than per-document, so it also trips when the two spellings come from
-     * different documents. That case would in fact be safe — neither document carries both columns — but detecting it
-     * needs per-row inspection, and {@code resolveMappers} runs once per batch. Falling back costs a slow path on a
-     * rare input.
+     * different documents. The merge handles this correctly with no special casing: a row where only one leaf is
+     * present simply contributes nothing from the other side, which is exactly what {@code testAliasedPerLeafColumnsMergeIntoOneMapper}
+     * already produces for a row that has both.
      */
-    public void testAliasedPerLeafColumnsAcrossDocumentsAlsoFallBack() throws IOException {
+    public void testAliasedPerLeafColumnsAcrossDocumentsAlsoMerge() throws IOException {
         MapperService ms = mapper(mapping(b -> {
             b.startObject("a");
             b.startObject("properties");
@@ -538,7 +570,63 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
             b.endObject();
         }));
         SourceSchema schema = schemaOfJson("{\"a\":{\"b\":\"x\"}}", "{\"a.b\":\"y\"}");
-        assertNull(ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertEquals(1, resolution.aliasedLeaves().length);
+        assertArrayEquals(new int[] { 0, 1 }, resolution.aliasedLeaves()[0].leafIndexes());
+    }
+
+    /**
+     * Three distinct spellings of the same path in one batch — dotted-at-root, nested-under-dotted, and
+     * fully-nested — all fold into a single {@link ShardBatchMapper.AliasedLeafResolution}, not just pairs.
+     */
+    public void testThreeWayAliasedPerLeafColumnsMergeIntoOneGroup() throws IOException {
+        MapperService ms = mapper(mapping(b -> {
+            b.startObject("a");
+            b.startObject("properties");
+            b.startObject("b");
+            b.startObject("properties");
+            b.startObject("c").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        SourceSchema schema = schemaOfJson("{\"a.b.c\":\"x\"}", "{\"a\":{\"b.c\":\"y\"}}", "{\"a\":{\"b\":{\"c\":\"z\"}}}");
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertEquals(1, resolution.aliasedLeaves().length);
+        assertEquals(3, resolution.aliasedLeaves()[0].leafIndexes().length);
+    }
+
+    /**
+     * The per-leaf merge relies on strictly-columnar index modes guaranteeing {@code subobjects: false} (no real
+     * {@code ObjectMapper} tree for "a"), a guarantee {@link org.elasticsearch.index.IndexMode#TIME_SERIES} does not
+     * make. Outside strictly-columnar mode the aliasing collision still falls back to the row path, unchanged from
+     * before this merge support was added. Uses a {@code long} field rather than {@code keyword}:
+     * {@code KeywordFieldMapper#supportsColumnarParse} requires strictly-columnar mode outright, so a keyword field
+     * would already fall back before reaching the aliasing check and wouldn't exercise this mode gate;
+     * {@code NumberFieldMapper#supportsColumnarParse} accepts {@code isTsdb()} too, so it reaches the check.
+     */
+    public void testAliasedPerLeafColumnsFallBackOutsideStrictColumnar() throws IOException {
+        final Settings.Builder tsdbSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "uid")
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false);
+        MapperService ms = createMapperService(tsdbSettings.build(), mapping(b -> {
+            b.startObject("a");
+            b.startObject("properties");
+            b.startObject("b").field("type", "long").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        final IndexSettings tsdbIndexSettings = new IndexSettings(
+            new IndexMetadata.Builder("index").settings(indexSettings(IndexVersion.current(), 1, 0).put(tsdbSettings.build()).build())
+                .build(),
+            Settings.EMPTY
+        );
+        SourceSchema schema = schemaOfJson("{\"a\":{\"b\":1},\"a.b\":2}");
+        assertNull(ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), tsdbIndexSettings));
     }
 
     /** Control: a single spelling repeated across documents is one column and must not trip the aliasing check. */
@@ -792,6 +880,88 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
         assertNotNull("a dotless blank name is not malformed; it is simply unmapped", resolution);
         assertNull(resolution.columnMappers()[schema.findLeaf(" ", 0)]);
+    }
+
+    /**
+     * An empty-object leaf (e.g. {@code {"json":{}}}) must not force a batch fallback. The sequential path also
+     * produces no index writes for empty objects under {@code subobjects: DISABLED} — {@code DocumentParser}
+     * exits immediately when the object value has no children, creating no mapper and indexing nothing.
+     * <p>
+     * This is the root cause of the elastic/logs rally track logsdb_columnar regression: the k8-application
+     * corpus always has {@code "json": {}} in its documents, creating an always-empty-object schema leaf that
+     * was previously forcing every batch to fall back.
+     */
+    public void testEmptyObjectLeafIsSkippedNotFallback() throws IOException {
+        // No mapping for "json" — the sequential path also creates none for an empty object.
+        MapperService ms = mapper(mapping(b -> b.startObject("host").field("type", "keyword").endObject()));
+
+        // All rows have "json" as an empty object.
+        SourceSchema schema = schemaOfJson("{\"host\":\"srv\",\"json\":{}}", "{\"host\":\"srv2\",\"json\":{}}");
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull("an always-empty-object leaf must be skipped, not cause a batch fallback", resolution);
+        // The empty-object leaf has a null column mapper (skip, same as dynamic:false).
+        assertNull(resolution.columnMappers()[schema.findLeaf("json", 0)]);
+        // Other mapped leaves are resolved normally.
+        assertThat(resolution.columnMappers()[schema.findLeaf("host", 0)], instanceOf(KeywordFieldMapper.class));
+    }
+
+    /**
+     * If even one row writes a field as a real value (not empty object), the leaf is no longer "always empty-object"
+     * and must still fall back so the sequential path can index and map it.
+     */
+    public void testMixedEmptyObjectAndRealValueLeafFallsBack() throws IOException {
+        MapperService ms = mapper(mapping(b -> b.startObject("host").field("type", "keyword").endObject()));
+
+        // First row has "json" as empty object; second has it as a string — not always-empty-object.
+        SourceSchema schema = schemaOfJson("{\"host\":\"srv\",\"json\":{}}", "{\"host\":\"srv2\",\"json\":\"value\"}");
+        assertNull(
+            "a leaf that is sometimes a real value must still fall back for dynamic mapping",
+            ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings)
+        );
+    }
+
+    /**
+     * geo_point fields encoded as {@code {"lat": ..., "lon": ...}} objects produce sub-leaves that previously
+     * caused a {@link ColumnGroupLookup.Conflict} fallback. With {@link GeoPointFieldMapper#resolvesColumnGroup()}
+     * returning true, they are owned by the geo_point group mapper and the batch proceeds on the columnar path.
+     * This is the root cause of the elastic/logs k8-application corpus logsdb_columnar regression.
+     */
+    public void testGeoPointObjectFormatIsSupported() throws IOException {
+        MapperService ms = mapper(mapping(b -> b.startObject("location").field("type", "geo_point").endObject()));
+        SourceSchema schema = schemaOfJson("{\"location\":{\"lat\":40.7,\"lon\":-74.0}}");
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull("geo_point in {lat, lon} object format should not cause a batch fallback", resolution);
+
+        final int locationNonLeaf = schema.findNonLeaf("location", 0);
+        final int latLeaf = schema.findLeaf("lat", locationNonLeaf);
+        final int lonLeaf = schema.findLeaf("lon", locationNonLeaf);
+
+        assertNull("lat leaf should be owned by the geo_point group, not an individual leaf mapper", resolution.columnMappers()[latLeaf]);
+        assertNull("lon leaf should be owned by the geo_point group, not an individual leaf mapper", resolution.columnMappers()[lonLeaf]);
+
+        assertEquals(1, resolution.columnGroups().length);
+        assertThat(resolution.columnGroups()[0].mapper(), instanceOf(GeoPointFieldMapper.class));
+        assertArrayEquals(new String[] { "lat", "lon" }, resolution.columnGroups()[0].relativeKeys());
+    }
+
+    /**
+     * geo_point multi-fields receive the geohash string on the row path, which the columnar path does not generate.
+     * So geo_point with multi-fields must fall back to preserve correctness.
+     */
+    public void testGeoPointWithMultiFieldFallsBack() throws IOException {
+        MapperService ms = mapper(mapping(b -> {
+            b.startObject("location");
+            b.field("type", "geo_point");
+            b.startObject("fields");
+            b.startObject("geohash").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        SourceSchema schema = schemaOfJson("{\"location\":{\"lat\":40.7,\"lon\":-74.0}}");
+        assertNull(
+            "geo_point with multi-fields should fall back (multi-fields receive geohash, incompatible with columnar path)",
+            ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings)
+        );
     }
 
     /** Control for the two tests above: the same mapping without the nested object resolves normally. */

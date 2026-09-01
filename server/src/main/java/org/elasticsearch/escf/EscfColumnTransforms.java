@@ -12,6 +12,7 @@ package org.elasticsearch.escf;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentString;
@@ -223,5 +224,47 @@ public final class EscfColumnTransforms {
                 return currentValue;
             }
         };
+    }
+
+    /**
+     * Merges {@code columns} — schema leaves that alias the same mapped field via different dotted/nested
+     * spellings within one batch (for example {@code "a.b"} and {@code {"a": {"b": ...}}}) — into a single,
+     * row-aligned column. Each present value is replayed positionally, in {@code columns} order; two values
+     * landing on the same row become a multi-valued output via {@link EscfColumnBuilder}'s
+     * {@link EscfColumnBuilder.CollisionPolicy#MERGE} policy, exactly as a naturally multi-valued source
+     * column already would be. A row absent from every input column stays absent in the result.
+     *
+     * @throws UnsupportedOperationException if any column's kind is not one of {@code LONG}, {@code DOUBLE},
+     *         {@code STRING}, or {@code BINARY} — the v1 support matrix for leaf aliasing
+     *         ({@code ShardBatchMapper#resolveMappers}). The caller catches this and falls back to the row
+     *         path for the chunk, the same safety net {@code NumberFieldMapper#mapColumnBatch} relies on for
+     *         its own unsupported-kind switch.
+     */
+    public static EscfColumn mergeAliasedLeaves(EscfColumn[] columns, int docCount, Recycler<BytesRef> recycler) {
+        for (EscfColumn column : columns) {
+            switch (column.kind()) {
+                case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING, EscfColumnKind.BINARY -> {
+                    // supported
+                }
+                default -> throw new UnsupportedOperationException(
+                    "mergeAliasedLeaves: ESCF column kind [" + EscfColumnKind.name(column.kind()) + "] is not yet supported"
+                );
+            }
+        }
+        final EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
+        for (int row = 0; row < docCount; row++) {
+            for (EscfColumn column : columns) {
+                if (column.isPresent(row) == false) {
+                    continue;
+                }
+                switch (column.kind()) {
+                    case EscfColumnKind.LONG -> builder.setLong(row, column.getLongValue(row));
+                    case EscfColumnKind.DOUBLE -> builder.setDouble(row, column.getDoubleValue(row));
+                    case EscfColumnKind.STRING -> builder.setString(row, column.getBinaryValue(row));
+                    case EscfColumnKind.BINARY -> builder.setBinary(row, column.getBinaryValue(row));
+                }
+            }
+        }
+        return EscfColumn.from(builder.finish(docCount));
     }
 }

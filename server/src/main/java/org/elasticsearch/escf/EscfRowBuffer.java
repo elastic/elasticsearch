@@ -97,6 +97,7 @@ public final class EscfRowBuffer {
         int colIdx = addLeaf(name);
         scratchType[colIdx] = SourceValueType.KEY_VALUE;
         scratchVar[colIdx] = BytesRef.EMPTY_BYTES;
+        schema.noteEmptyObject(colIdx);
         return colIdx;
     }
 
@@ -105,6 +106,7 @@ public final class EscfRowBuffer {
         int colIdx = addLeaf(name);
         scratchType[colIdx] = (value >= Integer.MIN_VALUE && value <= Integer.MAX_VALUE) ? SourceValueType.INT : SourceValueType.LONG;
         scratchNumeric[colIdx] = value;
+        schema.noteRealValue(colIdx);
         return colIdx;
     }
 
@@ -114,6 +116,7 @@ public final class EscfRowBuffer {
         float fval = (float) value;
         scratchType[colIdx] = ((double) fval == value) ? SourceValueType.FLOAT : SourceValueType.DOUBLE;
         scratchNumeric[colIdx] = Double.doubleToRawLongBits(value);
+        schema.noteRealValue(colIdx);
         return colIdx;
     }
 
@@ -122,6 +125,7 @@ public final class EscfRowBuffer {
         int colIdx = addLeaf(name);
         scratchType[colIdx] = SourceValueType.STRING;
         scratchVar[colIdx] = value;
+        schema.noteRealValue(colIdx);
         return colIdx;
     }
 
@@ -134,6 +138,7 @@ public final class EscfRowBuffer {
     public int booleanField(String name, boolean value) {
         int colIdx = addLeaf(name);
         scratchType[colIdx] = value ? SourceValueType.TRUE : SourceValueType.FALSE;
+        schema.noteRealValue(colIdx);
         return colIdx;
     }
 
@@ -141,6 +146,7 @@ public final class EscfRowBuffer {
     public int nullField(String name) {
         int colIdx = addLeaf(name);
         scratchType[colIdx] = SourceValueType.NULL;
+        schema.noteRealValue(colIdx);
         return colIdx;
     }
 
@@ -152,6 +158,7 @@ public final class EscfRowBuffer {
         int colIdx = addLeaf(name);
         scratchType[colIdx] = arrayType;
         scratchVar[colIdx] = packed;
+        schema.noteRealValue(colIdx);
         return colIdx;
     }
 

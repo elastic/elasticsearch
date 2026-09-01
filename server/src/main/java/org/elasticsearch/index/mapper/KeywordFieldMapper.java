@@ -1618,7 +1618,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             && supportsColumnarDocValues()
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
+            && multiFieldsSupportColumnarParse(indexSettings)
             && normalizerName == null
             && fieldType().isDimension() == false;
     }
@@ -1659,9 +1659,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         final boolean emitTerms = fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored();
         final boolean emitFallback = storeIgnoredValuesForSyntheticSource();
         final boolean emitDvs = fieldType().hasDocValues();
-        if (emitTerms == false && emitDvs == false && emitFallback == false) {
-            return;
-        }
 
         // These paths build a scan cursor that converts all ESCF column kinds to BytesRef strings:
         // longs/doubles via canonical toString, booleans as "true"/"false", strings as-is, arrays
@@ -1672,12 +1669,17 @@ public final class KeywordFieldMapper extends FieldMapper {
         // source characters (which the row path preserves via parser.getText()).
         // In order to support the original string representations we would need to keep the columns as
         // strings. This is possible as an eventual user option.
-
-        if (fieldType().storesArrayOrderInline()) {
-            mapColumnBatchArrayOrder(ctx, source, emitTerms, emitDvs, emitFallback);
-        } else {
-            mapColumnBatchSingleValue(ctx, source, emitTerms, emitDvs, emitFallback);
+        if (emitTerms || emitDvs || emitFallback) {
+            if (fieldType().storesArrayOrderInline()) {
+                mapColumnBatchArrayOrder(ctx, source, emitTerms, emitDvs, emitFallback);
+            } else {
+                mapColumnBatchSingleValue(ctx, source, emitTerms, emitDvs, emitFallback);
+            }
         }
+        // Multi-fields parse the same raw source values as this field; a fully disabled parent
+        // (index:false, doc_values:false, store:false) can still have multi-fields that do index, so
+        // this must run regardless of whether the branch above emitted anything.
+        mapColumnBatchToMultiFields(ctx, source);
     }
 
     private void mapColumnBatchArrayOrder(

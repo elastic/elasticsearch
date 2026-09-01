@@ -281,6 +281,33 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * Whether every multi-field attached to this field also supports the columnar batch path. A field with multi-fields can only take
+     * the columnar path itself if all of its multi-fields can too, since each multi-field parses the same source values and produces
+     * its own output columns from them. Intended for use by {@link #supportsColumnarParse(IndexSettings)} overrides on mappers that
+     * support multi-fields on the columnar path.
+     */
+    protected final boolean multiFieldsSupportColumnarParse(IndexSettings indexSettings) {
+        for (FieldMapper multiField : multiFields()) {
+            if (multiField.supportsColumnarParse(indexSettings) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Dispatches {@link #mapColumnBatch} to every multi-field attached to this field, over the same source column. Multi-fields parse
+     * the same raw values as their parent field — mirroring how {@link #doParseMultiFields} replays the same parser value on the row
+     * path — so the parent's already-materialized {@code source} column is reused verbatim rather than re-derived. Intended for use by
+     * {@link #mapColumnBatch(BatchMappingContext, EscfColumn)} overrides on mappers that support multi-fields on the columnar path.
+     */
+    protected final void mapColumnBatchToMultiFields(BatchMappingContext ctx, EscfColumn source) {
+        for (FieldMapper multiField : multiFields()) {
+            multiField.mapColumnBatch(ctx, source);
+        }
+    }
+
+    /**
      * Whether this mapper consumes the whole group of schema leaves rooted at its own path rather than a single leaf of its own. Mappers
      * whose source value is an object that the columnar encoder explodes into one dotted leaf per key — {@code flattened} is the first —
      * cannot be resolved leaf by leaf, because no mapper exists at those descendant paths. A mapper returning {@code true} receives every

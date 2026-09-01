@@ -7,23 +7,33 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.mapper.extras;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 
 /**
- * Parity tests for {@link KeywordFieldMapper#mapColumnBatch} against the row path.
+ * Parity tests for {@link MatchOnlyTextFieldMapper#mapColumnBatch} against the row path.
  * The {@link AbstractColumnarMapperCompatibilityTestCase} harness drives leaf mappers automatically
  * via {@code EscfEncoder}; no subclass override is needed.
  */
-public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
+public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
     private static final String FIELD = "f";
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new MapperExtrasPlugin());
+    }
 
     private static Settings columnarSettings() {
         return Settings.builder()
@@ -34,15 +44,15 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
 
     public void testSingleValue() throws IOException {
         assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            mapping(b -> b.startObject(FIELD).field("type", "match_only_text").endObject()),
             columnarSettings(),
-            batch("single value", 1L, doc("d1", 1L, "{\"f\":\"hello\"}"))
+            batch("single value", 1L, doc("d1", 1L, "{\"f\":\"hello world\"}"))
         );
     }
 
     public void testMultiValue() throws IOException {
         assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            mapping(b -> b.startObject(FIELD).field("type", "match_only_text").endObject()),
             columnarSettings(),
             batch("multi-value", 1L, doc("d1", 1L, "{\"f\":[\"hello\",\"world\"]}"))
         );
@@ -50,7 +60,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
 
     public void testAbsentDocsMixed() throws IOException {
         assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            mapping(b -> b.startObject(FIELD).field("type", "match_only_text").endObject()),
             columnarSettings(),
             batch("absent docs mixed", 1L, doc("d1", 1L, "{\"f\":\"alpha\"}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":\"gamma\"}"))
         );
@@ -58,7 +68,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
 
     public void testArrayValues() throws IOException {
         assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            mapping(b -> b.startObject(FIELD).field("type", "match_only_text").endObject()),
             columnarSettings(),
             batch(
                 "array values",
@@ -73,7 +83,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
 
     public void testArrayValuesWithNull() throws IOException {
         assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            mapping(b -> b.startObject(FIELD).field("type", "match_only_text").endObject()),
             columnarSettings(),
             batch("array values with null", 1L, doc("d1", 1L, "{\"f\":null}"), doc("d2", 2L, "{}"))
         );
@@ -81,7 +91,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
 
     public void testMixedBatch() throws IOException {
         assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            mapping(b -> b.startObject(FIELD).field("type", "match_only_text").endObject()),
             columnarSettings(),
             batch(
                 "mixed batch",
@@ -96,7 +106,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
 
     public void testLongValues() throws IOException {
         assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            mapping(b -> b.startObject(FIELD).field("type", "match_only_text").endObject()),
             columnarSettings(),
             batch(
                 "long values",
@@ -111,7 +121,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
 
     public void testDoubleValues() throws IOException {
         assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            mapping(b -> b.startObject(FIELD).field("type", "match_only_text").endObject()),
             columnarSettings(),
             batch(
                 "double values",
@@ -126,92 +136,33 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
 
     public void testBooleanValues() throws IOException {
         assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            mapping(b -> b.startObject(FIELD).field("type", "match_only_text").endObject()),
             columnarSettings(),
             batch("boolean values", 1L, doc("d1", 1L, "{\"f\":true}"), doc("d2", 2L, "{\"f\":false}"), doc("d3", 3L, "{}"))
-        );
-    }
-
-    public void testLongArray() throws IOException {
-        assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
-            columnarSettings(),
-            batch("long array", 1L, doc("d1", 1L, "{\"f\":[1,2,3]}"), doc("d2", 2L, "{\"f\":[]}"), doc("d3", 3L, "{}"))
-        );
-    }
-
-    public void testDoubleArray() throws IOException {
-        assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
-            columnarSettings(),
-            batch("double array", 1L, doc("d1", 1L, "{\"f\":[1.5,2.5]}"), doc("d2", 2L, "{\"f\":[]}"), doc("d3", 3L, "{}"))
-        );
-    }
-
-    public void testBooleanArray() throws IOException {
-        assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
-            columnarSettings(),
-            batch("boolean array", 1L, doc("d1", 1L, "{\"f\":[true,false]}"), doc("d2", 2L, "{\"f\":[]}"), doc("d3", 3L, "{}"))
-        );
-    }
-
-    public void testMixedLongDouble() throws IOException {
-        // A batch with one long and one double value promotes the column to UNION.
-        assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
-            columnarSettings(),
-            batch("mixed long and double", 1L, doc("d1", 1L, "{\"f\":1}"), doc("d2", 2L, "{\"f\":2.5}"))
-        );
-    }
-
-    public void testNullValueSubstitution() throws IOException {
-        // An explicit JSON null is substituted with the configured null_value.
-        assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("null_value", "NULL").endObject()),
-            columnarSettings(),
-            batch("null_value substitution", 1L, doc("d1", 1L, "{\"f\":null}"), doc("d2", 2L, "{\"f\":\"a\"}"), doc("d3", 3L, "{}"))
-        );
-    }
-
-    public void testArrayWithNull() throws IOException {
-        // An array containing an explicit null element produces a null slot in the doc-values blob.
-        assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
-            columnarSettings(),
-            batch("array with null element", 1L, doc("d1", 1L, "{\"f\":[\"a\",null,\"b\"]}"), doc("d2", 2L, "{}"))
-        );
-    }
-
-    public void testNoIndexTermsAbsent() throws IOException {
-        assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("index", false).endObject()),
-            columnarSettings(),
-            batch("no-index single value", 1L, doc("d1", 1L, "{\"f\":\"only_dv\"}"))
         );
     }
 
     public void testNestedArray() throws IOException {
         // Nested arrays are flattened, matching the row-path behaviour in DocumentParser.
         assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            mapping(b -> b.startObject(FIELD).field("type", "match_only_text").endObject()),
             columnarSettings(),
-            batch("nested array", 1L, doc("d1", 1L, "{\"f\":[[1,2],[3]]}"), doc("d2", 2L, "{}"))
+            batch("nested array", 1L, doc("d1", 1L, "{\"f\":[[\"a\",\"b\"],[\"c\"]]}"), doc("d2", 2L, "{}"))
         );
     }
 
-    public void testIgnoreAbove() throws IOException {
+    public void testNoIndexDocValuesOnly() throws IOException {
         assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("ignore_above", 8191).endObject()),
+            mapping(b -> b.startObject(FIELD).field("type", "match_only_text").field("index", false).endObject()),
             columnarSettings(),
-            batch("ignore_above value", 1L, doc("d1", 1L, "{\"f\":\"" + "x".repeat(8192) + "\"}"))
+            batch("no-index single value", 1L, doc("d1", 1L, "{\"f\":\"only_dv\"}"))
         );
     }
 
     public void testSingleValueMultiValueFalse() throws IOException {
         // One string value, one absent doc, and an empty string.
         assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword");
+            b.startObject(FIELD).field("type", "match_only_text");
             b.startObject("doc_values").field("multi_value", false).endObject();
             b.endObject();
         }),
@@ -227,9 +178,9 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     public void testAbsentAndNullMultiValueFalse() throws IOException {
-        // Present value, absent doc ({}), and explicit JSON null without null_value -> absent.
+        // Present value, absent doc ({}), and explicit JSON null -> absent (match_only_text has no null_value).
         assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword");
+            b.startObject(FIELD).field("type", "match_only_text");
             b.startObject("doc_values").field("multi_value", false).endObject();
             b.endObject();
         }),
@@ -244,37 +195,10 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    public void testNullValueSubstitutionMultiValueFalse() throws IOException {
-        // Explicit JSON null is substituted with null_value.
-        assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword").field("null_value", "NULL");
-            b.startObject("doc_values").field("multi_value", false).endObject();
-            b.endObject();
-        }),
-            columnarSettings(),
-            batch(
-                "null_value substitution multi_value=false",
-                1L,
-                doc("d1", 1L, "{\"f\":null}"),
-                doc("d2", 2L, "{\"f\":\"a\"}"),
-                doc("d3", 3L, "{}")
-            )
-        );
-    }
-
-    public void testNoIndexDocValuesOnlyMultiValueFalse() throws IOException {
-        // index:false — only the binary DV column is emitted, no terms column.
-        assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword").field("index", false);
-            b.startObject("doc_values").field("multi_value", false).endObject();
-            b.endObject();
-        }), columnarSettings(), batch("no-index dv-only multi_value=false", 1L, doc("d1", 1L, "{\"f\":\"only_dv\"}"), doc("d2", 2L, "{}")));
-    }
-
     public void testIndexedAndDocValuesMultiValueFalse() throws IOException {
-        // Default index:true — both a terms column and a binary DV column are emitted.
+        // Default index:true — both an indexed (tokenized) column and a binary DV column are emitted.
         assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword");
+            b.startObject(FIELD).field("type", "match_only_text");
             b.startObject("doc_values").field("multi_value", false).endObject();
             b.endObject();
         }),
@@ -283,7 +207,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
                 "indexed and dv multi_value=false",
                 1L,
                 doc("d1", 1L, "{\"f\":\"indexed\"}"),
-                doc("d2", 2L, "{\"f\":\"also_indexed\"}"),
+                doc("d2", 2L, "{\"f\":\"also indexed\"}"),
                 doc("d3", 3L, "{}")
             )
         );
@@ -292,7 +216,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     public void testScalarCoercionsMultiValueFalse() throws IOException {
         // Numeric and boolean scalars are stringified by utf8Cursor, matching the row path.
         assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword");
+            b.startObject(FIELD).field("type", "match_only_text");
             b.startObject("doc_values").field("multi_value", false).endObject();
             b.endObject();
         }),
@@ -307,44 +231,10 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    public void testIgnoreAboveMultiValueFalse() throws IOException {
-        // ignore_above: the too-long value is recorded in _ignored and stored as a plain
-        // BinaryDocValuesField synthetic-source fallback (no counts sidecar).
-        assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword").field("ignore_above", 8);
-            b.startObject("doc_values").field("multi_value", false).endObject();
-            b.endObject();
-        }),
-            columnarSettings(),
-            batch("ignore_above multi_value=false", 1L, doc("d1", 1L, "{\"f\":\"toolongvalue\"}"), doc("d2", 2L, "{\"f\":\"short\"}"))
-        );
-    }
-
-    public void testNullValueConfiguredNoNullsMultiValueFalse() throws IOException {
-        // null_value is configured but the batch contains only real string values plus an absent doc.
-        // The fast path must not be disabled by a configured null_value; no substitution should occur
-        // because the source STRING column contains no null slots (explicit JSON nulls promote to UNION).
-        assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword").field("null_value", "NULL");
-            b.startObject("doc_values").field("multi_value", false).endObject();
-            b.endObject();
-        }),
-            columnarSettings(),
-            batch(
-                "null_value configured no nulls multi_value=false",
-                1L,
-                doc("d1", 1L, "{\"f\":\"alpha\"}"),
-                doc("d2", 2L, "{}"),
-                doc("d3", 3L, "{\"f\":\"beta\"}")
-            )
-        );
-    }
-
     public void testAllPresentDenseMultiValueFalse() throws IOException {
-        // Every doc has a string value; no absent docs. Exercises the dense (validity==null) wrap in
-        // the fast path.
+        // Every doc has a string value; no absent docs. Exercises the dense (validity==null) wrap in the fast path.
         assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword");
+            b.startObject(FIELD).field("type", "match_only_text");
             b.startObject("doc_values").field("multi_value", false).endObject();
             b.endObject();
         }),
@@ -360,10 +250,9 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     public void testManyMixedPresentAbsentMultiValueFalse() throws IOException {
-        // Larger interleaved present/absent batch to stress the SPARSE wrap and the
-        // length-validation scan across many rows.
+        // Larger interleaved present/absent batch to stress the SPARSE wrap.
         assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword");
+            b.startObject(FIELD).field("type", "match_only_text");
             b.startObject("doc_values").field("multi_value", false).endObject();
             b.endObject();
         }),
@@ -384,10 +273,8 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
 
     public void testSingleElementArrayMultiValueFalse() throws IOException {
         // A single-element array {"f":["a"]} is a legal value for a multi_value=false field.
-        // The ESCF encoder produces an ARRAY-of-STRING column; the fast path must wrap it
-        // zero-copy, matching the row path which extracts the sole element.
         assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword");
+            b.startObject(FIELD).field("type", "match_only_text");
             b.startObject("doc_values").field("multi_value", false).endObject();
             b.endObject();
         }),
@@ -405,11 +292,11 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     // ---- multi-fields ---------------------------------------------------------------------------
 
     public void testMultiFieldSingleValue() throws IOException {
-        // The parent and its keyword multi-field both parse the same raw source values.
+        // match_only_text with a keyword multi-field, the common real-world pairing.
         assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword");
+            b.startObject(FIELD).field("type", "match_only_text");
             b.startObject("fields");
-            b.startObject("lower").field("type", "keyword").endObject();
+            b.startObject("raw").field("type", "keyword").endObject();
             b.endObject();
             b.endObject();
         }),
@@ -417,17 +304,16 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
             batch(
                 "multi-field single value",
                 1L,
-                doc("d1", 1L, "{\"f\":\"Hello\"}"),
+                doc("d1", 1L, "{\"f\":\"Hello World\"}"),
                 doc("d2", 2L, "{}"),
-                doc("d3", 3L, "{\"f\":\"World\"}")
+                doc("d3", 3L, "{\"f\":\"Another Value\"}")
             )
         );
     }
 
     public void testMultiFieldArrayValues() throws IOException {
-        // Multi-valued source arrays replay independently through the parent and its multi-field.
         assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword");
+            b.startObject(FIELD).field("type", "match_only_text");
             b.startObject("fields");
             b.startObject("raw").field("type", "keyword").endObject();
             b.endObject();
@@ -437,32 +323,16 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
             batch(
                 "multi-field array values",
                 1L,
-                doc("d1", 1L, "{\"f\":[\"alpha\",\"beta\"]}"),
+                doc("d1", 1L, "{\"f\":[\"alpha beta\",\"gamma\"]}"),
                 doc("d2", 2L, "{\"f\":[]}"),
                 doc("d3", 3L, "{}")
             )
         );
     }
 
-    public void testMultiFieldDivergingIgnoreAbove() throws IOException {
-        // The parent and multi-field have different ignore_above limits, so a value can trip one
-        // field's ignore_above-fallback path without tripping the other's.
-        assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword").field("ignore_above", 4);
-            b.startObject("fields");
-            b.startObject("raw").field("type", "keyword").endObject();
-            b.endObject();
-            b.endObject();
-        }),
-            columnarSettings(),
-            batch("multi-field diverging ignore_above", 1L, doc("d1", 1L, "{\"f\":\"toolong\"}"), doc("d2", 2L, "{\"f\":\"ok\"}"))
-        );
-    }
-
     public void testMultiFieldTwoMultiFields() throws IOException {
-        // Two multi-fields under the same parent produce independent output columns.
         assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword");
+            b.startObject(FIELD).field("type", "match_only_text");
             b.startObject("fields");
             b.startObject("raw").field("type", "keyword").endObject();
             b.startObject("other").field("type", "keyword").field("ignore_above", 3).endObject();
@@ -472,10 +342,9 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     public void testMultiFieldNotIndexedParent() throws IOException {
-        // The parent is not indexed (doc values only) while its multi-field is fully indexed;
-        // mapColumnBatch must dispatch to the multi-field regardless of the parent's own emit flags.
+        // The parent is not indexed (doc values only) while its multi-field is fully indexed.
         assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword").field("index", false);
+            b.startObject(FIELD).field("type", "match_only_text").field("index", false);
             b.startObject("fields");
             b.startObject("raw").field("type", "keyword").endObject();
             b.endObject();
@@ -486,24 +355,31 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    public void testMultiFieldMultiValueFalse() throws IOException {
-        // The parent is multi_value=false while its multi-field keeps the default multi_value=true.
-        assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+    public void testMultiFieldWithColumnarCapableKeywordIsSupported() throws IOException {
+        MapperService ms = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "match_only_text");
             b.startObject("fields");
             b.startObject("raw").field("type", "keyword").endObject();
             b.endObject();
             b.endObject();
-        }),
-            columnarSettings(),
-            batch(
-                "multi-field parent multi_value=false",
-                1L,
-                doc("d1", 1L, "{\"f\":\"solo\"}"),
-                doc("d2", 2L, "{}"),
-                doc("d3", 3L, "{\"f\":\"solo2\"}")
-            )
-        );
+        }));
+        var mapper = ms.mappingLookup().getMapper(FIELD);
+        assertTrue(mapper instanceof MatchOnlyTextFieldMapper);
+        assertTrue(((MatchOnlyTextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings()));
+    }
+
+    public void testMultiFieldWithNonColumnarTextFallsBack() throws IOException {
+        // A text multi-field with index_phrases=true writes a companion phrase field outside the
+        // batch dispatch and is not supported on the columnar path, so the parent must fall back too.
+        MapperService ms = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "match_only_text");
+            b.startObject("fields");
+            b.startObject("full").field("type", "text").field("index_phrases", true).endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        var mapper = ms.mappingLookup().getMapper(FIELD);
+        assertTrue(mapper instanceof MatchOnlyTextFieldMapper);
+        assertFalse(((MatchOnlyTextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings()));
     }
 }

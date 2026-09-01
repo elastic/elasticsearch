@@ -54,7 +54,8 @@ public final class FixtureMatrix {
         Pattern.compile("formats"),
         Pattern.compile("dataset\\.[a-z0-9_]+"),
         Pattern.compile("dataset\\.[a-z0-9_]+\\.(reason|write_dialect|unrepresentable_dialects)"),
-        Pattern.compile("dataset\\.[a-z0-9_]+\\.unrepresentable_dialects\\.reason"),
+        Pattern.compile("dataset\\.[a-z0-9_]+\\.unrepresentable_dialects(\\.[a-z_]+)?\\.reason"),
+        Pattern.compile("dataset\\.[a-z0-9_]+\\.unrepresentable_dialects\\.[a-z_]+"),
         Pattern.compile("layout\\.[a-z_]+\\.(dir|glob|sources|derived_from|bucket_by|partition_column)"),
         Pattern.compile("layout\\.[a-z_]+\\.sources\\.[a-z0-9-]+"),
         Pattern.compile("layout\\.[a-z_]+\\.sources\\.[a-z0-9-]+\\.reason"),
@@ -406,13 +407,38 @@ public final class FixtureMatrix {
      * between "we decided" and "we did not notice" stays visible.
      */
     public Set<String> unrepresentableDialects(String dataset) {
-        String declared = declaration.getProperty("dataset." + dataset + ".unrepresentable_dialects");
+        return unrepresentableDialects(dataset, null);
+    }
+
+    /**
+     * The same, for a specific delimiter.
+     *
+     * <p>Representability is a fact about (dataset, dialect, DELIMITER), not about the dataset alone: PLAIN
+     * cannot carry a cell holding the delimiter, so which cells are unrepresentable moves when the delimiter
+     * does. The unqualified declarations were all measured against the comma, so they stay in force -- they
+     * may over-skip under another delimiter, which costs coverage rather than correctness -- and a
+     * {@code .<delimiter>} entry adds the cells that only that delimiter makes unrepresentable.
+     */
+    public Set<String> unrepresentableDialects(String dataset, String delimiter) {
+        Set<String> all = new LinkedHashSet<>(declaredUnrepresentable(dataset, ""));
+        if (delimiter != null) {
+            all.addAll(declaredUnrepresentable(dataset, "." + delimiter));
+        }
+        return all;
+    }
+
+    private Set<String> declaredUnrepresentable(String dataset, String qualifier) {
+        String declared = declaration.getProperty("dataset." + dataset + ".unrepresentable_dialects" + qualifier);
         if (declared == null) {
             return Set.of();
         }
-        if (declaration.getProperty("dataset." + dataset + ".unrepresentable_dialects.reason") == null) {
+        if (declaration.getProperty("dataset." + dataset + ".unrepresentable_dialects" + qualifier + ".reason") == null) {
             throw new IllegalStateException(
-                "dataset [" + dataset + "] declares unrepresentable dialects with no reason; an unexplained skip is an oversight"
+                "dataset ["
+                    + dataset
+                    + "] declares unrepresentable dialects"
+                    + (qualifier.isEmpty() ? "" : " for [" + qualifier.substring(1) + "]")
+                    + " with no reason; an unexplained skip is an oversight"
             );
         }
         Set<String> dialects = new LinkedHashSet<>();

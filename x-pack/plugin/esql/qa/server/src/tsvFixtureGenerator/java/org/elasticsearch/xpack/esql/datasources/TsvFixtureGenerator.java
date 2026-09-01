@@ -79,12 +79,13 @@ public final class TsvFixtureGenerator {
                 default -> throw new IllegalArgumentException("unknown text_mode [" + textMode + "]");
             };
             boolean headerRow = "false".equals(pinned.get("header_row")) == false;
-            char delimiter = dimensions.delimiterChar(pinned.getOrDefault("delimiter", dimensions.defaultValue("delimiter", format)));
+            String delimiterName = pinned.getOrDefault("delimiter", dimensions.defaultValue("delimiter", format));
+            char delimiter = dimensions.delimiterChar(delimiterName);
             TextRowRenderer renderer = new TextRowRenderer(delimiter, dialect, headerRow);
             Path slugRoot = outputRoot.resolve("vector").resolve(slug.getKey()).resolve("standalone");
             Files.createDirectories(slugRoot);
             for (String dataset : matrix.datasetsFor(format)) {
-                if (matrix.unrepresentableDialects(dataset).contains(dialect.name().toLowerCase(Locale.ROOT))) {
+                if (matrix.unrepresentableDialects(dataset, delimiterName).contains(dialect.name().toLowerCase(Locale.ROOT))) {
                     logger.info("Skipping [{}] in [{}]: declared unrepresentable in {}", dataset, slug.getKey(), dialect);
                     continue;
                 }

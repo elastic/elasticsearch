@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.plan;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -55,6 +57,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class QuerySettingsTests extends ESTestCase {
 
@@ -691,13 +695,21 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Asia/Tokyo")));
     }
 
-    public void testUnusableValueIsReportedOnTheOperatorChannel() {
-        // Resolution falls back silently, so this log is the only thing telling an operator their configuration is
-        // being ignored.
+    public void testUnusableValueIsReportedThroughTheRegisteredUpdateConsumer() {
+        // Drives the real settings-update path, so it pins the registration and not just the method body. That
+        // matters more than usual here: the fallback is silent by design, so a registration that never happened has
+        // no symptom at all. An integration test cannot cover this — PUT _cluster/settings refuses any value that
+        // would warn, which is the whole point of the write-time check.
+        Settings node = Settings.EMPTY;
+        ClusterSettings clusterSettings = new ClusterSettings(node, new HashSet<>(QuerySettings.clusterSettings()));
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(node);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        QuerySettings.watchClusterDefaults(clusterService);
+
         String key = QuerySettingDef.CLUSTER_SETTING_PREFIX + QuerySettings.UNMAPPED_FIELDS.name();
-        Settings unusable = Settings.builder().put(key, "not_a_resolution").build();
         MockLog.assertThatLogger(
-            () -> QuerySettings.warnUnusableClusterDefaults(unusable, Settings.EMPTY),
+            () -> clusterSettings.applySettings(Settings.builder().put(key, "not_a_resolution").build()),
             QuerySettings.class,
             new MockLog.SeenEventExpectation(
                 "unusable operator value",
@@ -710,12 +722,12 @@ public class QuerySettingsTests extends ESTestCase {
 
     public void testUsableAndAbsentValuesAreNotReported() {
         MockLog.assertThatLogger(
-            () -> QuerySettings.warnUnusableClusterDefaults(clusterSetting(QuerySettings.TIME_ZONE, "Europe/Paris"), Settings.EMPTY),
+            () -> QuerySettings.warnUnusableClusterDefaults(clusterSetting(QuerySettings.TIME_ZONE, "Europe/Paris")),
             QuerySettings.class,
             new MockLog.UnseenEventExpectation("no warning", QuerySettings.class.getCanonicalName(), Level.WARN, "*")
         );
         MockLog.assertThatLogger(
-            () -> QuerySettings.warnUnusableClusterDefaults(Settings.EMPTY, Settings.EMPTY),
+            () -> QuerySettings.warnUnusableClusterDefaults(Settings.EMPTY),
             QuerySettings.class,
             new MockLog.UnseenEventExpectation("no warning", QuerySettings.class.getCanonicalName(), Level.WARN, "*")
         );
@@ -780,7 +792,7 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Europe/Berlin")));
     }
 
-    public void testUnsetClusterKeyContributesNoLayerToTheReconciler() {
+    public void testOperatorValueReplacesTheDefaultRatherThanReconcilingWithIt() {
         // An operator changes what the default IS, so their value substitutes for the registry default rather than
         // reconciling with it. The difference is only visible through a reconciler that combines rather than replaces:
         // both opted-in settings are last-wins scalars, for which substituting and reconciling agree, so neither can

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
@@ -37,8 +38,9 @@ import java.util.Map;
  * The catalog of registered ES|QL query settings.
  *
  * <p>Each entry is one fluent declaration. {@link QuerySettingDef} carries the schema and the read API;
- * this class is a list of constants and two utility methods ({@link #validate} for the in-query SET
- * pass, {@link #resolve} for the merge step that produces an {@link ResolvedSettings}).
+ * this class is a list of constants plus the entry points that use them — {@link #validate} for the in-query SET
+ * pass, {@link #resolve} for the merge that produces a {@link ResolvedSettings}, and the cluster-setting
+ * registration and warning.
  *
  * <h2>Adding a new setting</h2>
  *
@@ -376,10 +378,13 @@ public final class QuerySettings {
     /**
      * Log any operator default this node cannot use. Resolution falls back to the built-in default for such a value
      * rather than failing queries, so without this the operator would have no signal at all.
+     *
+     * @param effectiveSettings node and cluster-state settings already merged, as the grouped settings-update
+     *     consumer supplies them
      */
-    public static void warnUnusableClusterDefaults(Settings clusterState, Settings nodeSettings) {
+    public static void warnUnusableClusterDefaults(Settings effectiveSettings) {
         for (QuerySettingDef<?> def : all()) {
-            String error = def.clusterValueError(clusterState, nodeSettings);
+            String error = def.clusterValueError(effectiveSettings, Settings.EMPTY);
             if (error != null) {
                 logger.warn(
                     "Cluster setting [{}{}] is configured but not usable on this cluster and is being ignored; "
@@ -406,6 +411,15 @@ public final class QuerySettings {
             resolveSingle(def, clusterState, nodeSettings, requestParams, statement, ctx, resolved);
         }
         return new ResolvedSettings(resolved);
+    }
+
+    /**
+     * Register {@link #warnUnusableClusterDefaults} on the settings-update path. Only that path needs it: an unusable
+     * value in {@code elasticsearch.yml} already stops the node starting, and cluster state does not exist yet when
+     * components are constructed.
+     */
+    public static void watchClusterDefaults(ClusterService clusterService) {
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(QuerySettings::warnUnusableClusterDefaults, clusterSettings());
     }
 
     /** Resolve with no operator defaults in play. */

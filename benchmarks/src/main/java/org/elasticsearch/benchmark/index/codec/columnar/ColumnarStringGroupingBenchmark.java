@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiPredicate;
 import java.util.stream.Stream;
 
 /**
@@ -134,23 +135,71 @@ public class ColumnarStringGroupingBenchmark {
         contained = term.length == 0
             ? new BytesRef("")
             : new BytesRef(Arrays.copyOfRange(term.bytes, term.offset + from, term.offset + to));
-        // A term that matches fewer documents than it should makes a format look instant, which is the
-        // easiest way to misread a filter benchmark. Checked against the values themselves, and here rather
-        // than in a setup of its own, whose order is not defined.
-        if (selectivity != Selectivity.ABSENT) {
-            long expected = 0;
-            for (BytesRef value : values) {
-                if (value.bytesEquals(term)) {
-                    expected++;
-                }
-            }
-            final long matched = column.queryTerm(term);
-            if (matched != expected) {
-                throw new AssertionError(
-                    "term [" + term.utf8ToString() + "] matched " + matched + " of " + docCount + ", expected " + expected
-                );
+        // A shape that matches fewer documents than it should makes a format look instant, which is the
+        // easiest way to misread a filter benchmark, and one that matches a term the column does not hold is
+        // the same mistake read from the other side. So every shape that answers with a count is checked
+        // against the values themselves, the absent term included, where the count to expect is zero. Here
+        // rather than in a setup of its own, whose order is not defined.
+        //
+        // The traversal shapes are not checked: group, aggregate, scan and readPerDocument each answer with
+        // an accumulator whose meaning is the consumer's rather than the column's, so there is nothing to
+        // hold them to without fixing what every format has to accumulate.
+        check("term", term, column.queryTerm(term), values, ColumnarStringGroupingBenchmark::equalTo);
+        check("term", term, column.matchTerm(term), values, ColumnarStringGroupingBenchmark::equalTo);
+        check("prefix", prefix, column.queryPrefix(prefix), values, ColumnarStringGroupingBenchmark::startsWith);
+        check("prefix", prefix, column.matchPrefix(prefix), values, ColumnarStringGroupingBenchmark::startsWith);
+        check("contains", contained, column.matchContains(contained), values, ColumnarStringGroupingBenchmark::contains);
+    }
+
+    /** What a shape answered, against what the values say it should have. */
+    private void check(String shape, BytesRef probe, long matched, BytesRef[] values, BiPredicate<BytesRef, BytesRef> holds) {
+        long expected = 0;
+        for (BytesRef value : values) {
+            if (holds.test(value, probe)) {
+                expected++;
             }
         }
+        if (matched != expected) {
+            throw new AssertionError(
+                shape + " [" + probe.utf8ToString() + "] matched " + matched + " of " + docCount + ", expected " + expected
+            );
+        }
+    }
+
+    private static boolean equalTo(BytesRef value, BytesRef probe) {
+        return value.bytesEquals(probe);
+    }
+
+    private static boolean startsWith(BytesRef value, BytesRef probe) {
+        return value.length >= probe.length
+            && Arrays.equals(
+                value.bytes,
+                value.offset,
+                value.offset + probe.length,
+                probe.bytes,
+                probe.offset,
+                probe.offset + probe.length
+            );
+    }
+
+    /** By the bytes, as the column searches: a probe carved out of a term can split a character. */
+    private static boolean contains(BytesRef value, BytesRef probe) {
+        if (probe.length == 0) {
+            return true;
+        }
+        for (int at = 0; at + probe.length <= value.length; at++) {
+            if (Arrays.equals(
+                value.bytes,
+                value.offset + at,
+                value.offset + at + probe.length,
+                probe.bytes,
+                probe.offset,
+                probe.offset + probe.length
+            )) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Benchmark

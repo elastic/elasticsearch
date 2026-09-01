@@ -34,7 +34,6 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -47,7 +46,6 @@ import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
 import org.elasticsearch.columnar.string.StringBlockSink;
 import org.elasticsearch.columnar.string.StringColumnReader;
-import org.elasticsearch.columnar.string.StringColumnValues;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
@@ -784,38 +782,6 @@ public enum StringFormat {
         }
     }
 
-    /**
-     * Collects a match in windows, as {@code DenseConjunctionBulkScorer} does: the two-phase iterator is
-     * recovered from the iterator and asked to fill a bitset, which is where its {@code intoBitSet} runs.
-     * An iterator with no two-phase behind it is already a materialized set and is simply drained.
-     */
-    private static long bulk(DocIdSetIterator matches, int maxDoc) throws IOException {
-        final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(matches);
-        if (twoPhase == null) {
-            long found = 0;
-            for (int doc = matches.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = matches.nextDoc()) {
-                found++;
-            }
-            return found;
-        }
-        final int window = 2048;
-        final FixedBitSet bits = new FixedBitSet(window);
-        final DocIdSetIterator approximation = twoPhase.approximation();
-        long found = 0;
-        int offset = 0;
-        approximation.nextDoc();
-        while (approximation.docID() != DocIdSetIterator.NO_MORE_DOCS) {
-            bits.clear();
-            offset = approximation.docID();
-            twoPhase.intoBitSet(Math.min(offset + window, maxDoc), bits, offset);
-            found += bits.cardinality();
-            if (approximation.docID() < offset + window) {
-                approximation.advance(offset + window);
-            }
-        }
-        return found;
-    }
-
     /** Touches every value's bytes and nothing else. */
     /** Hashes a page's distinct values, once each, and counts how many documents each covers. */
     private static final class MapModeSink implements StringBlockSink {
@@ -920,42 +886,4 @@ public enum StringFormat {
         return id < 0 ? -1 - id : id;
     }
 
-    private static StringColumnValues cursor(BytesRef[] values) {
-        return new StringColumnValues() {
-            private int doc = -1;
-
-            @Override
-            public int valueCount() {
-                return 1;
-            }
-
-            @Override
-            public void nextValue() {}
-
-            @Override
-            public BytesRef value() {
-                return values[doc];
-            }
-
-            @Override
-            public int docID() {
-                return doc;
-            }
-
-            @Override
-            public int nextDoc() {
-                return doc = (++doc < values.length ? doc : DocIdSetIterator.NO_MORE_DOCS);
-            }
-
-            @Override
-            public int advance(int target) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public long cost() {
-                return values.length;
-            }
-        };
-    }
 }

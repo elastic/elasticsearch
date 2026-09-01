@@ -18,6 +18,8 @@ import org.elasticsearch.columnar.string.Vocabulary;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 
@@ -33,6 +35,8 @@ public class DictionaryPolicyCurveTests extends ESTestCase {
 
     private static final int DOCS = 2_000_000;
     private static final int[] BUDGETS_KB = { 256, 512, 1024, 2048, 4096, 8192 };
+    /** What a Misra-Gries table sized differently may cost at the margin, against a real loss of coverage. */
+    private static final double COVERAGE_SLACK = 0.01;
 
     public void testCoverageAgainstBudget() throws IOException {
         System.out.println(
@@ -40,8 +44,11 @@ public class DictionaryPolicyCurveTests extends ESTestCase {
         );
         for (StringData data : StringData.values()) {
             final BytesRef[] values = data.generate(DOCS, new Random(7));
-            double leastBudgetCoverage = -1;
-            double mostBudgetCoverage = -1;
+            // Gathered rather than asserted as it goes, so the whole curve is printed before any of it is
+            // held to anything: the print is what the bounds were chosen against and is worth having on a
+            // failure too.
+            final List<Integer> surveyedBudgets = new ArrayList<>();
+            final List<Double> coverages = new ArrayList<>();
             for (int kb : BUDGETS_KB) {
                 // Only the budget constrains the survey here; whether to keep what it found is asked after.
                 final DictionaryPolicy surveying = new DictionaryPolicy(kb * 1024, 0.0, 1.0);
@@ -51,10 +58,8 @@ public class DictionaryPolicyCurveTests extends ESTestCase {
                     System.out.println(String.format(Locale.ROOT, "%-20s %9d %7s", data, kb, "none"));
                     continue;
                 }
-                if (leastBudgetCoverage < 0) {
-                    leastBudgetCoverage = terms.coverage();
-                }
-                mostBudgetCoverage = terms.coverage();
+                surveyedBudgets.add(kb);
+                coverages.add(terms.coverage());
                 final double share = (double) terms.dictionaryBytes() / terms.columnBytes();
                 // The bounds as they ship, against what a dictionary of this size would have covered.
                 final boolean kept = terms.coverage() >= 0.5 && share <= 0.2 && terms.dictionaryBytes() <= 512 * 1024;
@@ -72,11 +77,19 @@ public class DictionaryPolicyCurveTests extends ESTestCase {
                     )
                 );
             }
-            if (leastBudgetCoverage >= 0) {
+            // Step by step rather than end to end, since comparing only the first surveyed budget to the
+            // last cannot see a dip in the middle.
+            //
+            // Not to the previous coverage exactly: the survey is Misra-Gries over a table the budget sizes,
+            // and a larger table evicts at different moments, so which of the terms at the margin survive
+            // can differ either way. On SORTED_POD_NAME that is one term fewer a doubling, which moves
+            // coverage by less than a thousandth. What the bounds assume is that more room does not cost the
+            // column real coverage, so the slack is a hundredth and a genuine collapse still fails.
+            for (int i = 1; i < coverages.size(); i++) {
                 assertThat(
-                    data + " covered less of the column when allowed more room for terms",
-                    mostBudgetCoverage,
-                    greaterThanOrEqualTo(leastBudgetCoverage)
+                    data + " covered less of the column at " + surveyedBudgets.get(i) + "KB than at " + surveyedBudgets.get(i - 1) + "KB",
+                    coverages.get(i),
+                    greaterThanOrEqualTo(coverages.get(i - 1) - COVERAGE_SLACK)
                 );
             }
         }

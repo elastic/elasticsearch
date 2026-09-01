@@ -385,7 +385,22 @@ public final class FixtureDimensions {
         Set<String> disjointWhys = new LinkedHashSet<>();
 
         for (String key : new TreeSet<>(props.stringPropertyNames())) {
-            String value = props.getProperty(key).trim();
+            String raw = props.getProperty(key);
+            String value = raw.trim();
+            // A value that is ALL whitespace was something before the trim ran. Properties decodes \t and
+            // \u0020 escapes before we ever see them, so a deliberate tab or space arrives here as a real
+            // character and the trim silently deletes it, handing the caller a well-formed empty string.
+            // That is how the delimiter dimension came to ask the renderer for an empty field separator.
+            // Refuse it at the source: a whitespace value is either a typo or a character that must be
+            // carried as an escape, and both deserve to be named rather than guessed at downstream.
+            if (value.isEmpty() && raw.isEmpty() == false) {
+                throw new IllegalStateException(
+                    "value for ["
+                        + key
+                        + "] is entirely whitespace, so trimming leaves nothing; a whitespace character must be "
+                        + "written as an escape that survives the trim (see dimension.delimiter.value.tab)"
+                );
+            }
             if (key.startsWith("dimension.")) {
                 // Split on the FIRST dot: a dimension name never contains one, and half the attributes
                 // are two-part (`gap.<v>.<format>` is three). Splitting on the last dot instead reads a

@@ -566,6 +566,35 @@ public class FixtureDimensionsTests extends ESTestCase {
     }
 
     /** Declaring the baseline missing cannot be true -- every vector carries the default. */
+    /**
+     * A whitespace-only value is refused rather than silently emptied.
+     *
+     * <p>Properties decodes {@code \t} and {@code \u0020} before the parser sees them, so a deliberate tab
+     * arrives as a real character and the trim deletes it, handing the caller a well-formed empty string.
+     * That is exactly how the delimiter dimension came to ask the renderer for an empty field separator --
+     * caught only because delimiterChar happened to require one character. Nothing protected the next
+     * dimension, and null_value (whose CSV default IS the empty string) would have been the next to hit it
+     * with no assertion to trip.
+     */
+    public void testAWhitespaceOnlyValueIsRejectedRatherThanEmptied() {
+        // Set the property directly rather than through declaration(): that helper trims the value itself,
+        // which the real loader does NOT -- Properties.load decodes `\t` into a tab that reaches the parser
+        // intact. Going through the helper would destroy the character before the guard could see it, and
+        // the test would pass for the wrong reason.
+        Properties props = declaration(wellFormed());
+        props.setProperty("dimension.error_mode.value.skip_row", "\t");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(props));
+        assertThat(e.getMessage(), containsString("entirely whitespace"));
+        assertThat("names the offending key", e.getMessage(), containsString("dimension.error_mode.value.skip_row"));
+    }
+
+    /** A genuinely empty value is not whitespace destruction, and stays allowed. */
+    public void testATrulyEmptyValueIsStillAccepted() {
+        Properties props = declaration(wellFormed());
+        props.setProperty("dimension.error_mode.value.skip_row", "");
+        FixtureDimensions.parse(props);
+    }
+
     public void testAnAbsenceOnTheDefaultValueIsRejected() {
         String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.gap.fail_fast = gap: nope");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));

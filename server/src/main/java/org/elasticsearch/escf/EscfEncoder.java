@@ -50,6 +50,10 @@ public final class EscfEncoder implements SourceBatchEncoder {
         this.backend = new EscfBatchBuilder(recycler);
     }
 
+    public void parseToScratch(BytesReference source, XContentType xContentType) throws IOException {
+        parseToScratch(source, xContentType, LeafSink.NO_OP);
+    }
+
     @Override
     public void parseToScratch(BytesReference source, XContentType xContentType, LeafSink sink) throws IOException {
         EscfRowBuffer row = backend.beginRow();

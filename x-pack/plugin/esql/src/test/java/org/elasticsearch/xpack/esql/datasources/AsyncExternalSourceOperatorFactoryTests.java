@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrate
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -66,6 +68,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.zip.GZIPOutputStream;
 
+import static org.hamcrest.Matchers.contains;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
@@ -568,6 +571,228 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             IntBlock yearBlock = page.getBlock(2);
             assertEquals(2024, yearBlock.getInt(0));
             assertEquals(2024, yearBlock.getInt(1));
+        } finally {
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            operator.close();
+        }
+    }
+
+    /**
+     * FFW Hive partition key that is not last: physical {@code [a, city, b]}, {@code city}
+     * partitioned. {@code computeMapping([a, b], physical)} is {@code [0, 2]} — same width as
+     * {@code queryDataSchema} — while the reader emits the projected page {@code [a, b]}.
+     * Unconditional {@code alignToQuery} must rewrite the mapping to {@code [0, 1]} so
+     * {@code mapPage} does not ask for block 2 of a 2-block page.
+     */
+    public void testHiveMiddlePartitionKeyEqualWidthStillRealigns() throws Exception {
+        StoragePath filePath = StoragePath.of("s3://bucket/data/city=10/f1.parquet");
+        List<StorageEntry> entries = List.of(new StorageEntry(filePath, 100, Instant.EPOCH));
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/**/*.parquet");
+
+        // Reader is asked for [a, b]; city is the partition key, not a physical block.
+        Page filePage = new Page(
+            2,
+            new IntBlock[] {
+                TEST_BLOCK_FACTORY.newIntArrayVector(new int[] { 1, 2 }, 2).asBlock(),
+                TEST_BLOCK_FACTORY.newIntArrayVector(new int[] { 3, 4 }, 2).asBlock() }
+        );
+        FormatReader formatReader = new SinglePageReader(() -> filePage);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        List<Attribute> attributes = List.of(ref("a", DataType.INTEGER), ref("b", DataType.INTEGER), ref("city", DataType.INTEGER));
+
+        ExternalSchema fileSchema = new ExternalSchema(
+            List.of(ref("a", DataType.INTEGER), ref("city", DataType.INTEGER), ref("b", DataType.INTEGER))
+        );
+        // File-natural mapping of data columns [a, b] into physical [a, city, b].
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, 2 }, null);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            filePath,
+            new SchemaReconciliation.FileSchemaInfo(fileSchema, mapping, null)
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            filePath,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).fileList(fileList).schemaMap(schemaMap).partitionColumnNames(Set.of("city")).partitionValues(Map.of("city", 10)).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        assertNotNull(operator);
+
+        List<Page> pages = new ArrayList<>();
+        try {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
+            }
+
+            assertEquals("one page produced", 1, pages.size());
+            Page page = pages.get(0);
+            assertEquals("data columns + injected partition column", 3, page.getBlockCount());
+            assertEquals(2, page.getPositionCount());
+
+            IntBlock aBlock = page.getBlock(0);
+            assertEquals(1, aBlock.getInt(0));
+            assertEquals(2, aBlock.getInt(1));
+            IntBlock bBlock = page.getBlock(1);
+            assertEquals(3, bBlock.getInt(0));
+            assertEquals(4, bBlock.getInt(1));
+            IntBlock cityBlock = page.getBlock(2);
+            assertEquals(10, cityBlock.getInt(0));
+            assertEquals(10, cityBlock.getInt(1));
+        } finally {
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            operator.close();
+        }
+    }
+
+    /**
+     * Zero-split multi-file + unified-width {@code schemaMap} + narrow query. Discovery left a
+     * resolved {@link FileList} and no splits, so the read takes {@code openNextMultiFile} which
+     * used to pass the unified-width mapping to {@link SchemaAdaptingIterator} and trip the
+     * size-vs-width guard. This file lacks the query column: {@code adaptSchema} must realign
+     * to query width and null-fill instead of throwing {@link IllegalArgumentException}.
+     */
+    public void testZeroSplitUnifiedMappingNarrowQueryNullFillsInsteadOfTrippingGuard() throws Exception {
+        StoragePath filePath = StoragePath.of("s3://bucket/data/f1.parquet");
+        List<StorageEntry> entries = List.of(new StorageEntry(filePath, 100, Instant.EPOCH));
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
+
+        // File body is [id, extra]; unified schema also has city, which this file lacks.
+        // Empty projection (city is not in the file) so the reader emits a position-only page.
+        FormatReader formatReader = new SinglePageReader(() -> new Page(2));
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        List<Attribute> attributes = List.of(ref("city", DataType.INTEGER));
+
+        ExternalSchema fileSchema = new ExternalSchema(List.of(ref("id", DataType.INTEGER), ref("extra", DataType.INTEGER)));
+        // Unified-width non-identity mapping: id, city (missing), extra. Width 3 vs query width 1.
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, -1, 1 }, new DataType[] { DataType.LONG, null, null });
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            filePath,
+            new SchemaReconciliation.FileSchemaInfo(fileSchema, mapping, null)
+        );
+
+        // A real context rather than this suite's usual mock: the absent-column warning is delivered into its warning
+        // sink, which a stub would swallow, leaving the assertion at the end of this method nothing to read.
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            filePath,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).fileList(fileList).schemaMap(schemaMap).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        assertNotNull(operator);
+
+        List<Page> pages = new ArrayList<>();
+        try {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
+            }
+
+            assertEquals("one page produced", 1, pages.size());
+            Page page = pages.get(0);
+            assertEquals("narrow query projects one column", 1, page.getBlockCount());
+            assertEquals(2, page.getPositionCount());
+            assertTrue("city is absent from this file so the adapter null-fills", page.getBlock(0).areAllValuesNull());
+        } finally {
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            operator.close();
+        }
+        driverContext.finish();
+        assertThat(driverContext.warnings(), contains(SkipWarnings.absentDeclaredColumnMessage("city")));
+        Releasables.close(driverContext.getSnapshot());
+    }
+
+    /**
+     * Same zero-split arm as {@link #testZeroSplitUnifiedMappingNarrowQueryNullFillsInsteadOfTrippingGuard},
+     * but the one projected column is present in the file (the {@code STATS BY city} shape when
+     * {@code city} is on disk). The adapter must emit the file values, not trip the width guard.
+     */
+    public void testZeroSplitUnifiedMappingNarrowsPresentColumnInsteadOfTrippingGuard() throws Exception {
+        StoragePath filePath = StoragePath.of("s3://bucket/data/f1.parquet");
+        List<StorageEntry> entries = List.of(new StorageEntry(filePath, 100, Instant.EPOCH));
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
+
+        // Reader is asked for per-file projection [city] only; emit that one block.
+        FormatReader formatReader = new SinglePageReader(
+            () -> new Page(2, TEST_BLOCK_FACTORY.newIntArrayVector(new int[] { 10, 20 }, 2).asBlock())
+        );
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        List<Attribute> attributes = List.of(ref("city", DataType.INTEGER));
+
+        ExternalSchema fileSchema = new ExternalSchema(
+            List.of(ref("id", DataType.INTEGER), ref("city", DataType.INTEGER), ref("extra", DataType.INTEGER))
+        );
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, 1, 2 }, new DataType[] { DataType.LONG, null, null });
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            filePath,
+            new SchemaReconciliation.FileSchemaInfo(fileSchema, mapping, null)
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            filePath,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).fileList(fileList).schemaMap(schemaMap).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        assertNotNull(operator);
+
+        List<Page> pages = new ArrayList<>();
+        try {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
+            }
+
+            assertEquals("one page produced", 1, pages.size());
+            Page page = pages.get(0);
+            assertEquals("narrow query projects one column", 1, page.getBlockCount());
+            assertEquals(2, page.getPositionCount());
+            IntBlock cityBlock = page.getBlock(0);
+            assertEquals(10, cityBlock.getInt(0));
+            assertEquals(20, cityBlock.getInt(1));
         } finally {
             for (Page p : pages) {
                 p.releaseBlocks();

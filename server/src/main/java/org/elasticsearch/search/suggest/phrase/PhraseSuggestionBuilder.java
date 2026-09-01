@@ -331,6 +331,9 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         if (tokenLimit <= 0) {
             throw new IllegalArgumentException("token_limit must be >= 1");
         }
+        if (tokenLimit > NoisyChannelSpellChecker.MAX_TOKEN_LIMIT) {
+            throw new IllegalArgumentException("token_limit must be <= " + NoisyChannelSpellChecker.MAX_TOKEN_LIMIT);
+        }
         this.tokenLimit = tokenLimit;
         return this;
     }

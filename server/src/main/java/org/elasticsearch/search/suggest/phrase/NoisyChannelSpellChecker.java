@@ -25,6 +25,8 @@ import java.util.List;
 final class NoisyChannelSpellChecker {
     public static final double REAL_WORD_LIKELIHOOD = 0.95d;
     public static final int DEFAULT_TOKEN_LIMIT = 10;
+    // Caps recursion depth in CandidateScorer.findCandidates to prevent StackOverflowError
+    public static final int MAX_TOKEN_LIMIT = 1000;
     private final double realWordLikelihood;
     private final boolean requireUnigram;
     private final int tokenLimit;

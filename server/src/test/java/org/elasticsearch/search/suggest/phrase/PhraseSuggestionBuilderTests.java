@@ -148,6 +148,9 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         e = expectThrows(IllegalArgumentException.class, () -> builder.tokenLimit(0));
         assertEquals("token_limit must be >= 1", e.getMessage());
 
+        e = expectThrows(IllegalArgumentException.class, () -> builder.tokenLimit(NoisyChannelSpellChecker.MAX_TOKEN_LIMIT + 1));
+        assertEquals("token_limit must be <= " + NoisyChannelSpellChecker.MAX_TOKEN_LIMIT, e.getMessage());
+
         e = expectThrows(IllegalArgumentException.class, () -> builder.highlight(null, "</b>"));
         assertEquals("Pre and post tag must both be null or both not be null.", e.getMessage());
 

@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -384,7 +385,8 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
                 "b":  { "type": "byte",       "index": false, "doc_values": { "updatable": true } },
                 "d":  { "type": "double",     "index": false, "doc_values": { "updatable": true } },
                 "f":  { "type": "float",      "index": false, "doc_values": { "updatable": true } },
-                "hf": { "type": "half_float", "index": false, "doc_values": { "updatable": true } }
+                "hf": { "type": "half_float", "index": false, "doc_values": { "updatable": true } },
+                "dt": { "type": "date",       "index": false, "doc_values": { "updatable": true } }
               }
             }
             """;
@@ -397,12 +399,16 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
         );
         ensureGreen("idx");
         prepareIndex("idx").setId("1")
-            .setSource("kw", "a", "l", 1, "i", 2, "s", 3, "b", 4, "d", 1.5, "f", 2.5, "hf", 1.5)
+            .setSource("kw", "a", "l", 1, "i", 2, "s", 3, "b", 4, "d", 1.5, "f", 2.5, "hf", 1.5, "dt", "2021-01-01T00:00:00.000Z")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
         BulkRequest bulk = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        bulk.add(new UpdateRequest("idx", "1").doc(Map.of("kw", "b", "l", 10, "i", 20, "s", 30, "b", 40, "d", 9.5, "f", 8.5, "hf", 8.5)));
+        bulk.add(
+            new UpdateRequest("idx", "1").doc(
+                Map.of("kw", "b", "l", 10, "i", 20, "s", 30, "b", 40, "d", 9.5, "f", 8.5, "hf", 8.5, "dt", "2022-06-15T12:00:00.000Z")
+            )
+        );
         assertFalse(client().bulk(bulk).actionGet().hasFailures());
 
         GetResponse get = client().prepareGet("idx", "1").setRealtime(false).get();
@@ -416,10 +422,17 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
         assertThat(((Number) source.get("d")).doubleValue(), equalTo(9.5));
         assertThat(((Number) source.get("f")).floatValue(), equalTo(8.5f));
         assertThat(((Number) source.get("hf")).floatValue(), equalTo(8.5f));
+        // The overlaid date source value round-trips to the updated instant, independent of the exact string rendering.
+        assertThat(Instant.parse((String) source.get("dt")).toEpochMilli(), equalTo(Instant.parse("2022-06-15T12:00:00Z").toEpochMilli()));
         // The floating-point columns are searchable at their new values, proving the sortable-long encoding matched indexing.
         assertResponse(prepareSearch("idx").setQuery(QueryBuilders.rangeQuery("d").gte(9.0)), response -> assertHitCount(response, 1));
         assertResponse(prepareSearch("idx").setQuery(QueryBuilders.rangeQuery("f").gte(8.0)), response -> assertHitCount(response, 1));
         assertResponse(prepareSearch("idx").setQuery(QueryBuilders.rangeQuery("hf").gte(8.0)), response -> assertHitCount(response, 1));
+        // The date column is searchable at its updated value, proving the millis encoding matched indexing.
+        assertResponse(
+            prepareSearch("idx").setQuery(QueryBuilders.rangeQuery("dt").gte("2022-01-01")),
+            response -> assertHitCount(response, 1)
+        );
     }
 
     public void testConditionalUpdateHonoursSeqNo() throws Exception {

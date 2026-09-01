@@ -1018,6 +1018,23 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     /**
+     * A date is normally SORTED_NUMERIC doc values, but when updatable it is written as a plain {@link DocValuesType#NUMERIC} column for
+     * the same reason as a numeric field: {@code updateNumericDocValue} only accepts NUMERIC, and read paths wrap it back to a singleton.
+     */
+    public void testUpdatableDateWritesPlainNumericDocValues() throws Exception {
+        assumeUpdatableEnabled();
+        DocumentMapper mapper = createMapperService(
+            columnar(),
+            fieldMapping(b -> b.field("type", "date").field("index", false).startObject("doc_values").field("updatable", true).endObject())
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2021-01-01T00:00:00Z")));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertThat(fields, hasSize(1));
+        assertThat(fields.get(0).fieldType().docValuesType(), equalTo(DocValuesType.NUMERIC));
+    }
+
+    /**
      * {@code updatable} forces {@code multi_value=false}, so the enforcement machinery rejects a document carrying two values just as it
      * would for an explicitly single-valued field.
      */
@@ -1278,5 +1295,36 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             }
         });
         assertThat(captured[0], equalTo(indexed));
+    }
+
+    /**
+     * A date update must encode to the same millis-since-epoch that indexing the value writes, for both a formatted-string value and an
+     * epoch-millis number, so an in-place update is indistinguishable from a reindex.
+     */
+    public void testEncodeDocValuesUpdateMatchesIndexingForDate() throws IOException {
+        assumeUpdatableEnabled();
+        DocumentMapper mapper = createMapperService(
+            columnar(),
+            fieldMapping(b -> b.field("type", "date").field("index", false).startObject("doc_values").field("updatable", true).endObject())
+        ).documentMapper();
+        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+
+        for (Object value : List.of("2021-01-01T00:00:00.000Z", 1609459200000L)) {
+            long indexed = mapper.parse(source(b -> b.field("field", value))).rootDoc().getField("field").numericValue().longValue();
+            long[] captured = new long[1];
+            fieldMapper.encodeDocValuesUpdate(value, new FieldMapper.DocValuesUpdateSink() {
+                @Override
+                public void numeric(String field, long v) {
+                    assertThat(field, equalTo("field"));
+                    captured[0] = v;
+                }
+
+                @Override
+                public void binary(String field, BytesRef v) {
+                    throw new AssertionError("date should encode to numeric");
+                }
+            });
+            assertThat("value [" + value + "]", captured[0], equalTo(indexed));
+        }
     }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -23,6 +24,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TestTransportChannel;
 
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -38,6 +41,11 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+            )
+            // Populate the ClusterInfo with the shard write load stats from the NodeUsageStats*Collector.
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderShardWriteLoadType.TOTAL
             )
             .build();
     }
@@ -57,12 +65,14 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
         final int totalThreadPoolThreads = randomIntBetween(2, 40);
         final float averageThreadPoolUtilization = randomFloatBetween(0.0f, 1.0f, true);
         final long maxThreadPoolQueueLatencyMillis = randomLongBetween(0, 1000);
+        final var shardWriteLoadUtilizations = randomShardWriteLoadUtilizations();
         mockThreadPoolUsageStats(
             dataNodeTransportService,
             threadPoolName,
             totalThreadPoolThreads,
             averageThreadPoolUtilization,
-            maxThreadPoolQueueLatencyMillis
+            maxThreadPoolQueueLatencyMillis,
+            shardWriteLoadUtilizations
         );
 
         // This info should contain our fake values
@@ -71,7 +81,8 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
             threadPoolName,
             totalThreadPoolThreads,
             averageThreadPoolUtilization,
-            maxThreadPoolQueueLatencyMillis
+            maxThreadPoolQueueLatencyMillis,
+            shardWriteLoadUtilizations
         );
 
         // Now simulate an error
@@ -89,19 +100,22 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
             threadPoolName,
             totalThreadPoolThreads,
             averageThreadPoolUtilization,
-            maxThreadPoolQueueLatencyMillis
+            maxThreadPoolQueueLatencyMillis,
+            shardWriteLoadUtilizations
         );
 
         // Now start returning values again
         final int newTotalThreadPoolThreads = randomIntBetween(2, 40);
         final float newAverageThreadPoolUtilization = randomFloatBetween(0.0f, 1.0f, true);
         final long newMaxThreadPoolQueueLatencyMillis = randomLongBetween(0, 1000);
+        final var newShardWriteLoadUtilizations = randomShardWriteLoadUtilizations();
         mockThreadPoolUsageStats(
             dataNodeTransportService,
             threadPoolName,
             newTotalThreadPoolThreads,
             newAverageThreadPoolUtilization,
-            newMaxThreadPoolQueueLatencyMillis
+            newMaxThreadPoolQueueLatencyMillis,
+            newShardWriteLoadUtilizations
         );
 
         // The next response should contain the current values again
@@ -110,7 +124,8 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
             threadPoolName,
             newTotalThreadPoolThreads,
             newAverageThreadPoolUtilization,
-            newMaxThreadPoolQueueLatencyMillis
+            newMaxThreadPoolQueueLatencyMillis,
+            newShardWriteLoadUtilizations
         );
     }
 
@@ -119,7 +134,8 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
         String threadPoolName,
         int totalThreadPoolThreads,
         float averageThreadPoolUtilization,
-        long maxThreadPoolQueueLatencyMillis
+        long maxThreadPoolQueueLatencyMillis,
+        Map<ShardId, Double> shardWriteLoadUtils
     ) {
         dataNodeTransportService.clearInboundRules();
         dataNodeTransportService.addRequestHandlingBehavior(
@@ -147,7 +163,8 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
                                     maxThreadPoolQueueLatencyMillis
                                 )
                             )
-                        )
+                        ),
+                        shardWriteLoadUtils
                     )
                 );
             }
@@ -159,7 +176,8 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
         String threadPoolName,
         int totalThreadPoolThreads,
         float averageThreadPoolUtilization,
-        long maxThreadPoolQueueLatencyMillis
+        long maxThreadPoolQueueLatencyMillis,
+        Map<ShardId, Double> shardWriteLoadUtils
     ) {
         final var clusterInfo = Objects.requireNonNull(refreshClusterInfo());
         final var usageStatsMap = clusterInfo.getNodeUsageStatsForThreadPools().get(nodeId).threadPoolUsageStatsMap();
@@ -168,5 +186,22 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
         assertThat(threadPoolStats.totalThreadPoolThreads(), equalTo(totalThreadPoolThreads));
         assertThat(threadPoolStats.averageThreadPoolUtilization(), equalTo(averageThreadPoolUtilization));
         assertThat(threadPoolStats.maxThreadPoolQueueLatencyMillis(), equalTo(maxThreadPoolQueueLatencyMillis));
+        // threadPoolName may not be the WRITE threadpool, so fetch it explicitly.
+        final var writeThreadPoolStats = usageStatsMap.get(ThreadPool.Names.WRITE);
+        for (var shardWriteLoadUtil : shardWriteLoadUtils.entrySet()) {
+            assertThat(clusterInfo.getShardWriteLoads(), hasKey(shardWriteLoadUtil.getKey()));
+            assertThat(
+                clusterInfo.getShardWriteLoads().get(shardWriteLoadUtil.getKey()),
+                equalTo(shardWriteLoadUtil.getValue() * writeThreadPoolStats.totalThreadPoolThreads())
+            );
+        }
+    }
+
+    private static Map<ShardId, Double> randomShardWriteLoadUtilizations() {
+        final Map<ShardId, Double> shardWriteLoadUtils = new HashMap<>();
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            shardWriteLoadUtils.put(new ShardId(randomIdentifier(), randomUUID(), i), randomDoubleBetween(0.0, 10.0, true));
+        }
+        return shardWriteLoadUtils;
     }
 }

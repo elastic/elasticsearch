@@ -25,6 +25,12 @@ public interface StringBlockSink {
      * A page as one ordinal per document into {@code dictionary}, which holds the page's distinct values
      * and is valid until the next call. Ordinals index it directly, so they run from zero however the
      * column numbers its terms.
+     *
+     * <p>Distinct is by the bytes and holds whatever shape the column has: equal values are one entry
+     * however far apart the documents carrying them sit, whether the column is in term order, clustered
+     * into runs that restart, or in no order at all, and whether or not its vocabulary names them. So the
+     * ordinal is an identity within the page, and a consumer grouping by value can group on it and resolve
+     * the bytes once an entry rather than once a document.
      */
     void appendOrdinals(int[] ordinals, int count, BytesRef[] dictionary, int dictionarySize);
 

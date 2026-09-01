@@ -110,6 +110,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -574,7 +575,7 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     public void testQueryCacheDisabledByDefaultForStrictlyColumnarMode() {
-        IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        IndexMode mode = randomFrom(Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
         assertFalse(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.get(settings));
     }

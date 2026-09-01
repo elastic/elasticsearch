@@ -1,0 +1,5 @@
+area: Recovery
+issues: []
+pr: 158311
+summary: Include failure count in recovery APIs
+type: enhancement

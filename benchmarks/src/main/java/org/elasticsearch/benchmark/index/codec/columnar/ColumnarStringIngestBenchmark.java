@@ -12,7 +12,7 @@ package org.elasticsearch.benchmark.index.codec.columnar;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -54,7 +54,7 @@ import java.util.stream.Stream;
 public class ColumnarStringIngestBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     @Param({ "HIT_COLOR", "MOSTLY_EMPTY", "HOSTNAME", "POD_NAME", "URL", "TRACE_ID", "SORTED_HOSTNAME" })

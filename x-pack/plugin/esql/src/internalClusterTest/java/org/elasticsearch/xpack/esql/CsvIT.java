@@ -434,14 +434,15 @@ public class CsvIT extends ESTestCase {
                 Map.of()
             );
 
-            CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), logger);
+            var assertionLogger = logResults() ? logger : null;
+            CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), assertionLogger);
             CsvAssert.assertDataWithValueConverter(
                 expected,
                 actual.values(),
                 testCase.ignoreOrder,
                 indexLoadStrategy.ignoreValueOrder(),
                 false,
-                logResults() ? logger : null
+                assertionLogger
             );
             var warnings = listener.warnings.stream()
                 .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, false))
@@ -454,6 +455,7 @@ public class CsvIT extends ESTestCase {
             testCase.adjustExpectedWarnings(indexLoadStrategy::normalizeWarning);
             testCase.assertWarnings(false).assertWarnings(warnings, null);
             CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, response.documentsFound());
+            CsvAssert.assertApproximationApplied(testCase.expectedApproximationApplied, response.approximationApplied());
         } catch (Throwable t) {
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;

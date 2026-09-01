@@ -84,6 +84,10 @@ public interface RangeAwareFormatReader extends FormatReader {
      * Only enabled when there are no per-file virtual partition columns (those require
      * per-split injection that is incompatible with a unified batch iterator).
      * The default implementation returns {@code false}.
+     * <p>
+     * No reader overrides this today — the sole implementation was the native parquet reader, since then
+     * removed — so {@link #readAll} and {@link SplitRef} below are currently unreachable. Both are kept as
+     * the entry point for the next reader that can fetch several files concurrently.
      */
     default boolean supportsBatchRead() {
         return false;

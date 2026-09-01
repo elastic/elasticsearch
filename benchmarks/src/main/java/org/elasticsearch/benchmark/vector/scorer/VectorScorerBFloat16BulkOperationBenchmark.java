@@ -8,7 +8,7 @@
  */
 package org.elasticsearch.benchmark.vector.scorer;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.SimdVecLibrary.BFloat16QueryType;
@@ -61,7 +61,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
     static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     @Param({ "1024" })

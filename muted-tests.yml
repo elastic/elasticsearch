@@ -577,9 +577,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerSubqueryTests
   method: testTSSubqueryWithConflictingTypesAndExplicitCast
   issue: https://github.com/elastic/elasticsearch/issues/156229
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedFormatSpecIT
-  method: test {csv-spec:external-basic.aggregateByGender [lz4raw/HTTP]}
-  issue: https://github.com/elastic/elasticsearch/issues/156241
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationIT
   method: test {csv-spec:approximation.Inline stats by}
   issue: https://github.com/elastic/elasticsearch/issues/156264
@@ -668,9 +665,6 @@ tests:
 - class: org.elasticsearch.search.aggregations.metrics.TDigestPercentilesIT
   method: testSingleValuedFieldPartiallyUnmapped
   issue: https://github.com/elastic/elasticsearch/issues/156864
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedFormatSpecIT
-  method: test {csv-spec:external-basic.lookupJoin [lz4raw/GCS]}
-  issue: https://github.com/elastic/elasticsearch/issues/156877
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=ml/ml_standard_analyze/Test analyze API with the standard 7.16 ML analyzer}
   issue: https://github.com/elastic/elasticsearch/issues/156878
@@ -836,9 +830,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReaderStatusSnapshotTests
   method: testCountersPopulatedAfterDrain
   issue: https://github.com/elastic/elasticsearch/issues/158220
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedFormatSpecIT
-  method: test {csv-spec:external-multivalue.mvRLikeFromDataset [snappy/GCS]}
-  issue: https://github.com/elastic/elasticsearch/issues/158221
 - class: org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReaderTests
   method: testSyntheticSourceWithCopyToKeywordDestinationAndFLSDocValues
   issue: https://github.com/elastic/elasticsearch/issues/158222
@@ -849,3 +840,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetNullListElementWarningIT
   method: testDroppedNullElementIsAnnouncedInEveryDistributionMode
   issue: https://github.com/elastic/elasticsearch/issues/158281
+- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
+  method: testPeerRecoveryTrimsLocalTranslog
+  issue: https://github.com/elastic/elasticsearch/issues/158303
+- class: org.elasticsearch.index.IndexModuleTests
+  method: testQueryCacheDisabledByDefaultForStrictlyColumnarMode
+  issue: https://github.com/elastic/elasticsearch/issues/158305

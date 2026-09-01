@@ -3853,7 +3853,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         IndicesService indicesService,
         long clusterStateVersion
     ) {
-        final RecoveryState recoveryState = this.recoveryState;
+        final RecoveryState currentRecoveryState = this.recoveryState;
         // TODO: Create a proper object to encapsulate the recovery context
         // all of the current methods here follow a pattern of:
         // resolve context which isn't really dependent on the local shards and then async
@@ -3870,30 +3870,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // }
         // }}
         // }
-        assert recoveryState.getRecoverySource().equals(shardRouting.recoverySource());
-        switch (recoveryState.getRecoverySource().getType()) {
+        assert currentRecoveryState.getRecoverySource().equals(shardRouting.recoverySource());
+        switch (currentRecoveryState.getRecoverySource().getType()) {
             case EMPTY_STORE, EXISTING_STORE, RESHARD_SPLIT -> executeRecovery(
                 "from store",
-                recoveryState,
+                currentRecoveryState,
                 recoveryListener,
                 this::recoverFromStore
             );
             case PEER -> {
                 try {
-                    markAsRecovering("from " + recoveryState.getSourceNode());
-                    recoveryTargetService.startRecovery(this, recoveryState.getSourceNode(), clusterStateVersion, recoveryListener);
+                    markAsRecovering("from " + currentRecoveryState.getSourceNode());
+                    recoveryTargetService.startRecovery(this, currentRecoveryState.getSourceNode(), clusterStateVersion, recoveryListener);
                 } catch (Exception e) {
                     failShard("corrupted preexisting index", e);
-                    recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), FAIL_SEND);
+                    recoveryListener.onRecoveryFailure(new RecoveryFailedException(currentRecoveryState, null, e), FAIL_SEND);
                 }
             }
             case SNAPSHOT -> {
-                final Snapshot snapshot = ((SnapshotRecoverySource) recoveryState.getRecoverySource()).snapshot();
+                final Snapshot snapshot = ((SnapshotRecoverySource) currentRecoveryState.getRecoverySource()).snapshot();
                 final ProjectId projectId = snapshot.getProjectId();
                 final String repo = snapshot.getRepository();
                 executeRecovery(
                     "from snapshot",
-                    recoveryState,
+                    currentRecoveryState,
                     recoveryListener,
                     l -> restoreFromRepository(repositoriesService.repository(projectId, repo), l)
                 );
@@ -3925,7 +3925,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     assert requiredShards.isEmpty() == false;
                     executeRecovery(
                         "from local shards",
-                        recoveryState,
+                        currentRecoveryState,
                         recoveryListener,
                         l -> recoverFromLocalShards(
                             mappingUpdateConsumer,
@@ -3952,7 +3952,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     throw e;
                 }
             }
-            default -> throw new IllegalArgumentException("Unknown recovery source " + recoveryState.getRecoverySource());
+            default -> throw new IllegalArgumentException("Unknown recovery source " + currentRecoveryState.getRecoverySource());
         }
     }
 

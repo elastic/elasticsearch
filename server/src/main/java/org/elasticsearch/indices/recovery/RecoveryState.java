@@ -41,11 +41,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     private static final TransportVersion RECOVERY_PRIORITY_TRANSPORT_VERSION = TransportVersion.fromName(
         "recovery_priority_in_recovery_state"
     );
-    private static final TransportVersion RECOVERY_STAGE_CREATED = TransportVersion.fromName("recovery_stage_created");
+    private static final TransportVersion RECOVERY_STAGE_CREATED_TRANSPORT_VERSION = TransportVersion.fromName("recovery_stage_created");
 
     public enum Stage {
         /**
-         * the index shard and its recovery state object have been created but recovery has not started yet. It is
+         * The index shard and its recovery state object have been created but recovery has not started yet. It is
          * possibly still queued on the data node. Initial stage of every recovery. Moves to {@link #INIT} once the
          * recovery actually starts. The recovery timer is not running at this stage, so a queued recovery reports
          * zero timings rather than counting the time it spends queued as recovery time.
@@ -187,7 +187,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         timer.writeTo(out);
         final Stage stageToWrite = getStage();
-        if (stageToWrite == Stage.CREATED && out.getTransportVersion().supports(RECOVERY_STAGE_CREATED) == false) {
+        if (stageToWrite == Stage.CREATED && out.getTransportVersion().supports(RECOVERY_STAGE_CREATED_TRANSPORT_VERSION) == false) {
             out.writeByte(Stage.INIT.id());
         } else {
             out.writeByte(stageToWrite.id());

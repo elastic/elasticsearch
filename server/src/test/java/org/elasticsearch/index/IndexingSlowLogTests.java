@@ -14,6 +14,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -26,8 +28,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingSlowLog.IndexingSlowLogMessage;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
@@ -40,6 +44,7 @@ import org.junit.BeforeClass;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.SearchSlowLogTests.mockLogFieldProvider;
@@ -127,6 +132,56 @@ public class IndexingSlowLogTests extends ESTestCase {
             log.postIndex(ShardId.fromString("[index][123]"), index, result);
             assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.TRACE));
         }
+    }
+
+    /** The batch hook must apply the same threshold ladder as the per-operation hook. */
+    public void testBatchLevelPrecedence() {
+        String uuid = UUIDs.randomBase64UUID();
+        IndexMetadata metadata = createIndexMetadata("index-batch-precedence", settings(uuid));
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        IndexingSlowLog log = new IndexingSlowLog(settings, mockLogFieldProvider());
+
+        IndexOperationBatch batch = primaryBatch(1);
+        Engine.IndexResult result = Mockito.mock(Engine.IndexResult.class);
+        Mockito.when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
+
+        Mockito.when(result.getTook()).thenReturn(40L);
+        log.postIndexBatch(ShardId.fromString("[index][123]"), batch, List.of(result));
+        assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.INFO));
+
+        Mockito.when(result.getTook()).thenReturn(41L);
+        log.postIndexBatch(ShardId.fromString("[index][123]"), batch, List.of(result));
+        assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.WARN));
+
+        Mockito.when(result.getTook()).thenReturn(10L);
+        log.postIndexBatch(ShardId.fromString("[index][123]"), batch, List.of(result));
+        assertNull(appender.getLastEventAndReset());
+
+        Mockito.when(result.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
+        Mockito.when(result.getTook()).thenReturn(41L);
+        log.postIndexBatch(ShardId.fromString("[index][123]"), batch, List.of(result));
+        assertNull(appender.getLastEventAndReset());
+    }
+
+    /** The field-based message overload used by the batch hook carries id, routing and source. */
+    public void testBatchSlowLogMessageFromBatchFields() {
+        Index index = new Index("foo", "123");
+        SourceToParse.Source source = SourceToParse.Source.fromBytes(new BytesArray("{\"foo\":\"bar\"}"), XContentType.JSON);
+
+        ESLogMessage p = IndexingSlowLogMessage.ofBatch(Map.of(), index, 0L, 5, 100_000);
+        assertThat(p.get("elasticsearch.slowlog.starting_seq_no"), equalTo(0L));
+        assertThat(p.get("elasticsearch.slowlog.took_millis"), equalTo(100));
+    }
+
+    private static IndexOperationBatch primaryBatch(int docCount) {
+        final BulkItemRequest[] items = new BulkItemRequest[docCount];
+        for (int d = 0; d < docCount; d++) {
+            items[d] = new BulkItemRequest(
+                d,
+                new IndexRequest("index").id("doc-" + d).source(new BytesArray("{\"n\":" + d + "}"), XContentType.JSON)
+            );
+        }
+        return IndexOperationBatch.initFromBulk(items, 0, docCount, null, Engine.Operation.Origin.PRIMARY, 1L, 0L);
     }
 
     public void testTwoLoggersDifferentLevel() {

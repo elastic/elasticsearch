@@ -478,6 +478,11 @@ public final class IndexOperationBatch {
         return sources;
     }
 
+    /** The source of document {@code i}, or {@code null} when the document carries none. */
+    public BytesReference source(int i) {
+        return sources[abs(i)];
+    }
+
     /** {@link SequenceNumbers#UNASSIGNED_SEQ_NO} when no CAS condition was set. */
     public long ifSeqNo(int i) {
         final int absIdx = abs(i);

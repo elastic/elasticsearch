@@ -8,13 +8,22 @@
  */
 package org.elasticsearch.indices;
 
+import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
@@ -37,7 +46,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -155,6 +166,65 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         protected Cancellable scheduleTask(ThreadPool threadPool) {
             return null;
         }
+    }
+
+    public void testBatchEstimatedSizeMatchesPerOperationEstimate() {
+        final int docCount = randomIntBetween(1, 8);
+        final IndexOperationBatch batch = primaryBatch(docCount);
+        for (int i = 0; i < docCount; i++) {
+            Engine.Index op = new Engine.Index(Uid.encodeId(batch.id(i)), 1L, parsedDoc(batch.id(i), batch.source(i)));
+            assertEquals(op.estimatedSizeInBytes(), IndexingMemoryController.estimatedSizeInBytes(batch, i));
+        }
+    }
+
+
+    public void testPostIndexBatchRecordsBytesLikePerOperationMixedSuccess() {
+        MockController perOpController = new MockController(Settings.EMPTY);
+        MockController batchController = new MockController(Settings.EMPTY);
+        ShardId shardId = new ShardId("index", "_na_", 0);
+
+        final int docCount = randomIntBetween(2, 8);
+        final IndexOperationBatch batch = primaryBatch(docCount);
+        final List<Engine.IndexResult> results = new ArrayList<>(docCount);
+        // guarantee at least one success and one failure, then randomize the rest
+        results.add(new Engine.IndexResult(1, 1, 0, true, batch.id(0)));
+        results.add(new Engine.IndexResult(new RuntimeException("doc failure"), 1, 1, UNASSIGNED_SEQ_NO, batch.id(1)));
+        for (int i = 2; i < docCount; i++) {
+            results.add(
+                randomBoolean()
+                    ? new Engine.IndexResult(1, 1, i, true, batch.id(i))
+                    : new Engine.IndexResult(new RuntimeException("doc failure"), 1, 1, UNASSIGNED_SEQ_NO, batch.id(i))
+            );
+        }
+
+        for (int i = 0; i < docCount; i++) {
+            Engine.Index op = new Engine.Index(Uid.encodeId(batch.id(i)), 1L, parsedDoc(batch.id(i), batch.source(i)));
+            perOpController.postIndex(shardId, op, results.get(i));
+        }
+        batchController.postIndexBatch(shardId, batch, results);
+
+        assertThat(batchController.getBytesWrittenSinceCheck(), equalTo(perOpController.getBytesWrittenSinceCheck()));
+        assertThat(batchController.getBytesWrittenSinceCheck(), greaterThan(0L));
+
+        // engine level failures record nothing
+        batchController.postIndexBatch(shardId, batch, new RuntimeException("engine failure"));
+        assertThat(batchController.getBytesWrittenSinceCheck(), equalTo(perOpController.getBytesWrittenSinceCheck()));
+    }
+
+    private static IndexOperationBatch primaryBatch(int docCount) {
+        final BulkItemRequest[] items = new BulkItemRequest[docCount];
+        for (int d = 0; d < docCount; d++) {
+            items[d] = new BulkItemRequest(
+                d,
+                new IndexRequest("index").id("doc-" + d)
+                    .source(new BytesArray("{\"payload\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}"), XContentType.JSON)
+            );
+        }
+        return IndexOperationBatch.initFromBulk(items, 0, docCount, null, Engine.Operation.Origin.PRIMARY, 1L, 0L);
+    }
+
+    private static ParsedDocument parsedDoc(String id, BytesReference source) {
+        return new ParsedDocument(null, null, id, null, List.of(), SourceToParse.Source.fromBytes(source, XContentType.JSON), null, 0);
     }
 
     public void testShardAdditionAndRemoval() throws IOException {

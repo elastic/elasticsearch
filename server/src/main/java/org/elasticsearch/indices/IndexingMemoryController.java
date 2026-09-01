@@ -12,6 +12,7 @@ package org.elasticsearch.indices;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
@@ -272,8 +274,50 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         postOperation(delete, result);
     }
 
+    @Override
+    public IndexOperationBatch preIndexBatch(ShardId shardId, IndexOperationBatch batch) {
+        // no per-batch pre-work; overridden to avoid the delegating to default
+        return batch;
+    }
+
+    /**
+     * Batch equivalent of {@link #postIndex(ShardId, Engine.Index, Engine.IndexResult)} call: one summed
+     * bytes-written record and one segment-writing check per batch, without materializing per-operation
+     * {@link Engine.Index} instances.
+     */
+    @Override
+    public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, List<Engine.IndexResult> results) {
+        int totalBytes = 0;
+        for (int i = 0; i < results.size(); i++) {
+            if (results.get(i).getResultType() == Engine.Result.Type.SUCCESS) {
+                totalBytes += estimatedSizeInBytes(batch, i);
+            }
+        }
+        if (totalBytes > 0) {
+            statusChecker.bytesWritten(totalBytes);
+        }
+        writePendingIndexingBuffersOnIndexingThread();
+    }
+
+    @Override
+    public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, Exception ex) {
+        // engine level failure: nothing was written; overridden to avoid the delegating to default
+    }
+
+    /** Mirrors {@link Engine.Index#estimatedSizeInBytes()} using the batch's raw per-document fields.
+     * {@link Engine.Index#estimatedSizeInBytes()} also accounts for SourceRow which is not supported in batch
+     */
+    static int estimatedSizeInBytes(IndexOperationBatch batch, int i) {
+        final BytesReference source = batch.source(i);
+        return (batch.id(i).length() * 2) + (source == null ? 0 : source.length()) + 12;
+    }
+
     private void postOperation(Engine.Operation operation, Engine.Result result) {
         recordOperationBytes(operation, result);
+        writePendingIndexingBuffersOnIndexingThread();
+    }
+
+    private void writePendingIndexingBuffersOnIndexingThread() {
         // Piggy back on indexing threads to write segments. We're not submitting a task to the index threadpool because we want memory to
         // be reclaimed rapidly. This has the downside of increasing the latency of _bulk requests though. Lucene does the same thing in
         // DocumentsWriter#postUpdate, flushing a segment because the size limit on the RAM buffer was reached happens on the call to
@@ -292,6 +336,11 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         if (result.getResultType() == Engine.Result.Type.SUCCESS) {
             statusChecker.bytesWritten(operation.estimatedSizeInBytes());
         }
+    }
+
+    // visible for testing
+    long getBytesWrittenSinceCheck() {
+        return statusChecker.bytesWrittenSinceCheck.get();
     }
 
     private static final class ShardAndBytesUsed {
@@ -313,7 +362,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         // Last shard ID whose indexing buffer was written. We keep track of it to be able to go over shards in a round-robin fashion.
         private ShardId lastShardId = null;
 
-        /** Shard calls this on each indexing/delete op */
+        /** Shard calls this on each indexing/delete op or once with the summed bytes of a batch */
         public void bytesWritten(int bytes) {
             long totalBytes = bytesWrittenSinceCheck.addAndGet(bytes);
             assert totalBytes >= 0;

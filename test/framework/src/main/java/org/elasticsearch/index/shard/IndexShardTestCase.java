@@ -825,7 +825,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected static RecoveryState newRecoveryState(ShardRouting routing, @Nullable DiscoveryNode source) {
         final RecoverySource.Type recoveryType = routing.recoverySource().getType();
-        assert (source != null) == Set.of(RecoverySource.Type.RESHARD_SPLIT, RecoverySource.Type.PEER).contains(recoveryType);
+        final boolean recoversFromAnotherShard = recoveryType == RecoverySource.Type.PEER
+            || recoveryType == RecoverySource.Type.RESHARD_SPLIT;
+        assert (source != null) == recoversFromAnotherShard : "recovery source [" + recoveryType + "]";
         return new RecoveryState(routing, DiscoveryNodeUtils.builder(routing.currentNodeId()).build(), source);
     }
 

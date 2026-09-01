@@ -276,16 +276,16 @@ public class RecoveryState implements ToXContentFragment, Writeable {
                 validateAndSetStage(Stage.FINALIZE, stage);
                 getTimer().stop();
             }
+            default -> throw new IllegalArgumentException("unknown RecoveryState.Stage [" + stage + "]");
         }
         return this;
     }
 
     /**
-     * Resets the stage to the initial state and clears all index, verify index and translog information keeping the original timing
-     * information
+     * Returns a fresh {@link RecoveryState} with all index, verify index and translog information cleared, keeping the original timing
+     * information. The fresh state is at stage {@link Stage#INIT}, since the recovery is already in flight.
      */
     public RecoveryState reset() {
-        // The recovery is already in flight when it is reset, so the fresh instance starts at INIT.
         final RecoveryState freshState = new RecoveryState(
             shardId,
             primary,

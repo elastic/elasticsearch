@@ -2100,12 +2100,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /// @throws IllegalStateException if the ongoing recovery is not of a supported type
     public void requestRecoveryCancellation() {
         synchronized (mutex) {
-            if (state == IndexShardState.CREATED) {
-                // Recovery has not started yet (it may still be queued). Store the flag.
-                recoveryCancellationRequested = true;
-                return;
-            }
-            if (state != IndexShardState.RECOVERING) {
+            if (state != IndexShardState.CREATED && state != IndexShardState.RECOVERING) {
                 throw new IndexShardNotRecoveringException(shardId, state);
             }
             final RecoverySource.Type recoveryType = recoveryState.getRecoverySource().getType();

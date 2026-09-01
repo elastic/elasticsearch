@@ -3737,7 +3737,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testRequestRecoveryCancellationThrowsWhenShardHasAlreadyStarted() throws IOException {
         final IndexShard shard = newStartedShard();
-        expectThrows(IndexShardNotRecoveringException.class, () -> shard.requestRecoveryCancellation());
+        expectThrows(IndexShardNotRecoveringException.class, shard::requestRecoveryCancellation);
         shard.ensureRecoveryNotCancelled();
         closeShards(shard);
     }

@@ -564,17 +564,20 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
             assertThat(recoveryResponse.evaluate(indexTwo + ".shards.0.stage"), equalTo("CREATED"));
 
             // The queued recovery has not started its timer
-            final Number activeStartTime = recoveryResponse.evaluate(indexOne + ".shards.0.start_time_in_millis");
-            assertThat("an active recovery reports a start time", activeStartTime.longValue(), greaterThan(0L));
+            assertThat(
+                "an active recovery reports a start time",
+                evaluateLong(recoveryResponse, indexOne + ".shards.0.start_time_in_millis"),
+                greaterThan(0L)
+            );
             assertThat(
                 "a queued recovery must not report a start time",
-                recoveryResponse.evaluate(indexTwo + ".shards.0.start_time_in_millis"),
-                equalTo(0)
+                evaluateLong(recoveryResponse, indexTwo + ".shards.0.start_time_in_millis"),
+                equalTo(0L)
             );
             assertThat(
                 "a queued recovery must not accrue recovery time",
-                recoveryResponse.evaluate(indexTwo + ".shards.0.total_time_in_millis"),
-                equalTo(0)
+                evaluateLong(recoveryResponse, indexTwo + ".shards.0.total_time_in_millis"),
+                equalTo(0L)
             );
 
             Map<String, String> catStageByIndex = catRecoveryStageByIndex(false, indexOne, indexTwo);
@@ -610,6 +613,12 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
             proceedWithRecovery.countDown();
         }
         ensureGreen(indexOne, indexTwo);
+    }
+
+    private static long evaluateLong(ObjectPath response, String path) throws IOException {
+        final Number value = response.evaluate(path);
+        assertThat(path + " must be present in the response", value, notNullValue());
+        return value.longValue();
     }
 
     private static Map<String, String> catRecoveryStageByIndex(boolean activeOnly, String... indices) throws IOException {

@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -281,6 +283,57 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         assertEquals("finish(true) must discard the page finish(false) left queued", 0, buffer.size());
         assertEquals(0, buffer.bytesInBuffer());
         assertTrue("the page's blocks must be released, not leaked", block.isReleased());
+    }
+
+    public void testOnFailurePreservesFirstFailureAndSuppressesLaterFailures() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        CircuitBreakingException first = new CircuitBreakingException("breaker", CircuitBreaker.Durability.TRANSIENT);
+        IllegalStateException late = new IllegalStateException("late");
+
+        buffer.onFailure(first);
+        buffer.onFailure(late);
+        buffer.onFailure(first);
+
+        assertSame(first, buffer.failure());
+        assertArrayEquals(new Throwable[] { late }, first.getSuppressed());
+    }
+
+    public void testConcurrentOnFailureSelectsExactlyOneFirstFailure() throws Exception {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        int failureCount = 10;
+        List<RuntimeException> reported = new ArrayList<>(failureCount);
+        CyclicBarrier start = new CyclicBarrier(failureCount);
+        AtomicReference<Throwable> threadFailure = new AtomicReference<>();
+        Thread[] reporters = new Thread[failureCount];
+
+        for (int i = 0; i < failureCount; i++) {
+            RuntimeException failure = new RuntimeException("failure-" + i);
+            reported.add(failure);
+            reporters[i] = new Thread(() -> {
+                try {
+                    start.await();
+                    buffer.onFailure(failure);
+                } catch (Throwable t) {
+                    threadFailure.compareAndSet(null, t);
+                }
+            }, "async-buffer-failure-" + i);
+            reporters[i].setDaemon(true);
+            reporters[i].start();
+        }
+        for (Thread reporter : reporters) {
+            reporter.join(TimeUnit.SECONDS.toMillis(10));
+            assertFalse("failure reporter should have exited", reporter.isAlive());
+        }
+        assertNull("failure reporter threw", threadFailure.get());
+
+        Throwable retained = buffer.failure();
+        assertTrue("the retained failure must be one of the reports", reported.contains(retained));
+        List<Throwable> suppressed = List.of(retained.getSuppressed());
+        assertEquals(failureCount - 1, suppressed.size());
+        for (RuntimeException failure : reported) {
+            long occurrences = suppressed.stream().filter(candidate -> candidate == failure).count();
+            assertEquals(failure == retained ? 0L : 1L, occurrences);
+        }
     }
 
     public void testFormatReaderStatusGetterMatchesLastRecorded() {

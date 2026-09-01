@@ -302,6 +302,13 @@ public final class SplitDiscoveryPhase {
                 e
             );
         } catch (Exception e) {
+            RuntimeException surfaced = ExternalFailures.surface(
+                e,
+                "failed to discover splits for external source [" + exec.sourcePath() + "] of type [" + exec.sourceType() + "]"
+            );
+            if (surfaced != e) {
+                throw surfaced;
+            }
             throw new ElasticsearchException(
                 "failed to discover splits for external source [{}] of type [{}]",
                 e,

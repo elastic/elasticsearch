@@ -80,8 +80,8 @@ public class RecoveryRequest extends BroadcastRequest<RecoveryRequest> {
     }
 
     /**
-     * Set value of the activeOnly flag. If true, this request will only response with
-     * on-going recovery information.
+     * Set value of the activeOnly flag. If true, this request will only respond with
+     * ongoing recovery information, i.e. recoveries that have started and have not completed yet.
      *
      * @param activeOnly    Whether or not to set the activeOnly flag.
      */

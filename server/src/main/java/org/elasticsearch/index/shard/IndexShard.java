@@ -2636,7 +2636,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns the shard's current {@link RecoveryState}
+     * Returns the shard's current {@link RecoveryState}.
      */
     @Override
     public RecoveryState recoveryState() {
@@ -3861,8 +3861,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // resolve context which isn't really dependent on the local shards and then async
         // call some external method with this pointer.
         // with a proper recovery context object we can simply change this to:
-        // startRecovery(RecoveryState recoveryState, ShardRecoverySource source ) {
-        // markAsRecovery("from " + source.getShortDescription(), recoveryState);
+        // startRecovery(ShardRecoverySource source) {
+        // markAsRecovering("from " + source.getShortDescription());
         // threadPool.generic().execute() {
         // onFailure () { listener.failure() };
         // doRun() {

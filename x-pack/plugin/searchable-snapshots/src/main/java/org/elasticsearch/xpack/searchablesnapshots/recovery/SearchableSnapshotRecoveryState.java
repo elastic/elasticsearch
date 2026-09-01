@@ -25,6 +25,8 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
 
     @Override
     public synchronized RecoveryState setStage(Stage stage) {
+        assert stage != Stage.CREATED : "can't move recovery to stage [CREATED] from [" + getStage() + "]";
+
         // The transition to the final state was done by #prewarmCompleted, just ignore the transition
         if (getStage() == Stage.DONE || stage == Stage.FINALIZE && remoteTranslogSet) {
             return this;

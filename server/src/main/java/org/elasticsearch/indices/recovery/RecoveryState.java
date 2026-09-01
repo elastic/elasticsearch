@@ -273,7 +273,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
                 validateAndSetStage(Stage.FINALIZE, stage);
                 getTimer().stop();
             }
-            default -> throw new IllegalArgumentException("unknown RecoveryState.Stage [" + stage + "]");
         }
         return this;
     }

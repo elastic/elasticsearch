@@ -18,15 +18,15 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class ChatCompletionResultsTests extends AbstractWireSerializingTestCase<ChatCompletionResults> {
+public class CompletionResultsTests extends AbstractWireSerializingTestCase<CompletionResults> {
 
     public void testToXContent_CreateTheRightFormatForASingleChatCompletionResult() {
         String resultContent = "content";
-        var result = new ChatCompletionResults(List.of(new ChatCompletionResults.Result(resultContent)));
+        var result = new CompletionResults(List.of(new CompletionResults.Result(resultContent)));
 
         assertThat(
             result.asMap(),
-            is(Map.of(ChatCompletionResults.COMPLETION, List.of(Map.of(ChatCompletionResults.Result.RESULT, resultContent))))
+            is(Map.of(CompletionResults.COMPLETION, List.of(Map.of(CompletionResults.Result.RESULT, resultContent))))
         );
 
         String xContentResult = Strings.toTruncatedString(result, true, true);
@@ -44,18 +44,18 @@ public class ChatCompletionResultsTests extends AbstractWireSerializingTestCase<
         String resultOneContent = "content 1";
         String resultTwoContent = "content 2";
 
-        var entity = new ChatCompletionResults(
-            List.of(new ChatCompletionResults.Result(resultOneContent), new ChatCompletionResults.Result(resultTwoContent))
+        var entity = new CompletionResults(
+            List.of(new CompletionResults.Result(resultOneContent), new CompletionResults.Result(resultTwoContent))
         );
 
         assertThat(
             entity.asMap(),
             is(
                 Map.of(
-                    ChatCompletionResults.COMPLETION,
+                    CompletionResults.COMPLETION,
                     List.of(
-                        Map.of(ChatCompletionResults.Result.RESULT, resultOneContent),
-                        Map.of(ChatCompletionResults.Result.RESULT, resultTwoContent)
+                        Map.of(CompletionResults.Result.RESULT, resultOneContent),
+                        Map.of(CompletionResults.Result.RESULT, resultTwoContent)
                     )
                 )
             )
@@ -79,59 +79,59 @@ public class ChatCompletionResultsTests extends AbstractWireSerializingTestCase<
         String resultOneContent = "content 1";
         String resultTwoContent = "content 2";
 
-        var entity = new ChatCompletionResults(
-            List.of(new ChatCompletionResults.Result(resultOneContent), new ChatCompletionResults.Result(resultTwoContent))
+        var entity = new CompletionResults(
+            List.of(new CompletionResults.Result(resultOneContent), new CompletionResults.Result(resultTwoContent))
         );
 
         var transformedEntity = entity.transformToCoordinationFormat();
 
-        assertThat(transformedEntity.get(0).asMap(), is(Map.of(ChatCompletionResults.Result.RESULT, resultOneContent)));
-        assertThat(transformedEntity.get(1).asMap(), is(Map.of(ChatCompletionResults.Result.RESULT, resultTwoContent)));
+        assertThat(transformedEntity.get(0).asMap(), is(Map.of(CompletionResults.Result.RESULT, resultOneContent)));
+        assertThat(transformedEntity.get(1).asMap(), is(Map.of(CompletionResults.Result.RESULT, resultTwoContent)));
     }
 
     @Override
-    protected Writeable.Reader<ChatCompletionResults> instanceReader() {
-        return ChatCompletionResults::new;
+    protected Writeable.Reader<CompletionResults> instanceReader() {
+        return CompletionResults::new;
     }
 
     @Override
-    protected ChatCompletionResults createTestInstance() {
+    protected CompletionResults createTestInstance() {
         return createRandomResults();
     }
 
     @Override
-    protected ChatCompletionResults mutateInstance(ChatCompletionResults instance) throws IOException {
+    protected CompletionResults mutateInstance(CompletionResults instance) throws IOException {
         // if true we reduce the chat results list by a random amount, if false we add a chat result to the list
         if (randomBoolean()) {
             // -1 to remove at least one item from the list
             int end = randomInt(instance.results().size() - 1);
-            return new ChatCompletionResults(instance.results().subList(0, end));
+            return new CompletionResults(instance.results().subList(0, end));
         } else {
-            List<ChatCompletionResults.Result> completionResults = new ArrayList<>(instance.results());
+            List<CompletionResults.Result> completionResults = new ArrayList<>(instance.results());
             completionResults.add(createRandomChatCompletionResult());
-            return new ChatCompletionResults(completionResults);
+            return new CompletionResults(completionResults);
         }
     }
 
-    public static ChatCompletionResults createRandomResults() {
+    public static CompletionResults createRandomResults() {
         int numOfCompletionResults = randomIntBetween(1, 10);
-        List<ChatCompletionResults.Result> chatCompletionResults = new ArrayList<>(numOfCompletionResults);
+        List<CompletionResults.Result> chatCompletionResults = new ArrayList<>(numOfCompletionResults);
 
         for (int i = 0; i < numOfCompletionResults; i++) {
             chatCompletionResults.add(createRandomChatCompletionResult());
         }
 
-        return new ChatCompletionResults(chatCompletionResults);
+        return new CompletionResults(chatCompletionResults);
     }
 
     public static Map<String, Object> buildExpectationCompletion(List<String> results) {
         return Map.of(
-            ChatCompletionResults.COMPLETION,
-            results.stream().map(result -> Map.of(ChatCompletionResults.Result.RESULT, result)).toList()
+            CompletionResults.COMPLETION,
+            results.stream().map(result -> Map.of(CompletionResults.Result.RESULT, result)).toList()
         );
     }
 
-    private static ChatCompletionResults.Result createRandomChatCompletionResult() {
-        return new ChatCompletionResults.Result(randomAlphaOfLengthBetween(10, 300));
+    private static CompletionResults.Result createRandomChatCompletionResult() {
+        return new CompletionResults.Result(randomAlphaOfLengthBetween(10, 300));
     }
 }

@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
+import org.elasticsearch.index.codec.DefaultCompressionPerFieldMapperCodec;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests;
@@ -96,7 +96,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
             codec = deduplicateFieldInfosCodec.delegate();
         }
-        assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-        return ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        assertThat(codec, instanceOf(DefaultCompressionPerFieldMapperCodec.class));
+        return ((DefaultCompressionPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
     }
 }

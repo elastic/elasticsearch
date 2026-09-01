@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
+import org.elasticsearch.index.codec.DefaultCompressionPerFieldMapperCodec;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -64,8 +64,8 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
             if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
                 codec = deduplicateFieldInfosCodec.delegate();
             }
-            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-            KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+            assertThat(codec, instanceOf(DefaultCompressionPerFieldMapperCodec.class));
+            KnnVectorsFormat knnVectorsFormat = ((DefaultCompressionPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
             String expectedString = Build.current().isSnapshot()
                 ? "ESNextDiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ", sliceField=null)"
                 : "ES950DiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ")";
@@ -165,7 +165,7 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
         if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
             codec = deduplicateFieldInfosCodec.delegate();
         }
-        return ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        return ((DefaultCompressionPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
     }
 
 }

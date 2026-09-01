@@ -18,7 +18,7 @@ It includes detailed steps, tooling, and resources to help you transition to sup
 ### Fixes [connectors-9.4.6-fixes]
 * Fix long-running syncs being falsely marked as idle when Elasticsearch was temporarily slow or refresh calls timed out. The connector service no longer forces an index refresh on every job status check, keeps the ingestion heartbeat alive through transient errors, and retries job status checks during active syncs. [#4368](https://github.com/elastic/connectors/pull/4368), [#4311](https://github.com/elastic/connectors/issues/4311)
 * Fix long-running syncs failing permanently on transient non-JSON Elasticsearch bulk responses, such as `Client Closed Request`. Failed concurrent bulk tasks are no longer silently dropped. [#4385](https://github.com/elastic/connectors/pull/4385)
-* Fix connectors running under Elastic Agent ignoring the Elasticsearch output `ssl.verification_mode` policy setting, which meant certificate verification was always enforced. [#4393](https://github.com/elastic/connectors/pull/4393), [#4084](https://github.com/elastic/connectors/issues/4084)
+* Fix SharePoint Online syncs failing when a drive delta link expires (`410 Gone`). The connector now clears the expired delta link and restarts the drive sync from the root delta endpoint. [#4381](https://github.com/elastic/connectors/pull/4381), [#4370](https://github.com/elastic/connectors/pull/4370)
 
 ## 9.5.2 [connectors-9.5.2-release-notes]
 

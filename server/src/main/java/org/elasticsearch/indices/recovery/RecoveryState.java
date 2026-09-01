@@ -91,6 +91,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     private Stage stage;
+    private int recoveryFailures;
 
     private final Index index;
     private final Translog translog;
@@ -146,6 +147,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         stage = Stage.INIT;
+        recoveryFailures = 0;
         this.index = index;
         translog = new Translog();
         verifyIndex = new VerifyIndex();
@@ -156,9 +158,18 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         "recovery_priority_in_recovery_state"
     );
 
+    private static final TransportVersion RECOVERY_FAILURE_COUNT_TRANSPORT_VERSION = TransportVersion.fromName(
+        "recovery_failure_count_in_recovery_state"
+    );
+
     private RecoveryState(StreamInput in) throws IOException {
         timer = new Timer(in);
         stage = Stage.fromId(in.readByte());
+        if (in.getTransportVersion().supports(RECOVERY_FAILURE_COUNT_TRANSPORT_VERSION)) {
+            recoveryFailures = in.readInt();
+        } else {
+            recoveryFailures = 0; // serializing node is too old to have this field, so it is also too old to do local retries
+        }
         shardId = new ShardId(in);
         recoverySource = RecoverySource.readFrom(in);
         if (in.getTransportVersion().supports(RECOVERY_PRIORITY_TRANSPORT_VERSION)) {
@@ -178,6 +189,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         timer.writeTo(out);
         out.writeByte(stage.id());
+        // Only send recoveryFailures to nodes which are new enough to know about it.
+        // This is fine as the only time this is serialized is when returning in the response to the recovery API.
+        if (out.getTransportVersion().supports(RECOVERY_FAILURE_COUNT_TRANSPORT_VERSION)) {
+            out.writeInt(recoveryFailures);
+        }
         shardId.writeTo(out);
         recoverySource.writeTo(out);
         // Only send recoveryPriority to nodes which are new enough to know about it.
@@ -222,7 +238,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     public synchronized RecoveryState setStage(Stage stage) {
         switch (stage) {
             case INIT -> {
-                // reinitializing stop remove all state except for start time
+                // reinitializing stop remove all state except for start time and failure count
                 this.stage = Stage.INIT;
                 getIndex().reset();
                 getVerifyIndex().reset();
@@ -258,10 +274,21 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
     /**
      * Resets the stage to the initial state and clears all index, verify index and translog information keeping the original timing
-     * information
+     * information and the failure count.
      */
     public RecoveryState reset() {
-        return new RecoveryState(shardId, primary, recoverySource, recoveryPriority, sourceNode, targetNode, new Index(), timer);
+        RecoveryState resetState = new RecoveryState(
+            shardId,
+            primary,
+            recoverySource,
+            recoveryPriority,
+            sourceNode,
+            targetNode,
+            new Index(),
+            timer
+        );
+        resetState.recoveryFailures = this.recoveryFailures;
+        return resetState;
     }
 
     public synchronized RecoveryState setLocalTranslogStage() {
@@ -270,6 +297,13 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
     public synchronized RecoveryState setRemoteTranslogStage() {
         return setStage(Stage.TRANSLOG);
+    }
+
+    /// Returns the number of failures trying to perform this recovery. Note that this applies to local retries attempted on the data node.
+    /// Only a permanent failure will go back to the cluster state and increment the [org.elasticsearch.cluster.routing.UnassignedInfo]'s
+    /// `failedAllocations` value (after which a new recovery should be started with this field starting again from zero).
+    public synchronized int getRecoveryFailures() {
+        return this.recoveryFailures;
     }
 
     public Index getIndex() {
@@ -336,6 +370,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         builder.field(Fields.ID, shardId.id());
         builder.field(Fields.TYPE, recoverySource.getType());
         builder.field(Fields.STAGE, stage.toString());
+        builder.field(Fields.FAILURES, recoveryFailures);
         builder.field(Fields.PRIMARY, primary);
         builder.field(Fields.PRIORITY, recoveryPriority);
         builder.timestampFieldsFromUnixEpochMillis(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
@@ -384,6 +419,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         static final String TYPE = "type";
         static final String PRIORITY = "priority";
         static final String STAGE = "stage";
+        static final String FAILURES = "failures";
         static final String PRIMARY = "primary";
         static final String START_TIME = "start_time";
         static final String START_TIME_IN_MILLIS = "start_time_in_millis";

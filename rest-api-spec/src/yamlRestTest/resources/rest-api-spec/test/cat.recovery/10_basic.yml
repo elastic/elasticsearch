@@ -169,3 +169,36 @@
           \n
         )+
         $/
+
+---
+"Test cat recovery includes failure count":
+  - requires:
+      cluster_features: ["indices.recovery.recovery_failure_count"]
+      reason: asserts that response includes recovery failure count
+
+  - do:
+      indices.create:
+        index:  index4
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+  - do:
+      index:
+        index:  index4
+        id:     "1"
+        body:   { foo: bar }
+        refresh: true
+  - do:
+      cat.recovery:
+        h: i,fc
+
+  - match:
+      $body: |
+        /^
+        (
+          index4 \s+
+          0
+          \n
+        )+
+        $/

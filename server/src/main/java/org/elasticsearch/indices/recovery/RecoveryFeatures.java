@@ -21,8 +21,14 @@ public class RecoveryFeatures implements FeatureSpecification {
     /// responses.
     private static final NodeFeature RECOVERY_APIS_INCLUDE_PRIORITY_NODE_FEATURE = new NodeFeature("indices.recovery.recovery_priority");
 
+    /// Test-only node feature indicating that the `GET /_recovery` and `GET /_cat/recovery` APIs include the recovery failure count in
+    /// their responses.
+    private static final NodeFeature RECOVERY_APIS_INCLUDE_FAILURE_COUNT_NODE_FEATURE = new NodeFeature(
+        "indices.recovery.recovery_failure_count"
+    );
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(RECOVERY_APIS_INCLUDE_PRIORITY_NODE_FEATURE);
+        return Set.of(RECOVERY_APIS_INCLUDE_PRIORITY_NODE_FEATURE, RECOVERY_APIS_INCLUDE_FAILURE_COUNT_NODE_FEATURE);
     }
 }

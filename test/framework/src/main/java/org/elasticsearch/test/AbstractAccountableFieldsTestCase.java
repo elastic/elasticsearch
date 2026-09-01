@@ -12,14 +12,10 @@ package org.elasticsearch.test;
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.lucene.RamUsageEstimates;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.SuppressForbidden;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.util.Arrays;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -81,7 +77,6 @@ public abstract class AbstractAccountableFieldsTestCase extends ESTestCase {
         return true;
     }
 
-    @SuppressForbidden(reason = "need the names of all declared fields, most of which are private")
     public void testRamBytesUsedAccountsForAllReferenceFields() {
         final Class<? extends Accountable> clazz = classUnderTest();
         final Set<String> accounted = fieldsAccountedForInRamBytesUsed();
@@ -94,11 +89,7 @@ public abstract class AbstractAccountableFieldsTestCase extends ESTestCase {
         );
 
         // Primitive fields are already covered by RamUsageEstimator.shallowSizeOf(...); only reference fields must be classified.
-        final Set<String> referenceFields = Arrays.stream(clazz.getDeclaredFields())
-            .filter(f -> Modifier.isStatic(f.getModifiers()) == false)
-            .filter(f -> f.getType().isPrimitive() == false)
-            .map(Field::getName)
-            .collect(Collectors.toSet());
+        final Set<String> referenceFields = RamUsageEstimates.referenceFieldNamesDeclaredOn(clazz);
 
         assertThat(
             "reference field(s) on ["

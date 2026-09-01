@@ -13,6 +13,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.lucene.RamUsageEstimates;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
@@ -93,19 +94,7 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
      */
     @Override
     public final long ramBytesUsed() {
-        return RamUsageEstimator.shallowSizeOf(this) + RamUsageEstimator.sizeOf(name) + sizeOfValue(value);
-    }
-
-    private static long sizeOfValue(Object value) {
-        if (value == null) {
-            return 0;
-        }
-        return switch (value) {
-            case Long l -> RamUsageEstimator.sizeOf(l);
-            case Integer i -> RamUsageEstimator.sizeOf(i);
-            case Accountable a -> a.ramBytesUsed();
-            default -> RamUsageEstimator.shallowSizeOf(value);
-        };
+        return RamUsageEstimator.shallowSizeOf(this) + RamUsageEstimator.sizeOf(name) + RamUsageEstimates.sizeOfShallowCompleteValue(value);
     }
 
     /**

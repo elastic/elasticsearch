@@ -215,6 +215,8 @@ public class ExpandUnmappedFieldsPostProcessor {
         }
         // Approximation extras (_approximation_*) are appended after analysis, so the replayed plan knows nothing about them. They
         // are held out of the ordering and pinned last, which is where the response wants them anyway.
+        // TODO: look into approximation interaction with LOAD_ALL (which should theoretically never happen as LOAD_ALL doesn't work
+        // with STATS currently. See https://github.com/elastic/elasticsearch/pull/157964/changes#r3896894341
         Map<String, Integer> nameToSchemaIdx = new HashMap<>();
         List<Integer> approximationIdx = new ArrayList<>();
         for (int i = 0; i < originalColumnCount; i++) {

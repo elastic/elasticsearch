@@ -55,7 +55,7 @@ public class FormatReaderRegistryTests extends ESTestCase {
     public void testLazyMaterializationConflictingWithAnotherFormatThrows() {
         FormatReaderRegistry registry = new FormatReaderRegistry(new DecompressionCodecRegistry());
         registry.registerLazy("csv", (s, bf) -> reader("csv", ".csv"), Settings.EMPTY, null);
-        // greedy declares .csv as well as its own extension
+        // greedy claims its own extension first, then the conflicting .csv
         registry.registerLazy("greedy", (s, bf) -> reader("greedy", ".greedy", ".csv"), Settings.EMPTY, null);
         registry.registerExtension(".csv", "csv");
 
@@ -64,6 +64,9 @@ public class FormatReaderRegistryTests extends ESTestCase {
 
         // The victim's mapping is intact: .csv still resolves to the csv reader.
         assertEquals("csv", registry.byExtension("data.csv").formatName());
+        // The failed attempt's own claims are rolled back: .greedy was claimed before .csv
+        // conflicted and must not stay owned by a reader that never published.
+        assertFalse(registry.hasExtension(".greedy"));
     }
 
     /** A reader re-declaring the extension its own spec registered eagerly materializes fine (idempotent claim). */

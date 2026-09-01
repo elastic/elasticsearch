@@ -78,25 +78,39 @@ public class S3Configuration extends FileDataSourceConfiguration {
                 errors.addValidationError("role_arn is required when federated authentication settings are configured");
             }
         }
-        // Validate the endpoint at registration time: a syntactically invalid or non-http(s) URL
+        // Validate endpoint URLs at registration time: a syntactically invalid or non-http(s) URL
         // would only fail at first query, far from where the user made the mistake.
         // Reachability is a runtime property and is not checked here.
-        String ep = endpoint();
-        if (ep != null && ep.isBlank() == false) {
-            try {
-                URI uri = URI.create(ep);
-                String scheme = uri.getScheme();
-                if (uri.isAbsolute() == false
-                    || (scheme.equals("http") == false && scheme.equals("https") == false)
-                    || uri.getHost() == null
-                    || uri.getHost().isBlank()) {
-                    errors.addValidationError(
-                        "endpoint [" + ep + "] must be an absolute http or https URL (e.g. https://my-endpoint.example.com)"
-                    );
-                }
-            } catch (IllegalArgumentException e) {
-                errors.addValidationError("endpoint [" + ep + "] is not a valid URL: " + e.getMessage());
+        validateHttpUrl(endpoint(), ENDPOINT.name(), errors);
+        validateHttpUrl(stsEndpoint(), STS_ENDPOINT.name(), errors);
+    }
+
+    /**
+     * Rejects {@code value} unless it is an absolute http(s) URL with an authority. This also runs on
+     * query-time constructs ({@link #fromQueryConfig} and stored-settings rehydration), so it must
+     * accept everything the query path accepts — it requires only what {@code URI.create} +
+     * {@code endpointOverride} need. In particular the scheme comparison is case-insensitive, and the
+     * host check reads the authority rather than {@link URI#getHost()}, which Java leaves {@code null}
+     * for non-RFC hostnames (e.g. underscores: {@code http://minio_s3:9000}) that the SDK serves fine.
+     */
+    private static void validateHttpUrl(String value, String settingName, ValidationException errors) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        try {
+            URI uri = URI.create(value);
+            String scheme = uri.getScheme();
+            String authority = uri.getRawAuthority();
+            if (uri.isAbsolute() == false
+                || ("http".equalsIgnoreCase(scheme) == false && "https".equalsIgnoreCase(scheme) == false)
+                || authority == null
+                || authority.isBlank()) {
+                errors.addValidationError(
+                    settingName + " [" + value + "] must be an absolute http or https URL (e.g. https://my-endpoint.example.com)"
+                );
             }
+        } catch (IllegalArgumentException e) {
+            errors.addValidationError(settingName + " [" + value + "] is not a valid URL: " + e.getMessage());
         }
     }
 
@@ -111,7 +125,9 @@ public class S3Configuration extends FileDataSourceConfiguration {
     /**
      * Lenient factory for query-time configuration maps, which may carry format-level options
      * (e.g. {@code header_row}) alongside storage-level options. Filters unknown keys
-     * before construction; cross-field validation (auth/credential conflicts) still runs.
+     * before construction; cross-field validation (auth/credential conflicts) and the endpoint
+     * URL check (which accepts everything the query path accepts, see
+     * {@link #validateHttpUrl}) still run.
      */
     public static Configured<S3Configuration> fromQueryConfig(Map<String, Object> raw) {
         return filterAndConstruct(raw, FIELDS, S3Configuration::new);

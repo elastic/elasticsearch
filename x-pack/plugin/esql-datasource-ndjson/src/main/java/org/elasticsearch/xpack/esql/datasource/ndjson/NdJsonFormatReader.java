@@ -444,6 +444,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      * Throws {@link IllegalArgumentException} on any invalid value, giving message parity with the
      * query path. Called at dataset registration time via {@link NdJsonDataSourcePlugin}'s
      * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatSpec.FormatConfigValidator}.
+     *
+     * <p>{@code schema_sample_size} is deliberately not checked here: it is a base dataset field that
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator} bounds itself at PUT
+     * time and never forwards to format validators. The reader still enforces positivity on the query
+     * path ({@link #withConfigTrackingConsumedKeys}), where the WITH config arrives unfiltered.
      */
     static void validateConfig(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
@@ -456,11 +461,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         Object datetimeFormat = config.get(CONFIG_DATETIME_FORMAT);
         if (datetimeFormat != null && datetimeFormat.toString().isEmpty() == false) {
             parseDatetimeFormat(datetimeFormat, null);
-        }
-        Object sampleSize = config.get(CONFIG_SCHEMA_SAMPLE_SIZE);
-        if (sampleSize != null) {
-            int parsed = parseInt(sampleSize, 0);
-            Check.clientError(parsed > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", parsed);
         }
     }
 

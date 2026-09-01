@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 
 /** Pins {@link NdJsonFormatReader#RECOGNIZED_KEYS} against the parser's actual reads. */
@@ -172,14 +173,38 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
         }
     }
 
-    /** Bad NdJson config values that both validator and reader must reject with the same message. */
+    /**
+     * Bad NdJson config values that both validator and reader must reject with the same message.
+     * {@code schema_sample_size} is deliberately absent: it is a base dataset field that
+     * {@code FileDataSourceValidator} bounds itself and never forwards to the format validator,
+     * so validator/reader parity does not apply to it (see
+     * {@link #testSchemaSampleSizeIgnoredByValidatorButRejectedByReader()}).
+     */
     private static List<Map.Entry<String, Object>> badNdJsonValues() {
         List<Map.Entry<String, Object>> list = new ArrayList<>();
         list.add(Map.entry("segment_size", (Object) "1kb"));              // below MIN_SEGMENT_SIZE (64kb)
         list.add(Map.entry("datetime_format", (Object) "not-a-format"));  // unrecognized pattern
-        list.add(Map.entry("schema_sample_size", (Object) 0));            // must be positive
-        list.add(Map.entry("schema_sample_size", (Object) (-1)));         // must be positive
         return list;
+    }
+
+    /**
+     * {@code schema_sample_size} is a base dataset field: {@code FileDataSourceValidator} bounds it
+     * at PUT time ([1, 20000]) and never forwards it to the format validator, so the validator must
+     * ignore it rather than duplicate the check with a second message. The reader still rejects a
+     * non-positive value on the query path, where the WITH config arrives unfiltered.
+     */
+    public void testSchemaSampleSizeIgnoredByValidatorButRejectedByReader() {
+        NdJsonDataSourcePlugin plugin = new NdJsonDataSourcePlugin();
+        FormatSpec.FormatConfigValidator validator = plugin.formatSpecs().iterator().next().configValidator();
+        for (Object bad : List.of(0, -1)) {
+            Map<String, Object> config = Map.of("schema_sample_size", bad);
+            validator.validate(config); // no throw: base field, never forwarded here at PUT
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> newReader().withConfigTrackingConsumedKeys(config)
+            );
+            assertThat(e.getMessage(), containsString("schema_sample_size must be positive"));
+        }
     }
 
     private NdJsonFormatReader newReader() {

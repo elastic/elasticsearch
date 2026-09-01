@@ -867,6 +867,42 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), containsString("http"));
     }
 
+    public void testValidateDatasourceAcceptsUnderscoreHostEndpoint() {
+        // Java's URI leaves getHost() null for non-RFC hostnames like minio_s3, but URI.create +
+        // the SDK's endpointOverride serve them fine, so the PUT gate must accept them too.
+        var result = validator.validateDatasource(Map.of("endpoint", "http://minio_s3:9000", "auth", "anonymous"));
+        assertEquals("http://minio_s3:9000", result.get("endpoint").nonSecretValue());
+    }
+
+    public void testValidateDatasourceAcceptsUppercaseSchemeEndpoint() {
+        // URI schemes are case-insensitive (RFC 3986) and HTTP:// works at query time today.
+        var result = validator.validateDatasource(Map.of("endpoint", "HTTP://s3-proxy.example.com", "auth", "anonymous"));
+        assertEquals("HTTP://s3-proxy.example.com", result.get("endpoint").nonSecretValue());
+    }
+
+    public void testValidateDatasourceRejectsInvalidStsEndpoint() {
+        // sts_endpoint is an endpoint override too and gets the same URL validation as endpoint.
+        var federatedValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withFederatedIdentityEnabled(() -> true);
+        var e = expectThrows(
+            ValidationException.class,
+            () -> federatedValidator.validateDatasource(
+                Map.of("role_arn", "arn:aws:iam::123456789012:role/example", "sts_endpoint", "notaurl")
+            )
+        );
+        assertThat(e.getMessage(), containsString("sts_endpoint [notaurl]"));
+        assertThat(e.getMessage(), containsString("http"));
+    }
+
+    public void testValidateDatasourceAcceptsValidStsEndpoint() {
+        var federatedValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withFederatedIdentityEnabled(() -> true);
+        var result = federatedValidator.validateDatasource(
+            Map.of("role_arn", "arn:aws:iam::123456789012:role/example", "sts_endpoint", "https://sts.us-east-1.amazonaws.com")
+        );
+        assertEquals("https://sts.us-east-1.amazonaws.com", result.get("sts_endpoint").nonSecretValue());
+    }
+
     // --- Format value validation at PUT time (via format-aware validator with validator wired) ---
 
     /** A resolver identical to CSV_RESOLVER but wiring a test-local strict-char validator for delimiter. */

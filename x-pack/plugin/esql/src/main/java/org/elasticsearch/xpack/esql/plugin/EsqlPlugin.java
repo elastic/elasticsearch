@@ -491,9 +491,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // config keys, e.g. orc) so every registered format is a valid "format" value and every
         // extension resolves to its logical format name.
         //
-        // NOTE: FormatReaderRegistry.registerExtension uses a plain put (last writer wins) for the
-        // extension→reader mapping at runtime. Here we fail on conflicts so an inconsistency surfaces
-        // early at startup; FormatReaderRegistry should be aligned to also reject duplicates.
+        // NOTE: FormatReaderRegistry applies the same conflict rule at runtime (claimExtension
+        // rejects an extension already owned by another format, on both its eager and lazy write
+        // paths). Failing on conflicts here too surfaces the inconsistency at startup, before any
+        // reader materializes.
         // DataSourceCapabilities.build (above) already throws on a duplicate format NAME, so divergent
         // config keys for one format name cannot arise and need no separate check here.
         Map<String, Set<String>> formatToConfigKeys = new HashMap<>();

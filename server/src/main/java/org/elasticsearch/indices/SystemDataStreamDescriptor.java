@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.system.SystemResourceDescriptor;
 
@@ -34,14 +35,17 @@ import java.util.stream.Stream;
  *
  * <p>A SystemDataStreamDescriptor defines a list of allowed product origins. If that list is empty, only system operations can read,
  * write to, or modify the system data stream. If there are entries in the list, then a special request header must be used in any
- * request that accesses the system data stream, either through plugin-provided APIs or through data stream APIs.
+ * request that accesses the system data stream, either through plugin-derived APIs or through data stream APIs.
  *
  * <p>A SystemDataStreamDescriptor may be internal or external. If internal, the system feature must define APIs for interacting with
  * the system data stream. If external, the system feature will allow use of the data stream API, assuming the correct permissions
  * and product origin flag.
  *
- * <p>One interesting implementation detail is that the SystemDataStreamDescriptor manages its own templates for the data stream, so
- * although they have names, they are never listed in the index template or component template APIs.
+ * <p>A descriptor may optionally carry a {@link ComposableIndexTemplate} that provides the mappings, settings, and lifecycle for the
+ * stream’s backing indices. When a template is provided, ES uses it directly and never exposes it through the index-template APIs.
+ * When no template is provided ({@code composableIndexTemplate == null}), ES falls back to the matching template already present in
+ * cluster state — typically one that the owning plugin applied at its own startup. This decoupled mode allows ES to register the
+ * descriptor (and therefore enforce system-stream access controls) without needing to own or duplicate the template body.
  *
  * <p>The descriptor also provides names for the thread pools that Elasticsearch should use to read, search, or modify the descriptor’s
  * indices.
@@ -58,7 +62,11 @@ public class SystemDataStreamDescriptor implements SystemResourceDescriptor {
     private final ExecutorNames executorNames;
 
     /**
-     * Creates a new descriptor for a system data descriptor
+     * Creates a new descriptor for a system data stream that owns and manages its own index template.
+     *
+     * <p>Use this constructor when the ES plugin is the authoritative owner of the template. The template is embedded in the descriptor
+     * and never surfaced through the index-template APIs.
+     *
      * @param dataStreamName the name of the data stream. Must not be {@code null}
      * @param description a brief description of what the data stream is used for. Must not be {@code null}
      * @param type the {@link Type} of the data stream which determines how the data stream can be accessed. Must not be {@code null}
@@ -81,6 +89,50 @@ public class SystemDataStreamDescriptor implements SystemResourceDescriptor {
         String origin,
         ExecutorNames executorNames
     ) {
+        this(dataStreamName, description, type, composableIndexTemplate, componentTemplates, allowedElasticProductOrigins, origin,
+            executorNames, true);
+    }
+
+    /**
+     * Creates a new descriptor for a system data stream whose index template is managed externally (e.g. by Kibana at its own startup).
+     *
+     * <p>Use this constructor when another plugin or application owns the template. ES will register the descriptor — enforcing
+     * system-stream access controls and protection — without needing to own or duplicate the template body. At stream-creation or
+     * rollover time, ES falls back to the matching template already present in cluster state.
+     *
+     * <p>Note: {@code componentTemplates} is ignored when {@code composableIndexTemplate} is {@code null}; pass {@code null} or
+     * {@code Map.of()}.
+     *
+     * @param dataStreamName the name of the data stream. Must not be {@code null}
+     * @param description a brief description of what the data stream is used for. Must not be {@code null}
+     * @param type the {@link Type} of the data stream which determines how the data stream can be accessed. Must not be {@code null}
+     * @param allowedElasticProductOrigins a list of product origin values that are allowed to access this data stream if the
+     *                                     type is {@link Type#EXTERNAL}. Must not be {@code null}
+     * @param origin specifies the origin to use when creating or updating the data stream
+     * @param executorNames thread pools that should be used for operations on the system data stream
+     */
+    public SystemDataStreamDescriptor(
+        String dataStreamName,
+        String description,
+        Type type,
+        List<String> allowedElasticProductOrigins,
+        String origin,
+        ExecutorNames executorNames
+    ) {
+        this(dataStreamName, description, type, null, null, allowedElasticProductOrigins, origin, executorNames, false);
+    }
+
+    private SystemDataStreamDescriptor(
+        String dataStreamName,
+        String description,
+        Type type,
+        @Nullable ComposableIndexTemplate composableIndexTemplate,
+        @Nullable Map<String, ComponentTemplate> componentTemplates,
+        List<String> allowedElasticProductOrigins,
+        String origin,
+        ExecutorNames executorNames,
+        boolean requireTemplate
+    ) {
         this.dataStreamName = Objects.requireNonNull(dataStreamName, "dataStreamName must be specified");
         if (dataStreamName.length() < 2) {
             throw new IllegalArgumentException("system data stream name [" + dataStreamName + "] but must at least 2 characters in length");
@@ -90,7 +142,10 @@ public class SystemDataStreamDescriptor implements SystemResourceDescriptor {
         }
         this.description = Objects.requireNonNull(description, "description must be specified");
         this.type = Objects.requireNonNull(type, "type must be specified");
-        this.composableIndexTemplate = Objects.requireNonNull(composableIndexTemplate, "composableIndexTemplate must be provided");
+        if (requireTemplate) {
+            Objects.requireNonNull(composableIndexTemplate, "composableIndexTemplate must be provided");
+        }
+        this.composableIndexTemplate = composableIndexTemplate;
         this.componentTemplates = componentTemplates == null ? Map.of() : Map.copyOf(componentTemplates);
         this.allowedElasticProductOrigins = Objects.requireNonNull(
             allowedElasticProductOrigins,
@@ -139,8 +194,22 @@ public class SystemDataStreamDescriptor implements SystemResourceDescriptor {
         return description;
     }
 
+    /**
+     * Returns the index template embedded in this descriptor, or {@code null} when the descriptor was created without one.
+     * Callers that create a data stream or roll over a system stream must fall back to the matching template in cluster state when
+     * this method returns {@code null}.
+     */
+    @Nullable
     public ComposableIndexTemplate getComposableIndexTemplate() {
         return composableIndexTemplate;
+    }
+
+    /**
+     * Returns {@code true} when this descriptor owns its index template (i.e. {@link #getComposableIndexTemplate()} is non-null).
+     * Returns {@code false} when the template is managed externally and looked up from cluster state at creation/rollover time.
+     */
+    public boolean ownsTemplate() {
+        return composableIndexTemplate != null;
     }
 
     @Override

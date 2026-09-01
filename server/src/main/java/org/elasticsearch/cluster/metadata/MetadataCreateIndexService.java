@@ -1104,14 +1104,22 @@ public class MetadataCreateIndexService {
         Objects.requireNonNull(request.systemDataStreamDescriptor());
         logger.debug("applying create index request for system data stream [{}]", request.systemDataStreamDescriptor());
 
+        // The descriptor may not own its template (ownsTemplate() == false). In that case the template was already resolved from
+        // cluster state upstream (in MetadataCreateDataStreamService) and passed via CreateIndexClusterStateUpdateRequest; use it.
         ComposableIndexTemplate template = request.systemDataStreamDescriptor().getComposableIndexTemplate();
-        if (request.dataStreamName() == null && template.getDataStreamTemplate() != null) {
+        if (template == null) {
+            template = request.matchingTemplate();
+        }
+        if (request.dataStreamName() == null && template != null && template.getDataStreamTemplate() != null) {
             throw new IllegalArgumentException(
                 "cannot create index with name [" + request.index() + "], because it matches with a system data stream"
             );
         }
 
-        final Map<String, ComponentTemplate> componentTemplates = request.systemDataStreamDescriptor().getComponentTemplates();
+        // Use embedded component templates only when the descriptor owns the composable template.
+        final Map<String, ComponentTemplate> componentTemplates = request.systemDataStreamDescriptor().ownsTemplate()
+            ? request.systemDataStreamDescriptor().getComponentTemplates()
+            : Map.of();
         final List<CompressedXContent> mappings = collectSystemV2Mappings(template, componentTemplates, xContentRegistry, request.index());
 
         final Metadata metadata = currentState.getMetadata();

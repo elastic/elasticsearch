@@ -11,12 +11,9 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestRequest;
@@ -35,7 +32,11 @@ public class AuditUtil {
     // We need to expose this to allow-list as a header passed for cross cluster requests; see `CrossClusterAccessServerTransportFilter`
     public static final String AUDIT_REQUEST_ID = "_xpack_audit_request_id";
 
-    public static String restRequestContent(RestRequest request, int maxBytes, @Nullable CircuitBreaker circuitBreaker, String settingKey) {
+    /**
+     * Converts the REST request body to JSON for audit logging using a caller-supplied {@link RequestBodyRenderer}.
+     * The renderer accumulates CB charges during rendering; the caller is responsible for closing it after consuming the result.
+     */
+    public static String restRequestContent(RestRequest request, String settingKey, RequestBodyRenderer renderer) {
         if (request.hasContent()) {
             var content = request.content();
             final XContentType xContentType = request.getXContentType();
@@ -45,19 +46,13 @@ public class AuditUtil {
                 return "Unrecognized content type [" + mediaType + "]";
             }
             try {
-                return XContentHelper.convertToJson(
-                    content,
-                    false,
-                    false,
-                    xContentType,
-                    new XContentHelper.Budget(maxBytes, circuitBreaker, circuitBreaker != null ? "audit-body" : null)
-                );
-            } catch (XContentHelper.TooLargeBodyException e) {
+                return renderer.render(content, xContentType);
+            } catch (RequestBodyRenderer.TooLargeBodyException e) {
                 throw new ElasticsearchStatusException(
                     "Request body would exceed the audit size limit of [{}]; "
                         + "adjust [{}] to increase the limit or set it to 0 to disable",
                     RestStatus.REQUEST_ENTITY_TOO_LARGE,
-                    ByteSizeValue.ofBytes(maxBytes),
+                    ByteSizeValue.ofBytes(renderer.maxBytes()),
                     settingKey
                 );
             } catch (CircuitBreakingException e) {

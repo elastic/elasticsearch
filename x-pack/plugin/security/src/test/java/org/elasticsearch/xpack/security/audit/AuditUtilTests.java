@@ -42,14 +42,10 @@ public class AuditUtilTests extends ESTestCase {
             new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
             XContentType.JSON
         ).build();
+        var limiter = new RequestBodyRenderer(json.length() - 1, null, null);
         ElasticsearchStatusException ex = expectThrows(
             ElasticsearchStatusException.class,
-            () -> AuditUtil.restRequestContent(
-                request,
-                json.length() - 1,
-                null,
-                "xpack.security.audit.logfile.events.max_request_body_size"
-            )
+            () -> AuditUtil.restRequestContent(request, "xpack.security.audit.logfile.events.max_request_body_size", limiter)
         );
         assertThat(ex.status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
     }
@@ -60,7 +56,9 @@ public class AuditUtilTests extends ESTestCase {
             new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
             XContentType.JSON
         ).build();
-        assertEquals(json, AuditUtil.restRequestContent(request, json.length(), null, "setting.key"));
+        try (var limiter = new RequestBodyRenderer(json.length(), null, null)) {
+            assertEquals(json, AuditUtil.restRequestContent(request, "setting.key", limiter));
+        }
     }
 
     public void testRestRequestContentZeroLimitIsUnlimited() {
@@ -69,7 +67,9 @@ public class AuditUtilTests extends ESTestCase {
             new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
             XContentType.JSON
         ).build();
-        assertEquals(json, AuditUtil.restRequestContent(request, 0, null, null));
+        try (var limiter = new RequestBodyRenderer(0, null, null)) {
+            assertEquals(json, AuditUtil.restRequestContent(request, null, limiter));
+        }
     }
 
     public void testRestRequestContentSmileLimitEnforcedDuringRendering() throws Exception {
@@ -78,14 +78,17 @@ public class AuditUtilTests extends ESTestCase {
             XContentType.SMILE
         ).build();
 
+        var tinyLimiter = new RequestBodyRenderer(10, null, null);
         ElasticsearchStatusException ex = expectThrows(
             ElasticsearchStatusException.class,
-            () -> AuditUtil.restRequestContent(request, 10, null, "xpack.security.audit.logfile.events.max_request_body_size")
+            () -> AuditUtil.restRequestContent(request, "xpack.security.audit.logfile.events.max_request_body_size", tinyLimiter)
         );
         assertThat(ex.status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
 
-        String json = AuditUtil.restRequestContent(request, 0, null, null);
-        assertTrue(json.contains("longfieldname_0"));
+        try (var limiter = new RequestBodyRenderer(0, null, null)) {
+            String json = AuditUtil.restRequestContent(request, null, limiter);
+            assertTrue(json.contains("longfieldname_0"));
+        }
     }
 
     public void testRestRequestContentCircuitBreakerTripsOnRendering() throws Exception {
@@ -102,7 +105,9 @@ public class AuditUtilTests extends ESTestCase {
             }
         };
 
-        expectThrows(CircuitBreakingException.class, () -> AuditUtil.restRequestContent(request, 0, trippingBreaker, null));
+        var limiter = new RequestBodyRenderer(0, trippingBreaker, "test");
+        expectThrows(CircuitBreakingException.class, () -> AuditUtil.restRequestContent(request, null, limiter));
+        limiter.close();
     }
 
     public void testRestRequestContentReleasesBreakerAfterSuccessfulRendering() throws Exception {
@@ -124,8 +129,10 @@ public class AuditUtilTests extends ESTestCase {
             }
         };
 
-        String json = AuditUtil.restRequestContent(request, 0, counting, null);
-        assertTrue(json.contains("field_0"));
+        try (var limiter = new RequestBodyRenderer(0, counting, "test")) {
+            String json = AuditUtil.restRequestContent(request, null, limiter);
+            assertTrue(json.contains("field_0"));
+        }
         assertEquals("breaker must be balanced after successful rendering", 0L, used.get());
     }
 
@@ -148,10 +155,12 @@ public class AuditUtilTests extends ESTestCase {
             }
         };
 
+        var limiter = new RequestBodyRenderer(10, counting, "test");
         expectThrows(
             ElasticsearchStatusException.class,
-            () -> AuditUtil.restRequestContent(request, 10, counting, "xpack.security.audit.logfile.events.max_request_body_size")
+            () -> AuditUtil.restRequestContent(request, "xpack.security.audit.logfile.events.max_request_body_size", limiter)
         );
+        limiter.close();
         assertEquals("breaker must be balanced even when the size limit trips", 0L, used.get());
     }
 
@@ -160,7 +169,9 @@ public class AuditUtilTests extends ESTestCase {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(new byte[] { 0x0A, 0x02 }), null)
             .withHeaders(Map.of("Content-Type", List.of("application/x-protobuf")))
             .build();
-        assertThat(AuditUtil.restRequestContent(request, 0, null, null), containsString("Unrecognized content type"));
+        try (var limiter = new RequestBodyRenderer(0, null, null)) {
+            assertThat(AuditUtil.restRequestContent(request, null, limiter), containsString("Unrecognized content type"));
+        }
     }
 
     public void testRestRequestContentInvalidBodyReturnsInvalidFormat() {
@@ -169,7 +180,9 @@ public class AuditUtilTests extends ESTestCase {
             new BytesArray("key: [unclosed".getBytes(StandardCharsets.UTF_8)),
             XContentType.YAML
         ).build();
-        assertThat(AuditUtil.restRequestContent(request, 0, null, null), containsString("Invalid Format"));
+        try (var limiter = new RequestBodyRenderer(0, null, null)) {
+            assertThat(AuditUtil.restRequestContent(request, null, limiter), containsString("Invalid Format"));
+        }
     }
 
     // ── indices ───────────────────────────────────────────────────────────────

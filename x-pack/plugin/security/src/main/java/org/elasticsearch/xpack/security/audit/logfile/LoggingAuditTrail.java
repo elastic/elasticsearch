@@ -34,6 +34,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.node.Node;
@@ -115,6 +117,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.action.user.TransportChangePasswordAction;
 import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
+import org.elasticsearch.xpack.security.audit.RequestBodyRenderer;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -298,7 +301,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     /**
      * Maximum size, in bytes, of the rendered JSON body that may be included in audit events when
      * {@link #INCLUDE_REQUEST_BODY} is {@code true}. The limit is enforced against the UTF-8 output of
-     * {@link org.elasticsearch.common.xcontent.XContentHelper#convertToJson} rather than the raw
+     * {@link org.elasticsearch.xpack.security.audit.RequestBodyRenderer#render} rather than the raw
      * request bytes, so it accounts for format differences (e.g. SMILE expanding to JSON).
      * Rendering is bounded mid-stream: requests whose rendered body would exceed this limit are
      * rejected with HTTP 413 to keep the audit log a complete record of every accepted request.
@@ -1199,10 +1202,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         return includeRequestBody;
     }
 
-    public int maxRequestBodyBytes() {
-        return maxRequestBodyBytes;
-    }
-
     private LogEntryBuilder securityChangeLogEntryBuilder(String requestId) {
         return new LogEntryBuilder(false).with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE).withRequestId(requestId);
     }
@@ -1212,6 +1211,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         private final StringMapMessage logEntry;
         private AuditEventContext eventContext = AuditEventContext.EMPTY;
         private boolean includeThreadContext = true;
+        @Nullable
+        private Releasable bodyRenderer;
 
         LogEntryBuilder() {
             this(true);
@@ -1764,14 +1765,16 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         LogEntryBuilder withRequestBody(RestRequest request) {
             if (includeRequestBody) {
-                final String requestContent = restRequestContent(
-                    request,
-                    maxRequestBodyBytes,
-                    circuitBreaker,
-                    MAX_REQUEST_BODY_SIZE.getKey()
-                );
-                if (Strings.hasLength(requestContent)) {
-                    logEntry.with(REQUEST_BODY_FIELD_NAME, requestContent);
+                var renderer = new RequestBodyRenderer(maxRequestBodyBytes, circuitBreaker, "audit-body");
+                try {
+                    final String requestContent = restRequestContent(request, MAX_REQUEST_BODY_SIZE.getKey(), renderer);
+                    bodyRenderer = renderer;
+                    if (Strings.hasLength(requestContent)) {
+                        logEntry.with(REQUEST_BODY_FIELD_NAME, requestContent);
+                    }
+                } catch (Exception e) {
+                    renderer.close();
+                    throw e;
                 }
             }
             return this;
@@ -1939,7 +1942,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (includeThreadContext) {
                 withThreadContext();
             }
-            logger.info(AUDIT_MARKER, customizer.rewrite(eventContext, logEntry));
+            try {
+                logger.info(AUDIT_MARKER, customizer.rewrite(eventContext, logEntry));
+            } finally {
+                Releasables.close(bodyRenderer);
+            }
         }
 
         static String toQuotedJsonArray(Object[] values) {

@@ -165,7 +165,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
                 name,
                 "no %s capacity data available for node [%s]",
                 deciderDescription,
-                node.nodeId()
+                node.getShortNodeDescription()
             );
         }
 
@@ -178,7 +178,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
                 final String message = Strings.format(
                     "insufficient %s available on node [%s]: usage percentage [%.2f] exceeds low watermark [%.2f]",
                     deciderDescription,
-                    node.nodeId(),
+                    node.getShortNodeDescription(),
                     currentUsagePercent,
                     lowWatermarkPercent
                 );
@@ -198,7 +198,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
                 name,
                 "sufficient %s available on node [%s]: usage percentage [%.2f] is below low watermark [%.2f]",
                 deciderDescription,
-                node.nodeId(),
+                node.getShortNodeDescription(),
                 currentUsagePercent,
                 lowWatermarkPercent
             );
@@ -213,7 +213,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
                     "insufficient %s available on node [%s]: shard [%s] would add [%d] bytes, increasing the %s usage percentage "
                         + "from [%.2f] to [%.2f], which exceeds low watermark [%.2f]",
                     deciderDescription,
-                    node.nodeId(),
+                    node.getShortNodeDescription(),
                     shardRouting.shardId(),
                     additionalBytes,
                     deciderDescription,
@@ -235,7 +235,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
             name,
             "sufficient %s available on node [%s]: projected usage percentage [%.2f] is below low watermark [%.2f]",
             deciderDescription,
-            node.nodeId(),
+            node.getShortNodeDescription(),
             projectedUsagePercent,
             lowWatermarkPercent
         );
@@ -267,7 +267,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
                 name,
                 "no %s capacity data available for node [%s]",
                 deciderDescription,
-                node.nodeId()
+                node.getShortNodeDescription()
             );
         }
 
@@ -280,7 +280,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
                 final String message = Strings.format(
                     "insufficient %s available on node [%s]: usage percentage [%.2f] exceeds high watermark [%.2f]",
                     deciderDescription,
-                    node.nodeId(),
+                    node.getShortNodeDescription(),
                     currentUsagePercent,
                     highWatermarkPercent
                 );
@@ -298,7 +298,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
             name,
             "sufficient %s available on node [%s]: usage percentage [%.2f] is below high watermark [%.2f]",
             deciderDescription,
-            node.nodeId(),
+            node.getShortNodeDescription(),
             currentUsagePercent,
             highWatermarkPercent
         );
@@ -325,7 +325,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
                 Decision.YES,
                 name,
                 "no estimated heap estimation available for node [%s], either a new or restarted node",
-                node.nodeId()
+                node.getShortNodeDescription()
             );
         }
 

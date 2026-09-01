@@ -89,6 +89,7 @@ import org.elasticsearch.snapshots.SnapshotResiliencyTestHelper.TestClusterNodes
 import org.elasticsearch.snapshots.SnapshotResiliencyTestHelper.TestClusterNodes.TransportInterceptorFactory;
 import org.elasticsearch.snapshots.SnapshotResiliencyTests;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -236,7 +237,14 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 // Schedule a task immediately if the delay is within 10ms. A current known case for this is to schedule
                 // translog upload right away so that indexing operations, which wait for translog upload, can complete
                 // with `runAllRunnableTasks` without advancing time.
-                final var actualDelay = delay.compareTo(SHORT_TRANSLOG_FLUSH_INTERVAL) <= 0 ? TimeValue.ZERO : delay;
+                // Exception: in case wall clock time moves back, SnapshotFinalization reschedules itself to wait for the clock to advance
+                // so snapshots don't look as if they finished into the future. Collapsing that delay to zero causes an infinite spin loop.
+                final boolean isSnapshotFinalization = command.getClass()
+                    .getName()
+                    .equals(SnapshotsService.class.getName() + "$SnapshotFinalization");
+                final var actualDelay = delay.compareTo(SHORT_TRANSLOG_FLUSH_INTERVAL) <= 0 && isSnapshotFinalization == false
+                    ? TimeValue.ZERO
+                    : delay;
                 return super.schedule(command, actualDelay, executor);
             }
         }
@@ -267,7 +275,12 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
     }
 
     @Override
-    protected void setupTestCluster(int masterNodes, int dataNodes, TransportInterceptorFactory transportInterceptorFactory) {
+    protected void setupTestCluster(
+        int masterNodes,
+        int dataNodes,
+        TransportInterceptorFactory transportInterceptorFactory,
+        boolean monotonicSnapshotEndTime
+    ) {
         testClusterNodes = new StatelessNodes(
             masterNodes,
             dataNodes,
@@ -275,7 +288,15 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             deterministicTaskQueue,
             transportInterceptorFactory,
             expectedWarnings -> assertWarnings(expectedWarnings)
-        );
+        ) {
+            @Override
+            protected Settings nodeSettings(DiscoveryNode node) {
+                return Settings.builder()
+                    .put(super.nodeSettings(node))
+                    .put(SnapshotsService.SNAPSHOT_MONOTONIC_END_TIME_SETTING.getKey(), monotonicSnapshotEndTime)
+                    .build();
+            }
+        };
         startCluster();
     }
 
@@ -390,6 +411,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING);
+            res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING);
             res.add(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING);
             res.add(TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING);
             res.add(TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING);
@@ -999,7 +1021,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                             cacheBlobReaderService,
                             new AtomicMutableObjectStoreUploadTracker(),
                             shardRouting.shardId(),
-                            randomBoolean()
+                            randomBoolean(),
+                            indexModule.indexSettings().getIndexVersionCreated()
                         );
                     } else {
                         return in;

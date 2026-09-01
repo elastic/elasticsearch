@@ -78,10 +78,10 @@ processingCommand
     | tsCollapseCommand
     | ipLocationCommand
     | mmrCommand
+    | highlightCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | dedupCommand
-    | {this.isDevVersion()}? highlightCommand
     | {this.isDevVersion()}? denseVectorCommand
     ;
 
@@ -397,7 +397,7 @@ dedupCommand
     ;
 
 highlightCommand
-    : DEV_HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryExpression=booleanExpression ON highlightFields=qualifiedNames commandNamedParameters
+    : HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryExpression=booleanExpression ON highlightFields=qualifiedNames commandNamedParameters
     ;
 
 qualifiedNames

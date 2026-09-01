@@ -1,5 +1,5 @@
 pr: 157555
-summary: Reject 2^63 in QL and ES|QL double-to-long conversion
+summary: Reject 2^63 when converting `double` to `long`
 area: ES|QL
 type: bug
 issues:

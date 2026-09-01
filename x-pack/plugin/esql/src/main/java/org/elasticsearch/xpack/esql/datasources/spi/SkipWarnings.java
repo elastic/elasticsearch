@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Nullable;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -31,6 +33,14 @@ import java.util.function.Consumer;
  * {@link #SkipWarnings(String, Consumer)} / {@link #of(ErrorPolicy, String, Consumer)} so the message
  * is relayed and re-emitted on the correct thread instead of being silently dropped. Instances are
  * stateful and not thread-safe: create one per reader iterator or decoder.
+ * <p>
+ * A correctly bound thread is necessary but not sufficient: a scan the planner ships to another node runs its
+ * drivers there, and that node's response headers reach the client only by chance, so a read-time notice written
+ * straight to {@link HeaderWarning} from a driver thread is still lost (elastic/esql-planning#1837). Read paths
+ * therefore relay to a sink that ends in {@code DriverContext#addWarning}, the channel
+ * {@code DriverCompletionInfo} carries back for the coordinator to emit. Direct {@link HeaderWarning} writes
+ * remain right for plan-time work — schema resolution, split discovery — which already runs on the coordinator's
+ * own request thread.
  * <p>
  * Callers working against an {@link ErrorPolicy} should use {@link #of(ErrorPolicy, String)} (or the
  * sink-aware {@link #of(ErrorPolicy, String, Consumer)}) to obtain either a live collector or the
@@ -77,6 +87,12 @@ public class SkipWarnings {
     public static final SkipWarnings NOOP = new SkipWarnings("") {
         @Override
         public void add(String detail) {}
+
+        // Also overridden (rather than left to delegate to the no-op add) because NOOP is a shared
+        // static: letting it populate an instance dedup set would accumulate unbounded state across
+        // every reader in the JVM, and from several threads at once.
+        @Override
+        public void addOnce(String detail) {}
     };
 
     private final String summary;
@@ -91,6 +107,9 @@ public class SkipWarnings {
     private int added;
     private boolean summaryEmitted;
     private boolean overflowEmitted;
+    /** Details already emitted through {@link #addOnce(String)}; {@code null} until that method is first used. */
+    @Nullable
+    private Set<String> emittedOnce;
 
     public SkipWarnings(String summary) {
         this(summary, null);
@@ -141,6 +160,29 @@ public class SkipWarnings {
         } else if (overflowEmitted == false) {
             emit(overflowMessage());
             overflowEmitted = true;
+        }
+    }
+
+    /**
+     * Records a skip/null-fill event whose detail is constant for the affected column rather than distinct per
+     * value, emitting each distinct message at most once. A decode loop that rediscovers such a condition on
+     * every batch must use this rather than {@link #add(String)}, because {@code add} counts duplicates against
+     * {@link #MAX_ADDED_WARNINGS}: after that many batches one self-repeating column would emit
+     * {@link #overflowMessage()}, telling the client warnings were dropped when in fact every distinct message
+     * had already been delivered, and with enough such columns it would spend the whole budget on the first one.
+     * Downstream value-dedup does not prevent that — the overflow line is itself a distinct message.
+     */
+    public void addOnce(String detail) {
+        if (overflowEmitted) {
+            // The cap has already been reported, so add() would emit nothing: returning here keeps the dedup set
+            // from growing without bound for a caller whose details are numerous rather than few-and-repeated.
+            return;
+        }
+        if (emittedOnce == null) {
+            emittedOnce = new HashSet<>();
+        }
+        if (emittedOnce.add(detail)) {
+            add(detail);
         }
     }
 

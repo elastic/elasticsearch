@@ -829,8 +829,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/158220
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   issue: https://github.com/elastic/elasticsearch/issues/158224
-- class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
-  issue: https://github.com/elastic/elasticsearch/issues/158226
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetNullListElementWarningIT
   method: testDroppedNullElementIsAnnouncedInEveryDistributionMode
   issue: https://github.com/elastic/elasticsearch/issues/158281

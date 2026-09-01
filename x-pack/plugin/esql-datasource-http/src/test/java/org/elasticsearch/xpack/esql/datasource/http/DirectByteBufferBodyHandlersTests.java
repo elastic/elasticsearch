@@ -150,7 +150,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         }
     }
 
-    public void testFixedLengthCancelledBodyReleasesCompletedDestination() {
+    public void testFixedLengthCancellationReleasesDestinationImmediately() {
         byte[] payload = randomByteArrayOfLength(32);
         AtomicInteger closeCalls = new AtomicInteger();
         DirectBufferFactory factory = length -> new DirectReadBuffer(ByteBuffer.allocate(length), closeCalls::incrementAndGet);
@@ -158,12 +158,14 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
             payload.length,
             factory
         );
-        subscriber.onSubscribe(new TestSubscription());
+        RecordingSubscription subscription = new RecordingSubscription();
+        subscriber.onSubscribe(subscription);
         subscriber.onNext(List.of(ByteBuffer.wrap(payload)));
         assertTrue(subscriber.getBody().cancel(false));
 
+        assertEquals(1, closeCalls.get());
+        assertTrue(subscription.cancelled.get());
         subscriber.onComplete();
-
         assertEquals(1, closeCalls.get());
     }
 
@@ -264,18 +266,20 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         }
     }
 
-    public void testSkipThenFillCancelledBodyReleasesCompletedDestination() {
+    public void testSkipThenFillCancellationReleasesDestinationImmediately() {
         byte[] fullBody = "0123456789".getBytes(StandardCharsets.UTF_8);
         AtomicInteger closeCalls = new AtomicInteger();
         DirectBufferFactory factory = length -> new DirectReadBuffer(ByteBuffer.allocate(length), closeCalls::incrementAndGet);
         DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber subscriber =
             new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(3, 3, factory);
-        subscriber.onSubscribe(new TestSubscription());
+        RecordingSubscription subscription = new RecordingSubscription();
+        subscriber.onSubscribe(subscription);
         subscriber.onNext(List.of(ByteBuffer.wrap(fullBody)));
         assertTrue(subscriber.getBody().cancel(false));
 
+        assertEquals(1, closeCalls.get());
+        assertTrue(subscription.cancelled.get());
         subscriber.onComplete();
-
         assertEquals(1, closeCalls.get());
     }
 
@@ -477,7 +481,6 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         assertEquals(0L, subscription.requested.get());
     }
 
-    /** Hands back a destination that is both larger and more narrowly limited than the request. */
     private static DirectBufferFactory overAllocatingFactory(AtomicInteger closeCalls) {
         return length -> {
             ByteBuffer destination = ByteBuffer.allocate(length + EXTRA_CAPACITY);

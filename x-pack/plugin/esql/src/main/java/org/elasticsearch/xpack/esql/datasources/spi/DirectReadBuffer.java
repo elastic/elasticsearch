@@ -17,6 +17,7 @@ import org.elasticsearch.core.Releasable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Result of {@link StorageObject#readBytesAsync(long, long, DirectBufferFactory, java.util.concurrent.Executor,
@@ -61,16 +62,15 @@ public final class DirectReadBuffer implements Releasable {
 
     private static final String STORAGE_READ_BREAKER_LABEL = "storage read buffer";
 
-    private volatile ByteBuffer buffer;
+    private final AtomicReference<ByteBuffer> buffer;
     private final Releasable onClose;
 
-    // Lifecycle tracking; gated by es.arrow.debug_buffers (defaults to -ea). All null/false when off.
+    // Lifecycle tracking; gated by es.arrow.debug_buffers (defaults to -ea). Both are null when off.
     private final Throwable allocSite;
-    private volatile boolean released;
     private volatile Throwable freeSite;
 
     public DirectReadBuffer(ByteBuffer buffer, Releasable onClose) {
-        this.buffer = buffer;
+        this.buffer = new AtomicReference<>(buffer);
         this.onClose = onClose;
         this.allocSite = DirectMemoryDebug.trackingEnabled() ? new Throwable("DirectReadBuffer allocated here") : null;
     }
@@ -176,8 +176,8 @@ public final class DirectReadBuffer implements Releasable {
      * and free stack traces are attached as suppressed exceptions.
      */
     public ByteBuffer buffer() {
-        ByteBuffer current = buffer;
-        if (current == null || (DirectMemoryDebug.trackingEnabled() && released)) {
+        ByteBuffer current = buffer.get();
+        if (current == null) {
             throw useAfterFree();
         }
         return current;
@@ -185,18 +185,19 @@ public final class DirectReadBuffer implements Releasable {
 
     @Override
     public void close() {
-        ByteBuffer toRelease = buffer;
-        if (DirectMemoryDebug.trackingEnabled()) {
+        ByteBuffer toRelease = buffer.getAndSet(null);
+        if (toRelease == null) {
             // A second close would double-free an ArrowBuf or double-release a breaker charge.
             // Surface it here with both stacks rather than letting the backing store throw a
             // context-free exception.
-            if (released) {
+            if (DirectMemoryDebug.trackingEnabled()) {
                 throw doubleFree();
             }
-            freeSite = new Throwable("DirectReadBuffer freed here");
-            released = true;
+            return;
         }
-        buffer = null;
+        if (DirectMemoryDebug.trackingEnabled()) {
+            freeSite = new Throwable("DirectReadBuffer freed here");
+        }
         try {
             // Poison before releasing (self-gated by es.arrow.* knobs; no-op for heap buffers) so any
             // surviving alias that reads this region after free fails deterministically instead of flakily.

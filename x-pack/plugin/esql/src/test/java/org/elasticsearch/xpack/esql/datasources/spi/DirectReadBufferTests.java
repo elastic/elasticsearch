@@ -14,6 +14,7 @@ import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -84,6 +85,30 @@ public class DirectReadBufferTests extends ESTestCase {
         AssertionError error = expectThrows(AssertionError.class, owner::close);
         assertThat(error.getMessage(), containsString("called twice"));
         assertEquals(2, error.getSuppressed().length);
+    }
+
+    public void testConcurrentCloseReleasesBackingBufferOnce() throws InterruptedException {
+        AtomicInteger closeCalls = new AtomicInteger();
+        AtomicReference<AssertionError> doubleClose = new AtomicReference<>();
+        DirectReadBuffer owner = new DirectReadBuffer(ByteBuffer.allocate(8), closeCalls::incrementAndGet);
+
+        startInParallel(2, ignored -> {
+            try {
+                owner.close();
+            } catch (AssertionError e) {
+                if (doubleClose.compareAndSet(null, e) == false) {
+                    throw e;
+                }
+            }
+        });
+
+        assertEquals(1, closeCalls.get());
+        if (DirectMemoryDebug.trackingEnabled()) {
+            assertNotNull(doubleClose.get());
+            assertThat(doubleClose.get().getMessage(), containsString("called twice"));
+        } else {
+            assertNull(doubleClose.get());
+        }
     }
 
     public void testClosePoisonsDetachedDirectBufferSnapshot() {

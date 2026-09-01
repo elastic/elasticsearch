@@ -480,7 +480,6 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         assertEquals(0L, subscription.requested.get());
     }
 
-    /** Hands back a destination that is both larger and more narrowly limited than the request. */
     private static DirectBufferFactory overAllocatingFactory(AtomicInteger closeCalls) {
         return length -> {
             ByteBuffer destination = ByteBuffer.allocate(length + EXTRA_CAPACITY);

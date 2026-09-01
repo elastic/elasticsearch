@@ -104,6 +104,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
         // Allocated lazily here (not in the constructor) because prepare() is invoked again on each
         // retry; the previous attempt's buffer, if any, must be discarded.
         CompletableFuture<DirectReadBuffer> bufferFuture = new CompletableFuture<>();
+        this.currentSubscriber = null;
         this.resultFuture = bufferFuture;
         return bufferFuture;
     }
@@ -204,14 +205,9 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
             }
         }
 
-        /**
-         * Installs {@code allocated} as the destination unless a terminal callback already ran or
-         * the result future is no longer open. Returns {@code false} when the owner was not
-         * published and therefore remains the caller's to close.
-         */
         private boolean publishDestination(DirectReadBuffer allocated) {
             synchronized (destinationLock) {
-                if (failed || successClaimed || resultFuture.isDone()) {
+                if (destinationUnavailable()) {
                     return false;
                 }
                 destinationBuf = allocated;
@@ -219,11 +215,15 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
             }
         }
 
-        /** Whether a terminal callback has claimed the destination, or the result future is no longer open. */
         private boolean destinationAbandoned() {
             synchronized (destinationLock) {
-                return failed || successClaimed || resultFuture.isDone();
+                return destinationUnavailable();
             }
+        }
+
+        private boolean destinationUnavailable() {
+            assert Thread.holdsLock(destinationLock);
+            return failed || successClaimed || resultFuture.isDone();
         }
 
         @Override
@@ -297,14 +297,6 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
             }
         }
 
-        /**
-         * Claims the destination for failure, releases it, and fails the result future.
-         *
-         * @return {@code false} when a terminal signal already claimed the destination, in which
-         *         case {@code error} is dropped. Dropping it after {@link #onComplete()} claimed a
-         *         success is deliberate: the body had already been received in full, so a late
-         *         {@code exceptionOccurred} must not retract a result the consumer may hold.
-         */
         boolean fail(Throwable error) {
             synchronized (destinationLock) {
                 if (failed || successClaimed) {

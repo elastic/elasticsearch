@@ -60,19 +60,13 @@ final class DirectByteBufferBodyHandlers {
         private final int expectedLength;
         private final DirectBufferFactory factory;
         private final CompletableFuture<DirectReadBuffer> body = new CompletableFuture<>();
-        // Cross-callback fields are volatile as defense-in-depth. The Reactive Streams contract
-        // guarantees serial signals with happens-before, but making the visibility explicit avoids
-        // depending on each publisher implementation honoring that subtlety correctly.
-        //
-        // Volatile is sufficient here, unlike the destinationLock that KnownLengthAsyncResponseTransformer
-        // needs on the S3 path: every signal that can release this destination is a Flow.Subscriber
-        // callback, and those are serialized by the publisher. There is no out-of-band failure
-        // callback, and cancelling the body future never re-enters the subscriber. Do not "restore
-        // symmetry" by adding a lock that would guard against nothing.
-        private volatile DirectReadBuffer destinationBuf;
+        // Subscriber signals are serialized, but cancellation of body can arrive from another
+        // thread and must not close the destination while onNext is copying into it.
+        private final Object destinationLock = new Object();
+        private DirectReadBuffer destinationBuf;
         private int offset;
         private volatile Flow.Subscription subscription;
-        private volatile boolean failed;
+        private boolean failed;
 
         FixedLengthDirectSubscriber(int expectedLength, DirectBufferFactory factory) {
             if (expectedLength < 0) {
@@ -80,6 +74,15 @@ final class DirectByteBufferBodyHandlers {
             }
             this.expectedLength = expectedLength;
             this.factory = factory;
+            body.whenComplete((ignored, error) -> {
+                if (body.isCancelled()) {
+                    releaseOnFailure();
+                    Flow.Subscription current = subscription;
+                    if (current != null) {
+                        current.cancel();
+                    }
+                }
+            });
         }
 
         @Override
@@ -93,16 +96,27 @@ final class DirectByteBufferBodyHandlers {
             try {
                 allocated = allocateIfBodyOpen(factory, expectedLength, body, subscription);
             } catch (Exception e) {
-                failed = true;
-                subscription.cancel();
-                body.completeExceptionally(e);
+                fail(e, true);
                 return;
             }
             if (allocated == null) {
                 return;
             }
-            this.destinationBuf = allocated;
-            if (body.isDone() || failed) {
+            boolean published;
+            synchronized (destinationLock) {
+                if (body.isDone() || failed) {
+                    published = false;
+                } else {
+                    destinationBuf = allocated;
+                    published = true;
+                }
+            }
+            if (published == false) {
+                allocated.close();
+                subscription.cancel();
+                return;
+            }
+            if (body.isDone()) {
                 releaseOnFailure();
                 subscription.cancel();
                 return;
@@ -110,61 +124,66 @@ final class DirectByteBufferBodyHandlers {
             try {
                 subscription.request(Long.MAX_VALUE);
             } catch (RuntimeException e) {
-                failed = true;
-                releaseOnFailure();
-                body.completeExceptionally(e);
+                fail(e, true);
             }
         }
 
         @Override
         public void onNext(List<ByteBuffer> items) {
-            for (ByteBuffer chunk : items) {
-                DirectReadBuffer drb = destinationBuf;
-                if (drb == null || failed) {
-                    return;
-                }
-                int remaining = chunk.remaining();
-                if (remaining > expectedLength - offset) {
-                    fail(
-                        new IOException(
+            IOException overflow = null;
+            synchronized (destinationLock) {
+                for (ByteBuffer chunk : items) {
+                    DirectReadBuffer drb = destinationBuf;
+                    if (drb == null || failed) {
+                        return;
+                    }
+                    int remaining = chunk.remaining();
+                    if (remaining > expectedLength - offset) {
+                        overflow = new IOException(
                             "HTTP response body exceeded expected length: cumulative="
                                 + ((long) offset + remaining)
                                 + ", expected="
                                 + expectedLength
-                        )
-                    );
-                    return;
+                        );
+                        break;
+                    }
+                    DirectByteBufferCopies.copyChunkIntoDestination(drb.buffer(), offset, chunk);
+                    offset += remaining;
                 }
-                DirectByteBufferCopies.copyChunkIntoDestination(drb.buffer(), offset, chunk);
-                offset += remaining;
+            }
+            if (overflow != null) {
+                fail(overflow, true);
             }
         }
 
         @Override
         public void onError(Throwable throwable) {
-            if (failed) {
-                return;
-            }
-            failed = true;
-            releaseOnFailure();
-            body.completeExceptionally(throwable);
+            fail(throwable, false);
         }
 
         @Override
         public void onComplete() {
-            if (failed) {
+            DirectReadBuffer transferred;
+            IOException shortRead;
+            synchronized (destinationLock) {
+                if (failed) {
+                    return;
+                }
+                if (offset != expectedLength) {
+                    transferred = null;
+                    shortRead = new IOException(
+                        "HTTP response body shorter than expected: received=" + offset + ", expected=" + expectedLength
+                    );
+                } else {
+                    transferred = destinationBuf;
+                    destinationBuf = null;
+                    shortRead = null;
+                }
+            }
+            if (shortRead != null) {
+                fail(shortRead, false);
                 return;
             }
-            if (offset != expectedLength) {
-                failed = true;
-                releaseOnFailure();
-                body.completeExceptionally(
-                    new IOException("HTTP response body shorter than expected: received=" + offset + ", expected=" + expectedLength)
-                );
-                return;
-            }
-            DirectReadBuffer transferred = destinationBuf;
-            destinationBuf = null;
             if (transferred == null) {
                 return;
             }
@@ -179,17 +198,35 @@ final class DirectByteBufferBodyHandlers {
             return body;
         }
 
-        private void fail(IOException error) {
-            failed = true;
-            subscription.cancel();
-            releaseOnFailure();
+        private void fail(Throwable error, boolean cancelSubscription) {
+            DirectReadBuffer drb;
+            synchronized (destinationLock) {
+                if (failed) {
+                    return;
+                }
+                failed = true;
+                drb = destinationBuf;
+                destinationBuf = null;
+            }
+            if (cancelSubscription) {
+                Flow.Subscription current = subscription;
+                if (current != null) {
+                    current.cancel();
+                }
+            }
+            if (drb != null) {
+                drb.close();
+            }
             body.completeExceptionally(error);
         }
 
         private void releaseOnFailure() {
-            DirectReadBuffer drb = destinationBuf;
-            if (drb != null) {
+            DirectReadBuffer drb;
+            synchronized (destinationLock) {
+                drb = destinationBuf;
                 destinationBuf = null;
+            }
+            if (drb != null) {
                 drb.close();
             }
         }
@@ -204,12 +241,12 @@ final class DirectByteBufferBodyHandlers {
         private final int length;
         private final DirectBufferFactory factory;
         private final CompletableFuture<DirectReadBuffer> body = new CompletableFuture<>();
-        // See FixedLengthDirectSubscriber for the volatility rationale and for why no lock is needed.
-        private volatile DirectReadBuffer destinationBuf;
+        private final Object destinationLock = new Object();
+        private DirectReadBuffer destinationBuf;
         private long skipRemaining;
         private int fillOffset;
         private volatile Flow.Subscription subscription;
-        private volatile boolean failed;
+        private boolean failed;
 
         SkipThenFillDirectSubscriber(long skip, int length, DirectBufferFactory factory) {
             if (skip < 0) {
@@ -222,6 +259,15 @@ final class DirectByteBufferBodyHandlers {
             this.length = length;
             this.skipRemaining = skip;
             this.factory = factory;
+            body.whenComplete((ignored, error) -> {
+                if (body.isCancelled()) {
+                    releaseOnFailure();
+                    Flow.Subscription current = subscription;
+                    if (current != null) {
+                        current.cancel();
+                    }
+                }
+            });
         }
 
         @Override
@@ -235,16 +281,28 @@ final class DirectByteBufferBodyHandlers {
             try {
                 allocated = allocateIfBodyOpen(factory, length, body, subscription);
             } catch (Exception e) {
-                failed = true;
                 subscription.cancel();
-                body.completeExceptionally(e);
+                fail(e);
                 return;
             }
             if (allocated == null) {
                 return;
             }
-            this.destinationBuf = allocated;
-            if (body.isDone() || failed) {
+            boolean published;
+            synchronized (destinationLock) {
+                if (body.isDone() || failed) {
+                    published = false;
+                } else {
+                    destinationBuf = allocated;
+                    published = true;
+                }
+            }
+            if (published == false) {
+                allocated.close();
+                subscription.cancel();
+                return;
+            }
+            if (body.isDone()) {
                 releaseOnFailure();
                 subscription.cancel();
                 return;
@@ -252,70 +310,67 @@ final class DirectByteBufferBodyHandlers {
             try {
                 subscription.request(Long.MAX_VALUE);
             } catch (RuntimeException e) {
-                failed = true;
-                releaseOnFailure();
-                body.completeExceptionally(e);
+                fail(e);
             }
         }
 
         @Override
         public void onNext(List<ByteBuffer> items) {
-            for (ByteBuffer chunk : items) {
-                DirectReadBuffer drb = destinationBuf;
-                if (drb == null || failed) {
-                    return;
-                }
-                if (skipRemaining > 0) {
-                    long toSkip = Math.min(skipRemaining, chunk.remaining());
-                    chunk.position(chunk.position() + (int) toSkip);
-                    skipRemaining -= toSkip;
-                }
-                if (fillOffset < length && chunk.hasRemaining()) {
-                    int toCopy = Math.min(chunk.remaining(), length - fillOffset);
-                    ByteBuffer slice = chunk.slice();
-                    slice.limit(toCopy);
-                    DirectByteBufferCopies.copyChunkIntoDestination(drb.buffer(), fillOffset, slice);
-                    chunk.position(chunk.position() + toCopy);
-                    fillOffset += toCopy;
+            synchronized (destinationLock) {
+                for (ByteBuffer chunk : items) {
+                    DirectReadBuffer drb = destinationBuf;
+                    if (drb == null || failed) {
+                        return;
+                    }
+                    if (skipRemaining > 0) {
+                        long toSkip = Math.min(skipRemaining, chunk.remaining());
+                        chunk.position(chunk.position() + (int) toSkip);
+                        skipRemaining -= toSkip;
+                    }
+                    if (fillOffset < length && chunk.hasRemaining()) {
+                        int toCopy = Math.min(chunk.remaining(), length - fillOffset);
+                        ByteBuffer slice = chunk.slice();
+                        slice.limit(toCopy);
+                        DirectByteBufferCopies.copyChunkIntoDestination(drb.buffer(), fillOffset, slice);
+                        chunk.position(chunk.position() + toCopy);
+                        fillOffset += toCopy;
+                    }
                 }
             }
         }
 
         @Override
         public void onError(Throwable throwable) {
-            if (failed) {
-                return;
-            }
-            failed = true;
-            releaseOnFailure();
-            body.completeExceptionally(throwable);
+            fail(throwable);
         }
 
         @Override
         public void onComplete() {
-            if (failed) {
+            DirectReadBuffer transferred;
+            IOException readFailure;
+            synchronized (destinationLock) {
+                if (failed) {
+                    return;
+                }
+                if (skipRemaining > 0) {
+                    transferred = null;
+                    readFailure = new IOException("Position " + skip + " is beyond content length for HTTP response body");
+                } else if (fillOffset != length) {
+                    // Downstream consumers trust the requested length when slicing the returned buffer.
+                    transferred = null;
+                    readFailure = new IOException(
+                        "HTTP response body shorter than expected: received=" + fillOffset + ", expected=" + length
+                    );
+                } else {
+                    transferred = destinationBuf;
+                    destinationBuf = null;
+                    readFailure = null;
+                }
+            }
+            if (readFailure != null) {
+                fail(readFailure);
                 return;
             }
-            if (skipRemaining > 0) {
-                failed = true;
-                releaseOnFailure();
-                body.completeExceptionally(new IOException("Position " + skip + " is beyond content length for HTTP response body"));
-                return;
-            }
-            // Strict contract: a range read must deliver exactly {@code length} bytes after the skip.
-            // Matches FixedLengthDirectSubscriber (206 path) and KnownLengthAsyncResponseTransformer (S3).
-            // Downstream consumers like CoalescedRangeReader trust the requested length when slicing,
-            // so returning a short buffer here would surface as an IllegalArgumentException at slice time.
-            if (fillOffset != length) {
-                failed = true;
-                releaseOnFailure();
-                body.completeExceptionally(
-                    new IOException("HTTP response body shorter than expected: received=" + fillOffset + ", expected=" + length)
-                );
-                return;
-            }
-            DirectReadBuffer transferred = destinationBuf;
-            destinationBuf = null;
             if (transferred == null) {
                 return;
             }
@@ -330,19 +385,34 @@ final class DirectByteBufferBodyHandlers {
             return body;
         }
 
-        private void releaseOnFailure() {
-            DirectReadBuffer drb = destinationBuf;
-            if (drb != null) {
+        private void fail(Throwable error) {
+            DirectReadBuffer drb;
+            synchronized (destinationLock) {
+                if (failed) {
+                    return;
+                }
+                failed = true;
+                drb = destinationBuf;
                 destinationBuf = null;
+            }
+            if (drb != null) {
+                drb.close();
+            }
+            body.completeExceptionally(error);
+        }
+
+        private void releaseOnFailure() {
+            DirectReadBuffer drb;
+            synchronized (destinationLock) {
+                drb = destinationBuf;
+                destinationBuf = null;
+            }
+            if (drb != null) {
                 drb.close();
             }
         }
     }
 
-    /**
-     * Allocates a writable destination only if {@code body} is still open. Returns {@code null}
-     * when the body was already cancelled or completed, after closing any unused allocation.
-     */
     private static DirectReadBuffer allocateIfBodyOpen(
         DirectBufferFactory factory,
         int length,

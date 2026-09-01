@@ -2544,6 +2544,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             setUser(forbiddenEnable, "ds_dataset_read_metadata");
             ResponseException enableEx = expectThrows(ResponseException.class, () -> client().performRequest(forbiddenEnable));
             assertThat(enableEx.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+            assertThat(enableEx.getMessage(), containsString("indices:admin/esql/dataset/enable"));
 
             Request allowed = new Request("POST", "/_query/dataset/" + datasetName + "/_disable");
             setUser(allowed, "ds_dataset_manage");

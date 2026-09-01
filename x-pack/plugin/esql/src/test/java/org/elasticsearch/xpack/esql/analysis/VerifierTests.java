@@ -4736,6 +4736,13 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testMMRUnresolvedQueryVector() {
+        defaultAnalyzer().error(
+            "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr _score on dense_embedding limit 10",
+            containsString("Unknown column [_score]")
+        );
+    }
+
     public void testMMRLambdaValueIsValid() {
         defaultAnalyzer().query(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }"

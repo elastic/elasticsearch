@@ -28,6 +28,8 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -59,6 +61,7 @@ class ScrollDataExtractor implements DataExtractor {
     private final Client client;
     private final ScrollDataExtractorContext context;
     private final DatafeedTimingStatsReporter timingStatsReporter;
+    private final DatafeedSearchTelemetry searchTelemetry;
     private final ScrollDataExtractorFactory factory;
     private String scrollId;
     private boolean isCancelled;
@@ -73,11 +76,13 @@ class ScrollDataExtractor implements DataExtractor {
         Client client,
         ScrollDataExtractorContext dataExtractorContext,
         DatafeedTimingStatsReporter timingStatsReporter,
+        DatafeedSearchTelemetry searchTelemetry,
         ScrollDataExtractorFactory factory
     ) {
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(dataExtractorContext);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
+        this.searchTelemetry = Objects.requireNonNull(searchTelemetry);
         this.factory = Objects.requireNonNull(factory);
         hasNext = true;
         searchHasShardFailure = false;
@@ -254,6 +259,12 @@ class ScrollDataExtractor implements DataExtractor {
             hasNext = false;
             clearScroll();
             return null;
+        }
+
+        int hitCount = hits.getHits().length;
+        searchTelemetry.recordSearchResults(ExtractorType.SCROLL, hitCount);
+        if (hitCount == context.scrollSize) {
+            searchTelemetry.recordFullPage(ExtractorType.SCROLL);
         }
 
         BytesStreamOutput outputStream = new BytesStreamOutput();

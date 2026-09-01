@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -110,11 +111,11 @@ public class ScrollDataExtractorTests extends ESTestCase {
         }
 
         TestDataExtractor(long start, long end, ScrollDataExtractorFactory factory) {
-            super(client, createContext(start, end), timingStatsReporter, factory);
+            super(client, createContext(start, end), timingStatsReporter, DatafeedSearchTelemetry.NOOP, factory);
         }
 
         TestDataExtractor(ScrollDataExtractorContext context) {
-            super(client, context, timingStatsReporter, scrollDataExtractorFactory);
+            super(client, context, timingStatsReporter, DatafeedSearchTelemetry.NOOP, scrollDataExtractorFactory);
         }
 
         @Override
@@ -784,7 +785,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
             job,
             extractedFields,
             NamedXContentRegistry.EMPTY,
-            timingStatsReporter
+            timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP
         );
     }
 

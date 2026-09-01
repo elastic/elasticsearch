@@ -19,6 +19,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -54,6 +56,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     private final Client client;
     private final CompositeAggregationDataExtractorContext context;
     private final DatafeedTimingStatsReporter timingStatsReporter;
+    private final DatafeedSearchTelemetry searchTelemetry;
     private final AggregatedSearchRequestBuilder requestBuilder;
     private final long interval;
     private volatile boolean isCancelled;
@@ -66,12 +69,14 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         Client client,
         CompositeAggregationDataExtractorContext dataExtractorContext,
         DatafeedTimingStatsReporter timingStatsReporter,
+        DatafeedSearchTelemetry searchTelemetry,
         AggregatedSearchRequestBuilder requestBuilder
     ) {
         this.compositeAggregationBuilder = Objects.requireNonNull(compositeAggregationBuilder);
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(dataExtractorContext);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
+        this.searchTelemetry = Objects.requireNonNull(searchTelemetry);
         this.requestBuilder = Objects.requireNonNull(requestBuilder);
         this.interval = DatafeedConfigUtils.getHistogramIntervalMillis(compositeAggregationBuilder);
         this.hasNext = true;
@@ -209,6 +214,12 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             )
         );
         aggregationToJsonProcessor.process(aggs);
+        CompositeAggregation compositeAgg = aggs.get(compositeAggregationBuilder.getName());
+        int bucketCount = compositeAgg.getBuckets().size();
+        searchTelemetry.recordSearchResults(ExtractorType.COMPOSITE, bucketCount);
+        if (bucketCount == compositeAggregationBuilder.size() && compositeAgg.afterKey() != null) {
+            searchTelemetry.recordFullPage(ExtractorType.COMPOSITE);
+        }
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         final Long afterKeyTimeBucket = afterKey != null ? (Long) afterKey.get(context.compositeAggDateHistogramGroupSourceName) : null;
         boolean cancellable = aggregationToJsonProcessor.writeAllDocsCancellable(timestamp -> {
@@ -253,7 +264,6 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             hasNext = false;
         }
         // Only set the after key once we have processed the search, allows us to cancel on the first page
-        CompositeAggregation compositeAgg = aggs.get(compositeAggregationBuilder.getName());
         afterKey = compositeAgg.afterKey();
 
         return new ByteArrayInputStream(outputStream.toByteArray());

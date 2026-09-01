@@ -21,6 +21,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -45,6 +47,7 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
     protected final Client client;
     protected final AggregationDataExtractorContext context;
     private final DatafeedTimingStatsReporter timingStatsReporter;
+    private final DatafeedSearchTelemetry searchTelemetry;
     private boolean hasNext;
     private volatile boolean isCancelled;
     private AggregationToJsonProcessor aggregationToJsonProcessor;
@@ -54,11 +57,13 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
     AbstractAggregationDataExtractor(
         Client client,
         AggregationDataExtractorContext dataExtractorContext,
-        DatafeedTimingStatsReporter timingStatsReporter
+        DatafeedTimingStatsReporter timingStatsReporter,
+        DatafeedSearchTelemetry searchTelemetry
     ) {
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(dataExtractorContext);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
+        this.searchTelemetry = Objects.requireNonNull(searchTelemetry);
         this.hasNext = true;
         this.isCancelled = false;
         this.outputStream = new ByteArrayOutputStream();
@@ -110,6 +115,7 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         outputStream.reset();
         // We can cancel immediately as we process whole date_histogram buckets at a time
         aggregationToJsonProcessor.writeAllDocsCancellable(_timestamp -> isCancelled, outputStream);
+        searchTelemetry.recordSearchResults(ExtractorType.AGGREGATION, aggregationToJsonProcessor.getKeyValueCount());
         // We process the whole search. So, if we are chunking or not, we have nothing more to process given the current query
         hasNext = false;
 

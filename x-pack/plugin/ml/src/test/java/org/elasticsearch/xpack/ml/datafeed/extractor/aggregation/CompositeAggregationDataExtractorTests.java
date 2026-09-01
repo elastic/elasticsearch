@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.junit.Before;
@@ -145,6 +146,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             client,
             createContext(1000L, 4000L),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             aggregatedSearchRequestBuilder
         );
 
@@ -188,6 +190,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             client,
             createContext(1000L, 2000L),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             aggregatedSearchRequestBuilder
         );
 
@@ -207,6 +210,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             client,
             createContext(1000L, 2000L),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             aggregatedSearchRequestBuilder
         );
 
@@ -227,6 +231,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             client,
             createContext(1000L, 4000L),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             aggregatedSearchRequestBuilder
         );
 
@@ -261,6 +266,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             client,
             createContext(1000L, timestamp + 1000 + 1),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             aggregatedSearchRequestBuilder
         );
 
@@ -299,6 +305,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             client,
             createContext(1000L, timestamp + 1000 + 1),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             aggregatedSearchRequestBuilder
         );
 
@@ -366,6 +373,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             client,
             createContext(1000L, 2000L, projectRouting),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             aggregatedSearchRequestBuilder
         );
 
@@ -385,6 +393,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             client,
             createContext(1000L, 2000L),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             aggregatedSearchRequestBuilder
         );
 

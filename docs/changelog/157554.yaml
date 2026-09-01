@@ -1,5 +1,5 @@
 pr: 157554
-summary: Reject SQL ROUND results that overflow byte or short
+summary: Reject `ROUND` results that overflow `byte` or `short`
 area: SQL
 type: bug
 issues:

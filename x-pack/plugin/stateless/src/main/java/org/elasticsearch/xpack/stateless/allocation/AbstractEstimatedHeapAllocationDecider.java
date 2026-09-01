@@ -67,7 +67,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
     // Pre-built decisions for cases whose explanation is fixed per decider instance. Avoids String
     // concatenation and Decision.Single allocation on every call through these guard checks.
     private final Decision disabledDecision;
-    private final Decision notApplicableNodeDecision;
+    private final Decision notApplicableToNodeDecision;
     private final Decision canRemainDisabledDecision;
 
     private final Set<DiscoveryNodeRole> applicableRoles;
@@ -95,7 +95,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
             .map(DiscoveryNodeRole::roleName)
             .sorted(Comparator.naturalOrder())
             .collect(Collectors.joining(", "));
-        this.notApplicableNodeDecision = Decision.single(
+        this.notApplicableToNodeDecision = Decision.single(
             Decision.Type.YES,
             name,
             deciderDescription + " allocation decider is applicable only to " + roleNames + " nodes"
@@ -316,7 +316,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
         }
 
         if (node.node().getRoles().stream().noneMatch(applicableRoles::contains)) {
-            return allocation.debugDecision() ? notApplicableNodeDecision : Decision.YES;
+            return allocation.debugDecision() ? notApplicableToNodeDecision : Decision.YES;
         }
 
         final NodeHeapMetrics nodeHeapMetrics = allocation.clusterInfo().getNodeHeapMetrics().get(node.nodeId());

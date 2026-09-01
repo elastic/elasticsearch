@@ -61,7 +61,9 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
         try (var tp = new TestThreadPool(getTestName(), Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), 10).build())) {
             CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, tp);
             Codec codec = codecService.codec("default");
-            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+            // The default codec is a DeduplicateFieldInfosCodec in its own right, so it is only wrapped in one when it is not.
+            if (codec instanceof DefaultCompressionPerFieldMapperCodec == false
+                && codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
                 codec = deduplicateFieldInfosCodec.delegate();
             }
             assertThat(codec, instanceOf(DefaultCompressionPerFieldMapperCodec.class));
@@ -162,7 +164,9 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
     private static KnnVectorsFormat knnVectorsFormatForField(MapperService mapperService, TestThreadPool tp) {
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, tp);
         Codec codec = codecService.codec("default");
-        if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+        // The default codec is a DeduplicateFieldInfosCodec in its own right, so it is only wrapped in one when it is not.
+        if (codec instanceof DefaultCompressionPerFieldMapperCodec == false
+            && codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
             codec = deduplicateFieldInfosCodec.delegate();
         }
         return ((DefaultCompressionPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");

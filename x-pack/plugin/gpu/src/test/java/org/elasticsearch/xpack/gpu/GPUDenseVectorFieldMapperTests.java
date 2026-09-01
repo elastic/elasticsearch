@@ -93,7 +93,9 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
-        if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+        // The default codec is a DeduplicateFieldInfosCodec in its own right, so it is only wrapped in one when it is not.
+        if (codec instanceof DefaultCompressionPerFieldMapperCodec == false
+            && codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
             codec = deduplicateFieldInfosCodec.delegate();
         }
         assertThat(codec, instanceOf(DefaultCompressionPerFieldMapperCodec.class));

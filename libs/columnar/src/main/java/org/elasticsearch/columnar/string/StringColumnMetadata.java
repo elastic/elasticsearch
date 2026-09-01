@@ -52,6 +52,10 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      * this field. A term is then a contiguous run of ranks, which a search can find by bisecting the values
      * instead of comparing every one of them.
      */
+    /** What the sorted flag is written as, so the two sides of the wire name it rather than spell 1 and 0. */
+    byte SORTED = 1;
+    byte NOT_SORTED = 0;
+
     boolean valuesSorted();
 
     /** What the column recorded of the terms it holds most, or null when it recorded nothing. */
@@ -231,7 +235,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         }
         out.writeVLong(numValues());
         out.writeVLong(valueBytes());
-        out.writeByte((byte) (valuesSorted() ? 1 : 0));
+        out.writeByte(valuesSorted() ? SORTED : NOT_SORTED);
         out.writeByte(layout().id());
         writeBody(out);
         final Summary summary = summary();
@@ -268,7 +272,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         }
         long numValues = in.readVLong();
         long valueBytes = in.readVLong();
-        boolean valuesSorted = in.readByte() != 0;
+        boolean valuesSorted = in.readByte() == SORTED;
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
         final StringColumnMetadata column = switch (layout) {
             case PLAIN -> plain(iterator, numDocsWithField, numValues, ValueStream.Metadata.readFrom(in), valuesSorted);

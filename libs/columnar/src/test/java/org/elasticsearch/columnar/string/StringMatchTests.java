@@ -620,7 +620,9 @@ public class StringMatchTests extends ColumnarStringTestCase {
             }
             // A term the column does not hold matches nothing.
             assertEquals("absent term", List.of(), matched(reader.matchTerm(new BytesRef("nothing-here"))));
-            for (String probe : new String[] { "al", "alp", "b", "d", "zzz", "" }) {
+            // "az" sorts between alpine and bravo, so bisecting lands on a value the prefix does not name
+            // rather than past the end. A lower bound that was off by one would answer with bravo's run.
+            for (String probe : new String[] { "al", "alp", "b", "d", "az", "zzz", "" }) {
                 assertEquals("prefix [" + probe + "]", expected(docValues, probe, false), matched(reader.matchPrefix(new BytesRef(probe))));
             }
         });

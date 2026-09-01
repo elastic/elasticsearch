@@ -39,11 +39,9 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -484,47 +482,50 @@ public class ReshardSearchFiltersTests extends ESTestCase {
             }
         }
 
-        var indexMetadata = splitIndexMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2));
+        var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2)
+            .transitionSplitTargetToNewState(testShardId(1), IndexReshardingState.Split.TargetShardState.HANDOFF)
+            .transitionSplitTargetToNewState(testShardId(1), IndexReshardingState.Split.TargetShardState.SPLIT);
+        var indexMetadata = splitIndexMetadata(reshardingMetadata);
         var mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(false);
-        var tasks = new ArrayList<Runnable>();
-        var supplied = new AtomicInteger();
-        var closed = new AtomicInteger();
 
         try (DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), testShardId(0))) {
             for (int shard = 0; shard < 2; shard++) {
-                reshardSearchFilters.warmReaderCacheAfterResharding(testShardId(shard), indexMetadata, mapperService, tasks::add, () -> {
-                    supplied.incrementAndGet();
-                    return new Engine.Searcher(
-                        "reshard_warming_test",
-                        reader,
-                        null,
-                        null,
-                        TrivialQueryCachingPolicy.NEVER,
-                        () -> closed.incrementAndGet()
-                    );
-                });
-            }
+                var shardId = testShardId(shard);
+                reshardSearchFilters.warmReaderCacheAfterResharding(
+                    shardId,
+                    indexMetadata,
+                    mapperService,
+                    Runnable::run,
+                    () -> new Engine.Searcher("reshard_warming_test", reader, null, null, TrivialQueryCachingPolicy.NEVER, () -> {})
+                );
 
-            assertEquals(2, tasks.size());
-            assertEquals(0, supplied.get());
-            tasks.forEach(Runnable::run);
-            assertEquals(2, supplied.get());
-            assertEquals(2, closed.get());
-            assertEquals(2 * reader.leaves().size(), cache().entryCount());
+                var afterWarm = cache().usageStats();
+                var filteredReader = reshardSearchFilters.maybeWrapDirectoryReader(
+                    reader,
+                    shardId,
+                    SplitShardCountSummary.forSearch(indexMetadata, shard),
+                    indexMetadata,
+                    mapperService
+                );
+                filteredReader.leaves().forEach(leaf -> leaf.reader().getLiveDocs());
+                var afterFilter = cache().usageStats();
+
+                assertEquals(afterWarm.get("misses"), afterFilter.get("misses"));
+                assertTrue((long) afterFilter.get("hits") > (long) afterWarm.get("hits"));
+            }
         }
     }
 
     public void testDoesNotWarmWithoutSplitOrAfterShardDone() {
         var mapperService = mock(MapperService.class);
-        var tasks = new ArrayList<Runnable>();
 
         var noSplitMetadata = IndexMetadata.builder("index")
             .settings(indexSettings(IndexVersion.current(), 2, 0))
             .numberOfShards(2)
             .numberOfReplicas(0)
             .build();
-        reshardSearchFilters.warmReaderCacheAfterResharding(testShardId(0), noSplitMetadata, mapperService, tasks::add, () -> {
+        reshardSearchFilters.warmReaderCacheAfterResharding(testShardId(0), noSplitMetadata, mapperService, Runnable::run, () -> {
             throw new AssertionError("searcher supplier must not be invoked");
         });
 
@@ -536,7 +537,7 @@ public class ReshardSearchFiltersTests extends ESTestCase {
             testShardId(1),
             splitIndexMetadata(targetDone),
             mapperService,
-            tasks::add,
+            Runnable::run,
             () -> {
                 throw new AssertionError("searcher supplier must not be invoked");
             }
@@ -552,13 +553,11 @@ public class ReshardSearchFiltersTests extends ESTestCase {
             testShardId(0),
             splitIndexMetadata(sourceDone),
             mapperService,
-            tasks::add,
+            Runnable::run,
             () -> {
                 throw new AssertionError("searcher supplier must not be invoked");
             }
         );
-
-        assertTrue(tasks.isEmpty());
     }
 
     // lower level tests that search filter decision-making is as expected

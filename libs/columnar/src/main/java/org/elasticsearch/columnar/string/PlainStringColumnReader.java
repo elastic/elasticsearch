@@ -157,7 +157,11 @@ public final class PlainStringColumnReader extends StringColumnReader {
             // new value without looking at any bytes. A value the page held earlier is a different address
             // and has to be found by its bytes, or the same value would take two slots.
             if (previousSlot < 0 || identity != previous || scratch.length != previousLength) {
-                final int slot = pageSlotFor(scratch, slots);
+                // Runs are staged a block at a time, so a run reaching into the next block is stored again
+                // and answers with an address the one before it did not. The slot before is the only one a
+                // column in term order can be repeating, so it is compared before anything is hashed, and
+                // a column in term order then hashes once a value rather than once a block it spans.
+                final int slot = previousSlot >= 0 && pageSlotHolds(previousSlot, scratch) ? previousSlot : pageSlotFor(scratch, slots);
                 if (slot == slots) {
                     slots++;
                 }

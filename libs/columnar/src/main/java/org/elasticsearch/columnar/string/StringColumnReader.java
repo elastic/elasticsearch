@@ -482,7 +482,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     }
 
     /** Whether the bytes a slot already holds are {@code value}'s. */
-    private boolean pageSlotHolds(int slot, BytesRef value) {
+    protected boolean pageSlotHolds(int slot, BytesRef value) {
         return pageLengths[slot] == value.length
             && Arrays.equals(
                 pageBytes,

@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 158218
-summary: "[Inference API] Ignore elasticsearch service when disabled"
-type: bug

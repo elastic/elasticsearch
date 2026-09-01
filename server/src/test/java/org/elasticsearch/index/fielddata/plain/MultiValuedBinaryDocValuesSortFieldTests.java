@@ -508,12 +508,15 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
     }
 
     /**
-     * The format is written as an ordinal, and the two that replaced a boolean have to keep the {@code 0}/{@code 1} it
-     * wrote so that segments written before the format became three-valued still read back as themselves.
+     * The format is written into segment info as an ordinal, so where each constant sits is on-disk state and none of them may move.
+     * The first two have to keep the {@code 0}/{@code 1} of the boolean they replaced, so segments written before the format became
+     * three-valued read back as themselves. {@code COLUMNAR_PAYLOAD} carries no old segments yet, but it does from the release it
+     * ships in, and pinning it now is what stops a fourth format being inserted above it. A new format goes on the end.
      */
-    public void testProviderWireFormatIsStableForTheFormatsThatReplacedABoolean() {
+    public void testProviderWireFormatOrdinalsAreStable() {
         assertEquals(0, SEPARATE_COUNT.ordinal());
         assertEquals(1, ARRAY_ORDER_INLINE_NULL.ordinal());
+        assertEquals(2, COLUMNAR_PAYLOAD.ordinal());
     }
 
     private static void assertRoundTrip(MultiValuedBinaryDocValuesSortField original) throws IOException {

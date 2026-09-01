@@ -78,6 +78,7 @@ import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettin
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -115,6 +116,7 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
@@ -3617,69 +3619,120 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
      * {@code !started()} while metadata is {@code HANDOFF}.
      */
     public void testTargetRecoversAfterMasterRestartDuringHandoff() throws Exception {
-        String masterNode = startMasterNodeForRestartTest();
-        String indexNode = startIndexNode();
-        startSearchNodes(2);
-        ensureStableCluster(4);
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
-        );
-        ensureGreen(indexName);
-        final int numDocs = randomIntBetween(10, 50);
-        indexDocs(indexName, numDocs);
-        refresh(indexName);
-        assertHitCount(prepareSearchAll(indexName), numDocs);
+        var setup = startHandoffRestartCluster();
 
-        String targetIndexNode = startIndexNode();
-        ensureStableCluster(5);
-
-        // Block the target's SHARD_STARTED notification so routing stays !started while resharding metadata is
-        // HANDOFF. This parks a transport thread until the master restart below completes, which spans the 30s
-        // awaitClusterState bound plus the restart itself, so the default 10s is far too short under CI load.
-        CountDownLatch allowShardStarted = new CountDownLatch(1);
-        MockTransportService targetTransport = MockTransportService.getInstance(targetIndexNode);
+        // Throw rather than block so the cluster applier thread is never parked inside the intercept.
+        // Parking it would stall ack of the new master's first publication, deadlocking the restart.
+        // ConnectTransportException is a master-channel exception, so ShardStateAction re-registers
+        // a ClusterStateObserver retry — the applier thread stays free to ack the publication.
+        AtomicBoolean suppressShardStarted = new AtomicBoolean(true);
+        AtomicReference<String> retryThread = new AtomicReference<>();
+        CountDownLatch masterStopped = new CountDownLatch(1);
+        CountDownLatch shardStartedAttempted = new CountDownLatch(1);
+        AtomicBoolean firstAttempt = new AtomicBoolean(true);
+        MockTransportService targetTransport = MockTransportService.getInstance(setup.targetIndexNode());
         targetTransport.addSendBehavior((connection, requestId, action, request, options) -> {
             if (ShardStateAction.SHARD_STARTED_ACTION_NAME.equals(action)) {
-                safeAwait(allowShardStarted, TimeValue.timeValueSeconds(40));
+                if (firstAttempt.compareAndSet(true, false)) {
+                    // Hold the first send until the master is gone so it fails against the dead master,
+                    // forcing the ClusterStateObserver retry path mid-restart.
+                    shardStartedAttempted.countDown();
+                    safeAwait(masterStopped, TimeValue.timeValueSeconds(60));
+                } else {
+                    // The retry fires on the cluster applier thread (via ClusterStateObserver.onNewClusterState).
+                    retryThread.compareAndSet(null, Thread.currentThread().getName());
+                    if (suppressShardStarted.get()) {
+                        throw new ConnectTransportException(connection.getNode(), "suppressed until master restart completes");
+                    }
+                }
             }
             connection.sendRequest(requestId, action, request, options);
         });
 
         try {
-            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName));
+            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(setup.indexName()));
+            awaitHandoffUnstarted(resolveIndex(setup.indexName()));
+            safeAwait(shardStartedAttempted, TimeValue.timeValueSeconds(60));
 
-            Index index = resolveIndex(indexName);
-            awaitClusterState(state -> {
-                IndexMetadata im = indexMetadata(state, index);
-                if (im.getReshardingMetadata() == null) {
-                    return false;
+            internalCluster().restartNode(setup.masterNode(), new InternalTestCluster.RestartCallback() {
+                @Override
+                public Settings onNodeStopped(String nodeName) throws Exception {
+                    masterStopped.countDown();
+                    return super.onNodeStopped(nodeName);
                 }
-                boolean handoff = im.getReshardingMetadata()
-                    .getSplit()
-                    .getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.HANDOFF;
-                ShardRouting primary = state.routingTable().index(index).shard(1).primaryShard();
-                // Shard could not have been started because of the block on SHARD_STARTED_ACTION_NAME above
-                return handoff && primary.started() == false;
-            });
 
-            logger.info("--> restarting master during handoff before target started");
-            internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
                 @Override
                 public boolean validateClusterForming() {
                     return false;
                 }
             });
-            allowShardStarted.countDown();
+            suppressShardStarted.set(false);
             assertBusy(() -> ensureStableCluster(5));
 
-            waitForReshardCompletion(indexName);
-            ensureGreen(indexName);
-            refresh(indexName);
-            assertHitCount(prepareSearchAll(indexName), numDocs);
+            assertReshardCompleted(setup.indexName(), setup.numDocs());
+            assertThat(
+                "SHARD_STARTED retry must fire on the cluster applier thread (mid-publication ordering)",
+                retryThread.get(),
+                containsString(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)
+            );
         } finally {
-            allowShardStarted.countDown();
+            masterStopped.countDown();
+            shardStartedAttempted.countDown();
+            suppressShardStarted.set(false);
+            targetTransport.clearAllRules();
+        }
+    }
+
+    /**
+     * Verifies split target shards recover after a master restart during HANDOFF, where SHARD_STARTED is
+     * suppressed across the restart and retried only once the new master is elected and stable.
+     * <p>
+     * Complements {@link #testTargetRecoversAfterMasterRestartDuringHandoff()}: that test forces the
+     * dangerous ordering where SHARD_STARTED retry fires on the cluster applier thread while the new
+     * master's first publication is still in progress. This test exercises the safe ordering: SHARD_STARTED
+     * is held back for the entire restart, and released only after the new master has committed its first
+     * cluster state. The retry therefore finds a stable master and sends from a transport-worker thread
+     * without touching the applier thread mid-publication.
+     */
+    public void testTargetStartsAfterMasterRestartDuringHandoff() throws Exception {
+        var setup = startHandoffRestartCluster();
+
+        AtomicBoolean suppressShardStarted = new AtomicBoolean(true);
+        AtomicBoolean restartCompleted = new AtomicBoolean(false);
+        AtomicBoolean shardStartedAfterRestart = new AtomicBoolean(false);
+        MockTransportService targetTransport = MockTransportService.getInstance(setup.targetIndexNode());
+        targetTransport.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (ShardStateAction.SHARD_STARTED_ACTION_NAME.equals(action)) {
+                if (suppressShardStarted.get()) {
+                    throw new ConnectTransportException(connection.getNode(), "suppressed until master restart completes");
+                }
+                assertTrue("SHARD_STARTED must only succeed after master restart completes", restartCompleted.get());
+                shardStartedAfterRestart.set(true);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        try {
+            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(setup.indexName()));
+            awaitHandoffUnstarted(resolveIndex(setup.indexName()));
+
+            internalCluster().restartNode(setup.masterNode(), new InternalTestCluster.RestartCallback() {
+                @Override
+                public boolean validateClusterForming() {
+                    return false;
+                }
+            });
+            // restartCompleted before suppressShardStarted: volatile write order gives the intercept
+            // a happens-before guarantee that restartCompleted == true when it sees suppressShardStarted == false.
+            restartCompleted.set(true);
+            suppressShardStarted.set(false);
+            assertBusy(() -> ensureStableCluster(5));
+
+            assertReshardCompleted(setup.indexName(), setup.numDocs());
+            assertTrue("SHARD_STARTED must succeed after restart completes", shardStartedAfterRestart.get());
+        } finally {
+            restartCompleted.set(true);
+            suppressShardStarted.set(false);
             targetTransport.clearAllRules();
         }
     }
@@ -5146,6 +5199,54 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
                 .build()
         );
+    }
+
+    private record HandoffRestartSetup(String masterNode, String targetIndexNode, String indexName, int numDocs) {}
+
+    /**
+     * Starts a 5-node cluster (1 master, 1 index, 2 search, 1 target index node), creates a 1-shard replicated
+     * index, indexes documents, and initiates a reshard. Returns the identifiers needed by handoff/master-restart
+     * tests.
+     */
+    private HandoffRestartSetup startHandoffRestartCluster() throws Exception {
+        String masterNode = startMasterNodeForRestartTest();
+        startIndexNode();
+        startSearchNodes(2);
+        ensureStableCluster(4);
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+        int numDocs = randomIntBetween(10, 50);
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), numDocs);
+        String targetIndexNode = startIndexNode();
+        ensureStableCluster(5);
+        return new HandoffRestartSetup(masterNode, targetIndexNode, indexName, numDocs);
+    }
+
+    private void awaitHandoffUnstarted(Index index) {
+        awaitClusterState(state -> {
+            IndexMetadata im = indexMetadata(state, index);
+            if (im.getReshardingMetadata() == null) {
+                return false;
+            }
+            boolean handoff = im.getReshardingMetadata()
+                .getSplit()
+                .getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.HANDOFF;
+            ShardRouting primary = state.routingTable().index(index).shard(1).primaryShard();
+            return handoff && primary.started() == false;
+        });
+    }
+
+    private void assertReshardCompleted(String indexName, int numDocs) throws Exception {
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), numDocs);
     }
 
     public PlainActionFuture<ClusterState> waitForClusterState(Predicate<ClusterState> predicate) {

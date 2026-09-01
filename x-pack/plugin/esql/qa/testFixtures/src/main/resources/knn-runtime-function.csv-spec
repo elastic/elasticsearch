@@ -157,5 +157,5 @@ FROM knn_hex_vectors METADATA _score
 ;
 
 id:integer | _score:double
-5          | 3.0422861576080322
+5          | 2.501841187477112
 ;

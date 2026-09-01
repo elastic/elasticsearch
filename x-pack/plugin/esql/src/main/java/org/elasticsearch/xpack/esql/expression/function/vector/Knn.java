@@ -582,7 +582,7 @@ public class Knn extends SingleFieldFullTextFunction
     /**
      * Evaluator factory for runtime KNN filter (boolean result): returns true for rows whose
      * field vector has cosine similarity >= threshold (or always true when no threshold is set),
-     * false for rows below the threshold, and null for rows with a null field vector.
+     * false for rows below the threshold, and false for rows with a null field vector.
      */
     @Evaluator(extraName = "RuntimeFilter", allNullsIsNull = false, warnExceptions = { IllegalArgumentException.class })
     static boolean runtimeFilter(

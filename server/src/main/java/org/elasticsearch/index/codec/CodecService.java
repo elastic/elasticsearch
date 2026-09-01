@@ -115,9 +115,9 @@ public class CodecService implements CodecProvider {
     }
 
     /**
-     * Wraps {@code delegate} so that field infos are shared rather than re-created per segment: whole {@link org.apache.lucene.index.FieldInfo}
-     * instances against the per-directory cache when the feature flag is on, otherwise just their names and attribute maps. Codecs that
-     * declare their own {@code fieldInfosFormat()} must route it through here, or their segments get no sharing on the read path.
+     * Wraps {@code delegate} so that field infos are shared rather than re-created per segment: whole {@code FieldInfo} instances
+     * against the per-directory cache when the feature flag is on, otherwise just their names and attribute maps. Codecs that declare
+     * their own {@code fieldInfosFormat()} must route it through here, or their segments get no sharing on the read path.
      */
     public static FieldInfosFormat deduplicating(FieldInfosFormat delegate) {
         return org.elasticsearch.index.store.FieldInfoCachingDirectory.FEATURE_FLAG.isEnabled()
@@ -132,9 +132,6 @@ public class CodecService implements CodecProvider {
         @SuppressWarnings("this-escape")
         protected DeduplicateFieldInfosCodec(String name, Codec delegate) {
             super(name, delegate);
-            // When the per-Directory FieldInfo cache is enabled, use the variant that interns whole FieldInfo instances
-            // against the FieldInfoCachingDirectory wrapping the shard's Store. Otherwise, keep the legacy behavior that
-            // only interns names and attribute maps via static caches.
             this.fieldInfosFormat = deduplicating(super.fieldInfosFormat());
         }
 

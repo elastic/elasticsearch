@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -72,6 +73,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     protected void checkLocalSources() {
         // We're using local data source here, which needs the flag
         assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
     }
 
     @After

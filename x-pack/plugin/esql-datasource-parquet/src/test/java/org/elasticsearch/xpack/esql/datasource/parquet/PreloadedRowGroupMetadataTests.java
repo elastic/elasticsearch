@@ -9,17 +9,22 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.DictionaryPageReadStore;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.format.PageLocation;
+import org.apache.parquet.format.converter.ParquetMetadataConverter;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
@@ -202,6 +207,92 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                 assertTrue("Null predicate set must disable pre-warm", withNullPredicates.preWarmedChunks().isEmpty());
             }
         }
+    }
+
+    /**
+     * Writers may omit {@code dictionary_page_offset}. The first pre-warm batch cannot locate
+     * that dictionary; after OffsetIndex parse, omitted-offset ranges must be the gap
+     * {@code [startingPos, first indexed data page)}.
+     */
+    public void testOmittedDictionaryOffsetUsesOffsetIndexGap() {
+        BlockMetaData block = new BlockMetaData();
+        block.setRowCount(100);
+        @SuppressWarnings("deprecation")
+        ColumnChunkMetaData column = ColumnChunkMetaData.get(
+            ColumnPath.get("min_fl"),
+            PrimitiveType.PrimitiveTypeName.INT64,
+            CompressionCodecName.UNCOMPRESSED,
+            Set.of(Encoding.RLE_DICTIONARY, Encoding.PLAIN),
+            org.apache.parquet.column.statistics.Statistics.createStats(
+                Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("min_fl")
+            ),
+            4L,
+            0L,
+            100,
+            200,
+            200
+        );
+        block.addColumn(column);
+        assertEquals(0L, column.getDictionaryPageOffset());
+        assertEquals(4L, column.getStartingPos());
+        assertNull(
+            "first pre-warm batch has no OffsetIndex bound, so omitted offsets must not produce a range",
+            ColumnChunkPrefetcher.dictionaryPageRange(column, column.getFirstDataPageOffset())
+        );
+        OffsetIndex offsetIndex = ParquetMetadataConverter.fromParquetOffsetIndex(
+            new org.apache.parquet.format.OffsetIndex(List.of(new PageLocation(100, 32, 0)))
+        );
+        Map<String, OffsetIndex> indexes = Map.of(PreloadedRowGroupMetadata.key(0, column), offsetIndex);
+
+        List<CoalescedRangeReader.ByteRange> missing = PreloadedRowGroupMetadata.omittedDictionaryRanges(
+            List.of(block),
+            Set.of("min_fl"),
+            indexes,
+            Set.of()
+        );
+        assertEquals(List.of(new CoalescedRangeReader.ByteRange(4, 96)), missing);
+
+        List<CoalescedRangeReader.ByteRange> alreadyCovered = PreloadedRowGroupMetadata.omittedDictionaryRanges(
+            List.of(block),
+            Set.of("min_fl"),
+            indexes,
+            Set.of(4L)
+        );
+        assertTrue(alreadyCovered.isEmpty());
+
+        List<CoalescedRangeReader.ByteRange> withoutOffsetIndex = PreloadedRowGroupMetadata.omittedDictionaryRanges(
+            List.of(block),
+            Set.of("min_fl"),
+            Map.of(),
+            Set.of()
+        );
+        assertTrue(withoutOffsetIndex.isEmpty());
+
+        BlockMetaData explicit = new BlockMetaData();
+        explicit.setRowCount(100);
+        @SuppressWarnings("deprecation")
+        ColumnChunkMetaData explicitDict = ColumnChunkMetaData.get(
+            ColumnPath.get("min_fl"),
+            PrimitiveType.PrimitiveTypeName.INT64,
+            CompressionCodecName.UNCOMPRESSED,
+            Set.of(Encoding.RLE_DICTIONARY, Encoding.PLAIN),
+            org.apache.parquet.column.statistics.Statistics.createStats(
+                Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("min_fl")
+            ),
+            100L,
+            50L,
+            100,
+            200,
+            200
+        );
+        explicit.addColumn(explicitDict);
+        List<CoalescedRangeReader.ByteRange> explicitOffset = PreloadedRowGroupMetadata.omittedDictionaryRanges(
+            List.of(explicit),
+            Set.of("min_fl"),
+            Map.of(PreloadedRowGroupMetadata.key(0, explicitDict), offsetIndex),
+            Set.of()
+        );
+        assertTrue("explicit dictionary_page_offset belongs in the first batch, not the omitted pass", explicitOffset.isEmpty());
     }
 
     /**

@@ -48,7 +48,6 @@ import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -451,6 +450,21 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
     @Override
     public ParquetFormatReader withPushedFilter(Object pushedFilter) {
+        if (pushedFilter == null) {
+            if (pushedExpressions == null && FilterCompat.isFilteringRequired(this.pushedFilter) == false) {
+                return this;
+            }
+            return new ParquetFormatReader(
+                blockFactory,
+                FilterCompat.NOOP,
+                null,
+                forceBaselinePath,
+                optimizedReader,
+                dynamicThreshold,
+                declaredDateFormats,
+                declaredTypeColumns
+            );
+        }
         if (pushedFilter instanceof FilterCompat.Filter filter) {
             return new ParquetFormatReader(
                 blockFactory,
@@ -3501,10 +3515,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                         producedRows = rowsToRead - rowDropHelper.failedCount();
                     }
                 } catch (CircuitBreakingException e) {
-                    Releasables.closeExpectNoException(blocks);
+                    ParquetReadFailures.closePreservingCause(e, blocks);
                     throw e;
                 } catch (Exception e) {
-                    Releasables.closeExpectNoException(blocks);
+                    ParquetReadFailures.closePreservingCause(e, blocks);
                     throw ParquetReadFailures.wrap(
                         e,
                         "Failed to create Page batch at row group ["
@@ -3524,7 +3538,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 try {
                     listCorruptionHandler.completeBatch(rowsToRead, droppedRows, droppedRows > 0 ? coercionWarnings() : null);
                 } catch (RuntimeException e) {
-                    Releasables.closeExpectNoException(blocks);
+                    ParquetReadFailures.closePreservingCause(e, blocks);
                     throw e;
                 }
 
@@ -3534,7 +3548,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     try {
                         validateListColumnsExhausted();
                     } catch (RuntimeException e) {
-                        Releasables.closeExpectNoException(blocks);
+                        ParquetReadFailures.closePreservingCause(e, blocks);
                         throw e;
                     }
                 }

@@ -233,6 +233,12 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
 
     @Override
     public FormatReader withPushedFilter(Object pushedFilter) {
+        if (pushedFilter == null) {
+            if (this.pushedFilter == null && this.pushedExpressions == null) {
+                return this;
+            }
+            return new OrcFormatReader(blockFactory, null, null, dynamicThreshold, declaredDateFormats, declaredTypeColumns);
+        }
         if (pushedFilter instanceof SearchArgument sarg) {
             return new OrcFormatReader(
                 this.blockFactory,

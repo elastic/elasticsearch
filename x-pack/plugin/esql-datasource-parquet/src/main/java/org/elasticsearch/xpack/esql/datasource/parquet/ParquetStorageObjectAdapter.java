@@ -338,7 +338,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             windowLength = 0;
 
             int target = (int) toRead;
-            try (InputStream in = storageObject.newStream(fetchPos, toRead)) {
+            InputStream in = storageObject.newStream(fetchPos, toRead);
+            try {
                 int totalRead = 0;
                 while (totalRead < target) {
                     int chunk = Math.min(STREAM_READ_CHUNK_SIZE, target - totalRead);
@@ -360,6 +361,15 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 }
                 windowStart = fetchPos;
                 windowLength = totalRead;
+                in.close();
+            } catch (Exception e) {
+                abortWindowStream(in, e);
+                throw e;
+            } catch (Error e) {
+                // try-with-resources used to close on Error; abort so an OOM mid-fill does not
+                // leave the 4–16 MiB range GET draining.
+                abortWindowStream(in, e);
+                throw e;
             }
 
             // put() copies the window. Skip that copy when the entry would be rejected, and never
@@ -371,6 +381,14 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 byte[] tailBytes = UninitializedArrays.newByteArray(windowLength);
                 System.arraycopy(window, 0, tailBytes, 0, windowLength);
                 tailCache.put(cacheKey, tailBytes);
+            }
+        }
+
+        private void abortWindowStream(InputStream in, Throwable failure) {
+            try {
+                storageObject.abortStream(in);
+            } catch (Exception abortEx) {
+                failure.addSuppressed(abortEx);
             }
         }
 

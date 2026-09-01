@@ -20,6 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.ProjectIndexName;
+import org.elasticsearch.index.Index;
 
 import java.util.Comparator;
 import java.util.List;
@@ -57,7 +58,7 @@ public class DataStreamLifecycleErrorStore {
     );
 
     public static final int MAX_ERROR_MESSAGE_LENGTH = 1000;
-    private final ConcurrentMap<ProjectId, ConcurrentMap<String, ErrorEntry>> projectMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<ProjectId, ConcurrentMap<Index, ErrorEntry>> projectMap = new ConcurrentHashMap<>();
     private final LongSupplier nowSupplier;
 
     public DataStreamLifecycleErrorStore(LongSupplier nowSupplier) {
@@ -71,22 +72,22 @@ public class DataStreamLifecycleErrorStore {
      * Returns the previously recorded error for the provided index, or null otherwise.
      */
     @Nullable
-    public ErrorEntry recordError(ProjectId projectId, String indexName, Exception e) {
+    public ErrorEntry recordError(ProjectId projectId, Index index, Exception e) {
         String exceptionToString = Strings.toString((builder, params) -> {
             ElasticsearchException.generateThrowableXContent(builder, EMPTY_PARAMS, e);
             return builder;
         });
         String newError = Strings.substring(exceptionToString, 0, MAX_ERROR_MESSAGE_LENGTH);
-        final var indexNameToError = projectMap.computeIfAbsent(projectId, k -> new ConcurrentHashMap<>());
-        ErrorEntry existingError = indexNameToError.get(indexName);
+        final var indexToError = projectMap.computeIfAbsent(projectId, k -> new ConcurrentHashMap<>());
+        ErrorEntry existingError = indexToError.get(index);
         long recordedTimestamp = nowSupplier.getAsLong();
         if (existingError == null) {
-            indexNameToError.put(indexName, new ErrorEntry(recordedTimestamp, newError, recordedTimestamp, 0));
+            indexToError.put(index, new ErrorEntry(recordedTimestamp, newError, recordedTimestamp, 0));
         } else {
             if (existingError.error().equals(newError)) {
-                indexNameToError.put(indexName, ErrorEntry.incrementRetryCount(existingError, nowSupplier));
+                indexToError.put(index, ErrorEntry.incrementRetryCount(existingError, nowSupplier));
             } else {
-                indexNameToError.put(indexName, new ErrorEntry(recordedTimestamp, newError, recordedTimestamp, 0));
+                indexToError.put(index, new ErrorEntry(recordedTimestamp, newError, recordedTimestamp, 0));
             }
         }
         return existingError;
@@ -95,12 +96,12 @@ public class DataStreamLifecycleErrorStore {
     /**
      * Clears the recorded error for the provided index (if any exists)
      */
-    public void clearRecordedError(ProjectId projectId, String indexName) {
-        final var indexNameToError = projectMap.get(projectId);
-        if (indexNameToError == null) {
+    public void clearRecordedError(ProjectId projectId, Index index) {
+        final var indexToError = projectMap.get(projectId);
+        if (indexToError == null) {
             return;
         }
-        indexNameToError.remove(indexName);
+        indexToError.remove(index);
     }
 
     /**
@@ -114,23 +115,23 @@ public class DataStreamLifecycleErrorStore {
      * Retrieves the recorded error for the provided index.
      */
     @Nullable
-    public ErrorEntry getError(ProjectId projectId, String indexName) {
-        final var indexNameToError = projectMap.get(projectId);
-        if (indexNameToError == null) {
+    public ErrorEntry getError(ProjectId projectId, Index index) {
+        final var indexToError = projectMap.get(projectId);
+        if (indexToError == null) {
             return null;
         }
-        return indexNameToError.get(indexName);
+        return indexToError.get(index);
     }
 
     /**
      * Return an immutable view (a snapshot) of the tracked indices at the moment this method is called.
      */
-    public Set<String> getAllIndices(ProjectId projectId) {
-        final var indexNameToError = projectMap.get(projectId);
-        if (indexNameToError == null) {
+    public Set<Index> getAllIndices(ProjectId projectId) {
+        final var indexToError = projectMap.get(projectId);
+        if (indexToError == null) {
             return Set.of();
         }
-        return Set.copyOf(indexNameToError.keySet());
+        return Set.copyOf(indexToError.keySet());
     }
 
     /**
@@ -148,7 +149,7 @@ public class DataStreamLifecycleErrorStore {
                     .stream()
                     .map(
                         indexToError -> new Tuple<>(
-                            new ProjectIndexName(projectToIndexError.getKey(), indexToError.getKey()),
+                            new ProjectIndexName(projectToIndexError.getKey(), indexToError.getKey().getName()),
                             indexToError.getValue()
                         )
                     )
@@ -183,7 +184,7 @@ public class DataStreamLifecycleErrorStore {
      */
     public void recordAndLogError(
         ProjectId projectId,
-        String targetIndex,
+        Index targetIndex,
         Exception e,
         String logMessage,
         int signallingErrorRetryThreshold
@@ -212,7 +213,7 @@ public class DataStreamLifecycleErrorStore {
                     logger.getMessageFactory()
                         .newMessage(
                             "Index [{}] encountered error [{}] but there's no record in the error store anymore",
-                            targetIndex,
+                            targetIndex.getName(),
                             logMessage
                         ),
                     e

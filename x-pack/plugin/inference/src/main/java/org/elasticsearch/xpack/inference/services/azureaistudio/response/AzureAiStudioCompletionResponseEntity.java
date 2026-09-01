@@ -13,12 +13,12 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.BaseResponseEntity;
-import org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioCompletionRequest;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,23 +26,23 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 
-public class AzureAiStudioChatCompletionResponseEntity extends BaseResponseEntity {
+public class AzureAiStudioCompletionResponseEntity extends BaseResponseEntity {
 
     @Override
     protected InferenceServiceResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
-        if (outboundRequest instanceof AzureAiStudioChatCompletionRequest asChatCompletionRequest) {
+        if (outboundRequest instanceof AzureAiStudioCompletionRequest asChatCompletionRequest) {
             if (asChatCompletionRequest.isRealtimeEndpoint()) {
                 return parseRealtimeEndpointResponse(response);
             }
 
             // we can use the OpenAI chat completion type if it's not a realtime endpoint
-            return OpenAiChatCompletionResponseEntity.fromResponse(outboundRequest, response);
+            return OpenAiCompletionResponseEntity.fromResponse(outboundRequest, response);
         }
 
         return null;
     }
 
-    private ChatCompletionResults parseRealtimeEndpointResponse(HttpResult response) throws IOException {
+    private CompletionResults parseRealtimeEndpointResponse(HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
             moveToFirstToken(jsonParser);
@@ -66,7 +66,7 @@ public class AzureAiStudioChatCompletionResponseEntity extends BaseResponseEntit
                 ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, jsonParser);
                 String content = jsonParser.text();
 
-                return new ChatCompletionResults(List.of(new ChatCompletionResults.Result(content)));
+                return new CompletionResults(List.of(new CompletionResults.Result(content)));
             }
 
             throw new IllegalStateException("Reached an invalid state while parsing the Azure AI Studio completion response");

@@ -12,9 +12,9 @@ ProjectExec[[network_in_bits{r}#0, step{r}#1, _timeseries{r}#2 AS _timeseries#3]
                     \_PackDimsExec[[_timeseries{f$}#22, cluster{f}#6, pod{f}#7, region{f}#8],$$_$packed_dims$values{r}#21]
                       \_ReadDimsExec[_timeseries{f$}#22, cluster{f}#6, pod{f}#7, region{f}#8]<tsid=_tsid{m}#13>
                         \_TimeSeriesAggregateExec[[_tsid{m}#13, step{r}#1],[LASTOVERTIME(network.total_bytes_in{f}#14,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#15) AS LASTOVERTIME_$1#12, step{r}#1, FIRSTDOCID(_doc{f}#23,true[BOOLEAN],PT0S[TIME_DURATION]) AS _doc#24],INITIAL,[_tsid{m}#13, step{r}#1, $$LASTOVERTIME_$1$timestamps{r}#19, $$LASTOVERTIME_$2$values{r}#20, _doc{r}#25],236,BUCKET(@timestamp{f}#15,PT1H[TIME_DURATION])]
-                          \_FieldExtractExec[_tsid{m}#13, network.total_bytes_in{f}#14]<[],[],[]>
+                          \_FieldExtractExec[[_tsid{m}#13, network.total_bytes_in{f}#14]<[],[],[]>,_doc{f}#23]
                             \_EvalExec[[BUCKET(@timestamp{f}#15,PT1H[TIME_DURATION]) AS step#1]]
-                              \_FieldExtractExec[@timestamp{f}#15]<[],[],[]>
+                              \_FieldExtractExec[[@timestamp{f}#15]<[],[],[]>,_doc{f}#23]
                                 \_EsQueryExec[k8s], indexMode[standard], [_doc{f}#23], limit[], sort[] estimatedRowSize[44] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "exists" : {
     "field" : "network.total_bytes_in",

@@ -3,7 +3,7 @@
 ## Parameters
 
 `geometry`
-:   Expression of type `geo_point`. If `null`, the function returns `null`.
+:   Expression of type `geo_point` or `geo_shape`. If `null`, the function returns `null`. For `geo_shape` inputs all intersecting geohash cells are returned as multi-values.
 
 `precision`
 :   Expression of type `integer`. If `null`, the function returns `null`. Valid values are between [1 and 12](https://en.wikipedia.org/wiki/Geohash).

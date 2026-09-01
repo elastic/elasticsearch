@@ -2460,7 +2460,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
 
         // Wait until node B has queued the (blocked) unhollow gen N+1 upload before isolating it, so isolation
         // cannot win the race and reject the write with a "no master" block before unhollowing starts.
-        assertBusy(() -> assertTrue(commitServiceB.hasPendingBccUploads(indexShardB.shardId())));
+        assertBusy(() -> assertTrue(commitServiceB.hasBccUploadInProgress(indexShardB.shardId())));
 
         // Isolate node B
         Set<String> isolatedSide = Collections.singleton(indexNodeB);

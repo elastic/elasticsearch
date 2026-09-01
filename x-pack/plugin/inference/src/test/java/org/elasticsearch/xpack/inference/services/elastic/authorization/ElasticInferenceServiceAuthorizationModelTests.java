@@ -67,6 +67,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
     private static final Reasoning MEDIUM_DETAILED_REASONING = new Reasoning(ReasoningEffort.MEDIUM, ReasoningSummary.DETAILED, null, null);
 
     private static final EndpointMetadata DEFAULT_ENDPOINT_METADATA = new EndpointMetadata(
+        EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
         new EndpointMetadata.Heuristics(
             List.of(),
             StatusHeuristic.fromString(STATUS_GA),
@@ -203,6 +204,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     configuration,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 )
@@ -245,6 +247,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -256,6 +259,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
+                    null,
                     null,
                     null,
                     null,
@@ -287,6 +291,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -298,6 +303,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
+                    null,
                     null,
                     null,
                     null,
@@ -331,6 +337,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -342,6 +349,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
+                    null,
                     null,
                     null,
                     null,
@@ -396,6 +404,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -414,6 +423,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -475,6 +485,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -493,6 +504,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -556,6 +568,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -575,6 +588,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -598,6 +612,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     ),
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -617,6 +632,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -640,6 +656,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     ),
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -659,6 +676,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -725,6 +743,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     ),
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -745,6 +764,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -768,6 +788,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     ),
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -789,6 +810,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     ),
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -808,6 +830,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null,
                         null
                     ),
+                    null,
                     null,
                     null,
                     List.of(),
@@ -900,6 +923,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -911,6 +935,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
+                    null,
                     null,
                     null,
                     null,
@@ -928,6 +953,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -940,6 +966,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
                     denseEmbeddingConfiguration,
+                    null,
                     null,
                     null,
                     List.of(),
@@ -956,6 +983,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     denseEmbeddingConfiguration,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -967,6 +995,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
+                    null,
                     null,
                     null,
                     null,
@@ -1056,6 +1085,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 )
@@ -1072,6 +1102,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(properties, statusHeuristic, TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
                 EndpointMetadata.Display.EMPTY_INSTANCE,
@@ -1103,6 +1134,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
+                    null,
                     fingerprint,
                     List.of(),
                     false
@@ -1120,6 +1152,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of(),
                     StatusHeuristic.fromString(status),
@@ -1157,6 +1190,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     display,
                     null,
+                    null,
                     List.of(),
                     false
                 )
@@ -1173,6 +1207,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of(),
                     StatusHeuristic.fromString(status),
@@ -1210,6 +1245,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 )
@@ -1226,6 +1262,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(List.of(), statusHeuristic, TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
                 EndpointMetadata.Display.EMPTY_INSTANCE,
@@ -1258,6 +1295,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 )
@@ -1274,6 +1312,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(List.of(), statusHeuristic, TEST_RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
                 EndpointMetadata.Display.EMPTY_INSTANCE,
@@ -1305,6 +1344,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -1319,6 +1359,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -1329,6 +1370,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     status,
                     null,
                     "  ",
+                    null,
                     null,
                     null,
                     null,
@@ -1364,6 +1406,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -1378,6 +1421,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 ),
@@ -1389,6 +1433,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     " ",
+                    null,
                     null,
                     null,
                     null,
@@ -1424,6 +1469,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(null, null, null, chunkingSettings, null),
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 )
@@ -1441,6 +1487,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.fromMap(chunkingSettings),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of(),
                     StatusHeuristic.fromString(status),
@@ -1492,6 +1539,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     ),
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 )
@@ -1509,6 +1557,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.fromMap(chunkingSettings),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of(),
                     StatusHeuristic.fromString(status),
@@ -1544,6 +1593,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(null, null, null, Map.of(), null),
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 )
@@ -1561,6 +1611,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.fromMap(Map.of()),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of(),
                     StatusHeuristic.fromString(status),
@@ -1596,6 +1647,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 )
@@ -1610,6 +1662,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of(),
                     StatusHeuristic.fromString(STATUS_GA),
@@ -1641,6 +1694,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
+                    null,
                     null,
                     null,
                     null,
@@ -1678,6 +1732,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     fingerprint,
                     List.of(),
                     false
@@ -1699,6 +1754,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     ),
                     null,
                     null,
+                    null,
                     List.of(),
                     false
                 )
@@ -1715,6 +1771,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name1),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(properties, StatusHeuristic.fromString(status), TEST_RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(fingerprint, ENDPOINT_SCHEMA_VERSION),
                 EndpointMetadata.Display.EMPTY_INSTANCE,
@@ -1763,6 +1820,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     regions,
                     false
                 )
@@ -1779,6 +1837,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of(),
                     StatusHeuristic.fromString(STATUS_GA),
@@ -1814,6 +1873,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     List.of(),
                     true
                 )
@@ -1830,6 +1890,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                 new EndpointMetadata.Heuristics(
                     List.of(),
                     StatusHeuristic.fromString(STATUS_GA),

@@ -171,6 +171,12 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
 
     @Override
     public FormatReader withPushedFilter(Object pushedFilter) {
+        if (pushedFilter == null) {
+            if (this.pushedFilter == null && this.pushedExpressions == null) {
+                return this;
+            }
+            return new OrcFormatReader(blockFactory, null, null, dynamicThreshold, declaredDateFormats, declaredTypeColumns);
+        }
         if (pushedFilter instanceof SearchArgument sarg) {
             return new OrcFormatReader(this.blockFactory, sarg, null, dynamicThreshold, declaredDateFormats, declaredTypeColumns);
         }
@@ -1521,10 +1527,10 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             } catch (IOException e) {
                 throw new IllegalArgumentException("Failed to read ORC batch", e);
             } finally {
-                counters.addReadNanos(System.nanoTime() - startNanos);
                 if (startCpuNanos >= 0) {
                     counters.addReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
                 }
+                counters.addReadNanos(System.nanoTime() - startNanos);
             }
         }
 

@@ -840,3 +840,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetNullListElementWarningIT
   method: testDroppedNullElementIsAnnouncedInEveryDistributionMode
   issue: https://github.com/elastic/elasticsearch/issues/158281
+- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
+  method: testPeerRecoveryTrimsLocalTranslog
+  issue: https://github.com/elastic/elasticsearch/issues/158303
+- class: org.elasticsearch.index.IndexModuleTests
+  method: testQueryCacheDisabledByDefaultForStrictlyColumnarMode
+  issue: https://github.com/elastic/elasticsearch/issues/158305

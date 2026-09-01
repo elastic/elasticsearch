@@ -277,7 +277,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
         Map<String, ExternalSourceFactory> factories = Map.of(
             "parquet",
-            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false)))
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false, 0L)))
         );
 
         SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
@@ -303,7 +303,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
         Map<String, ExternalSourceFactory> factories = Map.of(
             "parquet",
-            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false)))
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false, 0L)))
         );
 
         SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(

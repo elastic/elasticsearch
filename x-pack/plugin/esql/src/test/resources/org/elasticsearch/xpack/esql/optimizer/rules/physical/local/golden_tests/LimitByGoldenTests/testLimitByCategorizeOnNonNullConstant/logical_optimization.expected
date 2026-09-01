@@ -1,0 +1,3 @@
+Eval[[Connection error[KEYWORD] AS x#0]]
+\_Limit[2[INTEGER],false,false]
+  \_EsRelation[sample_data][@timestamp{f}#1, client_ip{f}#2, event_duration{f}#3, message{f}#4]

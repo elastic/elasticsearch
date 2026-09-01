@@ -1,0 +1,3 @@
+FROM sample_data
+| EVAL x = "Connection error"::keyword
+| LIMIT 2 BY CATEGORIZE(x)

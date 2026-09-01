@@ -870,11 +870,40 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query("FROM test | LIMIT 1 BY BUCKET(emp_no, 100.), languages");
     }
 
-    public void testCategorizeNotAllowedInLimitBy() {
-        // Stateful grouping functions still require a STATS context.
+    public void testCategorizeAllowedInLimitByAndTopNBy() {
+        defaultAnalyzer().query("FROM test | LIMIT 1 BY CATEGORIZE(first_name)");
+        defaultAnalyzer().query("FROM test | SORT emp_no | LIMIT 1 BY CATEGORIZE(first_name)");
+        defaultAnalyzer().query("FROM test | LIMIT 1 BY CATEGORIZE(first_name), emp_no");
+        defaultAnalyzer().query("FROM test | SORT emp_no | LIMIT 1 BY CATEGORIZE(first_name), emp_no");
+    }
+
+    public void testCategorizeOnlyFirstGroupingInLimitBy() {
         defaultAnalyzer().error(
-            "FROM test | LIMIT 1 BY CATEGORIZE(first_name)",
-            equalTo("1:24: cannot use grouping function [CATEGORIZE(first_name)] outside of a STATS command")
+            "FROM test | LIMIT 1 BY emp_no, CATEGORIZE(first_name)",
+            equalTo("1:32: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression")
+        );
+        defaultAnalyzer().error(
+            "FROM test | LIMIT 1 BY CATEGORIZE(first_name), CATEGORIZE(last_name)",
+            equalTo("1:48: CATEGORIZE grouping function [CATEGORIZE(last_name)] can only be in the first grouping expression")
+        );
+        defaultAnalyzer().error(
+            "FROM test | LIMIT 1 BY CATEGORIZE(first_name), emp_no, CATEGORIZE(last_name)",
+            equalTo("1:56: CATEGORIZE grouping function [CATEGORIZE(last_name)] can only be in the first grouping expression")
+        );
+    }
+
+    public void testCategorizeOnlyFirstGroupingInSortLimitBy() {
+        defaultAnalyzer().error(
+            "FROM test | SORT emp_no | LIMIT 1 BY emp_no, CATEGORIZE(first_name)",
+            equalTo("1:46: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression")
+        );
+        defaultAnalyzer().error(
+            "FROM test | SORT emp_no | LIMIT 1 BY CATEGORIZE(first_name), CATEGORIZE(last_name)",
+            equalTo("1:62: CATEGORIZE grouping function [CATEGORIZE(last_name)] can only be in the first grouping expression")
+        );
+        defaultAnalyzer().error(
+            "FROM test | SORT emp_no | LIMIT 1 BY CATEGORIZE(first_name), emp_no, CATEGORIZE(last_name)",
+            equalTo("1:70: CATEGORIZE grouping function [CATEGORIZE(last_name)] can only be in the first grouping expression")
         );
     }
 

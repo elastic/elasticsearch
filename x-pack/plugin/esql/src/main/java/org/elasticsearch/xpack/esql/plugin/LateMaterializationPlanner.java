@@ -140,6 +140,12 @@ class LateMaterializationPlanner {
         if (ctx == null || !(ctx.pipelineBreaker instanceof TopNBy topNBy)) {
             return Optional.empty();
         }
+        if (LocalMapper.hasCategorize(topNBy.groupings())) {
+            // The catId + state channels appended by CategorizeEvalOperator are absent from the plan
+            // output, so the _doc-based reduce-driver rewrite cannot account for them. Fall back to the
+            // plain node-level reduction, which handles them positionally.
+            return Optional.empty();
+        }
 
         AttributeSet orderRefsSet = AttributeSet.of(topNBy.order().stream().flatMap(o -> o.references().stream()).toList());
         AttributeSet groupingRefsSet = AttributeSet.of(topNBy.groupings().stream().flatMap(g -> g.references().stream()).toList());
@@ -177,6 +183,11 @@ class LateMaterializationPlanner {
     ) {
         SetupContext ctx = buildSetupContext(contextFactory, originalPlan);
         if (ctx == null || !(ctx.pipelineBreaker instanceof LimitBy limitBy)) {
+            return Optional.empty();
+        }
+        if (LocalMapper.hasCategorize(limitBy.groupings())) {
+            // The _doc-based late-materialization rewrite does not account for the catId/state channels
+            // appended by CategorizeEvalOperator. Fall back to the plain node-level reduction.
             return Optional.empty();
         }
 

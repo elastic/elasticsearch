@@ -1,0 +1,3 @@
+FROM sample_data
+| SORT @timestamp DESC
+| LIMIT 2 BY CATEGORIZE(CONCAT(message, " "))

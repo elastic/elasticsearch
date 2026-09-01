@@ -36,6 +36,15 @@ public class LimitByGoldenTests extends GoldenTestCase {
         Stage.LOCAL_PHYSICAL_OPTIMIZATION
     );
 
+    private static final EnumSet<Stage> STAGES_WITH_NODE_REDUCE = EnumSet.of(
+        Stage.ANALYSIS,
+        Stage.LOGICAL_OPTIMIZATION,
+        Stage.PHYSICAL_OPTIMIZATION,
+        Stage.LOCAL_PHYSICAL_OPTIMIZATION,
+        Stage.NODE_REDUCE,
+        Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION
+    );
+
     public void testLimitByWithoutSort() {
         runGoldenTest("""
             FROM employees
@@ -56,6 +65,80 @@ public class LimitByGoldenTests extends GoldenTestCase {
             FROM employees
             | LIMIT 1 BY BUCKET(hire_date, 1 year)
             """, STAGES, STATS);
+    }
+
+    /** Shows INITIAL (data node) and FINAL (coordinator) plan for {@code LIMIT N BY CATEGORIZE(...)}. */
+    public void testLimitByCategorize() {
+        runGoldenTest("""
+            FROM sample_data
+            | LIMIT 2 BY CATEGORIZE(message)
+            """, STAGES_WITH_NODE_REDUCE);
+    }
+
+    /** Shows INITIAL (data node) and FINAL (coordinator) plan for {@code SORT ... | LIMIT N BY CATEGORIZE(...)}. */
+    public void testSortLimitByCategorize() {
+        runGoldenTest("""
+            FROM sample_data
+            | SORT @timestamp DESC
+            | LIMIT 2 BY CATEGORIZE(message)
+            """, STAGES_WITH_NODE_REDUCE);
+    }
+
+    /** CATEGORIZE alongside a plain grouping key. */
+    public void testLimitByCategorizeWithExtraGroupKey() {
+        runGoldenTest("""
+            FROM sample_data
+            | LIMIT 2 BY CATEGORIZE(message), client_ip
+            """, STAGES_WITH_NODE_REDUCE);
+    }
+
+    /** CATEGORIZE alongside a plain grouping key, with sort. */
+    public void testSortLimitByCategorizeWithExtraGroupKey() {
+        runGoldenTest("""
+            FROM sample_data
+            | SORT @timestamp DESC
+            | LIMIT 2 BY CATEGORIZE(message), client_ip
+            """, STAGES_WITH_NODE_REDUCE);
+    }
+
+    /** Constant CATEGORIZE — pruned to a plain LIMIT by PruneLiteralsInLimitBy. */
+    public void testLimitByCategorizeOnNonNullConstant() {
+        runGoldenTest("""
+            FROM sample_data
+            | EVAL x = "Connection error"::keyword
+            | LIMIT 2 BY CATEGORIZE(x)
+            """, STAGES_WITH_NODE_REDUCE);
+    }
+
+    /** CATEGORIZE on a function expression (CONCAT). */
+    public void testSortLimitByCategorizeWithFunctionArg() {
+        runGoldenTest("""
+            FROM sample_data
+            | SORT @timestamp DESC
+            | LIMIT 2 BY CATEGORIZE(CONCAT(message, " "))
+            """, STAGES_WITH_NODE_REDUCE);
+    }
+
+    /** Three mixed groupings: CATEGORIZE(expression), attribute, expression */
+    public void testLimitByCategorizeMixedGroupings() {
+        runGoldenTest("""
+            FROM sample_data
+            | LIMIT 1 BY CATEGORIZE(CONCAT(message, " ")), client_ip, event_duration > 2000000
+            """, STAGES_WITH_NODE_REDUCE);
+    }
+
+    /**
+     * Two CATEGORIZE expression groupings that cannot be collapsed
+     *
+     * The second LIMIT BY should be SINGLE mode whilst the previous one should have INITIAL, INTERMEDIATE, FINAL phases in the plans
+     */
+    public void testSeveralLimitByWithCategorize() {
+        runGoldenTest("""
+            FROM sample_data
+            | LIMIT 1 BY CATEGORIZE(message)
+            | LIMIT 100
+            | LIMIT 2 BY CATEGORIZE(message)
+            """, STAGES_WITH_NODE_REDUCE);
     }
 
     private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(

@@ -223,8 +223,8 @@ public class PlannerUtils {
         int estimatedRowSize = fragment.estimatedRowSize();
         return switch (LocalMapper.INSTANCE.map(pipelineBreaker)) {
             case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
-            case TopNByExec topNBy -> new TopNByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topNBy));
-            case LimitByExec limitBy -> new LimitByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, limitBy));
+            case TopNByExec topNBy -> new TopNByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, asNodeReduction(topNBy)));
+            case LimitByExec limitBy -> new LimitByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, asNodeReduction(limitBy)));
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
             case MetricsInfoExec metricsInfoExec -> getPhysicalPlanReduction(
                 estimatedRowSize,
@@ -252,6 +252,40 @@ public class PlannerUtils {
 
     private static ReducedPlan getPhysicalPlanReduction(int estimatedRowSize, PhysicalPlan plan) {
         return new ReducedPlan(EstimatesRowSize.estimateRowSize(estimatedRowSize, plan));
+    }
+
+    /**
+     * Promotes a {@link LimitByExec} to {@link AggregatorMode#INTERMEDIATE} when
+     * it was mapped with {@link AggregatorMode#INITIAL} by {@link LocalMapper}.
+     * SINGLE nodes (no CATEGORIZE) are returned unchanged.
+     */
+    private static LimitByExec asNodeReduction(LimitByExec limitBy) {
+        return switch (limitBy.mode()) {
+            case SINGLE -> limitBy;
+            case INITIAL -> limitBy.withIntermediateMode();
+            // LocalMapper only ever produces SINGLE or INITIAL; guard against future modes.
+            case INTERMEDIATE, FINAL -> throw new EsqlIllegalArgumentException(
+                "unexpected LIMIT BY categorize mode [{}] when planning node-level reduction",
+                limitBy.mode()
+            );
+        };
+    }
+
+    /**
+     * Promotes a {@link TopNByExec} to {@link AggregatorMode#INTERMEDIATE} when
+     * it was mapped with {@link AggregatorMode#INITIAL} by {@link LocalMapper}.
+     * SINGLE nodes (no CATEGORIZE) are returned unchanged.
+     */
+    private static TopNByExec asNodeReduction(TopNByExec topNBy) {
+        return switch (topNBy.mode()) {
+            case SINGLE -> topNBy;
+            case INITIAL -> topNBy.withIntermediateMode();
+            // LocalMapper only ever produces SINGLE or INITIAL; guard against future modes.
+            case INTERMEDIATE, FINAL -> throw new EsqlIllegalArgumentException(
+                "unexpected TOPN BY categorize mode [{}] when planning node-level reduction",
+                topNBy.mode()
+            );
+        };
     }
 
     public static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {

@@ -312,6 +312,18 @@ public class PushDownAndCombineLimitByGoldenTests extends GoldenTestCase {
     }
 
     /**
+     * Three LIMIT BY nodes with the same CATEGORIZE grouping: the minimum limit value wins, leaving only one node.
+     */
+    public void testLimitByPruneIdenticalLimitsWithCategorize() {
+        runGoldenTest("""
+            FROM sample_data
+            | LIMIT 1 BY CATEGORIZE(message)
+            | LIMIT 2 BY CATEGORIZE(message)
+            | LIMIT 1 BY CATEGORIZE(message)
+            """, STAGES, STATS);
+    }
+
+    /**
      * Two LIMIT BY nodes with different groupings must both be preserved.
      */
     public void testLimitByKeepDifferentGroupings() {

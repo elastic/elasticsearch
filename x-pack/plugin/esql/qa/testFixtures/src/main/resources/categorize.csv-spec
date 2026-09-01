@@ -895,3 +895,192 @@ count:long | category:keyword
 1          | Connected to 10.1.0.3
 1          | Disconnected
 ;
+
+//
+// LIMIT BY CATEGORIZE
+//
+
+limitByCategorize
+skip_flattened_rewrite: categorize_on_flattened_unsupported
+required_capability: categorize_in_limit_by
+
+FROM sample_data
+  | SORT @timestamp ASC
+  | LIMIT 1000
+  | LIMIT 1 BY CATEGORIZE(message)
+  | KEEP message
+  | SORT message ASC
+;
+
+message:keyword
+Connected to 10.1.0.3
+Connection error
+Disconnected
+;
+
+sortLimitByCategorize
+skip_flattened_rewrite: categorize_on_flattened_unsupported
+required_capability: categorize_in_limit_by
+
+FROM sample_data
+  | SORT @timestamp DESC
+  | LIMIT 2 BY CATEGORIZE(message)
+  | KEEP message
+  | SORT message ASC
+;
+
+message:keyword
+Connected to 10.1.0.1
+Connected to 10.1.0.2
+Connection error
+Connection error
+Disconnected
+;
+
+// MV tests: mv_sample_data has 7 rows, each with message = [something, Banana].
+// With CATEGORIZE in STATS the MV field is unrolled → 4 distinct categories.
+// With CATEGORIZE in LIMIT BY the MV field is treated as an ordered tuple → 3 distinct groups:
+//   [cat(Banana), cat(Connected to ...)], [cat(Banana), cat(Connection error)], [cat(Banana), cat(Disconnected)]
+
+limitByCategorizeMultivalue
+skip_flattened_rewrite: categorize_on_flattened_unsupported
+required_capability: categorize_in_limit_by
+
+FROM mv_sample_data
+  | SORT @timestamp ASC
+  | LIMIT 1000
+  | LIMIT 1 BY CATEGORIZE(message)
+  | STATS count = COUNT()
+;
+
+count:long
+3
+;
+
+sortLimitByCategorizeMultivalue
+skip_flattened_rewrite: categorize_on_flattened_unsupported
+required_capability: categorize_in_limit_by
+
+// Top 2 per group: 2 (Connected to) + 1 (Disconnected) + 2 (Connection error) = 5 rows
+FROM mv_sample_data
+  | SORT @timestamp ASC
+  | LIMIT 2 BY CATEGORIZE(message)
+  | STATS count = COUNT()
+;
+
+count:long
+5
+;
+
+limitByCategorizeWithExtraGroupKeys
+skip_flattened_rewrite: categorize_on_flattened_unsupported
+required_capability: categorize_in_limit_by
+
+FROM sample_data
+  | SORT @timestamp ASC
+  | LIMIT 1000
+  | EVAL long_event = event_duration > 2000000
+  | LIMIT 1 BY CATEGORIZE(message), client_ip, long_event
+  | KEEP message, client_ip, long_event
+  | SORT message ASC, client_ip ASC, long_event ASC
+;
+
+message:keyword       | client_ip:ip | long_event:boolean
+Connected to 10.1.0.1 | 172.21.3.15  | false
+Connected to 10.1.0.2 | 172.21.2.113 | true
+Connected to 10.1.0.3 | 172.21.2.162 | true
+Connection error      | 172.21.3.15  | false
+Connection error      | 172.21.3.15  | true
+Disconnected          | 172.21.0.5   | false
+;
+
+sortLimitByCategorizeWithExtraGroupKeys
+skip_flattened_rewrite: categorize_on_flattened_unsupported
+required_capability: categorize_in_limit_by
+
+FROM sample_data
+  | SORT @timestamp DESC
+  | EVAL long_event = event_duration > 2000000
+  | LIMIT 2 BY CATEGORIZE(message), client_ip, long_event
+  | KEEP message, client_ip, long_event
+  | SORT message ASC, client_ip ASC, long_event ASC
+;
+
+message:keyword       | client_ip:ip | long_event:boolean
+Connected to 10.1.0.1 | 172.21.3.15  | false
+Connected to 10.1.0.2 | 172.21.2.113 | true
+Connected to 10.1.0.3 | 172.21.2.162 | true
+Connection error      | 172.21.3.15  | false
+Connection error      | 172.21.3.15  | true
+Connection error      | 172.21.3.15  | true
+Disconnected          | 172.21.0.5   | false
+;
+
+limitByCategorizeWithFunctionArg
+skip_flattened_rewrite: categorize_on_flattened_unsupported
+required_capability: categorize_in_limit_by
+
+// CONCAT adds a trailing space which is ignored by the ML tokenizer → same categories as plain CATEGORIZE(message)
+FROM sample_data
+  | SORT @timestamp ASC
+  | LIMIT 1000
+  | LIMIT 1 BY CATEGORIZE(CONCAT(message, " "))
+  | KEEP message
+  | SORT message ASC
+;
+
+message:keyword
+Connected to 10.1.0.3
+Connection error
+Disconnected
+;
+
+sortLimitByCategorizeWithFunctionArg
+skip_flattened_rewrite: categorize_on_flattened_unsupported
+required_capability: categorize_in_limit_by
+
+// Top 2 per category using a function expression; DESC sort picks most-recent two per group
+FROM sample_data
+  | SORT @timestamp DESC
+  | LIMIT 2 BY CATEGORIZE(CONCAT(message, " "))
+  | KEEP message
+  | SORT message ASC
+;
+
+message:keyword
+Connected to 10.1.0.1
+Connected to 10.1.0.2
+Connection error
+Connection error
+Disconnected
+;
+
+limitByCategorizeOnNull
+required_capability: categorize_in_limit_by
+
+// When the CATEGORIZE field is null, all rows are assigned NULL_ORD=0 (the same group).                                                                                                                              
+// LIMIT 2 BY the single null group keeps 2 of the 7 rows.  
+FROM sample_data
+  | EVAL x = null::keyword
+  | LIMIT 2 BY CATEGORIZE(x)
+  | STATS count = COUNT()
+;
+
+count:long
+2
+;
+
+limitByCategorizeOnNonNullConstant
+required_capability: categorize_in_limit_by
+
+// When the CATEGORIZE field is a non-null constant, all rows still map to the same group
+// (every position produces the same category). LIMIT 2 keeps 2 of the 7 rows.
+FROM sample_data
+  | EVAL x = "Connection error"::keyword
+  | LIMIT 2 BY CATEGORIZE(x)
+  | STATS count = COUNT()
+;
+
+count:long
+2
+;

@@ -181,6 +181,41 @@ public class Mapper {
 
         if (unary instanceof LimitBy limitBy) {
             mappedChild = addExchangeForFragment(limitBy, mappedChild);
+            if (LocalMapper.hasCategorize(limitBy.groupings()) && mappedChild instanceof ExchangeExec exchangeExec) {
+                List<Attribute> base = limitBy.output();
+                Attribute catIdAttr = new ReferenceAttribute(
+                    Source.EMPTY,
+                    null,
+                    "__categorize_catId",
+                    DataType.INTEGER,
+                    Nullability.FALSE,
+                    null,
+                    true
+                );
+                Attribute stateAttr = new ReferenceAttribute(
+                    Source.EMPTY,
+                    null,
+                    "__categorize_state",
+                    DataType.KEYWORD,
+                    Nullability.FALSE,
+                    null,
+                    true
+                );
+                List<Attribute> exchOutput = new ArrayList<>(base);
+                exchOutput.add(catIdAttr);
+                exchOutput.add(stateAttr);
+                ExchangeExec newExchange = new ExchangeExec(
+                    exchangeExec.source(),
+                    exchOutput,
+                    exchangeExec.inBetweenAggs(),
+                    exchangeExec.child()
+                );
+                return new LimitByExec(limitBy.source(), newExchange, limitBy.limitPerGroup(), limitBy.groupings(), null).withFinalMode(
+                    base,
+                    catIdAttr,
+                    stateAttr
+                );
+            }
             return new LimitByExec(limitBy.source(), mappedChild, limitBy.limitPerGroup(), limitBy.groupings(), null);
         }
 
@@ -200,8 +235,40 @@ public class Mapper {
         if (unary instanceof TopNBy topNBy) {
             mappedChild = addExchangeForFragment(topNBy, mappedChild);
             var topNByExec = new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null);
-            if (mappedChild instanceof ExchangeExec) {
-                return topNByExec.withSortedOutput();
+            if (mappedChild instanceof ExchangeExec exchangeExec) {
+                topNByExec = topNByExec.withSortedOutput();
+                if (LocalMapper.hasCategorize(topNBy.groupings())) {
+                    List<Attribute> base = topNBy.output();
+                    Attribute catIdAttr = new ReferenceAttribute(
+                        Source.EMPTY,
+                        null,
+                        "__categorize_catId",
+                        DataType.INTEGER,
+                        Nullability.FALSE,
+                        null,
+                        true
+                    );
+                    Attribute stateAttr = new ReferenceAttribute(
+                        Source.EMPTY,
+                        null,
+                        "__categorize_state",
+                        DataType.KEYWORD,
+                        Nullability.FALSE,
+                        null,
+                        true
+                    );
+                    List<Attribute> exchOutput = new ArrayList<>(base);
+                    exchOutput.add(catIdAttr);
+                    exchOutput.add(stateAttr);
+                    ExchangeExec newExchange = new ExchangeExec(
+                        exchangeExec.source(),
+                        exchOutput,
+                        exchangeExec.inBetweenAggs(),
+                        exchangeExec.child()
+                    );
+                    return topNByExec.replaceChild(newExchange).withFinalMode(base, catIdAttr, stateAttr);
+                }
+                return topNByExec;
             }
             return topNByExec;
         }

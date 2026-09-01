@@ -1,6 +1,6 @@
 ProjectExec[[salary{f}#0, languages{f}#1, gender{f}#2, emp_no{f}#3]]
 \_LimitExec[1000[INTEGER],null]
-  \_LimitByExec[3[INTEGER],[languages{f}#1, gender{f}#2],null]
+  \_LimitByExec[3[INTEGER],[languages{f}#1, gender{f}#2],null,SINGLE]
     \_ExchangeExec[[emp_no{f}#3, gender{f}#2, languages{f}#1, salary{f}#0],false]
       \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
 Project[[emp_no{f}#3, gender{f}#2, languages{f}#1, salary{f}#0]]

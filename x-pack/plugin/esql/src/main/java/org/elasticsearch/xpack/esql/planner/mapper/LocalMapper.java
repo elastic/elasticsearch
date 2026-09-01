@@ -11,6 +11,8 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -114,7 +116,8 @@ public class LocalMapper {
         }
 
         if (unary instanceof LimitBy limitBy) {
-            return new LimitByExec(limitBy.source(), mappedChild, limitBy.limitPerGroup(), limitBy.groupings(), null);
+            LimitByExec exec = new LimitByExec(limitBy.source(), mappedChild, limitBy.limitPerGroup(), limitBy.groupings(), null);
+            return hasCategorize(limitBy.groupings()) ? exec.withInitialMode(limitBy.output()) : exec;
         }
 
         if (unary instanceof TopN topN) {
@@ -122,8 +125,9 @@ public class LocalMapper {
         }
 
         if (unary instanceof TopNBy topNBy) {
-            return new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null)
+            TopNByExec exec = new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null)
                 .withNonSortedOutput();
+            return hasCategorize(topNBy.groupings()) ? exec.withInitialMode(topNBy.output()) : exec;
         }
 
         if (unary instanceof MetricsInfo metricsInfo) {
@@ -144,6 +148,11 @@ public class LocalMapper {
         // Pipeline operators
         //
         return MapperUtils.mapUnary(unary, mappedChild);
+    }
+
+    /** Returns true if any expression in the list contains a {@link GroupingFunction.NonEvaluatableGroupingFunction}. */
+    public static boolean hasCategorize(List<? extends org.elasticsearch.xpack.esql.core.expression.Expression> groupings) {
+        return groupings.stream().anyMatch(g -> g.anyMatch(e -> e instanceof Categorize));
     }
 
     private PhysicalPlan mapBinary(BinaryPlan binary) {

@@ -119,8 +119,10 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
             generatedIds.add(a.id());
         }
         for (Expression g : limitBy.groupings()) {
-            if (g instanceof Attribute a && generatedIds.contains(a.id())) {
-                return true;
+            for (Attribute ref : g.references()) {
+                if (generatedIds.contains(ref.id())) {
+                    return true;
+                }
             }
         }
         return false;
@@ -136,8 +138,10 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
             outputIds.add(a.id());
         }
         for (Expression g : limitBy.groupings()) {
-            if (g instanceof Attribute a && outputIds.contains(a.id()) == false) {
-                return true;
+            for (Attribute ref : g.references()) {
+                if (outputIds.contains(ref.id()) == false) {
+                    return true;
+                }
             }
         }
         return false;

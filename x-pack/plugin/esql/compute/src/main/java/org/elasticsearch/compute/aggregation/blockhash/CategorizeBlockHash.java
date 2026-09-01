@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CategorizeMergeOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -49,7 +50,7 @@ public class CategorizeBlockHash extends BlockHash {
 
     private static final CategorizationAnalyzerConfig DEFAULT_ANALYZER_CONFIG = CategorizationAnalyzerConfig
         .buildStandardEsqlCategorizationAnalyzer();
-    private static final int NULL_ORD = 0;
+    public static final int NULL_ORD = 0;
 
     private final int channel;
     private final AggregatorMode aggregatorMode;
@@ -65,7 +66,7 @@ public class CategorizeBlockHash extends BlockHash {
      */
     private boolean seenNull = false;
 
-    CategorizeBlockHash(
+    public CategorizeBlockHash(
         BlockFactory blockFactory,
         int channel,
         AggregatorMode aggregatorMode,
@@ -102,7 +103,7 @@ public class CategorizeBlockHash extends BlockHash {
         }
     }
 
-    boolean seenNull() {
+    public boolean seenNull() {
         return seenNull;
     }
 
@@ -170,15 +171,10 @@ public class CategorizeBlockHash extends BlockHash {
             seenNull = true;
             return blockFactory.newConstantIntBlockWith(NULL_ORD, 1);
         }
-        return recategorize(categorizerState.getBytesRef(0, new BytesRef()), null).asBlock();
+        return recategorize(categorizerState.getBytesRef(0, new BytesRef()), (IntVector) null).asBlock();
     }
 
-    /**
-     * Reads the intermediate state from a block and recategorizes the provided IDs.
-     * If no IDs are provided, the IDs are the IDs in the categorizer's state in order.
-     * (So 0...N-1 or 1...N, depending on whether null is present.)
-     */
-    IntVector recategorize(BytesRef bytes, IntVector ids) {
+    private Map<Integer, Integer> buildIdMapInternal(BytesRef bytes) {
         Map<Integer, Integer> idMap = new HashMap<>();
         try (StreamInput in = new BytesArray(bytes).streamInput()) {
             if (in.readBoolean()) {
@@ -194,6 +190,16 @@ public class CategorizeBlockHash extends BlockHash {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        return idMap;
+    }
+
+    /**
+     * Reads the intermediate state from a block and recategorizes the provided IDs.
+     * If no IDs are provided, the IDs are the IDs in the categorizer's state in order.
+     * (So 0...N-1 or 1...N, depending on whether null is present.)
+     */
+    IntVector recategorize(BytesRef bytes, IntVector ids) {
+        Map<Integer, Integer> idMap = buildIdMapInternal(bytes);
         try (IntVector.Builder newIdsBuilder = blockFactory.newIntVectorBuilder(idMap.size())) {
             if (ids == null) {
                 int idOffset = idMap.containsKey(0) ? 0 : 1;
@@ -210,6 +216,54 @@ public class CategorizeBlockHash extends BlockHash {
     }
 
     /**
+     * Categorizes a text block; for use by {@link org.elasticsearch.compute.operator.CategorizeEvalOperator}
+     * in INITIAL and SINGLE modes. Requires this instance to be in a non-input-partial mode
+     * (i.e. {@code AggregatorMode.INITIAL} or {@code AggregatorMode.SINGLE}).
+     */
+    public IntBlock categorize(BytesRefBlock block) {
+        return (IntBlock) evaluator.eval(block);
+    }
+
+    /**
+     * Merges the wire-format categorizer state in {@code bytes} into this instance's global categorizer,
+     * then remaps every category ID in {@code ids} (preserving multi-valued structure) and returns a new
+     * block. For use by {@link CategorizeMergeOperator} in
+     * INTERMEDIATE and FINAL modes.
+     */
+    public IntBlock recategorize(BytesRef bytes, IntBlock ids) {
+        Map<Integer, Integer> idMap = buildIdMapInternal(bytes);
+        IntVector vec = ids.asVector();
+        if (vec != null) {
+            try (IntVector.FixedBuilder builder = blockFactory.newIntVectorFixedBuilder(vec.getPositionCount())) {
+                for (int p = 0; p < vec.getPositionCount(); p++) {
+                    builder.appendInt(p, idMap.getOrDefault(vec.getInt(p), NULL_ORD));
+                }
+                return builder.build().asBlock();
+            }
+        }
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(ids.getPositionCount())) {
+            for (int pos = 0; pos < ids.getPositionCount(); pos++) {
+                if (ids.isNull(pos)) {
+                    builder.appendInt(NULL_ORD);
+                    continue;
+                }
+                int first = ids.getFirstValueIndex(pos);
+                int count = ids.getValueCount(pos);
+                if (count == 1) {
+                    builder.appendInt(idMap.getOrDefault(ids.getInt(first), NULL_ORD));
+                } else {
+                    builder.beginPositionEntry();
+                    for (int i = first; i < first + count; i++) {
+                        builder.appendInt(idMap.getOrDefault(ids.getInt(i), NULL_ORD));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    /**
      * Serializes the intermediate state into a single BytesRef block, or an empty Null block if there are no categories.
      */
     private Block buildIntermediateBlock() {
@@ -221,7 +275,7 @@ public class CategorizeBlockHash extends BlockHash {
         return blockFactory.newConstantBytesRefBlockWith(serializeCategorizer(), positionCount);
     }
 
-    BytesRef serializeCategorizer() {
+    public BytesRef serializeCategorizer() {
         // TODO: This BytesStreamOutput is not accounted for by the circuit breaker. Fix that!
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeBoolean(seenNull);

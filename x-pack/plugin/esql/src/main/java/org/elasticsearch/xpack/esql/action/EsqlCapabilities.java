@@ -3139,6 +3139,14 @@ public class EsqlCapabilities {
         LIMIT_BY_ENRICH_FIX(ESQL_LIMIT_BY.isEnabled()),
 
         /**
+         * Support for {@code CATEGORIZE} as a grouping key in {@code LIMIT ... BY} and
+         * {@code SORT ... | LIMIT ... BY} ({@code TopNBy}). Unlike {@code STATS BY CATEGORIZE},
+         * this mode preserves multivalued field order — {@code [a, b]} and {@code [b, a]} are
+         * distinct groups.
+         */
+        CATEGORIZE_IN_LIMIT_BY,
+
+        /**
          * Fix pushdown of LIMIT BY past MV_EXPAND when grouping on expanded fields.
          * See <a href="https://github.com/elastic/elasticsearch/issues/148513">#148513</a>.
          */
@@ -3268,7 +3276,6 @@ public class EsqlCapabilities {
 
         /**
          * Allow evaluatable grouping functions (such as {@code BUCKET}) inside {@code LIMIT ... BY}.
-         * Stateful grouping functions (such as {@code CATEGORIZE}) remain restricted to {@code STATS}.
          */
         LIMIT_BY_ALLOW_EVALUATABLE_GROUPING_FUNCTIONS,
 

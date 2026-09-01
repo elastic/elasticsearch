@@ -1,0 +1,5 @@
+ExchangeSinkExec[[@timestamp{f}#0, client_ip{f}#1, event_duration{f}#2, message{f}#3],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[@timestamp{f}#0, client_ip{f}#1, event_duration{f}#2, message{f}#3]]
+\_Limit[2[INTEGER],false,false]
+  \_EsRelation[sample_data][@timestamp{f}#0, client_ip{f}#1, event_duration{f}#2, message{f}#3]<>]]

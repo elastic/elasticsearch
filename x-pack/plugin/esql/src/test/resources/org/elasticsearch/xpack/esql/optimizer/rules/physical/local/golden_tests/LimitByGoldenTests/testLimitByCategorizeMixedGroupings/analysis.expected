@@ -1,0 +1,3 @@
+Limit[1000[INTEGER],false,false]
+\_LimitBy[1[INTEGER],[CATEGORIZE(CONCAT(message{f}#0, [KEYWORD])), client_ip{f}#1, event_duration{f}#2 > 2000000[INTEGER]],false]
+  \_EsRelation[sample_data][@timestamp{f}#3, client_ip{f}#1, event_duration{f}#2, message{f}#0]

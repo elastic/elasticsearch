@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
@@ -4791,6 +4792,42 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
     }
 
+    public void testBareHighlightRequiresQuery() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(defaultAnalyzer()).error(
+            "FROM test | HIGHLIGHT",
+            containsString("HIGHLIGHT requires a query or a preceding full-text WHERE (MATCH, MATCH_PHRASE, QSTR or KQL)")
+        );
+    }
+
+    public void testHighlightOnStarRequiresHighlightableFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(defaultAnalyzer()).error(
+            "ROW i = 1 | HIGHLIGHT \"x\" ON *",
+            allOf(
+                containsString("HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause"),
+                not(containsString("Invalid query"))
+            )
+        );
+    }
+
+    public void testBarePureNegativeHighlightRequiresExplicitOn() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | HIGHLIGHT NOT MATCH(title, \"x\")",
+            containsString("HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause")
+        );
+    }
+
+    public void testHighlightExplicitOnStrictnessAndImplicitLeniency() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT MATCH(title, \"x\") ON body",
+            containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        supportsHighlightImplicit(fullText()).query("FROM test | WHERE MATCH(title, \"x\") | HIGHLIGHT ON body");
+    }
+
     public void testHighlightRejectsInvalidOptionEnums() {
         assertInvalidHighlightOption("encoder", "xml");
         assertInvalidHighlightOption("boundary_scanner", "chars");
@@ -4975,6 +5012,15 @@ public class VerifierTests extends ESTestCase {
             );
     }
 
+    public void testHighlightImplicitRejectedOnOlderTransportVersion() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        defaultAnalyzer().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT)
+            .error(
+                "FROM test | HIGHLIGHT \"search\"",
+                containsString("HIGHLIGHT with a derived query or field list is not supported on every participating node")
+            );
+    }
+
     private void assertInvalidHighlightOption(String optionName, String optionValue) {
         supportsHighlight(defaultAnalyzer()).error(
             "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"" + optionName + "\": \"" + optionValue + "\" }",
@@ -5051,6 +5097,14 @@ public class VerifierTests extends ESTestCase {
      */
     private static TestAnalyzer supportsHighlight(TestAnalyzer analyzer) {
         return analyzer.minimumTransportVersion(Highlight.ESQL_HIGHLIGHT);
+    }
+
+    /**
+     * Derived HIGHLIGHT query/fields are rejected below
+     * {@link Highlight#ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS}, so implicit-form tests must pin that version.
+     */
+    private static TestAnalyzer supportsHighlightImplicit(TestAnalyzer analyzer) {
+        return analyzer.minimumTransportVersion(Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS);
     }
 
     @Override

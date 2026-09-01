@@ -80,6 +80,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
@@ -140,6 +141,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
@@ -159,6 +161,7 @@ import org.hamcrest.collection.IsIterableContainingInAnyOrder;
 import org.hamcrest.collection.IsIterableContainingInOrder;
 import org.hamcrest.core.IsEqual;
 import org.junit.Assert;
+import org.junit.Assume;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -248,6 +251,25 @@ public final class EsqlTestUtils {
     public static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.INTEGER);
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlTestUtils.class);
+
+    /** Skips the current test unless the snapshot-only implicit-query/derived-fields HIGHLIGHT capability is enabled. */
+    public static void assumeHighlightImplicitQueryAndFieldsEnabled() {
+        Assume.assumeTrue(
+            "requires HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS capability",
+            EsqlCapabilities.Cap.HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS.isEnabled()
+        );
+    }
+
+    /** Returns the sole {@link Highlight} node in {@code plan}, failing if there isn't exactly one. */
+    public static Highlight soleHighlight(LogicalPlan plan) {
+        List<Highlight> highlights = plan.collect(Highlight.class);
+        assertThat(highlights, hasSize(1));
+        return highlights.getFirst();
+    }
+
+    public static List<String> fieldNames(List<? extends NamedExpression> attrs) {
+        return attrs.stream().map(NamedExpression::name).toList();
+    }
 
     public static Equals equalsOf(Expression left, Expression right) {
         return new Equals(EMPTY, left, right, null);

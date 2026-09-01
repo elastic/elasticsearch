@@ -1264,6 +1264,7 @@ final class PageColumnReader implements Releasable {
         int produced = 0;
         int remaining = maxRows;
         long firstPageBytes = -1L;
+        boolean success = false;
         try {
             while (remaining > 0 && ensurePage()) {
                 int fromPage = Math.min(remaining, availableInPage());
@@ -1297,11 +1298,18 @@ final class PageColumnReader implements Releasable {
                 remaining -= fromPage;
             }
             if (builder != null) {
-                return builder.build();
+                Block result = builder.build();
+                success = true;
+                return result;
             }
+            success = true;
             return blockFactory.newConstantBytesRefBlockWith(constant == null ? new BytesRef() : constant, produced);
         } finally {
-            Releasables.closeWhileHandlingException(builder);
+            if (success) {
+                Releasables.closeExpectNoException(builder);
+            } else {
+                Releasables.closeWhileHandlingException(builder);
+            }
         }
     }
 
@@ -1310,6 +1318,7 @@ final class PageColumnReader implements Releasable {
         int produced = 0;
         int remaining = maxRows;
         long firstPageBytes = -1L;
+        boolean success = false;
         try {
             while (remaining > 0 && ensurePage()) {
                 int fromPage = Math.min(remaining, availableInPage());
@@ -1336,17 +1345,25 @@ final class PageColumnReader implements Releasable {
                 remaining -= fromPage;
             }
             if (builder == null && produced > 0) {
+                success = true;
                 return blockFactory.newConstantNullBlock(produced);
             }
             if (builder != null) {
-                return builder.build();
+                Block result = builder.build();
+                success = true;
+                return result;
             }
             assert produced == 0;
             try (var empty = blockFactory.newBytesRefBlockBuilder(0)) {
+                success = true;
                 return empty.build();
             }
         } finally {
-            Releasables.closeWhileHandlingException(builder);
+            if (success) {
+                Releasables.closeExpectNoException(builder);
+            } else {
+                Releasables.closeWhileHandlingException(builder);
+            }
         }
     }
 
@@ -1487,7 +1504,7 @@ final class PageColumnReader implements Releasable {
             ordinalsBlock = buildOrdinalsBlock(ordinals, nulls, produced, blockFactory);
             dictVector = buildDictionaryVector(dict, blockFactory);
             return new OrdinalBytesRefBlock(ordinalsBlock, dictVector);
-        } catch (RuntimeException e) {
+        } catch (Throwable e) {
             ParquetReadFailures.closePreservingCause(e, ordinalsBlock, dictVector);
             throw e;
         }
@@ -1581,6 +1598,7 @@ final class PageColumnReader implements Releasable {
         int total = produced + remaining;
         WordMask combinedNulls = nulls;
         BytesRefBlock.Builder builder = null;
+        boolean success = false;
         try {
             boolean prefixHasValue = false;
             if (produced > 0) {
@@ -1640,18 +1658,26 @@ final class PageColumnReader implements Releasable {
             if (combinedNulls != null && combinedNulls.isEmpty() == false) {
                 Block allNull = ConstantBlockDetection.tryAllNull(combinedNulls.toBitSet(), filled, blockFactory);
                 if (allNull != null) {
+                    success = true;
                     return allNull;
                 }
             }
             if (builder != null) {
-                return builder.build();
+                Block result = builder.build();
+                success = true;
+                return result;
             }
             assert filled == 0;
             try (var empty = blockFactory.newBytesRefBlockBuilder(0)) {
+                success = true;
                 return empty.build();
             }
         } finally {
-            Releasables.closeWhileHandlingException(builder);
+            if (success) {
+                Releasables.closeExpectNoException(builder);
+            } else {
+                Releasables.closeWhileHandlingException(builder);
+            }
         }
     }
 

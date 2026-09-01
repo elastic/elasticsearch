@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -227,8 +228,19 @@ public class ParquetCleanupExceptionMaskingTests extends ESTestCase {
             staged++;
             if (thrown == null) {
                 masked.add("charge " + failAt + ": read completed despite a refused charge");
-            } else if (isBreakerRejection(thrown) == false) {
-                masked.add("charge " + failAt + ": surfaced " + rootCause(thrown) + " instead of the rejection");
+            } else if ((thrown instanceof CircuitBreakingException) == false) {
+                // The top-level exception must be the CBE itself, not a wrapper, so that the
+                // HTTP layer classifies the response as 429 rather than 500.
+                masked.add("charge " + failAt + ": surfaced " + rootCause(thrown) + " instead of the rejection at top level");
+            } else {
+                // Verify that closePreservingCause actually ran: the cleanup failure must be
+                // attached as suppressed on the CBE. In assertion-enabled builds closeExpectNoException
+                // converts the ISE to AssertionError, so check toString() to cover both cases.
+                boolean cleanupSuppressed = Arrays.stream(thrown.getSuppressed())
+                    .anyMatch(s -> s.toString().contains(FailingReleaseBreaker.RELEASE_FAILURE));
+                if (cleanupSuppressed == false) {
+                    masked.add("charge " + failAt + ": CBE surfaced but cleanup failure was not attached as suppressed");
+                }
             }
         }
 
@@ -242,21 +254,6 @@ public class ParquetCleanupExceptionMaskingTests extends ESTestCase {
                 + masked.subList(0, Math.min(5, masked.size())),
             masked.isEmpty()
         );
-    }
-
-    /**
-     * True when the read ended the way a refused charge should end it. With assertions enabled a
-     * double release surfaces as an {@link AssertionError} from
-     * {@code Releasables.closeExpectNoException} rather than the underlying
-     * {@link IllegalStateException}, so both have to be told apart from a genuine rejection.
-     */
-    private static boolean isBreakerRejection(Throwable thrown) {
-        for (Throwable t = thrown; t != null; t = t.getCause()) {
-            if (t instanceof CircuitBreakingException) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static String rootCause(Throwable thrown) {

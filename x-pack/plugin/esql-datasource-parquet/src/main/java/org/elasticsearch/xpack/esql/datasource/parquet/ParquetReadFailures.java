@@ -50,7 +50,9 @@ final class ParquetReadFailures {
         try {
             Releasables.closeExpectNoException(releasables);
         } catch (RuntimeException | AssertionError cleanupFailure) {
-            cause.addSuppressed(cleanupFailure);
+            if (cleanupFailure != cause) {
+                cause.addSuppressed(cleanupFailure);
+            }
         }
     }
 

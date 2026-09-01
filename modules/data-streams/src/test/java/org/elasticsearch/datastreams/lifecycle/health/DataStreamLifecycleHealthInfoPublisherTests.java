@@ -29,6 +29,7 @@ import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -90,10 +91,12 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
 
     public void testPublishDslErrorEntries() {
         final var projectId = randomProjectIdOrDefault();
+        Index indexOverThreshold = new Index("testIndexOverSignalThreshold", randomUUID());
         for (int i = 0; i < 11; i++) {
-            errorStore.recordError(projectId, "testIndexOverSignalThreshold", new NullPointerException("ouch"));
+            errorStore.recordError(projectId, indexOverThreshold, new NullPointerException("ouch"));
         }
-        errorStore.recordError(projectId, "testIndex", new IllegalStateException("bad state"));
+        Index indexUnderThreshold = new Index("testIndexUnderSignalThreshold", randomUUID());
+        errorStore.recordError(projectId, indexUnderThreshold, new IllegalStateException("bad state"));
         ClusterState stateWithHealthNode = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
         ClusterServiceUtils.setState(clusterService, stateWithHealthNode);
         dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
@@ -120,9 +123,11 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
         final var projectId = randomProjectIdOrDefault();
         // no requests are being executed
         for (int i = 0; i < 11; i++) {
-            errorStore.recordError(projectId, "testIndexOverSignalThreshold", new NullPointerException("ouch"));
+            Index indexOverThreshold = new Index("testIndexOverSignalThreshold", randomUUID());
+            errorStore.recordError(projectId, indexOverThreshold, new NullPointerException("ouch"));
         }
-        errorStore.recordError(projectId, "testIndex", new IllegalStateException("bad state"));
+        Index index = new Index("testIndex", randomUUID());
+        errorStore.recordError(projectId, index, new IllegalStateException("bad state"));
 
         ClusterState stateNoHealthNode = ClusterStateCreationUtils.state(node1, node1, null, allNodes);
         ClusterServiceUtils.setState(clusterService, stateNoHealthNode);

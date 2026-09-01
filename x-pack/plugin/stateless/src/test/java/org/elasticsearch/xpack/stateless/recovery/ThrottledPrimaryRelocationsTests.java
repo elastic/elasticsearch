@@ -9,9 +9,15 @@ package org.elasticsearch.xpack.stateless.recovery;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexShard;
@@ -27,6 +33,7 @@ import org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSour
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -326,15 +333,12 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         final var shardId2 = new ShardId(randomIndexName(), randomUUID(), 0);
         final var shard1 = mockShard(shardId1);
         final var shard2 = mockShard(shardId2);
+        final var targetNode1 = DiscoveryNodeUtils.create(randomIdentifier());
         final var targetNode2 = DiscoveryNodeUtils.create(randomIdentifier());
+        final var targetNode3 = DiscoveryNodeUtils.create(randomIdentifier());
 
         // Fill the slot with the first relocation.
-        throttle.enqueueRelocation(
-            createStartRelocationRequest(DiscoveryNodeUtils.create(randomIdentifier()), shardId1),
-            createTask(),
-            shard1,
-            ActionListener.noop()
-        );
+        throttle.enqueueRelocation(createStartRelocationRequest(targetNode1, shardId1), createTask(), shard1, ActionListener.noop());
 
         // Queue a relocation targeting targetNode2.
         final var failures = new ArrayList<Exception>();
@@ -347,7 +351,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
 
         // Queue another, targeting another node.
         throttle.enqueueRelocation(
-            createStartRelocationRequest(DiscoveryNodeUtils.create(randomIdentifier()), shardId1),
+            createStartRelocationRequest(targetNode3, shardId1),
             createTask(),
             shard1,
             ActionListener.<StartRelocationResponse>noop()
@@ -356,8 +360,12 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
 
         assertThat(throttle.queuedRelocationCount(), equalTo(2));
 
-        // targetNode2 departs
-        throttle.cancelPendingRelocationsOnTargetNodeClosed(targetNode2);
+        // targetNode2 departs, targetNode1 and targetNode3 remain
+        final var previousNodes = DiscoveryNodes.builder().add(targetNode1).add(targetNode2).add(targetNode3).build();
+        final var currentNodes = DiscoveryNodes.builder().add(targetNode1).add(targetNode3).build();
+        final var previousState = ClusterState.builder(new ClusterName("test")).nodes(previousNodes).build();
+        final var currentState = ClusterState.builder(new ClusterName("test")).nodes(currentNodes).build();
+        throttle.clusterChanged(new ClusterChangedEvent("test", currentState, previousState));
 
         assertThat(throttle.queuedRelocationCount(), equalTo(1));
         assertThat(failures, hasSize(1));
@@ -409,7 +417,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
 
         assertThat(throttle.queuedRelocationCount(), equalTo(1));
 
-        throttle.cancelAllPendingRelocationsOnNodeClosed();
+        throttle.cancelAllPendingRelocationsOnServiceClosed();
 
         assertThat(throttle.queuedRelocationCount(), equalTo(0));
         assertThat(failures, hasSize(1));
@@ -450,7 +458,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
 
         assertThat(throttle.queuedRelocationCount(), equalTo(1));
 
-        throttle.cancelPendingRelocationsOnShardClosed(shard2);
+        throttle.beforeIndexShardClosed(shard2.shardId(), shard2, Settings.EMPTY);
 
         assertThat(throttle.queuedRelocationCount(), equalTo(0));
         assertThat(failures, hasSize(1));
@@ -464,6 +472,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         final var localNode = DiscoveryNodeUtils.create(randomIdentifier());
         final var clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(localNode);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, Set.of()));
 
         final var throttle = new ThrottledPrimaryRelocations(
             clusterService,
@@ -510,6 +519,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
     private static ClusterService mockClusterService() {
         final var clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create(randomIdentifier()));
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, Set.of()));
         return clusterService;
     }
 

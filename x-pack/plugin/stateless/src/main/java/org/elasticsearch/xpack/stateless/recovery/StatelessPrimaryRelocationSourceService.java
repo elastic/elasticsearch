@@ -86,10 +86,7 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 ///
 /// Transport sends (prewarm / primary-context handoff) are supplied as callbacks by [TransportStatelessPrimaryRelocationAction].
 /// Target-side handlers live on [StatelessPrimaryRelocationTargetService].
-public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleComponent
-    implements
-        IndexEventListener,
-        ClusterStateListener {
+public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(StatelessPrimaryRelocationSourceService.class);
 
@@ -121,8 +118,8 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     private final HollowShardsMetrics hollowShardsMetrics;
     private volatile TargetPrewarmTrigger targetPrewarmTrigger;
     private volatile PrimaryContextHandoffTrigger primaryContextHandoffTrigger;
-    private final boolean hasIndexRole;
 
+    @Nullable
     private final ThrottledPrimaryRelocations throttledPrimaryRelocations;
 
     private volatile TimeValue slowRelocationWarningThreshold;
@@ -147,29 +144,21 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         this.statelessCommitServiceProvider = statelessCommitServiceProvider;
         this.indexShardCacheWarmer = indexShardCacheWarmer;
         this.hollowShardsMetrics = hollowShardsMetrics;
-        this.hasIndexRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
-        this.throttledPrimaryRelocations = new ThrottledPrimaryRelocations(
-            clusterService,
-            recoveryExecutor,
-            this::startRelocationWithFreshClusterState
-        );
+        this.throttledPrimaryRelocations = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE)
+            ? new ThrottledPrimaryRelocations(clusterService, recoveryExecutor, this::startRelocationWithFreshClusterState)
+            : null;
 
         clusterService.getClusterSettings()
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
         clusterService.getClusterSettings()
             .initializeAndWatch(ID_LOOKUP_RECENCY_THRESHOLD_SETTING, value -> this.idLookupRecencyThreshold = value);
-        if (hasIndexRole) {
-            clusterService.getClusterSettings()
-                .initializeAndWatchIfRegistered(
-                    PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
-                    throttledPrimaryRelocations::updateMaxConcurrentOutgoingRelocations
-                );
-        }
     }
 
     /// Registers the shared recovery scheduling listeners (available via Guice when the transport action is constructed).
     public void registerRecoverySchedulingListeners(CompositeRecoverySchedulingListener schedulingListeners) {
-        throttledPrimaryRelocations.registerRecoverySchedulingListeners(schedulingListeners);
+        if (throttledPrimaryRelocations != null) {
+            throttledPrimaryRelocations.registerRecoverySchedulingListeners(schedulingListeners);
+        }
     }
 
     /// Register the target-side transport triggers (available when the transport action is constructed).
@@ -184,19 +173,20 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
 
     @Override
     protected void doStart() {
-        assert targetPrewarmTrigger != null && primaryContextHandoffTrigger != null : "missing triggers, service was not fully initialized";
-        if (hasIndexRole) {
-            clusterService.addListener(this);
+        if (throttledPrimaryRelocations != null) {
+            assert targetPrewarmTrigger != null && primaryContextHandoffTrigger != null
+                : "missing triggers, service is not fully initialized";
+            clusterService.addListener(throttledPrimaryRelocations);
         }
     }
 
     @Override
     protected void doStop() {
-        if (hasIndexRole) {
+        if (throttledPrimaryRelocations != null) {
             // Stop accepting source-side relocation requests and drain the queue.
             throttledPrimaryRelocations.close();
-            throttledPrimaryRelocations.cancelAllPendingRelocationsOnNodeClosed();
-            clusterService.removeListener(this);
+            throttledPrimaryRelocations.cancelAllPendingRelocationsOnServiceClosed();
+            clusterService.removeListener(throttledPrimaryRelocations);
         }
     }
 
@@ -211,29 +201,20 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         // of whichever blob-store I/O is already in flight, typically seconds, should be at most a few minutes.
         // A relocation waiting on primary operation permits (inside IndexShard#relocated) will unblock once in-flight
         // writes fail and release their permits. In the pathological case the permit wait has a 30-minute timeout.
-        if (hasIndexRole && throttledPrimaryRelocations.isEmpty() == false) {
+        if (throttledPrimaryRelocations != null && throttledPrimaryRelocations.isEmpty() == false) {
             throttledPrimaryRelocations.awaitEmpty();
         }
     }
 
-    @Override
-    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
-        if (indexShard != null) {
-            throttledPrimaryRelocations.cancelPendingRelocationsOnShardClosed(indexShard);
-        }
-    }
-
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (event.nodesRemoved()) {
-            for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
-                throttledPrimaryRelocations.cancelPendingRelocationsOnTargetNodeClosed(removedNode);
-            }
-        }
+    /// Returns the [ThrottledPrimaryRelocations] instance to register as an [IndexEventListener] in the plugin.
+    /// Returns `null` on search nodes where no throttling is needed.
+    @Nullable
+    public ThrottledPrimaryRelocations indexEventListener() {
+        return throttledPrimaryRelocations;
     }
 
     void startRelocation(Task task, StatelessPrimaryRelocationAction.Request request, ActionListener<StartRelocationResponse> listener) {
-        assert hasIndexRole : "startRelocation called on a non-index node";
+        assert throttledPrimaryRelocations != null : "startRelocation called on a non-index node";
         // Note that we trigger prewarm on the target before entering the source-side throttle queue. By the time the
         // relocation reaches `startRelocation`, it has already passed through the target's own recovery throttle (concurrency
         // limit on incoming recoveries), so the target node cannot be overloaded by prewarm requests. Starting early
@@ -654,7 +635,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     }
 
     // visible for testing
-    static final class ThrottledPrimaryRelocations {
+    static final class ThrottledPrimaryRelocations implements ClusterStateListener, IndexEventListener {
 
         @FunctionalInterface
         interface RelocationRunner {
@@ -682,6 +663,30 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             this.clusterService = clusterService;
             this.executor = executor;
             this.runner = runner;
+            clusterService.getClusterSettings()
+                .initializeAndWatchIfRegistered(
+                    PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
+                    this::updateMaxConcurrentOutgoingRelocations
+                );
+        }
+
+        @Override
+        public void clusterChanged(ClusterChangedEvent event) {
+            if (event.nodesRemoved()) {
+                for (DiscoveryNode node : event.nodesDelta().removedNodes()) {
+                    cancelPendingRelocations(pending -> pending.request().targetNode().equals(node), new NodeClosedException(node));
+                }
+            }
+        }
+
+        @Override
+        public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+            if (indexShard != null) {
+                cancelPendingRelocations(
+                    pending -> pending.shard() == indexShard,
+                    new AlreadyClosedException(Strings.format("cancelling pending relocation for closed shard %s", indexShard.shardId()))
+                );
+            }
         }
 
         // visible for testing
@@ -741,20 +746,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         }
 
         // visible for testing
-        void cancelPendingRelocationsOnTargetNodeClosed(DiscoveryNode node) {
-            cancelPendingRelocations(pending -> pending.request().targetNode().equals(node), new NodeClosedException(node));
-        }
-
-        // visible for testing
-        void cancelPendingRelocationsOnShardClosed(IndexShard shard) {
-            cancelPendingRelocations(
-                pending -> pending.shard() == shard,
-                new AlreadyClosedException(Strings.format("cancelling pending relocation for closed shard %s", shard.shardId()))
-            );
-        }
-
-        // visible for testing
-        void cancelAllPendingRelocationsOnNodeClosed() {
+        void cancelAllPendingRelocationsOnServiceClosed() {
             cancelPendingRelocations(ignored -> true, new NodeClosedException(clusterService.localNode()));
         }
 
@@ -812,9 +804,9 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 while (it.hasNext()) {
                     final PendingRelocation pending = it.next();
                     if (predicate.test(pending)) {
-                        pending.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
                         cancelled.add(pending);
                         it.remove();
+                        pending.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
                     }
                 }
             }

@@ -1575,7 +1575,7 @@ public class StatelessPlugin extends Plugin
                     relocationMetricsCollector.get()
                 )
             );
-            indexModule.addIndexEventListener(this.primaryRelocationSourceService.get());
+            indexModule.addIndexEventListener(this.primaryRelocationSourceService.get().indexEventListener());
         }
         if (hasSearchRole) {
             indexModule.addIndexEventListener(

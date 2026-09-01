@@ -76,8 +76,10 @@ public final class QuerySettings {
         since = "9.4+",
         description = "The default timezone to be used in the query. Defaults to UTC, and overrides the `time_zone` request parameter. "
             + "See [timezones](/reference/query-languages/esql/esql-rest.md#esql-timezones).\n\n"
-            + "The `esql.query.settings.time_zone` cluster setting changes the default for every query on the cluster. "
-            + "A value given here or in the request body overrides it. {applies_to}`stack: ga 9.6+`"
+            + "The default itself is configurable. If a query does not specify a timezone, the "
+            + "`esql.query.settings.time_zone` cluster setting supplies it. If that cluster setting is not configured "
+            + "either, the timezone is UTC. "
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
     )
     @Example(file = "tbucket", tag = "set-timezone-example")
     public static final QuerySettingDef<ZoneId> TIME_ZONE = QuerySettingDef.string("time_zone", QuerySettings::parseZoneId)
@@ -122,8 +124,10 @@ public final class QuerySettings {
           - Partially unmapped non-`keyword` fields must be referenced inside a cast or conversion function (e.g. `::TYPE` or
             `TO_TYPE`), unless referenced in `KEEP` or `DROP`. {applies_to}`stack: preview =9.4`
 
-        The `esql.query.settings.unmapped_fields` cluster setting changes the default for every query on the cluster.
-        A value given here overrides it. {applies_to}`stack: ga 9.6+`
+        The default itself is configurable. If a query does not specify a value, the
+        `esql.query.settings.unmapped_fields` cluster setting supplies it. If that cluster setting is not configured
+        either, the value is `DEFAULT`.
+        {applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}`
         """)
     @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = """
         Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,

@@ -584,12 +584,12 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         // FIRST() / LAST() pick the search-field value from the row with the minimum (FIRST) or
         // maximum (LAST) sort value. Two effects make cross-mode value comparison unreliable, and
         // both are expected divergences rather than correctness bugs:
-        //   1. Ties in the sort column: when several rows share the winning sort value, either
-        //      physical layout may legitimately pick a different row's search-field value.
-        //   2. Multi-value search field: the returned cell keeps source element order, which
-        //      differs between the two modes (columnar source-insertion order vs standard ascending
-        //      doc-values order). The multiset is identical but e.g. [false, true] vs [true, false]
-        //      compares unequal. Same ordering artifact already gated for MV_FIRST/MV_LAST/MV_SLICE.
+        // 1. Ties in the sort column: when several rows share the winning sort value, either
+        // physical layout may legitimately pick a different row's search-field value.
+        // 2. Multi-value search field: the returned cell keeps source element order, which
+        // differs between the two modes (columnar source-insertion order vs standard ascending
+        // doc-values order). The multiset is identical but e.g. [false, true] vs [true, false]
+        // compares unequal. Same ordering artifact already gated for MV_FIRST/MV_LAST/MV_SLICE.
         // Correct columnar behavior for boolean MV fields (no spurious null) is covered by the
         // stats_first_last.csv-spec "Test retrieval of multi-values" case, which CsvColumnarIT runs
         // against voyager's low_power_mode field.

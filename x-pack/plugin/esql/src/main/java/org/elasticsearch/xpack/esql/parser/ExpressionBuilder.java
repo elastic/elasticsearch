@@ -407,20 +407,15 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         // check special wildcard case
         if (patterns.size() == 1) {
             var idCtx = patterns.get(0);
-            boolean unresolvedStar = false;
             // Checking the whole pattern's text, not just an ID_PATTERN token, because after ON (e.g. HIGHLIGHT ON *)
             // the parser stays in EXPRESSION_MODE, where a bare `*` arrives as an identifier/ASTERISK token via
             // expressionModeIdentifierPattern rather than ID_PATTERN. Quoted identifiers keep their quote characters
             // in getText(), and parameters render as `?`/`??`-prefixed text, so neither can equal WILDCARD here.
-            if (idCtx.getText().equals(WILDCARD)) {
-                unresolvedStar = true;
-            }
-            if (idCtx.parameter() != null || idCtx.doubleParameter() != null) {
+            boolean unresolvedStar = idCtx.getText().equals(WILDCARD);
+            if (unresolvedStar == false && (idCtx.parameter() != null || idCtx.doubleParameter() != null)) {
                 Expression exp = resolveParamInIdentifierPosition(idCtx, src, unqualifiedCtx.getText());
-                if (exp instanceof UnresolvedNamePattern up) {
-                    if (up.name() != null && up.name().equals(WILDCARD)) {
-                        unresolvedStar = true;
-                    }
+                if (exp instanceof UnresolvedNamePattern up && WILDCARD.equals(up.name())) {
+                    unresolvedStar = true;
                 }
             }
             if (unresolvedStar) {

@@ -1922,9 +1922,6 @@ The Lord of the <em>Rings</em>
 ;
 
 
-# HIGHLIGHT Part C: implicit full-text queries, derived fields, and ON * expansion.
-
-# A bare HIGHLIGHT derives both its query and target field from the upstream full-text WHERE.
 implicitQueryBareForm
 required_capability: highlight_implicit_query_and_fields
 required_capability: match_function
@@ -1942,7 +1939,6 @@ Return of the Shadow                                             | <em>Return</e
 ;
 
 
-# Implicit queries may target an unrelated ON field; unmatched highlights are null rather than verification errors.
 implicitQueryUntargetedOnFieldIsNull
 required_capability: highlight_implicit_query_and_fields
 required_capability: match_function
@@ -1960,7 +1956,6 @@ Return of the Shadow                                             | null
 ;
 
 
-# Full-text predicates from separate WHERE commands are OR-ed for highlighting while both filters still select the rows.
 implicitQueryTwoWheresOrTogether
 required_capability: highlight_implicit_query_and_fields
 required_capability: match_function
@@ -1979,7 +1974,7 @@ Return of the Shadow                                             | [Christopher 
 ;
 
 
-# ON * expands every text/keyword field, including the author.keyword multi-field, in child-output order.
+# ON * includes multi-fields (author.keyword).
 highlightOnStar
 required_capability: highlight_implicit_query_and_fields
 required_capability: match_function
@@ -1997,7 +1992,6 @@ null                     | null                             | null              
 ;
 
 
-# With an explicit query and no ON clause, HIGHLIGHT falls back to every text/keyword field.
 explicitQueryNoOnFallsBackToAllFields
 skip_flattened_rewrite: highlight_implicit_fields_exclude_flattened
 required_capability: highlight_implicit_query_and_fields
@@ -2013,7 +2007,56 @@ John Ronald Reuel <em>Tolkien</em> | John Ronald Reuel <em>Tolkien</em> | null  
 ;
 
 
-# ON * includes semantic_text fields, which surface as text columns to ES|QL.
+# KEEP of a generated highlight_* column after a no-ON HIGHLIGHT must still load every text/keyword
+# field. Unlike explicitQueryNoOnFallsBackToAllFields, KEEP does not name the source columns, so
+# field-caps has to request * rather than the KEEP list. Pin the same book so highlight_author matches.
+explicitQueryNoOnKeepGeneratedColumn
+skip_flattened_rewrite: highlight_implicit_fields_exclude_flattened
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| HIGHLIGHT "Tolkien"
+| WHERE book_no == "8875"
+| KEEP highlight_author
+;
+
+highlight_author:keyword
+John Ronald Reuel <em>Tolkien</em>
+;
+
+
+# KEEP names book_no but not author; author still has to come from the no-ON fallback.
+explicitQueryNoOnKeepMappedAndGenerated
+skip_flattened_rewrite: highlight_implicit_fields_exclude_flattened
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| HIGHLIGHT "Tolkien"
+| KEEP book_no, highlight_author
+| WHERE book_no == "8875"
+;
+
+book_no:keyword | highlight_author:keyword
+8875            | John Ronald Reuel <em>Tolkien</em>
+;
+
+
+# KEEP highlight_* is a name pattern, not a bare *, so it does not itself trigger ALL_FIELDS.
+explicitQueryNoOnKeepHighlightWildcard
+skip_flattened_rewrite: highlight_implicit_fields_exclude_flattened
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| HIGHLIGHT "Tolkien"
+| WHERE book_no == "8875"
+| KEEP highlight_*
+;
+
+highlight_author:keyword           | highlight_author.keyword:keyword   | highlight_book_no:keyword | highlight_collection:keyword | highlight_description:keyword | highlight_publisher:keyword | highlight_title:keyword
+John Ronald Reuel <em>Tolkien</em> | John Ronald Reuel <em>Tolkien</em> | null                      | null                         | null                          | null                        | null
+;
+
+
 implicitOnSemanticTextViaStar
 required_capability: highlight_implicit_query_and_fields
 required_capability: match_function

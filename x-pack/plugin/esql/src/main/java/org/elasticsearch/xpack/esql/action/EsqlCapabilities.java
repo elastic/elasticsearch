@@ -3580,7 +3580,7 @@ public class EsqlCapabilities {
         /**
          * Support for deriving the {@code HIGHLIGHT} query and target fields, including {@code ON *}.
          */
-        HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS(Build.current().isSnapshot()),
+        HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS,
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.

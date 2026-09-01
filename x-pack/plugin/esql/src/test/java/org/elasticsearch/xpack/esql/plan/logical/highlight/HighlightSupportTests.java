@@ -33,7 +33,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.hamcrest.Matchers.equalTo;
 
-/** Tests the analysis-time HIGHLIGHT helpers: implicit-predicate support and field selection/derivation. */
 public class HighlightSupportTests extends ESTestCase {
 
     private static Match match(String field, String text, MapExpression options) {
@@ -89,7 +88,7 @@ public class HighlightSupportTests extends ESTestCase {
 
     public void testAllHighlightableFieldsMovesDuplicatesToEnd() {
         // Unlike the fixture above, `body` sits BETWEEN the two colliding `duplicate` attributes, so this input can
-        // actually distinguish "relocate to end" (remove+put) from "overwrite in place" (plain put).
+        // actually distinguish "relocate to end" (putLast) from "overwrite in place" (plain put).
         Attribute firstDuplicate = getFieldAttribute("duplicate", KEYWORD);
         Attribute body = getFieldAttribute("body", TEXT);
         Attribute lastDuplicate = getFieldAttribute("duplicate", TEXT);
@@ -142,8 +141,6 @@ public class HighlightSupportTests extends ESTestCase {
         assertTrue(HighlightSupport.deriveFields(query, List.of(title, count)).isEmpty());
     }
 
-    // deriveFields is defined in terms of allHighlightableFields, so a query naming a metadata field derives nothing
-    // for it, matching the ON * form's deliberate exclusion of metadata columns.
     public void testDeriveFieldsExcludesMetadataFields() {
         Attribute index = new MetadataAttribute(EMPTY, MetadataAttribute.INDEX, KEYWORD, true);
         Expression query = match(MetadataAttribute.INDEX, "fox", null);
@@ -151,8 +148,6 @@ public class HighlightSupportTests extends ESTestCase {
         assertTrue(HighlightSupport.deriveFields(query, List.of(index)).isEmpty());
     }
 
-    // deriveFields resolves a named, duplicated column to the same attribute allHighlightableFields (ON *) would
-    // pick: the last one in the child output, not the first.
     public void testDeriveFieldsUsesLastAttributeForDuplicateNames() {
         Attribute firstDuplicate = getFieldAttribute("title", KEYWORD);
         Attribute lastDuplicate = getFieldAttribute("title", TEXT);

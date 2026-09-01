@@ -27,7 +27,6 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomSubsetOf;
 import static org.elasticsearch.xpack.esql.generator.function.FullTextFunctionGenerator.randomQueryWord;
 
-/** Generates {@code HIGHLIGHT} commands with explicit {@code ON} clauses. */
 public class HighlightGenerator implements CommandGenerator {
 
     public static final String HIGHLIGHT = "highlight";

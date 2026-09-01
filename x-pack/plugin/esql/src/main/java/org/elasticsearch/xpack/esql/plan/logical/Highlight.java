@@ -60,6 +60,14 @@ public class Highlight extends UnaryPlan
     /** Minimum transport version that knows how to deserialize this plan node. */
     public static final TransportVersion ESQL_HIGHLIGHT = TransportVersion.fromName("esql_highlight");
 
+    /**
+     * Older peers only know explicit {@code HIGHLIGHT <query> ON <fields>}; they do not serialize
+     * {@link #implicitQuery} or {@link #derivedFields}.
+     */
+    public static final TransportVersion ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS = TransportVersion.fromName(
+        "esql_highlight_implicit_query_and_fields"
+    );
+
     public static final String DEFAULT_PREFIX = "highlight_";
 
     public static final String PRE_TAGS = "pre_tags";
@@ -128,8 +136,8 @@ public class Highlight extends UnaryPlan
             in.readNamedWriteable(LogicalPlan.class),
             in.readString(),
             in.readOptionalNamedWriteable(Expression.class),
-            in.readBoolean(),
-            in.readBoolean(),
+            in.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) ? in.readBoolean() : false,
+            in.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) ? in.readBoolean() : false,
             in.readNamedWriteableCollectionAsList(NamedExpression.class),
             // MapExpression is registered under the Expression category, not its own, so read it as an Expression.
             (MapExpression) in.readOptionalNamedWriteable(Expression.class),
@@ -143,8 +151,19 @@ public class Highlight extends UnaryPlan
         out.writeNamedWriteable(child());
         out.writeString(prefix);
         out.writeOptionalNamedWriteable(query);
-        out.writeBoolean(implicitQuery);
-        out.writeBoolean(derivedFields);
+        if (out.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS)) {
+            out.writeBoolean(implicitQuery);
+            out.writeBoolean(derivedFields);
+        } else if (implicitQuery || derivedFields) {
+            // Dropping the flags would make a derived query look explicit on the peer, changing ON-list verification.
+            throw new IllegalArgumentException(
+                "HIGHLIGHT with a derived query or field list is not supported in peer node's version ["
+                    + out.getTransportVersion()
+                    + "]. Upgrade to version ["
+                    + ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS
+                    + "] or newer."
+            );
+        }
         out.writeNamedWriteableCollection(fields);
         out.writeOptionalNamedWriteable(options);
         out.writeNamedWriteableCollection(generatedFields);
@@ -193,15 +212,9 @@ public class Highlight extends UnaryPlan
             .toList();
     }
 
-    /**
-     * Canonical copy helper: every field but {@code prefix} and {@code derivedFields} can vary across a copy site, so
-     * those two are captured here rather than threaded through every caller. No copy site ever varies them - both are
-     * set once at parse time and passed through verbatim for the lifetime of the node.
-     */
     private Highlight copy(
         LogicalPlan child,
         Expression query,
-        boolean implicitQuery,
         List<NamedExpression> fields,
         MapExpression options,
         List<Attribute> generatedFields
@@ -213,22 +226,21 @@ public class Highlight extends UnaryPlan
         if (Objects.equals(options, newOptions)) {
             return this;
         }
-        return copy(child(), query, implicitQuery, fields, newOptions, generatedFields);
+        return copy(child(), query, fields, newOptions, generatedFields);
     }
 
-    /** Returns a copy with the analyzer-derived query and fields. */
     public Highlight withResolved(
         Expression newQuery,
         boolean newImplicitQuery,
         List<NamedExpression> newFields,
         List<Attribute> newGeneratedFields
     ) {
-        return copy(child(), newQuery, newImplicitQuery, newFields, options, newGeneratedFields);
+        return new Highlight(source(), child(), prefix, newQuery, newImplicitQuery, derivedFields, newFields, options, newGeneratedFields);
     }
 
     @Override
     public Highlight replaceChild(LogicalPlan newChild) {
-        return copy(newChild, query, implicitQuery, fields, options, generatedFields);
+        return copy(newChild, query, fields, options, generatedFields);
     }
 
     @Override
@@ -266,7 +278,7 @@ public class Highlight extends UnaryPlan
             String newName = newNames.get(i);
             renamed.add(newName.equals(attr.name()) ? attr : attr.withName(newName).withId(new NameId()));
         }
-        return copy(child(), query, implicitQuery, fields, options, renamed);
+        return copy(child(), query, fields, options, renamed);
     }
 
     @Override
@@ -277,13 +289,8 @@ public class Highlight extends UnaryPlan
 
     @Override
     public boolean expressionsResolved() {
-        if (fields.isEmpty()) {
-            // The bare and ON * forms have their fields derived during analysis, and the generated <prefix><field> columns follow from
-            // them. Until that happens output() is incomplete, so reporting resolved here would let a downstream KEEP of a generated
-            // column resolve against a schema that does not have it yet and record a permanent "Unknown column".
-            return false;
-        }
-        if (query != null && query.resolved() == false) {
+        // Empty fields (bare / ON *) are derived during analysis; until then output() lacks the generated columns.
+        if (fields.isEmpty() || (query != null && query.resolved() == false)) {
             return false;
         }
         for (NamedExpression field : fields) {
@@ -351,24 +358,13 @@ public class Highlight extends UnaryPlan
         }
         List<String> fieldNames = fields.stream().map(NamedExpression::name).toList();
         try {
-            if (enforcesOnFields()) {
-                HighlightQueryBuilders.verifyExplicit(query, fieldNames, analyzer);
-            } else {
-                HighlightQueryBuilders.verifyDerived(query, fieldNames, analyzer);
-            }
+            // ON membership is enforced only when the user wrote both the query and the field list.
+            HighlightQueryBuilders.verify(query, fieldNames, analyzer, implicitQuery == false && derivedFields == false);
         } catch (IllegalArgumentException e) {
             // Attach to the query node, not this Highlight node: failures dedupe by node, so pinning it here would let a
             // co-located option/analyzer failure on this node swallow the query error (see VerifierTests#testHighlightAnalyzerOption).
             failures.add(fail(query, "{}", e.getMessage()));
         }
-    }
-
-    /**
-     * The ON list is only binding when the user wrote both the query and the list. A derived query may name fields the
-     * user never listed, and a derived list is built <em>from</em> the query, so in both cases membership is vacuous.
-     */
-    private boolean enforcesOnFields() {
-        return implicitQuery == false && derivedFields == false;
     }
 
     private void verifyFieldTypes(Failures failures) {

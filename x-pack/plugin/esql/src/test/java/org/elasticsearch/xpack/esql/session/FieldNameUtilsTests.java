@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.session.FieldNameUtils.parentPrefixes;
 import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
 import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_FIELD;
@@ -3324,6 +3325,21 @@ public class FieldNameUtilsTests extends ESTestCase {
             from employees
             | user_agent ua = first_name WITH { "extract_device_type": true }
             | keep ua.name""", Set.of("_index", "first_name", "first_name.*"));
+    }
+
+    public void testHighlightNoOnWithKeepRequestsAllFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assertFieldNames("FROM idx | HIGHLIGHT \"foo\" | KEEP highlight_bar", ALL_FIELDS);
+        assertFieldNames("FROM idx | HIGHLIGHT \"foo\" | KEEP id, highlight_bar", ALL_FIELDS);
+        assertFieldNames("FROM idx | HIGHLIGHT \"foo\" | KEEP highlight_*", ALL_FIELDS);
+    }
+
+    public void testHighlightExplicitOnWithKeepCollectsOnFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assertFieldNames(
+            "FROM idx | HIGHLIGHT \"foo\" ON bar | KEEP highlight_bar",
+            Set.of("_index", "bar", "bar.*", "highlight_bar", "highlight_bar.*")
+        );
     }
 
     // IN subquery tests

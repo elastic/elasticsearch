@@ -252,7 +252,6 @@ public final class EsqlTestUtils {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlTestUtils.class);
 
-    /** Skips the current test unless the snapshot-only implicit-query/derived-fields HIGHLIGHT capability is enabled. */
     public static void assumeHighlightImplicitQueryAndFieldsEnabled() {
         Assume.assumeTrue(
             "requires HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS capability",
@@ -260,7 +259,6 @@ public final class EsqlTestUtils {
         );
     }
 
-    /** Returns the sole {@link Highlight} node in {@code plan}, failing if there isn't exactly one. */
     public static Highlight soleHighlight(LogicalPlan plan) {
         List<Highlight> highlights = plan.collect(Highlight.class);
         assertThat(highlights, hasSize(1));

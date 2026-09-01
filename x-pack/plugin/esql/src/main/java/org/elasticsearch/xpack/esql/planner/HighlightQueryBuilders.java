@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Builds HIGHLIGHT queries through Query DSL. Verification and local planning share this path so they accept the same
@@ -65,29 +65,20 @@ public final class HighlightQueryBuilders {
         return folded instanceof BytesRef || folded instanceof String ? BytesRefs.toString(folded) : null;
     }
 
-    /**
-     * Checks that the expression contains only full-text functions supported by HIGHLIGHT. {@code onFields} is
-     * present only when the ON list is binding (see {@link #verifyExplicit}); when absent, field membership is not
-     * checked.
-     */
-    private static void verifyQueryStructure(Expression expr, Optional<List<String>> onFields) {
+    private static void verifyQueryStructure(Expression expr, @Nullable List<String> onFields) {
         // TODO: Allow HIGHLIGHT queries to use expressions other than full-text functions.
         switch (expr) {
-            case Match match -> onFields.ifPresent(fields -> requireOnField(fieldName(match.field()), fields));
-            case MatchPhrase matchPhrase -> onFields.ifPresent(fields -> requireOnField(fieldName(matchPhrase.field()), fields));
+            case Match match -> requireOnField(fieldName(match.field()), onFields);
+            case MatchPhrase matchPhrase -> requireOnField(fieldName(matchPhrase.field()), onFields);
             case QueryString queryString -> {
                 String defaultField = HighlightSupport.queryStringDefaultField(queryString);
                 if (defaultField != null) {
-                    onFields.ifPresent(fields -> requireOnField(defaultField, fields));
+                    requireOnField(defaultField, onFields);
                 }
             }
-            case And and -> {
-                verifyQueryStructure(and.left(), onFields);
-                verifyQueryStructure(and.right(), onFields);
-            }
-            case Or or -> {
-                verifyQueryStructure(or.left(), onFields);
-                verifyQueryStructure(or.right(), onFields);
+            case BinaryLogic binary -> {
+                verifyQueryStructure(binary.left(), onFields);
+                verifyQueryStructure(binary.right(), onFields);
             }
             case Not not -> verifyQueryStructure(not.field(), onFields);
             // KQL resolves fields while rewriting its query builder. Unknown fields become match-none.
@@ -104,27 +95,11 @@ public final class HighlightQueryBuilders {
         }
     }
 
-    /**
-     * Verifies an explicit HIGHLIGHT query: the user wrote both the query and the ON list, so every field the query
-     * names must appear in {@code onFields}.
-     */
-    public static void verifyExplicit(Expression queryExpr, List<String> onFields, Analyzer analyzer) {
-        verify(queryExpr, Optional.of(onFields), onFields, analyzer);
-    }
-
-    /**
-     * Verifies a derived HIGHLIGHT query: the query or the field list was itself derived, so ON membership is
-     * vacuous; only shape and translation are checked. {@code fields} is still needed for the translation context.
-     */
-    public static void verifyDerived(Expression queryExpr, List<String> fields, Analyzer analyzer) {
-        verify(queryExpr, Optional.empty(), fields, analyzer);
-    }
-
-    private static void verify(Expression queryExpr, Optional<List<String>> onFields, List<String> fields, Analyzer analyzer) {
+    public static void verify(Expression queryExpr, List<String> fields, Analyzer analyzer, boolean enforceOnFields) {
         String literal = queryTextIfLiteral(queryExpr);
         // Pushdown accepts more expressions than the runtime context, so check the query shape first.
         if (literal == null) {
-            verifyQueryStructure(queryExpr, onFields);
+            verifyQueryStructure(queryExpr, enforceOnFields ? fields : null);
         }
         // Translate before planning to catch invalid options, syntax, and fields outside ON.
         try {
@@ -137,8 +112,8 @@ public final class HighlightQueryBuilders {
         }
     }
 
-    private static void requireOnField(String field, List<String> onFields) {
-        if (onFields.contains(field) == false) {
+    private static void requireOnField(String field, @Nullable List<String> onFields) {
+        if (onFields != null && onFields.contains(field) == false) {
             throw new IllegalArgumentException("HIGHLIGHT query field [" + field + "] is not in ON fields " + onFields);
         }
     }

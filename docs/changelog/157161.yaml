@@ -1,5 +1,5 @@
 area: Infra/Metrics
 issues: []
 pr: 157161
-summary: Null-safe async instrument
+summary: "Fix errors from node flush metrics during shutdown"
 type: bug

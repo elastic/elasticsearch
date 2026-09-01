@@ -114,6 +114,12 @@ public class FallbackSyntheticSourceBlockLoaderTests extends MapperServiceTestCa
 
     private void withIndex(int numDocs, int valueLength, CheckedBiConsumer<MapperService, LeafReaderContext, IOException> test)
         throws IOException {
+        // The DOC_VALUES_IGNORED_SOURCE format these tests exercise is only selected when this feature flag is enabled, which is the
+        // default in snapshot builds but off in release builds.
+        assumeTrue(
+            "requires ignored_source_as_doc_values feature flag enabled",
+            IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled()
+        );
         var settings = Settings.builder()
             .put("index.mapping.source.mode", "synthetic")
             // DOC_VALUES_IGNORED_SOURCE requires the TSDB doc values format to be enabled

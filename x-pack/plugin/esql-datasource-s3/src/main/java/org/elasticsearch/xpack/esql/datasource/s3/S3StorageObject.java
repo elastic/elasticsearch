@@ -138,9 +138,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     }
 
     /**
-     * Maps a failure from the S3 client into the exception to surface to ES|QL. A retryable transport
-     * status (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may succeed on
-     * retry). A closed HTTP client ({@code Connection pool shut down} / client-closed
+     * Maps a failure from the S3 client into the exception to surface to ES|QL. An already-typed
+     * {@link ExternalUnavailableException} is returned unchanged so its retry and status signal is preserved.
+     * A retryable transport status (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may
+     * succeed on retry). A closed HTTP client ({@code Connection pool shut down} / client-closed
      * {@link IllegalStateException}) is the same 503: the client is gone, not the object. Other
      * {@link IllegalStateException}s are returned as-is (HTTP 500 via classify) so a programming
      * error is not retried and is not disguised as a client 400. A missing object or any other
@@ -149,6 +150,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * (never throws) so both the synchronous and async read paths can route it.
      */
     private Exception mapReadFailure(String context, Throwable cause) {
+        if (cause instanceof ExternalUnavailableException eue) {
+            return eue;
+        }
         if (cause instanceof S3Exception s3 && ExternalUnavailableException.isRetryableStatus(s3.statusCode())) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(s3.statusCode());
             long retryAfterMs = 0L;

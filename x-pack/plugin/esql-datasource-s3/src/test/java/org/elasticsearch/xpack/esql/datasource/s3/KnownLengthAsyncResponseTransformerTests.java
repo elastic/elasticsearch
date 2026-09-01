@@ -17,10 +17,10 @@ import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -133,7 +133,7 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         });
 
         ExecutionException ex = expectThrows(ExecutionException.class, future::get);
-        assertThat(ex.getCause(), instanceOf(IOException.class));
+        assertThat(ex.getCause(), instanceOf(ExternalUnavailableException.class));
         assertThat(ex.getCause().getMessage(), containsString("exceeded expected length"));
         assertTrue("subscription should be cancelled on overflow", cancelled.get());
         // The subscriber requests unbounded demand on subscribe (Reactive Streams §3.4); guard
@@ -160,7 +160,7 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         });
 
         ExecutionException ex = expectThrows(ExecutionException.class, future::get);
-        assertThat(ex.getCause(), instanceOf(IOException.class));
+        assertThat(ex.getCause(), instanceOf(ExternalUnavailableException.class));
         assertThat(ex.getCause().getMessage(), containsString("shorter than expected"));
     }
 

@@ -14,10 +14,10 @@ import software.amazon.awssdk.core.async.SdkPublisher;
 import org.elasticsearch.xpack.esql.datasources.DirectByteBufferCopies;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -215,7 +215,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
             // subtraction never underflows.
             if (remaining > destination.capacity() - offset) {
                 failed = true;
-                IOException error = new IOException(
+                ExternalUnavailableException error = new ExternalUnavailableException(
                     "S3 response body exceeded expected length: cumulative="
                         + ((long) offset + remaining)
                         + ", expected="
@@ -250,7 +250,9 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 failed = true;
                 releaseOnFailure();
                 resultFuture.completeExceptionally(
-                    new IOException("S3 response body shorter than expected: received=" + offset + ", expected=" + capacity)
+                    new ExternalUnavailableException(
+                        "S3 response body shorter than expected: received=" + offset + ", expected=" + capacity
+                    )
                 );
                 return;
             }

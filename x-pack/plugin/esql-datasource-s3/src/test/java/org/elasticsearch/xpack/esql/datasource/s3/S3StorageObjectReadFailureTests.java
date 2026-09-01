@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
@@ -15,18 +17,28 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class S3StorageObjectReadFailureTests extends ESTestCase {
+
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
 
     private static final String BUCKET = "test-bucket";
     private static final String KEY = "data/file.parquet";
@@ -77,6 +89,40 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         IllegalStateException thrown = expectThrows(IllegalStateException.class, obj::newStream);
         assertSame(ise, thrown);
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(thrown));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testAsyncExternalUnavailableExceptionIsPreserved() throws Exception {
+        S3Client mockS3 = mock(S3Client.class);
+        S3AsyncClient mockAsyncS3 = mock(S3AsyncClient.class);
+        ExternalUnavailableException expected = new ExternalUnavailableException(
+            "S3 response body shorter than expected: received=5, expected=10"
+        );
+        CompletableFuture<DirectReadBuffer> failedFuture = new CompletableFuture<>();
+        failedFuture.completeExceptionally(expected);
+        when(mockAsyncS3.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenReturn(failedFuture);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, mockAsyncS3, BUCKET, KEY, PATH);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Throwable> outcome = new AtomicReference<>();
+
+        obj.readBytesAsync(0, 10, FACTORY, Runnable::run, new ActionListener<>() {
+            @Override
+            public void onResponse(DirectReadBuffer buffer) {
+                buffer.close();
+                outcome.set(new AssertionError("expected failure"));
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                outcome.set(e);
+                latch.countDown();
+            }
+        });
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertSame(expected, outcome.get());
     }
 
     public void testClosedClientOnLengthIsUnavailable503() {

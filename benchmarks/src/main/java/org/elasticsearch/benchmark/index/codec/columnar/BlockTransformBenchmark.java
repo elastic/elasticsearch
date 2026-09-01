@@ -9,7 +9,7 @@
 
 package org.elasticsearch.benchmark.index.codec.columnar;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.columnar.numeric.AlpDoubleTransform;
 import org.elasticsearch.columnar.numeric.BlockTransform;
 import org.elasticsearch.columnar.numeric.DeltaTransform;
@@ -81,7 +81,7 @@ import java.util.function.IntFunction;
 public abstract class BlockTransformBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     // NOTE: ALP metadata is at most e/f (2B) + vint count (5B) + exceptions * 10B. ALP fires only

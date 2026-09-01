@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -211,8 +210,10 @@ public final class SourceExtractors implements Releasable {
      *                    ({@code null} — the list or an entry — disables coercion for that column)
      * @param factory     block factory for memory accounting
      * @return one Block per column, each with exactly {@code count} rows; in caller-supplied order
+     * @throws IOException if an extractor fails while reading the requested columns
      */
-    public Block[] materialize(long[] encodedRefs, int count, List<String> columns, List<DataType> targetTypes, BlockFactory factory) {
+    public Block[] materialize(long[] encodedRefs, int count, List<String> columns, List<DataType> targetTypes, BlockFactory factory)
+        throws IOException {
         if (encodedRefs == null) {
             throw new IllegalArgumentException("encodedRefs must not be null");
         }
@@ -307,12 +308,7 @@ public final class SourceExtractors implements Releasable {
                 if (perIdCounts[id] == 0) {
                     continue;
                 }
-                Block[] perIdBlocks;
-                try {
-                    perIdBlocks = snapshot.get(id).extract(columnNames, targetTypesArray, localPositionsById[id], factory);
-                } catch (IOException e) {
-                    throw new UncheckedIOException("failed to materialize columns " + columns + " from extractor id [" + id + "]", e);
-                }
+                Block[] perIdBlocks = snapshot.get(id).extract(columnNames, targetTypesArray, localPositionsById[id], factory);
                 if (perIdBlocks == null || perIdBlocks.length != colCount) {
                     if (perIdBlocks != null) {
                         Releasables.closeExpectNoException(perIdBlocks);

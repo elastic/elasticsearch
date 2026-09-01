@@ -100,8 +100,10 @@ public class HttpDataSourcePluginTests extends ESTestCase {
     }
 
     // Format-aware HTTP(S): pins that query-string stripping is preserved for http/https schemes.
-    private static final FileDataSourceValidator.FormatConfigKeyResolver CSV_RESOLVER =
-        FileDataSourceValidator.FormatConfigKeyResolver.of(Map.of("csv", Set.of("delimiter")), Map.of(".csv", "csv"));
+    private static final FileDataSourceValidator.FormatConfigKeyResolver CSV_RESOLVER = FileDataSourceValidator.FormatConfigKeyResolver.of(
+        Map.of("csv", Set.of("delimiter")),
+        Map.of(".csv", "csv")
+    );
 
     private static final DataSourceValidator FORMAT_AWARE_HTTP = new FileDataSourceValidator(
         "http",

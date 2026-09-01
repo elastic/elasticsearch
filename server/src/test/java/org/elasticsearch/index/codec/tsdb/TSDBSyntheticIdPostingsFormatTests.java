@@ -785,7 +785,12 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             final var indexWriterConfig = newIndexWriterConfig();
             indexWriterConfig.setCodec(
                 new ES93TSDBDefaultCompressionLucene103Codec(
-                    new DefaultCompressionPerFieldMapperCodec(Lucene104Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
+                    new DefaultCompressionPerFieldMapperCodec(
+                        Lucene104Codec.Mode.BEST_SPEED,
+                        mapperService,
+                        BigArrays.NON_RECYCLING_INSTANCE,
+                        null
+                    )
                 )
             );
             // Configure the index writer for time-series indices

@@ -748,7 +748,12 @@ public class PruningMergePolicyTests extends ESTestCase {
         if (IndexSettings.SYNTHETIC_ID.get(indexSettings.getSettings())) {
             iwc.setCodec(
                 new ES93TSDBDefaultCompressionLucene103Codec(
-                    new DefaultCompressionPerFieldMapperCodec(Lucene104Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
+                    new DefaultCompressionPerFieldMapperCodec(
+                        Lucene104Codec.Mode.BEST_SPEED,
+                        mapperService,
+                        BigArrays.NON_RECYCLING_INSTANCE,
+                        null
+                    )
                 )
             );
         }

@@ -17,14 +17,14 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
@@ -64,7 +64,8 @@ public class CodecTests extends ESTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         var codec = codecService.codec("default");
-        // DefaultCompressionPerFieldMapperCodec is itself a DeduplicateFieldInfosCodec, so CodecService uses it as-is rather than wrapping it.
+        // DefaultCompressionPerFieldMapperCodec is itself a DeduplicateFieldInfosCodec, so CodecService uses it as-is rather than wrapping
+        // it.
         assertThat(codec, instanceOf(CodecService.DeduplicateFieldInfosCodec.class));
         assertThat(codec, instanceOf(DefaultCompressionPerFieldMapperCodec.class));
         assertThat(((CodecService.DeduplicateFieldInfosCodec) codec).delegate(), instanceOf(Lucene104Codec.class));
@@ -160,7 +161,12 @@ public class CodecTests extends ESTestCase {
         Codec codec = createCodecService().codec(CodecService.DEFAULT_CODEC);
         try (Directory raw = newDirectory()) {
             FieldInfoCachingDirectory dir = new FieldInfoCachingDirectory(raw);
-            try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE).setUseCompoundFile(false))) {
+            try (
+                IndexWriter w = new IndexWriter(
+                    dir,
+                    newIndexWriterConfig().setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE).setUseCompoundFile(false)
+                )
+            ) {
                 for (int i = 0; i < 3; i++) {
                     Document doc = new Document();
                     doc.add(new KeywordField("string_field", "abc" + i, Field.Store.YES));

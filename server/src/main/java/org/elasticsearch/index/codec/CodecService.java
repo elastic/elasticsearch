@@ -48,7 +48,12 @@ public class CodecService implements CodecProvider {
 
         boolean useSyntheticId = mapperService != null && mapperService.getIndexSettings().useTimeSeriesSyntheticId();
 
-        var bestSpeedCodec = new DefaultCompressionPerFieldMapperCodec(Lucene104Codec.Mode.BEST_SPEED, mapperService, bigArrays, threadPool);
+        var bestSpeedCodec = new DefaultCompressionPerFieldMapperCodec(
+            Lucene104Codec.Mode.BEST_SPEED,
+            mapperService,
+            bigArrays,
+            threadPool
+        );
         if (useSyntheticId) {
             // Use the default Lucene compression when the synthetic id is used even if the ZSTD feature flag is enabled
             codecs.put(DEFAULT_CODEC, new ES93TSDBDefaultCompressionLucene103Codec(bestSpeedCodec));

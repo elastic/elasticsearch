@@ -156,9 +156,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         Codec codec = codecService.codec("default");
         // The default codec is a DeduplicateFieldInfosCodec in its own right, so it is only wrapped in one when it is not.
         if (codec instanceof DefaultCompressionPerFieldMapperCodec == false
-            && codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {{
-            codec = deduplicateFieldInfosCodec.delegate();
-        }}
+            && codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+            {
+                codec = deduplicateFieldInfosCodec.delegate();
+            }
+        }
         assertThat(codec, instanceOf(DefaultCompressionPerFieldMapperCodec.class));
         assertThat(((DefaultCompressionPerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(latestLuceneCPClass));
     }

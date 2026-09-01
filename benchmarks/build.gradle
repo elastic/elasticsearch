@@ -109,6 +109,10 @@ dependencies {
   nativeLib(project(':libs:native'))
   implementation project(':modules:bitmap')
   implementation("org.roaringbitmap:RoaringBitmap:1.6.15")
+  // Shared benchmark helpers (Utils, ExtraParam) plus the log4j LoggerFactory bootstrap
+  // and the BenchmarkConfigurationFactory that strips %node_name / %cluster_name from
+  // any .properties log4j config on the classpath. See benchmarks/common/build.gradle.
+  implementation project(':benchmarks:common')
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
   annotationProcessor project(':benchmarks:processor')

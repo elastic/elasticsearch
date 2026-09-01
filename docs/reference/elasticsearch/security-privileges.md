@@ -287,7 +287,7 @@ When creating roles, refer to this page for a complete list of available privile
 :   Any action on an index or data stream.
 
     ::::{note}
-    This privilege automatically includes any new index or data stream operations added in future versions of Elasticsearch.
+    This privilege is not limited to a fixed set of actions. It also grants any index or data stream actions added to {{es}} after you create the role.
     ::::
 
 `auto_configure`

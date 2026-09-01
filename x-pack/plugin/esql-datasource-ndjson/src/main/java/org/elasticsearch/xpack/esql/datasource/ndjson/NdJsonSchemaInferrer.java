@@ -43,6 +43,9 @@ import java.util.Map;
  *
  * <p>A timestamp is inferred DATE_NANOS only when it carries a non-zero sub-millisecond component,
  * which DATETIME would silently drop; see {@link TemporalInference}.
+ *
+ * <p>Column names are always flat dotted names, whichever way the file spells them: the two spellings of a dotted
+ * column are one path through the field tree ({@link #childFor}), so mixing them across records infers one column.
  */
 public class NdJsonSchemaInferrer {
 
@@ -97,7 +100,11 @@ public class NdJsonSchemaInferrer {
                     // duplicate reports of the same issue. A StreamConstraintsException (an
                     // over-long number or field name, nesting past the depth cap) is the same
                     // scanner-level whole-line failure and defers to the slice read identically;
-                    // failing inference on it would deny the read's error_mode a say.
+                    // failing inference on it would deny the read's error_mode a say. A record that
+                    // names one field twice (NdJsonUtils.JSON_FACTORY enables Jackson's duplicate
+                    // detection) arrives here as a JsonParseException and defers for the same reason:
+                    // it contributes no columns to the sample, and the slice read is where it either
+                    // fails the query or drops with a warning.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
@@ -142,10 +149,29 @@ public class NdJsonSchemaInferrer {
             if (token != JsonToken.FIELD_NAME) {
                 throw new NdJsonParseException(parser, "Expected field name in object");
             }
-            var child = object.getChild(parser.getCurrentName());
+            var child = childFor(object, parser.getCurrentName());
             parser.nextToken();
             inferValueSchema(parser, child);
         }
+    }
+
+    /**
+     * The node a field name addresses within {@code object}. A dotted name is a path, so both spellings of a dotted
+     * column ({@code {"a.b":1}} and {@code {"a":{"b":1}}}) land on one node and a file that mixes them infers one
+     * column rather than two attributes with the same name.
+     */
+    private static FieldInfo childFor(FieldInfo object, String fieldName) {
+        if (NdJsonUtils.isFieldPath(fieldName) == false) {
+            return object.getChild(fieldName);
+        }
+        FieldInfo node = object;
+        int start = 0;
+        int dot;
+        while ((dot = fieldName.indexOf('.', start)) >= 0) {
+            node = node.getChild(fieldName.substring(start, dot));
+            start = dot + 1;
+        }
+        return node.getChild(fieldName.substring(start));
     }
 
     private void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
@@ -156,56 +182,30 @@ public class NdJsonSchemaInferrer {
                     inferValueSchema(parser, field);
                 }
             }
-            // Keep in sync with NdJsonPageDecoder.BlockDecoder.decodeValue. A field seen as both a
-            // scalar and an object across sampled records resolves to whichever shape was observed
-            // first (mirrors core ES dynamic mapping's first-writer-wins); the other shape is ignored
-            // here for schema-inference purposes so buildSchema never emits both a scalar attribute
-            // and nested children for the same name (elastic/esql-planning#1028). The decoder applies
-            // ErrorPolicy to the actual conflicting value at read time.
-            case START_OBJECT -> {
-                if (field.types.isEmpty() == false) {
-                    parser.skipChildren();
-                } else {
-                    inferObjectSchema(parser, field);
-                }
-            }
-            case VALUE_STRING -> {
-                if (field.children == null) {
-                    inferStringType(field, parser.getText());
-                }
-            }
+            case START_OBJECT -> inferObjectSchema(parser, field);
+            case VALUE_STRING -> inferStringType(field, parser.getText());
             case VALUE_NUMBER_INT -> {
-                if (field.children == null) {
-                    switch (parser.getNumberType()) {
-                        case INT:
-                            field.addType(DataType.INTEGER);
-                            return;
-                        case LONG:
-                            field.addType(DataType.LONG);
-                            return;
-                        case BIG_INTEGER: {
-                            field.addType(DataType.DOUBLE);
-                            var location = parser.getTokenLocation();
-                            logger.debug(
-                                "Big integers are not supported, falling back to double [{}, line: {}, column: {}]",
-                                parser.getText(),
-                                location.getLineNr(),
-                                location.getColumnNr()
-                            );
-                        }
+                switch (parser.getNumberType()) {
+                    case INT:
+                        field.addType(DataType.INTEGER);
+                        return;
+                    case LONG:
+                        field.addType(DataType.LONG);
+                        return;
+                    case BIG_INTEGER: {
+                        field.addType(DataType.DOUBLE);
+                        var location = parser.getTokenLocation();
+                        logger.debug(
+                            "Big integers are not supported, falling back to double [{}, line: {}, column: {}]",
+                            parser.getText(),
+                            location.getLineNr(),
+                            location.getColumnNr()
+                        );
                     }
                 }
             } // conservative size
-            case VALUE_NUMBER_FLOAT -> {
-                if (field.children == null) {
-                    field.addType(DataType.DOUBLE); // conservative size
-                }
-            }
-            case VALUE_TRUE, VALUE_FALSE -> {
-                if (field.children == null) {
-                    field.addType(DataType.BOOLEAN);
-                }
-            }
+            case VALUE_NUMBER_FLOAT -> field.addType(DataType.DOUBLE); // conservative size
+            case VALUE_TRUE, VALUE_FALSE -> field.addType(DataType.BOOLEAN);
             case VALUE_NULL -> field.nullable = true;
             // Ignore all other events
         }
@@ -220,7 +220,6 @@ public class NdJsonSchemaInferrer {
             return;
         }
         for (Map.Entry<String, FieldInfo> entry : field.children.entrySet()) {
-            // TODO: disallow dots in names (or replace them) as it may cause issues when decoding
             var name = entry.getKey();
             var info = entry.getValue();
             if (parentName != null) {

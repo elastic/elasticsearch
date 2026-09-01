@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.response;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModelTests;
-import org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioCompletionRequest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -24,10 +24,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-public class AzureAiStudioChatCompletionResponseEntityTests extends ESTestCase {
+public class AzureAiStudioCompletionResponseEntityTests extends ESTestCase {
 
     public void testCompletionResponse_FromTokenEndpoint() throws IOException {
-        var entity = new AzureAiStudioChatCompletionResponseEntity();
+        var entity = new AzureAiStudioCompletionResponseEntity();
         var model = AzureAiStudioChatCompletionModelTests.createModel(
             "id",
             "http://testopenai.local",
@@ -35,8 +35,8 @@ public class AzureAiStudioChatCompletionResponseEntityTests extends ESTestCase {
             AzureAiStudioEndpointType.TOKEN,
             "apikey"
         );
-        var request = new AzureAiStudioChatCompletionRequest(model, List.of("test input"), false);
-        var result = (ChatCompletionResults) entity.apply(
+        var request = new AzureAiStudioCompletionRequest(model, List.of("test input"), false);
+        var result = (CompletionResults) entity.apply(
             request,
             new HttpResult(mock(HttpResponse.class), testTokenResponseJson.getBytes(StandardCharsets.UTF_8))
         );
@@ -46,7 +46,7 @@ public class AzureAiStudioChatCompletionResponseEntityTests extends ESTestCase {
     }
 
     public void testCompletionResponse_FromRealtimeEndpoint() throws IOException {
-        var entity = new AzureAiStudioChatCompletionResponseEntity();
+        var entity = new AzureAiStudioCompletionResponseEntity();
         var model = AzureAiStudioChatCompletionModelTests.createModel(
             "id",
             "http://testmistral.local",
@@ -54,8 +54,8 @@ public class AzureAiStudioChatCompletionResponseEntityTests extends ESTestCase {
             AzureAiStudioEndpointType.REALTIME,
             "apikey"
         );
-        var request = new AzureAiStudioChatCompletionRequest(model, List.of("test input"), false);
-        var result = (ChatCompletionResults) entity.apply(
+        var request = new AzureAiStudioCompletionRequest(model, List.of("test input"), false);
+        var result = (CompletionResults) entity.apply(
             request,
             new HttpResult(mock(HttpResponse.class), testRealtimeResponseJson.getBytes(StandardCharsets.UTF_8))
         );

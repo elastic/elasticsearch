@@ -130,7 +130,7 @@ class RangeStorageObject implements StorageObject {
             // is direct and allocator-owned, consistent with the StorageObject.readBytesAsync
             // contract.
             try {
-                listener.onResponse(factory.allocate(0));
+                listener.onResponse(factory.allocateWritableWindow(0));
             } catch (IOException e) {
                 listener.onFailure(e);
             }

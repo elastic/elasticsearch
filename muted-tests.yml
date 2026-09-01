@@ -854,3 +854,5 @@ tests:
 - class: org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReaderTests
   method: testSyntheticSourceWithCopyToKeywordDestinationAndFLSDocValues
   issue: https://github.com/elastic/elasticsearch/issues/158222
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  issue: https://github.com/elastic/elasticsearch/issues/158224

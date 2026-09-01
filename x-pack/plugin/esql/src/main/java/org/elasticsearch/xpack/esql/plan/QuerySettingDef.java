@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentParser;
@@ -232,6 +233,8 @@ public final class QuerySettingDef<T> {
     private final UnaryOperator<T> canonicalizer;
     @Nullable
     private final Setting<T> clusterSetting;
+    @Nullable
+    private final FromString<T> clusterParser;
 
     private QuerySettingDef(Builder<T> b) {
         this.name = b.name;
@@ -251,6 +254,7 @@ public final class QuerySettingDef<T> {
         this.deprecationMessage = b.deprecationMessage;
         this.canonicalizer = b.canonicalizer;
         this.clusterSetting = b.derivedClusterSetting;
+        this.clusterParser = b.clusterParser;
     }
 
     /**
@@ -294,6 +298,23 @@ public final class QuerySettingDef<T> {
     @Nullable
     public Setting<T> clusterSetting() {
         return clusterSetting;
+    }
+
+    /**
+     * The operator-supplied value, parsed with this setting's own parser. Callers must first establish that an
+     * operator actually set the key, with {@code clusterSetting().exists(settings)}.
+     * <p>
+     * Deliberately <b>not</b> {@link Setting#get(Settings)}. That re-runs the setting's validator on every read, so a
+     * stored value whose verdict later changed — an environment shift, a restart onto a different build — would throw
+     * on every query on the cluster, which is precisely the failure this design exists to prevent. It also fires the
+     * per-read deprecation side effect of {@code Setting#getRaw}. An operator's value is checked once, where the
+     * operator can see the failure: on {@code PUT _cluster/settings} and on the {@code elasticsearch.yml} pass at
+     * startup. Resolution only parses.
+     */
+    public T readClusterValue(Settings settings) {
+        assert clusterSetting != null && clusterParser != null : "setting [" + name + "] has no cluster default";
+        String raw = settings.get(clusterSetting.getKey());
+        return raw == null ? null : clusterParser.parse(raw);
     }
 
     public List<RequestBodyBinding> aliases() {
@@ -649,6 +670,24 @@ public final class QuerySettingDef<T> {
                         + reparsed
                         + "]"
                 );
+            }
+            if (validator != null) {
+                String defaultError;
+                try {
+                    defaultError = validator.validate(defaultValue, CLUSTER_UPDATE_CONTEXT);
+                } catch (Exception e) {
+                    throw new IllegalStateException(
+                        "Setting [" + name + "] cannot have a cluster default: its own validator throws on its default",
+                        e
+                    );
+                }
+                if (defaultError != null) {
+                    // Setting#get validates whatever it returns, including the declared default, so a default its own
+                    // validator rejects would make GET _cluster/settings?include_defaults throw.
+                    throw new IllegalStateException(
+                        "Setting [" + name + "] cannot have a cluster default: its own validator rejects its default: " + defaultError
+                    );
+                }
             }
             Validator<T> declared = validator;
             // Run the setting's own validator at write time, so an operator's mistake is refused on PUT _cluster/settings

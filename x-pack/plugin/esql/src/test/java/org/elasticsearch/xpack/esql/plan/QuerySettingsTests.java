@@ -763,6 +763,36 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD_ALL));
     }
 
+    public void testResolutionNeverRunsTheValidatorOnAnOperatorValue() {
+        // A value that was valid when the operator wrote it and is not any more — the environment drifted, or the
+        // cluster restarted onto a different build. Resolution must hand it through regardless: one operator
+        // mistake, or one environment change, cannot be allowed to fail every query on the cluster for users who
+        // cannot fix it. Reading the derived setting through Setting#get would re-validate here and throw.
+        QuerySettingDef<String> def = QuerySettingDef.string("drifted_operator_value")
+            .withDefault("ok")
+            .withValidator((value, ctx) -> value.equals("drifted") ? "no longer valid in this environment" : null)
+            .withClusterDefault()
+            .build();
+
+        ResolvedSettings resolved = QuerySettings.resolve(
+            List.of(def),
+            Settings.builder().put(def.clusterSetting().getKey(), "drifted").build(),
+            Map.of(),
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(def), equalTo("drifted"));
+    }
+
+    public void testBuildRejectsClusterDefaultWhoseDefaultFailsItsOwnValidator() {
+        // Setting#get validates whatever it returns, the declared default included, so include_defaults would throw.
+        var e = expectThrows(
+            IllegalStateException.class,
+            () -> QuerySettingDef.string("x").withDefault("bad").withValidator((value, ctx) -> "always fails").withClusterDefault().build()
+        );
+        assertThat(e.getMessage(), containsString("its own validator rejects its default"));
+    }
+
     public void testUnmappedFieldsIsClusterSettableButNotBodyExposed() {
         // The sources are independent axes, not a ladder: unmapped_fields is SET-only on the request side and still
         // takes an operator default.

@@ -408,7 +408,7 @@ public final class QuerySettings {
         // unconditionally would fold a phantom layer on every query — a no-op for a last-wins scalar, but not
         // through a merging reconciler, and it would make every setting look operator-configured to the checks below.
         if (clusterSetting != null && clusterSetting.exists(clusterDefaults)) {
-            value = def.reconciler().reconcile(value, clusterSetting.get(clusterDefaults));
+            value = def.reconciler().reconcile(value, def.readClusterValue(clusterDefaults));
             // Deliberately not userSupplied. An operator's value was already parsed and validated where the operator
             // could see the failure — on PUT _cluster/settings, and at startup for elasticsearch.yml. Re-running the
             // validator here under the query-time context would let one operator mistake, or a later environment

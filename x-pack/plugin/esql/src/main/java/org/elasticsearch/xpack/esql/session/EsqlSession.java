@@ -397,8 +397,10 @@ public class EsqlSession {
         parsingProfile.stop();
 
         // Resolve all query settings up front, immediately after parse, so every downstream phase only reads
-        // resolved values (default < request body < in-query SET) and never re-derives precedence. This also runs
-        // each setting's validator (e.g. the project_routing cross-project gate) before any view-resolution work.
+        // resolved values (default < cluster < request body < in-query SET) and never re-derives precedence. This also
+        // runs each setting's validator (e.g. the project_routing cross-project gate) over the values the user
+        // supplied, before any view-resolution work. An operator's cluster default is not revalidated here: it was
+        // checked when it was written, where the operator could see the failure.
         ResolvedSettings resolved = QuerySettings.resolve(
             clusterQuerySettings.values(),
             request.requestSettings(),

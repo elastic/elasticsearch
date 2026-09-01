@@ -508,7 +508,14 @@ public class FileSplitProvider implements SplitProvider {
                 if (executor != null && tasks.size() > 1) {
                     planResults = BoundedParallelGather.gather(
                         tasks,
-                        task -> processFileForSplits(task, hoistedProvider, strideBytes, isCancelled),
+                        task -> {
+                            long cpuStart = ThreadCpuTimer.currentNanos();
+                            try {
+                                return processFileForSplits(task, hoistedProvider, strideBytes, isCancelled);
+                            } finally {
+                                if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
+                            }
+                        },
                         splitDiscoveryConcurrency(),
                         executor
                     );
@@ -1068,15 +1075,10 @@ public class FileSplitProvider implements SplitProvider {
         }
         // Carry the cancellation signal as ambient thread-local state so the synchronous retry/throttle
         // backoff inside the footer reads below can abort a parked sleep on cancel.
-        long cpuStart = ThreadCpuTimer.currentNanos();
-        try {
-            return StorageRetryCancellation.callWithCancellation(
-                isCancelled,
-                () -> computeFileSplits(task, hoistedProvider, strideBytes, isCancelled)
-            );
-        } finally {
-            if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
-        }
+        return StorageRetryCancellation.callWithCancellation(
+            isCancelled,
+            () -> computeFileSplits(task, hoistedProvider, strideBytes, isCancelled)
+        );
     }
 
     private PlanResult computeFileSplits(

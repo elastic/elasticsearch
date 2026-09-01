@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 /**
  * Base class for heap-usage-based allocation deciders. Provides the full allocation decision skeleton:
  * <ol>
- *   <li>common node guard (enabled, index-role, metrics, minimum-heap)</li>
+ *   <li>common node guard (enabled, node-role, metrics, minimum-heap)</li>
  *   <li>current-usage vs. low/high watermark</li>
  *   <li>projected-usage vs. low watermark (in {@code canAllocate})</li>
  * </ol>

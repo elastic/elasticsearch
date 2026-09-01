@@ -147,7 +147,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
     public void testGetIndexForForceMergeReturnsCloneIndexWhenNoExistingClone() throws InterruptedException {
         createProjectState(2);
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -161,7 +161,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
     public void testGetIndexForForceMergeReturnsCloneWhenCloneExists() throws InterruptedException {
         createProjectStateWithClone(true);
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -180,7 +180,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         mockHealthResponse.set(healthResponse);
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -204,7 +204,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         mockDeleteResponse.set(AcknowledgedResponse.of(true));
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -219,7 +219,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
     public void testGetIndexForForceMergeReturnsOriginalIndexWhenZeroReplicas() throws InterruptedException {
         createProjectState(0);
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -235,7 +235,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         createProjectState(2); // replicas > 0 to trigger cloning
 
         DLMConvertToFrozen convert = new DLMConvertToFrozenSnapshotTests.TestDLMConvertToFrozenWithTimeout(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -253,7 +253,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
     public void testMaybeCloneIndexCreatesCloneWithCorrectSettings() throws InterruptedException {
         createProjectState(2); // replicas > 0 to trigger cloning
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -277,7 +277,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         mockDeleteResponse.set(AcknowledgedResponse.of(true));
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -298,7 +298,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         mockDeleteResponse.set(AcknowledgedResponse.of(true));
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -317,7 +317,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         mockDeleteResponse.set(AcknowledgedResponse.of(false));
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -337,7 +337,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         mockDeleteFailure.set(new ElasticsearchException("delete failed"));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -359,7 +359,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         mockHealthResponse.set(healthResponse);
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -383,7 +383,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         mockDeleteResponse.set(AcknowledgedResponse.of(true));
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -402,7 +402,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         mockDeleteResponse.set(AcknowledgedResponse.of(true));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -420,7 +420,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         mockHealthResponse.set(healthResponse);
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,

@@ -155,7 +155,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         setState(clusterService, clusterState);
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -173,7 +173,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockResponse.set(new AddIndexBlockResponse(true, true, List.of(new AddIndexBlockResponse.AddBlockResult(index))));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -194,7 +194,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockResponse.set(new AddIndexBlockResponse(false, false, Collections.emptyList()));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -212,7 +212,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockResponse.set(new AddIndexBlockResponse(false, false, List.of(new AddIndexBlockResponse.AddBlockResult(index, blockException))));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -237,7 +237,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockResponse.set(new AddIndexBlockResponse(false, false, List.of(new AddIndexBlockResponse.AddBlockResult(index, shardResults))));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -254,7 +254,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockFailure.set(new ElasticsearchException("some error"));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -295,7 +295,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockResponse.set(new AddIndexBlockResponse(true, true, List.of(new AddIndexBlockResponse.AddBlockResult(index))));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -331,7 +331,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockResponse.set(new AddIndexBlockResponse(false, false, List.of(new AddIndexBlockResponse.AddBlockResult(index, shardResults))));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -354,7 +354,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockResponse.set(new AddIndexBlockResponse(false, false, List.of(new AddIndexBlockResponse.AddBlockResult(index, shardResults))));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -371,7 +371,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         mockResponse.set(new AddIndexBlockResponse(true, true, List.of(new AddIndexBlockResponse.AddBlockResult(index))));
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -391,7 +391,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         setState(clusterService, clusterState);
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -408,7 +408,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         createProjectStateWithRepo(repoName, false);
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -425,7 +425,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         createProjectStateWithRepo(repoName, Settings.builder().put(BlobStoreRepository.READONLY_SETTING_KEY, true).build());
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -448,7 +448,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         );
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -469,7 +469,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         createProjectStateWithRepo(repoName, true);
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -485,7 +485,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         createProjectState();
 
         DLMConvertToFrozen converter = new DLMConvertToFrozenSnapshotTests.TestDLMConvertToFrozenWithTimeout(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,

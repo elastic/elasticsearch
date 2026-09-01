@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
@@ -37,6 +38,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -855,8 +857,8 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         DataStreamLifecycleErrorStore errorStore = transitionService.getTransitionExecutor().getErrorStore();
         assertThat(
             "No error should be recorded for a gracefully-skipped index",
-            errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIndex),
-            nullValue()
+            errorStore.getAllIndices(Metadata.DEFAULT_PROJECT_ID).stream().noneMatch(idx -> idx.getName().equals(candidateIndex)),
+            is(true)
         );
     }
 
@@ -867,9 +869,14 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         assertBusy(() -> {
             DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
             DataStreamLifecycleErrorStore errorStore = transitionService.getTransitionExecutor().getErrorStore();
+            ClusterState csForErr = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+            org.elasticsearch.index.Index candidateIdx = csForErr.projectState(Metadata.DEFAULT_PROJECT_ID)
+                .metadata()
+                .index(candidateIndex)
+                .getIndex();
             assertThat(
                 "An error should be recorded for the disrupted index",
-                errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIndex),
+                errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIdx),
                 notNullValue()
             );
         }, 15, TimeUnit.SECONDS);

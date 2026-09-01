@@ -109,7 +109,7 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
      * @param target the primary input expression (child vector or scalar), or {@code null} for zero-argument functions
      * @param ctx    the PromQL evaluation context (timestamp, window, step, configuration)
      */
-    public Expression buildEsqlFunction(Expression target, PromqlFunctionRegistry.PromqlContext ctx) {
+    public Object buildEsqlFunction(Expression target, PromqlFunctionRegistry.PromqlContext ctx) {
         try {
             // PromQL accepts any numeric range vector. ES|QL distinguishes counter from gauge types
             // internally, so plain numerics are wrapped with to_counter() for counter-required

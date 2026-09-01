@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -444,13 +443,20 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             Header outputHeader = ir.header().regrouped(currHeader, this.headerToPushDown);
 
             var promqlCtx = new PromqlContext(time, AggregateFunction.NO_WINDOW, stepAttr(), configuration());
-            return doTranslateAgg(ir, ir.plan(), outputHeader, agg.grouping() == WITHOUT, agg.buildEsqlFunction(ir.value(), promqlCtx));
+            return doTranslateAgg(
+                ir,
+                ir.plan(),
+                outputHeader,
+                agg.grouping() == WITHOUT,
+                (Expression) agg.buildEsqlFunction(ir.value(), promqlCtx)
+            );
         }
 
         /**
-         * Translates an {@link AcrossSeriesReduction} ({@code topk}/{@code bottomk}): collapse the child to one row
-         * per series, then rank and keep the top {@code k}. A {@code by} clause only partitions the ranking; it does
-         * not change output header.
+         * Translates an {@link AcrossSeriesReduction} ({@code topk}/{@code bottomk}/{@code limitk}/{@code limit_ratio}):
+         * collapses the child to one row per series, resolves groupings, then delegates plan-node construction to
+         * the function definition's {@code FunctionBuilder} via {@code buildEsqlFunction}.
+         * A {@code by} clause only partitions the reduction; it does not change the output header.
          */
         private IntermediateResult doTranslateAcrossSeriesReduction(AcrossSeriesReduction plan) {
             if (plan.grouping() == WITHOUT) {
@@ -464,38 +470,22 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             }
 
             var header = childResult.header().including(plan.groupings());
-
-            var promqlCtx = new PromqlContext(time, AggregateFunction.NO_WINDOW, stepAttr(), configuration());
             IntermediateResult aggregated = doTranslateAgg(childResult, childResult.plan(), header, false, childResult.value());
-            LogicalPlan result = emitTopNBy(plan, aggregated.plan(), header, promqlCtx);
-            return aggregated.with(result, aggregated.value(), header);
-        }
 
-        /** Ranks the already-collapsed per-series rows and keeps the top {@code k} within each step. */
-        private LogicalPlan emitTopNBy(
-            AcrossSeriesReduction reduction,
-            LogicalPlan resultPlan,
-            Header header,
-            PromqlContext promqlContext
-        ) {
             var groupings = new ArrayList<Expression>();
             groupings.add(stepAttr());
-            if (reduction.grouping() == AcrossSeriesAggregate.Grouping.BY) {
-                header = header.transformExpressions((column, grouping) -> resolveColumn(column, resultPlan.output()));
-                for (var label : reduction.groupings()) {
+            if (plan.grouping() == AcrossSeriesAggregate.Grouping.BY) {
+                header = header.transformExpressions((column, grouping) -> resolveColumn(column, aggregated.plan().output()));
+                for (var label : plan.groupings()) {
                     Attribute resolved = header.column(toCanonicalName(label));
-                    assert resolved != null : "invariant: [ " + reduction.functionName() + " ] requre a partition label [ " + label + " ]";
+                    assert resolved != null : "invariant: [" + plan.functionName() + "] requires partition label [" + label + "]";
                     groupings.add(resolved);
                 }
             }
-            var order = (Order) reduction.buildEsqlFunction(collectValueAttribute(resultPlan), promqlContext);
-            return new TopNBy(
-                reduction.source(),
-                resultPlan,
-                order != null ? List.of(order) : List.<Order>of(),
-                new ToInteger(reduction.source(), reduction.parameters().getFirst()),
-                groupings
-            );
+
+            var promqlCtx = new PromqlContext(time, AggregateFunction.NO_WINDOW, stepAttr(), configuration(), groupings, aggregated.plan());
+            LogicalPlan result = (LogicalPlan) plan.buildEsqlFunction(collectValueAttribute(aggregated.plan()), promqlCtx);
+            return aggregated.with(result, aggregated.value(), header);
         }
 
         /** The doTranslateAgg combinator: regroups a grouped table, or emits the innermost `_timeseries` doTranslateAgg over a raw one. */
@@ -605,7 +595,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 window = isImplicitRangePlaceholder(rangeSelector.range()) ? cmd.resolveImplicitRangeWindow() : rangeSelector.range();
             }
             var promqlCtx = new PromqlContext(time, window, stepAttr(), configuration());
-            return doTranslateAddValueEval(child, functionCall.buildEsqlFunction(child.value(), promqlCtx), child.header());
+            return doTranslateAddValueEval(child, (Expression) functionCall.buildEsqlFunction(child.value(), promqlCtx), child.header());
         }
 
         /**

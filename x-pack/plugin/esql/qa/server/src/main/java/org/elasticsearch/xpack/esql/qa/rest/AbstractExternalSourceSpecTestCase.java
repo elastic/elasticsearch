@@ -1167,7 +1167,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             // format is the base format or a codec-suffixed variant ("csv", "csv.gz", "tsv.zstd", ...). Other
             // formats (parquet, ...) reject the trim_spaces key, so only the csv/tsv backends read the
             // column-aligned fixtures with trimming; the shared injector adds the key.
-            boolean csvOrTsv = format.equals("csv") || format.startsWith("csv.") || format.equals("tsv") || format.startsWith("tsv.");
+            // Which formats these keys belong to is declared, not listed here: text_mode applies to exactly
+            // the formats whose reader accepts the delimited-text keys. Listing them meant a new text
+            // format would silently stop getting trim_spaces while every test still passed.
+            boolean csvOrTsv = FixtureDimensions.get().appliesTo("text_mode").contains(FixtureMatrix.baseFormat(format));
             String json = csvOrTsv ? injectMultiValueSyntax(injectTrimSpaces(s.withJson()), s.resource()) : s.withJson();
             // Then whatever the running vector pins. A directive-bound dimension at its default injects
             // nothing -- omission IS the default -- so an unvaried suite produces byte-identical JSON to

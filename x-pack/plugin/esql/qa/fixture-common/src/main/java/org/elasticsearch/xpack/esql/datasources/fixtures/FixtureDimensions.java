@@ -162,7 +162,12 @@ public final class FixtureDimensions {
      * consulted by both, cannot disagree with itself.
      */
     public char delimiterChar(String value) {
-        String spelling = settingValue("delimiter", value);
+        return charValue("delimiter", value);
+    }
+
+    /** The single character a char-valued dimension's slot renders and reads with. */
+    public char charValue(String dimension, String value) {
+        String spelling = settingValue(dimension, value);
         // A tab cannot be written literally: Properties would decode it and the parser trims every value,
         // so it is carried as the two-character escape and decoded here.
         if (spelling.equals("\\t")) {
@@ -937,7 +942,7 @@ public final class FixtureDimensions {
      * agree do not: add a slot here and the generator writes a tree the suite never looks in, which
      * reads as "the dimension does nothing" rather than as a wiring bug.
      */
-    public static final List<String> DIALECT_SLOTS = List.of("text_mode", "header_row", "mv_syntax", "delimiter");
+    public static final List<String> DIALECT_SLOTS = List.of("text_mode", "header_row", "mv_syntax", "delimiter", "quote", "escape");
 
     /**
      * The distinct dialect variants a format needs on disk, as slug to the slots it pins.

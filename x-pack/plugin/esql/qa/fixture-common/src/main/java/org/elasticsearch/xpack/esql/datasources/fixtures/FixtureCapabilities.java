@@ -75,6 +75,12 @@ public final class FixtureCapabilities {
         "delimiter=comma@tsv",
         "delimiter=semicolon@tsv",
         "delimiter=pipe@tsv",
+        // The rest of the parsing grammar. Same shape as delimiter: off-default only, and both formats,
+        // since neither character's default differs per format.
+        "quote=single@csv",
+        "quote=single@tsv",
+        "escape=tilde@csv",
+        "escape=tilde@tsv",
         // Codec-specific parquet trees written by compressed-parquet-fixtures.gradle into
         // standalone-<codec>/. These bytes predate the vector regime -- ParquetCompressedFormatSpecIT has
         // read them all along -- so no generator work earned these rows either, only the selection added

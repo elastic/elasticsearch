@@ -39,11 +39,26 @@ public final class TextRowRenderer {
     }
 
     private final char delimiter;
+    private final char quoteChar;
+    private final char escapeChar;
     private final Dialect dialect;
     private final boolean headerRow;
 
+    /** Renders with the reader's defaults for quote and escape. */
     public TextRowRenderer(char delimiter, Dialect dialect, boolean headerRow) {
+        this(delimiter, '"', '\\', dialect, headerRow);
+    }
+
+    /**
+     * The quote and escape characters are parameters for the same reason the delimiter is: they are
+     * settings the reader accepts, so the fixture has to be writable in whatever the vector announces.
+     * Rendering with a hard-coded {@code "} while telling the reader {@code quote=\'} produces bytes that
+     * parse without error and mean something else, which is the failure mode that has no symptom.
+     */
+    public TextRowRenderer(char delimiter, char quoteChar, char escapeChar, Dialect dialect, boolean headerRow) {
         this.delimiter = delimiter;
+        this.quoteChar = quoteChar;
+        this.escapeChar = escapeChar;
         this.dialect = dialect;
         this.headerRow = headerRow;
     }
@@ -104,10 +119,11 @@ public final class TextRowRenderer {
     }
 
     private String quote(String text) {
-        if (text.indexOf(delimiter) < 0 && text.indexOf('"') < 0 && text.indexOf('\n') < 0 && text.indexOf('\r') < 0) {
+        if (text.indexOf(delimiter) < 0 && text.indexOf(quoteChar) < 0 && text.indexOf('\n') < 0 && text.indexOf('\r') < 0) {
             return text;
         }
-        return '"' + text.replace("\"", "\"\"") + '"';
+        String doubled = text.replace(String.valueOf(quoteChar), String.valueOf(quoteChar) + quoteChar);
+        return quoteChar + doubled + quoteChar;
     }
 
     /**
@@ -120,14 +136,14 @@ public final class TextRowRenderer {
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
             switch (c) {
-                case '\\' -> out.append("\\\\");
-                case '\n' -> out.append("\\n");
-                case '\r' -> out.append("\\r");
-                case '\t' -> out.append("\\t");
-                case '"' -> out.append("\\\"");
+                case '\n' -> out.append(escapeChar).append('n');
+                case '\r' -> out.append(escapeChar).append('r');
+                case '\t' -> out.append(escapeChar).append('t');
                 default -> {
-                    if (c == delimiter) {
-                        out.append('\\');
+                    // The escape char itself, the quote char and the delimiter all need escaping, and any
+                    // of the three can be re-pointed by a vector -- so they are compared, not case-matched.
+                    if (c == escapeChar || c == quoteChar || c == delimiter) {
+                        out.append(escapeChar);
                     }
                     out.append(c);
                 }
@@ -137,7 +153,10 @@ public final class TextRowRenderer {
     }
 
     private String plain(String text, int row, int column) {
-        if (text.indexOf(delimiter) >= 0 || text.indexOf('\n') >= 0 || text.indexOf('\r') >= 0 || text.startsWith("\"")) {
+        if (text.indexOf(delimiter) >= 0
+            || text.indexOf('\n') >= 0
+            || text.indexOf('\r') >= 0
+            || text.startsWith(String.valueOf(quoteChar))) {
             throw new IllegalArgumentException(
                 "row "
                     + row

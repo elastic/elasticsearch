@@ -27,7 +27,8 @@ public class FixtureMatrixTests extends ESTestCase {
 
     public void testEveryDeclaredFormatIsMaterialised() {
         FixtureMatrix matrix = FixtureMatrix.get();
-        assertThat(matrix.formats(), contains("csv", "tsv", "ndjson", "orc", "parquet"));
+        assertThat(matrix.formats(), contains("csv", "tsv", "ndjson", "orc", "parquet")); // dimension-copy-ok: a test that pins per-format
+                                                                                          // expectations must name the formats it pins
         for (String format : matrix.formats()) {
             assertThat("every format carries the baseline", matrix.datasetsFor(format), not(empty()));
         }
@@ -109,7 +110,8 @@ public class FixtureMatrixTests extends ESTestCase {
     public void testEveryCompressedExtensionStripsToADeclaredFormat() {
         FixtureMatrix matrix = FixtureMatrix.get();
         for (String codec : List.of("gz", "zst", "zstd", "bz2", "bz")) {
-            for (String text : List.of("csv", "tsv", "ndjson")) {
+            for (String text : List.of("csv", "tsv", "ndjson")) { // dimension-copy-ok: a test that pins per-format expectations must name
+                                                                  // the formats it pins
                 assertThat(matrix.formats(), hasItem(FixtureMatrix.baseFormat(text + "." + codec)));
             }
         }

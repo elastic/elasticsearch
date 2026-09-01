@@ -27,6 +27,14 @@ import static org.hamcrest.Matchers.not;
 
 public class JsonXContentImplTests extends ESTestCase {
 
+    private static final String EMOJI = "🎵"; // U+1F3B5 MUSICAL NOTE
+
+    // JSON Unicode escape sequences for EMOJI's surrogate pair, as produced by pre-9.6.0 Jackson
+    private static final String EMOJI_SURROGATE_ESCAPES = asJsonUnicodeEscapes(EMOJI); // \uD83C\uDFB5
+
+    // Proper 4-byte UTF-8 for EMOJI, viewed via ISO-8859-1 for byte-level substring matching
+    private static final String EMOJI_UTF8_AS_LATIN1 = asLatin1(EMOJI.getBytes(StandardCharsets.UTF_8)); // F0 9F 8E B5
+
     /**
      * Verifies the byte-level encoding of supplementary Unicode characters (above U+FFFF)
      * in JSON string values. With {@link com.fasterxml.jackson.core.JsonGenerator.Feature#COMBINE_UNICODE_SURROGATES_IN_UTF8}
@@ -34,19 +42,15 @@ public class JsonXContentImplTests extends ESTestCase {
      * than as JSON Unicode escape sequences.
      */
     public void testSupplementaryCharacterByteEncoding() throws IOException {
-        String emoji = "🎵"; // U+1F3B5 MUSICAL NOTE
-
         XContentBuilder builder = JsonXContentImpl.getContentBuilder();
         builder.startObject();
-        builder.field("k", emoji);
+        builder.field("k", EMOJI);
         builder.endObject();
-        byte[] output = BytesReference.toBytes(BytesReference.bytes(builder));
-        String latin1Output = new String(output, StandardCharsets.ISO_8859_1);
+        String latin1Output = asLatin1(BytesReference.toBytes(BytesReference.bytes(builder)));
 
         // U+1F3B5 -> F0 9F 8E B5 (proper 4-byte UTF-8)
-        String utf8 = new String(new byte[] { (byte) 0xF0, (byte) 0x9F, (byte) 0x8E, (byte) 0xB5 }, StandardCharsets.ISO_8859_1);
-        assertThat(latin1Output, containsString(utf8));
-        assertThat(latin1Output, not(containsString("\\uD83C\\uDFB5")));
+        assertThat(latin1Output, containsString(EMOJI_UTF8_AS_LATIN1));
+        assertThat(latin1Output, not(containsString(EMOJI_SURROGATE_ESCAPES)));
     }
 
     /**
@@ -58,26 +62,23 @@ public class JsonXContentImplTests extends ESTestCase {
      * what serialized responses (e.g. aggregation keys) look like on current nodes.
      */
     public void testSupplementaryCharacterRoundTrip() throws IOException {
-        String emoji = "🎵"; // U+1F3B5 MUSICAL NOTE
-
         // Old format: surrogate pair written as JSON Unicode escape sequences (pre-9.6.0 behavior)
-        byte[] oldFormat = ("{\"content\":\"" + asJsonUnicodeEscapes(emoji) + "\"}").getBytes(StandardCharsets.UTF_8); // \uD83C\uDFB5
+        byte[] oldFormat = ("{\"content\":\"" + EMOJI_SURROGATE_ESCAPES + "\"}").getBytes(StandardCharsets.UTF_8);
 
         // New format: written by XContentBuilder with COMBINE_UNICODE_SURROGATES_IN_UTF8 enabled
         XContentBuilder builder = JsonXContentImpl.getContentBuilder();
-        builder.startObject().field("content", emoji).endObject();
-        byte[] newFormat = BytesReference.toBytes(BytesReference.bytes(builder)); // F0 9F 8E B5
+        builder.startObject().field("content", EMOJI).endObject();
+        byte[] newFormat = BytesReference.toBytes(BytesReference.bytes(builder));
 
         // The two formats have different bytes
-        String utf8AsLatin1 = asLatin1(emoji.getBytes(StandardCharsets.UTF_8));
-        assertThat(new String(oldFormat, StandardCharsets.ISO_8859_1), not(containsString(utf8AsLatin1)));
-        assertThat(new String(newFormat, StandardCharsets.ISO_8859_1), containsString(utf8AsLatin1));
+        assertThat(asLatin1(oldFormat), not(containsString(EMOJI_UTF8_AS_LATIN1)));
+        assertThat(asLatin1(newFormat), containsString(EMOJI_UTF8_AS_LATIN1));
 
-        // But both parse to the same emoji value
+        // Both parse to the same emoji value
         Map<String, Object> fromOld = XContentHelper.convertToMap(new BytesArray(oldFormat), false, XContentType.JSON).v2();
         Map<String, Object> fromNew = XContentHelper.convertToMap(new BytesArray(newFormat), false, XContentType.JSON).v2();
-        assertThat(fromOld.get("content"), equalTo(emoji));
-        assertThat(fromNew.get("content"), equalTo(emoji));
+        assertThat(fromOld.get("content"), equalTo(EMOJI));
+        assertThat(fromNew.get("content"), equalTo(EMOJI));
     }
 
     private static String asJsonUnicodeEscapes(String s) {

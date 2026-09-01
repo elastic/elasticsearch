@@ -98,7 +98,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
                 randomValueOtherThan(instance.mapping(), DatasetTests::randomMappingOrNull),
                 instance.enabled()
             );
-            default -> new Dataset(
+            case 6 -> new Dataset(
                 instance.name(),
                 instance.dataSource(),
                 instance.resource(),
@@ -107,6 +107,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
                 instance.mapping(),
                 instance.enabled() == false
             );
+            default -> throw new AssertionError("unexpected mutation index");
         };
     }
 

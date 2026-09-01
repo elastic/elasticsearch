@@ -4289,6 +4289,166 @@ c:long
 4
 ;
 
+// IN subquery as a input to == and !=
+
+inSubqueryInEquals
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) == true
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+inSubqueryInNotEquals
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) != false
+| STATS c = COUNT(*)
+;
+
+c:long
+3
+;
+
+inSubqueryOnRightHandSideOfEquals
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| WHERE true == (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no))
+| STATS c = COUNT(*)
+;
+
+c:long
+3
+;
+
+inSubqueriesOnBothSidesOfEquals
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_equals_not_equals
+
+// Both marks agree for the top-3 employees (true == true) and for the 95 employees
+// outside the top-5 (false == false); only 10004 and 10005 disagree.
+FROM employees
+| WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no))
+     == (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no))
+| STATS c = COUNT(*)
+;
+
+c:long
+98
+;
+
+inSubqueryInEqualsWithAnd
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_equals_not_equals
+
+// The bare conjunct still takes the row-filtering semi-join shape
+FROM employees
+| WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no)) == true
+    AND emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| STATS c = COUNT(*)
+;
+
+c:long
+3
+;
+
+inSubqueryInEqualsWithOr
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) == true
+     OR emp_no > 10098
+| STATS c = COUNT(*)
+;
+
+c:long
+5
+;
+
+inSubqueryInEqualsNestedInCase
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| WHERE CASE((emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) == true, true, false)
+| STATS c = COUNT(*)
+;
+
+c:long
+3
+;
+
+inSubqueryInEqualsWithRHSContainingNulls
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_equals_not_equals
+
+// No emp_no matches a language value and the languages column has nulls, so every mark is NULL.
+// NULL == true is NULL, so no row passes.
+FROM employees
+| WHERE (emp_no IN (FROM employees | KEEP languages)) == true
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+inSubqueryInNotEqualsWithRHSContainingNulls
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_equals_not_equals
+
+// NOT(NULL == false) is NULL, so no row passes either
+FROM employees
+| WHERE (emp_no IN (FROM employees | KEEP languages)) != false
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+inSubqueryInEqualsFalseWithLHSContainingNulls
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_equals_not_equals
+
+// 90 employees have a non-null language that cannot match the RHS emp_no values → FALSE mark → FALSE == false is TRUE.
+// The 10 employees with a null language get a NULL mark → NULL == false is NULL → dropped.
+FROM employees
+| WHERE (languages IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) == false
+| STATS c = COUNT(*)
+;
+
+c:long
+90
+;
+
+inSubqueryInNotEqualsTrueWithLHSContainingNulls
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_equals_not_equals
+
+// NOT(FALSE == true) is TRUE for the 90 non-null languages; the 10 null ones stay NULL
+FROM employees
+| WHERE (languages IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) != true
+| STATS c = COUNT(*)
+;
+
+c:long
+90
+;
+
 inSubqueryInEval
 required_capability: where_in_subquery_without_view
 required_capability: eval_in_subquery
@@ -4632,6 +4792,84 @@ c:long
 0
 ;
 
+inSubqueryInEqualsInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| EVAL m = (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) == true
+| WHERE emp_no <= 10004
+| SORT emp_no ASC
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:boolean
+10001          | true
+10002          | true
+10003          | true
+10004          | false
+;
+
+inSubqueryInNotEqualsInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| EVAL m = (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) != false
+| WHERE emp_no <= 10004
+| SORT emp_no ASC
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:boolean
+10001          | true
+10002          | true
+10003          | true
+10004          | false
+;
+
+inSubqueryInEqualsInEvalWithNullMark
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+// Every mark is NULL because no emp_no matches a language value and the languages column has nulls,
+// so the comparison yields NULL rather than false
+FROM employees
+| EVAL m = (emp_no IN (FROM employees | KEEP languages)) == true
+| WHERE emp_no <= 10002
+| SORT emp_no ASC
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:boolean
+10001          | null
+10002          | null
+;
+
+inSubqueryInEqualsInEvalReferencingPrecedingField
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+// The comparison's left-hand side is an alias defined by an earlier field of the same EVAL,
+// so the resolver has to split the EVAL to bring `a` into scope below the join
+FROM employees
+| EVAL a = emp_no, m = (a IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) == true
+| WHERE emp_no <= 10004
+| SORT emp_no ASC
+| KEEP emp_no, a, m
+;
+
+emp_no:integer | a:integer | m:boolean
+10001          | 10001     | true
+10002          | 10002     | true
+10003          | 10003     | true
+10004          | 10004     | false
+;
+
 rowSubqueryInEval
 required_capability: where_in_subquery_without_view
 required_capability: eval_in_subquery
@@ -4912,6 +5150,66 @@ FROM employees
 
 c:long
 100
+;
+
+inSubqueryInEqualsInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| STATS c = COUNT(*) WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) == true
+;
+
+c:long
+3
+;
+
+inSubqueryInNotEqualsInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| STATS c = COUNT(*) WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) != false
+;
+
+c:long
+3
+;
+
+inSubqueryInEqualsInStatsWhereWithGrouping
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+// Group `true` holds 10001 and 10002, group `false` holds the rest — of which only 10003 is in the top 3
+FROM employees
+| EVAL g = emp_no <= 10002
+| STATS c = COUNT(*) WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) == true BY g
+| SORT g ASC
+;
+
+c:long | g:boolean
+1      | false
+2      | true
+;
+
+inSubqueryInEqualsAlongsideOtherAggsInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+// Each aggregate gets its own mark join; the `== false` filter counts the complement of `== true`
+FROM employees
+| STATS c1 = COUNT(*) WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) == true,
+        c2 = COUNT(*) WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) == false,
+        c3 = COUNT(*) WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no)) != false,
+        c4 = COUNT(*)
+;
+
+c1:long | c2:long | c3:long | c4:long
+3       | 97      | 5       | 100
 ;
 
 nestedInSubqueryInStatsWhere
@@ -5341,6 +5639,61 @@ FROM employees
 emp_no:integer | c:long
 10001          | 3
 10002          | 3
+;
+
+inSubqueryInEqualsInInlineStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: inline_stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| KEEP emp_no
+| INLINE STATS c = COUNT(*) WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) == true
+| WHERE emp_no <= 10002
+| SORT emp_no
+;
+
+emp_no:integer | c:long
+10001          | 3
+10002          | 3
+;
+
+inSubqueryInNotEqualsInInlineStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: inline_stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| KEEP emp_no
+| INLINE STATS c = COUNT(*) WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) != false
+| WHERE emp_no <= 10002
+| SORT emp_no
+;
+
+emp_no:integer | c:long
+10001          | 3
+10002          | 3
+;
+
+inSubqueryInEqualsInInlineStatsWhereWithGrouping
+required_capability: where_in_subquery_without_view
+required_capability: inline_stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+// Group `true` holds 10001 and 10002, group `false` holds the rest — of which only 10003 is in the top 3
+FROM employees
+| KEEP emp_no
+| EVAL g = emp_no <= 10002
+| INLINE STATS c = COUNT(*) WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) == true BY g
+| WHERE emp_no <= 10003
+| SORT emp_no
+| KEEP emp_no, g, c
+;
+
+emp_no:integer | g:boolean | c:long
+10001          | true      | 2
+10002          | true      | 2
+10003          | false     | 1
 ;
 
 inSubqueryInInlineStatsWhereAfterWhereInSubquery

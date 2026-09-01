@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -68,15 +69,16 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  *   <li>An {@code InSubquery} inside a {@code STATS} {@code WHERE} filter (a {@link FilteredExpression}
  *       on an {@link Aggregate}) is replaced with a synthetic boolean attribute and a {@link MarkJoin}
  *       is stacked below the aggregate's child — MarkJoin-only. INLINE STATS is not supported.</li>
- *   <li>An {@code InSubquery} inside a {@link IsNull}/{@link IsNotNull} operand, or inside any
- *       argument of a {@code CASE} or {@code COALESCE} call, is replaced with a synthetic boolean
+ *   <li>An {@code InSubquery} inside a {@link IsNull}/{@link IsNotNull} operand, inside either operand of an
+ *       {@link Equals} ({@code ==}, and {@code !=} which the parser maps to {@code Not(Equals(...))}), or inside
+ *       any argument of a {@code CASE} or {@code COALESCE} call, is replaced with a synthetic boolean
  *       attribute and a {@link MarkJoin} is stacked below the rewritten {@link Filter} —
  *       identical to the {@link Or} case above. These eligible expressions may themselves be
  *       nested inside comparisons, arithmetic operators, or other ordinary expressions.</li>
  *   <li>In an {@link Eval}: only {@link MarkJoin} is ever created — EVAL preserves every row and
  *       produces a value, so the row-filtering {@link SemiJoin}/{@link AntiJoin} shape is never
  *       applicable. The rewrite allowlist is the same as for {@link Filter}: bare {@code InSubquery},
- *       {@link And}/{@link Or}/{@link Not}, {@link IsNull}/{@link IsNotNull}, and {@code CASE}/
+ *       {@link And}/{@link Or}/{@link Not}, {@link IsNull}/{@link IsNotNull}, {@link Equals}, and {@code CASE}/
  *       {@code COALESCE}. {@code InSubquery} wrapped in any other expression is left in place for
  *       {@link #verify} to reject.</li>
  *   <li>An {@code InSubquery} inside a {@code STATS} or {@code INLINE STATS} per-aggregate
@@ -511,6 +513,8 @@ public class InSubqueryResolver {
      *   <li>{@link IsNull}, {@link IsNotNull} — {@code (x IN (sub)) IS [NOT] NULL}; the operand is a {@code valueExpression} in the
      *       grammar so it must be parenthesized, but the resulting {@link IsNull}/{@link IsNotNull} node wraps the {@link InSubquery}
      *       directly.</li>
+     *   <li>{@link Equals} — {@code (x IN (sub)) == true} and, because the parser maps {@code !=} to {@code Not(Equals(...))},
+     *       {@code (x IN (sub)) != false} as well. Either operand may be the {@link InSubquery}, and both may be.</li>
      *   <li>An {@link UnresolvedFunction} whose name is {@code CASE} or {@code COALESCE} (case-insensitive): every argument position may
      *       contain an {@link InSubquery} because all {@code functionParam} grammar alternatives accept a full {@code booleanExpression}.
      *       Note: at this stage the plan is pre-analysis, so these appear as {@link UnresolvedFunction}, not as the resolved
@@ -520,18 +524,19 @@ public class InSubqueryResolver {
      * The resolver uses a recursive traversal to find these nodes. When it encounters an eligible wrapper, it re-enables rewriting for
      * all its children. This allows subqueries to be resolved even when deeply nested, provided they are directly inside an eligible node.
      * <p>
-     * For example, in {@code (CASE(x IN (sub), true, false) + 1) == 2}:
+     * For example, in {@code (CASE(x IN (sub), 1, 0) + 1) == 2}:
      * <ol>
-     *   <li>The {@code ==} operator is an "ordinary" expression. It does not allow an immediate {@code InSubquery} child, but it is
+     *   <li>The {@code ==} operator is an eligible wrapper, but its left child is a {@code +} rather than an {@code InSubquery}, so
+     *       nothing is rewritten at this level.</li>
+     *   <li>The {@code +} operator is an "ordinary" expression. It does not allow an immediate {@code InSubquery} child, but it is
      *       transparent to traversal, so it calls into its children with {@code rewriteCurrentInSubquery = false}.</li>
-     *   <li>The {@code +} operator is also transparent and continues the traversal.</li>
      *   <li>The {@code CASE} function is an eligible wrapper. It calls into its arguments with {@code rewriteCurrentInSubquery = true}.
      *       </li>
      *   <li>The {@code InSubquery} is now eligible because its direct parent (the {@code CASE}) is an eligible wrapper. It is replaced
      *       with a mark attribute and a {@link MarkJoin} is recorded.</li>
      * </ol>
-     * Conversely, in {@code (x IN (sub)) == true}, the {@code ==} operator does not enable rewriting for its children, so the subquery
-     * remains unresolved and is later caught by {@link #verify}.
+     * Conversely, in {@code TO_STRING(x IN (sub))}, the {@code TO_STRING} function does not enable rewriting for its children, so the
+     * subquery remains unresolved and is later caught by {@link #verify}.
      * <p>
      * Scope-bearing expressions such as {@link Lambda} act as a rewrite boundary and stop the traversal entirely.
      */
@@ -572,9 +577,19 @@ public class InSubqueryResolver {
 
     /**
      * Returns whether an InSubquery directly below {@code expr} can be replaced with a mark attribute.
+     * <p>
+     * {@link Equals} covers both {@code ==} and {@code !=}: the parser maps {@code !=} to {@code Not(Equals(...))} (see
+     * {@code ExpressionBuilder#buildComparison}), and {@link Not} is eligible too. The
+     * {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals NotEquals} node is deliberately absent — it
+     * is only introduced by the logical optimizer, long after this resolver runs, so it can never be seen here.
      */
     private static boolean canRewriteInSubqueryChildren(Expression expr) {
-        if (expr instanceof And || expr instanceof Or || expr instanceof Not || expr instanceof IsNull || expr instanceof IsNotNull) {
+        if (expr instanceof And
+            || expr instanceof Or
+            || expr instanceof Not
+            || expr instanceof IsNull
+            || expr instanceof IsNotNull
+            || expr instanceof Equals) {
             return true;
         }
         if (expr instanceof UnresolvedFunction uf) {

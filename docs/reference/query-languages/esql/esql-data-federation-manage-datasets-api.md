@@ -20,6 +20,8 @@ Datasets are managed under the `/_query/dataset` endpoint. All dataset operation
 | [Create or update](#create-or-update-a-dataset) | `PUT /_query/dataset/{name}` | [Create or update an ES\|QL dataset]({{es-apis}}operation/operation-esql-put-dataset) |
 | [Get](#get-a-dataset) | `GET /_query/dataset/{name}` | [Get ES\|QL datasets]({{es-apis}}operation/operation-esql-get-dataset) |
 | [List all](#list-all-datasets) | `GET /_query/dataset` | [Get ES\|QL datasets]({{es-apis}}operation/operation-esql-get-dataset) |
+| [Enable](#enable-or-disable-a-dataset) | `POST /_query/dataset/{name}/_enable` | Enable an ES\|QL dataset |
+| [Disable](#enable-or-disable-a-dataset) | `POST /_query/dataset/{name}/_disable` | Disable an ES\|QL dataset |
 | [Delete](#delete-a-dataset) | `DELETE /_query/dataset/{name}` | [Delete ES\|QL datasets]({{es-apis}}operation/operation-esql-delete-dataset) |
 
 This page is a quick reference for each operation. For the complete request and response details, follow the API reference links in the table.
@@ -133,6 +135,18 @@ curl -X GET "${ELASTICSEARCH_URL}/_query/dataset" \
 :::
 
 ::::
+
+## Enable or disable a dataset
+
+Admin cost control: disable a dataset to stop `FROM` queries against it, then re-enable after investigation. Requires `manage_dataset`, `manage`, or `all` on the dataset name. GET responses include an `enabled` field. Create defaults to enabled; replace preserves the current flag.
+
+```console
+POST /_query/dataset/access_logs/_disable
+```
+
+```console
+POST /_query/dataset/access_logs/_enable
+```
 
 ## Delete a dataset
 

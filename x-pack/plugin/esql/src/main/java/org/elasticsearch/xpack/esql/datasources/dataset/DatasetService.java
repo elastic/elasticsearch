@@ -100,6 +100,10 @@ public class DatasetService {
         if (parent == null) {
             throw new ResourceNotFoundException("data source [{}] not found", request.dataSource());
         }
+        final Dataset existingDatasetForParentCheck = getMetadata(projectMetadata).get(request.name());
+        if (parent.enabled() == false && existingDatasetForParentCheck == null) {
+            throw new IllegalArgumentException("cannot create dataset against disabled data source [" + request.dataSource() + "]");
+        }
         final IndexAbstraction existing = projectMetadata.getIndicesLookup().get(request.name());
         if (existing != null && existing.getType() != IndexAbstraction.Type.DATASET) {
             throw new ResourceAlreadyExistsException(
@@ -140,13 +144,16 @@ public class DatasetService {
         // A `path` column rename is honored by all formats (translation is centralized at the reader boundary).
         DeclaredSchemaValidator.validate(request.mapping());
         Map<String, Object> settings = PartitionSpec.alignWithMapping(validatedSettings, request.mapping());
+        // PUT create defaults to enabled; PUT replace preserves the existing flag (dedicated enable/disable APIs flip it).
+        final boolean enabled = existingDatasetForParentCheck == null || existingDatasetForParentCheck.enabled();
         return new Dataset(
             request.name(),
             new DataSourceReference(request.dataSource()),
             request.resource(),
             request.description(),
             settings,
-            request.mapping()
+            request.mapping(),
+            enabled
         );
     }
 
@@ -301,6 +308,53 @@ public class DatasetService {
             recordRejected(null, e);
             delegate.onFailure(e);
         });
+    }
+
+    /**
+     * Enable or disable datasets by name. Idempotent if already in the target state.
+     * Fails with 404 if a name does not exist.
+     */
+    public void setDatasetsEnabled(
+        ProjectId projectId,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        Collection<String> names,
+        boolean enabled,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        final ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
+        final DatasetMetadata metadata = getMetadata(projectMetadata);
+        final Optional<String> notFound = names.stream().filter(n -> metadata.get(n) == null).findAny();
+        if (notFound.isPresent()) {
+            listener.onFailure(new ResourceNotFoundException("dataset [{}] not found", notFound.get()));
+            return;
+        }
+        logger.debug("submitting set enabled={} for datasets {}", enabled, names);
+        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(masterNodeTimeout, ackTimeout, listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                final ProjectMetadata project = currentState.metadata().getProject(projectId);
+                final DatasetMetadata current = getMetadata(project);
+                final Map<String, Dataset> updated = new HashMap<>(current.datasets());
+                boolean changed = false;
+                for (String name : names) {
+                    final Dataset existing = updated.get(name);
+                    if (existing == null) {
+                        throw new ResourceNotFoundException("dataset [{}] not found", name);
+                    }
+                    final Dataset next = existing.withEnabled(enabled);
+                    if (next != existing) {
+                        updated.put(name, next);
+                        changed = true;
+                    }
+                }
+                if (changed == false) {
+                    return currentState;
+                }
+                return ClusterState.builder(currentState).putProjectMetadata(ProjectMetadata.builder(project).datasets(updated)).build();
+            }
+        };
+        taskQueue.submitTask("set-enabled-esql-dataset-metadata-" + names, task, task.timeout());
     }
 
 }

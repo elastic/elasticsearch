@@ -18,6 +18,8 @@ public class EsqlDatasetActionNames {
     public static final String ESQL_PUT_DATASET_ACTION_NAME = "indices:admin/esql/dataset/put";
     public static final String ESQL_GET_DATASET_ACTION_NAME = "indices:admin/esql/dataset/get";
     public static final String ESQL_DELETE_DATASET_ACTION_NAME = "indices:admin/esql/dataset/delete";
+    public static final String ESQL_ENABLE_DATASET_ACTION_NAME = "indices:admin/esql/dataset/enable";
+    public static final String ESQL_DISABLE_DATASET_ACTION_NAME = "indices:admin/esql/dataset/disable";
 
     /** Read-side resolve action for {@code FROM <dataset>}: read-authorizes the dataset names of an ES|QL query. */
     public static final String ESQL_RESOLVE_DATASET_ACTION_NAME = "indices:data/read/esql/resolve_datasets";

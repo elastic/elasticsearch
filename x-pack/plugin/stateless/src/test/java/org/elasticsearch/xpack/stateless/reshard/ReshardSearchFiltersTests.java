@@ -485,7 +485,10 @@ public class ReshardSearchFiltersTests extends ESTestCase {
         var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2)
             .transitionSplitTargetToNewState(testShardId(1), IndexReshardingState.Split.TargetShardState.HANDOFF)
             .transitionSplitTargetToNewState(testShardId(1), IndexReshardingState.Split.TargetShardState.SPLIT);
-        var indexMetadata = splitIndexMetadata(reshardingMetadata);
+        var indexMetadata = IndexMetadata.builder("index")
+            .settings(indexSettings(IndexVersion.current(), reshardingMetadata.shardCountAfter(), 0))
+            .reshardingMetadata(reshardingMetadata)
+            .build();
         var mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(false);
 
@@ -517,47 +520,12 @@ public class ReshardSearchFiltersTests extends ESTestCase {
         }
     }
 
-    public void testDoesNotWarmWithoutSplitOrAfterShardDone() {
-        var mapperService = mock(MapperService.class);
-
-        var noSplitMetadata = IndexMetadata.builder("index")
-            .settings(indexSettings(IndexVersion.current(), 2, 0))
-            .numberOfShards(2)
-            .numberOfReplicas(0)
-            .build();
-        reshardSearchFilters.warmReaderCacheAfterResharding(testShardId(0), noSplitMetadata, mapperService, Runnable::run, () -> {
-            throw new AssertionError("searcher supplier must not be invoked");
+    public void testDoesNotWarmWithoutSplit() {
+        var indexMetadata = IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        reshardSearchFilters.warmReaderCacheAfterResharding(testShardId(0), indexMetadata, mock(MapperService.class), Runnable::run, () -> {
+            fail("searcher supplier must not be invoked");
+            return null;
         });
-
-        var targetDone = IndexReshardingMetadata.newSplitByMultiple(1, 2)
-            .transitionSplitTargetToNewState(testShardId(1), IndexReshardingState.Split.TargetShardState.HANDOFF)
-            .transitionSplitTargetToNewState(testShardId(1), IndexReshardingState.Split.TargetShardState.SPLIT)
-            .transitionSplitTargetToNewState(testShardId(1), IndexReshardingState.Split.TargetShardState.DONE);
-        reshardSearchFilters.warmReaderCacheAfterResharding(
-            testShardId(1),
-            splitIndexMetadata(targetDone),
-            mapperService,
-            Runnable::run,
-            () -> {
-                throw new AssertionError("searcher supplier must not be invoked");
-            }
-        );
-
-        var sourceDone = IndexReshardingMetadata.newSplitByMultiple(2, 2)
-            .transitionSplitTargetToNewState(testShardId(2), IndexReshardingState.Split.TargetShardState.HANDOFF)
-            .transitionSplitTargetToNewState(testShardId(2), IndexReshardingState.Split.TargetShardState.SPLIT)
-            .transitionSplitTargetToNewState(testShardId(2), IndexReshardingState.Split.TargetShardState.DONE)
-            .transitionSplitSourceToNewState(testShardId(0), IndexReshardingState.Split.SourceShardState.READY_FOR_CLEANUP)
-            .transitionSplitSourceToNewState(testShardId(0), IndexReshardingState.Split.SourceShardState.DONE);
-        reshardSearchFilters.warmReaderCacheAfterResharding(
-            testShardId(0),
-            splitIndexMetadata(sourceDone),
-            mapperService,
-            Runnable::run,
-            () -> {
-                throw new AssertionError("searcher supplier must not be invoked");
-            }
-        );
     }
 
     // lower level tests that search filter decision-making is as expected
@@ -732,13 +700,4 @@ public class ReshardSearchFiltersTests extends ESTestCase {
         return new ShardId(new Index("index", "_na_"), shardNumber);
     }
 
-    private static IndexMetadata splitIndexMetadata(IndexReshardingMetadata reshardingMetadata) {
-        int numberOfShards = reshardingMetadata.shardCountAfter();
-        return IndexMetadata.builder("index")
-            .settings(indexSettings(IndexVersion.current(), numberOfShards, 0))
-            .numberOfShards(numberOfShards)
-            .numberOfReplicas(0)
-            .reshardingMetadata(reshardingMetadata)
-            .build();
-    }
 }

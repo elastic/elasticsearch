@@ -376,28 +376,17 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
 
         private void fetchEstimatedHeapUsage() {
-            estimatedHeapUsageCollector.collectClusterHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
+            estimatedHeapUsageCollector.collectEstimatedHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
-                public void onResponse(Map<String, NodeHeapEstimates> currentNodeHeapEstimates) {
-                    nodeHeapEstimates = currentNodeHeapEstimates;
+                public void onResponse(EstimatedHeapUsageStats estimatedHeapUsageStats) {
+                    nodeHeapEstimates = estimatedHeapUsageStats.nodeHeapEstimates();
+                    estimatedShardHeapUsageEstimates = estimatedHeapUsageStats.shardHeapUsageEstimates();
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.warn("failed to fetch heap usage for nodes", e);
+                    logger.warn("failed to fetch node heap estimates and shard heap usage estimates", e);
                     nodeHeapEstimates = Map.of();
-                }
-            }, fetchRefs.acquire()));
-
-            estimatedHeapUsageCollector.collectShardHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
-                @Override
-                public void onResponse(ShardHeapUsageEstimates currentEstimatedHeapUsages) {
-                    estimatedShardHeapUsageEstimates = currentEstimatedHeapUsages;
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.warn("failed to fetch heap usage for shards", e);
                     estimatedShardHeapUsageEstimates = ShardHeapUsageEstimates.empty();
                 }
             }, fetchRefs.acquire()));

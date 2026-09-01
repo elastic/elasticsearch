@@ -2507,6 +2507,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
         assertThat(ex.getMessage(), containsString("cluster:admin/esql/data_source/disable"));
 
+        Request forbiddenEnable = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_enable");
+        setUser(forbiddenEnable, "ds_read_metadata_datasource");
+        ResponseException enableEx = expectThrows(ResponseException.class, () -> client().performRequest(forbiddenEnable));
+        assertThat(enableEx.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(enableEx.getMessage(), containsString("cluster:admin/esql/data_source/enable"));
+
         Request allowed = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_disable");
         setUser(allowed, "ds_manage_datasource");
         assertOK(client().performRequest(allowed));
@@ -2533,6 +2539,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
             setUser(forbidden, "ds_dataset_read_metadata");
             ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(forbidden));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+
+            Request forbiddenEnable = new Request("POST", "/_query/dataset/" + datasetName + "/_enable");
+            setUser(forbiddenEnable, "ds_dataset_read_metadata");
+            ResponseException enableEx = expectThrows(ResponseException.class, () -> client().performRequest(forbiddenEnable));
+            assertThat(enableEx.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
 
             Request allowed = new Request("POST", "/_query/dataset/" + datasetName + "/_disable");
             setUser(allowed, "ds_dataset_manage");

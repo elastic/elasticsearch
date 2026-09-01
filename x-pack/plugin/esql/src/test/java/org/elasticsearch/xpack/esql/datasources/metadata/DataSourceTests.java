@@ -72,13 +72,14 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
                 randomValueOtherThan(instance.settings(), DataSourceTests::randomSettings),
                 instance.enabled()
             );
-            default -> new DataSource(
+            case 4 -> new DataSource(
                 instance.name(),
                 instance.type(),
                 instance.description(),
                 instance.settings(),
                 instance.enabled() == false
             );
+            default -> throw new AssertionError("unexpected mutation index");
         };
     }
 

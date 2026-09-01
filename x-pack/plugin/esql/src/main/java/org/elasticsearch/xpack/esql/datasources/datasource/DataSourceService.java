@@ -149,6 +149,7 @@ public class DataSourceService {
                 // concurrent operation could have cleared or removed a secret this request relies on carrying
                 // forward between that snapshot and this task running. Cheap (no I/O); throwing here fails the
                 // whole PUT instead of silently persisting a data source with incomplete credentials.
+                // Return value intentionally unused: called only for its exception side-effects.
                 validatePutDataSource(project, request);
                 final DataSourceSettings merged = mergeCarriedForwardSecrets(current, validated.type(), encryptedNew, request);
                 final DataSource encrypted = new DataSource(

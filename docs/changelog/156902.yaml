@@ -1,5 +1,5 @@
 pr: 156902
-summary: Remove redundant `synchronized` from `ShardCoreKeyMap#getShardId`
+summary: Improve search throughput by removing a lock in query cache stats lookup
 area: Search
 type: enhancement
 issues: []

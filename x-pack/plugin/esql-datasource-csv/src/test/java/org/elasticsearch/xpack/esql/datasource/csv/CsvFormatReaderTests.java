@@ -66,6 +66,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -7211,19 +7212,30 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "spare1", DataType.KEYWORD),
             new ReferenceAttribute(Source.EMPTY, null, "spare2", DataType.KEYWORD)
         );
-        for (String mvSyntax : List.of("NONE", "BRACKETS")) {
-            Map<String, Object> config = Map.of(
-                "header_row",
-                true,
-                "multi_value_syntax",
-                mvSyntax,
-                "error_mode",
-                "skip_row",
-                "max_errors",
-                100
-            );
+        // The configurations below reach different tokenizers, which count this row's fields differently against the
+        // same bound: the BRACKETS walkers fabricate a trailing present-empty field, while Jackson counts the physical
+        // one. Which tokenizer runs is not the config alone — directEligible excludes escaped mode but NOT trim_spaces,
+        // so `jackson=trim_spaces` reaches Jackson only on the batch route (directBlock=false) and takes the direct
+        // walkers otherwise. Every combination is pinned against the inferred leg rather than an absolute count, so
+        // each one asserts parity for whichever tokenizer it actually ran.
+        Map<String, Map<String, Object>> configs = new LinkedHashMap<>();
+        configs.put("mv=NONE", Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 100));
+        configs.put(
+            "mv=BRACKETS",
+            Map.of("header_row", true, "multi_value_syntax", "BRACKETS", "error_mode", "skip_row", "max_errors", 100)
+        );
+        configs.put(
+            "jackson=trim_spaces",
+            Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 100, "trim_spaces", true)
+        );
+        configs.put(
+            "jackson=escaped",
+            Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 100, "mode", "escaped")
+        );
+        for (Map.Entry<String, Map<String, Object>> entry : configs.entrySet()) {
+            Map<String, Object> config = entry.getValue();
             for (boolean directBlock : List.of(false, true)) {
-                String desc = "mv=" + mvSyntax + " directBlock=" + directBlock;
+                String desc = entry.getKey() + " directBlock=" + directBlock;
                 // Inference over the same file: no readSchema, so the schema IS the header and the bound is its width.
                 int inferredRows = readRowCount(
                     (CsvFormatReader) new CsvFormatReader(blockFactory).withDirectBlockEnabled(directBlock).withConfig(config),

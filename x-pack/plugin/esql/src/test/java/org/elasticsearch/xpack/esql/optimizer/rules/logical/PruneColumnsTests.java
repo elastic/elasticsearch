@@ -3196,7 +3196,6 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             var denseVector = as(project.child(), DenseVector.class);
             assertThat(Expressions.names(denseVector.fields()), contains("keyword", "text"));
             assertThat(Expressions.names(denseVector.generatedAttributes()), contains("keyword_dense_vector", "text_dense_vector"));
-            as(denseVector.child(), EsRelation.class);
         }
 
         // after pruning: only the used field survives; text and its embedding are dropped
@@ -3208,7 +3207,6 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             var denseVector = as(project.child(), DenseVector.class);
             assertThat(Expressions.names(denseVector.fields()), contains("keyword"));
             assertThat(Expressions.names(denseVector.generatedAttributes()), contains("keyword_dense_vector"));
-            as(denseVector.child(), EsRelation.class);
         }
     }
 

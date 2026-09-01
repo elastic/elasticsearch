@@ -7038,6 +7038,318 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    // --- row-width validation under a declared (pinned) schema: esql-planning#1842 ---
+
+    /**
+     * Reads the fixture and returns the surviving row count; warnings land in the thread context for drainWarnings().
+     */
+    private int readRowCount(CsvFormatReader reader, StorageObject object, List<Attribute> readSchema, List<String> projected)
+        throws Exception {
+        FormatReadContext.Builder context = FormatReadContext.builder()
+            .firstSplit(true)
+            .recordAligned(true)
+            .batchSize(10)
+            .readSchema(readSchema);
+        if (projected != null) {
+            context.projectedColumns(projected);
+        }
+        int rows = 0;
+        try (CloseableIterator<Page> it = reader.read(object, context.build())) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        return rows;
+    }
+
+    private CsvFormatReader declaredReader(boolean declared, boolean directBlock, Map<String, Object> config) {
+        return (CsvFormatReader) new CsvFormatReader(blockFactory).withDirectBlockEnabled(directBlock)
+            .withConfig(config)
+            .withDeclaredProvenanceBinding(declared);
+    }
+
+    private static List<Attribute> idTagsScore() {
+        return List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.INTEGER),
+            new ReferenceAttribute(Source.EMPTY, null, "tags", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "score", DataType.INTEGER)
+        );
+    }
+
+    /** The fixture from esql-planning#1842: row 1 splits into 5 fields against a 3-column header. */
+    private static final String RAGGED_MV_CSV = "id:integer,tags:keyword,score:integer\n1,[alpha,beta,gamma],10\n2,solo,20\n";
+
+    private static Map<String, Object> skipRowConfig() {
+        return Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 100);
+    }
+
+    /**
+     * A row wider than the file's own header is drift under a DECLARED schema exactly as it is under a pinned inferred
+     * one. Before esql-planning#1842 the declared branch bounded rows at Integer.MAX_VALUE, so the 5-field row was
+     * accepted, `tags` read the fragment "[alpha", and nothing warned. Both walkers, both bindings.
+     */
+    public void testDeclaredBindingKeepsRowWidthValidation() throws Exception {
+        for (boolean declared : List.of(false, true)) {
+            for (boolean directBlock : List.of(false, true)) {
+                String desc = "declared=" + declared + " directBlock=" + directBlock;
+                CsvFormatReader reader = declaredReader(declared, directBlock, skipRowConfig());
+                int rows = readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of("id", "tags"));
+                List<String> warnings = drainWarnings();
+                assertEquals(desc, 1, rows);
+                String expected = declared
+                    ? "CSV row has [5] columns but the file's header defines [3] columns"
+                    : "CSV row has [5] columns but schema defines [3] columns";
+                assertTrue(desc + " expected " + expected + ", got: " + warnings, warnings.stream().anyMatch(w -> w.contains(expected)));
+            }
+        }
+    }
+
+    /** COUNT(*) projects zero columns and takes its own guard; the declared bound must reach it too. */
+    public void testDeclaredBindingRowWidthValidationOnCountStarPath() throws Exception {
+        for (boolean directBlock : List.of(false, true)) {
+            String desc = "directBlock=" + directBlock;
+            CsvFormatReader reader = declaredReader(true, directBlock, skipRowConfig());
+            int rows = readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of());
+            List<String> warnings = drainWarnings();
+            assertEquals(desc, 1, rows);
+            assertTrue(desc + " got: " + warnings, warnings.stream().anyMatch(w -> w.contains("but the file's header defines [3]")));
+        }
+    }
+
+    /** fail_fast was inert for this error class: the guard that invokes the policy was unreachable under declared binding. */
+    public void testDeclaredBindingRowWidthFailsFast() throws Exception {
+        Map<String, Object> config = Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "fail_fast");
+        for (boolean directBlock : List.of(false, true)) {
+            CsvFormatReader reader = declaredReader(true, directBlock, config);
+            Exception e = expectThrows(
+                Exception.class,
+                () -> readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of("id", "tags"))
+            );
+            assertThat("directBlock=" + directBlock, e.getMessage(), containsString("the file's header defines [3]"));
+            drainWarnings();
+        }
+    }
+
+    /** null_field drops a structurally malformed row like skip_row does; only field-level errors null-fill. */
+    public void testDeclaredBindingRowWidthUnderNullField() throws Exception {
+        Map<String, Object> config = Map.of(
+            "header_row",
+            true,
+            "multi_value_syntax",
+            "NONE",
+            "error_mode",
+            "null_field",
+            "max_errors",
+            100
+        );
+        CsvFormatReader reader = declaredReader(true, true, config);
+        int rows = readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of("id", "tags"));
+        List<String> warnings = drainWarnings();
+        assertEquals(1, rows);
+        assertTrue("got: " + warnings, warnings.stream().anyMatch(w -> w.contains("the file's header defines [3]")));
+    }
+
+    /**
+     * The bound is the FILE's width, never the declaration's: naming 2 columns of a 4-column file must read every row.
+     * A fix that bounded rows at the declaration's size would reject all of them.
+     */
+    public void testDeclaredBindingAcceptsFileWiderThanDeclaration() throws Exception {
+        String csv = "a,b,c,d\n1,2,3,4\n5,6,7,8\n";
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.INTEGER),
+            new ReferenceAttribute(Source.EMPTY, null, "c", DataType.INTEGER)
+        );
+        for (boolean directBlock : List.of(false, true)) {
+            CsvFormatReader reader = declaredReader(true, directBlock, skipRowConfig());
+            int rows = readRowCount(reader, createStorageObject(csv), readSchema, List.of("a", "c"));
+            List<String> warnings = drainWarnings();
+            assertEquals("directBlock=" + directBlock, 2, rows);
+            assertTrue("directBlock=" + directBlock + " unexpected warnings: " + warnings, warnings.isEmpty());
+        }
+    }
+
+    /**
+     * A declaration WIDER than the file is legitimate (absent columns null-fill and warn). The row-width bound must
+     * still be the header's width: a row wider than the header is drift even though it is narrower than the declaration.
+     */
+    public void testDeclaredBindingBoundIsHeaderWidthNotDeclarationWidth() throws Exception {
+        String csv = "a,b\nx,y,z\n";
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "spare1", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "spare2", DataType.KEYWORD)
+        );
+        for (boolean directBlock : List.of(false, true)) {
+            CsvFormatReader reader = declaredReader(true, directBlock, skipRowConfig());
+            int rows = readRowCount(reader, createStorageObject(csv), readSchema, List.of("a", "b"));
+            List<String> warnings = drainWarnings();
+            assertEquals("directBlock=" + directBlock, 0, rows);
+            assertTrue(
+                "directBlock=" + directBlock + " got: " + warnings,
+                warnings.stream().anyMatch(w -> w.contains("CSV row has [3] columns but the file's header defines [2] columns"))
+            );
+        }
+    }
+
+    /**
+     * A row ending in a bare delimiter (`x,y,` against a 2-column header) counts as three columns, and the inference
+     * path rejects it. A declaration WIDER than the file must reach the same verdict: the bound is the file's header
+     * width either way, so the declaration's extra columns cannot buy the row room the file does not have.
+     *
+     * <p>Both multi-value modes are covered because only BRACKETS reaches the walker that fabricates a trailing
+     * present-empty field, and that fabrication is bounded by the projection's addressable space — which a wide
+     * declaration inflates.
+     */
+    public void testDeclaredBindingWiderDeclarationMatchesInferenceOnTrailingDelimiterRow() throws Exception {
+        String csv = "a,b\nx,y,\n";
+        List<Attribute> wideDeclaration = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "spare1", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "spare2", DataType.KEYWORD)
+        );
+        for (String mvSyntax : List.of("NONE", "BRACKETS")) {
+            Map<String, Object> config = Map.of(
+                "header_row",
+                true,
+                "multi_value_syntax",
+                mvSyntax,
+                "error_mode",
+                "skip_row",
+                "max_errors",
+                100
+            );
+            for (boolean directBlock : List.of(false, true)) {
+                String desc = "mv=" + mvSyntax + " directBlock=" + directBlock;
+                // Inference over the same file: no readSchema, so the schema IS the header and the bound is its width.
+                int inferredRows = readRowCount(
+                    (CsvFormatReader) new CsvFormatReader(blockFactory).withDirectBlockEnabled(directBlock).withConfig(config),
+                    createStorageObject(csv),
+                    null,
+                    List.of("a", "b")
+                );
+                drainWarnings();
+
+                int declaredRows = readRowCount(
+                    declaredReader(true, directBlock, config),
+                    createStorageObject(csv),
+                    wideDeclaration,
+                    List.of("a", "b")
+                );
+                drainWarnings();
+
+                assertEquals(desc + " declared must reach the same verdict as inference", inferredRows, declaredRows);
+                assertEquals(desc + " the row is drift against a 2-column header", 0, declaredRows);
+            }
+        }
+    }
+
+    /**
+     * A quoted cell hands the row to the full quoted walker rather than the optimistic fast path, so that walker's own
+     * width guard needs the declared bound too — it is a separate call site from the three other walkers.
+     */
+    public void testDeclaredBindingRowWidthValidationThroughQuotedWalker() throws Exception {
+        String csv = "a,b\n\"x\",y,z\n";
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = declaredReader(true, true, skipRowConfig());
+        int rows = readRowCount(reader, createStorageObject(csv), readSchema, List.of("a", "b"));
+        List<String> warnings = drainWarnings();
+        assertEquals(0, rows);
+        assertTrue(
+            "got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("CSV row has [3] columns but the file's header defines [2] columns"))
+        );
+    }
+
+    /**
+     * A headerless file defines no width of its own — its physical names ARE positions — so a wide row cannot be told
+     * apart from a legitimately wide file and stays accepted.
+     */
+    public void testHeaderlessDeclaredBindingStaysPermissive() throws Exception {
+        String csv = "1,2,3\n4,5,6,7,8\n";
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.INTEGER),
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.INTEGER)
+        );
+        Map<String, Object> config = Map.of("header_row", false, "error_mode", "skip_row", "max_errors", 100);
+        for (boolean directBlock : List.of(false, true)) {
+            CsvFormatReader reader = declaredReader(true, directBlock, config);
+            int rows = readRowCount(reader, createStorageObject(csv), readSchema, List.of("col0", "col1"));
+            List<String> warnings = drainWarnings();
+            assertEquals("directBlock=" + directBlock, 2, rows);
+            assertTrue("directBlock=" + directBlock + " unexpected warnings: " + warnings, warnings.isEmpty());
+        }
+    }
+
+    /**
+     * A chunk after the first cannot see the header, so its bound comes from the header columns the coordinator read
+     * once and passed down. Same number, same rejection.
+     */
+    public void testDeclaredBindingRowWidthOnNonFirstSplit() throws Exception {
+        String csv = "x,y,z\n";
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD)
+        );
+        for (boolean directBlock : List.of(false, true)) {
+            CsvFormatReader reader = declaredReader(true, directBlock, skipRowConfig());
+            int rows = 0;
+            try (
+                CloseableIterator<Page> it = reader.read(
+                    createStorageObject(csv),
+                    FormatReadContext.builder()
+                        .firstSplit(false)
+                        .recordAligned(true)
+                        .batchSize(10)
+                        .readSchema(readSchema)
+                        .fileHeaderColumns(List.of("a", "b"))
+                        .projectedColumns(List.of("a", "b"))
+                        .build()
+                )
+            ) {
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    rows += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+            }
+            List<String> warnings = drainWarnings();
+            assertEquals("directBlock=" + directBlock, 0, rows);
+            assertTrue(
+                "directBlock=" + directBlock + " got: " + warnings,
+                warnings.stream().anyMatch(w -> w.contains("CSV row has [3] columns but the file's header defines [2] columns"))
+            );
+        }
+    }
+
+    /** One reader serves both registered formats, so TSV inherits the same bound. */
+    public void testDeclaredBindingRowWidthValidationOnTsv() throws Exception {
+        String tsv = "id\ttags\tscore\n1\ta\tb\tc\td\n2\tsolo\t20\n";
+        Map<String, Object> config = Map.of(
+            "header_row",
+            true,
+            "delimiter",
+            "\t",
+            "multi_value_syntax",
+            "NONE",
+            "error_mode",
+            "skip_row",
+            "max_errors",
+            100
+        );
+        CsvFormatReader reader = declaredReader(true, true, config);
+        int rows = readRowCount(reader, createStorageObject(tsv), idTagsScore(), List.of("id", "tags"));
+        List<String> warnings = drainWarnings();
+        assertEquals(1, rows);
+        assertTrue("got: " + warnings, warnings.stream().anyMatch(w -> w.contains("but the file's header defines [3] columns")));
+    }
+
     // --- Increment-0 characterization: by-name binding across the CSV walkers ---
     // The prior path-binding tests exercise only the default quoted direct-to-block walker. These pin that an
     // out-of-order declaration binds by name identically through the bracket walker, the ALL-stripe harvest path,

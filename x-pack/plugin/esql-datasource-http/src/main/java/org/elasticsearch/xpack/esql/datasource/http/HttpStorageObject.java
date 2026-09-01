@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpStatus;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -299,6 +301,18 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             (response, throwable) -> {
                 if (throwable != null) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    // The destination buffer is allocated inside the HttpClient body handler, so a
+                    // circuit-breaker refusal of that charge arrives wrapped (CompletionException
+                    // and friends). Surface it as itself so it keeps its 429 status instead of
+                    // being buried under a status-neutral IOException that the read boundary
+                    // classifies as a client error.
+                    if (ExceptionsHelper.unwrap(
+                        throwable,
+                        CircuitBreakingException.class
+                    ) instanceof CircuitBreakingException breakerTrip) {
+                        listener.onFailure(breakerTrip);
+                        return;
+                    }
                     // Wrap with path context so stack-trace-only triage names the offending URL.
                     // The original cause (CompletionException, body subscriber's IOException,
                     // transport error, etc.) is preserved in the cause chain.

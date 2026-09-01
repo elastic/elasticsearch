@@ -65,6 +65,7 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
+        .setting("xpack.security.audit.enabled", "true")
         .build();
 
     @Override

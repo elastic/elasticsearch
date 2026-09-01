@@ -122,6 +122,12 @@ public class RateTests extends AbstractAggregationTestCase {
                 DataType.LONG,
                 "_max_timestamp"
             );
+            List<Long> nonNullTimestamps = new ArrayList<>();
+            for (int i = 0; i < dataRows.size(); i++) {
+                if (dataRows.get(i) != null) {
+                    nonNullTimestamps.add(timestamps.get(timestamps.size() - i - 1));
+                }
+            }
             dataRows = dataRows.stream().filter(Objects::nonNull).toList();
             final Matcher<?> matcher;
             if (dataRows.size() < 2) {
@@ -142,6 +148,10 @@ public class RateTests extends AbstractAggregationTestCase {
                 // If the minrate is greater than 0, we need to adjust the maxrate accordingly
                 minrate = Math.min(minrate, 0);
                 maxrate = Math.max(maxrate, maxrate - minrate);
+                long timeRangeMillis = nonNullTimestamps.getFirst() - nonNullTimestamps.getLast();
+                if (timeRangeMillis < 1000) {
+                    maxrate *= 1000.0 / timeRangeMillis;
+                }
                 matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(minrate), Matchers.lessThanOrEqualTo(maxrate));
             }
             return new TestCaseSupplier.TestCase(

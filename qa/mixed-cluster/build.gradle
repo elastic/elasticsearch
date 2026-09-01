@@ -71,6 +71,13 @@ excludeList.add('aggregations/percentiles_hdr_metric/Negative values test')
 // sync_id is removed in 9.0
 excludeList.add("cat.shards/10_basic/Help")
 
+excludeList.add('search.highlight/70_number_of_fragments/number_of_fragments above the maximum should FAIL')
+excludeList.add('search.highlight/70_number_of_fragments/negative number_of_fragments should FAIL')
+excludeList.add('search.highlight/70_number_of_fragments/raising index.highlight.max_number_of_fragments should allow more fragments')
+excludeList.add(
+  'search.highlight/70_number_of_fragments/lowering index.highlight.max_number_of_fragments should reject the default number of fragments'
+)
+
 def clusterPath = getPath()
 
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->

@@ -976,6 +976,13 @@ public class EsqlCapabilities {
         IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
 
         /**
+         * When multiple aliases are defined in a single EVAL, an implicit CASTing is missed because of a premature exit due
+         * to failing to immediately resolve a field referenced in one of the EVALed aliases.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/155979">#155979</a>.
+         */
+        FIX_MISSED_IMPLICIT_CASTING_INSIDE_INTERLEAVED_EVALS,
+
+        /**
          * LOOKUP JOIN
          */
         JOIN_LOOKUP_V12,
@@ -2689,6 +2696,17 @@ public class EsqlCapabilities {
          * See: <a href="https://github.com/elastic/elasticsearch/issues/153030">#153030</a>
          */
         FIX_TS_TIME_BUCKET_NAMED_AFTER_TIMESTAMP,
+
+        /**
+         * Fix for {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource} pushing only a
+         * pushable <em>prefix</em> of a compound {@code SORT}'s keys together with the full {@code LIMIT}. Lucene then
+         * truncated to {@code LIMIT} documents ordered by that prefix alone, so when the prefix had ties straddling the
+         * limit boundary, documents the full sort would have ranked into the top-N were dropped at the source and could
+         * never be recovered - returning wrong results (e.g. {@code SORT score, ABS(x) | LIMIT n}). The compound TopN is
+         * now pushed only when every sort key is pushable.
+         * See <a href="https://github.com/elastic/elasticsearch/pull/155923">#155923</a>.
+         */
+        FIX_PARTIAL_PREFIX_COMPOUND_TOPN_PUSHDOWN,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

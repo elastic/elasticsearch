@@ -192,7 +192,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             transportService,
             clusterService,
             client,
-            new ActionFilters(emptySet()),
+            ActionFilters.EMPTY,
             projectResolver,
             new Resolver()
         ) {
@@ -225,7 +225,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             transportService,
             clusterService,
             client,
-            new ActionFilters(emptySet()),
+            ActionFilters.EMPTY,
             projectResolver,
             new Resolver()
         ) {

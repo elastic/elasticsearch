@@ -186,3 +186,30 @@ network.bytes_in:long | @timestamp:datetime      | cluster:keyword | pod:keyword
 1007                  | 2024-05-10T00:19:48.000Z | prod            | two
 1006                  | 2024-05-10T00:13:50.000Z | qa              | one
 ;
+
+
+compoundSortWithNonPushableTrailingKeyNotPartiallyPushed
+required_capability: fix_partial_prefix_compound_topn_pushdown
+
+// Regression test for https://github.com/elastic/elasticsearch/pull/155923.
+// 'languages' is pushable but the trailing 'tiebreak' expression is not, so the compound SORT must not be partially
+// pushed to Lucene. Within emp_no <= 10019, 'languages' has ties (four rows =1, five rows =2) that straddle the
+// LIMIT 6 boundary, and the full sort orders those ties by emp_no DESC (tiebreak = 0 - emp_no). Before the fix Lucene
+// truncated to six documents by 'languages' alone, dropping the high-emp_no languages=2 rows (10018, 10017) at the
+// source so they could never be recovered - returning 10008 and 10001 instead.
+FROM employees
+| WHERE emp_no <= 10019
+| EVAL tiebreak = 0 - emp_no
+| SORT languages ASC, tiebreak ASC
+| LIMIT 6
+| KEEP emp_no, languages
+;
+
+emp_no:integer | languages:integer
+10019          | 1
+10013          | 1
+10009          | 1
+10005          | 1
+10018          | 2
+10017          | 2
+;

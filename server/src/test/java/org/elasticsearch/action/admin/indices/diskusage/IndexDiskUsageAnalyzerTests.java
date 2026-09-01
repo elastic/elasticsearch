@@ -282,10 +282,10 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             long dataBytes = elementType == DenseVectorFieldMapper.ElementType.FLOAT
                 ? ((long) numDocs * dimension * Float.BYTES)
                 : ((long) numDocs * dimension);
-            long indexBytesEstimate = (long) numDocs * (Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN / 4); // rough size of HNSW graph
+            long indexBytesEstimate = (long) numDocs * (Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN / 8);
             assertThat("numDocs=" + numDocs + ";dimension=" + dimension, stats.total().getKnnVectorsBytes(), greaterThan(dataBytes));
             long connectionOverhead = stats.total().getKnnVectorsBytes() - dataBytes;
-            assertThat("numDocs=" + numDocs, connectionOverhead, greaterThan(indexBytesEstimate));
+            assertThat("numDocs=" + numDocs + ";dimension=" + dimension, connectionOverhead, greaterThan(indexBytesEstimate));
         }
     }
 

@@ -1,0 +1,6 @@
+area: SLM
+issues:
+ - 155621
+pr: 155934
+summary: Fix SLM stats races that mis-record concurrent snapshot outcomes
+type: bug

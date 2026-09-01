@@ -1409,11 +1409,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private List<Alias> resolveFields(List<Alias> fields, List<Attribute> initialInputs) {
+            Set<String> evalFieldNames = new HashSet<>(fields.size());
+            for (Alias f : fields) {
+                evalFieldNames.add(f.name());
+            }
             List<Attribute> allResolvedInputs = new ArrayList<>(initialInputs);
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
             for (Alias field : fields) {
-                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
+                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> {
+                    Attribute resolved = resolveAttribute(ua, allResolvedInputs);
+                    // If the unresolved attribute references another EVAL field, give it another opportunity to resolve
+                    // in the next pass (after implicit casting has run). If we set customMessage() it won't try to resolve again
+                    if (resolved instanceof UnresolvedAttribute u && u.customMessage() && evalFieldNames.contains(ua.name())) {
+                        return ua;
+                    }
+                    return resolved;
+                });
 
                 changed |= result != field;
                 newFields.add(result);
@@ -2614,7 +2626,56 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     fa.synthetic()
                 );
             }
-            return fa.flagTypeConflicts();
+            // Neutralize coordinator-only conflict fields nested in a healthy parent's properties (they throw when the parent is
+            // transported).
+            EsField cleaned = stripNestedConflicts(field);
+            FieldAttribute attr = cleaned == field
+                ? fa
+                : new FieldAttribute(
+                    fa.source(),
+                    fa.parentName(),
+                    fa.qualifier(),
+                    fa.name(),
+                    cleaned,
+                    fa.nullable(),
+                    fa.id(),
+                    fa.synthetic()
+                );
+            return attr.flagTypeConflicts();
+        }
+
+        /**
+         * A conflict object nested in a healthy parent's {@code properties} throws when the parent serializes, so swap it for a
+         * transportable {@link UnsupportedEsField} instead of stripping the properties: a text parent resolves its exact keyword
+         * sub-field from this map on the data node ({@code TextEsField#getExactInfo}, used by Lucene pushdown), and the unsupported
+         * replacement keeps the conflict's original types for error messages. Healthy sub-fields are kept as-is (rebuilding the
+         * parent would downgrade an unsupported one and lose its original types), so the parent is rebuilt only when a nested
+         * conflict was actually replaced.
+         */
+        private static EsField stripNestedConflicts(EsField field) {
+            Map<String, EsField> properties = field.getProperties();
+            if (properties == null || properties.isEmpty()) {
+                return field;
+            }
+            Map<String, EsField> rewritten = new LinkedHashMap<>(properties.size());
+            boolean changed = false;
+            for (Map.Entry<String, EsField> entry : properties.entrySet()) {
+                EsField child = entry.getValue();
+                EsField cleanedChild = asTransportable(child);
+                rewritten.put(entry.getKey(), cleanedChild);
+                changed |= cleanedChild != child;
+            }
+            return changed ? field.withProperties(rewritten) : field;
+        }
+
+        private static EsField asTransportable(EsField field) {
+            if (field instanceof InvalidMappedField imf) {
+                return new UnsupportedEsField(imf.getName(), imf.getTypesToIndices().keySet().stream().toList());
+            }
+            if (field instanceof InvalidMappedTsField imtf) {
+                return new UnsupportedEsField(imtf.getName(), List.of());
+            }
+            return stripNestedConflicts(field);
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {

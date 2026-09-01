@@ -59,7 +59,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.single.shard.TransportSingleShardAction.ROUTE_REFRESH_TIMEOUT;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.isA;
@@ -230,7 +229,7 @@ public class TransportSingleShardActionTests extends ESTestCase {
                 threadPool,
                 clusterService,
                 transportService,
-                new ActionFilters(emptySet()),
+                ActionFilters.EMPTY,
                 projectResolver,
                 null,
                 null,

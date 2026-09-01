@@ -140,10 +140,24 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
             public void accept(InternalAggregation aggregation) {
                 final AbstractInternalTDigestPercentiles percentiles = (AbstractInternalTDigestPercentiles) aggregation;
                 if (percentiles.state != null) {
-                    if (merged == null) {
-                        merged = HistogramUnionState.createUsingParamsFrom(percentiles.state);
+                    // Accumulate into a state we own and that is backed by NOOP_BREAKER. Only the accumulator grows
+                    // here, and growing an incoming shard result instead would charge its own breaker, which for a
+                    // result that stayed on the coordinating node, and so was never serialized, is a
+                    // PreallocatedCircuitBreaker the aggregation context has already closed. Re-seeding on higher
+                    // compression keeps the smaller-compression data merged into the larger-compression state, so the
+                    // result does not lose precision.
+                    if (merged == null || percentiles.state.compression() > merged.compression()) {
+                        HistogramUnionState previous = merged;
+                        merged = HistogramUnionState.createUsingParamsFrom(percentiles.state, HistogramUnionState.NOOP_BREAKER);
+                        if (previous != null) {
+                            try {
+                                merged.add(previous);
+                            } finally {
+                                previous.close();
+                            }
+                        }
                     }
-                    merged = merge(merged, percentiles.state);
+                    merged.add(percentiles.state);
                 }
             }
 
@@ -152,26 +166,6 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
                 return createReduced(getName(), keys, merged == null ? HistogramUnionState.EMPTY : merged, keyed, getMetadata());
             }
         };
-    }
-
-    /**
-     * Merges two {@link HistogramUnionState}s such that we always merge the one with smaller
-     * compression into the one with larger compression.
-     * This prevents producing a result that has lower than expected precision.
-     *
-     * @param digest1 The first histogram to merge
-     * @param digest2 The second histogram to merge
-     * @return One of the input histograms such that the one with larger compression is used as the one for merging
-     */
-    private static HistogramUnionState merge(final HistogramUnionState digest1, final HistogramUnionState digest2) {
-        HistogramUnionState largerCompression = digest1;
-        HistogramUnionState smallerCompression = digest2;
-        if (digest2.compression() > digest1.compression()) {
-            largerCompression = digest2;
-            smallerCompression = digest1;
-        }
-        largerCompression.add(smallerCompression);
-        return largerCompression;
     }
 
     @Override

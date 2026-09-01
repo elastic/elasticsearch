@@ -88,10 +88,19 @@ public abstract class DenseVectorQuery extends Query {
     public static class Floats extends DenseVectorQuery {
 
         private final float[] query;
+        // On a quantized field the codec-bound scorer scores against the quantized representation. When false, scoring
+        // goes through FloatVectorValues#rescorer instead, which reads the full-precision vectors - the same values the
+        // approximate query phase rescores against.
+        private final boolean useQuantized;
 
         public Floats(float[] query, String field) {
+            this(query, field, true);
+        }
+
+        public Floats(float[] query, String field, boolean useQuantized) {
             super(field);
             this.query = query;
+            this.useQuantized = useQuantized;
         }
 
         public float[] getQuery() {
@@ -112,7 +121,7 @@ public abstract class DenseVectorQuery extends Query {
                     if (vectorValues == null) {
                         return null;
                     }
-                    return vectorValues.scorer(query);
+                    return useQuantized ? vectorValues.scorer(query) : vectorValues.rescorer(query);
                 }
             };
         }
@@ -122,12 +131,12 @@ public abstract class DenseVectorQuery extends Query {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Floats floats = (Floats) o;
-            return Objects.equals(field, floats.field) && Objects.deepEquals(query, floats.query);
+            return Objects.equals(field, floats.field) && Objects.deepEquals(query, floats.query) && useQuantized == floats.useQuantized;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(field, Arrays.hashCode(query));
+            return Objects.hash(field, Arrays.hashCode(query), useQuantized);
         }
     }
 

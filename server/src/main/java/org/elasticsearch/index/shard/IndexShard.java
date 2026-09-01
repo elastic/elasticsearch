@@ -372,10 +372,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
 
-        this.recoveryState = Objects.requireNonNull(recoveryState);
         assert recoveryState.getShardId().equals(shardId)
             : "recoveryState shardId [" + recoveryState.getShardId() + "] not equal to [" + shardId + "]";
+        final RecoverySource recoverySource = shardRouting.recoverySource();
+        assert recoveryState.getRecoverySource().equals(recoverySource)
+            : "recoveryState recovery source [" + recoveryState.getRecoverySource() + "] not equal to [" + recoverySource + "]";
         assert recoveryState.getStage() == RecoveryState.Stage.CREATED : recoveryState.getStage();
+        this.recoveryState = Objects.requireNonNull(recoveryState);
 
         final Settings settings = indexSettings.getSettings();
         this.codecService = new CodecService(

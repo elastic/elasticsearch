@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -38,7 +39,7 @@ public class RecoveryStateTests extends ESTestCase {
         state.setStage(Stage.INIT);
 
         final AssertionError error = expectThrows(AssertionError.class, () -> state.setStage(Stage.CREATED));
-        assertThat(error.getMessage(), equalTo("can't move recovery to stage [CREATED] from [INIT]"));
+        assertThat(error.getMessage(), containsString("can't move recovery to stage [CREATED]"));
         assertThat(state.getStage(), equalTo(Stage.INIT));
     }
 

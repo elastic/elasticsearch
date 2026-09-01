@@ -34,6 +34,7 @@ import org.apache.orc.StringColumnStatistics;
 import org.apache.orc.StripeInformation;
 import org.apache.orc.StripeStatistics;
 import org.apache.orc.TypeDescription;
+import org.apache.orc.impl.BufferChunk;
 import org.apache.orc.impl.OrcTail;
 import org.apache.orc.impl.ReaderImpl;
 import org.elasticsearch.common.settings.Settings;
@@ -87,7 +88,6 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -156,9 +156,13 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         long types = tail.getFooter().getTypesCount();
         // OrcTail retains the serialized tail buffer alongside the parsed structures, so a file with
         // large metadata/stripe-statistics sections costs far more than the parsed counts suggest.
-        ByteBuffer serializedTail = tail.getSerializedTail();
-        long serializedBytes = serializedTail == null ? 0 : serializedTail.remaining();
+        BufferChunk tailBuffer = tail.getTailBuffer();
+        long serializedBytes = tailBuffer == null ? 0 : tailBuffer.getTotalLength();
         return 4096 + serializedBytes + stripes * 1024 + types * 512;
+    }
+
+    OrcTail parsedTailForTests(FooterByteCache.Key key) {
+        return parsedFooters.get(key);
     }
 
     private final BlockFactory blockFactory;

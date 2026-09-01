@@ -17,6 +17,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.function.ToLongFunction;
 
@@ -59,10 +62,10 @@ import java.util.function.ToLongFunction;
  *       the analogous stripe shape for ORC) against a heap-relative budget
  *       ({@link ExternalSourceCacheSettings#FOOTER_PARSED_CACHE_SIZE}). Estimator precision only
  *       affects budget utilization, never correctness. An entry whose estimate exceeds the whole
- *       budget is refused rather than cached (see {@link #put}), because such an entry can only
- *       displace the entire working set and then itself. Note that the byte and parsed caches
- *       evict independently. TTL alignment keeps them timing-consistent but does not synchronize
- *       eviction events.</li>
+ *       budget is refused rather than cached (see {@link #put} and {@link #getOrLoad}), because
+ *       such an entry can only displace the entire working set and then itself. Note that the byte
+ *       and parsed caches evict independently. TTL alignment keeps them timing-consistent but does
+ *       not synchronize eviction events.</li>
  * </ul>
  *
  * <p>Cached values must be treated as immutable by all callers — callers that need to derive a
@@ -85,6 +88,7 @@ public final class ParsedFooterCache<T> {
     private record Weighted<T>(T value, long weight) {}
 
     private final Cache<FooterByteCache.Key, Weighted<T>> cache;
+    private final ConcurrentMap<FooterByteCache.Key, CompletableFuture<Weighted<T>>> inFlightLoads = new ConcurrentHashMap<>();
     private final ToLongFunction<T> weigher;
     private final long maxWeightBytes;
 
@@ -133,20 +137,60 @@ public final class ParsedFooterCache<T> {
      * thundering-herd protection that lets a single producer parse the footer while N siblings
      * skip the parse entirely.
      *
-     * <p>The oversized-entry ceiling {@link #put} applies cannot be enforced here: the weight is
-     * only known once the loader has run, by which point the backing {@link Cache} has already
-     * linked the entry and pruned to fit. A load heavier than the whole budget therefore drains
-     * the cache and then self-evicts, leaving no entry behind. Callers that already hold the
-     * parsed value should seed it through {@link #put}, which refuses it before any eviction.
+     * <p>Loads are coordinated outside the backing cache so the value can be weighed before cache
+     * admission. An entry heavier than the whole budget is returned to the loading caller and any
+     * concurrent waiters, but is not inserted and cannot evict the existing working set.
      *
      * @throws ExecutionException if the loader throws an exception or returns null
      */
     public T getOrLoad(FooterByteCache.Key key, CacheLoader<FooterByteCache.Key, T> loader) throws ExecutionException {
-        // A null from the loader must stay null so the backing cache keeps throwing ExecutionException.
-        return cache.computeIfAbsent(key, k -> {
-            T loaded = loader.load(k);
-            return loaded == null ? null : wrap(loaded);
-        }).value();
+        Weighted<T> cached = cache.get(key);
+        if (cached != null) {
+            return cached.value();
+        }
+
+        CompletableFuture<Weighted<T>> newLoad = new CompletableFuture<>();
+        CompletableFuture<Weighted<T>> inFlight = inFlightLoads.putIfAbsent(key, newLoad);
+        if (inFlight != null) {
+            return awaitLoad(inFlight).value();
+        }
+
+        try {
+            cached = cache.get(key);
+            if (cached != null) {
+                newLoad.complete(cached);
+                return cached.value();
+            }
+
+            T loaded = loader.load(key);
+            if (loaded == null) {
+                throw new NullPointerException("loader returned a null value");
+            }
+            Weighted<T> weighted = wrap(loaded);
+            if (weighted.weight() <= maxWeightBytes) {
+                Weighted<T> admitted = weighted;
+                weighted = cache.computeIfAbsent(key, ignored -> admitted);
+            }
+            newLoad.complete(weighted);
+            return weighted.value();
+        } catch (Exception e) {
+            newLoad.completeExceptionally(e);
+            throw new ExecutionException(e);
+        } catch (Error e) {
+            newLoad.completeExceptionally(e);
+            throw e;
+        } finally {
+            inFlightLoads.remove(key, newLoad);
+        }
+    }
+
+    private static <T> Weighted<T> awaitLoad(CompletableFuture<Weighted<T>> inFlight) throws ExecutionException {
+        try {
+            return inFlight.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ExecutionException(e);
+        }
     }
 
     /**

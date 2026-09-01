@@ -230,6 +230,18 @@ public class ParsedFooterCacheTests extends ESTestCase {
         assertEquals("the existing working set must survive the refused insert", "abc", weighted.get(small));
     }
 
+    public void testGetOrLoadSkipsEntryHeavierThanBudget() throws ExecutionException {
+        ParsedFooterCache<String> weighted = new ParsedFooterCache<>(1000, TTL, v -> v.length() * 100L);
+        FooterByteCache.Key small = key("small.parquet", 1);
+        FooterByteCache.Key oversized = key("wide.parquet", 2);
+
+        weighted.put(small, "abc");
+        assertEquals("eleven chrs", weighted.getOrLoad(oversized, ignored -> "eleven chrs"));
+
+        assertNull("an entry heavier than the budget must not be cached", weighted.get(oversized));
+        assertEquals("the existing working set must survive the refused load", "abc", weighted.get(small));
+    }
+
     /** An entry weighing exactly the budget still fits: the Cache prunes only while weight > budget. */
     public void testPutAdmitsEntryWeighingExactlyTheBudget() {
         ParsedFooterCache<String> weighted = new ParsedFooterCache<>(1000, TTL, v -> v.length() * 100L);

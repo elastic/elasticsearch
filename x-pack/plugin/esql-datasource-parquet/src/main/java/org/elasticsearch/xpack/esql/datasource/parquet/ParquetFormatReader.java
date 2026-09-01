@@ -239,7 +239,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * UTF-16 worst case; compact Latin-1 strings cost half that) plus a per-entry allowance for
      * the two String headers and the map node.
      */
-    private static long estimateKeyValueMetadataBytes(Map<String, String> keyValueMetaData) {
+    static long estimateKeyValueMetadataBytes(Map<String, String> keyValueMetaData) {
+        if (keyValueMetaData == null) {
+            return 0;
+        }
         long bytes = 0;
         for (Map.Entry<String, String> entry : keyValueMetaData.entrySet()) {
             bytes += 64;
@@ -1495,22 +1498,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     @Override
     public void close() throws IOException {
         // No resources to close at the reader level
-    }
-
-    /**
-     * Files at or below this size skip {@link #discoverSplitRanges} when the planner already holds
-     * statistics harvested during schema resolution (see {@code FileSplitProvider}). The threshold
-     * is deliberately below {@code DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES}: files smaller than
-     * the macro-split target coalesce into fewer than two ranges, and {@link #discoverSplitRanges}
-     * then returns per-row-group ranges only when there are multiple row groups, rare for files
-     * this small, and the parallelism forfeited by reading such a file whole is negligible
-     * compared to saving the footer fetch + parse.
-     */
-    static final long RANGE_DISCOVERY_BYPASS_MAX_BYTES = 8 * 1024 * 1024;
-
-    @Override
-    public long rangeDiscoveryBypassMaxBytes() {
-        return RANGE_DISCOVERY_BYPASS_MAX_BYTES;
     }
 
     @Override

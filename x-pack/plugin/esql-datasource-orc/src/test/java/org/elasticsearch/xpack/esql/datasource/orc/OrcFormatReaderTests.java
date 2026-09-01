@@ -27,6 +27,7 @@ import org.apache.orc.CompressionKind;
 import org.apache.orc.OrcFile;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
+import org.apache.orc.impl.OrcTail;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.time.DateFormatter;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -70,6 +72,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
@@ -1205,6 +1208,27 @@ public class OrcFormatReaderTests extends ESTestCase {
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
         List<SplitRange> ranges = reader.discoverSplitRanges(storageObject);
         assertTrue("Empty file (no stripes) should return empty ranges", ranges.isEmpty());
+    }
+
+    public void testTailWeightDoesNotDependOnSerializedBufferPosition() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 1;
+            ((LongColumnVector) batch.cols[0]).vector[0] = 1;
+        });
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        reader.discoverSplitRanges(storageObject);
+        FooterByteCache.Key key = FooterByteCache.Key.keyFor(storageObject, storageObject.length());
+        OrcTail tail = reader.parsedTailForTests(key);
+        ByteBuffer serializedTail = tail.getSerializedTail();
+        assertTrue(serializedTail.hasRemaining());
+        long weight = OrcFormatReader.estimateTailWeightBytes(tail);
+
+        serializedTail.position(serializedTail.limit());
+
+        assertEquals(weight, OrcFormatReader.estimateTailWeightBytes(tail));
     }
 
     public void testDiscoverSplitRanges_multiStripeFile() throws Exception {

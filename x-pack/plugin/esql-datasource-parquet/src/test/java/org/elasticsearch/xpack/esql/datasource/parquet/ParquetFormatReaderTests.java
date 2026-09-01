@@ -846,6 +846,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
         );
     }
 
+    public void testNullKeyValueMetadataHasNoWeight() {
+        assertEquals(0L, ParquetFormatReader.estimateKeyValueMetadataBytes(null));
+    }
+
     /**
      * A footer with no row groups still retains the full MessageType, and the per-column-chunk
      * term that covers the schema for every other file contributes nothing here. Without a

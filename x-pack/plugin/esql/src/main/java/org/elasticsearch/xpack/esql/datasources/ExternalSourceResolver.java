@@ -677,8 +677,6 @@ public class ExternalSourceResolver {
 
             ExternalSourceMetadata extMetadata;
             StorageEntry storageEntry;
-            // Statistics this resolve actually harvested, for the small-file discovery bypass. Only the cold,
-            // non-cacheable branch below can supply them; see the assignment there and the else-branch note.
             SourceStatistics harvestedStatistics = null;
             if (isCacheable(provider)) {
                 // Warm path is zero-I/O: the file-metadata cache holds {length, mtime} within the schema TTL, so a warm
@@ -687,15 +685,15 @@ public class ExternalSourceResolver {
                 FileMetadata meta = fileMetadataOf(storagePath, provider, config);
                 String formatType = detectFormatType(storagePath);
                 SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), meta.mtimeMillis(), formatType, config);
+                SourceStatistics[] computedStatistics = new SourceStatistics[1];
                 SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                    return stampInferredReadConfig(SchemaCacheEntry.from(resolveSingleSource(path, config)));
+                    SourceMetadata metadata = resolveSingleSource(path, config);
+                    computedStatistics[0] = metadata.statistics().orElse(null);
+                    return stampInferredReadConfig(SchemaCacheEntry.from(metadata));
                 });
+                harvestedStatistics = computedStatistics[0];
                 List<Attribute> schema = schemaEntry.toAttributes();
-                // Leaves harvestedStatistics null even when this call computed the entry: a SchemaCacheEntry keeps
-                // only the flat _stats.* map, not a SourceStatistics, and buildMetadataFromCache keeps the bypass
-                // cold-resolve-only by construction. Supplying it here would mean threading the computed statistics
-                // out of the cache loader, as cachedResolveSingleSourceAsync does with its four-arg overload.
-                extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
+                extMetadata = buildMetadataFromCache(schemaEntry, schema, config, harvestedStatistics);
                 storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
             } else {
                 SourceMetadata metadata = resolveSingleSource(path, config);
@@ -714,9 +712,7 @@ public class ExternalSourceResolver {
             List<Attribute> fileSchema = extMetadata.schema();
 
             FileList singletonList = GlobExpander.fileListOf(List.of(storageEntry), path);
-            // Single-file: degenerate case of the general flow — one-entry schemaMap, identity mapping. Carrying the
-            // harvested statistics lets split discovery take the small-file bypass instead of re-reading the footer
-            // this resolve just parsed.
+            // Single-file: degenerate case of the general flow, with a one-entry schemaMap and identity mapping.
             Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(
                 storagePath,
                 fileSchema,
@@ -1022,11 +1018,9 @@ public class ExternalSourceResolver {
                 ? new ColumnMapping(identityMapping(physicalSchema.size()), null)
                 : SchemaReconciliation.computeMapping(dataOnlySchema, physicalSchema);
             for (int i = 0; i < listing.fileCount(); i++) {
-                // No per-file statistics on this rail. Either the defer branch ran and no file's footer was read at
-                // all, or the eager gather ran and folded every file's stats into one dataset-level aggregate whose
-                // whole point is to skip split discovery outright; when that aggregation fails the survivors are
-                // marked partial and must not be stamped onto splits. So FFW never takes the small-file discovery
-                // bypass, and pays a footer re-read for the files split discovery does visit.
+                // No per-file statistics on this rail. Either the defer branch read no per-file footers, or the eager
+                // gather folded every file's stats into one dataset-level aggregate that cannot be assigned to an
+                // individual file. A partial aggregate must not be stamped onto any split.
                 perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(fileSchema, mapping, null));
             }
             schemaMap = Collections.unmodifiableMap(perFileInfo);
@@ -1267,9 +1261,6 @@ public class ExternalSourceResolver {
 
             @Override
             public Optional<SourceStatistics> statistics() {
-                // Non-null only on the cold resolve rail, where THIS query just parsed the footer.
-                // Warm cache serves pass null so downstream split planning (the small-file discovery
-                // bypass keys off non-null statistics) stays cold-resolve-only by construction.
                 return Optional.ofNullable(harvestedStatistics);
             }
         };
@@ -1732,9 +1723,6 @@ public class ExternalSourceResolver {
         resolveSingleSourceAsync(filePath.toString(), hint, config, listener.map(meta -> {
             SchemaCacheEntry entry = stampInferredReadConfig(SchemaCacheEntry.from(meta));
             cacheService.putSchema(schemaKey, entry);
-            // Carry the just-harvested footer statistics on the returned metadata: this is the cold
-            // rail (the footer was parsed by this query), which is exactly when the small-file
-            // range-discovery bypass in FileSplitProvider may reuse them instead of a second parse.
             return buildMetadataFromCache(entry, entry.toAttributes(), config, meta.statistics().orElse(null));
         }));
     }
@@ -2552,8 +2540,7 @@ public class ExternalSourceResolver {
             List.of(new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()))),
             path
         );
-        // Strict declares the whole schema, so no per-file footer statistics were harvested: null keeps this file
-        // out of the small-file discovery bypass, which requires stats resolution actually holds.
+        // Strict declares the whole schema, so no per-file footer statistics were harvested.
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, logicalSchema, null);
         return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
     }
@@ -2789,8 +2776,7 @@ public class ExternalSourceResolver {
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = new HashMap<>();
         for (int i = 0; i < listing.fileCount(); i++) {
-            // Strict reads only the anchor's footer (for the coercibility check), so no file here has harvested
-            // statistics — null, which keeps them out of the small-file discovery bypass.
+            // Strict reads only the anchor's footer for the coercibility check, so no file has harvested statistics.
             schemaMap.putAll(singleEntrySchemaMap(listing.path(i), logicalSchema, null));
         }
         return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);

@@ -2893,10 +2893,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     /**
      * Cold cacheable multi-file resolves must expose the just-harvested footer statistics on the
      * returned metadata. {@code cachedResolveSingleSourceAsync} wraps the resolved metadata in a
-     * cache-shaped view that must forward {@code statistics()} on a cold resolve, or
-     * {@code FileSchemaInfo.statistics()} is null and the small-file discovery bypass does not
-     * fire on the path it was built for. Warm serves must stay null: the bypass is
-     * cold-resolve-only by construction (the footer was parsed by THIS query).
+     * cache-shaped view that must forward {@code statistics()} on a cold resolve. Warm serves must
+     * stay null because the cached flat stats may include values reconciled from a later scan.
      */
     public void testCacheableColdResolveCarriesHarvestedStatistics() throws Exception {
         List<Attribute> schema = List.of(attr("id", DataType.LONG));
@@ -2939,6 +2937,36 @@ public class ExternalSourceResolverTests extends ESTestCase {
             for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : warm.schemaMap().entrySet()) {
                 assertNull("warm serve must not expose typed statistics for " + e.getKey(), e.getValue().statistics());
             }
+        }
+    }
+
+    public void testCacheableColdSingleFileResolveCarriesHarvestedStatistics() throws Exception {
+        String path = "s3://bucket/data/single.parquet";
+        StoragePath storagePath = StoragePath.of(path);
+        List<Attribute> schema = List.of(attr("id", DataType.LONG));
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of(), schemasByPath);
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithReader(
+                provider,
+                new StubFormatReaderWithStats(schemasByPath, Map.of(path, 11L)),
+                cacheService
+            );
+
+            PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
+            resolver.resolve(List.of(path), Map.of(), f1);
+            SourceStatistics coldStatistics = f1.actionGet().resolvedSource(path).schemaMap().get(storagePath).statistics();
+            assertNotNull(coldStatistics);
+            assertEquals(11L, coldStatistics.rowCount().getAsLong());
+
+            PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
+            resolver.resolve(List.of(path), Map.of(), f2);
+            assertNull(f2.actionGet().resolvedSource(path).schemaMap().get(storagePath).statistics());
         }
     }
 

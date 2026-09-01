@@ -22,6 +22,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
@@ -50,8 +51,9 @@ import java.util.Objects;
  * query is built, so what goes into the cache key is the cheap query rather than a pattern that has to be
  * recognised again on every rewrite.
  *
- * <p>The caller decides where this query is used: a field this format did not write has no such column, and
- * the query says so rather than reading the values a document at a time on its own.
+ * <p>A caller gates on the format, so a field reaching this has a column. It is not always handed over as
+ * one: an updated field is read as an overlay of its layers, which is no column, and then the values are
+ * read a document at a time like any binary doc values.
  */
 public final class ColumnarStringAutomatonQuery extends Query {
 
@@ -155,11 +157,25 @@ public final class ColumnarStringAutomatonQuery extends Query {
                     return ConstantScoreScorerSupplier.fromIterator(matches, score(), scoreMode, reader.maxDoc());
                 }
 
-                throw new IllegalStateException(
-                    "field ["
-                        + field
-                        + "] is not a string column, so it has no column to answer from; "
-                        + "a columnar query is only built for a field this format wrote"
+                // An overlay rather than the column, as an updated field is: the values are read one
+                // document at a time and run through the automaton.
+                final TwoPhaseIterator twoPhase = new TwoPhaseIterator(values) {
+                    @Override
+                    public boolean matches() throws IOException {
+                        final BytesRef candidate = values.binaryValue();
+                        return automaton.run(candidate.bytes, candidate.offset, candidate.length);
+                    }
+
+                    @Override
+                    public float matchCost() {
+                        return 100f;
+                    }
+                };
+                return ConstantScoreScorerSupplier.fromIterator(
+                    TwoPhaseIterator.asDocIdSetIterator(twoPhase),
+                    score(),
+                    scoreMode,
+                    reader.maxDoc()
                 );
             }
 

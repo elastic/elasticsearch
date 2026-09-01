@@ -35,7 +35,6 @@ import java.util.List;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
-import static org.hamcrest.Matchers.containsString;
 
 /**
  * The term and prefix queries driven through a real {@link IndexSearcher} over a ColumNAR-coded index, so
@@ -126,13 +125,11 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
     }
 
     /**
-     * A field whose values are reached through something other than the column itself. The format is chosen
-     * at index creation and cannot move under an index, so a query built for a field with no column is a
-     * caller that did not gate on the format rather than a shape to answer around, and the query says so
-     * instead of quietly reading the values a document at a time.
+     * An updated field, read as an overlay of its layers rather than as the column. The query has to answer
+     * from the values it is given rather than report that nothing matches.
      */
-    public void testWithoutAColumnItSaysSo() throws IOException {
-        final List<String> values = values(between(200, 600), d -> TERMS[d % TERMS.length]);
+    public void testMatchesThroughAnOverlaidColumn() throws IOException {
+        final List<String> values = values(between(600, 2000), d -> TERMS[d % TERMS.length]);
         try (Directory dir = newDirectory()) {
             final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
             final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
@@ -146,14 +143,17 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
             }
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 final IndexSearcher searcher = new IndexSearcher(hideTheColumn(reader));
-                for (Query query : List.of(
-                    ColumnarStringTermQuery.term(FIELD, new BytesRef("alpha")),
-                    ColumnarStringTermQuery.prefix(FIELD, new BytesRef("al")),
-                    ColumnarStringTermQuery.contains(FIELD, new BytesRef("lph")),
-                    ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a")
-                )) {
-                    final IllegalStateException e = expectThrows(IllegalStateException.class, () -> found(searcher, query));
-                    assertThat(e.getMessage(), containsString("field [" + FIELD + "] is not a string column"));
+                for (String probe : Arrays.asList("alpha", "alpine", "delta", "absent")) {
+                    assertEquals(
+                        "term [" + probe + "] through a wrapper",
+                        expected(values, probe, true),
+                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
+                    );
+                    assertEquals(
+                        "prefix [" + probe + "] through a wrapper",
+                        expected(values, probe, false),
+                        found(searcher, ColumnarStringTermQuery.prefix(FIELD, new BytesRef(probe)))
+                    );
                 }
             }
         }

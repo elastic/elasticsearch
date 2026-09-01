@@ -13,7 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
@@ -140,20 +142,22 @@ public class DataStreamLifecycleErrorStore {
      * retries DSL attempted (descending order) and the number of entries will be limited according to the provided limit parameter.
      * Returns empty list if no entries are present in the error store or none satisfy the predicate.
      */
-    public List<DslErrorInfo> getErrorsInfo(Predicate<ErrorEntry> errorEntryPredicate, int limit) {
-        return projectMap.entrySet()
-            .stream()
-            .flatMap(
-                projectToIndexError -> projectToIndexError.getValue()
-                    .entrySet()
-                    .stream()
-                    .map(
-                        indexToError -> new Tuple<>(
-                            new ProjectIndexName(projectToIndexError.getKey(), indexToError.getKey().getName()),
-                            indexToError.getValue()
-                        )
+    public List<DslErrorInfo> getErrorsInfo(ClusterState clusterState, Predicate<ErrorEntry> errorEntryPredicate, int limit) {
+        return projectMap.entrySet().stream().flatMap(projectToIndexError -> {
+            ProjectId projectId = projectToIndexError.getKey();
+            ProjectMetadata projectMetadata = clusterState.metadata().getProject(projectId);
+            return projectToIndexError.getValue()
+                .entrySet()
+                .stream()
+                // Ensure the errors reported refer to indices that exist in the cluster state
+                .filter(entry -> projectMetadata.hasIndex(entry.getKey()))
+                .map(
+                    indexToError -> new Tuple<>(
+                        new ProjectIndexName(projectToIndexError.getKey(), indexToError.getKey().getName()),
+                        indexToError.getValue()
                     )
-            )
+                );
+        })
             .filter(projectIndexAndError -> errorEntryPredicate.test(projectIndexAndError.v2()))
             .sorted(Comparator.comparing(Tuple::v2))
             .limit(limit)

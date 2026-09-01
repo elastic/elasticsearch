@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.CloseableIterator;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,7 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * must preserve the single-threaded-iteration precondition; {@code nextPage} is not safe to publish across
  * concurrent iterators.
  */
-public abstract class BufferingPageIterator implements CloseableIterator<Page> {
+public abstract class BufferingPageIterator extends CpuMeteringPageIterator {
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
@@ -46,7 +45,7 @@ public abstract class BufferingPageIterator implements CloseableIterator<Page> {
     protected volatile Page nextPage;
 
     @Override
-    public final void close() throws IOException {
+    protected final void doClose() throws IOException {
         if (closed.compareAndSet(false, true) == false) {
             return;
         }

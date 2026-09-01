@@ -198,10 +198,15 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
 
     /** Registers a {@code test}-type data source and records it for teardown. */
     protected void registerDataSource(String name, Map<String, Object> settings) {
+        registerDataSource(name, "test", settings);
+    }
+
+    /** Registers a data source of the given type and records it for teardown. */
+    protected void registerDataSource(String name, String type, Map<String, Object> settings) {
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings))
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, type, null, new HashMap<>(settings))
             )
         );
         registeredDataSources.add(name);

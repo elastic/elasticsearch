@@ -510,7 +510,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         }
         // Fingerprint is computed lazily in the iterator's close hook once the decoder has resolved
         // its projected attributes — schema resolution can lag past iterator construction.
-        return new NdJsonPageIterator(
+        NdJsonPageIterator iter = new NdJsonPageIterator(
             object,
             context.projectedColumns(),
             context.batchSize(),
@@ -537,6 +537,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             context.statsColumnScope(),
             context.informationalWarningSink()
         );
+        iter.addAsyncCpuOnClose(object, counters::addReadCpuNanos);
+        return iter;
     }
 
     /**

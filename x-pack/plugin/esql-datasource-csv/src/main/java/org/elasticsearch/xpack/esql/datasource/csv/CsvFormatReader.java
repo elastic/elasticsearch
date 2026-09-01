@@ -1977,7 +1977,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         // Fingerprint is computed lazily in CsvBatchIterator.close() once the schema is resolved
         // (effectiveSchema is often null here for the firstSplit cold-resolve path).
-        return new CsvBatchIterator(
+        CsvBatchIterator iter = new CsvBatchIterator(
             reader,
             recordReader,
             stream,
@@ -2000,6 +2000,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             context.statsColumnScope(),
             context.informationalWarningSink()
         );
+        iter.addAsyncCpuOnClose(object, counters::addReadCpuNanos);
+        return iter;
     }
 
     /**

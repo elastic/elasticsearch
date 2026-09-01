@@ -127,6 +127,12 @@ dependencies {
   internalClusterTestImplementation project(':libs:lz4')
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-gzip'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-http'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-gcs'))
+  internalClusterTestImplementation project(':test:fixtures:gcs-fixture')
+  internalClusterTestImplementation 'com.google.cloud:google-cloud-storage:2.71.0'
+  internalClusterTestImplementation 'com.google.cloud:google-cloud-core:2.73.0'
+  internalClusterTestImplementation 'com.google.auth:google-auth-library-credentials:1.50.0'
+  internalClusterTestImplementation 'com.google.auth:google-auth-library-oauth2-http:1.50.0'
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-parquet'))
   internalClusterTestImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
   internalClusterTestImplementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") { transitive = false }
@@ -138,6 +144,12 @@ dependencies {
   // JarHell check aborts boot. There is no Gradle exclusion that strips a class from inside a
   // module's own jar, so the ORC reader cannot share this classpath; ORC is therefore omitted
   // from AbstractExternalMetadataMatrixIT's per-format subclasses.
+}
+
+// grpc-api (pulled by esql-datasource-gcs) supersedes grpc-context, which google-cloud-storage
+// pulls in transitively. Both contain io.grpc.Context and trigger JarHell; exclude grpc-context.
+configurations.internalClusterTestRuntimeClasspath {
+  exclude group: 'io.grpc', module: 'grpc-context'
 }
 
 tasks.named('compileInternalClusterTestJava').configure {

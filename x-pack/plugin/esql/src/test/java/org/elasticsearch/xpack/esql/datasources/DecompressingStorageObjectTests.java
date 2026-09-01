@@ -11,7 +11,6 @@ import com.github.luben.zstd.ZstdOutputStream;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
@@ -31,17 +30,14 @@ import java.util.zip.GZIPOutputStream;
 /**
  * Unit tests for {@link DecompressingStorageObject}.
  */
-public class DecompressingStorageObjectTests extends ESTestCase {
+public class DecompressingStorageObjectTests extends DelegateStorageObjectTests {
 
     public void testDecompressStream() throws IOException {
         byte[] original = "hello,world\n1,2".getBytes(StandardCharsets.UTF_8);
         byte[] compressed = gzip(original);
 
         StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///data.csv.gz"));
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
-
-        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
-        try (InputStream stream = decompressing.newStream()) {
+        try (InputStream stream = makeStorageObject(rawObject).newStream()) {
             byte[] decompressed = stream.readAllBytes();
             assertArrayEquals(original, decompressed);
         }
@@ -90,9 +86,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
     }
 
     public void testNewStreamPositionLengthThrows() throws IOException {
-        StorageObject rawObject = new BytesStorageObject(new byte[0], StoragePath.of("file:///data.csv.gz"));
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
-        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
+        StorageObject decompressing = makeStorageObject(new BytesStorageObject(new byte[0], StoragePath.of("file:///data.csv.gz")));
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> decompressing.newStream(0, 100));
         assertTrue(e.getMessage().contains("Stream-only compression"));
@@ -100,9 +94,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
     }
 
     public void testLengthThrows() throws IOException {
-        StorageObject rawObject = new BytesStorageObject(new byte[0], StoragePath.of("file:///data.csv.gz"));
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
-        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
+        StorageObject decompressing = makeStorageObject(new BytesStorageObject(new byte[0], StoragePath.of("file:///data.csv.gz")));
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, decompressing::length);
         assertTrue(e.getMessage().contains("Decompressed length is unknown"));
@@ -112,9 +104,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
     public void testDelegatesLastModifiedAndExistsAndPath() throws IOException {
         Instant now = Instant.now();
         StoragePath path = StoragePath.of("file:///data.csv.gz");
-        StorageObject rawObject = new BytesStorageObject(new byte[0], path, now, true);
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
-        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
+        StorageObject decompressing = makeStorageObject(new BytesStorageObject(new byte[0], path, now, true));
 
         assertEquals(now, decompressing.lastModified());
         assertTrue(decompressing.exists());
@@ -129,14 +119,11 @@ public class DecompressingStorageObjectTests extends ESTestCase {
                 return snapshot;
             }
         };
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
-        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
-        assertSame(snapshot, decompressing.metrics());
+        assertSame(snapshot, makeStorageObject(rawObject).metrics());
     }
 
     public void testNullDelegateThrows() {
         DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
-        StorageObject rawObject = new BytesStorageObject(new byte[0], StoragePath.of("file:///x"));
         expectThrows(QlIllegalArgumentException.class, () -> new DecompressingStorageObject(null, codec));
     }
 
@@ -179,9 +166,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         );
 
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
-        StorageObject rawObject = DrainSimulatingStorageObject.create(compressed, tracking);
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
-        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
+        StorageObject decompressing = makeStorageObject(DrainSimulatingStorageObject.create(compressed, tracking));
 
         InputStream stream = decompressing.newStream();
         try {
@@ -219,9 +204,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         byte[] compressed = gzip(original);
 
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
-        StorageObject rawObject = DrainSimulatingStorageObject.create(compressed, tracking);
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
-        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
+        StorageObject decompressing = makeStorageObject(DrainSimulatingStorageObject.create(compressed, tracking));
 
         try (InputStream stream = decompressing.newStream()) {
             byte[] decompressed = stream.readAllBytes();
@@ -229,6 +212,12 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         }
 
         assertTrue("raw stream must be closed after the wrapper is closed (otherwise connection leaks)", tracking.closed.get());
+    }
+
+    @Override
+    public StorageObject makeStorageObject(StorageObject delegate) {
+        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
+        return new DecompressingStorageObject(delegate, codec);
     }
 
     private static byte[] gzip(byte[] input) throws IOException {

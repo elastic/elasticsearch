@@ -12,7 +12,6 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -49,7 +48,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class RetryableStorageObjectTests extends ESTestCase {
+public class RetryableStorageObjectTests extends DelegateStorageObjectTests {
+
+    @Override
+    public StorageObject makeStorageObject(StorageObject delegate) {
+        return new RetryableStorageObject(delegate, new RetryPolicy(3, 1, 10));
+    }
 
     /**
      * Test fixture instead of {@code mock(StorageObject.class)} per AGENTS.md "real classes over mocks":
@@ -230,13 +234,10 @@ public class RetryableStorageObjectTests extends ESTestCase {
     }
 
     public void testMetricsForwardsDelegateCountersWhenNoRetries() {
-        RetryPolicy policy = new RetryPolicy(3, 1, 10);
         StorageObjectMetrics snapshot = new StorageObjectMetrics(13, 4321, 16384, 4);
         FakeStorageObject delegate = new FakeStorageObject(StoragePath.of("s3://bucket/key"), snapshot, null, new byte[0], 0);
-
-        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
         // No retries observed at this decorator boundary, so the merged snapshot equals the delegate.
-        assertEquals(snapshot, obj.metrics());
+        assertEquals(snapshot, makeStorageObject(delegate).metrics());
     }
 
     public void testMetricsAddsRetryCountObservedByDecorator() throws IOException {
@@ -638,8 +639,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
         StorageObject delegate = mock(StorageObject.class);
         InputStream stream = new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8));
 
-        RetryableStorageObject obj = new RetryableStorageObject(delegate, new RetryPolicy(3, 1, 10));
-        obj.abortStream(stream);
+        makeStorageObject(delegate).abortStream(stream);
 
         verify(delegate).abortStream(stream);
     }
@@ -676,8 +676,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
             return null;
         }).when(delegate).abortStream(any(InputStream.class));
 
-        RetryableStorageObject obj = new RetryableStorageObject(delegate, new RetryPolicy(3, 1, 10));
-        obj.abortStream(stream);
+        makeStorageObject(delegate).abortStream(stream);
 
         assertSame(stream, captured[0]);
     }
@@ -1326,4 +1325,5 @@ public class RetryableStorageObjectTests extends ESTestCase {
             return n;
         }
     }
+
 }

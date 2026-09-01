@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
+import org.elasticsearch.xpack.esql.datasources.spi.CpuMeteringPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -1267,7 +1268,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             long footerStartNanos = System.nanoTime();
             ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, readOptionsBuilder().build());
             counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), reader.getFooter().getBlocks().size());
-            return buildIterator(
+            CpuMeteringPageIterator iter = buildIterator(
                 object,
                 parquetInputFile,
                 reader,
@@ -1287,6 +1288,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 resolveErrorPolicy(context.errorPolicy()),
                 context.informationalWarningSink()
             );
+            iter.addAsyncCpuOnClose(object, counters::addTotalReadCpuNanos);
+            return iter;
         } finally {
             // This covers only the synchronous open/setup phase (footer, row-group filtering,
             // index/dictionary/bloom prefetch dispatch). The returned iterator's own hasNext()/
@@ -1633,7 +1636,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 && context.projectedColumns().contains(ColumnExtractor.ROW_POSITION_COLUMN)
                     ? computeRangeBlockFileGlobalOffsets(fullFooter, rangeStart, rangeEnd)
                     : null;
-            return buildIterator(
+            CpuMeteringPageIterator iter = buildIterator(
                 object,
                 parquetInputFile,
                 reader,
@@ -1662,6 +1665,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 resolveErrorPolicy(context.errorPolicy()),
                 context.informationalWarningSink()
             );
+            iter.addAsyncCpuOnClose(object, counters::addTotalReadCpuNanos);
+            return iter;
         } finally {
             if (startCpuNanos >= 0) {
                 counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
@@ -1712,7 +1717,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      *                                projection); {@code null} for full-file reads or when
      *                                {@code _rowPosition} is not requested.
      */
-    private CloseableIterator<Page> buildIterator(
+    private CpuMeteringPageIterator buildIterator(
         StorageObject object,
         ParquetStorageObjectAdapter parquetInputFile,
         ParquetFileReader reader,
@@ -1819,7 +1824,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         }
     }
 
-    private CloseableIterator<Page> createOptimizedIterator(
+    private CpuMeteringPageIterator createOptimizedIterator(
         ParquetFileReader reader,
         MessageType projectedSchema,
         List<Attribute> projectedAttributes,
@@ -2208,7 +2213,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * iterator produces no pages (all row groups pruned by predicate statistics), the warning is
      * never emitted — consistent with {@link org.elasticsearch.xpack.esql.datasources.SchemaAdaptingIterator}'s lazy-emit design.
      */
-    private static final class DeferredWarnProducer implements CloseableIterator<Page>, ColumnExtractorProducer {
+    private static final class DeferredWarnProducer extends CpuMeteringPageIterator implements ColumnExtractorProducer {
         private final OptimizedParquetColumnIterator delegate;
         @Nullable
         private String[] pendingWarnings;
@@ -2279,7 +2284,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         }
 
         @Override
-        public void close() throws IOException {
+        protected void doClose() throws IOException {
             pendingWarnings = null;
             pendingSink = null;
             delegate.close();
@@ -2909,7 +2914,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * (maxRepLevel > 0) continue using {@link ColumnReadStoreImpl} and {@link ColumnReader}
      * since they require stateful multi-value handling via repetition levels.
      */
-    private static class ParquetColumnIterator implements CloseableIterator<Page> {
+    private static class ParquetColumnIterator extends CpuMeteringPageIterator {
         private final ParquetFileReader reader;
         private final MessageType projectedSchema;
         private final List<Attribute> attributes;
@@ -3766,7 +3771,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         }
 
         @Override
-        public void close() throws IOException {
+        protected void doClose() throws IOException {
             try {
                 if (rowGroup != null) {
                     rowGroup.close();

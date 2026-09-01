@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.CpuMeteringPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import java.util.NoSuchElementException;
  * Pages produced here are forwarded through {@link org.elasticsearch.xpack.esql.datasources.VirtualColumnIterator}
  * which slots in the constant {@code _file.*} blocks against the request circuit breaker.
  */
-final class ParquetCountOnlyIterator implements CloseableIterator<Page> {
+final class ParquetCountOnlyIterator extends CpuMeteringPageIterator {
 
     private final ParquetFileReader reader;
     private final int batchSize;
@@ -82,7 +82,7 @@ final class ParquetCountOnlyIterator implements CloseableIterator<Page> {
     }
 
     @Override
-    public void close() throws IOException {
+    protected void doClose() throws IOException {
         reader.close();
     }
 }

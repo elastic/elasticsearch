@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
+import org.elasticsearch.xpack.esql.datasources.spi.CpuMeteringPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
@@ -72,7 +73,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -458,7 +458,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
         RecordReader rows = reader.rows(readOptions);
 
-        CloseableIterator<Page> iter = new OrcPageIterator(
+        OrcPageIterator iter = new OrcPageIterator(
             reader,
             rows,
             schema,
@@ -473,7 +473,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink()
         );
-        return rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
+        CpuMeteringPageIterator result = rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
+        result.addAsyncCpuOnClose(object, counters::addReadCpuNanos);
+        return result;
     }
 
     private static int countProjected(boolean[] include, int totalColumns) {
@@ -605,7 +607,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
         RecordReader rows = reader.rows(readOptions);
 
-        return new OrcPageIterator(
+        OrcPageIterator iter = new OrcPageIterator(
             reader,
             rows,
             schema,
@@ -620,6 +622,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink()
         );
+        iter.addAsyncCpuOnClose(object, counters::addReadCpuNanos);
+        return iter;
     }
 
     /** Returns {@code object.length()} if known, or 0 when unavailable. Best-effort sizing for
@@ -1214,7 +1218,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         }
     }
 
-    private static class OrcPageIterator implements CloseableIterator<Page> {
+    private static class OrcPageIterator extends CpuMeteringPageIterator {
         private final Reader reader;
         private final RecordReader rows;
         private final List<Attribute> attributes;
@@ -2416,7 +2420,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         }
 
         @Override
-        public void close() throws IOException {
+        protected void doClose() throws IOException {
             try {
                 rows.close();
             } finally {
@@ -2425,7 +2429,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         }
     }
 
-    private static class RowLimitingIterator implements CloseableIterator<Page> {
+    private static class RowLimitingIterator extends CpuMeteringPageIterator {
         private final CloseableIterator<Page> delegate;
         private int remaining;
 
@@ -2473,7 +2477,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         }
 
         @Override
-        public void close() throws IOException {
+        protected void doClose() throws IOException {
             delegate.close();
         }
     }

@@ -1,5 +1,5 @@
 area: Snapshot/Restore
 issues: []
 pr: 156765
-summary: Ensure `Error` propagates out of `S3BlobContainer`
+summary: "Halt the node correctly on fatal errors during S3 multipart uploads"
 type: bug

@@ -1,5 +1,5 @@
 area: FIPS
 issues: []
 pr: 156296
-summary: Upgrade bc-fips version
+summary: "Upgrade Bouncy Castle FIPS to 2.0.2 (FIPS 140-3) and 1.0.2.7 (FIPS 140-2)"
 type: upgrade

@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 155923
-summary: Fix partial-prefix compound TopN pushdown
+summary: "Fix incorrect results for multi-key `SORT` with `LIMIT`"
 type: bug

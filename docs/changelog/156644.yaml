@@ -1,5 +1,5 @@
-pr: 156644
-summary: Fix Google VertexAI chat completion tool call arguments serialization for non-string values
+pr: 156665
+summary: "Fix Google Vertex AI `chat_completion` tool calls with non-string arguments"
 area: Inference
 type: bug
 issues:

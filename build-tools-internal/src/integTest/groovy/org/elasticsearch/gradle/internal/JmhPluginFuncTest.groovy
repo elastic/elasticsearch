@@ -17,71 +17,51 @@ class JmhPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     Class<? extends Plugin> pluginClassUnderTest = JmhPlugin
 
-    def "creates jmh and jmhTest source sets and their tasks"() {
+    def "creates benchmark and benchmarkTest source sets and their tasks"() {
         when:
         def result = gradleRunner('tasks', '--all').build()
 
         then:
         // compile<SourceSet>Java tasks are proxies for the source sets being wired
-        result.output.contains('compileJmhJava')
-        result.output.contains('compileJmhTestJava')
-        result.output.contains('jmh -')       // JavaExec runner task
-        result.output.contains('jmhTest -')   // Test task
+        result.output.contains('compileBenchmarkJava')
+        result.output.contains('compileBenchmarkTestJava')
+        result.output.contains('benchmark -')       // JavaExec runner task
+        result.output.contains('benchmarkTest -')   // Test task
     }
 
     def "wires jmh-core, annotation processor, and stripped transitive deps"() {
-        given:
-        buildFile << """
-            tasks.register('printJmhDeps') {
-                def impl = configurations.jmhImplementation.dependencies.collect {
-                    "\${it.group}:\${it.name}:\${it.version}"
-                }.sort()
-                def ap = configurations.jmhAnnotationProcessor.dependencies.collect {
-                    "\${it.group}:\${it.name}:\${it.version}"
-                }.sort()
-                def rt = configurations.jmhRuntimeOnly.dependencies.collect {
-                    "\${it.group}:\${it.name}:\${it.version}"
-                }.sort()
-                doLast {
-                    println "JMH_IMPL=" + impl.join(';')
-                    println "JMH_AP=" + ap.join(';')
-                    println "JMH_RT=" + rt.join(';')
-                }
-            }
-        """.stripIndent()
-
         when:
-        def result = gradleRunner('printJmhDeps').build()
+        def impl = gradleRunner('dependencies', '--configuration', 'benchmarkImplementation').build().output
+        def ap = gradleRunner('dependencies', '--configuration', 'benchmarkAnnotationProcessor').build().output
+        def rt = gradleRunner('dependencies', '--configuration', 'benchmarkRuntimeOnly').build().output
 
         then:
-        def impl = extract(result.output, 'JMH_IMPL=')
-        def ap = extract(result.output, 'JMH_AP=')
-        def rt = extract(result.output, 'JMH_RT=')
-
-        impl.any { it.startsWith('org.openjdk.jmh:jmh-core:') }
-        ap.any { it.startsWith('org.openjdk.jmh:jmh-generator-annprocess:') }
+        impl.contains('org.openjdk.jmh:jmh-core:')
+        ap.contains('org.openjdk.jmh:jmh-generator-annprocess:')
         // jmh-core's transitive deps are stripped by ComponentMetadataRulesPlugin,
         // so the plugin must redeclare them explicitly.
-        rt.any { it.startsWith('net.sf.jopt-simple:jopt-simple:') }
-        rt.any { it.startsWith('org.apache.commons:commons-math3:') }
+        rt.contains('net.sf.jopt-simple:jopt-simple:')
+        rt.contains('org.apache.commons:commons-math3:')
     }
 
-    def "check runs jmhTest and does not run jmh"() {
+    def "check runs benchmarkTest and does not run benchmark"() {
+        given:
+        // The plugin declares external JMH deps; the fixture project has no repositories
+        // of its own, so we add mavenCentral here to let the annotation-processor and
+        // runtime classpaths resolve when Gradle computes the task graph for `check`.
+        buildFile << """
+            repositories { mavenCentral() }
+        """.stripIndent()
+
         when:
         def result = gradleRunner('check').build()
 
         then:
         // With no benchmark or test sources, the Test task should skip gracefully.
-        def outcome = result.task(':jmhTest').outcome
+        def outcome = result.task(':benchmarkTest').outcome
         outcome == TaskOutcome.NO_SOURCE || outcome == TaskOutcome.SUCCESS
         // The benchmark runner is developer-invoked; check must not pull it in.
-        result.task(':jmh') == null
+        result.task(':benchmark') == null
     }
 
-    private static List<String> extract(String output, String prefix) {
-        def line = output.readLines().find { it.startsWith(prefix) }
-        assert line != null : "missing line starting with '$prefix' in:\n$output"
-        def payload = line.substring(prefix.length())
-        payload.isEmpty() ? [] : payload.split(';') as List
-    }
 }

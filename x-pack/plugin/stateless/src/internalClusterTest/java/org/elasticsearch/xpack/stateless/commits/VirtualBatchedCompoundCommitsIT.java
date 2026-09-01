@@ -101,7 +101,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFail
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_MISSING_TIMESTAMP_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_NUMBER_COMMITS_HISTOGRAM_METRIC;
@@ -112,6 +111,7 @@ import static org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoun
 import static org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure.CURRENT_CHUNKS_BYTES_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE;
@@ -1348,17 +1348,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 metricsPlugin.resetMeter();
             }
         }
-
-        // Throughput metrics are pulled.
-        metricsPlugin.collect();
-
-        List<Measurement> averageThroughputMeasurements = metricsPlugin.getDoubleGaugeMeasurement(
-            BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC
-        );
-        // We don't want to repeat specific calculation logic here but the metric should be present.
-        assertEquals(1, averageThroughputMeasurements.size());
-        assertTrue(averageThroughputMeasurements.get(0).getDouble() > 0);
-        metricsPlugin.resetMeter();
     }
 
     public void testBccTimestampRangeMetricRecordedOnUpload() throws Exception {
@@ -1436,6 +1425,42 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         assertThat(missing, hasSize(1));
         assertThat(missing.get(0).getLong(), equalTo(1L));
         assertThat(metricsPlugin.getDoubleHistogramMeasurement(BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC), empty());
+    }
+
+    /**
+     * Verifies that the notification-time histogram is recorded once per BCC upload, tagged with the BCC size bucket.
+     * The test runs without a search node so the notification fires immediately (0 unpromotable shards), but the metric
+     * recording path is still exercised.
+     */
+    public void testBccNotificationTimeMetricRecordedOnUpload() throws Exception {
+        final var indexNode = startMasterAndIndexNode();
+
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+
+        indexDocsAndRefresh(indexName);
+
+        final var shardId = findIndexShard(indexName).shardId();
+        final var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        final var metricsPlugin = findPlugin(indexNode, TestTelemetryPlugin.class);
+        metricsPlugin.resetMeter();
+
+        final VirtualBatchedCompoundCommit virtualBcc = statelessCommitService.getCurrentVirtualBcc(shardId);
+        assertNotNull(virtualBcc);
+        final long totalSize = virtualBcc.getTotalSizeInBytes();
+
+        flush(indexName);
+
+        // The notification fires asynchronously; wait for the metric to appear.
+        assertBusy(() -> {
+            final List<Measurement> measurements = metricsPlugin.getLongHistogramMeasurement(BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC);
+            assertThat(measurements, hasSize(1));
+            assertThat(measurements.get(0).getLong(), greaterThanOrEqualTo(0L));
+            assertThat(
+                measurements.get(0).attributes(),
+                equalTo(Map.of(BCC_SIZE_ATTRIBUTE_KEY, BccUploadMetrics.bccSizeBucket(totalSize)))
+            );
+        });
     }
 
     // Corrupt lucene files should be detected on upload and trigger shard failure.

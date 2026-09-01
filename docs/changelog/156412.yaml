@@ -1,0 +1,6 @@
+pr: 156412
+summary: Fix ROUND of an integer with a negative precision silently overflowing to a negative value
+area: ES|QL
+type: bug
+issues:
+ - 156411

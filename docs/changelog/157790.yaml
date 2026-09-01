@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 157521
+pr: 157790
+summary: Fix mv_min/mv_max on columnar ip fields
+type: bug

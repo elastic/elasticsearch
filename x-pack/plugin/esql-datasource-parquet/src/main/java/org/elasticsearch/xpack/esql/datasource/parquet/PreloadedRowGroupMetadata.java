@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.format.Util;
 import org.apache.parquet.format.converter.ParquetMetadataConverter;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -18,6 +17,7 @@ import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.internal.hadoop.metadata.IndexReference;
 import org.apache.parquet.schema.MessageType;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
@@ -76,7 +76,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
     private final MessageType schema;
 
     /**
-     * Owns the allocator-backed direct memory holding {@link #preWarmedChunks} (and the
+     * Owns the breaker-accounted buffers holding {@link #preWarmedChunks} (and the
      * temporary buffers used by the coalesced index fetch). Closed when this metadata is no
      * longer needed — typically at the end of the iterator's lifecycle. Never null;
      * {@link #empty()} uses a no-op releasable.
@@ -111,11 +111,10 @@ final class PreloadedRowGroupMetadata implements Releasable {
     }
 
     /**
-     * Idempotent and safe to call from multiple threads. Necessary because the underlying
-     * releasable wraps refcounted {@link org.apache.arrow.memory.ArrowBuf}s whose
-     * {@code close()} throws when the reference count reaches zero a second time. The
-     * {@link AtomicBoolean} mirrors {@link PrefetchedPageReader#close()} so both
-     * direct-memory-owning components have identical close semantics.
+     * Idempotent and safe to call from multiple threads. The underlying releasable owns
+     * breaker-accounted heap buffers; {@code DirectReadBuffer.close()} is itself CAS-guarded,
+     * and this {@link AtomicBoolean} matches {@link PrefetchedPageReader#close()} so both
+     * components have identical close semantics.
      */
     @Override
     public void close() {
@@ -151,8 +150,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
      * <p>Falls back to {@link ParquetFileReader}'s sequential reading when no storage object
      * is provided (e.g., in-memory test files).
      */
-    static PreloadedRowGroupMetadata preload(ParquetFileReader reader, StorageObject storageObject, BufferAllocator allocator) {
-        return preload(reader, storageObject, null, allocator);
+    static PreloadedRowGroupMetadata preload(ParquetFileReader reader, StorageObject storageObject, CircuitBreaker breaker) {
+        return preload(reader, storageObject, null, breaker);
     }
 
     /**
@@ -168,25 +167,30 @@ final class PreloadedRowGroupMetadata implements Releasable {
         ParquetFileReader reader,
         StorageObject storageObject,
         Set<String> predicateColumnPaths,
-        BufferAllocator allocator
+        CircuitBreaker breaker
     ) {
-        return preload(reader, storageObject, predicateColumnPaths, null, null, allocator);
+        return preload(reader, storageObject, predicateColumnPaths, null, null, Integer.MAX_VALUE, breaker);
     }
 
     /**
-     * Variant that additionally restricts which columns contribute ColumnIndex and OffsetIndex
-     * byte-range fetches. The page indexes are only consumed by a subset of plans:
+     * Restricts which columns contribute ColumnIndex and OffsetIndex byte-range fetches. The page
+     * indexes are only consumed by a subset of plans:
      * <ul>
      *   <li>ColumnIndex: predicate columns (page-level {@code RowRanges} computation) and the
      *       dynamic-threshold / top-N sort column (page skipping).</li>
      *   <li>OffsetIndex: the above, plus projected columns when a filter is active (filtered reads
-     *       skip non-surviving pages via the offset index).</li>
+     *       skip non-surviving pages via the offset index) or when unfiltered LIMIT clips the
+     *       first-window prefix (then only the first K covering row groups are fetched).</li>
      * </ul>
      * For a full scan with no filter and no threshold, no plan consumes the page indexes, so the
      * caller passes empty sets and zero index ranges are fetched.
      *
      * <p>A {@code null} set means "unrestricted" — fetch the index for every column. This preserves
      * the legacy behavior for callers (and tests) that cannot enumerate the consuming columns.
+     *
+     * <p>{@code offsetIndexRowGroupLimit} caps OffsetIndex fetches to the first K row groups.
+     * ColumnIndex and dictionary/bloom pre-warm ranges are not capped. {@code Integer.MAX_VALUE}
+     * (or any value {@code >=} the block count) is "all groups".
      *
      * @param columnIndexPaths dot-string paths of columns whose ColumnIndex should be fetched, or
      *            {@code null} to fetch for all columns
@@ -199,7 +203,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
         Set<String> predicateColumnPaths,
         Set<String> columnIndexPaths,
         Set<String> offsetIndexPaths,
-        BufferAllocator allocator
+        int offsetIndexRowGroupLimit,
+        CircuitBreaker breaker
     ) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();
         if (rowGroups.isEmpty()) {
@@ -215,13 +220,14 @@ final class PreloadedRowGroupMetadata implements Releasable {
                     predicateColumnPaths,
                     columnIndexPaths,
                     offsetIndexPaths,
-                    allocator
+                    offsetIndexRowGroupLimit,
+                    breaker
                 );
             } catch (Exception e) {
                 logger.debug("Coalesced metadata preload failed, falling back to sequential: {}", e.getMessage());
             }
         }
-        return preloadSequential(reader, rowGroups);
+        return preloadSequential(reader, rowGroups, columnIndexPaths, offsetIndexPaths, offsetIndexRowGroupLimit);
     }
 
     /**
@@ -247,7 +253,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
         Set<String> predicateColumnPaths,
         Set<String> columnIndexPaths,
         Set<String> offsetIndexPaths,
-        BufferAllocator allocator
+        int offsetIndexRowGroupLimit,
+        CircuitBreaker breaker
     ) {
         List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
         List<RangeMeta> rangeMetas = new ArrayList<>();
@@ -265,7 +272,10 @@ final class PreloadedRowGroupMetadata implements Releasable {
                     addRange(ranges, rangeMetas, ciRef.getOffset(), ciRef.getLength(), rgIdx, col, RangeKind.COLUMN_INDEX);
                 }
                 IndexReference oiRef = col.getOffsetIndexReference();
-                if (oiRef != null && oiRef.getLength() > 0 && (offsetIndexPaths == null || offsetIndexPaths.contains(path))) {
+                if (oiRef != null
+                    && oiRef.getLength() > 0
+                    && rgIdx < offsetIndexRowGroupLimit
+                    && (offsetIndexPaths == null || offsetIndexPaths.contains(path))) {
                     addRange(ranges, rangeMetas, oiRef.getOffset(), oiRef.getLength(), rgIdx, col, RangeKind.OFFSET_INDEX);
                 }
                 if (fetchPreWarm && predicateColumnPaths.contains(path)) {
@@ -290,7 +300,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
             storageObject,
             ranges,
             CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
-            allocator,
+            breaker,
             Runnable::run,
             future
         );
@@ -440,31 +450,45 @@ final class PreloadedRowGroupMetadata implements Releasable {
     }
 
     /**
-     * Sequential fallback using {@link ParquetFileReader}'s built-in methods.
+     * Sequential fallback using {@link ParquetFileReader}'s built-in methods. Honors the same
+     * column-path and OffsetIndex row-group cap as {@link #preloadCoalesced}. Intentional: a
+     * coalesced-preload failure must not silently re-fetch every page index (that used to undo
+     * {@code computeIndexColumnPaths} gating, including the full-scan zero-index-GET path).
      */
-    private static PreloadedRowGroupMetadata preloadSequential(ParquetFileReader reader, List<BlockMetaData> rowGroups) {
+    private static PreloadedRowGroupMetadata preloadSequential(
+        ParquetFileReader reader,
+        List<BlockMetaData> rowGroups,
+        Set<String> columnIndexPaths,
+        Set<String> offsetIndexPaths,
+        int offsetIndexRowGroupLimit
+    ) {
         Map<String, ColumnIndex> columnIndexes = new HashMap<>();
         Map<String, OffsetIndex> offsetIndexes = new HashMap<>();
 
         for (int rgIdx = 0; rgIdx < rowGroups.size(); rgIdx++) {
             BlockMetaData block = rowGroups.get(rgIdx);
             for (ColumnChunkMetaData col : block.getColumns()) {
+                String path = col.getPath().toDotString();
                 String k = key(rgIdx, col);
-                try {
-                    ColumnIndex ci = reader.readColumnIndex(col);
-                    if (ci != null) {
-                        columnIndexes.put(k, ci);
+                if (columnIndexPaths == null || columnIndexPaths.contains(path)) {
+                    try {
+                        ColumnIndex ci = reader.readColumnIndex(col);
+                        if (ci != null) {
+                            columnIndexes.put(k, ci);
+                        }
+                    } catch (IOException e) {
+                        logger.debug("Failed to read column index for [{}] in row group [{}]: {}", col.getPath(), rgIdx, e.getMessage());
                     }
-                } catch (IOException e) {
-                    logger.debug("Failed to read column index for [{}] in row group [{}]: {}", col.getPath(), rgIdx, e.getMessage());
                 }
-                try {
-                    OffsetIndex oi = reader.readOffsetIndex(col);
-                    if (oi != null) {
-                        offsetIndexes.put(k, oi);
+                if (rgIdx < offsetIndexRowGroupLimit && (offsetIndexPaths == null || offsetIndexPaths.contains(path))) {
+                    try {
+                        OffsetIndex oi = reader.readOffsetIndex(col);
+                        if (oi != null) {
+                            offsetIndexes.put(k, oi);
+                        }
+                    } catch (IOException e) {
+                        logger.debug("Failed to read offset index for [{}] in row group [{}]: {}", col.getPath(), rgIdx, e.getMessage());
                     }
-                } catch (IOException e) {
-                    logger.debug("Failed to read offset index for [{}] in row group [{}]: {}", col.getPath(), rgIdx, e.getMessage());
                 }
             }
         }

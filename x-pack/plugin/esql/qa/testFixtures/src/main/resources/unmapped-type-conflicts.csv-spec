@@ -600,6 +600,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
 
 noTypeConflictKeywordKeepTriggersLoad
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -620,6 +621,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
 
 noTypeConflictKeywordKeepTriggersLoadStats
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -638,6 +640,7 @@ count(*):long | first_name:keyword
 
 noTypeConflictKeywordKeepTriggersLoadStatsWithNulls
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names
@@ -657,6 +660,7 @@ c:long | first_name:keyword
 
 noTypeConflictKeywordKeepTriggersLoadInlineStats
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -677,6 +681,7 @@ emp_no:integer | last_name:keyword | _index:keyword     | c:long | first_name:ke
 
 noTypeConflictKeywordKeepTriggersLoadInlineStatsWithNulls
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -713,6 +718,7 @@ emp_no:integer | first_name:keyword | _index:keyword     | c:long | last_name:ke
 
 noTypeConflictKeepTriggersLoadInlineStatsWithFilter
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names
@@ -970,6 +976,7 @@ Connected to 10.1.0.1  | sample_data
 noTypeConflictPartiallyUnmappedKeywordFieldLoadedWithEvalOnOtherField
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -991,6 +998,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword     | s
 noTypeConflictPartiallyUnmappedKeywordFieldLoadedWithRenameOnOtherField
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -1012,6 +1020,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | pay:integer | _index:k
 noTypeConflictPartiallyUnmappedKeywordFieldLoadedWithRenameOnSameField
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -1035,6 +1044,7 @@ emp_no:integer | first_name:keyword | surname:keyword | salary:integer | _index:
 noTypeConflictPartiallyUnmappedKeywordFieldLoadedWithEvalOnSameField
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -3380,6 +3390,7 @@ c:long | _index:keyword
 // All fields are keyword, so they are loaded via PotentiallyUnmappedKeywordEsField.
 deeplyNestedSubfieldPartiallyUnmappedKeyword
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM addresses, addresses_no_continent METADATA _index
@@ -3399,6 +3410,7 @@ addresses_no_continent  | Tokyo             | Japan                        | Asi
 // Cast city.country.continent.planet.name (keyword, 5-level deep, partially unmapped) to keyword.
 deeplyNestedSubfieldPartiallyUnmappedCastToKeyword
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM addresses, addresses_no_continent METADATA _index
@@ -3420,6 +3432,7 @@ addresses_no_continent  | Tokyo             | Earth
 // from addresses_no_continent. It is loaded via PotentiallyUnmappedKeywordEsField from both indices.
 deeplyNestedSubfieldUnderPartiallyUnmappedParent
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM addresses, addresses_no_continent METADATA _index

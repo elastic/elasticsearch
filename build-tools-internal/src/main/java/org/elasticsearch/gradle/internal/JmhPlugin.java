@@ -9,7 +9,6 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
@@ -21,8 +20,12 @@ import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.JavaExec;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.jvm.toolchain.JavaLanguageVersion;
+import org.gradle.jvm.toolchain.JavaToolchainService;
 
 import java.util.Map;
+
+import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
@@ -45,6 +48,13 @@ public class JmhPlugin implements Plugin<Project> {
     private static final String BENCHMARKS_COMMON_PROJECT = ":benchmarks:common";
     private static final String BENCHMARKS_PROCESSOR_PROJECT = ":benchmarks:processor";
     private static final String TEST_FRAMEWORK_PROJECT = ":test:framework";
+
+    private final JavaToolchainService javaToolchains;
+
+    @Inject
+    public JmhPlugin(JavaToolchainService javaToolchains) {
+        this.javaToolchains = javaToolchains;
+    }
 
     @Override
     public void apply(Project project) {
@@ -92,16 +102,18 @@ public class JmhPlugin implements Plugin<Project> {
         }
     }
 
-    private static void registerRunnerTask(Project project, SourceSet jmh) {
+    private void registerRunnerTask(Project project, SourceSet jmh) {
         var buildParams = loadBuildParams(project);
+        var launcher = javaToolchains.launcherFor(
+            spec -> spec.getLanguageVersion()
+                .set(buildParams.flatMap(p -> p.getRuntimeJavaVersion()).map(v -> JavaLanguageVersion.of(v.getMajorVersion())))
+        );
         project.getTasks().register(JMH_TASK, JavaExec.class, task -> {
             task.setGroup("benchmark");
             task.setDescription("Runs JMH benchmarks in the `jmh` source set");
             task.getMainClass().set("org.openjdk.jmh.Main");
             task.setClasspath(jmh.getRuntimeClasspath());
-            task.setExecutable(
-                buildParams.get().getRuntimeJavaHome().get().getAbsolutePath() + "/bin/java" + (OS.current() == OS.WINDOWS ? ".exe" : "")
-            );
+            task.getJavaLauncher().set(launcher);
         });
     }
 

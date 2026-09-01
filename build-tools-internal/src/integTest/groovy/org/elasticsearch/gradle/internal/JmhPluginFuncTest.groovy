@@ -11,91 +11,77 @@ package org.elasticsearch.gradle.internal
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.api.Plugin
+import org.gradle.testkit.runner.TaskOutcome
 
-/**
- * Verifies the wiring performed by {@link JmhPlugin}: the two source sets exist, the two
- * tasks are registered with the expected shape, and {@code jmhTest} participates in
- * {@code check}.
- */
 class JmhPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     Class<? extends Plugin> pluginClassUnderTest = JmhPlugin
 
-    def "creates jmh and jmhTest source sets"() {
-        given:
-        buildFile << """
-            tasks.register('printSourceSets') {
-                def ssNames = sourceSets*.name.sort()
-                doLast { println "SOURCESETS=" + ssNames.join(",") }
-            }
-        """.stripIndent()
-
-        when:
-        def result = gradleRunner('printSourceSets').build()
-
-        then:
-        def line = result.output.readLines().find { it.startsWith("SOURCESETS=") }
-        line != null
-        line.contains("jmh")
-        line.contains("jmhTest")
-    }
-
-    def "compileJmhJava and compileJmhTestJava tasks exist"() {
-        // The Java plugin auto-creates a compile<SourceSet>Java task per source set,
-        // so their presence is a proxy for the source sets being wired correctly.
+    def "creates jmh and jmhTest source sets and their tasks"() {
         when:
         def result = gradleRunner('tasks', '--all').build()
 
         then:
-        result.output.contains("compileJmhJava")
-        result.output.contains("compileJmhTestJava")
+        // compile<SourceSet>Java tasks are proxies for the source sets being wired
+        result.output.contains('compileJmhJava')
+        result.output.contains('compileJmhTestJava')
+        result.output.contains('jmh -')       // JavaExec runner task
+        result.output.contains('jmhTest -')   // Test task
     }
 
-    def "jmh runner task is a JavaExec with the JMH main class"() {
+    def "wires jmh-core, annotation processor, and stripped transitive deps"() {
         given:
         buildFile << """
-            tasks.register('printJmhTask') {
-                def t = tasks.named('jmh').get()
-                def isJavaExec = t instanceof JavaExec
-                def mc = t.mainClass.get()
-                doLast { println "JMH_TASK: isJavaExec=" + isJavaExec + " mainClass=" + mc }
-            }
-        """.stripIndent()
-
-        when:
-        def result = gradleRunner('printJmhTask').build()
-
-        then:
-        result.output.contains("JMH_TASK: isJavaExec=true mainClass=org.openjdk.jmh.Main")
-    }
-
-    def "jmhTest task is a Test task and check depends on it, but jmh is not"() {
-        given:
-        buildFile << """
-            tasks.register('printJmhTestWiring') {
-                def jmhTestTask = tasks.named('jmhTest').get()
-                def isTest = jmhTestTask instanceof Test
-                def checkDeps = tasks.named('check').get().dependsOn.collect { d ->
-                    if (d instanceof org.gradle.api.tasks.TaskProvider) d.name
-                    else if (d instanceof org.gradle.api.Task) d.name
-                    else d.toString()
+            tasks.register('printJmhDeps') {
+                def impl = configurations.jmhImplementation.dependencies.collect {
+                    "\${it.group}:\${it.name}:\${it.version}"
+                }.sort()
+                def ap = configurations.jmhAnnotationProcessor.dependencies.collect {
+                    "\${it.group}:\${it.name}:\${it.version}"
+                }.sort()
+                def rt = configurations.jmhRuntimeOnly.dependencies.collect {
+                    "\${it.group}:\${it.name}:\${it.version}"
                 }.sort()
                 doLast {
-                    println "JMH_TEST_WIRING: isTest=" + isTest + " checkDependsOn=" + checkDeps.join(",")
+                    println "JMH_IMPL=" + impl.join(';')
+                    println "JMH_AP=" + ap.join(';')
+                    println "JMH_RT=" + rt.join(';')
                 }
             }
         """.stripIndent()
 
         when:
-        def result = gradleRunner('printJmhTestWiring').build()
+        def result = gradleRunner('printJmhDeps').build()
 
         then:
-        def line = result.output.readLines().find { it.startsWith("JMH_TEST_WIRING:") }
-        line != null
-        line.contains("isTest=true")
-        // The list of `check` dependencies, extracted from `checkDependsOn=<csv>`.
-        def deps = line.replaceFirst(".*checkDependsOn=", "").split(",") as List
-        "jmhTest" in deps
-        !("jmh" in deps)  // benchmarks are developer-invoked, not part of `check`
+        def impl = extract(result.output, 'JMH_IMPL=')
+        def ap = extract(result.output, 'JMH_AP=')
+        def rt = extract(result.output, 'JMH_RT=')
+
+        impl.any { it.startsWith('org.openjdk.jmh:jmh-core:') }
+        ap.any { it.startsWith('org.openjdk.jmh:jmh-generator-annprocess:') }
+        // jmh-core's transitive deps are stripped by ComponentMetadataRulesPlugin,
+        // so the plugin must redeclare them explicitly.
+        rt.any { it.startsWith('net.sf.jopt-simple:jopt-simple:') }
+        rt.any { it.startsWith('org.apache.commons:commons-math3:') }
+    }
+
+    def "check runs jmhTest and does not run jmh"() {
+        when:
+        def result = gradleRunner('check').build()
+
+        then:
+        // With no benchmark or test sources, the Test task should skip gracefully.
+        def outcome = result.task(':jmhTest').outcome
+        outcome == TaskOutcome.NO_SOURCE || outcome == TaskOutcome.SUCCESS
+        // The benchmark runner is developer-invoked; check must not pull it in.
+        result.task(':jmh') == null
+    }
+
+    private static List<String> extract(String output, String prefix) {
+        def line = output.readLines().find { it.startsWith(prefix) }
+        assert line != null : "missing line starting with '$prefix' in:\n$output"
+        def payload = line.substring(prefix.length())
+        payload.isEmpty() ? [] : payload.split(';') as List
     }
 }

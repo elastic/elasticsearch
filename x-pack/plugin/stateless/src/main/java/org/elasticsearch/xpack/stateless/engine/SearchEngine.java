@@ -51,7 +51,6 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
-import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
@@ -84,7 +83,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1138,20 +1136,13 @@ public class SearchEngine extends Engine {
      * Schedules warming of the current reader's resharding unowned-document bitsets when this shard is in an active split.
      */
     public void warmReaderCacheAfterResharding() {
-        final var indexMetadata = engineConfig.getIndexSettings().getIndexMetadata();
-        if (ReshardSearchFilters.mayContainUnownedDocuments(shardId, indexMetadata.getReshardingMetadata())) {
-            engineConfig.getThreadPool().executor(ThreadPool.Names.WARMER).execute(() -> {
-                try (Searcher searcher = acquireSearcher("reshard_unowned_bitset_warming", SearcherScope.INTERNAL)) {
-                    reshardSearchFilters.unownedBitsetCache()
-                        .warmBitSets(
-                            new ShardSplittingQuery(indexMetadata, shardId.id(), engineConfig.getMapperService().hasNested()),
-                            searcher.getDirectoryReader()
-                        );
-                } catch (ExecutionException e) {
-                    logger.debug(() -> Strings.format("failed to warm resharding unowned-document bitsets for shard [%s]", shardId), e);
-                }
-            });
-        }
+        reshardSearchFilters.warmReaderCacheAfterResharding(
+            shardId,
+            engineConfig.getIndexSettings().getIndexMetadata(),
+            engineConfig.getMapperService(),
+            engineConfig.getThreadPool().executor(ThreadPool.Names.WARMER),
+            () -> acquireSearcher("reshard_unowned_bitset_warming", SearcherScope.INTERNAL)
+        );
     }
 
     @Override

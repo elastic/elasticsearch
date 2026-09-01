@@ -25,20 +25,28 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 
 /**
  * Applies search-time directory reader filters during index resharding (split) so shards only expose owned documents.
  * Owns a node-scoped {@link ReshardUnownedBitsetCache} for bitset reuse across reader wraps.
  */
 public final class ReshardSearchFilters implements Closeable {
+
+    private static final Logger logger = LogManager.getLogger(ReshardSearchFilters.class);
 
     private final ReshardUnownedBitsetCache unownedBitsetCache;
 
@@ -54,13 +62,6 @@ public final class ReshardSearchFilters implements Closeable {
     @Override
     public void close() {
         IOUtils.closeWhileHandlingException(unownedBitsetCache);
-    }
-
-    /**
-     * Returns the node-scoped cache used by the reshard search filters.
-     */
-    public ReshardUnownedBitsetCache unownedBitsetCache() {
-        return unownedBitsetCache;
     }
 
     public DirectoryReader maybeWrapDirectoryReaderForPitRelocation(
@@ -149,6 +150,31 @@ public final class ReshardSearchFilters implements Closeable {
         return new QueryFilterDirectoryReader(reader, query, unownedBitsetCache);
     }
 
+    /**
+     * Schedules warming of the current reader's unowned-document bitsets if this shard may contain unowned documents. The searcher
+     * supplier is invoked on {@code warmerExecutor} only when warming is required, and the supplied searcher is closed after warming.
+     */
+    public void warmReaderCacheAfterResharding(
+        ShardId shardId,
+        IndexMetadata indexMetadata,
+        MapperService mapperService,
+        Executor warmerExecutor,
+        Supplier<Searcher> searcherSupplier
+    ) {
+        if (mayContainUnownedDocuments(shardId, indexMetadata.getReshardingMetadata())) {
+            warmerExecutor.execute(() -> {
+                try (Searcher searcher = searcherSupplier.get()) {
+                    var query = new ShardSplittingQuery(indexMetadata, shardId.id(), mapperService.hasNested());
+                    for (var leaf : searcher.getDirectoryReader().leaves()) {
+                        unownedBitsetCache.getBitSet(query, leaf);
+                    }
+                } catch (ExecutionException e) {
+                    logger.debug(() -> Strings.format("failed to warm resharding unowned-document bitsets for shard [%s]", shardId), e);
+                }
+            });
+        }
+    }
+
     // visible for testing
     static boolean shouldFilter(
         ShardId shardId,
@@ -212,7 +238,7 @@ public final class ReshardSearchFilters implements Closeable {
     /**
      * Returns whether the shard may still contain unowned documents that require search filtering.
      */
-    public static boolean mayContainUnownedDocuments(ShardId shardId, IndexReshardingMetadata reshardingMetadata) {
+    private static boolean mayContainUnownedDocuments(ShardId shardId, IndexReshardingMetadata reshardingMetadata) {
         if (reshardingMetadata == null || reshardingMetadata.isSplit() == false) {
             return false;
         }

@@ -104,7 +104,14 @@ public class ExpandUnmappedFieldsPostProcessor {
             // TODO account for newSchema's field names against the circuit breaker. A wide _source turns into a wide schema, and
             // unlike the pages, the response schema has no breaker-tracked lifetime to release it against today.
             ExpandedLayout layout = computeLayout(schema, unmappedIdx, expandedLeafNames, ordering);
-            List<Page> newPages = rewritePages(result, unmappedIdx, expandedLeafNames, layout.blockOrder(), blockFactory, reservationFactor);
+            List<Page> newPages = rewritePages(
+                result,
+                unmappedIdx,
+                expandedLeafNames,
+                layout.blockOrder(),
+                blockFactory,
+                reservationFactor
+            );
 
             Result expanded = new Result(
                 layout.schema(),

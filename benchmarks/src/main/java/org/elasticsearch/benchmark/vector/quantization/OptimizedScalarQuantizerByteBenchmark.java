@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark.vector.quantization;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -33,7 +33,7 @@ import java.util.concurrent.TimeUnit;
  * — the byte[],byte[] quantization path used during indexing of byte-element BBQ vectors.
  *
  * <p>This exercises the Panama SIMD multi-part widening path in
- * {@code PanamaESVectorUtilSupport.centerAndCalculateOSQStats{Euclidean,Dp}(byte[], byte[], float[], float[])}.
+ * {@code PanamaOptimizedScalarQuantization.centerAndCalculateStats{Euclidean,Dp}(byte[], byte[], float[], float[])}.
  *
  * <pre>
  *   ./gradlew :benchmarks:jmh -Pargs='OptimizedScalarQuantizerByteBenchmark'
@@ -48,7 +48,7 @@ import java.util.concurrent.TimeUnit;
 public class OptimizedScalarQuantizerByteBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     @Param({ "384", "768", "1024" })

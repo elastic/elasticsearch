@@ -1328,7 +1328,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                             unassignedTimeWithinGracePeriod.millis(),
                             false,
                             UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                            Collections.emptySet(),
+                            failedAllocations > 0 ? Set.of(randomNodeId()) : Collections.emptySet(),
                             null
                         )
                     )
@@ -1389,8 +1389,6 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         }
     }
 
-    /// Documents current behavior for master directly cancelled recoveries ({@link UnassignedInfo.Reason#RECOVERY_CANCELLED}).
-    /// Direct cancellation is still disabled by default.
     public void testRecoveryCancelledReplicaGracePeriodBehavior() {
         final var indexName = randomIndexName();
         final var unassignedTimeWithinGracePeriod = new TimeValue(
@@ -1415,7 +1413,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                             unassignedTimeWithinGracePeriod.millis(),
                             false,
                             UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                            Collections.emptySet(),
+                            failedAllocations > 0 ? Set.of(randomNodeId()) : Collections.emptySet(),
                             null
                         )
                     )

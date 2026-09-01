@@ -116,18 +116,20 @@ public interface StorageObject {
      * {@link #supportsNativeAsync()} returns true.
      * <p>
      * <b>Returned buffer contract:</b> the {@link DirectReadBuffer#buffer()} delivered to the
-     * listener has {@code capacity() == length} (the requested length) and {@code remaining()}
-     * equal to the number of bytes actually read. On a short read these differ — consumers must
-     * use {@code remaining()} (or {@code limit() - position()}) to size their work, never
-     * {@code capacity()}. The buffer is direct.
+     * listener has {@code remaining()} equal to the number of bytes actually read, and
+     * {@code capacity()} of at least {@code length}. Callers must not assume exact capacity —
+     * consumers must use {@code remaining()} (or {@code limit() - position()}) to size their
+     * work. Implementations call {@link DirectBufferFactory#allocateWritableWindow(int)} so an
+     * over-sized factory buffer cannot be filled past the request. The buffer is not required
+     * to be direct; production factories return a heap {@code byte[]} view.
      * <p>
      * On end-of-content at {@code position} the buffer is delivered with {@code remaining() == 0}.
      *
      * <p>
      * <b>Buffer ownership:</b> the storage object obtains exactly one {@link DirectReadBuffer} of
      * {@code length} bytes from {@code factory}. The caller must invoke {@link DirectReadBuffer#close()}
-     * once the bytes have been consumed; closing releases the buffer back to its underlying
-     * allocator. See {@link DirectReadBuffer} for the contract.
+     * once the bytes have been consumed; closing releases the buffer (breaker charge for heap,
+     * native memory for Arrow-backed factories). See {@link DirectReadBuffer} for the contract.
      *
      * <p>
      * <b>Implementation contract:</b> if the read fails, implementations must close the
@@ -138,8 +140,8 @@ public interface StorageObject {
      * @param position the starting byte position
      * @param length the number of bytes to read
      * @param factory produces the {@link DirectReadBuffer} the bytes are read into; the storage
-     *            object calls {@link DirectBufferFactory#allocate(int)} exactly once with
-     *            {@code length}
+     *            object allocates from it exactly once, through
+     *            {@link DirectBufferFactory#allocateWritableWindow(int)} with {@code length}
      * @param executor executor for running the async operation
      * @param listener callback for the result or failure
      */
@@ -158,13 +160,13 @@ public interface StorageObject {
             listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
             return;
         }
-        // Allocate on the calling thread so a direct-memory OOM (or breaker trip) surfaces
-        // synchronously via the listener instead of escaping the executor's Runnable as an Error
-        // and leaving the listener permanently uncompleted.
+        // Allocate on the calling thread so a breaker trip or OOM surfaces synchronously via
+        // the listener instead of escaping the executor's Runnable as an Error and leaving the
+        // listener permanently uncompleted.
         final DirectReadBuffer drb;
         boolean submitted = false;
         try {
-            drb = factory.allocate((int) length);
+            drb = factory.allocateWritableWindow((int) length);
         } catch (Exception e) {
             listener.onFailure(e);
             return;

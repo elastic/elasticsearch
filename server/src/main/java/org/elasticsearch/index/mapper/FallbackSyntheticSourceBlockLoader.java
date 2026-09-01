@@ -118,7 +118,13 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         private final SourceFilter sourceFilter;
         private final Reader<T> reader;
         private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+        /**
+         * Only set for {@link IgnoredSourceFieldMapper.IgnoredSourceFormat#DOC_VALUES_IGNORED_SOURCE}. Unlike the stored field formats,
+         * this is a forward-only iterator, so it is what makes this reader unable to revisit a document. See {@link #canReuse}.
+         */
         private final MultiValuedSortedBinaryDocValues ignoredSourceDocValues;
+        private final Thread creationThread;
+        private int docId = -1;
 
         IgnoredSourceRowStrideReader(
             CircuitBreaker breaker,
@@ -130,6 +136,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         ) throws IOException {
             breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
             this.breaker = breaker;
+            this.creationThread = Thread.currentThread();
             this.fieldName = fieldName;
             this.sourceFilter = sourceFilter;
             this.reader = reader;
@@ -145,6 +152,9 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+            assert ignoredSourceDocValues == null || docId >= this.docId
+                : "docs must be read in order, got [" + docId + "] after [" + this.docId + "]";
+            this.docId = docId;
             Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesGroupedByParent = ignoredSourceFormat.loadIgnoredFields(
                 sourceFilter,
                 storedFields.storedFields(),
@@ -276,7 +286,12 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
         @Override
         public boolean canReuse(int startingDocID) {
-            return true;
+            if (ignoredSourceDocValues == null) {
+                // The stored field formats read _ignored_source through the shared StoredFields, which the caller repositions per
+                // document, so this reader keeps no position of its own.
+                return true;
+            }
+            return creationThread == Thread.currentThread() && docId <= startingDocID;
         }
 
         @Override

@@ -1,0 +1,6 @@
+area: SLM
+issues:
+ - 155621
+pr: 155934
+summary: Fix SLM stats recording the wrong outcome for concurrent snapshots
+type: bug

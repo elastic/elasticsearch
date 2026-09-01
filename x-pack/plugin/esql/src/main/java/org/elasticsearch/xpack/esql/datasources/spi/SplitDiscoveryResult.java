@@ -23,13 +23,12 @@ import java.util.List;
  *
  * <p>{@code exhaustivelyPruned} is {@code true} only when {@link #splits()} is empty <em>because</em>
  * every file was eliminated by a row-count-preserving filter contradiction — a partition/metadata
- * predicate that evaluated to {@code false}, or a filter over a column absent from the file (both
- * make the {@code WHERE} unsatisfiable, so a full read would emit zero rows too). It is deliberately
- * {@code false} when the empty result is a best-effort heuristic that a downstream read would have
- * disagreed with (e.g. a file dropped for having no column overlap with the query still contributes
- * rows to {@code COUNT(*)}). Only the former is safe for {@code SplitDiscoveryPhase} to trust as
- * "read nothing"; the latter must fall back to a full read so the row filter runs. An empty result
- * from an unresolved or empty file list is not a prune and reports {@code false}.
+ * predicate that evaluated to {@code false}, or a missing-column filter that is unsatisfiable in
+ * {@code WHERE} (comparisons, {@code IN}, {@code IS NOT NULL}; {@code IS NULL} on a missing column
+ * matches every row and is not a prune). Those cases emit zero rows on a full read too, so
+ * {@code SplitDiscoveryPhase} may trust them as "read nothing". An empty result that is not a
+ * proven filter contradiction — unresolved glob, empty file list, or a provider that cannot certify
+ * the prune — reports {@code false} and must fall back to a full read.
  */
 public record SplitDiscoveryResult(List<ExternalSplit> splits, int filesScanned, boolean exhaustivelyPruned) {
 

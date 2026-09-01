@@ -39,7 +39,7 @@ teardown:
         ignore: 404
 
 ---
-"Preview top_metrics size 1 stays a scalar flatten":
+"Preview top_metrics size 1 writes flatten and a top array of 1":
   - do:
       transform.preview_transform:
         body: >
@@ -64,8 +64,11 @@ teardown:
   - length: { preview: 1 }
   - match: { preview.0.session: s1 }
   - match: { preview.0.token.path: "/home" }
-  - is_false: preview.0.token.top
+  - length: { preview.0.token.top: 1 }
+  - match: { preview.0.token.top.0.sort.0: "2026-08-16T10:00:00.000Z" }
+  - match: { preview.0.token.top.0.metrics.path: "/home" }
   - match: { generated_dest_index.mappings.properties.token\.path.type: "keyword" }
+  - match: { generated_dest_index.mappings.properties.token\.top\.metrics\.path.type: "keyword" }
 
 ---
 "Preview top_metrics size greater than 1 writes a top array on the group doc":

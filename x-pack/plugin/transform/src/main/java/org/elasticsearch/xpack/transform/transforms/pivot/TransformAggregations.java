@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
@@ -117,7 +118,7 @@ public final class TransformAggregations {
         TERMS("terms", FLATTENED),
         RARE_TERMS("rare_terms", FLATTENED),
         MISSING("missing", LONG),
-        TOP_METRICS("top_metrics", SOURCE), // size > 1 writes flatten plus dest.top[]; size 1 stays flatten
+        TOP_METRICS("top_metrics", SOURCE), // flatten plus dest.top[] for every size; flatten removed in ES 10
         STATS("stats", DOUBLE),
         BOXPLOT("boxplot", DOUBLE),
         EXTENDED_STATS("extended_stats", DOUBLE);
@@ -211,6 +212,7 @@ public final class TransformAggregations {
      * @param agg the aggregation builder
      * @return a tuple with 2 mappings that maps the used field(s) and aggregation type(s)
      */
+    @UpdateForV10(owner = UpdateForV10.Owner.MACHINE_LEARNING) // drop dest flatten paths; keep dest.top.metrics.<field> only
     public static Tuple<Map<String, String>, Map<String, String>> getAggregationInputAndOutputTypes(AggregationBuilder agg) {
         // todo: can this be removed?
         if (agg instanceof PercentilesAggregationBuilder percentilesAgg) {
@@ -251,7 +253,7 @@ public final class TransformAggregations {
         if (outputFieldNames.isPresent()) {
             Map<String, String> inputTypes = new HashMap<>();
             Map<String, String> outputTypes = new HashMap<>();
-            boolean writeTopArray = agg.getRankedHitSize() > 1;
+            boolean writeTopArray = "top_metrics".equals(agg.getType()) || agg.getRankedHitSize() > 1;
             for (String outputField : outputFieldNames.get()) {
                 // Keep the historical flatten so existing dest readers of agg.field still work.
                 // Skip a metric named "top" when also writing dest.top[] — those keys collide.

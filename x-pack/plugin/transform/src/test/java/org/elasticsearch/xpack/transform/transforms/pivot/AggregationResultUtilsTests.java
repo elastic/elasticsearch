@@ -739,7 +739,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         );
     }
 
-    public void testMultiValueAggExtractorSizeOneIsUnchanged() {
+    public void testMultiValueAggExtractorSizeOneWritesFlattenAndTopArray() {
         Aggregation agg = new TestRankedMultiValueAggregation(
             "token",
             1,
@@ -750,8 +750,28 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 )
             )
         );
-        // size: 1 must keep today's flatten even if ranked hits are present
-        agg = new TestMultiValueAggregation("token", Map.of("attributes.url.path.grouped", "/home"));
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Map.of(), ""),
+            equalTo(
+                Map.of(
+                    "attributes.url.path.grouped",
+                    "/home",
+                    "top",
+                    List.of(
+                        asOrderedMap(
+                            "sort",
+                            List.of("2026-08-16T10:00:00.000Z"),
+                            "metrics",
+                            asOrderedMap("attributes.url.path.grouped", "/home")
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    public void testMultiValueAggExtractorWithoutRankedHitsStaysFlatten() {
+        Aggregation agg = new TestMultiValueAggregation("token", Map.of("attributes.url.path.grouped", "/home"));
         assertThat(
             AggregationResultUtils.getExtractor(agg).value(agg, Map.of(), ""),
             equalTo(Map.of("attributes.url.path.grouped", "/home"))

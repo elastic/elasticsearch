@@ -81,7 +81,7 @@ public abstract class AggregationBuilder
     /**
      * Configured maximum number of ranked source documents this aggregation may emit per bucket.
      * Default is {@code 1}. {@code top_metrics} overrides this with its {@code size} parameter so
-     * consumers such as transforms can choose dest encoding (scalar flatten vs a {@code top} array).
+     * consumers such as transforms can persist a {@code top} array.
      */
     public int getRankedHitSize() {
         return 1;

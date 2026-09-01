@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -295,14 +296,20 @@ public final class AggregationResultUtils {
     }
 
     static class MultiValueAggExtractor implements AggValueExtractor {
+        /**
+         * Writes the historical first-hit flatten plus {@code dest.top[]} when ranked hits exist.
+         * Remove the flatten in ES 10; {@code top[]} already matches {@code _search} for every {@code size}.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.MACHINE_LEARNING)
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             MultiValueAggregation aggregation = (MultiValueAggregation) agg;
-            boolean writeTopArray = aggregation.getRankedHitSize() > 1;
+            List<MultiValueAggregation.RankedHit> rankedHits = aggregation.getRankedHits();
+            boolean writeTopArray = rankedHits.isEmpty() == false || aggregation.getRankedHitSize() > 1;
             Map<String, Object> extracted = new LinkedHashMap<>();
             // Historical flatten of the first hit so dest.token.path keeps working.
             for (String valueName : aggregation.valueNames()) {
-                // dest.top[] owns this key when size > 1
+                // dest.top[] owns this key
                 if (writeTopArray && "top".equals(valueName)) {
                     continue;
                 }
@@ -311,10 +318,10 @@ public final class AggregationResultUtils {
                     extracted.put(valueName, valueAsStrings.get(0));
                 }
             }
-            // size > 1 also writes every ranked hit on this dest doc — never one dest doc per hit.
+            // Ranked hits go on this dest doc — never one dest doc per hit. Written for every size.
             if (writeTopArray) {
-                List<Map<String, Object>> top = new ArrayList<>(aggregation.getRankedHits().size());
-                for (MultiValueAggregation.RankedHit hit : aggregation.getRankedHits()) {
+                List<Map<String, Object>> top = new ArrayList<>(rankedHits.size());
+                for (MultiValueAggregation.RankedHit hit : rankedHits) {
                     Map<String, Object> entry = new LinkedHashMap<>();
                     entry.put("sort", hit.sort());
                     entry.put("metrics", hit.metrics());

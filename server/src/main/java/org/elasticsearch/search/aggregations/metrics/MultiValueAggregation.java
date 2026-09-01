@@ -39,8 +39,8 @@ public interface MultiValueAggregation extends Aggregation {
 
     /**
      * Configured maximum number of ranked source documents this aggregation may emit per bucket.
-     * Dest writers such as transforms use this to choose a scalar flatten ({@code 1}) versus a
-     * {@code top} array ({@code > 1}). Default is {@code 1}.
+     * Dest writers such as transforms use this together with {@link #getRankedHits()} to decide
+     * whether to persist a {@code top} array. Default is {@code 1}.
      */
     default int getRankedHitSize() {
         return 1;

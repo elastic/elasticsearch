@@ -441,7 +441,8 @@ public class TransformAggregationsTests extends ESTestCase {
         );
         assertThat(inputAndOutputTypes.v1(), hasEntry("token.attributes.url.path.grouped", "attributes.url.path.grouped"));
         assertThat(inputAndOutputTypes.v2(), hasEntry("token.attributes.url.path.grouped", "top_metrics"));
-        assertFalse(inputAndOutputTypes.v1().containsKey("token.top.metrics.attributes.url.path.grouped"));
+        assertThat(inputAndOutputTypes.v1(), hasEntry("token.top.metrics.attributes.url.path.grouped", "attributes.url.path.grouped"));
+        assertThat(inputAndOutputTypes.v2(), hasEntry("token.top.metrics.attributes.url.path.grouped", "top_metrics"));
     }
 
     public void testGetAggregationOutputTypesTopMetricsSizeGreaterThanOne() {

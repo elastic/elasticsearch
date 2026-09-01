@@ -2354,7 +2354,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertThat(XContentMapValues.extractValue("last_seen.path", dest), equalTo("/shop"));
         assertThat(XContentMapValues.extractValue("last_seen.user_agent", dest), equalTo("firefox"));
         assertThat(XContentMapValues.extractValue("last_seen.country", dest), equalTo("de"));
-        assertNull(XContentMapValues.extractValue("last_seen.top", dest));
+        assertThat((List<?>) XContentMapValues.extractValue("last_seen.top", dest), hasSize(1));
+        assertThat(XContentMapValues.extractValue("last_seen.top.metrics.path", dest), equalTo(List.of("/shop")));
+        assertThat(XContentMapValues.extractValue("last_seen.top.metrics.user_agent", dest), equalTo(List.of("firefox")));
+        assertThat(XContentMapValues.extractValue("last_seen.top.metrics.country", dest), equalTo(List.of("de")));
     }
 
     public void testContinuousPivotWithTopMetricsSizeReplacesArray() throws Exception {

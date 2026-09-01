@@ -93,18 +93,18 @@ public class ExpandUnmappedFieldsPostProcessor {
         try {
             var fieldNames = collectFieldNames(result, unmappedIdx, pattern, blockFactory.breaker(), reservationFactor);
             Set<String> existingNames = existingColumnNames(schema, unmappedIdx);
-            List<String> leafNames = new ArrayList<>(fieldNames.size());
+            List<String> expandedLeafNames = new ArrayList<>(fieldNames.size());
             // A leaf that collides with an existing column is dropped, not an error: with flattening a leaf mapped in one index can also
             // appear in another's _source, and the per-shard UnmappedKeywordBlockLoader already filled that column, so the value is kept.
             for (String name : fieldNames) {
                 if (existingNames.contains(name) == false) {
-                    leafNames.add(name);
+                    expandedLeafNames.add(name);
                 }
             }
             // TODO account for newSchema's field names against the circuit breaker. A wide _source turns into a wide schema, and
             // unlike the pages, the response schema has no breaker-tracked lifetime to release it against today.
-            ExpandedLayout layout = computeLayout(schema, unmappedIdx, leafNames, ordering);
-            List<Page> newPages = rewritePages(result, unmappedIdx, leafNames, layout.blockOrder(), blockFactory, reservationFactor);
+            ExpandedLayout layout = computeLayout(schema, unmappedIdx, expandedLeafNames, ordering);
+            List<Page> newPages = rewritePages(result, unmappedIdx, expandedLeafNames, layout.blockOrder(), blockFactory, reservationFactor);
 
             Result expanded = new Result(
                 layout.schema(),

@@ -11,9 +11,9 @@
 # libsimdjson, and future native modules).
 # Contains clang-21 (all targets: Darwin, Linux x64, Linux aarch64).
 #
-# Darwin builds use an open-source sysroot assembled at image build time from Apple's
-# open-source distributions plus upstream libc++ headers (see darwin-sysroot/). No macOS
-# SDK content is downloaded or redistributed, so this image can be published.
+# Darwin builds use an open-source sysroot assembled from Apple's open-source
+# distributions plus upstream libc++ headers (see darwin-sysroot/). No macOS SDK content
+# is downloaded or redistributed, so this image can be published.
 # Linux cross builds use libstdc++-14-dev-*-cross (default sysroot).
 #
 # libsimdjson: Linux cross builds pin libstdc++ to GCC 8 (GLIBCXX_3.4.25) via
@@ -22,7 +22,7 @@
 # To build and push (see also build_cross_toolchain_image.sh):
 #   ./build_cross_toolchain_image.sh
 
-FROM debian:trixie-slim
+FROM debian:trixie-slim AS toolchain
 
 # clang-21 from the official LLVM apt repository.
 # Cross sysroots: libstdc++-14-dev-{arm64,amd64}-cross provide C++ headers + libs
@@ -50,10 +50,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         llvm-21-tools \
         libstdc++-14-dev-arm64-cross \
         libstdc++-14-dev-amd64-cross \
-        perl \
-        python3 \
-        unifdef \
-        ed \
     && rm -rf /var/lib/apt/lists/*
 
 # GCC 8 libstdc++ cross packages are no longer in current Debian releases;
@@ -69,10 +65,22 @@ RUN echo "deb [check-valid-until=no] http://archive.debian.org/debian buster mai
         linux-libc-dev-amd64-cross \
     && rm -rf /var/lib/apt/lists/*
 
-# The Darwin sysroot. perl, unifdef and ed are used by Apple's own Libc public-header
-# installer; python3 runs the AvailabilityVersions header generator. assemble.sh compiles a
-# probe translation unit against the finished sysroot and scans every file for an
-# open-source licence, so a sysroot that is broken or not redistributable fails this build.
-COPY darwin-sysroot/ /tmp/darwin-sysroot/
-RUN CLANGXX=clang++-21 /tmp/darwin-sysroot/assemble.sh /opt/darwin-sysroot \
-    && rm -rf /tmp/darwin-sysroot
+# The Darwin sysroot is assembled in a separate stage to keep its build-only tools out of
+# the published image: Apple's Libc header installer needs perl, unifdef and ed, and the
+# AvailabilityVersions generator needs python3. This stage builds on the toolchain stage
+# because assemble.sh uses clang to compute the header closure and to verify the result.
+FROM toolchain AS sysroot-builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        perl \
+        python3 \
+        unifdef \
+        ed \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY darwin-sysroot/ /darwin-sysroot/
+RUN CLANGXX=clang++-21 /darwin-sysroot/assemble.sh /opt/darwin-sysroot
+
+FROM toolchain
+
+COPY --from=sysroot-builder /opt/darwin-sysroot /opt/darwin-sysroot

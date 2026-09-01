@@ -9,17 +9,16 @@
 
 /*
  * The contract for the assembled Darwin sysroot: the union of the system headers that
- * the native libraries built with it actually include (libvec and libsimdjson today).
+ * the native libraries built with it actually include (simdvec and simdjson today).
  *
  * assemble.sh compiles this twice. First against the full xnu staging tree, using the
  * compiler's dependency output to compute the exact set of xnu headers reachable from
- * here -- that computed closure, and nothing more, is what lands in the sysroot. Then
- * again with staging removed, to prove the sysroot is self-contained.
+ * here. That computed closure is what lands in the sysroot. Then it compiles them again
+ * on the reduced set to prove the sysroot is self-contained.
  *
- * So this file defines what the sysroot supports. A library that needs a system header
+ * This file defines what the sysroot supports. A library that needs a system header
  * not reachable from here will fail to compile until the include is added and the
- * toolchain image is rebuilt, which is deliberate: the sysroot contents stay minimal and
- * every addition is a reviewed change rather than an invisible one.
+ * toolchain image is rebuilt.
  *
  * C++20/23 headers that simdjson only reaches behind __cplusplus guards (<ranges>,
  * <concepts>, <expected>, <meta>) are omitted; the native builds use -std=c++17.

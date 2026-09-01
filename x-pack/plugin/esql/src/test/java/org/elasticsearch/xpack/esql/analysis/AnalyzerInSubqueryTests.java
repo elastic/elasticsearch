@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,11 +44,6 @@ import static org.hamcrest.Matchers.nullValue;
  * Unit tests for IN/NOT IN subquery analysis that don't fit the golden-test model: the negative (rejection / error) cases.
  */
 public class AnalyzerInSubqueryTests extends ESTestCase {
-
-    @Before
-    public void checkInSubquerySupport() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-    }
 
     private static void checkMultiColumnInSubquery() {
         assumeTrue("multi-column IN subquery", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
@@ -105,45 +99,14 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
     // -- negative: IN subquery in INLINESTATS --
 
-    /**
-     * Verifies that an IN subquery in INLINESTATS WHERE filter is rejected.
-     */
-    public void testRejectsInSubqueryInInlineStatsWhereFilter() {
-        errorInSubquery(
-            """
-                FROM employees
-                | INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)
-                """,
-            containsString("IN subquery is not supported in [INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)]")
-        );
-    }
-
-    /**
-     * Verifies that a NOT IN subquery in INLINESTATS WHERE filter is rejected.
-     */
-    public void testRejectsNotInSubqueryInInlineStatsWhereFilter() {
-        errorInSubquery(
-            """
-                FROM employees
-                | INLINESTATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
-                """,
+    public void testInSubqueryInInlineStatsWhereWithTSSource() {
+        assumeTrue("Requires the TS command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        errorWithK8s(
+            "TS k8s | INLINE STATS m = MAX(network.bytes_in) WHERE cluster IN (FROM k8s | STATS c = COUNT(*) BY cluster | KEEP cluster)",
             containsString(
-                "IN subquery is not supported in [INLINESTATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)]"
-            )
-        );
-    }
-
-    /**
-     * Verifies that IN subquery in INLINESTATS WHERE with BY grouping is rejected.
-     */
-    public void testRejectsInSubqueryInInlineStatsWhereFilterWithGrouping() {
-        errorInSubquery(
-            """
-                FROM employees
-                | INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages
-                """,
-            containsString(
-                "IN subquery is not supported in [INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages]"
+                "INLINE STATS "
+                    + "[INLINE STATS m = MAX(network.bytes_in) WHERE cluster IN (FROM k8s | STATS c = COUNT(*) BY cluster | KEEP cluster)] "
+                    + "can only be used after STATS when used with TS command"
             )
         );
     }

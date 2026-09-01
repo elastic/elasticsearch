@@ -92,7 +92,6 @@ import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
-import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
@@ -915,7 +914,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (usesBinaryDocValues()) {
                 return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), binaryFormat());
             } else {
-                return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
+                return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
         }
 
@@ -954,7 +953,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     binaryFormat()
                 );
             } else {
-                return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(
+                return SortedSetDocValuesField.newSlowRangeQuery(
                     name(),
                     lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                     upperTerm == null ? null : indexedValueForSearch(upperTerm),

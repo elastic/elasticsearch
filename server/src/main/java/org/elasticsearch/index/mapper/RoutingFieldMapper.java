@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
@@ -35,7 +36,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
@@ -147,7 +147,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasDocValues()) {
-                return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
+                return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             } else {
                 return super.termQuery(value, context);
             }
@@ -174,7 +174,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasDocValues()) {
-                return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(
+                return SortedSetDocValuesField.newSlowRangeQuery(
                     name(),
                     lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                     upperTerm == null ? null : indexedValueForSearch(upperTerm),

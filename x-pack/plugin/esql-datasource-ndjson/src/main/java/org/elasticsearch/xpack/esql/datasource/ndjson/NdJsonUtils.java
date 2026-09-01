@@ -109,6 +109,26 @@ class NdJsonUtils {
      * @return a new stream to read from
      */
     static InputStream moveToNextLine(JsonParser parser, InputStream input) throws IOException {
+        return moveToNextLine(parser, input, false);
+    }
+
+    /**
+     * Given a parser and the stream it reads from, restart parsing at the next line.
+     * <p>
+     * When {@code alreadyCrossedLine} is {@code true}, Jackson consumed the line terminator while
+     * tokenizing (e.g. a bare number forces a one-byte lookahead past the digits to confirm the
+     * token ended, and that byte is the {@code '\n'}). In that case {@link JsonParser#releaseBuffered}
+     * already positions the reconstructed stream at the start of the following record, so the
+     * line-scan loop must be skipped — running it would consume the following record's content up
+     * to its own terminator, silently dropping it.
+     *
+     * @param parser             the JSON parser
+     * @param input              the stream the parser reads from
+     * @param alreadyCrossedLine {@code true} when the parser's current location is already on a
+     *                           later line than the token that failed — skip the scan in that case
+     * @return a new stream to read from
+     */
+    static InputStream moveToNextLine(JsonParser parser, InputStream input, boolean alreadyCrossedLine) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         parser.releaseBuffered(baos);
         parser.close();
@@ -121,10 +141,12 @@ class NdJsonUtils {
             }
         }
 
-        int c;
-        while ((c = input.read()) != -1) {
-            if (c == '\n' || c == '\r') {
-                break;
+        if (alreadyCrossedLine == false) {
+            int c;
+            while ((c = input.read()) != -1) {
+                if (c == '\n' || c == '\r') {
+                    break;
+                }
             }
         }
 

@@ -751,7 +751,14 @@ public class NdJsonPageDecoder implements Closeable {
             this.parserSliceStart = next;
             this.parser = jsonFactory.createParser(sourceBytes, next, sourceEnd - next);
         } else {
-            this.input = NdJsonUtils.moveToNextLine(failedParser, this.input);
+            // A bare number causes Jackson to consume the line terminator while scanning the end of
+            // the number token, leaving getCurrentLocation() at the start of the following record.
+            // Detect this by comparing line numbers: if the parser moved to a new line while reading
+            // the token, moveToNextLine must skip its scan (releaseBuffered already positions the
+            // stream past the terminator). Jackson increments its line counter on '\n' and bare '\r',
+            // so the comparison is accurate for LF, CR, and CRLF line endings.
+            boolean alreadyCrossedLine = failedParser.getCurrentLocation().getLineNr() > failedParser.getTokenLocation().getLineNr();
+            this.input = NdJsonUtils.moveToNextLine(failedParser, this.input, alreadyCrossedLine);
             this.parser = jsonFactory.createParser(this.input);
             // The fresh parser's byte offsets restart at the recovery point while parserSliceStart stays 0, so
             // every subsequent tokenStartOffset() is short by the pre-recovery bytes. Record offsets are no longer
@@ -769,10 +776,24 @@ public class NdJsonPageDecoder implements Closeable {
      * {@link #parserSliceStart} because it is relative to the slice the failed parser was created
      * over, not to {@link #sourceBytes}. Both LF and CR terminate a line so the byte-array path
      * handles the same record terminators as {@link NdJsonUtils#moveToNextLine}.
+     * <p>
+     * The scan is anchored to the <em>start</em> of the failing token ({@code getTokenLocation()})
+     * rather than to wherever the parser stopped ({@code getCurrentLocation()}). Jackson sets the
+     * token location at the beginning of each {@code nextToken()} call, before reading the token
+     * body, so it always sits inside the failing line. A bare number like {@code 42\n} causes
+     * Jackson to consume the line terminator while scanning the number's end, leaving
+     * {@code getCurrentLocation()} at the first byte of the following record; anchoring to
+     * {@code getTokenLocation()} instead finds the correct {@code '\n'} — the one that ends the
+     * bare-number line — and restarts parsing at the right place.
      */
     private int nextLineStartByteAfter(JsonParser failedParser) {
-        long sliceOffsetLong = failedParser.getCurrentLocation().getByteOffset();
-        // getByteOffset() returns -1 only for non-byte-backed sources; we always pass byte[].
+        long tokenStartLong = failedParser.getTokenLocation().getByteOffset();
+        // getByteOffset() returns -1 for non-byte-backed sources (never on this path); 0 is a
+        // valid offset (the token may start at the very first byte of the slice). Fall back to
+        // getCurrentLocation() only when the location is truly unavailable (-1).
+        long sliceOffsetLong = tokenStartLong >= 0 ? tokenStartLong : failedParser.getCurrentLocation().getByteOffset();
+        // Defensive guard: sliceOffsetLong is -1 only when getByteOffset() is unavailable (non-byte-backed
+        // sources, which cannot reach this path), so the condition is dead code in practice.
         int sliceOffset = sliceOffsetLong < 0 ? (sourceEnd - parserSliceStart) : Math.toIntExact(sliceOffsetLong);
         int from = Math.min(parserSliceStart + sliceOffset, sourceEnd);
         for (int i = from; i < sourceEnd; i++) {

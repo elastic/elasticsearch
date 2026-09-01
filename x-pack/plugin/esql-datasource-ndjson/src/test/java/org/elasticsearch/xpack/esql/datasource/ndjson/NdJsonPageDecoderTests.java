@@ -2104,12 +2104,9 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * {@code nextToken} that opens a record. A bare oversized scalar on its own line — no enclosing object — trips
      * the second one, which every other test here leaves unexercised.
      * <p>
-     * Asserted differentially against a bare scalar that is perfectly VALID, because recovery from a bare
-     * (non-object) top-level record overshoots and swallows the line after it. That overshoot is pre-existing and
-     * has nothing to do with constraints — the valid scalar loses its successor identically — so this pins the two
-     * as equivalent rather than blessing the overshoot as correct (tracked as elastic/esql-planning#1731). A fix
-     * to bare-record recovery keeps this test passing so long as it corrects both arms; it fails only if one arm
-     * is fixed and the other is left behind, which is what the pairing is for.
+     * Asserted differentially against a bare scalar that is perfectly VALID (elastic/esql-planning#1731 fix):
+     * both must drop only the bad line and keep the record that follows it. This is a paired assertion so that
+     * fixing one arm while leaving the other behind fails this test immediately — the two must always agree.
      */
     public void testConstraintViolationOnRecordOpeningTokenMatchesBareScalarRecovery() throws IOException {
         String oversized = "{\"v\":1}\n" + "1".repeat(1200) + "\n{\"v\":3}\n";
@@ -2121,12 +2118,185 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         ) {
             LongBlock constraintBlock = constraintPage.getBlock(0);
             LongBlock baselineBlock = baselinePage.getBlock(0);
+            assertEquals("baseline: both good records survive", 2, baselineBlock.getPositionCount());
+            assertEquals(1L, baselineBlock.getLong(0));
+            assertEquals(3L, baselineBlock.getLong(1));
             assertEquals(
                 "an oversized bare token must recover exactly as a valid bare scalar does",
                 baselineBlock.getPositionCount(),
                 constraintBlock.getPositionCount()
             );
             assertEquals(1L, constraintBlock.getLong(0));
+            assertEquals(3L, constraintBlock.getLong(1));
+        }
+    }
+
+    /**
+     * A bare JSON number on its own NDJSON line (elastic/esql-planning#1731) must drop only itself. The record
+     * that follows it must survive — before the fix, the recovery logic consumed the line terminator while
+     * scanning the number, then scanned forward again and swallowed the following record.
+     * <p>
+     * Covers both non-strict policies and uses the streaming ({@link java.io.InputStream}) path.
+     */
+    public void testBareNumberDropsSelf() throws IOException {
+        String ndjson = "{\"v\":1}\n42\n{\"v\":2}\n{\"v\":3}\n";
+        for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+            NdJsonReaderCounters counters = new NdJsonReaderCounters();
+            try (
+                NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                    new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                    null,
+                    List.of(attribute("v", DataType.LONG)),
+                    null,
+                    10,
+                    blockFactory,
+                    policy,
+                    "test://bare-number-streaming",
+                    counters
+                );
+                Page page = decoder.decodePage()
+            ) {
+                assertNotNull(policy.modeName() + ": page must not be null", page);
+                LongBlock block = page.getBlock(0);
+                assertEquals(policy.modeName() + ": bare number drops only itself — three records survive", 3, block.getPositionCount());
+                assertEquals(1L, block.getLong(0));
+                assertEquals(2L, block.getLong(1));
+                assertEquals(3L, block.getLong(2));
+            }
+            assertEquals(policy.modeName() + ": the bare number is charged exactly once", 1L, counters.snapshot().parseErrors());
+        }
+    }
+
+    /**
+     * Same as {@link #testBareNumberDropsSelf} but exercises the byte-array path, which recovers through
+     * {@link NdJsonPageDecoder#nextLineStartByteAfter} rather than {@link NdJsonUtils#moveToNextLine}.
+     */
+    public void testBareNumberDropsSelfByteArray() throws IOException {
+        String ndjson = "{\"v\":1}\n42\n{\"v\":2}\n{\"v\":3}\n";
+        byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
+        for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+            NdJsonReaderCounters counters = new NdJsonReaderCounters();
+            try (
+                NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                    bytes,
+                    0,
+                    bytes.length,
+                    null,
+                    List.of(attribute("v", DataType.LONG)),
+                    null,
+                    10,
+                    blockFactory,
+                    policy,
+                    "test://bare-number-bytes",
+                    counters
+                );
+                Page page = decoder.decodePage()
+            ) {
+                assertNotNull(policy.modeName() + ": page must not be null", page);
+                LongBlock block = page.getBlock(0);
+                assertEquals(policy.modeName() + ": bare number drops only itself — three records survive", 3, block.getPositionCount());
+                assertEquals(1L, block.getLong(0));
+                assertEquals(2L, block.getLong(1));
+                assertEquals(3L, block.getLong(2));
+            }
+            assertEquals(policy.modeName() + ": the bare number is charged exactly once", 1L, counters.snapshot().parseErrors());
+        }
+    }
+
+    /**
+     * Bare scalars other than numbers — quoted strings, booleans, null, arrays — already recovered correctly
+     * before elastic/esql-planning#1731, because their tokenizers do not consume the line terminator as a
+     * lookahead byte. Verifies the fix did not regress them.
+     */
+    public void testOtherBareScalarsRecoverCorrectly() throws IOException {
+        String suffix = "\n{\"v\":2}\n{\"v\":3}\n";
+        for (String bareScalar : List.of("\"hello\"", "true", "false", "null", "[1,2,3]")) {
+            for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+                String ndjson = "{\"v\":1}\n" + bareScalar + suffix;
+                try (Page page = decodeOneColumn(ndjson, DataType.LONG, policy)) {
+                    assertNotNull(policy.modeName() + " bare " + bareScalar + ": page must not be null", page);
+                    LongBlock block = page.getBlock(0);
+                    assertEquals(
+                        policy.modeName() + " bare " + bareScalar + ": drops only itself — three records survive",
+                        3,
+                        block.getPositionCount()
+                    );
+                    assertEquals(1L, block.getLong(0));
+                    assertEquals(2L, block.getLong(1));
+                    assertEquals(3L, block.getLong(2));
+                }
+            }
+        }
+    }
+
+    /**
+     * An oversized bare number (one that trips {@code StreamReadConstraints}' number-length limit during
+     * {@code nextToken}) must also drop only itself, not the following record.
+     * Both the streaming and byte-array paths are exercised, under both non-strict policies.
+     */
+    public void testConstraintViolationOnBareNumberDropsSelf() throws IOException {
+        String ndjson = "{\"v\":1}\n" + "1".repeat(1200) + "\n{\"v\":2}\n{\"v\":3}\n";
+        for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+            // Streaming path
+            NdJsonReaderCounters streamingCounters = new NdJsonReaderCounters();
+            try (
+                NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                    new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                    null,
+                    List.of(attribute("v", DataType.LONG)),
+                    null,
+                    10,
+                    blockFactory,
+                    policy,
+                    "test://bare-constraint-streaming",
+                    streamingCounters
+                );
+                Page page = decoder.decodePage()
+            ) {
+                assertNotNull(policy.modeName() + " streaming: page must not be null", page);
+                LongBlock block = page.getBlock(0);
+                assertEquals(policy.modeName() + " streaming: oversized bare number drops only itself", 3, block.getPositionCount());
+                assertEquals(1L, block.getLong(0));
+                assertEquals(2L, block.getLong(1));
+                assertEquals(3L, block.getLong(2));
+            }
+            assertEquals(
+                policy.modeName() + " streaming: the oversized number is charged exactly once",
+                1L,
+                streamingCounters.snapshot().parseErrors()
+            );
+
+            // Byte-array path
+            byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
+            NdJsonReaderCounters bytesCounters = new NdJsonReaderCounters();
+            try (
+                NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                    bytes,
+                    0,
+                    bytes.length,
+                    null,
+                    List.of(attribute("v", DataType.LONG)),
+                    null,
+                    10,
+                    blockFactory,
+                    policy,
+                    "test://bare-constraint-bytes",
+                    bytesCounters
+                );
+                Page page = decoder.decodePage()
+            ) {
+                assertNotNull(policy.modeName() + " byte-array: page must not be null", page);
+                LongBlock block = page.getBlock(0);
+                assertEquals(policy.modeName() + " byte-array: oversized bare number drops only itself", 3, block.getPositionCount());
+                assertEquals(1L, block.getLong(0));
+                assertEquals(2L, block.getLong(1));
+                assertEquals(3L, block.getLong(2));
+            }
+            assertEquals(
+                policy.modeName() + " byte-array: the oversized number is charged exactly once",
+                1L,
+                bytesCounters.snapshot().parseErrors()
+            );
         }
     }
 

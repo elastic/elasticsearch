@@ -30,17 +30,22 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -92,6 +97,119 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     }
 
     /**
+     * Incomplete window fill (cancel / exception mid-GET) must {@code abortStream} the range
+     * rather than {@code close()}, which on S3 would drain the remaining 4–16 MiB.
+     */
+    public void testIncompleteWindowFillAbortsRatherThanDrains() throws IOException {
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
+        randomBytes(data);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject raw = DrainSimulatingStorageObject.create(data, tracking);
+        StorageObject failing = incompleteWindowStorage(raw);
+
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(failing, breaker);
+        try (SeekableInputStream stream = adapter.newStream()) {
+            expectThrows(IOException.class, () -> stream.readFully(new byte[1024]));
+        }
+
+        assertTrue("incomplete window fill must abort the range GET", tracking.aborted.get());
+        assertThat(
+            "incomplete fill must not drain the window; consumed " + tracking.bytesConsumed.get() + " of " + data.length,
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan((long) data.length / 2)
+        );
+    }
+
+    /**
+     * A fully-read window must still {@code close()} the range GET. Abort-after-success would
+     * handshake every 4–16 MiB parquet window.
+     */
+    public void testCompleteWindowFillClosesRatherThanAborts() throws IOException {
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
+        randomBytes(data);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject storage = DrainSimulatingStorageObject.create(data, tracking);
+
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, breaker);
+        try (SeekableInputStream stream = adapter.newStream()) {
+            byte[] buf = new byte[1024];
+            stream.readFully(buf);
+        }
+
+        assertFalse("completed window must close(), not abortStream", tracking.aborted.get());
+        assertTrue("completed window must close the range GET", tracking.closed.get());
+    }
+
+    private static StorageObject incompleteWindowStorage(StorageObject raw) {
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() throws IOException {
+                return throwAfterPrefix(raw.newStream());
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) throws IOException {
+                return throwAfterPrefix(raw.newStream(position, length));
+            }
+
+            @Override
+            public void abortStream(InputStream stream) throws IOException {
+                raw.abortStream(stream);
+            }
+
+            @Override
+            public long length() throws IOException {
+                return raw.length();
+            }
+
+            @Override
+            public Instant lastModified() throws IOException {
+                return raw.lastModified();
+            }
+
+            @Override
+            public boolean exists() throws IOException {
+                return raw.exists();
+            }
+
+            @Override
+            public StoragePath path() {
+                return raw.path();
+            }
+        };
+    }
+
+    private static InputStream throwAfterPrefix(InputStream inner) {
+        return new FilterInputStream(inner) {
+            int consumed;
+
+            @Override
+            public int read() throws IOException {
+                if (consumed >= 8192) {
+                    throw new IOException("simulated incomplete window");
+                }
+                int b = super.read();
+                if (b >= 0) {
+                    consumed++;
+                }
+                return b;
+            }
+
+            @Override
+            public int read(byte[] buf, int off, int len) throws IOException {
+                if (consumed >= 8192) {
+                    throw new IOException("simulated incomplete window");
+                }
+                int n = super.read(buf, off, Math.min(len, 8192 - consumed));
+                if (n > 0) {
+                    consumed += n;
+                }
+                return n;
+            }
+        };
+    }
+
+    /**
      * Window construction charges the breaker. parquet-mr may open the stream on a generic
      * thread while the driver holds {@link LocalCircuitBreaker#assertBeginRunLoop()}.
      */
@@ -111,7 +229,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             randomBytes(data);
             ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(createStorageObject(data), local);
             try (SeekableInputStream stream = adapter.newStream()) {
-                assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, parent.getUsed());
+                assertEquals(data.length, parent.getUsed());
                 assertNotNull(stream);
             }
             assertEquals(0, parent.getUsed());
@@ -120,6 +238,44 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             local.close();
             assertEquals(0, parent.getUsed());
         }
+    }
+
+    public void testTinyDefaultCtorChargesFileLength() throws IOException {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(createStorageObject(data), limited);
+        try (SeekableInputStream stream = adapter.newStream()) {
+            assertEquals(data.length, limited.getUsed());
+            assertNotNull(stream);
+        }
+        assertEquals(0, limited.getUsed());
+    }
+
+    public void testTinyForRangeChargesFileLength() throws IOException {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetStorageObjectAdapter adapter = ParquetStorageObjectAdapter.forRange(createRangeReadStorageObject(data), 1024L, limited);
+        try (SeekableInputStream stream = adapter.newStream()) {
+            assertEquals(data.length, limited.getUsed());
+            byte[] buf = new byte[data.length];
+            stream.readFully(buf);
+            assertArrayEquals(data, buf);
+        }
+        assertEquals(0, limited.getUsed());
+    }
+
+    public void testLargeFileChargesDefaultWindowSize() throws IOException {
+        int size = ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 123;
+        byte[] data = new byte[size];
+        randomBytes(data);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(createRangeReadStorageObject(data), limited);
+        try (SeekableInputStream stream = adapter.newStream()) {
+            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
+        }
+        assertEquals(0, limited.getUsed());
     }
 
     public void testSeekableInputStreamRead() throws IOException {
@@ -567,7 +723,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
      * Each new stream fetches the tail independently; there is no cross-stream footer cache.
      */
     public void testSeparateStreamsEachFetchTailViaRangeRead() throws IOException {
-        byte[] data = new byte[1024 * 1024];
+        // Must exceed the sliding window so a tail seek is a suffix GET, not a whole-file fill
+        // (whole-file fills are not stored in FooterByteCache).
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
         randomBytes(data);
         final int[] rangeReadCount = { 0 };
         Instant lastModified = Instant.ofEpochMilli(123);
@@ -764,19 +922,69 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         );
     }
 
-    public void testAdaptiveWindowFloorAtDefault() throws IOException {
+    public void testTinyFileTailSeekIsOneWholeFileGet() throws IOException {
         byte[] data = new byte[100];
         randomBytes(data);
-        StorageObject storageObject = createRangeReadStorageObject(data);
-
-        long tinyRange = 1024L; // 1 KiB — should be floored to DEFAULT_WINDOW_SIZE
-        ParquetStorageObjectAdapter adapter = ParquetStorageObjectAdapter.forRange(storageObject, tinyRange, breaker);
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, rangeGets);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, breaker);
 
         try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(data.length - 8);
+            stream.seek(0);
             byte[] buf = new byte[data.length];
             stream.readFully(buf);
             assertArrayEquals(data, buf);
         }
+
+        assertEquals(1, rangeGets.size());
+        assertEquals(0L, rangeGets.getFirst()[0]);
+        assertEquals(data.length, rangeGets.getFirst()[1]);
+    }
+
+    public void testTinyFileWholeFileFillDoesNotEnterFooterCache() throws IOException {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, rangeGets);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, breaker);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(data.length - 8);
+            stream.seek(0);
+            byte[] buf = new byte[data.length];
+            stream.readFully(buf);
+            assertArrayEquals(data, buf);
+        }
+        assertEquals(1, rangeGets.size());
+        byte[] cached = FooterByteCache.getInstance().get(adapter.cacheKey());
+        assertNull("whole-file fills must not occupy FooterByteCache", cached);
+
+        rangeGets.clear();
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(data.length - 8);
+            stream.seek(0);
+            byte[] buf = new byte[data.length];
+            stream.readFully(buf);
+            assertArrayEquals(data, buf);
+        }
+        assertEquals(1, rangeGets.size());
+        assertEquals(0L, rangeGets.getFirst()[0]);
+        assertEquals(data.length, rangeGets.getFirst()[1]);
+    }
+
+    public void testSeekToEndOfTinyFileDoesNotFetch() throws IOException {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, rangeGets);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, breaker);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(data.length);
+            assertEquals(-1, stream.read());
+        }
+        assertEquals(0, rangeGets.size());
     }
 
     public void testAdaptiveWindowReducesRangeRequests() throws IOException {
@@ -1143,7 +1351,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
      * {@code lastModified}) each perform their own range reads; there is no cross-adapter cache.
      */
     public void testSeparateAdaptersDoNotShareCachedRanges() throws IOException {
-        byte[] data = new byte[1024 * 1024];
+        // Must exceed the sliding window so a tail seek is a suffix GET, not a whole-file fill
+        // (whole-file fills are not stored in FooterByteCache).
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
         random().nextBytes(data);
         final int[] rangeReadCount = { 0 };
         final StoragePath path = StoragePath.of("memory://cache-key-test.parquet");
@@ -1179,7 +1389,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
      * each stream performs its own range read(s).
      */
     public void testConcurrentTailReadsEachIssueRangeRequest() throws Exception {
-        byte[] data = new byte[1024 * 1024];
+        // Must exceed the sliding window so a tail seek is a suffix GET, not a whole-file fill
+        // (whole-file fills are not stored in FooterByteCache).
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
         random().nextBytes(data);
         final AtomicInteger rangeReadCount = new AtomicInteger();
         final StoragePath path = StoragePath.of("memory://thundering-herd.parquet");
@@ -1594,6 +1806,43 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.readFully(result);
         }
         assertEquals("Empty map must not enable the pre-warm fast path", 1, rangeReadCount.get());
+    }
+
+    private StorageObject createRecordingRangeReadStorageObject(byte[] data, List<long[]> rangeGets) {
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException("Full GET not supported in recording harness");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                rangeGets.add(new long[] { position, length });
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                return new ByteArrayInputStream(data, pos, len);
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://window-clamp-test.parquet");
+            }
+        };
     }
 
     private StorageObject createCountingRangeReadStorageObject(byte[] data, AtomicInteger counter) {

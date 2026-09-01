@@ -50,6 +50,10 @@ public class DataGenerationHelper {
     }
 
     public DataGenerationHelper(Consumer<DataGeneratorSpecification.Builder> builderConfigurator) {
+        this(builderConfigurator, true);
+    }
+
+    public DataGenerationHelper(Consumer<DataGeneratorSpecification.Builder> builderConfigurator, boolean useMultiFields) {
         this.keepArraySource = ESTestCase.randomBoolean();
 
         var specificationBuilder = DataGeneratorSpecification.builder()
@@ -118,8 +122,11 @@ public class DataGenerationHelper {
                         }
                     });
                 }
-            }))
-            .withDataSourceHandlers(List.of(MultifieldAddonHandler.STRING_TYPE_HANDLER));
+            }));
+
+        if (useMultiFields) {
+            specificationBuilder.withDataSourceHandlers(List.of(MultifieldAddonHandler.STRING_TYPE_HANDLER));
+        }
 
         // Customize builder if necessary
         builderConfigurator.accept(specificationBuilder);

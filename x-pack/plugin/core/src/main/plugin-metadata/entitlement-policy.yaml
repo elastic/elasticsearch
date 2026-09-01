@@ -9,7 +9,7 @@ org.elasticsearch.sslconfig:
       relative_to: config
       mode: read
 org.apache.httpcomponents.httpclient:
-  - outbound_network # For SamlRealm
+  - outbound_network # For OIDC and JWT realms
   - manage_threads
 org.apache.httpcomponents.httpcore.nio:
   - outbound_network
@@ -20,6 +20,7 @@ org.apache.httpcomponents.core5.httpcore5:
   - manage_threads
   - outbound_network
 org.apache.httpcomponents.client5.httpclient5:
+  - outbound_network # For SAML metadata resolver
   - manage_threads
 org.apache.httpcomponents.core5.httpcore5.h2:
   - manage_threads

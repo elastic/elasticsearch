@@ -9,17 +9,22 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.DictionaryPageReadStore;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.format.PageLocation;
+import org.apache.parquet.format.converter.ParquetMetadataConverter;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
@@ -188,6 +193,92 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                 assertTrue("Null predicate set must disable pre-warm", withNullPredicates.preWarmedChunks().isEmpty());
             }
         }
+    }
+
+    /**
+     * Writers may omit {@code dictionary_page_offset}. The first pre-warm batch cannot locate
+     * that dictionary; after OffsetIndex parse, omitted-offset ranges must be the gap
+     * {@code [startingPos, first indexed data page)}.
+     */
+    public void testOmittedDictionaryOffsetUsesOffsetIndexGap() {
+        BlockMetaData block = new BlockMetaData();
+        block.setRowCount(100);
+        @SuppressWarnings("deprecation")
+        ColumnChunkMetaData column = ColumnChunkMetaData.get(
+            ColumnPath.get("min_fl"),
+            PrimitiveType.PrimitiveTypeName.INT64,
+            CompressionCodecName.UNCOMPRESSED,
+            Set.of(Encoding.RLE_DICTIONARY, Encoding.PLAIN),
+            org.apache.parquet.column.statistics.Statistics.createStats(
+                Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("min_fl")
+            ),
+            4L,
+            0L,
+            100,
+            200,
+            200
+        );
+        block.addColumn(column);
+        assertEquals(0L, column.getDictionaryPageOffset());
+        assertEquals(4L, column.getStartingPos());
+        assertNull(
+            "first pre-warm batch has no OffsetIndex bound, so omitted offsets must not produce a range",
+            ColumnChunkPrefetcher.dictionaryPageRange(column, column.getFirstDataPageOffset())
+        );
+        OffsetIndex offsetIndex = ParquetMetadataConverter.fromParquetOffsetIndex(
+            new org.apache.parquet.format.OffsetIndex(List.of(new PageLocation(100, 32, 0)))
+        );
+        Map<String, OffsetIndex> indexes = Map.of(PreloadedRowGroupMetadata.key(0, column), offsetIndex);
+
+        List<CoalescedRangeReader.ByteRange> missing = PreloadedRowGroupMetadata.omittedDictionaryRanges(
+            List.of(block),
+            Set.of("min_fl"),
+            indexes,
+            Set.of()
+        );
+        assertEquals(List.of(new CoalescedRangeReader.ByteRange(4, 96)), missing);
+
+        List<CoalescedRangeReader.ByteRange> alreadyCovered = PreloadedRowGroupMetadata.omittedDictionaryRanges(
+            List.of(block),
+            Set.of("min_fl"),
+            indexes,
+            Set.of(4L)
+        );
+        assertTrue(alreadyCovered.isEmpty());
+
+        List<CoalescedRangeReader.ByteRange> withoutOffsetIndex = PreloadedRowGroupMetadata.omittedDictionaryRanges(
+            List.of(block),
+            Set.of("min_fl"),
+            Map.of(),
+            Set.of()
+        );
+        assertTrue(withoutOffsetIndex.isEmpty());
+
+        BlockMetaData explicit = new BlockMetaData();
+        explicit.setRowCount(100);
+        @SuppressWarnings("deprecation")
+        ColumnChunkMetaData explicitDict = ColumnChunkMetaData.get(
+            ColumnPath.get("min_fl"),
+            PrimitiveType.PrimitiveTypeName.INT64,
+            CompressionCodecName.UNCOMPRESSED,
+            Set.of(Encoding.RLE_DICTIONARY, Encoding.PLAIN),
+            org.apache.parquet.column.statistics.Statistics.createStats(
+                Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("min_fl")
+            ),
+            100L,
+            50L,
+            100,
+            200,
+            200
+        );
+        explicit.addColumn(explicitDict);
+        List<CoalescedRangeReader.ByteRange> explicitOffset = PreloadedRowGroupMetadata.omittedDictionaryRanges(
+            List.of(explicit),
+            Set.of("min_fl"),
+            Map.of(PreloadedRowGroupMetadata.key(0, explicitDict), offsetIndex),
+            Set.of()
+        );
+        assertTrue("explicit dictionary_page_offset belongs in the first batch, not the omitted pass", explicitOffset.isEmpty());
     }
 
     /**
@@ -406,8 +497,15 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
      */
     public void testOptimizedFullScanReadFetchesNoPageIndexBytes() throws IOException {
         MessageType schema = threeColumnInt64Schema();
-        int rows = 65_536;
-        byte[] parquetData = writeThreeColumnInt64Parquet(schema, rows);
+        // Unique uncompressed values so the object exceeds DEFAULT_WINDOW_SIZE. Dictionary-encoded
+        // low-cardinality files fit in the window; one GET of [0, length) then overlaps page indexes
+        // and looks like a dedicated index fetch.
+        int rows = 200_000;
+        byte[] parquetData = writeUniqueUncompressedThreeColumnInt64Parquet(schema, rows);
+        assertTrue(
+            "fixture must exceed the sliding window so the scan uses suffix GETs, not a whole-file fill",
+            parquetData.length > ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE
+        );
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
         long[][] indexRanges;
@@ -793,6 +891,37 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                 g.add("a", (long) (i % 16));
                 g.add("b", (long) (i % 32));
                 g.add("c", (long) (i % 64));
+                writer.write(g);
+            }
+        }
+        return out.toByteArray();
+    }
+
+    /**
+     * Same three-column INT64 layout as {@link #writeThreeColumnInt64Parquet}, but with unique
+     * values and dictionary encoding off so the file is larger than the sliding window.
+     */
+    private static byte[] writeUniqueUncompressedThreeColumnInt64Parquet(MessageType schema, int rows) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(out);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(false)
+                .withPageSize(4 * 1024)
+                .withRowGroupSize(256 * 1024L)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("a", (long) i);
+                g.add("b", (long) i);
+                g.add("c", (long) i);
                 writer.write(g);
             }
         }

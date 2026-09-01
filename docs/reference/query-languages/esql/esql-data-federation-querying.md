@@ -57,7 +57,7 @@ The general query performance advice in [optimize {{esql}} query performance](es
 
 ### File discovery limits
 
-A dataset's resource path can use glob patterns to match many files. Two cluster settings bound file discovery:
+A dataset's resource path can use [glob patterns](esql-data-federation-patterns.md) to match many files. Two cluster settings bound file discovery:
 
 - `esql.external.max_discovered_files` (default 10,000): the maximum number of files a single dataset can resolve to.
 - `esql.external.max_glob_expansion` (default 100): the maximum number of concrete paths a brace pattern (`{a,b,c}`) expands to. Past this cap, the engine falls back to listing the storage instead of failing.
@@ -101,11 +101,11 @@ FROM access_logs METADATA _file.path, _file.name, _file.size
 
 ## Use search functions
 
-[Search functions](/reference/query-languages/esql/functions-operators/search-functions.md) can filter dataset rows by evaluating the query against values read from the files. This runtime search does not use an inverted index and does not contribute to `_score`. `_score` remains null for dataset rows.
+[Search functions](/reference/query-languages/esql/functions-operators/search-functions.md) can filter dataset rows by evaluating the query against values read from the files. This runtime search does not use an inverted index. When using `METADATA _score`, `MATCH` and `MATCH_PHRASE` on dataset rows contribute to the relevance score based on the `boost` option and the query terms matched — not BM25, as there are no index statistics for a dataset. {applies_to}`stack: preview 9.6` In earlier versions, dataset rows do not contribute to `_score`.
 
 Because there is no inverted index, search functions on a dataset evaluate by scanning values row by row. For large datasets where search is the primary access pattern, consider ingesting the data into {{es}} for indexed search performance.
 
-Runtime `MATCH` on a dataset does not accept function options, requires the query value's type to match the field's type, and analyzes text with a fixed standard analyzer.
+Runtime `MATCH` on a dataset requires the query value's type to match the field's type. Text is analyzed with the standard analyzer unless a values analyzer is declared through [`TO_TEXT`](functions-operators/type-conversion-functions/to_text.md)'s `analyzer` option; `MATCH`'s own `analyzer` option applies to the query string only, defaulting to the values analyzer. {applies_to}`stack: preview 9.6`
 
 The following search functions are available for datasets:
 
@@ -113,14 +113,14 @@ The following search functions are available for datasets:
 |---|---|
 | [`MATCH`](functions-operators/search-functions/match.md) | {applies_to}`stack: experimental 9.5` |
 | [`MATCH_PHRASE`](functions-operators/search-functions/match_phrase.md) | {applies_to}`stack: experimental 9.6` |
-| `_score` for dataset rows | Not yet available |
+| `_score` for dataset rows | {applies_to}`stack: experimental 9.6` |
 
 ## Limitations
 
 :::{include} _snippets/data-federation/experimental-warning.md
 :::
 
-The operations below require structures that only exist in an {{es}} index, such as the inverted index, doc values, or time series metadata. Each fails with a clear error rather than wrong results.
+The limitations below include operations that require structures available only in an {{es}} index, such as the inverted index, doc values, or time series metadata, as well as unsupported data shapes. Unsupported operations fail with a clear error; representation limitations are described in the table.
 
 | Operation | Reason | Error |
 |---|---|---|
@@ -134,6 +134,7 @@ The operations below require structures that only exist in an {{es}} index, such
 | [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) | Datasets on a remote cluster cannot be queried. Only local datasets are supported. | `ES\|QL queries with remote datasets are not supported. Matched [...]` |
 | Snapshot and restore | Data sources and datasets cannot be snapshotted or restored. | |
 | Parquet MAP and nested LIST | These complex types are not currently supported and return null. STRUCT is supported and flattened to dot-notation column names (for example, `address.city`). | |
+| `null` elements inside a Parquet LIST | An {{esql}} multivalued field cannot hold `null`, so a `null` element inside a list is omitted and the column returns fewer values than the file holds. A list of `[1, null, 2]` reads as `[1, 2]`, and a list whose elements are all `null` reads as `null`. The response includes a warning naming the affected columns. | |
 
 ## Troubleshooting
 

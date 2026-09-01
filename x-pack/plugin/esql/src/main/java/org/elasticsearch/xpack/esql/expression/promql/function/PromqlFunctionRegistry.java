@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Clamp
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramFraction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
@@ -121,6 +122,7 @@ public class PromqlFunctionRegistry {
         ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_SUM,
+        HistogramFraction.PROMQL_DEFINITION,
         //
         Ceil.PROMQL_DEFINITION,
         Abs.PROMQL_DEFINITION,
@@ -215,7 +217,6 @@ public class PromqlFunctionRegistry {
         "label_replace",
 
         // Histogram functions
-        "histogram_fraction",
         "histogram_stddev",
         "histogram_stdvar"
     );

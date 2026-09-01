@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 157211
+summary: Optimize `bitmap_terms` on sorted index for point fields
+type: enhancement

@@ -9,9 +9,8 @@
 package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -43,7 +42,7 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.randomInt
 public class VectorScorerInt7uOperationBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     byte[] byteArrayA;
@@ -113,5 +112,5 @@ public class VectorScorerInt7uOperationBenchmark {
         };
     }
 
-    static final SimdVecLibrary VEC_LIBRARY = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
+    static final SimdVecLibrary VEC_LIBRARY = SimdVecLibrary.instance().orElseThrow();
 }

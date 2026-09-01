@@ -59,6 +59,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_CREATED_TV;
 import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_USED_TV;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver.ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION;
 import static org.hamcrest.Matchers.allOf;
@@ -1002,6 +1003,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     doc.field("lt", "2025-01-01");
                     doc.endObject();
                 }
+                case DOUBLE_RANGE -> {
+                    doc.startObject();
+                    doc.field("gte", 1.0);
+                    doc.field("lt", 2.0);
+                    doc.endObject();
+                }
                 case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramXContent.serialize(doc, EXPONENTIAL_HISTOGRAM_VALUE);
                 case DENSE_VECTOR -> doc.value(List.of(0.5, 10, 6));
                 case HISTOGRAM -> createHistogramValue(doc);
@@ -1182,6 +1189,20 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 yield nullValue();
             }
+            case DOUBLE_RANGE -> {
+                // Indexed with an exclusive upper bound (lt), so the half-open loader round-trips cleanly.
+                if (DOUBLE_RANGE.supportedVersion().supportedOn(minimumVersion, false)) {
+                    yield equalTo("1.0..2.0");
+                }
+                if (DOUBLE_RANGE.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    // Same dance as for DATE_RANGE: while the type was still under construction, old snapshot nodes
+                    // emit the formatted string, old release builds either return null (type unsupported) or the raw,
+                    // unformatted doc value map. Accept any of them rather than guessing which one a given old build
+                    // should produce.
+                    yield anyOf(nullValue(), equalTo("1.0..2.0"), instanceOf(Map.class));
+                }
+                yield nullValue();
+            }
             case FLATTENED -> {
                 if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
                     MapMatcher values = matchesMap().entry("a.c", "bar")
@@ -1270,8 +1291,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 DATE_PERIOD, TIME_DURATION, GEOTILE, GEOHASH, GEOHEX,
                 // TODO fix geo
                 CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
-            // TODO: DOUBLE_RANGE: Implement loading
-            case DOUBLE_RANGE -> false;
             // EXPONENTIAL_HISTOGRAM was added to ES and ES|QL at the same time, which is why we can use supportedVersion()
             // to decide whether indices can have fields of this type.
             case EXPONENTIAL_HISTOGRAM -> DataType.EXPONENTIAL_HISTOGRAM.supportedVersion()
@@ -1292,8 +1311,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case AGGREGATE_METRIC_DOUBLE, SCALED_FLOAT,
                 // https://github.com/elastic/elasticsearch/issues/139255
                 EXPONENTIAL_HISTOGRAM, TDIGEST -> false;
-            // EnrichResultBuilderForLongRange was added with tech preview; old nodes throw on execution.
-            case DATE_RANGE -> DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false);
+            // EnrichResultBuilderForLongRange/ForDoubleRange were added with tech preview; old nodes throw on execution.
+            case DATE_RANGE, DOUBLE_RANGE -> t.supportedVersion().supportedOn(minimumVersion, false);
             // EnrichResultBuilderForFloat was added to 9.x (PR #139774); DENSE_VECTOR maps to ElementType.FLOAT
             // which old 8.x nodes can't handle. Use the production version check (ESQL_DENSE_VECTOR_CREATED_VERSION
             // = 9183000) which correctly excludes 8.x nodes (max transport version 8841090).
@@ -1401,6 +1420,16 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
                     yield anyOf(equalTo("date_range"), equalTo("unsupported"));
+                }
+                yield equalTo("unsupported");
+            }
+            case DOUBLE_RANGE -> {
+                // Same dance as for DATE_RANGE.
+                if (DOUBLE_RANGE.supportedVersion().supportedOn(minimumVersion, false)) {
+                    yield equalTo("double_range");
+                }
+                if (DOUBLE_RANGE.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    yield anyOf(equalTo("double_range"), equalTo("unsupported"));
                 }
                 yield equalTo("unsupported");
             }
@@ -1562,6 +1591,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case AGGREGATE_METRIC_DOUBLE -> matchesList().item("column_at_a_time:BlockDocValuesReader.AggregateMetricDouble");
             case BOOLEAN -> matchesList().item("column_at_a_time:BooleansFromDocValues.Singleton");
             case DATE_RANGE -> matchesList().item("column_at_a_time:BlockDocValuesReader.DateRangeDocValuesReader");
+            case DOUBLE_RANGE -> matchesList().item("column_at_a_time:BlockDocValuesReader.DoubleRangeDocValuesReader");
             case DOUBLE, COUNTER_DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Doubles")
                 : matchesList().item("column_at_a_time:DoublesFromDocValues.Singleton");

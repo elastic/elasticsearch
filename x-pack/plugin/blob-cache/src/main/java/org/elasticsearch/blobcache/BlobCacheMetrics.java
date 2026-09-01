@@ -210,7 +210,7 @@ public class BlobCacheMetrics {
             )
         );
 
-        meterRegistry.registerLongGauge(
+        meterRegistry.registerLongAsyncGauge(
             "es.blob_cache.read.total",
             "The number of cache reads (warming not included)",
             "count",
@@ -219,7 +219,7 @@ public class BlobCacheMetrics {
         // notice that this is different from `miss_that_triggered_read` in that `miss_that_triggered_read` will count once per gap
         // filled for a single read. Whereas this one only counts whenever a read provoked populating data from the object store, though
         // once per region for multi-region reads. This allows reasoning about hit ratio too.
-        meterRegistry.registerLongGauge(
+        meterRegistry.registerLongAsyncGauge(
             "es.blob_cache.miss.total",
             "The number of cache misses (warming not included)",
             "count",
@@ -227,7 +227,7 @@ public class BlobCacheMetrics {
         );
         // adding this helps search for high or low miss ratio. It will be since boot of the node though. More advanced queries can use
         // deltas of the totals to see miss ratio over time.
-        meterRegistry.registerDoubleGauge(
+        meterRegistry.registerDoubleAsyncGauge(
             "es.blob_cache.miss.ratio",
             "The fraction of cache reads that missed data (warming not included)",
             "fraction",

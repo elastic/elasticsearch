@@ -92,6 +92,21 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         TimeValue.ZERO
     );
 
+    // When the JVM property that overrides LARGE_BLOB_THRESHOLD_BYTE_SIZE is set (typically in tests to
+    // exercise the resumable-upload path with small blobs), lower the minimum to that value so that it can
+    // also be set explicitly as a repository setting.
+    private static final ByteSizeValue MULTIPART_UPLOAD_SIZE_THRESHOLD_MIN = ByteSizeValue.of(
+        Math.min((long) GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE, ByteSizeUnit.MB.toBytes(5)),
+        ByteSizeUnit.BYTES
+    );
+
+    static final Setting<ByteSizeValue> MULTIPART_UPLOAD_SIZE_THRESHOLD = byteSizeSetting(
+        "multipart_upload_size_threshold",
+        ByteSizeValue.of(GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE, ByteSizeUnit.BYTES),
+        MULTIPART_UPLOAD_SIZE_THRESHOLD_MIN,
+        ByteSizeValue.of(5, ByteSizeUnit.TB)
+    );
+
     private final GoogleCloudStorageService storageService;
     private final ByteSizeValue chunkSize;
     private final String bucket;
@@ -102,6 +117,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private final GcsRepositoryStatsCollector statsCollector;
     private final String dataStorageClass;
     private final String metadataStorageClass;
+    private final long largeBlobThreshold;
 
     GoogleCloudStorageRepository(
         @Nullable final ProjectId projectId,
@@ -135,6 +151,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         this.statsCollector = statsCollector;
         this.dataStorageClass = DATA_STORAGE_CLASS.get(metadata.settings());
         this.metadataStorageClass = METADATA_STORAGE_CLASS.get(metadata.settings());
+        this.largeBlobThreshold = MULTIPART_UPLOAD_SIZE_THRESHOLD.get(metadata.settings()).getBytes();
         validateStorageClassIfSpecified(metadata.name(), DATA_STORAGE_CLASS.getKey(), this.dataStorageClass);
         validateStorageClassIfSpecified(metadata.name(), METADATA_STORAGE_CLASS.getKey(), this.metadataStorageClass);
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
@@ -182,6 +199,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             storageService,
             bigArrays,
             bufferSize,
+            largeBlobThreshold,
             BackoffPolicy.linearBackoff(retryThrottledCasDelayIncrement, retryThrottledCasMaxNumberOfRetries, retryThrottledCasMaxDelay),
             statsCollector,
             dataStorageClass,

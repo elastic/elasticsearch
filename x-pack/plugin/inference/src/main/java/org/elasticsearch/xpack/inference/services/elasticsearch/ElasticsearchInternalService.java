@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -42,6 +40,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
@@ -157,6 +157,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 Strings.format("Error parsing request config, model id is missing for inference id: %s", inferenceEntityId)
             );
         }
+    }
+
+    public static boolean isSupported(Settings settings) {
+        return XPackSettings.MACHINE_LEARNING_ENABLED.get(settings) && XPackSettings.NLP_ENABLED.get(settings);
+    }
+
+    public static boolean isServiceNameOrAlias(String name) {
+        return name.equals(ElasticsearchInternalService.NAME) || name.equals(ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME);
     }
 
     /**
@@ -940,12 +948,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     @Override
     public void updateModelsWithDynamicFields(List<Model> models, ActionListener<List<Model>> listener) {
         if (models.isEmpty()) {
-            listener.onResponse(models);
-            return;
-        }
-
-        // if ML is disabled, do not update Deployment Stats (there won't be changes)
-        if (XPackSettings.MACHINE_LEARNING_ENABLED.get(settings) == false || XPackSettings.NLP_ENABLED.get(settings) == false) {
             listener.onResponse(models);
             return;
         }

@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -75,7 +76,6 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
-import static org.elasticsearch.search.SearchService.PIT_RELOCATION_FEATURE_FLAG;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -124,9 +124,10 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
             StatelessSharedBlobCacheService cacheService,
             CacheBlobReaderService cacheBlobReaderService,
             MutableObjectStoreUploadTracker objectStoreUploadTracker,
-            ShardId shardId
+            ShardId shardId,
+            IndexVersion creationVersion
         ) {
-            return new TrackingSearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+            return new TrackingSearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, creationVersion);
         }
 
         private static class TrackingSearchDirectory extends SearchDirectory {
@@ -138,9 +139,10 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
                 StatelessSharedBlobCacheService cacheService,
                 CacheBlobReaderService cacheBlobReaderService,
                 MutableObjectStoreUploadTracker objectStoreUploadTracker,
-                ShardId shardId
+                ShardId shardId,
+                IndexVersion creationVersion
             ) {
-                super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, randomBoolean());
+                super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, randomBoolean(), creationVersion);
             }
 
             @Override
@@ -195,7 +197,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
      * a separate {@link org.apache.lucene.index.StandardDirectoryReader} per PIT.
      */
     public void testPointInTimeRelocationManyPits() throws Exception {
-        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         startMasterAndIndexNode(nodeSettings);
         var searchNodeA = startSearchNode(nodeSettings);
 
@@ -323,7 +324,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
      * to exercise tombstone and version-conflict handling during relocation.
      */
     public void testPointInTimeRelocationPitOnUnflushedIndexState() throws Exception {
-        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         var testNodeSettings = Settings.builder().put(nodeSettings).put(STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1)).build();
 
@@ -492,7 +492,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
     }
 
     public void testPointInTimeRelocation() throws Exception {
-        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         startMasterAndIndexNode(nodeSettings);
         var searchNodeA = startSearchNode(nodeSettings);
         var searchNodeB = startSearchNode(nodeSettings);
@@ -597,7 +596,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
     }
 
     public void testNoPointInTimeRelocationWithSettingDisabled() throws Exception {
-        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         startMasterAndIndexNode(nodeSettings);
         var searchNodeA = startSearchNode(nodeSettings);
         var searchNodeB = startSearchNode(nodeSettings);
@@ -714,7 +712,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
     }
 
     public void testPointInTimeRelocationConcurrentSearches() throws Exception {
-        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         startMasterAndIndexNode(nodeSettings);
         var searchNodeA = startSearchNode(nodeSettings);
         var searchNodeB = startSearchNode(nodeSettings);
@@ -826,7 +823,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
             + "co.elastic.elasticsearch.stateless.recovery.PITRelocationService:DEBUG"
     )
     public void testPointInTimeRelocationClosingSourceContexts() throws Exception {
-        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         startMasterAndIndexNode(nodeSettings);
         var searchNodeA = startSearchNode(nodeSettings);
         var searchNodeB = startSearchNode(nodeSettings);
@@ -916,7 +912,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
     }
 
     public void testPointInTimeRelocationWithUpdatesAndDeletes() {
-        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         var indexNode = startMasterAndIndexNode(nodeSettings);
         var searchNodeA = startSearchNode(nodeSettings);
         var searchNodeB = startSearchNode(nodeSettings);
@@ -1087,8 +1082,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         closePointInTime(updatedPit2.get());
     }
 
-    public void testPointInTimeRelocationReferencingTheSameCommit() {
-        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
+    public void testPointInTimeRelocationReferencingTheSameCommit() throws Exception {
         var indexNode = startMasterAndIndexNode(nodeSettings);
         var searchNodeA = startSearchNode(nodeSettings);
         var searchNodeB = startSearchNode(nodeSettings);
@@ -1126,6 +1120,9 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), hasItem(searchNodeNext));
 
+        // ensureGreen is not enough, the source node serves this PIT with the old id until its PIT contexts are gone.
+        waitForNoPITContextOnNode(searchNodeCurrent, 5);
+
         // PIT search should still work after relocation, with an updated PIT id
         var updatedPitId = new AtomicReference<BytesReference>();
         assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
@@ -1149,7 +1146,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
      * {@code SharedPITCommitReader} cache is introduced.
      */
     public void testRelocatedPitsAtSameCommitHaveOneReaderPerPit() throws Exception {
-        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         var indexNode = startMasterAndIndexNode(nodeSettings);
         var searchNodeA = startSearchNode(nodeSettings);
         var searchNodeB = startSearchNode(nodeSettings);
@@ -1237,7 +1233,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
      * Leaks are detected by {@link PITRelocationTestPlugin.TrackingSearchDirectory}.
      */
     public void testRelocatedPitContextsReleasedWhenShardClosedDuringHandoff() throws Exception {
-        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         var indexNode = startMasterAndIndexNode(nodeSettings);
         var searchNodeA = startSearchNode(nodeSettings);
@@ -1316,7 +1311,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
     }
 
     public void testRelocationWithPITReferencingPinnedGenFiles() {
-        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         var indexNode = startMasterAndIndexNode(nodeSettings);
         var searchNodeA = startSearchNode(nodeSettings);
 
@@ -1416,7 +1410,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
     }
 
     public void testPointInTimeRelocationHandoffBccReadFailureFallsBackToLazyReconstruction() throws Exception {
-        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         startMasterAndIndexNode(nodeSettings);
         var searchNodeA = startSearchNode(nodeSettings);
         var searchNodeB = startSearchNode(nodeSettings);
@@ -1476,7 +1469,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
      * search results remain correct.
      */
     public void testPointInTimeRelocationNullContextInId() throws Exception {
-        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         startMasterAndIndexNode(nodeSettings);
         var searchNodeA = startSearchNode(nodeSettings);
         var searchNodeB = startSearchNode(nodeSettings);
@@ -1598,7 +1590,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
      * accumulate three CCs in a single VBCC. Each PIT is matched to its CC entry when building the handoff.
      */
     public void testPointInTimeRelocationPitPositionsInBcc() throws Exception {
-        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         // ensure three refresh cycles do not trigger a count-based VBCC upload before relocation
         var nodeSettings = Settings.builder()
             .put(this.nodeSettings)
@@ -1720,7 +1711,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
      * context is being silently dropped during handoff.
      */
     public void testPitRelocationMetricsRecorded() throws Exception {
-        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         startMasterAndIndexNode(nodeSettings);
         var searchNodeA = startSearchNode(nodeSettings);
         var searchNodeB = startSearchNode(nodeSettings);

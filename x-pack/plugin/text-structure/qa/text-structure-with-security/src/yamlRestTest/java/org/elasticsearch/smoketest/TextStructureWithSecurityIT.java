@@ -12,8 +12,10 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.xpack.test.rest.AbstractXPackRestTest;
+import org.junit.ClassRule;
 
 import java.util.Collections;
 import java.util.Map;
@@ -24,8 +26,16 @@ public class TextStructureWithSecurityIT extends AbstractXPackRestTest {
 
     private static final String TEST_ADMIN_USERNAME = "x_pack_rest_user";
 
+    @ClassRule
+    public static final ElasticsearchCluster cluster = Clusters.create();
+
     public TextStructureWithSecurityIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     protected String[] getCredentials() {

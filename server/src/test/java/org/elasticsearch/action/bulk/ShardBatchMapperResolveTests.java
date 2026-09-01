@@ -18,9 +18,12 @@ import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.ColumnGroupResolver;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupLookup;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupResolution;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -135,6 +138,13 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         assertTrue(resolution.columnMappers()[0] instanceof KeywordFieldMapper);
     }
 
+    public void testNumberMapperIsSupported() throws IOException {
+        MapperService ms = mapper(mapping(b -> { b.startObject("v").field("type", "long").endObject(); }));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("v"), ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof NumberFieldMapper);
+    }
+
     public void testNumberIgnoreMalformedIsSupported() throws IOException {
         MapperService ms = mapper(mapping(b -> { b.startObject("v").field("type", "long").field("ignore_malformed", true).endObject(); }));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("v"), ms.mappingLookup(), indexSettings);
@@ -192,26 +202,26 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         assertNull(resolution);
     }
 
-    public void testBooleanMapperNotSupported() throws IOException {
+    public void testBooleanMapperIsSupported() throws IOException {
         MapperService ms = mapper(mapping(b -> { b.startObject("b").field("type", "boolean").endObject(); }));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("b"), ms.mappingLookup(), indexSettings);
-        assertNull(resolution);
+        assertNotNull(resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof BooleanFieldMapper);
     }
 
-    public void testIpMapperNotSupported() throws IOException {
+    public void testDateMapperIsSupported() throws IOException {
+        MapperService ms = mapper(mapping(b -> { b.startObject("ts").field("type", "date").endObject(); }));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("ts"), ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof DateFieldMapper);
+    }
+
+    public void testIpMapperIsSupported() throws IOException {
         MapperService ms = mapper(mapping(b -> { b.startObject("ip").field("type", "ip").endObject(); }));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("ip"), ms.mappingLookup(), indexSettings);
-        assertNull(resolution);
+        assertNotNull(resolution);
+        assertThat(resolution.columnMappers()[0], instanceOf(IpFieldMapper.class));
     }
-
-    // TODO: not relevant at the moment because we are columnar only which does not support copy_to
-    // public void testKeywordWithCopyToFallsBack() throws IOException {
-    // MapperService ms = mapper(mapping(b -> {
-    // b.startObject("src").field("type", "keyword").field("copy_to", "dst").endObject();
-    // b.startObject("dst").field("type", "keyword").endObject();
-    // }));
-    // assertNull(ShardBatchMapper.resolveMappers(schemaOf("src"), ms.mappingLookup(), indexSettings));
-    // }
 
     public void testKeywordWithMultiFieldsFallsBack() throws IOException {
         MapperService ms = mapper(mapping(b -> {

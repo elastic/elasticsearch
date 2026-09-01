@@ -169,7 +169,16 @@ public final class MappedColumns {
     }
 
     public static LuceneColumn binaryColumn(BytesRef[] values, String name, IndexableFieldType fieldType) {
-        return new WindowedBinaryColumn(values, name, fieldType, 0, values.length);
+        return new WindowedBinaryColumn(values, name, fieldType, 0, values.length, false);
+    }
+
+    /**
+     * Like {@link #binaryColumn} but the row-path cursor is a no-op: {@code rowFieldCursor()} always
+     * returns {@link DocIdSetIterator#NO_MORE_DOCS}. Use when a companion column owns the row-path
+     * emission for the same field (e.g. a token-stream column that also writes binary doc values).
+     */
+    public static LuceneColumn binaryDvOnlyColumn(BytesRef[] values, String name, IndexableFieldType fieldType) {
+        return new WindowedBinaryColumn(values, name, fieldType, 0, values.length, true);
     }
 
     private static final class WindowedBinaryColumn extends BinaryColumn implements LuceneColumn {
@@ -178,13 +187,18 @@ public final class MappedColumns {
         private final int from;
         private final int count;
         private final IndexableFieldType fieldType;
+        // When true, rowFieldCursor() is a no-op. Use this only when a companion column emits the
+        // complete field (including any doc values) on the row path, so this column's row emission
+        // would be redundant or conflicting.
+        private final boolean noOpRowPath;
 
-        WindowedBinaryColumn(BytesRef[] values, String name, IndexableFieldType fieldType, int from, int count) {
+        WindowedBinaryColumn(BytesRef[] values, String name, IndexableFieldType fieldType, int from, int count, boolean noOpRowPath) {
             super(name, fieldType, allPresent(values, from, count) ? Density.DENSE : Density.SPARSE);
             this.values = values;
             this.from = from;
             this.count = count;
             this.fieldType = fieldType;
+            this.noOpRowPath = noOpRowPath;
         }
 
         private static boolean allPresent(BytesRef[] values, int from, int count) {
@@ -199,7 +213,7 @@ public final class MappedColumns {
         @Override
         public WindowedBinaryColumn slice(int from, int count) {
             Objects.checkFromIndexSize(from, count, this.count);
-            return new WindowedBinaryColumn(values, name(), fieldType, this.from + from, count);
+            return new WindowedBinaryColumn(values, name(), fieldType, this.from + from, count, noOpRowPath);
         }
 
         @Override
@@ -209,6 +223,17 @@ public final class MappedColumns {
 
         @Override
         public LuceneColumn.RowFieldCursor rowFieldCursor() {
+            if (noOpRowPath) {
+                return new LuceneColumn.RowFieldCursor() {
+                    @Override
+                    public int nextDoc() {
+                        return DocIdSetIterator.NO_MORE_DOCS;
+                    }
+
+                    @Override
+                    public void appendCurrentFields(List<? super IndexableField> out) {}
+                };
+            }
             // A reusable mutable field whose bytes value is updated per document. Using the public
             // Field(String, BytesRef, IndexableFieldType) constructor sets fieldsData to the given
             // BytesRef; subsequent setBytesValue calls update fieldsData in place. The IndexWriter

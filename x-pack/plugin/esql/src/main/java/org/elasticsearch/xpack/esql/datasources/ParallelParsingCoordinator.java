@@ -26,9 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -78,7 +76,7 @@ public final class ParallelParsingCoordinator {
 
     /**
      * Fallback per-file cap on concurrently-open segment streams, used by overloads that don't resolve the
-     * {@code max_concurrent_open_segments} pragma (tests and internal callers). Sourced from the single
+     * {@code external_max_concurrent_open_segments} pragma (tests and internal callers). Sourced from the single
      * source of truth {@link SourceOperatorContext#DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS}.
      */
     static final int DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS = SourceOperatorContext.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS;
@@ -202,7 +200,7 @@ public final class ParallelParsingCoordinator {
      * Forwards to the full-control overload with the {@link #DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS
      * default} open-segment cap and {@code captureSink=null} (text-format readers' close hooks
      * then publish into whatever {@link ExternalStatsCapture} sink — if any — happens to be bound
-     * on the calling thread). Callers that resolve the {@code max_concurrent_open_segments} pragma
+     * on the calling thread). Callers that resolve the {@code external_max_concurrent_open_segments} pragma
      * or care about cross-thread stats capture use the 12-arg overload.
      *
      * @param readSchema     planner-bound read schema, or {@code null} for per-file inference
@@ -248,7 +246,7 @@ public final class ParallelParsingCoordinator {
     }
 
     /**
-     * Convenience overload that adds the {@code max_concurrent_open_segments} cap without per-chunk
+     * Convenience overload that adds the {@code external_max_concurrent_open_segments} cap without per-chunk
      * source-stats capture (equivalent to passing {@code captureSink == null}).
      */
     public static CloseableIterator<Page> parallelRead(
@@ -281,7 +279,7 @@ public final class ParallelParsingCoordinator {
     }
 
     /**
-     * Full-control overload that takes both the {@code max_concurrent_open_segments} cap and an
+     * Full-control overload that takes both the {@code external_max_concurrent_open_segments} cap and an
      * explicit {@code captureSink} for per-chunk source-stats contributions.
      * <p>
      * {@code maxConcurrentOpenSegments} is the per-file limit on byte-range segments whose read
@@ -335,7 +333,7 @@ public final class ParallelParsingCoordinator {
     }
 
     /**
-     * Full-control overload that also takes the {@code max_record_size} cap used by record splitters,
+     * Full-control overload that also takes the {@code external_max_record_size} cap used by record splitters,
      * the file-global byte base offset, and the canonical-stripe grid for per-stripe stats attribution
      * ({@code <= 0} disables; pure overlay).
      */
@@ -591,66 +589,38 @@ public final class ParallelParsingCoordinator {
                     + "] supports neither strided nor proven probing and cannot be segmented"
             );
         }
-        List<Long> boundaries = new ArrayList<>();
-        boundaries.add(0L);
-
-        // The last proven record start (range-relative), the base the exact walk streams from on AMBIGUOUS.
-        long exactCursor = 0L;
-        long pos = nominalSize;
-        while (pos < fileLength) {
-            long remaining = fileLength - pos;
-            if (remaining < minSegment) {
-                break;
-            }
-            long boundary;
-            if (strided) {
-                InputStream stream = storageObject.newStream(pos, remaining);
-                // Abort rather than close: findNextRecordBoundary reads only a prefix of the range
-                // (fileLength - pos bytes), but close() on providers like S3 drains the remainder.
-                try (Closeable abortOnExit = () -> storageObject.abortStream(stream)) {
-                    long skipped = splitter.findNextRecordBoundary(stream);
-                    if (skipped < 0) {
-                        break;
-                    }
-                    boundary = pos + skipped;
-                }
-            } else {
-                long probed;
-                InputStream probeStream = storageObject.newStream(pos, remaining);
-                try (Closeable abortOnExit = () -> storageObject.abortStream(probeStream)) {
-                    probed = splitter.findProvenRecordBoundary(probeStream);
-                }
-                if (probed >= 0) {
-                    boundary = pos + probed;
-                } else if (probed == RecordSplitter.AMBIGUOUS) {
-                    // Exact walk from the last proven boundary. This path is range-bounded and read at planning
-                    // time, so it relies on the existing read-time cancellation rather than a new supplier.
-                    long walkRemaining = fileLength - exactCursor;
-                    InputStream walkStream = storageObject.newStream(exactCursor, walkRemaining);
-                    long start;
-                    try (Closeable abortOnExit = () -> storageObject.abortStream(walkStream)) {
-                        start = splitter.findRecordStartAtOrAfter(walkStream, pos - exactCursor, () -> false);
-                    }
-                    if (start == RecordSplitter.RECORD_TOO_LARGE || start < 0) {
-                        break;
-                    }
-                    boundary = exactCursor + start;
-                } else {
-                    // findProvenRecordBoundary only ever returns a boundary (>= 0) or AMBIGUOUS.
-                    assert false : "findProvenRecordBoundary returned an unexpected sentinel: " + probed;
-                    break;
-                }
-            }
-            if (boundary >= fileLength) {
-                break;
-            }
-            if (fileLength - boundary < minSegment) {
-                break;
-            }
-            assert boundary > boundaries.get(boundaries.size() - 1) : "macro-split boundary must be strictly increasing";
-            boundaries.add(boundary);
-            exactCursor = boundary;
-            pos = boundaries.get(boundaries.size() - 1) + nominalSize;
+        // Both walks are sequential, so either resolves every boundary in one call. Segmentation runs on the
+        // thread that already carries the read's StorageRetryCancellation scope. The walks read that scope
+        // through StorageRetryCancellation::isCancelled; they do not install a nested one, which would
+        // replace the read's live signal. A probe parked in retry/throttle backoff still sees the same
+        // signal through the ambient scope.
+        List<Long> boundaries;
+        if (strided) {
+            // The offsets of a nominal-size grid, resumed from each boundary rather than walked blind. Both
+            // walks read the split at most once, but a blind grid buys that by capping every window at the
+            // stride, which is also a ceiling on the records it can resolve: a file whose records outgrow a
+            // segment would be cut into far fewer pieces than its offsets asked for, and one whose record width
+            // divides the stride would not be cut at all. Resuming gets the same bound from the offsets being
+            // monotonic, so its probes can open the record cap instead. The concurrency a blind grid's
+            // independent offsets allow is no loss here: these probes run on the calling thread either way.
+            boundaries = RecordBoundaryProbe.advancingBoundaries(
+                splitter,
+                storageObject,
+                fileLength,
+                nominalSize,
+                minSegment,
+                maxRecordBytes,
+                StorageRetryCancellation::isCancelled
+            );
+        } else {
+            boundaries = RecordBoundaryProbe.provenBoundaries(
+                splitter,
+                storageObject,
+                fileLength,
+                nominalSize,
+                minSegment,
+                StorageRetryCancellation::isCancelled
+            ).boundaries();
         }
 
         List<long[]> segments = new ArrayList<>(boundaries.size());

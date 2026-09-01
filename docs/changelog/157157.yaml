@@ -1,0 +1,5 @@
+area: Recovery
+issues: []
+pr: 157157
+summary: Add `isRestoringShard` predicate to `RestoreService`
+type: enhancement

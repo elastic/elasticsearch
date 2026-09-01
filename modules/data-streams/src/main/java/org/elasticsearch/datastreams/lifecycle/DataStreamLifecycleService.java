@@ -80,6 +80,7 @@ import org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLM
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -449,7 +450,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             // These are the pre-rollover write indices. They may or may not be the write index after maybeExecuteRollover has executed,
             // depending on rollover criteria, for this reason we exclude them for the remaining run.
-            indicesToExcludeForRemainingRun.add(maybeExecuteRollover(project, dataStream, dataRetention, false));
+            // Note: rollover is applied on data stream level, this is why we still need to check the index mode of the data stream
+            // and skip it if the mode is lookup.
+            if (dataStream.getIndexMode() != IndexMode.LOOKUP) {
+                indicesToExcludeForRemainingRun.add(maybeExecuteRollover(project, dataStream, dataRetention, false));
+            }
             Index failureStoreWriteIndex = maybeExecuteRollover(project, dataStream, failuresRetention, true);
             if (failureStoreWriteIndex != null) {
                 indicesToExcludeForRemainingRun.add(failureStoreWriteIndex);
@@ -1131,7 +1136,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     private static boolean isLifecycleSkipped(ProjectMetadata project, Index index) {
         IndexMetadata indexMetadata = project.index(index);
-        return indexMetadata != null && IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings());
+        return indexMetadata != null
+            && (IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())
+                || IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP);
     }
 
     /**

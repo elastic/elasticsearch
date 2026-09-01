@@ -63,10 +63,11 @@ public final class CastIntToDoubleEvaluator implements ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, IntBlock vBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (vBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (vBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

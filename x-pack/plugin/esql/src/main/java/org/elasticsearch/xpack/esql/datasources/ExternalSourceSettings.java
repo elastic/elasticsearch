@@ -14,6 +14,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Cluster settings for controlling ESQL external source behavior; all node-scoped. The external-read concurrency
@@ -145,7 +146,7 @@ public final class ExternalSourceSettings {
      * size). Node-scoped: the pool is sized at startup.
      */
     public static final Setting<Integer> MAX_CONCURRENT_SEGMENTATORS = Setting.intSetting(
-        "esql.external.max_concurrent_segmentators",
+        "esql.external.max_concurrent_segmenters",
         0,
         0,
         4096,
@@ -230,13 +231,47 @@ public final class ExternalSourceSettings {
     );
 
     /**
-     * Deprecated former name for {@link #MANAGED_IDENTITY_ENABLED}. Still honored for backwards compatibility — it is the
-     * fallback source for the new key, so an operator's existing {@code esql.datasource.workload_identity.enabled} config
-     * keeps working — and emits a deprecation warning when set. Prefer {@link #MANAGED_IDENTITY_ENABLED}.
+     * Deprecated pre-rename key for {@link #WORKLOAD_IDENTITY_ENABLED}, from before the external-dataset settings
+     * were unified under {@code esql.external.*}. It shipped in released versions, so it stays registered — a node
+     * carrying it in {@code elasticsearch.yml} would otherwise fail startup on an unregistered setting. Unlike the
+     * yml-only cache keys (see {@code ExternalSourceCacheSettings.CACHE_ENABLED_OLD}), this key is
+     * {@link Setting.Property#OperatorDynamic}: operator settings files (the reserved {@code cluster_settings} state)
+     * still carry the pre-rename keys, and a registered-but-non-dynamic key would fail that update. An operator
+     * update through this key propagates to consumers wired to the new keys because settings updaters compare
+     * fallback-resolved values. Emits a deprecation warning when set.
      */
-    public static final Setting<Boolean> WORKLOAD_IDENTITY_ENABLED = Setting.boolSetting(
+    public static final Setting<Boolean> WORKLOAD_IDENTITY_ENABLED_OLD = Setting.boolSetting(
         "esql.datasource.workload_identity.enabled",
         false,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.DeprecatedWarning
+    );
+
+    /**
+     * Deprecated former name for {@link #MANAGED_IDENTITY_ENABLED}. Still honored for backwards compatibility — it is
+     * the fallback source for the new key, so a {@code workload_identity.enabled} config (under the unified
+     * {@code esql.external.} prefix) keeps working — and emits a deprecation warning when set. Resolves through its
+     * own pre-rename key, {@link #WORKLOAD_IDENTITY_ENABLED_OLD}. Prefer {@link #MANAGED_IDENTITY_ENABLED}.
+     */
+    public static final Setting<Boolean> WORKLOAD_IDENTITY_ENABLED = Setting.boolSetting(
+        "esql.external.workload_identity.enabled",
+        WORKLOAD_IDENTITY_ENABLED_OLD,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.DeprecatedWarning
+    );
+
+    /**
+     * Deprecated pre-rename key for {@link #MANAGED_IDENTITY_ENABLED} — see {@link #WORKLOAD_IDENTITY_ENABLED_OLD}
+     * for why it stays registered and operator-dynamic. Falls back to {@link #WORKLOAD_IDENTITY_ENABLED}, preserving
+     * the pre-rename resolution order: {@code esql.external.managed_identity.enabled} →
+     * {@code esql.datasource.managed_identity.enabled} → {@code esql.external.workload_identity.enabled} →
+     * {@code esql.datasource.workload_identity.enabled}.
+     */
+    public static final Setting<Boolean> MANAGED_IDENTITY_ENABLED_OLD = Setting.boolSetting(
+        "esql.datasource.managed_identity.enabled",
+        WORKLOAD_IDENTITY_ENABLED,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic,
         Setting.Property.DeprecatedWarning
@@ -252,14 +287,27 @@ public final class ExternalSourceSettings {
      * Never enable in serverless or multi-tenant deployments: ambient credentials bypass tenant isolation.
      * <p>
      * This is an operator-dynamic setting: changes take effect immediately without a node restart. When this key is
-     * not set, it falls back to the deprecated {@link #WORKLOAD_IDENTITY_ENABLED} key's value, so reads through this
-     * setting see an operator's pre-rename configuration.
+     * not set, it falls back to the deprecated {@link #MANAGED_IDENTITY_ENABLED_OLD} key's value (which in turn
+     * resolves through the deprecated {@code workload_identity} keys), so reads through this setting see an
+     * operator's pre-rename configuration.
      */
     public static final Setting<Boolean> MANAGED_IDENTITY_ENABLED = Setting.boolSetting(
-        "esql.datasource.managed_identity.enabled",
-        WORKLOAD_IDENTITY_ENABLED,
+        "esql.external.managed_identity.enabled",
+        MANAGED_IDENTITY_ENABLED_OLD,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
+    );
+
+    /**
+     * Deprecated pre-rename key for {@link #FEDERATED_IDENTITY_ENABLED} — see {@link #WORKLOAD_IDENTITY_ENABLED_OLD}
+     * for why it stays registered and operator-dynamic.
+     */
+    public static final Setting<Boolean> FEDERATED_IDENTITY_ENABLED_OLD = Setting.boolSetting(
+        "esql.datasource.federated_identity.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.DeprecatedWarning
     );
 
     /**
@@ -274,10 +322,22 @@ public final class ExternalSourceSettings {
      * gitops without exposing a customer-facing toggle.
      */
     public static final Setting<Boolean> FEDERATED_IDENTITY_ENABLED = Setting.boolSetting(
-        "esql.datasource.federated_identity.enabled",
-        false,
+        "esql.external.federated_identity.enabled",
+        FEDERATED_IDENTITY_ENABLED_OLD,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
+    );
+
+    /**
+     * Deprecated pre-rename key for {@link #LOCAL_ALLOWED_PATHS} — see {@link #WORKLOAD_IDENTITY_ENABLED_OLD} for why
+     * it stays registered. Unlike the identity keys it is not operator-dynamic, because the new key is restart-only
+     * too: a node carrying it in {@code elasticsearch.yml} still starts and the value takes effect through the
+     * fallback resolution.
+     */
+    public static final Setting<List<String>> LOCAL_ALLOWED_PATHS_OLD = Setting.stringListSetting(
+        "esql.datasource.local_allowed_paths",
+        Setting.Property.NodeScope,
+        Setting.Property.DeprecatedWarning
     );
 
     /**
@@ -286,10 +346,13 @@ public final class ExternalSourceSettings {
      * entirely. When non-empty, a {@code file://} path is allowed only if it normalizes to a location under one of the
      * listed roots; {@code ..}-escapes and anything outside every root are rejected.
      * <p>
-     * This is a node-scope setting; a node restart is required for changes to take effect.
+     * This is a node-scope setting; a node restart is required for changes to take effect. When this key is not set,
+     * it falls back to the deprecated {@link #LOCAL_ALLOWED_PATHS_OLD} key's value.
      */
-    public static final Setting<List<String>> LOCAL_ALLOWED_PATHS = Setting.stringListSetting(
-        "esql.datasource.local_allowed_paths",
+    public static final Setting<List<String>> LOCAL_ALLOWED_PATHS = Setting.listSetting(
+        "esql.external.local_allowed_paths",
+        LOCAL_ALLOWED_PATHS_OLD,
+        Function.identity(),
         Setting.Property.NodeScope
     );
 
@@ -301,9 +364,13 @@ public final class ExternalSourceSettings {
             MAX_DISCOVERED_FILES,
             MAX_GLOB_EXPANSION,
             WORKLOAD_IDENTITY_ENABLED,
+            WORKLOAD_IDENTITY_ENABLED_OLD,
             MANAGED_IDENTITY_ENABLED,
+            MANAGED_IDENTITY_ENABLED_OLD,
             FEDERATED_IDENTITY_ENABLED,
-            LOCAL_ALLOWED_PATHS
+            FEDERATED_IDENTITY_ENABLED_OLD,
+            LOCAL_ALLOWED_PATHS,
+            LOCAL_ALLOWED_PATHS_OLD
         );
     }
 }

@@ -18,8 +18,6 @@ import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccount
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.junit.Before;
 
-import java.util.Collections;
-
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -36,7 +34,7 @@ public class TransportDeleteServiceAccountTokenActionTests extends ESTestCase {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         transportDeleteServiceAccountTokenAction = new TransportDeleteServiceAccountTokenAction(
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             serviceAccountService
         );
     }

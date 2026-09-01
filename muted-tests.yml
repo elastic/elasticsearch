@@ -851,3 +851,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedFormatSpecIT
   method: test {csv-spec:external-multivalue.mvRLikeFromDataset [snappy/GCS]}
   issue: https://github.com/elastic/elasticsearch/issues/158221
+- class: org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReaderTests
+  method: testSyntheticSourceWithCopyToKeywordDestinationAndFLSDocValues
+  issue: https://github.com/elastic/elasticsearch/issues/158222

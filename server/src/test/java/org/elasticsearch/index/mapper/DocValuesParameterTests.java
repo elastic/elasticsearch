@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -834,14 +835,23 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())),
             equalTo(true)
         );
+        // Assert the value round-trips through synthetic source (IndexMode.COLUMNAR defaults to synthetic source).
+        assertEquals("{\"field\":\"not-a-number\"}", syntheticSource(mapper, b -> b.field("field", "not-a-number")));
     }
 
     /**
-     * In a non-columnar (plain synthetic source) index, {@code ignore_malformed} values must still land in {@code ._ignore_malformed},
-     * not {@code ._on_failure} — this is the regression guard for the non-columnar path.
+     * A strict-columnar index whose {@code created-version} predates {@link IndexVersions#MALFORMED_VALUES_IN_ON_FAILURE_COLUMN}
+     * must still write malformed values to the {@code ._ignore_malformed} column on the write path — the same column the old read
+     * path expects. This is the write-path BWC counterpart to
+     * {@code CompositeSyntheticFieldLoaderTests#testAddFallbackLayersUsesIgnoreMalformedColumnForPreMergeStrictColumnarIndex}.
      */
-    public void testIgnoreMalformedInNonColumnarModeWritesToIgnoreMalformedColumn() throws Exception {
-        DocumentMapper mapper = createSytheticSourceMapperService(
+    public void testIgnoreMalformedInPreMergeColumnarIndexWritesToIgnoreMalformedColumn() throws Exception {
+        IndexVersion preMerge = IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG;
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            preMerge,
+            settings,
+            () -> true,
             fieldMapping(b -> b.field("type", "integer").field("ignore_malformed", true))
         ).documentMapper();
 

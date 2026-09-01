@@ -10,6 +10,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -149,13 +152,30 @@ public final class FallbackPostMapper {
     }
 
     /**
-     * Maps a {@link Reason} to its {@link Destination}.
-     * In strict-columnar index modes, {@link Reason#MALFORMED} routes to {@link Destination#ON_FAILURE} so that malformed values share
-     * the per-field {@code ._on_failure} sidecar column with multi-value violations, collapsing two fallback columns into one.
+     * Returns {@code true} when malformed values in this index share the per-field {@code ._on_failure} sidecar column with
+     * multi-value violations (strict-columnar indices created on or after
+     * {@link IndexVersions#MALFORMED_VALUES_IN_ON_FAILURE_COLUMN}), or {@code false} when they use the separate
+     * {@code ._ignore_malformed} column (all other indices). Older strict-columnar indices retain their
+     * {@code ._ignore_malformed} data after an upgrade; the version guard ensures the write and read paths stay consistent.
      */
-    static Destination route(Reason reason, boolean strictColumnar) {
+    public static boolean malformedUsesOnFailureColumn(IndexVersion indexVersion, boolean strictColumnar) {
+        return strictColumnar && indexVersion.onOrAfter(IndexVersions.MALFORMED_VALUES_IN_ON_FAILURE_COLUMN);
+    }
+
+    /** Convenience overload that reads index version and mode from {@code indexSettings}. */
+    public static boolean malformedUsesOnFailureColumn(IndexSettings indexSettings) {
+        return malformedUsesOnFailureColumn(indexSettings.getIndexVersionCreated(), indexSettings.getMode().isStrictColumnar());
+    }
+
+    /**
+     * Maps a {@link Reason} to its {@link Destination}.
+     * In strict-columnar index modes created on or after {@link IndexVersions#MALFORMED_VALUES_IN_ON_FAILURE_COLUMN},
+     * {@link Reason#MALFORMED} routes to {@link Destination#ON_FAILURE} so that malformed values share the per-field
+     * {@code ._on_failure} sidecar column with multi-value violations, collapsing two fallback columns into one.
+     */
+    static Destination route(Reason reason, boolean malformedUsesOnFailureColumn) {
         return switch (reason) {
-            case MALFORMED -> strictColumnar ? Destination.ON_FAILURE : Destination.IGNORE_MALFORMED;
+            case MALFORMED -> malformedUsesOnFailureColumn ? Destination.ON_FAILURE : Destination.IGNORE_MALFORMED;
             case MULTI_VALUE_VIOLATION -> Destination.ON_FAILURE;
             case SYNTHETIC_FALLBACK, SOURCE_KEEP_ALL, SOURCE_KEEP_ARRAYS_IN_ARRAY, COPY_TO_DESTINATION, DYNAMIC_DISABLED, DYNAMIC_RUNTIME,
                 OBJECT_DISABLED, FIELD_LIMIT_EXCEEDED, FIELD_NAME_TOO_LONG -> Destination.IGNORED_SOURCE;
@@ -221,7 +241,7 @@ public final class FallbackPostMapper {
      */
     public static boolean capture(DocumentParserContext context, String fieldPath, Reason reason, XContentBuilder builder)
         throws IOException {
-        return switch (route(reason, context.indexSettings().getMode().isStrictColumnar())) {
+        return switch (route(reason, malformedUsesOnFailureColumn(context.indexSettings()))) {
             case IGNORED_SOURCE -> writeToIgnoredSource(context, fieldPath, builder);
             case IGNORE_MALFORMED -> {
                 IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fieldPath, builder);
@@ -243,7 +263,7 @@ public final class FallbackPostMapper {
      * {@link DocumentParserContext#canAddIgnoredField()} is false; {@code true} otherwise.
      */
     public static boolean capture(DocumentParserContext context, String fieldPath, Reason reason) throws IOException {
-        return switch (route(reason, context.indexSettings().getMode().isStrictColumnar())) {
+        return switch (route(reason, malformedUsesOnFailureColumn(context.indexSettings()))) {
             case IGNORED_SOURCE -> writeToIgnoredSource(context, fieldPath);
             case IGNORE_MALFORMED -> {
                 IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fieldPath, context.parser());
@@ -263,7 +283,7 @@ public final class FallbackPostMapper {
      * as the captured entity (e.g. a disabled object), not a child field.
      */
     static boolean captureParent(DocumentParserContext context, Reason reason) throws IOException {
-        if (route(reason, context.indexSettings().getMode().isStrictColumnar()) == Destination.IGNORED_SOURCE) {
+        if (route(reason, malformedUsesOnFailureColumn(context.indexSettings())) == Destination.IGNORED_SOURCE) {
             return writeParentToIgnoredSource(context);
         }
         return capture(context, context.parent().fullPath(), reason);

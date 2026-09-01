@@ -486,10 +486,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 leafName(),
                 fullPath(),
                 new HistogramSyntheticFieldLoader(),
-                // In strict-columnar mode, malformed values land in ._on_failure (FallbackPostMapper#route routes them there).
-                strictColumnar
-                    ? CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexCreatedVersion)
-                    : CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexCreatedVersion)
+                CompositeSyntheticFieldLoader.malformedFallbackLayer(fullPath(), indexCreatedVersion, strictColumnar)
             )
         );
     }

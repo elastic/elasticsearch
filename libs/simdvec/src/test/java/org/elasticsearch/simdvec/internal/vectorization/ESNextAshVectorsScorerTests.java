@@ -114,8 +114,8 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
 
                     for (int offset = 0; offset < numVectors; offset += BULK_SIZE) {
                         int blockSize = Math.min(BULK_SIZE, numVectors - offset);
-                        scalarScorer.scoreBulk(queryQuantized, scalarScores, blockSize);
-                        panamaScorer.scoreBulk(queryQuantized, panamaScores, blockSize);
+                        scalarScorer.scoreBulk(queryQuantized, scalarScores, 0, blockSize);
+                        panamaScorer.scoreBulk(queryQuantized, panamaScores, 0, blockSize);
                         assertScoresMatch(scalarScores, panamaScores, blockSize, offset);
                     }
                     assertEquals(dataLength, scalarSlice.getFilePointer());
@@ -131,8 +131,8 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
 
                     for (int offset = 0; offset < numVectors; offset += BULK_SIZE) {
                         int blockSize = Math.min(BULK_SIZE, numVectors - offset);
-                        scalarScorer.scoreBulk(queryTransformed, scalarScores, blockSize);
-                        panamaScorer.scoreBulk(queryTransformed, panamaScores, blockSize);
+                        scalarScorer.scoreBulk(queryTransformed, scalarScores, 0, blockSize);
+                        panamaScorer.scoreBulk(queryTransformed, panamaScores, 0, blockSize);
                         assertScoresMatch(scalarScores, panamaScores, blockSize, offset);
                     }
                     assertEquals(dataLength, scalarSlice.getFilePointer());
@@ -188,8 +188,8 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
                     AshScorer<byte[]> panamaScorer = panamaProvider().getVectorScorerFactory()
                         .newESNextAshIntegerVectorsScorer(panamaInput, nDims, bitsPerDim, queryBitsPerDim);
 
-                    scalarScorer.scoreBulk(queryQuantized, scalarScores, tailSize);
-                    panamaScorer.scoreBulk(queryQuantized, panamaScores, tailSize);
+                    scalarScorer.scoreBulk(queryQuantized, scalarScores, 0, tailSize);
+                    panamaScorer.scoreBulk(queryQuantized, panamaScores, 0, tailSize);
                     assertScoresMatch(scalarScores, panamaScores, tailSize, 0);
                     assertEquals(dataLength, scalarSlice.getFilePointer());
                     assertEquals(dataLength, panamaInput.getFilePointer());
@@ -201,8 +201,8 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
                     AshScorer<float[]> panamaScorer = panamaProvider().getVectorScorerFactory()
                         .newESNextAshFloatVectorsScorer(panamaInput, nDims, bitsPerDim);
 
-                    scalarScorer.scoreBulk(queryTransformed, scalarScores, tailSize);
-                    panamaScorer.scoreBulk(queryTransformed, panamaScores, tailSize);
+                    scalarScorer.scoreBulk(queryTransformed, scalarScores, 0, tailSize);
+                    panamaScorer.scoreBulk(queryTransformed, panamaScores, 0, tailSize);
                     assertScoresMatch(scalarScores, panamaScores, tailSize, 0);
                     assertEquals(dataLength, scalarSlice.getFilePointer());
                     assertEquals(dataLength, panamaInput.getFilePointer());
@@ -252,7 +252,7 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
 
                     float singleScore = singleScorer.score(queryQuantized);
                     float[] bulkScores = new float[1];
-                    bulkScorer.scoreBulk(queryQuantized, bulkScores, 1);
+                    bulkScorer.scoreBulk(queryQuantized, bulkScores, 0, 1);
                     assertEquals("Single vs bulk mismatch", singleScore, bulkScores[0], 0f);
                 } else {
                     IndexInput singleInput = in.clone();
@@ -265,7 +265,7 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
 
                     float singleScore = singleScorer.score(queryTransformed);
                     float[] bulkScores = new float[1];
-                    bulkScorer.scoreBulk(queryTransformed, bulkScores, 1);
+                    bulkScorer.scoreBulk(queryTransformed, bulkScores, 0, 1);
                     assertEquals("Single vs bulk mismatch", singleScore, bulkScores[0], 0f);
                 }
             }

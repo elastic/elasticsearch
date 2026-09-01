@@ -73,7 +73,14 @@ public final class MemorySegmentESNextAshVectorsScorer {
      * Wraps an optional SIMD inner scorer with a scalar fallback.
      * When the inner scorer returns a sentinel value, delegates to the scalar implementation.
      */
-    private record DelegatingScorer<T>(AshMemorySegmentScorer<T> inner, AshScorer<T> scalar) implements AshScorer<T> {
+    private static final class DelegatingScorer<T> implements AshScorer<T> {
+        private final AshMemorySegmentScorer<T> inner;
+        private final AshScorer<T> scalar;
+
+        DelegatingScorer(AshMemorySegmentScorer<T> inner, AshScorer<T> scalar) {
+            this.inner = inner;
+            this.scalar = scalar;
+        }
 
         @Override
         public float score(T query) throws IOException {
@@ -87,14 +94,14 @@ public final class MemorySegmentESNextAshVectorsScorer {
         }
 
         @Override
-        public void scoreBulk(T query, float[] scores, int blockSize) throws IOException {
+        public void scoreBulk(T query, float[] scores, int scoresOffset, int blockSize) throws IOException {
             if (inner != null) {
-                boolean handled = inner.scoreBulk(query, scores, blockSize);
+                boolean handled = inner.scoreBulk(query, scores, scoresOffset, blockSize);
                 if (handled) {
                     return;
                 }
             }
-            scalar.scoreBulk(query, scores, blockSize);
+            scalar.scoreBulk(query, scores, scoresOffset, blockSize);
         }
     }
 
@@ -106,7 +113,7 @@ public final class MemorySegmentESNextAshVectorsScorer {
     interface AshMemorySegmentScorer<T> {
         float score(T query) throws IOException;
 
-        boolean scoreBulk(T query, float[] scores, int blockSize) throws IOException;
+        boolean scoreBulk(T query, float[] scores, int scoresOffset, int blockSize) throws IOException;
     }
 
     /**

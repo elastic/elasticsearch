@@ -60,7 +60,7 @@ final class MSAshD1QFScorer extends MemorySegmentESNextAshVectorsScorer.AshMemor
     }
 
     @Override
-    public boolean scoreBulk(float[] queryTransformed, float[] scores, int blockSize) throws IOException {
+    public boolean scoreBulk(float[] queryTransformed, float[] scores, int scoresOffset, int blockSize) throws IOException {
         if (planeBytes >= 2 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             float querySum = ESVectorUtil.sum(queryTransformed, nDims);
             float centerOffset = 0.5f;
@@ -70,7 +70,7 @@ final class MSAshD1QFScorer extends MemorySegmentESNextAshVectorsScorer.AshMemor
                     for (int j = 0; j < blockSize; j++) {
                         long offset = (long) j * planeBytes;
                         float ipfb = ipFloatBitSegment256(queryTransformed, seg, offset, nDims);
-                        scores[j] = ipfb - centerOffset * querySum;
+                        scores[scoresOffset + j] = ipfb - centerOffset * querySum;
                     }
                     return null;
                 });
@@ -79,7 +79,7 @@ final class MSAshD1QFScorer extends MemorySegmentESNextAshVectorsScorer.AshMemor
                     for (int j = 0; j < blockSize; j++) {
                         long offset = (long) j * planeBytes;
                         float ipfb = ipFloatBitSegment128(queryTransformed, seg, offset, nDims);
-                        scores[j] = ipfb - centerOffset * querySum;
+                        scores[scoresOffset + j] = ipfb - centerOffset * querySum;
                     }
                     return null;
                 });

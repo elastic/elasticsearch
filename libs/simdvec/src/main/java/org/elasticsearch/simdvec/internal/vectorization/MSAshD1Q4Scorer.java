@@ -66,14 +66,14 @@ final class MSAshD1Q4Scorer extends MemorySegmentESNextAshVectorsScorer.AshMemor
     }
 
     @Override
-    public boolean scoreBulk(byte[] queryQuantized, float[] scores, int blockSize) throws IOException {
+    public boolean scoreBulk(byte[] queryQuantized, float[] scores, int scoresOffset, int blockSize) throws IOException {
         if (planeBytes >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             long totalBytes = (long) planeBytes * blockSize;
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                 IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
                     for (int j = 0; j < blockSize; j++) {
                         long offset = (long) j * planeBytes;
-                        scores[j] = MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer.fourStripeBitDotProduct256(
+                        scores[scoresOffset + j] = MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer.fourStripeBitDotProduct256(
                             queryQuantized,
                             seg,
                             offset,
@@ -86,7 +86,7 @@ final class MSAshD1Q4Scorer extends MemorySegmentESNextAshVectorsScorer.AshMemor
                 IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
                     for (int j = 0; j < blockSize; j++) {
                         long offset = (long) j * planeBytes;
-                        scores[j] = MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer.fourStripeBitDotProduct128(
+                        scores[scoresOffset + j] = MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer.fourStripeBitDotProduct128(
                             queryQuantized,
                             seg,
                             offset,

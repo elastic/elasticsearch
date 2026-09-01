@@ -52,14 +52,14 @@ final class MSAshD2Q4Scorer extends MemorySegmentESNextAshVectorsScorer.AshMemor
     }
 
     @Override
-    public boolean scoreBulk(byte[] queryQuantized, float[] scores, int blockSize) throws IOException {
+    public boolean scoreBulk(byte[] queryQuantized, float[] scores, int scoresOffset, int blockSize) throws IOException {
         if (planeBytes >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             long totalBytes = (long) packedCodeBytes * blockSize;
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                 IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
                     for (int j = 0; j < blockSize; j++) {
                         MemorySegment docSeg = seg.asSlice((long) j * packedCodeBytes, packedCodeBytes);
-                        scores[j] = scoreTwoPlanes256(queryQuantized, docSeg);
+                        scores[scoresOffset + j] = scoreTwoPlanes256(queryQuantized, docSeg);
                     }
                     return null;
                 });
@@ -67,7 +67,7 @@ final class MSAshD2Q4Scorer extends MemorySegmentESNextAshVectorsScorer.AshMemor
                 IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
                     for (int j = 0; j < blockSize; j++) {
                         MemorySegment docSeg = seg.asSlice((long) j * packedCodeBytes, packedCodeBytes);
-                        scores[j] = scoreTwoPlanes128(queryQuantized, docSeg);
+                        scores[scoresOffset + j] = scoreTwoPlanes128(queryQuantized, docSeg);
                     }
                     return null;
                 });

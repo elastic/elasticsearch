@@ -57,12 +57,12 @@ public final class ESNextAshVectorsScorer {
         }
 
         @Override
-        public void scoreBulk(float[] queryTransformed, float[] scores, int blockSize) throws IOException {
+        public void scoreBulk(float[] queryTransformed, float[] scores, int scoresOffset, int blockSize) throws IOException {
             float sum = ESVectorUtil.sum(queryTransformed, nDims);
             int numLevels = 1 << bitsPerDim;
             float centerOffset = (numLevels - 1) / 2.0f;
             for (int j = 0; j < blockSize; j++) {
-                scores[j] = scoreFloatSingle(queryTransformed, sum, centerOffset);
+                scores[scoresOffset + j] = scoreFloatSingle(queryTransformed, sum, centerOffset);
             }
         }
 
@@ -124,9 +124,9 @@ public final class ESNextAshVectorsScorer {
         }
 
         @Override
-        public void scoreBulk(byte[] queryQuantized, float[] scores, int blockSize) throws IOException {
+        public void scoreBulk(byte[] queryQuantized, float[] scores, int scoresOffset, int blockSize) throws IOException {
             for (int j = 0; j < blockSize; j++) {
-                scores[j] = scoreIntegerSingle(queryQuantized);
+                scores[scoresOffset + j] = scoreIntegerSingle(queryQuantized);
             }
         }
 

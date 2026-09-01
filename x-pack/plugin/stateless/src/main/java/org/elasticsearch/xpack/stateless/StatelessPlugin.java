@@ -1455,6 +1455,7 @@ public class StatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
             AutoCreateAction.AUTO_CREATE_INDEX_PRIORITY_SETTING,
             AutoCreateAction.AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING,
             MetadataCreateIndexService.CREATE_INDEX_PRIORITY_SETTING,

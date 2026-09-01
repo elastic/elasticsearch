@@ -38,15 +38,17 @@ public class EmbeddingOperator extends InferenceOperator {
         String inferenceId,
         ExpressionEvaluator inputEvaluator,
         DataType dataType,
-        TimeValue timeout
+        TimeValue timeout,
+        Source source,
+        boolean tolerateFailures
     ) {
         super(
             driverContext,
             inferenceService,
             new EmbeddingRequestIterator.Factory(inferenceId, TaskType.EMBEDDING, inputEvaluator, dataType, timeout),
-            new EmbeddingOutputBuilder(driverContext.blockFactory(), false),
-            Source.EMPTY,
-            false
+            new EmbeddingOutputBuilder(driverContext.blockFactory(), tolerateFailures),
+            source,
+            tolerateFailures
         );
     }
 
@@ -66,13 +68,19 @@ public class EmbeddingOperator extends InferenceOperator {
 
     /**
      * Factory for creating {@link EmbeddingOperator} instances.
+     *
+     * @param source The source location used for per-row failure warnings (only relevant when {@code tolerateFailures} is true).
+     * @param tolerateFailures When true, a failed inference request warns, nulls that row and continues, instead of failing the query.
+     *                         Set by the DENSE_VECTOR command; the fold-based EMBEDDING function leaves it false (fail-fast).
      */
     public record Factory(
         InferenceService inferenceService,
         String inferenceId,
         ExpressionEvaluator.Factory textEvaluatorFactory,
         DataType dataType,
-        TimeValue timeout
+        TimeValue timeout,
+        Source source,
+        boolean tolerateFailures
     ) implements OperatorFactory {
 
         @Override
@@ -88,7 +96,9 @@ public class EmbeddingOperator extends InferenceOperator {
                 inferenceId,
                 textEvaluatorFactory.get(driverContext),
                 dataType,
-                timeout
+                timeout,
+                source,
+                tolerateFailures
             );
         }
     }

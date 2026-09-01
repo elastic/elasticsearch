@@ -121,6 +121,127 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * The whole point of the fix, end to end on an untyped header — the real-world CSV shape, since
+     * the {@code name:type} header is a house fixture convention rather than a CSV norm. Inference
+     * types the column date_nanos and the read returns the full epoch-nanos value; before, the column
+     * came back datetime with everything below the millisecond gone.
+     */
+    public void testInferredDateNanosKeepsNanoPrecision() throws Exception {
+        String csv = """
+            id,ts
+            1,2023-10-23T12:15:03.360103847Z
+            2,2023-10-23T12:15:03.360Z
+            """;
+        assertInferredDateNanosRoundTrips(new CsvFormatReader(blockFactory), csv);
+    }
+
+    /**
+     * TSV is the same reader class with different dialect options, so it inherits the fix; this pins
+     * that rather than leaving it to a claim in a commit message.
+     */
+    public void testInferredDateNanosKeepsNanoPrecisionTsv() throws Exception {
+        String tsv = "id\tts\n1\t2023-10-23T12:15:03.360103847Z\n2\t2023-10-23T12:15:03.360Z\n";
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("delimiter", "\t"));
+        assertInferredDateNanosRoundTrips(reader, tsv);
+    }
+
+    private void assertInferredDateNanosRoundTrips(CsvFormatReader reader, String text) throws Exception {
+        StorageObject object = createStorageObject(text);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals(2, schema.size());
+        assertEquals("ts", schema.get(1).name());
+        assertEquals(DataType.DATE_NANOS, schema.get(1).dataType());
+
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(schema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            LongBlock ts = page.getBlock(1);
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2023-10-23T12:15:03.360103847Z"), ts.getLong(0));
+            // The millisecond row rides the same rail without loss — what makes widening a
+            // mixed-precision column to date_nanos safe.
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2023-10-23T12:15:03.360Z"), ts.getLong(1));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * The other half of elastic/esql-planning#1807, end to end: a schemaless column holding a bare
+     * number and a timestamp must come back as strings. Before, inference typed it datetime and the
+     * reader's epoch shortcut turned {@code 42} into an instant 42 milliseconds after 1970 — a value
+     * nobody wrote, served as data.
+     * <p>
+     * The epoch shortcut itself is deliberate and stays: for a declared {@code ts:datetime} column a
+     * bare number IS an epoch, which the sibling test below pins. The bug was only ever inference
+     * committing the column to datetime.
+     */
+    public void testInferredMixedNumericAndTimestampColumnReadsAsStrings() throws Exception {
+        String csv = """
+            v
+            42
+            2024-05-01T10:00:00Z
+            """;
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        StorageObject object = createStorageObject(csv);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals(DataType.KEYWORD, schema.get(0).dataType());
+
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(schema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            BytesRefBlock v = page.getBlock(0);
+            BytesRef scratch = new BytesRef();
+            assertEquals("42", v.getBytesRef(v.getFirstValueIndex(0), scratch).utf8ToString());
+            assertEquals("2024-05-01T10:00:00Z", v.getBytesRef(v.getFirstValueIndex(1), scratch).utf8ToString());
+            page.releaseBlocks();
+        }
+    }
+
+    /** The epoch shortcut is correct where the type was declared rather than guessed. */
+    public void testDeclaredDatetimeColumnStillReadsABareNumberAsAnEpoch() throws Exception {
+        StorageObject object = createStorageObject("v:datetime\n42\n");
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals(DataType.DATETIME, schema.get(0).dataType());
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(schema).build()
+            )
+        ) {
+            Page page = it.next();
+            LongBlock v = page.getBlock(0);
+            assertEquals(42L, v.getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * A headerless file whose first row is narrower than a later one, read through the reader rather
+     * than through the inferrer directly. The headerless path sizes per-column state itself, and it
+     * has to size it from the widest row the way the schema is sized — otherwise this throws at
+     * planning before a value is ever typed.
+     */
+    public void testRaggedHeaderlessFileInfersFromTheWidestRow() throws Exception {
+        StorageObject object = createStorageObject("a\nb,c\n");
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals("the widest row decides the column count", 2, schema.size());
+        for (Attribute a : schema) {
+            assertEquals(DataType.KEYWORD, a.dataType());
+        }
+    }
+
     public void testSchema() throws IOException {
         String csv = """
             id:long,name:keyword,age:integer,active:boolean

@@ -37,7 +37,9 @@ public final class RequestBodyRenderer implements Releasable {
     private long chargedBytes = 0;
 
     public RequestBodyRenderer(long maxBytes, @Nullable CircuitBreaker breaker, @Nullable String label) {
-        if (breaker != null) Objects.requireNonNull(label, "label required when breaker is non-null");
+        if (breaker != null) {
+            Objects.requireNonNull(label, "label required when breaker is non-null");
+        }
         this.maxBytes = maxBytes;
         this.breaker = breaker;
         this.label = label;

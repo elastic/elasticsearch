@@ -3624,12 +3624,28 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
      * stalling the ack of the new master's first cluster state and deadlocking the restart.
      */
     public void testTargetRecoversAfterMasterRestartDuringHandoff() throws Exception {
-        var setup = startHandoffRestartCluster();
+        String masterNode = startMasterNodeForRestartTest();
+        startIndexNode();
+        startSearchNodes(2);
+        ensureStableCluster(4);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+        final int numDocs = randomIntBetween(10, 50);
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), numDocs);
+
+        String targetIndexNode = startIndexNode();
+        ensureStableCluster(5);
 
         AtomicBoolean suppressShardStarted = new AtomicBoolean(true);
         AtomicBoolean restartCompleted = new AtomicBoolean(false);
         AtomicBoolean shardStartedAfterRestart = new AtomicBoolean(false);
-        MockTransportService targetTransport = MockTransportService.getInstance(setup.targetIndexNode());
+        MockTransportService targetTransport = MockTransportService.getInstance(targetIndexNode);
         targetTransport.addSendBehavior((connection, requestId, action, request, options) -> {
             if (ShardStateAction.SHARD_STARTED_ACTION_NAME.equals(action)) {
                 if (suppressShardStarted.get()) {
@@ -3642,10 +3658,23 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         });
 
         try {
-            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(setup.indexName()));
-            awaitHandoffUnstarted(resolveIndex(setup.indexName()));
+            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName));
 
-            internalCluster().restartNode(setup.masterNode(), new InternalTestCluster.RestartCallback() {
+            Index index = resolveIndex(indexName);
+            awaitClusterState(state -> {
+                IndexMetadata im = indexMetadata(state, index);
+                if (im.getReshardingMetadata() == null) {
+                    return false;
+                }
+                boolean handoff = im.getReshardingMetadata()
+                    .getSplit()
+                    .getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.HANDOFF;
+                ShardRouting primary = state.routingTable().index(index).shard(1).primaryShard();
+                // Shard could not have been started because SHARD_STARTED_ACTION_NAME is suppressed above
+                return handoff && primary.started() == false;
+            });
+
+            internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
                 @Override
                 public boolean validateClusterForming() {
                     return false;
@@ -3657,7 +3686,10 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             suppressShardStarted.set(false);
             assertBusy(() -> ensureStableCluster(5));
 
-            assertReshardCompleted(setup.indexName(), setup.numDocs());
+            waitForReshardCompletion(indexName);
+            ensureGreen(indexName);
+            refresh(indexName);
+            assertHitCount(prepareSearchAll(indexName), numDocs);
             assertTrue("SHARD_STARTED must succeed after restart completes", shardStartedAfterRestart.get());
         } finally {
             restartCompleted.set(true);
@@ -5128,54 +5160,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
                 .build()
         );
-    }
-
-    private record HandoffRestartSetup(String masterNode, String targetIndexNode, String indexName, int numDocs) {}
-
-    /**
-     * Starts a 5-node cluster (1 master, 1 index, 2 search, 1 target index node), creates a 1-shard replicated
-     * index, indexes documents, and initiates a reshard. Returns the identifiers needed by handoff/master-restart
-     * tests.
-     */
-    private HandoffRestartSetup startHandoffRestartCluster() throws Exception {
-        String masterNode = startMasterNodeForRestartTest();
-        startIndexNode();
-        startSearchNodes(2);
-        ensureStableCluster(4);
-        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
-        );
-        ensureGreen(indexName);
-        int numDocs = randomIntBetween(10, 50);
-        indexDocs(indexName, numDocs);
-        refresh(indexName);
-        assertHitCount(prepareSearchAll(indexName), numDocs);
-        String targetIndexNode = startIndexNode();
-        ensureStableCluster(5);
-        return new HandoffRestartSetup(masterNode, targetIndexNode, indexName, numDocs);
-    }
-
-    private void awaitHandoffUnstarted(Index index) {
-        awaitClusterState(state -> {
-            IndexMetadata im = indexMetadata(state, index);
-            if (im.getReshardingMetadata() == null) {
-                return false;
-            }
-            boolean handoff = im.getReshardingMetadata()
-                .getSplit()
-                .getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.HANDOFF;
-            ShardRouting primary = state.routingTable().index(index).shard(1).primaryShard();
-            return handoff && primary.started() == false;
-        });
-    }
-
-    private void assertReshardCompleted(String indexName, int numDocs) throws Exception {
-        waitForReshardCompletion(indexName);
-        ensureGreen(indexName);
-        refresh(indexName);
-        assertHitCount(prepareSearchAll(indexName), numDocs);
     }
 
     public PlainActionFuture<ClusterState> waitForClusterState(Predicate<ClusterState> predicate) {

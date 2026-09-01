@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -21,6 +22,9 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * When {@code SET unmapped_fields="LOAD_ALL"} is in effect, annotates
@@ -48,11 +52,36 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (pattern.isNone()) {
             return plan;
         }
-        return plan.transformUp(EsRelation.class, esr -> {
+        LogicalPlan annotated = plan.transformUp(EsRelation.class, esr -> {
             if (esr.indexMode() == IndexMode.LOOKUP) {
                 return esr;
             }
             return esr.withAdditionalAttribute(new UnmappedFieldsAttribute(Source.EMPTY, pattern));
+        });
+        // Captured while the ResolvingProjects still hold their resolvers - ResolvedProjects strips them two rules later.
+        context.unmappedFieldsOrdering(leaves -> withLeavesInPlaceOfSyntheticColumn(annotated, leaves).output());
+        return annotated;
+    }
+
+    /**
+     * The plan with {@code leaves} standing in for the synthetic column, so asking it for its output re-runs every projection
+     * against a relation shaped exactly as it would have been had those fields been mapped: {@code ResolvingProject#replaceChild}
+     * re-invokes the real KEEP/DROP/RENAME resolvers, and EVAL and friends recompute their output on top. Nothing is mirrored.
+     */
+    private static LogicalPlan withLeavesInPlaceOfSyntheticColumn(LogicalPlan annotated, List<Attribute> leaves) {
+        return annotated.transformUp(EsRelation.class, esr -> {
+            List<Attribute> real = new ArrayList<>(esr.output().size());
+            boolean carriesSyntheticColumn = false;
+            for (Attribute a : esr.output()) {
+                if (a instanceof UnmappedFieldsAttribute) {
+                    carriesSyntheticColumn = true;
+                } else {
+                    real.add(a);
+                }
+            }
+            // The synthetic column is appended last, so the leaves land where it sat: still relation columns, hence ahead of
+            // anything a later EVAL adds.
+            return carriesSyntheticColumn ? esr.withAttributes(real).withAdditionalAttributes(leaves) : esr;
         });
     }
 

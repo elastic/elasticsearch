@@ -33,7 +33,7 @@ abstract class AnalyzerUnmappedGoldenTestCase extends GoldenTestCase {
     }
 
     protected TestBuilder loadAll(String query, String... variants) {
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
         return builder("SET unmapped_fields=\"LOAD_ALL\"; " + query).nestedPath(ArrayUtils.prepend("load_all", variants));
     }
 

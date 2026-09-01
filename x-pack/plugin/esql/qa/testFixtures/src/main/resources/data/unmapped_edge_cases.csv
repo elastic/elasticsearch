@@ -1,0 +1,12 @@
+// Edge-case data for LOAD_ALL tests: deep nesting (3 levels) and mixed scalar+object arrays.
+// Mapping is dynamic:false with only id mapped; everything else lands in _source as unmapped.
+// NOTE: JSON values in CSV cells must contain no commas because the CSV loader splits multi-value
+// fields on commas. Each JSON level here uses a single key (no siblings at the same level)
+// precisely to avoid introducing commas inside a non-bracketed JSON value.
+id:keyword,deep_nested,mixed_arr
+// Row 1: pure deep nesting - {"outer":{"middle":{"inner":"deepval"}}} should expand to deep_nested.outer.middle.inner
+1,{"outer":{"middle":{"inner":"deepval"}}},
+// Row 2: mixed array - ["scalar",{"sub":"obj_val"}] should expand to mixed_arr="scalar" and mixed_arr.sub="obj_val"
+2,,[scalar,{"sub":"obj_val"}]
+// Row 3: both fields present so each test produces a null row for the other column
+3,{"outer":{"middle":{"inner":"deepval2"}}},[scalar2,{"sub":"leaf2"}]

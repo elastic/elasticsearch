@@ -48,9 +48,11 @@ import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -481,6 +483,49 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
             return superResult == null && name.equals(fullFieldName) ? createUnmappedFieldType(name, this) : superResult;
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            String name,
+            boolean asUnsupportedSource,
+            MappedFieldType.FieldExtractPreference fieldExtractPreference,
+            BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+            org.elasticsearch.index.mapper.blockloader.Warnings warnings,
+            ByteSizeValue blockLoaderSizeOrdinals,
+            ByteSizeValue blockLoaderSizeScript
+        ) {
+            if (asUnsupportedSource == false && name.equals(fullFieldName)) {
+                Mapper mapper = mappingLookup().getMapper(name);
+                if (mapper instanceof ObjectMapper) {
+                    // ObjectMapper has no scalar block loader; return a source-based null column.
+                    return unmappedKeywordBlockLoader(name, this);
+                }
+                if (mapper == null && super.fieldType(name) == null) {
+                    // Truly unmapped field: no Mapper entry, no recognized FieldType (e.g. not a flattened subfield).
+                    return unmappedKeywordBlockLoader(name, this);
+                }
+            }
+            return super.blockLoader(
+                name,
+                asUnsupportedSource,
+                fieldExtractPreference,
+                blockLoaderFunctionConfig,
+                warnings,
+                blockLoaderSizeOrdinals,
+                blockLoaderSizeScript
+            );
+        }
+
+        /**
+         * Restrict the _source read to this field's own paths so a single unmapped reference does not force a full _source load.
+         * For object/nested fields ({@link ObjectMapper}), {@code sourcePath} may return an empty set, which falls back to
+         * a full _source load. The value at that path is a Map, so
+         * {@link UnmappedKeywordValues#collect} discards it; the net result is a null keyword column.
+         */
+        static BlockLoader unmappedKeywordBlockLoader(String name, DefaultShardContext context) {
+            Set<String> sourcePaths = context.ctx.isSourceEnabled() ? context.ctx.sourcePath(name) : Set.of();
+            return new UnmappedKeywordBlockLoader(name, sourcePaths, context.ctx.getIndexSettings().getIgnoredSourceFormat());
         }
 
         static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {

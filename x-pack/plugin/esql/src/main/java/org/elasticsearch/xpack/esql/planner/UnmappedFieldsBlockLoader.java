@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -29,10 +30,10 @@ import java.util.Set;
  * Block loader for the synthetic {@code _unmapped_fields} column produced by
  * {@code SET unmapped_fields="LOAD_ALL"}.
  *
- * <p>For each document it reads {@code _source}, retains only top-level keys
- * that match the {@link UnmappedFieldsPattern} (matching at least one pattern in every include
- * group and not matching any exclude pattern), and re-serialises the surviving key/value
- * pairs as a JSON object. Documents where nothing survives get a null.
+ * <p>For each document it reads {@code _source} and re-serialises the surviving top-level key/value pairs as a JSON object, which the
+ * coordinator later flattens into per-leaf columns. A scalar key survives when it satisfies the full UnmappedFieldsPattern#matches;
+ * an object or array key ships more leniently ({@link UnmappedFieldsPattern#objectSubfieldsCouldMatch}) because it flattens to descendant
+ * leaves the coordinator filters per name. Documents where nothing survives get a null.
  *
  * <p>Field-level security needs no handling here: it strips denied fields from the {@code _source} this reads, so they never
  * reach the pattern. {@code EsqlSecurityIT#testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll} holds that down.
@@ -111,9 +112,15 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
                     json.startObject();
                     boolean anyMatch = false;
                     for (Map.Entry<String, Object> entry : sourceMap.entrySet()) {
-                        if (pattern.matches(entry.getKey())) {
+                        // A scalar becomes its own leaf column and must match the full pattern; an object or array can flatten to dotted
+                        // descendant leaves the coordinator filters per name, so it ships leniently (see objectSubfieldsCouldMatch).
+                        Object value = entry.getValue();
+                        boolean keep = value instanceof Map || value instanceof List
+                            ? pattern.objectSubfieldsCouldMatch(entry.getKey())
+                            : pattern.matches(entry.getKey());
+                        if (keep) {
                             anyMatch = true;
-                            json.field(entry.getKey(), entry.getValue());
+                            json.field(entry.getKey(), value);
                         }
                     }
                     json.endObject();

@@ -26,6 +26,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -46,6 +47,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -203,6 +205,85 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             "Block loader for unmapped flattened subfield should be KeyedFlattenedDocValuesBlockLoader",
             blockLoader,
             instanceOf(KeyedFlattenedDocValuesBlockLoader.class)
+        );
+    }
+
+    /**
+     * A field genuinely unmapped on the shard under {@code unmapped_fields="load"} loads from {@code _source} via
+     * {@link UnmappedKeywordBlockLoader}, whose stored-field spec must request only that field's own source paths.
+     */
+    public void testUnmappedKeywordBlockLoaderRequestsOnlyItsOwnSourcePath() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(mapping(b -> b.startObject("mapped_kw").field("type", "keyword").endObject())),
+            null
+        );
+        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "unmapped_kw");
+
+        BlockLoader blockLoader = unmappedCtx.blockLoader(
+            "unmapped_kw",
+            false,
+            MappedFieldType.FieldExtractPreference.NONE,
+            null,
+            null,
+            ByteSizeValue.ofKb(100),
+            ByteSizeValue.ofKb(300)
+        );
+        assertThat(blockLoader, instanceOf(UnmappedKeywordBlockLoader.class));
+        assertThat(
+            "unmapped keyword loader must filter _source to its own path rather than request the whole document",
+            blockLoader.rowStrideStoredFieldSpec(),
+            equalTo(StoredFieldsSpec.withSourcePaths(IgnoredSourceFormat.NO_IGNORED_SOURCE, Set.of("unmapped_kw")))
+        );
+    }
+
+    /**
+     * A mapped object field (ObjectMapper) has no scalar block loader. Under {@code unmapped_fields="LOAD_ALL"},
+     * explicitly KEEPing the parent object name must return {@link UnmappedKeywordBlockLoader} rather than
+     * {@link ConstantNull#INSTANCE} — which would also emit a spurious HeaderWarning.
+     */
+    public void testMappedObjectFieldUsesUnmappedKeywordBlockLoader() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(
+                mapping(
+                    b -> b.startObject("network")
+                        .field("type", "object")
+                        .startObject("properties")
+                        .startObject("bytes_in")
+                        .field("type", "long")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            ),
+            null
+        );
+        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "network");
+
+        BlockLoader blockLoader = unmappedCtx.blockLoader(
+            "network",
+            false,
+            MappedFieldType.FieldExtractPreference.NONE,
+            null,
+            null,
+            ByteSizeValue.ofKb(100),
+            ByteSizeValue.ofKb(300)
+        );
+        assertThat(
+            "Mapped object field must use UnmappedKeywordBlockLoader (returns null scalar) not ConstantNull (emits warning)",
+            blockLoader,
+            instanceOf(UnmappedKeywordBlockLoader.class)
         );
     }
 

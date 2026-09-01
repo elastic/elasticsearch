@@ -146,7 +146,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
     }
 
     public void testLoadAllUnmappedFieldsAttributeRoundTripsInPhysicalPlan() throws IOException {
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
 
         String query = "FROM test | KEEP first_name*";
         Configuration configuration = randomConfiguration(query, randomTables());

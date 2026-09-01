@@ -102,8 +102,8 @@ public class IndexingFailuresDebugListener implements IndexingOperationListener 
     private void logEntireBatchFailure(IndexOperationBatch batch, Exception ex) {
         LOGGER.debug(
             () -> format(
-                "index-fail batch docCount [%s] startingSeqNo [%s] allocation-id [%s] primaryTerm [%s] " +
-                    "operationPrimaryTerm [%s] origin [%s]",
+                "index-fail batch docCount [%s] startingSeqNo [%s] allocation-id [%s] primaryTerm [%s] "
+                    + "operationPrimaryTerm [%s] origin [%s]",
                 batch.docCount(),
                 batch.seqNo(0),
                 indexShard.routingEntry().allocationId(),

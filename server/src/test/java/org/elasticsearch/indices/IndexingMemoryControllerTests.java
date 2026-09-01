@@ -177,7 +177,6 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         }
     }
 
-
     public void testPostIndexBatchRecordsBytesLikePerOperationMixedSuccess() {
         MockController perOpController = new MockController(Settings.EMPTY);
         MockController batchController = new MockController(Settings.EMPTY);

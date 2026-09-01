@@ -13,15 +13,23 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RecoveryStateTests extends ESTestCase {
 
@@ -32,6 +40,37 @@ public class RecoveryStateTests extends ESTestCase {
         final AssertionError error = expectThrows(AssertionError.class, () -> state.setStage(Stage.CREATED));
         assertThat(error.getMessage(), equalTo("can't move recovery to stage [CREATED] from [INIT]"));
         assertThat(state.getStage(), equalTo(Stage.INIT));
+    }
+
+    public void testTimerOnlyStartsWhenRecoveryStarts() {
+        final var state = createRecoveryState();
+        assertThat("a queued recovery has no start time", state.getTimer().startTime(), equalTo(0L));
+        assertThat("a queued recovery has not accrued any time", state.getTimer().time(), equalTo(0L));
+
+        state.setStage(Stage.INIT);
+
+        assertThat(state.getStage(), equalTo(Stage.INIT));
+        assertThat(state.getTimer().startTime(), greaterThan(0L));
+    }
+
+    public void testReinitializingDoesNotRestartTimer() {
+        final var state = createRecoveryState();
+        state.setStage(Stage.INIT);
+        final var startTime = state.getTimer().startTime();
+
+        state.setStage(Stage.INIT);
+        assertThat(state.getTimer().startTime(), equalTo(startTime));
+
+        assertThat(state.reset().getTimer().startTime(), equalTo(startTime));
+    }
+
+    public void testQueuedRecoveryReportsZeroTimingsInXContent() throws IOException {
+        final var state = createRecoveryState();
+        assertThat(longField(state, "start_time_in_millis"), equalTo(0L));
+        assertThat(longField(state, "total_time_in_millis"), equalTo(0L));
+
+        state.setStage(Stage.INIT);
+        assertThat(longField(state, "start_time_in_millis"), greaterThan(0L));
     }
 
     public void testCreatedStageIsDowngradedToInitForOldNodes() throws IOException {
@@ -67,5 +106,20 @@ public class RecoveryStateTests extends ESTestCase {
 
     private RecoveryState serializeDeserialize(RecoveryState state, TransportVersion version) throws IOException {
         return copyWriteable(state, writableRegistry(), RecoveryState::readRecoveryState, version);
+    }
+
+    private static long longField(RecoveryState state, String field) throws IOException {
+        final var value = toXContentMap(state).get(field);
+        assertThat(field + " must be present in the response", value, instanceOf(Number.class));
+        return ((Number) value).longValue();
+    }
+
+    private static Map<String, Object> toXContentMap(RecoveryState state) throws IOException {
+        try (var builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            state.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            return XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
+        }
     }
 }

@@ -46,6 +46,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -561,6 +562,20 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
             assertThat("expected queued recovery to be reported by /_recovery", recoveryResponse.evaluate(indexTwo), notNullValue());
             assertThat(recoveryResponse.evaluate(indexOne + ".shards.0.stage"), equalTo("INIT"));
             assertThat(recoveryResponse.evaluate(indexTwo + ".shards.0.stage"), equalTo("CREATED"));
+
+            // The queued recovery has not started its timer
+            final Number activeStartTime = recoveryResponse.evaluate(indexOne + ".shards.0.start_time_in_millis");
+            assertThat("an active recovery reports a start time", activeStartTime.longValue(), greaterThan(0L));
+            assertThat(
+                "a queued recovery must not report a start time",
+                recoveryResponse.evaluate(indexTwo + ".shards.0.start_time_in_millis"),
+                equalTo(0)
+            );
+            assertThat(
+                "a queued recovery must not accrue recovery time",
+                recoveryResponse.evaluate(indexTwo + ".shards.0.total_time_in_millis"),
+                equalTo(0)
+            );
 
             Map<String, String> catStageByIndex = catRecoveryStageByIndex(false, indexOne, indexTwo);
             assertThat("expected active recovery to be reported by /_cat/recovery", catStageByIndex.get(indexOne), equalTo("init"));

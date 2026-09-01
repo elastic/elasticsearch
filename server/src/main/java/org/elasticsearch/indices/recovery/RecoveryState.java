@@ -42,7 +42,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         /**
          * the index shard and its recovery state object have been created but recovery has not started yet. It is
          * possibly still queued on the data node. Initial stage of every recovery. Moves to {@link #INIT} once the
-         * recovery actually starts.
+         * recovery actually starts. The recovery timer is not running at this stage, so a queued recovery reports
+         * zero timings rather than counting the time it spends queued as recovery time.
          * note: stage ids are append-only for wire compatibility, hence this stage's id is out of declaration order.
          */
         CREATED((byte) 6),
@@ -134,7 +135,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         assert shardRouting.recoverySource().getType() != RecoverySource.Type.RESHARD_SPLIT || sourceNode != null
             : "reshard split target recovery requires source node but it is null";
         assert shardRouting.recoveryPriority() != null : "recovery priority must not be null in shard routing: " + shardRouting;
-        timer.start();
     }
 
     private RecoveryState(
@@ -246,6 +246,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             case INIT -> {
                 // reinitializing stop remove all state except for start time
                 this.stage = Stage.INIT;
+                if (timer.startTime() == 0) {
+                    timer.start();
+                }
                 getIndex().reset();
                 getVerifyIndex().reset();
                 getTranslog().reset();
@@ -371,6 +374,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         builder.field(Fields.STAGE, stage.toString());
         builder.field(Fields.PRIMARY, primary);
         builder.field(Fields.PRIORITY, recoveryPriority);
+        // Note: a recovery still at Stage.CREATED has not started its timer, so it reports a start time of 0.
         builder.timestampFieldsFromUnixEpochMillis(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
         if (timer.stopTime > 0) {
             builder.timestampFieldsFromUnixEpochMillis(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);

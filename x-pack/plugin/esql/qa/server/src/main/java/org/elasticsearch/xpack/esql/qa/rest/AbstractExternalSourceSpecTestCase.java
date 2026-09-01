@@ -106,11 +106,27 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static final List<StorageBackend> BACKENDS;
 
     static {
-        List<StorageBackend> backends = new ArrayList<>(
-            List.of(StorageBackend.S3, StorageBackend.HTTP, StorageBackend.GCS, StorageBackend.AZURE)
-        );
-        if (FixtureUtils.resolveLocalFixturesPath(logger, AbstractExternalSourceSpecTestCase.class) != null) {
-            backends.add(StorageBackend.LOCAL);
+        // Read from the contract rather than listed here. dimension.storage_scheme declares every scheme
+        // and the backend each one reaches (storage_scheme.backend.<v>), so this list and that declaration
+        // were two statements of the same axis -- and only the declaration was under the audit. A scheme
+        // added there would not have been crossed here, silently.
+        FixtureDimensions dimensions = FixtureDimensions.get();
+        List<StorageBackend> backends = new ArrayList<>();
+        for (String scheme : dimensions.values("storage_scheme")) {
+            String backend = dimensions.backendFor("storage_scheme", scheme);
+            if (backend == null) {
+                throw new IllegalStateException(
+                    "storage_scheme [" + scheme + "] names no backend; dimension.storage_scheme.backend." + scheme + " is missing"
+                );
+            }
+            StorageBackend resolved = StorageBackend.valueOf(backend);
+            // LOCAL only exists when the fixtures are on disk for this module; every other backend is
+            // served by a fixture the suite starts itself.
+            if (resolved == StorageBackend.LOCAL
+                && FixtureUtils.resolveLocalFixturesPath(logger, AbstractExternalSourceSpecTestCase.class) == null) {
+                continue;
+            }
+            backends.add(resolved);
         }
         BACKENDS = List.copyOf(backends);
     }

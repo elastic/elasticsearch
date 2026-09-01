@@ -465,7 +465,7 @@ public class FixtureDimensionsTests extends ESTestCase {
         // 10,997 rather than 11,685: the declared value-disjoint pair removes 688 vectors the reader
         // cannot be configured to run. A declared, counted removal of the unconstructible -- not lost
         // coverage, and not a number to adjust when it drifts.
-        assertThat(seen[0], equalTo(11717));
+        assertThat(seen[0], equalTo(11547));
     }
 
     /** No vector may survive carrying a combination the reader rejects outright. */

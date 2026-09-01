@@ -1,5 +1,5 @@
 area: Security
 issues: []
 pr: 158317
-summary: "[8.19] Bump Jakarta Mail to 1.6.8"
+summary: "Bump Jakarta Mail to 1.6.8"
 type: upgrade

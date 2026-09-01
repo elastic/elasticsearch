@@ -73,7 +73,6 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     protected void checkLocalSources() {
         // We're using local data source here, which needs the flag
         assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
-        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
     }
 
     @After
@@ -103,6 +102,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     }
 
     public void testMetricsCollectorCsv() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
         Path dir = createTempDir();
         String csv = createCsv(5);
         Files.writeString(dir.resolve("data.csv"), csv);
@@ -122,6 +122,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
     /** NdJson plain file — exercises the single-pass NdJson reader path. */
     public void testMetricsCollectorNdJson() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
         Path dir = createTempDir();
         String ndjson = createNdjson(5);
         Files.writeString(dir.resolve("data.ndjson"), ndjson);
@@ -204,6 +205,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
      * </ul>
      */
     public void testMetricsCompression() throws IOException {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
         var codecNames = new HashSet<>(GA_TEXT_CODECS);
         codecNames.removeAll(COMPRESSION_TESTS.keySet());
         // All release codecs should be present in the compression tests
@@ -224,6 +226,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
      * Same as the gzip tests, {@code read_nanos} is near-zero on the producer thread; only {@code read_cpu_nanos} is asserted.
      */
     public void testMetricsCollectorBracketsCsv() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
         Path dir = createTempDir();
         StringBuilder csv = new StringBuilder("id:integer,tags:keyword\n");
         for (int i = 0; i < 100; i++) {
@@ -257,6 +260,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
     /** Parquet file — exercises the Parquet format reader path. */
     public void testMetricsCollectorParquet() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
         Path dir = createTempDir();
         writeParquet(dir.resolve("data.parquet"), 100, 1024);
 
@@ -283,8 +287,6 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     }
 
     public void testWarmAggregate() throws Exception {
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
-
         Path dir = createTempDir();
         StringBuilder csv = new StringBuilder("emp_no:integer,salary:long\n");
         for (int i = 0; i < 5; i++) {

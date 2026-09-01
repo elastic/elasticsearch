@@ -19,9 +19,10 @@ import java.util.function.Consumer;
  * Bundles all per-read execution parameters that were previously spread across 12+ method overloads.
  * <p>
  * Format-specific configuration (delimiter, encoding, etc.) lives on the reader instance via
- * {@link FormatReader#withConfig}. Per-query optimizer hints (pushed filters) live on the reader
- * instance via {@link FormatReader#withPushedFilter}. This context carries only the parameters
- * that may vary per file or per split within a single query execution.
+ * {@link FormatReader#withConfig}. Optimizer hints (pushed filters) live on the reader
+ * instance via {@link FormatReader#withPushedFilter} and are reminted per file. This context
+ * carries only the parameters that may vary per file or per split within a single query
+ * execution.
  *
  * @param projectedColumns columns to read. {@code null} means "no projection info available — read
  *                         every column" (backward compatibility default). An <em>empty</em> list

@@ -22,6 +22,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
@@ -43,8 +44,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
@@ -371,6 +375,87 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         );
 
         assertTrue(future.isCompletedExceptionally());
+    }
+
+    /**
+     * Cancelling the prefetch wrapper future must cancel the in-flight backend GET, not leave
+     * it running until the object-store response arrives.
+     */
+    public void testPrefetchCancelCancelsBackendRead() throws Exception {
+        CountDownLatch started = new CountDownLatch(1);
+        CompletableFuture<Void> backendGet = new CompletableFuture<>();
+        StorageObject storage = new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(new byte[1000]);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                return new ByteArrayInputStream(new byte[(int) length]);
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                started.countDown();
+                backendGet.whenComplete((ignored, error) -> {
+                    if (backendGet.isCancelled() || error instanceof CancellationException) {
+                        listener.onFailure(new CancellationException("backend GET cancelled"));
+                        return;
+                    }
+                    listener.onFailure(new IOException("backend GET completed without cancel"));
+                });
+            }
+
+            @Override
+            public Releasable startReadBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                readBytesAsync(position, length, factory, executor, listener);
+                return () -> backendGet.cancel(true);
+            }
+
+            @Override
+            public long length() {
+                return 1000;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("test://cancel.parquet");
+            }
+        };
+
+        BlockMetaData block = createBlockWithColumns(new ColMeta("col", 100, 500));
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = ColumnChunkPrefetcher.prefetchAsync(
+            storage,
+            block,
+            null,
+            breaker
+        );
+        assertTrue("backend GET must start", started.await(10, TimeUnit.SECONDS));
+        assertTrue(future.cancel(true));
+        assertTrue("cancelling the prefetch wrapper must cancel the backend GET, not only the wrapper future", backendGet.isCancelled());
     }
 
     public void testFetchSyncIoFailureIsClient400() {

@@ -43,9 +43,11 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.StorageRetryCancellation;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
@@ -1841,8 +1843,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         @Nullable RowRanges rowRanges,
         String failureContext
     ) {
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = null;
         try {
-            CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = rowRanges == null
+            future = rowRanges == null
                 ? ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projectionOnlyColumnPaths, breaker)
                 : ColumnChunkPrefetcher.prefetchAsync(
                     storageObject,
@@ -1854,7 +1857,22 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     block.getRowCount(),
                     breaker
                 );
-            return future.join();
+            return StorageRetryCancellation.getWithCancellationChecks(future);
+        } catch (TaskCancelledException cancelled) {
+            // getWithCancellationChecks can observe cancel after the future already completed;
+            // release the breaker-charged buffers before propagating.
+            if (future != null) {
+                ColumnChunkPrefetcher.PrefetchedChunks chunks;
+                try {
+                    chunks = future.getNow(null);
+                } catch (CompletionException | CancellationException ignored) {
+                    chunks = null;
+                }
+                if (chunks != null) {
+                    closeAndSuppress(chunks.release(), cancelled);
+                }
+            }
+            throw cancelled;
         } catch (Exception joinFailure) {
             // Classify before retrying so a CompletionException-wrapped Error cannot be hidden by
             // a successful synchronous retry.
@@ -2064,7 +2082,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             boolean wasReady = head.future().isDone();
             ColumnChunkPrefetcher.PrefetchedChunks result;
             try {
-                result = head.future().join();
+                result = StorageRetryCancellation.getWithCancellationChecks(head.future());
             } catch (CompletionException | CancellationException e) {
                 String failureContext = "Prefetch failed for row group [" + expectedOrdinal + "] in [" + fileLocation + "]";
                 RuntimeException asyncFailure = ParquetReadFailures.wrap(e, failureContext);
@@ -3146,8 +3164,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
         void release() {
             // Non-blocking cancellation cleanup: if I/O is still in flight, FutureUtils.cancel()
-            // has made completion terminal from this future's perspective and the backend
-            // completion path releases any chunks it later produces.
+            // plus the prefetch wrapper's cancel hook abort the backend GET.
             ColumnChunkPrefetcher.PrefetchedChunks chunks;
             try {
                 chunks = future.getNow(null);

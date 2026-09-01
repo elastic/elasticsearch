@@ -111,42 +111,7 @@ final class ColumnChunkPrefetcher {
             block.getTotalByteSize()
         );
 
-        CompletableFuture<PrefetchedChunks> result = new CompletableFuture<>();
-
-        CoalescedRangeReader.readCoalesced(
-            storageObject,
-            ranges,
-            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
-            breaker,
-            Runnable::run,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(CoalescedRangeReader.CoalescedRangeResult fetched) {
-                    try {
-                        PrefetchedChunks chunks = buildPrefetched(fetched);
-                        if (result.complete(chunks) == false) {
-                            // The future was cancelled between I/O completion and here; release
-                            // the buffers we just allocated so the breaker charge returns.
-                            chunks.release().close();
-                        }
-                    } catch (Throwable e) {
-                        // buildPrefetched failed mid-way; the helper has already released its
-                        // tracked buffers — surface the failure. Catching Throwable (not just
-                        // RuntimeException) is intentional: buildPrefetched re-throws Errors
-                        // such as OutOfMemoryError, and if those escaped here the future would
-                        // never complete, permanently hanging any caller that joins it.
-                        result.completeExceptionally(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    result.completeExceptionally(e);
-                }
-            }
-        );
-
-        return result;
+        return prefetchCoalesced(storageObject, ranges, breaker);
     }
 
     /**
@@ -334,8 +299,19 @@ final class ColumnChunkPrefetcher {
 
         logger.debug("Async prefetching [{}] filtered page ranges for row group at [{}]", ranges.size(), block.getStartingPos());
 
+        return prefetchCoalesced(storageObject, ranges, breaker);
+    }
+
+    /**
+     * Dispatches a coalesced async read and wires wrapper-future cancel to the in-flight GETs.
+     */
+    private static CompletableFuture<PrefetchedChunks> prefetchCoalesced(
+        StorageObject storageObject,
+        List<CoalescedRangeReader.ByteRange> ranges,
+        CircuitBreaker breaker
+    ) {
         CompletableFuture<PrefetchedChunks> result = new CompletableFuture<>();
-        CoalescedRangeReader.readCoalesced(
+        Releasable cancelIo = CoalescedRangeReader.readCoalesced(
             storageObject,
             ranges,
             CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
@@ -367,6 +343,11 @@ final class ColumnChunkPrefetcher {
                 }
             }
         );
+        result.whenComplete((ignored, error) -> {
+            if (result.isCancelled()) {
+                cancelIo.close();
+            }
+        });
         return result;
     }
 

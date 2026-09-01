@@ -455,6 +455,29 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
     }
 
     /**
+     * Every clause must gate its {@code terms_set} arm on {@code count >= 1}. Without the guard a malformed
+     * {@code count: 0} element that still names a held action would leak: {@code terms_set} makes it a
+     * candidate and its zero minimum is trivially met. This is the core safeguard, so it is pinned.
+     */
+    public void testEveryClauseGatesTermsSetOnPositiveCount() {
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "global_read", Set.of("ai_index:dashboard/read"), Map.of()),
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "space_read", Set.of("ai_index:workflow/read"), Map.of())
+        );
+        RoleDescriptor roleDescriptor = roleWithGrants(grant("global_read", "*"), grant("space_read", "space:marketing"));
+
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
+
+        List<Map<String, Object>> clauses = nestedSpaceClauses(parseQuery(result.iterator().next().getQuery()));
+        assertThat(clauses, hasSize(2));
+        for (Map<String, Object> clause : clauses) {
+            assertThat("clause must gate terms_set on count >= 1: " + clause, hasHeldActionsGuard(clause), is(true));
+        }
+    }
+
+    /**
      * The {@code count: 0} escape must not become a way around space scoping: a space clause still
      * filters on {@code .space}, so a zero-requirement element is public only within its own space.
      * (The space-less clause has no such filter by design — a wildcard grant means the user is in every
@@ -502,8 +525,9 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         {"bool":{"should":[{"bool":{"filter":[{"term":{"permissions.kibana.privileges.count":{"value":0}}},\
         {"bool":{"must_not":[{"exists":{"field":"permissions.kibana.privileges.name","boost":1.0}}],"boost":1.0}}],\
         "boost":1.0}},\
+        {"bool":{"filter":[{"range":{"permissions.kibana.privileges.count":{"gte":1,"boost":1.0}}},\
         {"terms_set":{"permissions.kibana.privileges.name":{"terms":["ai_index:dashboard/read"],\
-        "minimum_should_match_field":"permissions.kibana.privileges.count","boost":1.0}}}],\
+        "minimum_should_match_field":"permissions.kibana.privileges.count","boost":1.0}}}],"boost":1.0}}],\
         "minimum_should_match":"1","boost":1.0}}\
         ],"boost":1.0}}],"boost":1.0}},"path":"permissions.kibana.privileges","ignore_unmapped":false,\
         "score_mode":"none","boost":1.0}}],"boost":1.0}}""";
@@ -518,8 +542,9 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         {"bool":{"should":[{"bool":{"filter":[{"term":{"permissions.kibana.privileges.count":{"value":0}}},\
         {"bool":{"must_not":[{"exists":{"field":"permissions.kibana.privileges.name","boost":1.0}}],"boost":1.0}}],\
         "boost":1.0}},\
+        {"bool":{"filter":[{"range":{"permissions.kibana.privileges.count":{"gte":1,"boost":1.0}}},\
         {"terms_set":{"permissions.kibana.privileges.name":{"terms":["ai_index:x/read"],\
-        "minimum_should_match_field":"permissions.kibana.privileges.count","boost":1.0}}}],\
+        "minimum_should_match_field":"permissions.kibana.privileges.count","boost":1.0}}}],"boost":1.0}}],\
         "minimum_should_match":"1","boost":1.0}}\
         ],"boost":1.0}}],"boost":1.0}},"path":"permissions.kibana.privileges","ignore_unmapped":false,\
         "score_mode":"none","boost":1.0}}],"boost":1.0}}""";
@@ -676,12 +701,36 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private static List<String> termsOfClause(Map<String, Object> clause) {
         for (Map<String, Object> should : requiredActionsShouldsOfClause(clause)) {
-            if (should.containsKey("terms_set")) {
-                Map<String, Object> field = (Map<String, Object>) ((Map<String, Object>) should.get("terms_set")).get(NAME_FIELD);
+            Map<String, Object> termsSet = termsSetOfShould(should);
+            if (termsSet != null) {
+                Map<String, Object> field = (Map<String, Object>) termsSet.get(NAME_FIELD);
                 return (List<String>) field.get("terms");
             }
         }
         throw new AssertionError("no terms_set in clause " + clause);
+    }
+
+    /**
+     * The {@code terms_set} query of a required-actions should-arm, or {@code null} when the arm carries
+     * none. The arm wraps {@code terms_set} in a {@code bool} alongside the {@code count >= 1} guard, so
+     * this descends into that {@code bool}; a bare {@code terms_set} is handled too for robustness.
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> termsSetOfShould(Map<String, Object> should) {
+        if (should.containsKey("terms_set")) {
+            return (Map<String, Object>) should.get("terms_set");
+        }
+        if (should.containsKey("bool")) {
+            Object filters = ((Map<String, Object>) should.get("bool")).get("filter");
+            if (filters instanceof List) {
+                for (Map<String, Object> filter : (List<Map<String, Object>>) filters) {
+                    if (filter.containsKey("terms_set")) {
+                        return (Map<String, Object>) filter.get("terms_set");
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -696,7 +745,7 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
                 continue;
             }
             List<Map<String, Object>> shoulds = (List<Map<String, Object>>) ((Map<String, Object>) filter.get("bool")).get("should");
-            if (shoulds.stream().anyMatch(should -> should.containsKey("terms_set"))) {
+            if (shoulds.stream().anyMatch(should -> termsSetOfShould(should) != null)) {
                 return shoulds;
             }
         }
@@ -723,6 +772,41 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
             return escapeFilters.stream().anyMatch(ElasticAiIndexImplicitPrivilegesProviderTests::isZeroCountTerm)
                 && escapeFilters.stream().anyMatch(ElasticAiIndexImplicitPrivilegesProviderTests::isMissingNameFilter);
         });
+    }
+
+    /**
+     * True when a clause gates its {@code terms_set} arm on {@code count >= 1}, so a malformed
+     * {@code count: 0} element that still names a held action fails closed instead of satisfying the
+     * covering query's zero minimum. This is the core production safeguard, so it is pinned explicitly.
+     */
+    @SuppressWarnings("unchecked")
+    private static boolean hasHeldActionsGuard(Map<String, Object> clause) {
+        return requiredActionsShouldsOfClause(clause).stream().anyMatch(should -> {
+            if (should.containsKey("bool") == false) {
+                return false;
+            }
+            Object filters = ((Map<String, Object>) should.get("bool")).get("filter");
+            if (filters instanceof List == false) {
+                return false;
+            }
+            List<Map<String, Object>> guardFilters = (List<Map<String, Object>>) filters;
+            return guardFilters.stream().anyMatch(ElasticAiIndexImplicitPrivilegesProviderTests::isCountAtLeastOneRange)
+                && guardFilters.stream().anyMatch(filter -> filter.containsKey("terms_set"));
+        });
+    }
+
+    /** True for {@code {"range": {"...count": {"gte": 1}}}}. */
+    @SuppressWarnings("unchecked")
+    private static boolean isCountAtLeastOneRange(Map<String, Object> filter) {
+        if (filter.containsKey("range") == false) {
+            return false;
+        }
+        Map<String, Object> range = (Map<String, Object>) filter.get("range");
+        if (range.containsKey(COUNT_FIELD) == false) {
+            return false;
+        }
+        Object gte = ((Map<String, Object>) range.get(COUNT_FIELD)).get("gte");
+        return gte instanceof Number number && number.intValue() == 1;
     }
 
     /** True for {@code {"term": {"...count": {"value": 0}}}}. */

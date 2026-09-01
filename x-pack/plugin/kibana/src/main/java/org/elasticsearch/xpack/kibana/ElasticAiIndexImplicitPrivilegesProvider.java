@@ -211,6 +211,14 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
      * compared once a document is already a candidate. An indexed element that carries no {@code name}
      * value is in no postings list, so it is never visited and cannot match however low its
      * {@code count} is. Without this arm every {@code count: 0} element would be invisible to every user.
+     * <p>
+     * The {@code terms_set} arm is gated on {@code count >= 1} so it only matches elements that
+     * genuinely require an action. Without this guard a malformed element carrying {@code count: 0}
+     * while still naming an action the user holds would leak: {@code terms_set} makes such an element a
+     * candidate (its named action is in the query terms), and its per-document minimum of {@code 0} is
+     * trivially satisfied, so the arm would match it. The guard keeps that malformed shape failing
+     * closed while leaving the zero-requirement escape (arm one) as the only way a {@code count: 0}
+     * element becomes visible.
      */
     private static BoolQueryBuilder requiredActionsHeld(Set<String> actions) {
         return QueryBuilders.boolQuery()
@@ -219,7 +227,13 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
                     .filter(QueryBuilders.termQuery(COUNT_FIELD, 0))
                     .filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery(NAME_FIELD)))
             )
-            .should(new TermsSetQueryBuilder(NAME_FIELD, actions.stream().sorted().toList()).setMinimumShouldMatchField(COUNT_FIELD))
+            .should(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.rangeQuery(COUNT_FIELD).gte(1))
+                    .filter(
+                        new TermsSetQueryBuilder(NAME_FIELD, actions.stream().sorted().toList()).setMinimumShouldMatchField(COUNT_FIELD)
+                    )
+            )
             .minimumShouldMatch(1);
     }
 

@@ -449,6 +449,16 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
+        // Malformed count:0 must remain hidden even when the named action is held.
+        indexDoc("malformed-zero-count-held-action", """
+            {
+              "type": "dashboard",
+              "permissions": { "kibana": { "privileges": [
+                { "space": "marketing", "name": ["ai_index:dashboard/read"], "count": 0 }
+              ]}}
+            }
+            """);
+
         // VISIBLE: no permissions block at all → public document, via the must_not(nested(match_all)) branch.
         // Kibana never writes this shape, but the branch must keep working for any other producer writing to the index.
         indexDoc("global-no-perms", """

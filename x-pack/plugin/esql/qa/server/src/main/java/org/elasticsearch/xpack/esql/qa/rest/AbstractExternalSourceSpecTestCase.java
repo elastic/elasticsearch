@@ -282,23 +282,18 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         List<Object[]> out = new ArrayList<>();
         int pinned = 0;
         int unrepresentable = 0;
-        int codecLayout = 0;
         for (Object[] baseTest : baseTests) {
             for (Map<String, String> vector : vectors) {
                 if (directivePins(baseTest, dimensions.directiveSettings(vector))) {
                     pinned++;
                     continue;
                 }
-                if (dialectCannotCarry(dimensions, baseTest, vector)) {
+                if (bytesCannotCarry(dimensions, baseTest, vector)) {
                     unrepresentable++;
                     continue;
                 }
                 if (closedSchemaCannotDeclare(baseTest, vector)) {
                     unrepresentable++;
-                    continue;
-                }
-                if (codecCannotCarry(dimensions, baseTest, vector)) {
-                    codecLayout++;
                     continue;
                 }
                 out.add(appendVectorAndBackend(dimensions, baseTest, vector));
@@ -309,14 +304,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // Guarded on ALL the counters, not just `pinned`: a crossing that filtered only for
         // unrepresentable dialects used to log nothing at all, so the one number that distinguishes a
         // deliberate omission from an unnoticed one was hidden exactly when it was the only omission.
-        if (pinned > 0 || unrepresentable > 0 || codecLayout > 0) {
+        if (pinned > 0 || unrepresentable > 0) {
             logger.info(
-                "vector crossing: {} registered, {} filtered as directive-pinned, {} as dialect-unrepresentable, "
-                    + "{} as non-standalone layout under a codec vector",
+                "vector crossing: {} registered, {} filtered as directive-pinned, {} as bytes-cannot-carry",
                 out.size(),
                 pinned,
-                unrepresentable,
-                codecLayout
+                unrepresentable
             );
         }
         return out;
@@ -366,20 +359,33 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * nobody thought of.
      */
     /**
-     * Whether a parquet codec vector can carry this case at all.
+     * Whether a vector that changes the BYTES can carry this case at all.
      *
-     * <p>Only STANDALONE is redirected to the codec tree, so a case reading any other layout would read
-     * the UNCOMPRESSED bytes while its name announces a codec. For a dialect that self-corrects -- the
-     * reader rejects bytes written in another dialect. A parquet file is self-describing, so the codec
-     * lives in the file's own metadata and the reader decodes whatever it finds: the case would PASS,
-     * under a name claiming a codec it never touched. A silent pass is worse than a failure, because
-     * nothing downstream can tell it from real coverage.
+     * <p>One check for every such slot, not one per slot. Only STANDALONE is redirected to the per-vector
+     * tree, so a case reading any other layout gets the SHARED bytes while its name announces something
+     * they were never written with. How that fails depends on the slot, and the quiet one is the danger:
+     * a foreign dialect is rejected by the reader, but a parquet file carries its codec in its own
+     * metadata and decodes fine, so the case PASSES under a name claiming a codec it never touched.
+     *
+     * <p>This was three special cases keyed on individual slots, and adding {@code delimiter} to
+     * DIALECT_SLOTS silently needed a fourth: standalone cases redirected correctly while every
+     * multi-file case read comma-delimited bytes and announced a semicolon. Driving the check from
+     * DIALECT_SLOTS instead means the next byte-changing slot is covered by declaring it, which is the
+     * only place it can be forgotten and then not be forgotten.
      */
-    private static boolean codecCannotCarry(FixtureDimensions dimensions, Object[] baseTest, Map<String, String> vector) {
-        String codec = vector.get("parquet_codec");
-        if (codec == null || codec.equals(dimensions.defaultValue("parquet_codec", vector.get("format")))) {
+    private static boolean bytesCannotCarry(FixtureDimensions dimensions, Object[] baseTest, Map<String, String> vector) {
+        List<String> pinned = new ArrayList<>();
+        for (String slot : byteChangingSlots()) {
+            String value = vector.get(slot);
+            if (value != null && value.equals(dimensions.defaultValue(slot, vector.get("format"))) == false) {
+                pinned.add(slot);
+            }
+        }
+        if (pinned.isEmpty()) {
             return false;
         }
+        String textMode = vector.get("text_mode");
+        boolean textModePinned = pinned.contains("text_mode");
         CsvTestCase testCase = (CsvTestCase) baseTest[4];
         for (DatasetSource source : testCase.datasetSources) {
             String template = templateNameIn(source.resource());
@@ -387,39 +393,24 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 continue;
             }
             if (MATRIX.layoutFor(template).isStandalone() == false) {
+                return true;
+            }
+            // A dataset with no bytes in this dialect anywhere cannot be carried even standalone. Only the
+            // dialect axis has this: a codec or a delimiter can render any dataset, while a bracket cell
+            // holds commas that PLAIN and ESCAPED cannot disambiguate.
+            String dataset = MATRIX.datasetForTemplate(template);
+            if (textModePinned && dataset != null && MATRIX.unrepresentableDialects(dataset).contains(textMode)) {
                 return true;
             }
         }
         return false;
     }
 
-    private static boolean dialectCannotCarry(FixtureDimensions dimensions, Object[] baseTest, Map<String, String> vector) {
-        String textMode = vector.get("text_mode");
-        // The vector carries its own format, and the effective default differs per format -- asking about
-        // the wrong one would read a varied slot as a baseline.
-        if (textMode == null || textMode.equals(dimensions.defaultValue("text_mode", vector.get("format")))) {
-            return false;
-        }
-        CsvTestCase testCase = (CsvTestCase) baseTest[4];
-        for (DatasetSource source : testCase.datasetSources) {
-            String template = templateNameIn(source.resource());
-            if (template == null) {
-                continue;
-            }
-            // Only STANDALONE is redirected to the per-vector tree (fixturesBase). Every other layout
-            // resolves through its own directory, so it would read the SHARED bytes while the vector
-            // announces a dialect they were never written in -- the reader then rejects them, correctly.
-            // Generating those layouts per dialect would not help: they derive from bracket datasets that
-            // cannot be written without quoting at all.
-            if (MATRIX.layoutFor(template).isStandalone() == false) {
-                return true;
-            }
-            String dataset = MATRIX.datasetForTemplate(template);
-            if (dataset != null && MATRIX.unrepresentableDialects(dataset).contains(textMode)) {
-                return true;
-            }
-        }
-        return false;
+    /** The slots whose value changes the bytes on disk: the dialect tree, plus the parquet codec tree. */
+    private static List<String> byteChangingSlots() {
+        List<String> slots = new ArrayList<>(FixtureDimensions.DIALECT_SLOTS);
+        slots.add("parquet_codec");
+        return slots;
     }
 
     /**

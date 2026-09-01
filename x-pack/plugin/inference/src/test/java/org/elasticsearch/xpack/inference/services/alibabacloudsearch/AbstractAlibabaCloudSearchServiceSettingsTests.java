@@ -340,6 +340,29 @@ public abstract class AbstractAlibabaCloudSearchServiceSettingsTests<T extends S
         );
     }
 
+    public void testUpdateServiceSettings_EmptyRateLimitObject_RevertsToDefault() {
+        var originalServiceSettings = createServiceSettings(initialCommonServiceSettings());
+
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>()))
+        );
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                createServiceSettings(
+                    new AlibabaCloudSearchServiceSettings(
+                        INITIAL_TEST_SERVICE_ID,
+                        INITIAL_TEST_HOST,
+                        INITIAL_TEST_WORKSPACE_NAME,
+                        INITIAL_TEST_HTTP_SCHEMA,
+                        new RateLimitSettings(DEFAULT_RATE_LIMIT)
+                    )
+                )
+            )
+        );
+    }
+
     public void testUpdateServiceSettings_InvalidHttpSchema_ThrowsException() {
         var originalServiceSettings = createServiceSettings(initialCommonServiceSettings());
 

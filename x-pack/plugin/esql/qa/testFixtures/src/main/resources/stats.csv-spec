@@ -1890,6 +1890,7 @@ c:l
 ;
 
 countMV
+skip_columnar: COUNT of a multi-value numeric field returns the document count (79) instead of the value count (183). Columnar disables point indexing, so SearchContextStats#detectSingleValue mis-detects numeric/date fields as single-valued and PushStatsToSource pushes COUNT down to a Lucene document count. The keyword branch has an indexType().hasTerms() guard for this; the numeric/date branch needs the hasPoints() equivalent.
 FROM employees
 | STATS vals = COUNT(salary_change.int)
 ;

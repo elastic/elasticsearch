@@ -19,8 +19,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 /**
- * Classifies a failure raised while reading an external data source into the exception the
- * {@code AsyncExternalSourceOperator} should surface, so that it maps to the right HTTP status. The
+ * Classifies a failure raised while reading an external data source into the exception an external-read
+ * operator should surface, so that it maps to the right HTTP status. The
  * companion {@link #surface} helper is used at the worker rethrow sites inside parallel coordinators and
  * page iterators to pre-type the failure: it wraps a raw {@link IOException} in an already-classified
  * {@link ExternalClientException} (400) so the read boundary's {@link #classify} sees a status-typed
@@ -28,12 +28,14 @@ import java.util.concurrent.ExecutionException;
  * {@link RuntimeException} wrapper; callers must therefore pass the <em>raw</em> stored throwable, not a
  * pre-wrapped one.
  * <p>
- * {@link #classify} is the single boundary where external-source reads turn into a user-visible error,
- * and it is reached only for external-source queries (the operator exists only for them), so index queries
- * are unaffected. It runs co-located with the throw, on the node that reads the external source, before
- * the failure is serialized back to the coordinator — so classification relies on the concrete
- * exception type while it is still available, and only the resulting {@code status()} needs to cross
- * the wire (see {@link org.elasticsearch.xpack.esql.datasources.spi.ExternalException}). The policy:
+ * {@link #classify} is the shared policy boundary where external-source reads turn into a user-visible
+ * error. Both eager reads in {@code AsyncExternalSourceOperator} and deferred reads in
+ * {@code ExternalFieldExtractOperator} invoke it at their local read boundary; neither operator exists
+ * for index queries, so those are unaffected. Classification runs co-located with the throw, on the node
+ * that reads the external source, before the failure is serialized back to the coordinator — so it relies
+ * on the concrete exception type while it is still available, and only the resulting public exception
+ * name and {@code status()} need to cross the wire (see
+ * {@link org.elasticsearch.xpack.esql.datasources.spi.ExternalException}). The policy:
  * <ul>
  *     <li>{@link Error} (assertion failures, OOM, …) is rethrown — a JVM/programming fault must stay
  *     fatal, never be downgraded to a request error.</li>
@@ -136,8 +138,8 @@ public final class ExternalFailures {
      *     after a worker thread was interrupted) becomes an {@link ExternalServerException} (500): we have
      *     no evidence it is the caller's fault, so we keep the bug visible.</li>
      * </ul>
-     * Calling {@code surface} at the worker rethrow site lets {@code AsyncExternalSourceOperator}'s
-     * {@link #classify} compose cleanly on the result: an {@link ExternalException} returned here passes
+     * Calling {@code surface} at the worker rethrow site lets a read-boundary {@link #classify} call
+     * compose cleanly on the result: an {@link ExternalException} returned here passes
      * straight through {@code classify} unchanged; a non-classified {@link RuntimeException} is the only
      * shape {@code classify} still actively re-wraps (into {@link ExternalServerException}, the same status
      * {@code surface} would have produced for an unrecognized worker fault).
@@ -163,7 +165,18 @@ public final class ExternalFailures {
     }
 
     private static boolean isMalformedDataException(Throwable t) {
-        return MALFORMED_DATA_EXCEPTIONS.contains(t.getClass().getName());
+        Throwable current = t;
+        for (int depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
+            if (MALFORMED_DATA_EXCEPTIONS.contains(current.getClass().getName())) {
+                return true;
+            }
+            Throwable cause = current.getCause();
+            if (cause == null || cause == current) {
+                break;
+            }
+            current = cause;
+        }
+        return false;
     }
 
     /**

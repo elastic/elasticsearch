@@ -314,7 +314,6 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                     deliverRead(listener, response.body(), startNanos);
                 } else {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
-                    // Discarding subscriber returned no allocator-backed memory but close()-ing is a no-op safe call.
                     response.body().close();
                     listener.onFailure(new IOException("Range request failed for " + path + ", HTTP status: " + statusCode));
                 }

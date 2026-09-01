@@ -419,8 +419,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         int affectedDataStreams = 0;
         final Set<Index> indicesForFrozenConversion = new HashSet<>();
         Set<Index> activelyDownsampled = downsamplingOperations.getActivelyDownsampledIndexNames(project);
+        clearErrorStoreForUnmanagedIndices(project);
         for (DataStream dataStream : project.dataStreams().values()) {
-            clearErrorStoreForUnmanagedIndices(project, dataStream);
             var dataLifecycleEnabled = dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled();
             var failureLifecycle = dataStream.getFailuresLifecycle();
             var failuresLifecycleEnabled = failureLifecycle != null && failureLifecycle.enabled();
@@ -1142,10 +1142,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     /**
-     * This clears the error store for the case where a data stream or some backing indices were managed by data stream lifecycle, failed in
-     * their lifecycle execution, and then they were not managed by the data stream lifecycle (maybe they were switched to ILM).
+     * This clears the error store for the case where backing indices that were managed by data stream lifecycle, failed in their lifecycle
+     * execution, and then they were not managed by the data stream lifecycle (maybe they were switched to ILM or deleted).
      */
-    private void clearErrorStoreForUnmanagedIndices(ProjectMetadata project, DataStream dataStream) {
+    private void clearErrorStoreForUnmanagedIndices(ProjectMetadata project) {
         for (String indexName : errorStore.getAllIndices(project.id())) {
             IndexAbstraction indexAbstraction = project.getIndicesLookup().get(indexName);
             DataStream parentDataStream = indexAbstraction != null ? indexAbstraction.getParentDataStream() : null;
@@ -1155,10 +1155,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     indexName
                 );
                 errorStore.clearRecordedError(project.id(), indexName);
-            } else if (parentDataStream.getName().equals(dataStream.getName())) {
-                // we're only verifying the indices that pertain to this data stream
+            } else {
                 IndexMetadata indexMeta = project.index(indexName);
-                if (dataStream.isIndexManagedByDataStreamLifecycle(indexMeta.getIndex(), project::index) == false) {
+                if (parentDataStream.isIndexManagedByDataStreamLifecycle(indexMeta.getIndex(), project::index) == false) {
                     logger.trace("Clearing recorded error for index [{}] because the index is not managed by DSL anymore", indexName);
                     errorStore.clearRecordedError(project.id(), indexName);
                 }

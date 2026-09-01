@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -30,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 /**
  * Source operator that retrieves data from external sources (Iceberg tables, Parquet files, etc.).
@@ -46,6 +46,12 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     private static final TransportVersion ESQL_CAPTURED_SOURCE_METADATA = TransportVersion.fromName("esql_captured_source_metadata");
 
     private final AsyncExternalSourceBuffer buffer;
+    /**
+     * This driver's warning sink, where {@link #emitPendingWarnings()} deposits what the producer recorded. Owning the
+     * context rather than reaching for {@code HeaderWarning} is what makes the warnings survive a scan that runs
+     * anywhere but the coordinator; see {@link #emitPendingWarnings()}.
+     */
+    private final DriverContext driverContext;
     /** Node telemetry sink; {@link ExternalSourceMetrics#NOOP} when none is wired (tests, connector factory path). */
     private final ExternalSourceMetrics externalSourceMetrics;
     /** Low-cardinality storage scheme dimension for this scan's histograms; {@code null} when unknown (connector path). */
@@ -56,30 +62,25 @@ public class AsyncExternalSourceOperator extends SourceOperator {
      * proxy: a query with several external-source scans records one observation per scan.
      */
     private final long operatorStartNanos = System.nanoTime();
-    /**
-     * Where drained reader warnings go — always the driver context's structured warning sink in production.
-     * See {@link #emitPendingWarnings()} for why emitting to {@link HeaderWarning} instead loses them.
-     */
-    private final Consumer<String> warningSink;
     private IsBlockedResult isBlocked = NOT_BLOCKED;
     private int pagesEmitted;
     private long rowsEmitted;
     private long processNanos;
 
-    public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, Consumer<String> warningSink) {
-        this(buffer, ExternalSourceMetrics.NOOP, null, warningSink);
+    public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
+        this(buffer, driverContext, ExternalSourceMetrics.NOOP, null);
     }
 
     public AsyncExternalSourceOperator(
         AsyncExternalSourceBuffer buffer,
+        DriverContext driverContext,
         ExternalSourceMetrics externalSourceMetrics,
-        String scheme,
-        Consumer<String> warningSink
+        String scheme
     ) {
-        this.buffer = buffer;
+        this.buffer = Objects.requireNonNull(buffer, "buffer");
+        this.driverContext = Objects.requireNonNull(driverContext, "driverContext");
         this.externalSourceMetrics = externalSourceMetrics == null ? ExternalSourceMetrics.NOOP : externalSourceMetrics;
         this.scheme = scheme;
-        this.warningSink = warningSink;
     }
 
     @Override
@@ -171,20 +172,20 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     }
 
     /**
-     * Drains the warnings the producer recorded off a forked reader / parse-worker thread, whose own response
-     * headers are never merged back, and hands them to {@link #warningSink}.
+     * Drains the buffer's recorded warnings into this driver's {@link DriverContext} sink. The producer records them
+     * off a forked reader / parse-worker thread, so the hand-off has to happen here: the driver calls {@link #close()}
+     * on its own thread during teardown, before {@code DriverContext#finish} snapshots the sink (see #835).
      * <p>
-     * The sink must be the driver context's structured warning sink, not {@link HeaderWarning}: ES|QL delivers
-     * driver warnings through {@code DriverCompletionInfo.warnings} (replayed onto the response in
-     * {@code TransportEsqlQueryAction}), and {@code ExchangeService} therefore strips raw {@code Warning}
-     * headers off the thread context on every page fetch. A warning emitted only into the thread context here
-     * survives by luck — whether a strip has run, and whether the driver's completion listener happens to fire
-     * on a context still holding it — which is how these warnings went intermittently missing (#153187).
+     * The sink is {@link DriverContext#addWarning}, not {@link HeaderWarning}, because a driver's
+     * {@code ThreadContext} response headers only reach the client when the driver happens to run on the coordinator.
+     * {@code DriverCompletionInfo} ships this sink's contents back from whatever node ran the scan and the coordinator
+     * re-emits them once, which is how every other ES|QL warning already travels. A read shipped to a data node
+     * (elastic/esql-planning#1837) otherwise returned the right values with no warning at all.
      */
     private void emitPendingWarnings() {
         String warning;
         while ((warning = buffer.pollWarning()) != null) {
-            warningSink.accept(warning);
+            driverContext.addWarning(warning);
         }
     }
 
@@ -199,8 +200,9 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     @Override
     public Status status() {
         FormatReaderStatus formatReaderStatus = buffer.formatReaderStatus();
-        // Lift format-reader read_nanos to the operator top level for rollup.
+        // Lift format-reader read_nanos and read_cpu_nanos to the operator top level for rollup.
         long readNanos = formatReaderStatus == null ? 0L : formatReaderStatus.readNanos();
+        long readCpuNanos = formatReaderStatus == null ? 0L : formatReaderStatus.readCpuNanos();
         return new Status(
             buffer.size(),
             pagesEmitted,
@@ -213,6 +215,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             buffer.currentSplit(),
             buffer.bytesRead(),
             readNanos,
+            readCpuNanos,
             formatReaderStatus,
             buffer.capturedSourceMetadataSnapshot(),
             buffer.isPartial()
@@ -234,6 +237,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
         private static final TransportVersion ESQL_EXTERNAL_PARTIAL_RESULTS = TransportVersion.fromName("esql_external_partial_results");
 
+        private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
+
         private final int pagesWaiting;
         private final int pagesEmitted;
         private final long rowsEmitted;
@@ -245,6 +250,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         private final int currentSplit;
         private final long bytesRead;
         private final long readNanos;
+        private final long readCpuNanos;
         private final FormatReaderStatus formatReader;
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata;
         private final boolean partial;
@@ -261,6 +267,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             int currentSplit,
             long bytesRead,
             long readNanos,
+            long readCpuNanos,
             FormatReaderStatus formatReader,
             Map<String, List<Map<String, Object>>> capturedSourceMetadata,
             boolean partial
@@ -276,6 +283,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             this.currentSplit = currentSplit;
             this.bytesRead = bytesRead;
             this.readNanos = readNanos;
+            this.readCpuNanos = readCpuNanos;
             this.formatReader = formatReader;
             this.capturedSourceMetadata = capturedSourceMetadata == null ? Map.of() : capturedSourceMetadata;
             this.partial = partial;
@@ -304,6 +312,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 readNanos = 0L;
                 formatReader = null;
             }
+            readCpuNanos = in.getTransportVersion().supports(ESQL_READ_CPU_NANOS) ? in.readVLong() : 0L;
             if (in.getTransportVersion().supports(ESQL_CAPTURED_SOURCE_METADATA)) {
                 int n = in.readVInt();
                 if (n == 0) {
@@ -344,6 +353,9 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 out.writeVLong(bytesRead);
                 out.writeVLong(readNanos);
                 out.writeOptionalNamedWriteable(formatReader);
+            }
+            if (out.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+                out.writeVLong(readCpuNanos);
             }
             if (out.getTransportVersion().supports(ESQL_CAPTURED_SOURCE_METADATA)) {
                 out.writeVInt(capturedSourceMetadata.size());
@@ -454,6 +466,11 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             return readNanos;
         }
 
+        @Override
+        public long readCpuNanos() {
+            return readCpuNanos;
+        }
+
         public FormatReaderStatus formatReader() {
             return formatReader;
         }
@@ -482,6 +499,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             builder.field("current_split", currentSplit);
             builder.field("bytes_read", bytesRead);
             builder.field("read_nanos", readNanos);
+            builder.field("read_cpu_nanos", readCpuNanos);
             builder.field("stripes_committed", stripesCommitted());
             builder.field("partial", partial);
             builder.startObject("format_reader");
@@ -516,6 +534,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 && currentSplit == status.currentSplit
                 && bytesRead == status.bytesRead
                 && readNanos == status.readNanos
+                && readCpuNanos == status.readCpuNanos
                 && partial == status.partial
                 && Objects.equals(formatReader, status.formatReader)
                 && Objects.equals(thisFailureMsg, otherFailureMsg)
@@ -536,6 +555,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 currentSplit,
                 bytesRead,
                 readNanos,
+                readCpuNanos,
                 formatReader,
                 capturedSourceMetadata,
                 partial

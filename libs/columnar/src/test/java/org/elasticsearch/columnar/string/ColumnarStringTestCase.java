@@ -74,10 +74,25 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final int targetChunkBytes,
         final ColumnCheck check
     ) throws IOException {
+        withColumn(docValues, blockSize, chunkCodec, targetChunkBytes, DictionaryPolicy.NONE, check);
+    }
+
+    /**
+     * As {@link #withColumn(BytesRef[], ColumnCheck)}, under a dictionary policy. The default is
+     * {@link DictionaryPolicy#NONE}, so a test asks for a dictionary rather than happening to get one.
+     */
+    protected void withColumn(
+        final BytesRef[] docValues,
+        final int blockSize,
+        final ChunkCodec chunkCodec,
+        final int targetChunkBytes,
+        final DictionaryPolicy policy,
+        final ColumnCheck check
+    ) throws IOException {
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
         try (Directory dir = newDirectory()) {
-            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docValues, blockSize, chunkCodec, targetChunkBytes);
+            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docValues, blockSize, chunkCodec, targetChunkBytes, policy);
             try (IndexInput data = openData(dir, segmentId)) {
                 check.check(metadata, new StringColumnReader(metadata, data));
             }
@@ -85,6 +100,18 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
     }
 
     /** Verbatim or compressed; a value must read back the same either way. */
+    /** The column as the layout that names its values with ordinals, failing the test when it is not one. */
+    protected static StringColumnMetadata.Dictionary dictionaryOf(StringColumnMetadata metadata) {
+        assertTrue("expected a dictionary column, got " + metadata.layout(), metadata instanceof StringColumnMetadata.Dictionary);
+        return (StringColumnMetadata.Dictionary) metadata;
+    }
+
+    /** The column as the layout that stores its values, failing the test when it is not one. */
+    protected static StringColumnMetadata.Plain plainOf(StringColumnMetadata metadata) {
+        assertTrue("expected a plain column, got " + metadata.layout(), metadata instanceof StringColumnMetadata.Plain);
+        return (StringColumnMetadata.Plain) metadata;
+    }
+
     protected static ChunkCodec randomChunkCodec() {
         return randomFrom(ChunkCodec.IDENTITY, ChunkCodec.ZSTD);
     }
@@ -114,7 +141,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final BytesRef[] docValues,
         final int blockSize,
         final ChunkCodec chunkCodec,
-        final int targetChunkBytes
+        final int targetChunkBytes,
+        final DictionaryPolicy policy
     ) throws IOException {
         final int numDocsWithField = numDocsWithField(docValues);
         final StringColumnMetadata written;
@@ -128,6 +156,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 blockSize,
                 chunkCodec,
                 targetChunkBytes,
+                policy,
+                null,
                 dir,
                 IOContext.DEFAULT,
                 out
@@ -163,7 +193,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
     }
 
     /** A fresh single-valued cursor over {@code docValues}; {@code advance} is unsupported, as the writer never calls it. */
-    private static StringColumnValues cursor(final BytesRef[] docValues) {
+    protected static StringColumnValues cursor(final BytesRef[] docValues) {
         return new StringColumnValues() {
             private int doc = -1;
 
@@ -173,7 +203,10 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
             }
 
             @Override
-            public BytesRef nextValue() {
+            public void nextValue() {}
+
+            @Override
+            public BytesRef value() {
                 return docValues[doc];
             }
 

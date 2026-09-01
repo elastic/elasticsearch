@@ -302,6 +302,13 @@ public final class SplitDiscoveryPhase {
                 e
             );
         } catch (Exception e) {
+            RuntimeException surfaced = ExternalFailures.surface(
+                e,
+                "failed to discover splits for external source [" + exec.sourcePath() + "] of type [" + exec.sourceType() + "]"
+            );
+            if (surfaced != e) {
+                throw surfaced;
+            }
             throw new ElasticsearchException(
                 "failed to discover splits for external source [{}] of type [{}]",
                 e,
@@ -314,8 +321,8 @@ public final class SplitDiscoveryPhase {
             // No splits because every file was eliminated by a row-count-preserving filter contradiction (see
             // SplitDiscoveryResult#exhaustivelyPruned). Swap in FileList.EMPTY so the read path scans nothing; a row
             // filter still runs downstream, so the answer is unchanged (0 rows). An empty result that is NOT an
-            // exhaustive prune (unresolved glob, SINGLE source, or a row-count-unsafe no-overlap drop) falls through
-            // to the whole read. Return before the stats increments below to keep honest zero scanned counts.
+            // exhaustive prune (unresolved glob, SINGLE source, empty file list) falls through to the whole read.
+            // Return before the stats increments below to keep honest zero scanned counts.
             if (result.exhaustivelyPruned()) {
                 return exec.withFileList(FileList.EMPTY);
             }

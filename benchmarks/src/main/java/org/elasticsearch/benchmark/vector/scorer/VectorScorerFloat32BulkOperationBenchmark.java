@@ -9,7 +9,7 @@
 package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.VectorSimilarityType;
@@ -58,7 +58,7 @@ import java.util.stream.IntStream;
 public class VectorScorerFloat32BulkOperationBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     @Param({ "1024" })

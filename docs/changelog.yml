@@ -331,7 +331,7 @@ bundle:
     #   # Filter: which input changelogs to include ({version} and {lifecycle} are substituted at runtime)
     #   products: "elasticsearch {version} {lifecycle}"
     #   # Output filename ({version} is substituted at runtime)
-      output: "elasticsearch/elasticsearch-{version}.yaml"
+      # output: "elasticsearch/elasticsearch-{version}.yaml"
     #   # Optional: override the products array written to the bundle output.
       output_products: "elasticsearch {version}"
     #   # Optional: profile-specific description (overrides bundle.description)
@@ -340,7 +340,7 @@ bundle:
 
     # Example: Serverless release profile (filter by promotion report, PR, or issue list)
     serverless-release:
-      output: "cloud-serverless/elasticsearch-{version}.yaml"
+      # output: "cloud-serverless/elasticsearch-{version}.yaml"
       output_products: "cloud-serverless {version}"
       # Feature IDs to hide when bundling with this profile (accepts string or list)
       hide_features:

@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -658,6 +659,11 @@ public class TestAnalyzer {
                 LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInEval(eval);
                 // EVAL IN subqueries become MarkJoins; recurse so views in their now-exposed subquery plans are resolved too.
                 return resolved == eval ? eval : resolveViews(resolved, viewDefinitions);
+            }
+            if (p instanceof Aggregate aggregate) {
+                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInAggregate(aggregate);
+                // Recurse into rewritten joins so views referenced by the newly exposed subquery plans are expanded too.
+                return resolved == aggregate ? aggregate : resolveViews(resolved, viewDefinitions);
             }
             if (p instanceof UnresolvedRelation ur) {
                 LogicalPlan resolved = resolveViewReference(ur, viewDefinitions);

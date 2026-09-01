@@ -152,10 +152,6 @@ public class CsvColumnarIT extends CsvIT {
         // Contains a plain txt:text field with no doc_values; fails index creation in columnar
         // mode because text without doc_values cannot be reconstructed from doc values.
         "text_state_mapped",
-        // Contains a plain text field; querying in columnar mode crashes the server.
-        // TODO: file an issue and reference it here.
-        "json_logs",
-        "voyager",
         // cartesian_shape field cannot be stored via doc_values for synthetic source, so bulk
         // indexing fails in columnar mode (zero documents indexed).
         "cartesian_multipolygons",

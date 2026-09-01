@@ -506,19 +506,14 @@ public class FileSplitProvider implements SplitProvider {
             List<PlanResult> planResults;
             try {
                 if (executor != null && tasks.size() > 1) {
-                    planResults = BoundedParallelGather.gather(
-                        tasks,
-                        task -> {
-                            long cpuStart = ThreadCpuTimer.currentNanos();
-                            try {
-                                return processFileForSplits(task, hoistedProvider, strideBytes, isCancelled);
-                            } finally {
-                                if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
-                            }
-                        },
-                        splitDiscoveryConcurrency(),
-                        executor
-                    );
+                    planResults = BoundedParallelGather.gather(tasks, task -> {
+                        long cpuStart = ThreadCpuTimer.currentNanos();
+                        try {
+                            return processFileForSplits(task, hoistedProvider, strideBytes, isCancelled);
+                        } finally {
+                            if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
+                        }
+                    }, splitDiscoveryConcurrency(), executor);
                 } else {
                     planResults = new ArrayList<>(tasks.size());
                     for (FileTask task : tasks) {

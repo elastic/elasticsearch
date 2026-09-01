@@ -82,6 +82,14 @@ public class DatasourcePrivilegesTests extends AbstractNamedWriteableTestCase<Co
             ),
             is(false)
         );
+        assertThat(
+            permission.check(
+                EsqlDataSourceActionNames.ESQL_ENABLE_DATA_SOURCE_ACTION_NAME,
+                new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_ENABLE_DATA_SOURCE_ACTION_NAME, "zzz"),
+                AuthenticationTestHelper.builder().build()
+            ),
+            is(false)
+        );
     }
 
     /**

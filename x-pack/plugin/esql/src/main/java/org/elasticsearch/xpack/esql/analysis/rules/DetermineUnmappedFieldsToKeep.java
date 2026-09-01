@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * When {@code SET unmapped_fields="LOAD_ALL"} is in effect, annotates
@@ -60,20 +61,18 @@ import java.util.Set;
  * For any other {@link UnmappedResolution} the rule is a no-op.
  */
 public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
-
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-        if (context.unmappedResolution().loadsAllUnmappedFields() == false) {
-            return plan;
-        }
-        // Project pass before FORK finish keeps $$unmapped_fields on branch Projects. The pass after
-        // picks it up on Projects above the FORK, whose child output only includes the column after refresh.
-        return annotate(plan, computeUnmappedFieldsToKeep(plan)).transformUp(
-            Project.class,
-            DetermineUnmappedFieldsToKeep::passThroughUnmappedFields
-        )
-            .transformUp(Fork.class, DetermineUnmappedFieldsToKeep::finishForkUnmappedFields)
-            .transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
+        return context.unmappedResolution().loadsAllUnmappedFields()
+            // Project pass before FORK finish keeps $$unmapped_fields on branch Projects. The pass after
+            // picks it up on Projects above the FORK, whose child output only includes the column after refresh.
+            ? annotate(plan, computeUnmappedFieldsToKeep(plan)).transformUp(
+                Project.class,
+                DetermineUnmappedFieldsToKeep::passThroughUnmappedFields
+            )
+                .transformUp(Fork.class, DetermineUnmappedFieldsToKeep::finishForkUnmappedFields)
+                .transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields)
+            : plan;
     }
 
     /**
@@ -120,9 +119,10 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (plan instanceof EsRelation esr) {
             return stamp(esr, pattern);
         }
-        return plan.anyMatch(p -> p instanceof Fork && (p instanceof UnionAll) == false) == false
-            ? plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern))
-            : plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern)).toList());
+        if (plan.noneMatch(p -> p instanceof Fork && (p instanceof UnionAll) == false)) {
+            return plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern));
+        }
+        return plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern)).toList());
     }
 
     private static EsRelation stamp(EsRelation esr, UnmappedFieldsPattern pattern) {
@@ -142,61 +142,37 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             return project;
         }
         Set<String> names = new HashSet<>(Expressions.names(project.projections()));
-        List<UnmappedFieldsAttribute> missing = new ArrayList<>();
-        for (UnmappedFieldsAttribute attr : unmapped) {
-            if (names.contains(attr.name()) == false) {
-                missing.add(attr);
-            }
-        }
+        List<UnmappedFieldsAttribute> missing = unmapped.stream()
+            .filter(attr -> names.contains(attr.name()) == false)
+            .collect(Collectors.toList());
         return missing.isEmpty() ? project : project.withProjections(CollectionUtils.combine(project.projections(), missing));
     }
 
     /**
-     * Branches whose pattern is {@link UnmappedFieldsPattern#NONE} never get {@code $$unmapped_fields}
-     * on the relation. If a sibling did, append a null column so FORK layouts match, then refresh
-     * FORK output so the coordinator sees the {@link UnmappedFieldsAttribute} subtype.
+     * Branches whose pattern is {@link UnmappedFieldsPattern#NONE} never get {@code $$unmapped_fields} on the relation. If a sibling did,
+     * append a null column so FORK layouts match, then refresh FORK output so the coordinator sees the {@link UnmappedFieldsAttribute}
+     * subtype. In other words, we only pad if at least one child has the attribute and at least one does not.
      */
     private static LogicalPlan finishForkUnmappedFields(Fork fork) {
         if (fork instanceof UnionAll) {
             return fork;
         }
-        List<LogicalPlan> padded = padNullUnmappedFields(fork.children());
-        Fork withChildren = padded == fork.children() ? fork : fork.replaceSubPlans(padded);
-        return withChildren.children().stream().anyMatch(DetermineUnmappedFieldsToKeep::hasUnmappedFieldsAttribute)
-            ? withChildren.refreshOutput()
-            : withChildren;
-    }
-
-    private static List<LogicalPlan> padNullUnmappedFields(List<LogicalPlan> children) {
-        if (children.stream().anyMatch(DetermineUnmappedFieldsToKeep::hasUnmappedFieldsAttribute) == false) {
-            return children;
-        }
-        List<LogicalPlan> padded = new ArrayList<>(children.size());
-        boolean changed = false;
+        List<LogicalPlan> children = fork.children();
+        List<LogicalPlan> newChildren = new ArrayList<>(children.size());
+        boolean hasChildWithUnmappedFields = false;
+        boolean hasChildWithoutUnmappedFields = false;
         for (LogicalPlan child : children) {
-            if (Expressions.names(child.output()).contains(UnmappedFieldsAttribute.ATTRIBUTE_NAME)) {
-                padded.add(child);
-                continue;
-            }
-            changed = true;
-            padded.add(
-                new Eval(
-                    child.source(),
-                    child,
-                    List.of(
-                        new Alias(
-                            child.source(),
-                            UnmappedFieldsAttribute.ATTRIBUTE_NAME,
-                            new Literal(child.source(), null, DataType.KEYWORD)
-                        )
-                    )
-                )
-            );
+            boolean hasUnmappedField = Expressions.names(child.output()).contains(UnmappedFieldsAttribute.ATTRIBUTE_NAME);
+            hasChildWithUnmappedFields |= hasUnmappedField;
+            hasChildWithoutUnmappedFields |= hasUnmappedField == false;
+            newChildren.add(hasUnmappedField ? child : padNullUnmappedFields(child));
         }
-        return changed ? padded : children;
+        Fork result = hasChildWithoutUnmappedFields && hasChildWithUnmappedFields ? fork.replaceSubPlans(newChildren) : fork;
+        return hasChildWithUnmappedFields ? result.refreshOutput() : result;
     }
 
-    private static boolean hasUnmappedFieldsAttribute(LogicalPlan plan) {
-        return CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class).isEmpty() == false;
+    private static Eval padNullUnmappedFields(LogicalPlan child) {
+        Alias alias = new Alias(Source.EMPTY, UnmappedFieldsAttribute.ATTRIBUTE_NAME, new Literal(Source.EMPTY, null, DataType.KEYWORD));
+        return new Eval(Source.EMPTY, child, List.of(alias));
     }
 }

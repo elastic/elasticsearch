@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
@@ -45,6 +46,11 @@ public final class ShardBatchIndexer {
     ShardBatchIndexer(BatchIndexingEnabled batchIndexingEnabled, Recycler<BytesRef> recycler) {
         this.batchIndexingEnabled = batchIndexingEnabled;
         this.recycler = recycler;
+    }
+
+    public static boolean isBatchIndexingSupported(BatchIndexingEnabled batchIndexingEnabled, ClusterService clusterService) {
+        return batchIndexingEnabled.isEnabled()
+            && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_BATCH);
     }
 
     /**

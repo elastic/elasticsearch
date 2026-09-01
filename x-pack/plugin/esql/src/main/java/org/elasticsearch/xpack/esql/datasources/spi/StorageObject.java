@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -202,6 +203,30 @@ public interface StorageObject {
                 drb.close();
             }
         }
+    }
+
+    /**
+     * Starts {@link #readBytesAsync} and returns a handle that cancels the in-flight GET if still
+     * running. The default handle is a no-op; providers whose native client exposes a cancellable
+     * future (S3 SDK {@code getObject}) must override this so prefetch cancel aborts the HTTP
+     * request instead of leaving it running.
+     * <p>
+     * A leaf may override {@link #readBytesAsync} <em>or</em> this method with mutual delegation,
+     * not both. If {@code readBytesAsync} forwards here, a missing-native-client fallback must
+     * call {@code super.readBytesAsync} (the default I/O implementation) and return a no-op handle.
+     * {@code super.startReadBytesAsync} re-enters the virtual {@code readBytesAsync} and overflows
+     * the stack. {@code StorageObject.super.readBytesAsync} is only legal on a class that implements
+     * this interface directly.
+     */
+    default Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
+        readBytesAsync(position, length, factory, executor, listener);
+        return () -> {};
     }
 
     /**

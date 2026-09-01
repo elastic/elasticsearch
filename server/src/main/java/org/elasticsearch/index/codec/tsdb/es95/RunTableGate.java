@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.tsdb.es95;
 import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 
 /**
  * Two-gate filter for the run-table ordinal layout.
@@ -44,15 +45,19 @@ final class RunTableGate {
      * <p>Returns {@code false} -- meaning fall back immediately, without starting the doc walk --
      * when any of the following holds:
      * <ul>
-     *   <li>the field is the primary sort field (uses ordinal range encoding instead)</li>
      *   <li>the resolver is {@code null} (run-table ordinal feature is disabled)</li>
-     *   <li>the field is not a TSDB dimension</li>
+     *   <li>the field is the primary sort field (uses ordinal range encoding instead), unless it is
+     *       {@code _tsid}, which is run-shaped by construction and takes the run-table layout directly</li>
+     *   <li>the field is neither {@code _tsid} nor a TSDB dimension</li>
      *   <li>{@code maxOrd * 2 > maxDoc}: the minimum run count ({@code maxOrd}, one run per unique
      *       value in a perfectly sorted segment) already exceeds the threshold, so no doc walk
      *       can change the outcome</li>
      * </ul>
      */
     boolean allow(FieldInfo field, long maxOrd) {
+        if (resolver != null && TimeSeriesIdFieldMapper.NAME.equals(field.name)) {
+            return maxOrd > 0 && maxOrd * 2 <= maxDoc;
+        }
         if (field.number == primarySortFieldNumber) {
             return false;
         }

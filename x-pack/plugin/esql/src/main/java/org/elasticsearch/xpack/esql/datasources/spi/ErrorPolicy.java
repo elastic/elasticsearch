@@ -79,7 +79,7 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
          * Honoured by the row-oriented (text) readers and, via {@code ColumnarRowDropHelper}, by the columnar ones.
          * One coercion site is exempt and null-fills instead: the cross-file schema-unification cast in
          * {@code ColumnMapping#mapPage}, which runs above the reader and outside its error budget — see the
-         * "Known gap" note there.
+         * "Known gap" note there, tracked as elastic/esql-planning#1824.
          */
         SKIP_ROW,
         /**

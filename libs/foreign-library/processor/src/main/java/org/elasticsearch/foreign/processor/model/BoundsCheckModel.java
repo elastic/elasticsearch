@@ -11,6 +11,7 @@ package org.elasticsearch.foreign.processor.model;
 
 import org.elasticsearch.foreign.BoundsCheck;
 import org.elasticsearch.foreign.MatrixSegment;
+import org.elasticsearch.foreign.SlicedSegment;
 import org.elasticsearch.foreign.VectorSegment;
 
 import java.util.ArrayList;
@@ -79,8 +80,18 @@ public sealed interface BoundsCheckModel {
     }
 
     /**
+     * Slice shape, from {@code @SlicedSegment}: the segment must be at least {@code offset + size} bytes.
+     * The check emitted is {@code Objects.checkFromIndexSize(offset, size, segment.byteSize())}.
+     *
+     * @param segParamIndex index of the annotated {@code MemorySegment} parameter
+     * @param offsetParamIndex index of the sibling parameter holding the byte offset into the segment
+     * @param sizeParamIndex index of the sibling parameter holding the byte size of the slice
+     */
+    record SlicedSegmentCheck(int segParamIndex, int offsetParamIndex, int sizeParamIndex) implements BoundsCheckModel {}
+
+    /**
      * Resolves {@code @BoundsCheck}-meta-annotated parameter annotations (currently
-     * {@code @VectorSegment}/{@code @MatrixSegment}) on {@code method}'s parameters into a list of
+     * {@code @VectorSegment}/{@code @MatrixSegment}/{@code @SlicedSegment}) on {@code method}'s parameters into a list of
      * {@link BoundsCheckModel}s, one entry per annotated parameter. Emits {@link Kind#ERROR}
      * diagnostics and returns {@code null} on any validation failure:
      * <ul>
@@ -165,6 +176,10 @@ public sealed interface BoundsCheckModel {
         if (matrixSegment != null) {
             return resolveMatrixSegmentCheck(segParamIndex, matrixSegment, param, params, paramTypes, messager);
         }
+        SlicedSegment slicedSegment = param.getAnnotation(SlicedSegment.class);
+        if (slicedSegment != null) {
+            return resolveSlicedSegmentCheck(segParamIndex, slicedSegment, param, params, paramTypes, messager);
+        }
         messager.printMessage(Kind.ERROR, "Unknown bounds-check annotation type", param);
         return null;
     }
@@ -248,6 +263,32 @@ public sealed interface BoundsCheckModel {
         }
 
         return new MatrixSegmentCheck(segParamIndex, rowsIndex, colsIndex, elementBits, paddingBytesParamIndex, annotation.aligned());
+    }
+
+    private static SlicedSegmentCheck resolveSlicedSegmentCheck(
+        int segParamIndex,
+        SlicedSegment annotation,
+        VariableElement param,
+        List<? extends VariableElement> params,
+        List<NativeType> paramTypes,
+        Messager messager
+    ) {
+        int offsetIndex = resolveIntSiblingParam(
+            "@SlicedSegment.offsetParam",
+            annotation.offsetParam(),
+            param,
+            params,
+            paramTypes,
+            messager
+        );
+        if (offsetIndex < 0) {
+            return null;
+        }
+        int sizeIndex = resolveIntSiblingParam("@SlicedSegment.sizeParam", annotation.sizeParam(), param, params, paramTypes, messager);
+        if (sizeIndex < 0) {
+            return null;
+        }
+        return new SlicedSegmentCheck(segParamIndex, offsetIndex, sizeIndex);
     }
 
     /**

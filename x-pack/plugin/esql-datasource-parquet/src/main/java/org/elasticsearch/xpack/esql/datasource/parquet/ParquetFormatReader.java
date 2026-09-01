@@ -735,6 +735,29 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             return;
         }
 
+        prefetchAndParseFooterAsync(
+            object,
+            length,
+            cacheKey,
+            executor,
+            listener.map(footer -> buildFooterMetadata(object, footer)),
+            () -> parseFooterOnExecutor(object, executor, listener)
+        );
+    }
+
+    /**
+     * Prefetches the Parquet footer tail via {@link StorageObject#readBytesAsync} and parses it on
+     * {@code executor}. Completes {@code listener} with the parsed {@link ParquetMetadata} (and seeds
+     * {@link #PARSED_FOOTERS}). Anomalies fall back to {@code blockingFallback}, which may pin {@code executor}.
+     */
+    private void prefetchAndParseFooterAsync(
+        StorageObject object,
+        long length,
+        FooterByteCache.Key cacheKey,
+        Executor executor,
+        ActionListener<ParquetMetadata> listener,
+        Runnable blockingFallback
+    ) {
         int tailLen = (int) Math.min(FOOTER_TAIL_PREFETCH_BYTES, length);
         DirectBufferFactory factory = DirectBufferFactory.forBreaker(blockFactory.breaker());
 
@@ -747,38 +770,27 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             }
 
             if (tailBytes.length != tailLen) {
-                // readBytesAsync's SPI contract permits a short read (fewer than the requested bytes). The parse path
-                // treats these bytes as a suffix ending at the file length (TailBackedInputFile offsets by
-                // length - tailBytes.length), so a short read would misalign every footer offset. Fall back to the
-                // synchronous parse, which reads the exact ranges it needs itself, rather than relying on the
-                // trailing-magic scan below happening to reject the misaligned bytes.
-                parseFooterOnExecutor(object, executor, listener);
+                blockingFallback.run();
                 return;
             }
 
             int footerLength = footerLengthFromTrailer(tailBytes);
             if (footerLength <= 0) {
-                // Missing/foreign magic or a nonsensical length — let the sync path produce the
-                // proper invalid-Parquet error (or handle an encrypted footer via its own I/O).
-                parseFooterOnExecutor(object, executor, listener);
+                blockingFallback.run();
                 return;
             }
 
             long footerRegion = (long) footerLength + PARQUET_TRAILER_BYTES;
             if (footerRegion <= tailBytes.length) {
-                // The whole footer is already in the prefetched tail — parse straight from it.
                 parseTailOnExecutor(object, length, tailBytes, cacheKey, executor, listener);
                 return;
             }
 
             if (footerRegion > FooterByteCache.getInstance().maxEntryBytes()) {
-                // The footer is larger than the cache admits; the sync parse reads it directly.
-                parseFooterOnExecutor(object, executor, listener);
+                blockingFallback.run();
                 return;
             }
 
-            // Large footer: a single exact-range read of [length - footerRegion, length) covers the
-            // whole footer, which is then parsed straight from the returned bytes.
             int exactLen = (int) footerRegion;
             object.readBytesAsync(length - exactLen, exactLen, factory, executor, ActionListener.wrap(footer -> {
                 final byte[] footerBytes;
@@ -788,9 +800,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     footer.close();
                 }
                 if (footerBytes.length != exactLen) {
-                    // Short read (see the tail-read guard above): the bytes would not align to the file suffix the
-                    // parse path assumes, so fall back to the synchronous exact-range read.
-                    parseFooterOnExecutor(object, executor, listener);
+                    blockingFallback.run();
                     return;
                 }
                 parseTailOnExecutor(object, length, footerBytes, cacheKey, executor, listener);
@@ -815,12 +825,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         byte[] tailBytes,
         FooterByteCache.Key cacheKey,
         Executor executor,
-        ActionListener<SourceMetadata> listener
+        ActionListener<ParquetMetadata> listener
     ) {
         executor.execute(() -> {
             try {
                 FooterByteCache.getInstance().put(cacheKey, tailBytes);
-                listener.onResponse(parseFooterFromTail(object, length, tailBytes, cacheKey));
+                listener.onResponse(parseParsedFooterFromTail(object, length, tailBytes, cacheKey));
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -829,14 +839,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
     /**
      * Parses a Parquet {@link ParquetMetadata} footer from an in-memory suffix of the file
-     * ({@code tailBytes} covering {@code [length - tailBytes.length, length)}) and builds the
-     * corresponding {@link SourceMetadata}. On success the unranged full footer is seeded into
-     * {@link #PARSED_FOOTERS} under {@code cacheKey} (same key {@link #loadFooter} uses) so
-     * Phase-2 split discovery can reuse this instance. The 32-entry LRU may evict the seed on
-     * wide globs. Malformed footers surface as the same invalid-Parquet
-     * {@link IllegalArgumentException} the synchronous path produces.
+     * ({@code tailBytes} covering {@code [length - tailBytes.length, length)}) and seeds
+     * {@link #PARSED_FOOTERS} under {@code cacheKey} (same key {@link #loadFooter} uses).
+     * The 32-entry LRU may evict the seed on wide globs. Malformed footers surface as the same
+     * invalid-Parquet {@link IllegalArgumentException} the synchronous path produces.
      */
-    private SourceMetadata parseFooterFromTail(StorageObject object, long length, byte[] tailBytes, FooterByteCache.Key cacheKey)
+    private ParquetMetadata parseParsedFooterFromTail(StorageObject object, long length, byte[] tailBytes, FooterByteCache.Key cacheKey)
         throws IOException {
         TailBackedInputFile inputFile = new TailBackedInputFile(length, tailBytes);
         ParquetReadOptions options = readOptionsBuilder().build();
@@ -845,17 +853,24 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             try {
                 footer = ParquetFileReader.readFooter(inputFile, options, stream);
             } catch (RuntimeException e) {
-                // parquet-mr signals a malformed footer with plain RuntimeExceptions; wrap them into
-                // the same shape as the synchronous read path so callers see consistent errors.
                 throw newInvalidParquetFileException(object.path().toString(), e);
             }
-            SourceMetadata metadata = buildFooterMetadata(object, footer);
-            // Seed only after a successful build so a failed integrity check does not occupy
+            validateFooterIntegrity(object.path().toString(), footer.getFileMetaData().getSchema(), footer.getBlocks());
+            // Seed only after a successful integrity check so a failed file does not occupy
             // an LRU slot. Same key as loadFooter. Do not record footer_cache_misses here;
             // that counter is a loadFooter lookup metric.
             PARSED_FOOTERS.put(cacheKey, footer);
-            return metadata;
+            return footer;
         }
+    }
+
+    /**
+     * Parses a Parquet footer from an in-memory suffix and builds the corresponding {@link SourceMetadata}.
+     * On success the unranged full footer is seeded into {@link #PARSED_FOOTERS}.
+     */
+    private SourceMetadata parseFooterFromTail(StorageObject object, long length, byte[] tailBytes, FooterByteCache.Key cacheKey)
+        throws IOException {
+        return buildFooterMetadata(object, parseParsedFooterFromTail(object, length, tailBytes, cacheKey));
     }
 
     /** Runs the synchronous {@link #metadata(StorageObject)} on {@code executor}, completing {@code listener}. */
@@ -1357,32 +1372,93 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.breaker());
         ParquetReadOptions options = readOptionsBuilder().build();
         try (ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, options)) {
-            List<BlockMetaData> rowGroups = reader.getRowGroups();
-            if (rowGroups.isEmpty()) {
-                return List.of();
-            }
-            MessageType parquetSchema = reader.getFooter().getFileMetaData().getSchema();
-            if (rowGroups.size() == 1) {
-                BlockMetaData block = rowGroups.getFirst();
-                Map<String, Object> stats = buildRowGroupStats(block, parquetSchema);
-                return List.of(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
-            }
-            List<SplitRange> ranges = new ArrayList<>(rowGroups.size());
-            for (BlockMetaData block : rowGroups) {
-                Map<String, Object> stats = buildRowGroupStats(block, parquetSchema);
-                // Use the compressed on-disk size for the SplitRange length: this value is fed to
-                // readRange() which builds a byte range end = startingPos + length for Parquet's
-                // withRange(rangeStart, rangeEnd) filter. That filter includes a row group when its
-                // starting position lies in the range, so the end must land at or before the next
-                // row group's starting position. getTotalByteSize() returns the uncompressed size
-                // (much larger than what is actually on disk), which would make adjacent ranges
-                // overlap in byte space and cause Parquet to select each row group from multiple
-                // splits, producing duplicate rows.
-                ranges.add(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
-            }
-            List<SplitRange> coalesced = coalesceRowGroupRanges(ranges, DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES);
-            return coalesced.size() < 2 ? ranges : coalesced;
+            return rangesFromFooter(reader.getFooter());
         }
+    }
+
+    /**
+     * Async split-range discovery. A {@link #PARSED_FOOTERS} hit is CPU-only on {@code executor} (no GET).
+     * A miss reuses the {@link #metadataAsync} tail prefetch ({@code readBytesAsync} → parse) rather than
+     * {@code adapter.newStream()} + blocking {@code readFooter} on an ES|QL pool thread.
+     */
+    @Override
+    public void discoverSplitRangesAsync(StorageObject object, Executor executor, ActionListener<List<SplitRange>> listener) {
+        final long length;
+        final FooterByteCache.Key cacheKey;
+        try {
+            length = object.length();
+            cacheKey = FooterByteCache.Key.keyFor(object, length);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        ParquetMetadata cached = PARSED_FOOTERS.get(cacheKey);
+        if (cached != null) {
+            counters.recordFooterCache(true);
+            executor.execute(() -> completeSplitRanges(cached, listener));
+            return;
+        }
+
+        if (length < PARQUET_TRAILER_BYTES || FooterByteCache.getInstance().get(cacheKey) != null) {
+            parseSplitRangesOnExecutor(object, executor, listener);
+            return;
+        }
+
+        prefetchAndParseFooterAsync(
+            object,
+            length,
+            cacheKey,
+            executor,
+            listener.map(ParquetFormatReader::rangesFromFooter),
+            () -> parseSplitRangesOnExecutor(object, executor, listener)
+        );
+    }
+
+    private void parseSplitRangesOnExecutor(StorageObject object, Executor executor, ActionListener<List<SplitRange>> listener) {
+        executor.execute(() -> {
+            try {
+                listener.onResponse(discoverSplitRanges(object));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    private static void completeSplitRanges(ParquetMetadata footer, ActionListener<List<SplitRange>> listener) {
+        try {
+            listener.onResponse(rangesFromFooter(footer));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static List<SplitRange> rangesFromFooter(ParquetMetadata footer) {
+        List<BlockMetaData> rowGroups = footer.getBlocks();
+        if (rowGroups.isEmpty()) {
+            return List.of();
+        }
+        MessageType parquetSchema = footer.getFileMetaData().getSchema();
+        if (rowGroups.size() == 1) {
+            BlockMetaData block = rowGroups.getFirst();
+            Map<String, Object> stats = buildRowGroupStats(block, parquetSchema);
+            return List.of(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
+        }
+        List<SplitRange> ranges = new ArrayList<>(rowGroups.size());
+        for (BlockMetaData block : rowGroups) {
+            Map<String, Object> stats = buildRowGroupStats(block, parquetSchema);
+            // Use the compressed on-disk size for the SplitRange length: this value is fed to
+            // readRange() which builds a byte range end = startingPos + length for Parquet's
+            // withRange(rangeStart, rangeEnd) filter. That filter includes a row group when its
+            // starting position lies in the range, so the end must land at or before the next
+            // row group's starting position. getTotalByteSize() returns the uncompressed size
+            // (much larger than what is actually on disk), which would make adjacent ranges
+            // overlap in byte space and cause Parquet to select each row group from multiple
+            // splits, producing duplicate rows.
+            ranges.add(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
+        }
+        List<SplitRange> coalesced = coalesceRowGroupRanges(ranges, DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES);
+        return coalesced.size() < 2 ? ranges : coalesced;
     }
 
     @SuppressWarnings("rawtypes")

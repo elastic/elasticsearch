@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -41,6 +43,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class SplitDiscoveryPhaseTests extends ESTestCase {
 
@@ -591,6 +597,79 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         SplitDiscoveryPhase.resolveExternalSplits(limit, factories);
 
         assertTrue(recorder.lastContext.filterHints().isEmpty());
+    }
+
+    /**
+     * Default {@link SplitProvider#discoverSplitsAsync} wraps sync discovery on the executor so
+     * connectors keep a one-line {@code discoverSplits}. The inbound thread must still return.
+     */
+    public void testDiscoverSplitsAsyncDefaultWrapDoesNotBlockCaller() throws Exception {
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        SplitProvider delayed = new SplitProvider() {
+            @Override
+            public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
+                started.countDown();
+                try {
+                    if (release.await(30, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("timed out waiting to release sync wrap");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
+                }
+                return SplitDiscoveryResult.EMPTY;
+            }
+        };
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(delayed));
+        ExecutorService executor = Executors.newFixedThreadPool(1);
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        try {
+            SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+                exec,
+                factories,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                List.of(),
+                executor,
+                future
+            );
+            assertTrue("wrap must start on the executor after the caller returns", started.await(10, TimeUnit.SECONDS));
+            assertFalse(future.isDone());
+            release.countDown();
+            assertNotNull(future.actionGet(30, TimeUnit.SECONDS).plan());
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    public void testDiscoverSplitsAsyncMatchesSyncForFixedProvider() throws Exception {
+        FileList fileList = createFileList(3);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        SplitDiscoveryResult fixed = new SplitDiscoveryResult(List.of(), 0, true);
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new FixedSplitProvider(fixed)));
+
+        SplitDiscoveryPhase.Result sync = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        SplitDiscoveryPhase.Result async = future.actionGet(30, TimeUnit.SECONDS);
+        assertEquals(sync.filesScanned(), async.filesScanned());
+        assertEquals(FileList.EMPTY, ((ExternalSourceExec) async.plan()).fileList());
+        assertEquals(((ExternalSourceExec) sync.plan()).fileList(), ((ExternalSourceExec) async.plan()).fileList());
     }
 
     // -- helpers --

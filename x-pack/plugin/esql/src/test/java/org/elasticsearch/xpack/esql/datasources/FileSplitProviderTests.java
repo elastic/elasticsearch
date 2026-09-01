@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -21,6 +24,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -34,6 +38,7 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -66,6 +71,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -81,6 +87,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -1047,6 +1054,98 @@ public class FileSplitProviderTests extends ESTestCase {
             FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY,
             probeConcurrencyFor(Settings.builder().put("esql.external.max_concurrent_requests", 0).build())
         );
+    }
+
+    /**
+     * Production Phase-2 must return the inbound thread before N-file footer/probe IO finishes.
+     * A SEARCH caller that joined the gather would be unable to serve other searches.
+     */
+    public void testDiscoverSplitsAsyncReturnsBeforeRangeGetsComplete() throws Exception {
+        int files = 3;
+        CountDownLatch started = new CountDownLatch(files);
+        CountDownLatch release = new CountDownLatch(1);
+        CopyOnWriteArrayList<String> getPools = new CopyOnWriteArrayList<>();
+        AtomicInteger inFlight = new AtomicInteger();
+        AtomicInteger peak = new AtomicInteger();
+        RangeAwareFormatReader delayedReader = delayedAsyncRangeReader(started, release, getPools, inFlight, peak);
+
+        ExecutorService io = Executors.newFixedThreadPool(
+            4,
+            EsExecutors.daemonThreadFactory("test", EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME)
+        );
+        ExecutorService search = Executors.newFixedThreadPool(1, EsExecutors.daemonThreadFactory("test", ThreadPool.Names.SEARCH));
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        try {
+            FileSplitProvider provider = rangeAwareProvider(delayedReader, io);
+            SplitDiscoveryContext ctx = rangeAwareContext(files);
+            search.submit(() -> provider.discoverSplitsAsync(ctx, io, future)).get(10, TimeUnit.SECONDS);
+            assertTrue("GETs must start after the SEARCH caller returns", started.await(10, TimeUnit.SECONDS));
+            assertFalse("discovery must not complete while GETs are blocked", future.isDone());
+            for (String pool : getPools) {
+                assertThat(pool, not(ThreadPool.Names.SEARCH));
+                assertThat(pool, not(ThreadPool.Names.GENERIC));
+                assertTrue(
+                    "GET must run on esql_external_io or a non-ES thread, got [" + pool + "]",
+                    pool == null || EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME.equals(pool)
+                );
+            }
+            release.countDown();
+            SplitDiscoveryResult result = future.actionGet(30, TimeUnit.SECONDS);
+            assertEquals(files, result.splits().size());
+            assertThat("range GETs must fan out across files", peak.get(), greaterThan(1));
+        } finally {
+            release.countDown();
+            io.shutdownNow();
+            search.shutdownNow();
+        }
+    }
+
+    /**
+     * {@code file://} default {@code readBytesAsync} pins the completion executor. A 1-thread
+     * {@code esql_external_io} pool must still finish: production must not join that pool.
+     */
+    public void testDiscoverSplitsAsyncCompletesOnSingleThreadIoPool() throws Exception {
+        int files = 2;
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        RangeAwareFormatReader delayedReader = delayedAsyncRangeReader(started, release, new CopyOnWriteArrayList<>(), null, null);
+        ExecutorService io = Executors.newFixedThreadPool(
+            1,
+            EsExecutors.daemonThreadFactory("test", EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME)
+        );
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        try {
+            FileSplitProvider provider = rangeAwareProvider(delayedReader, io);
+            provider.discoverSplitsAsync(rangeAwareContext(files), io, future);
+            assertTrue(started.await(10, TimeUnit.SECONDS));
+            assertFalse(future.isDone());
+            release.countDown();
+            assertEquals(files, future.actionGet(30, TimeUnit.SECONDS).splits().size());
+        } finally {
+            release.countDown();
+            io.shutdownNow();
+        }
+    }
+
+    /**
+     * Sync {@link FileSplitProvider#discoverSplits} and async {@link FileSplitProvider#discoverSplitsAsync}
+     * must agree on range-aware splits so tests keep using the joining path.
+     */
+    public void testDiscoverSplitsAsyncAgreesWithSyncForRangeAwareFiles() throws Exception {
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(0, 100), new SplitRange(100, 200)));
+        FileSplitProvider provider = rangeAwareProvider(mockReader, null);
+        SplitDiscoveryContext ctx = rangeAwareContext(1);
+        List<ExternalSplit> serial = provider.discoverSplits(ctx).splits();
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        provider.discoverSplitsAsync(ctx, EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        List<ExternalSplit> async = future.actionGet(30, TimeUnit.SECONDS).splits();
+        assertEquals(serial.size(), async.size());
+        for (int i = 0; i < serial.size(); i++) {
+            FileSplit s = (FileSplit) serial.get(i);
+            FileSplit a = (FileSplit) async.get(i);
+            assertEquals(s.offset(), a.offset());
+            assertEquals(s.length(), a.length());
+        }
     }
 
     private static int probeConcurrencyFor(Settings settings) {
@@ -3630,6 +3729,122 @@ public class FileSplitProviderTests extends ESTestCase {
             totalRowCount += ((Number) fs.statistics().get("_stats.row_count")).longValue();
         }
         assertEquals("Total row count across splits should be sum of all files", 1000L, totalRowCount);
+    }
+
+    private static FileSplitProvider rangeAwareProvider(RangeAwareFormatReader reader, @Nullable Executor executor) {
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy("parquet", (s, bf) -> reader, Settings.EMPTY, null);
+        formatRegistry.byName("parquet");
+        return new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            new DecompressionCodecRegistry(),
+            createMockStorageRegistry(),
+            formatRegistry,
+            Settings.EMPTY,
+            executor
+        );
+    }
+
+    private static SplitDiscoveryContext rangeAwareContext(int fileCount) {
+        List<StorageEntry> entries = new ArrayList<>(fileCount);
+        for (int i = 0; i < fileCount; i++) {
+            entries.add(new StorageEntry(StoragePath.of("s3://b/data-" + i + ".parquet"), 2000, Instant.EPOCH));
+        }
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://b/*.parquet");
+        return new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
+    }
+
+    /**
+     * Range reader whose async path issues {@code readBytesAsync} then waits on {@code release}, so tests
+     * can prove the caller returned and that GETs overlapped.
+     */
+    private static RangeAwareFormatReader delayedAsyncRangeReader(
+        CountDownLatch started,
+        CountDownLatch release,
+        CopyOnWriteArrayList<String> getPools,
+        @Nullable AtomicInteger inFlight,
+        @Nullable AtomicInteger peak
+    ) {
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+        return new RangeAwareFormatReader() {
+            @Override
+            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+                return Configured.empty(this);
+            }
+
+            @Override
+            public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
+                return List.of(new SplitRange(0, object.length()));
+            }
+
+            @Override
+            public void discoverSplitRangesAsync(StorageObject object, Executor executor, ActionListener<List<SplitRange>> listener) {
+                final long len;
+                try {
+                    len = Math.min(8, object.length());
+                } catch (IOException e) {
+                    listener.onFailure(e);
+                    return;
+                }
+                object.readBytesAsync(0, len, factory, executor, ActionListener.wrap(buf -> {
+                    try {
+                        getPools.add(EsExecutors.executorName(Thread.currentThread()));
+                        if (inFlight != null && peak != null) {
+                            peak.accumulateAndGet(inFlight.incrementAndGet(), Math::max);
+                        }
+                        started.countDown();
+                        if (release.await(30, TimeUnit.SECONDS) == false) {
+                            listener.onFailure(new IllegalStateException("timed out waiting to release split-range GET"));
+                            return;
+                        }
+                        listener.onResponse(List.of(new SplitRange(0, object.length())));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        listener.onFailure(e);
+                    } catch (IOException e) {
+                        listener.onFailure(e);
+                    } finally {
+                        if (inFlight != null) {
+                            inFlight.decrementAndGet();
+                        }
+                        buf.close();
+                    }
+                }, listener::onFailure));
+            }
+
+            @Override
+            public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) {
+                throw new UnsupportedOperationException("not called during split discovery");
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                return null;
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                return null;
+            }
+
+            @Override
+            public String formatName() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet", ".parq");
+            }
+
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
+            public void close() {}
+        };
     }
 
     private static RangeAwareFormatReader createMockRangeReader(List<SplitRange> ranges) {

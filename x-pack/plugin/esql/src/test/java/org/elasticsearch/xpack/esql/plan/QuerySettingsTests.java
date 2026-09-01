@@ -709,10 +709,10 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testUnsetClusterKeyContributesNoLayerToTheReconciler() {
-        // Presence, not value — and the difference is only observable through a reconciler that combines rather than
-        // replaces. Reading the derived setting unconditionally would fold a phantom layer holding the registry
-        // default, which is a no-op for a last-wins scalar (both currently opted-in settings are scalars, so they
-        // cannot pin this) but corrupts a merging one. This concatenating reconciler makes the phantom visible.
+        // An operator changes what the default IS, so their value substitutes for the registry default rather than
+        // reconciling with it. The difference is only visible through a reconciler that combines rather than replaces:
+        // both opted-in settings are last-wins scalars, for which substituting and reconciling agree, so neither can
+        // pin this. A concatenating reconciler separates them — merging would give "d+op".
         QuerySettingDef<String> merging = QuerySettingDef.string("merging")
             .withDefault("d")
             .withReconciler((previous, current) -> previous == null ? current : previous + "+" + current)

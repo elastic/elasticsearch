@@ -25,8 +25,8 @@ import static org.hamcrest.Matchers.nullValue;
  * execution, be overridable per query, and stop applying when it is removed.
  *
  * <p>The unit layer covers the pieces — the derivation, the fold, the holder — but every one of them stays green if
- * the wiring from {@code EsqlPlugin.createComponents} through {@code PlanExecutor} into {@code EsqlSession} is cut,
- * at which point the feature is silently dead. This is the test that fails when that happens.
+ * the holder built in {@code TransportEsqlQueryAction} is replaced with {@code ClusterQuerySettings.EMPTY}, at which
+ * point the feature is silently dead. This is the test that fails when that happens.
  */
 public class QuerySettingClusterDefaultIT extends AbstractEsqlIntegTestCase {
 

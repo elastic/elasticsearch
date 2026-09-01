@@ -298,8 +298,9 @@ public final class QuerySettingDef<T> {
      * registered with the node by {@link QuerySettings#clusterSettings()}.
      * <p>
      * Its declared default <b>is</b> {@link #defaultValue()} — there is one default in the system, and an operator
-     * overrides it rather than adding a second. The resolver therefore keys off {@link Setting#exists} (did an
-     * operator actually set the key) and never off the value, so an unset key contributes no layer at all.
+     * overrides it rather than adding a second, so {@code include_defaults} reports the value queries actually get.
+     * Resolution does not read this {@link Setting} at all: see {@link #effectiveDefault}, which reads the raw value
+     * and parses it without validating.
      */
     @Nullable
     public Setting<T> clusterSetting() {
@@ -331,9 +332,9 @@ public final class QuerySettingDef<T> {
     T effectiveDefault(Settings clusterDefaults) {
         String raw = clusterSetting == null ? null : clusterDefaults.get(clusterSetting.getKey());
         if (raw == null) {
-            // Covers both "no operator value" and an explicit null one. Testing Setting#exists as well would be dead
-            // weight: the key is absent exactly when the raw value is null, and a putNull entry is present with a
-            // null value, so either way this is the branch that fires.
+            // Covers both an absent key and a present-but-null one. Testing Setting#exists as well would add
+            // nothing: an absent key reads as null, and a putNull entry is present yet also reads as null, so this
+            // branch is the one that fires either way — and "unset" is the right reading of both.
             return defaultValue;
         }
         T parsed;
@@ -350,6 +351,14 @@ public final class QuerySettingDef<T> {
             } catch (Exception e) {
                 return defaultValue;
             }
+        }
+        try {
+            // Canonicalized here rather than only on the way into the resolved view, so that a canonicalizer which
+            // rejects this value falls back too. It is the one remaining path by which an operator's value could
+            // otherwise throw on the query path.
+            canonicalizer.apply(parsed);
+        } catch (Exception e) {
+            return defaultValue;
         }
         return parsed;
     }
@@ -387,7 +396,12 @@ public final class QuerySettingDef<T> {
      * fallback with no operator signal, which is the one outcome this pair exists to prevent.
      */
     private static String describe(Exception e) {
-        return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        if (e.getMessage() != null) {
+            return e.getMessage();
+        }
+        // getSimpleName() is empty for an anonymous class, which would put us back to reporting nothing.
+        String simpleName = e.getClass().getSimpleName();
+        return simpleName.isEmpty() ? e.getClass().getName() : simpleName;
     }
 
     public List<RequestBodyBinding> aliases() {

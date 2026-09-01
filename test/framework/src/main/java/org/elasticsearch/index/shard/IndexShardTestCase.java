@@ -1331,21 +1331,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
         return future.actionGet();
     }
 
-    /** Recover a shard from a snapshot using a given repository **/
+    /**
+     * Restores the given shard from a snapshot using the given repository. The shard recovers with the
+     * {@link RecoveryState} it was built with, so callers that need a snapshot recovery source must create the shard
+     * with one.
+     */
     protected void recoverShardFromSnapshot(final IndexShard shard, final Snapshot snapshot, final Repository repository) {
-        final IndexVersion version = IndexVersion.current();
         final ShardId shardId = shard.shardId();
         final IndexId indexId = new IndexId(shardId.getIndex().getName(), shardId.getIndex().getUUID());
-        final DiscoveryNode node = getFakeDiscoNode(shard.routingEntry().currentNodeId());
-        final RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
-            UUIDs.randomBase64UUID(),
-            snapshot,
-            version,
-            indexId
-        );
-        final ShardRouting shardRouting = shardRoutingBuilder(shardId, node.getId(), true, ShardRoutingState.INITIALIZING)
-            .withRecoverySource(recoverySource)
-            .build();
         shard.markAsRecovering("from snapshot");
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         repository.restoreShard(shard.store(), snapshot.getSnapshotId(), indexId, shard.shardId(), shard.recoveryState(), future);

@@ -272,6 +272,52 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertSame("the resolved fileList must be preserved for the whole read", fileList, ((ExternalSourceExec) result).fileList());
     }
 
+    public void testNonExhaustiveEmptyResultAccountsWholeRead() {
+        FileList fileList = createFileList(3);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false)))
+        );
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        assertSame("a non-exhaustive empty result must fall through unchanged, not be swapped to EMPTY", exec, result.plan());
+        assertEquals("the whole read that follows scans every file in the resolved list", 3, result.filesScanned());
+        assertEquals("the whole read processes each file as one unit", 3, result.splitsScanned());
+        assertEquals("the whole read scans the listed bytes", 600L, result.bytesScanned());
+    }
+
+    public void testNonExhaustiveEmptyResultSkipsUnknownSizes() {
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(
+                new StorageEntry(StoragePath.of("s3://bucket/data/a.parquet"), 100, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://bucket/data/b.parquet"), 0, Instant.EPOCH)
+            ),
+            "s3://bucket/data/*.parquet"
+        );
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false)))
+        );
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        assertSame(exec, result.plan());
+        assertEquals(2, result.filesScanned());
+        assertEquals(2, result.splitsScanned());
+        assertEquals("only the known size contributes to the byte sum", 100L, result.bytesScanned());
+    }
+
     /**
      * An unresolved fileList (glob not yet expanded — resolved and read at runtime) must NOT be swapped when discovery
      * returns no splits: there is nothing to prune yet, and swapping to EMPTY would make the source read nothing at
@@ -308,9 +354,16 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         ExternalSourceExec exec = createExternalSourceExec(FileList.EMPTY, "parquet");
         Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new RecordingSplitProvider()));
 
-        PhysicalPlan result = SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
 
-        assertSame("an already-empty glob needs no swap", exec, result);
+        assertSame("an already-empty glob needs no swap", exec, result.plan());
+        assertEquals("an already-empty glob reads nothing", 0, result.filesScanned());
+        assertEquals(0, result.splitsScanned());
+        assertEquals(0L, result.bytesScanned());
     }
 
     /** {@link ExternalRelation#withFileList} swaps only the fileList, preserving the rest of the relation. */

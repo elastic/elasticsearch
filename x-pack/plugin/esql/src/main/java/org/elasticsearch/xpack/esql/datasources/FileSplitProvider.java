@@ -518,10 +518,8 @@ public class FileSplitProvider implements SplitProvider {
                         planResults.add(processFileForSplits(task, hoistedProvider, strideBytes, isCancelled));
                     }
                 }
-            } catch (RuntimeException e) {
-                throw e;
             } catch (Exception e) {
-                throw new RuntimeException("Failed to discover splits", e);
+                throw ExternalFailures.surface(e, "Failed to discover splits");
             }
 
             // Phase 3: probe the deferred files' record boundaries. Every deferred file's stride offsets go into one
@@ -905,10 +903,8 @@ public class FileSplitProvider implements SplitProvider {
                 throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
             }
             return outcomesByFile;
-        } catch (RuntimeException e) {
-            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to discover splits", e);
+            throw ExternalFailures.surface(e, "Failed to discover splits");
         }
     }
 

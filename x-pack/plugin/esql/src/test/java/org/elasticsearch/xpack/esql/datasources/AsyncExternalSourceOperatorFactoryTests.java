@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -18,6 +19,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -45,6 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -64,9 +68,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.zip.GZIPOutputStream;
 
+import static org.hamcrest.Matchers.contains;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
@@ -688,10 +694,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             new SchemaReconciliation.FileSchemaInfo(fileSchema, mapping, null)
         );
 
-        DriverContext driverContext = mock(DriverContext.class);
-        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
-        doAnswer(inv -> null).when(driverContext).addAsyncAction();
-        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+        // A real context rather than this suite's usual mock: the absent-column warning is delivered into its warning
+        // sink, which a stub would swallow, leaving the assertion at the end of this method nothing to read.
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
@@ -726,8 +731,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             }
             operator.close();
         }
-        // Absent-column warnings are buffered on the producer thread and re-emitted from operator.close().
-        assertWarnings(SkipWarnings.absentDeclaredColumnMessage("city"));
+        driverContext.finish();
+        assertThat(driverContext.warnings(), contains(SkipWarnings.absentDeclaredColumnMessage("city")));
+        Releasables.close(driverContext.getSnapshot());
     }
 
     /**
@@ -2958,6 +2964,62 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
+     * Parallel gzip rail identity: coordinator {@code closeStream} must abort the Abortable raw
+     * GET. Passing the inner S3-shaped object with a {@code DecompressedStream} falls through
+     * {@code instanceof Abortable} and drains. Tests must not use {@link DrainSimulatingStorageObject}
+     * as the coordinator storage object — that fixture ignores Abortable identity and false-passes.
+     */
+    public void testOpenWithParallelismGzipEarlyCloseAbortsAbortableRawStream() throws Exception {
+        ExecutorService exec = Executors.newFixedThreadPool(8);
+        try {
+            AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
+                dummyFormatReaderForOpenParallelismTests(),
+                exec
+            );
+            List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, "a", DataType.INTEGER));
+            CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(
+                new NdJsonFormatReader(Settings.EMPTY, TEST_BLOCK_FACTORY, schema),
+                new GzipDecompressionCodec()
+            );
+            byte[] gzipped = gzipCompress("{\"a\":1}\n".repeat(2_000).getBytes(StandardCharsets.UTF_8));
+
+            S3ShapedAbortableStorageObject object = new S3ShapedAbortableStorageObject(gzipped);
+            CloseableIterator<Page> iterator = factory.openWithParallelism(
+                cdr,
+                object,
+                List.of("a"),
+                ErrorPolicy.STRICT,
+                false,
+                true,
+                true,
+                null,
+                0L,
+                null,
+                null,
+                null
+            );
+            assertNotNull(iterator);
+            try {
+                assertTrue(iterator.hasNext());
+                Page page = iterator.next();
+                try {
+                    assertThat(page.getPositionCount(), Matchers.greaterThan(0));
+                } finally {
+                    page.releaseBlocks();
+                }
+            } finally {
+                iterator.close();
+            }
+
+            assertFalse("abortStream must receive the Abortable raw GET, not a decompressed wrapper", object.sawNonAbortable.get());
+            assertTrue("abortStream must hit Abortable.abort() on the raw GET", object.sawAbortable.get());
+            assertTrue(object.abortCalled.get());
+        } finally {
+            exec.shutdownNow();
+        }
+    }
+
+    /**
      * Regression guard: if stream-only decompression fails after opening the raw object stream,
      * cleanup must abort (not drain) the underlying connection.
      */
@@ -3297,6 +3359,120 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 return StoragePath.of("mem:///parallelism-open-test");
             }
         };
+    }
+
+    /**
+     * S3-shaped {@link StorageObject}: {@code abortStream} only calls {@code abort()} when the
+     * argument implements {@link Abortable}. Wrappers such as {@code DecompressedStream} miss
+     * that cast and fall back to a draining {@code close()}.
+     */
+    private static final class S3ShapedAbortableStorageObject implements StorageObject {
+        interface Abortable {
+            void abort();
+        }
+
+        final byte[] bytes;
+        final AtomicBoolean abortCalled = new AtomicBoolean();
+        final AtomicBoolean sawAbortable = new AtomicBoolean();
+        final AtomicBoolean sawNonAbortable = new AtomicBoolean();
+        final AtomicLong bytesConsumed = new AtomicLong();
+
+        S3ShapedAbortableStorageObject(byte[] bytes) {
+            this.bytes = bytes;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new AbortableDrainStream(bytes, abortCalled, bytesConsumed);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void abortStream(InputStream stream) throws IOException {
+            if (stream instanceof Abortable abortable) {
+                sawAbortable.set(true);
+                abortable.abort();
+            } else {
+                sawNonAbortable.set(true);
+                stream.close();
+            }
+        }
+
+        @Override
+        public long length() {
+            return bytes.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("s3://bucket/stream.ndjson.gz");
+        }
+    }
+
+    private static final class AbortableDrainStream extends InputStream implements S3ShapedAbortableStorageObject.Abortable {
+        private final ByteArrayInputStream inner;
+        private final AtomicBoolean abortCalled;
+        private final AtomicLong bytesConsumed;
+        private boolean closed;
+
+        AbortableDrainStream(byte[] bytes, AtomicBoolean abortCalled, AtomicLong bytesConsumed) {
+            this.inner = new ByteArrayInputStream(bytes);
+            this.abortCalled = abortCalled;
+            this.bytesConsumed = bytesConsumed;
+        }
+
+        @Override
+        public int read() {
+            int b = inner.read();
+            if (b >= 0) {
+                bytesConsumed.incrementAndGet();
+            }
+            return b;
+        }
+
+        @Override
+        public int read(byte[] buf, int off, int len) {
+            int n = inner.read(buf, off, len);
+            if (n > 0) {
+                bytesConsumed.addAndGet(n);
+            }
+            return n;
+        }
+
+        @Override
+        public void abort() {
+            abortCalled.set(true);
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            if (abortCalled.get()) {
+                return;
+            }
+            byte[] drain = new byte[8192];
+            int n;
+            while ((n = inner.read(drain, 0, drain.length)) != -1) {
+                bytesConsumed.addAndGet(n);
+            }
+        }
     }
 
     private static byte[] gzipCompress(byte[] uncompressed) throws IOException {

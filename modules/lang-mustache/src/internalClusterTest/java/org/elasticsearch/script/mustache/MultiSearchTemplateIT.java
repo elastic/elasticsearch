@@ -234,9 +234,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         // "1b" instead of a KB-range value avoids races where the breaker's accumulated bytes
         // from concurrent or preceding operations happen to leave just enough room under a larger
         // limit for the charge to succeed.
-        updateClusterSettings(
-            Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "1b")
-        );
+        updateClusterSettings(Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "1b"));
         try {
             int numRequests = 20;
             MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();

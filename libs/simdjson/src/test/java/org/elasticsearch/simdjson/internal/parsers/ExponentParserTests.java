@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.simdjson.internal;
+package org.elasticsearch.simdjson.internal.parsers;
 
 import org.elasticsearch.simdjson.JsonParsingException;
 import org.elasticsearch.test.ESTestCase;

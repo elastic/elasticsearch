@@ -8,12 +8,12 @@
  */
 
 /**
- * JSON parsing support library adapted from
- * <a href="https://github.com/simdjson/simdjson-java">simdjson-java</a>.
+ * Native-accelerated JSON parsing for Elasticsearch columnar source encoding (ESCF).
  *
- * <p>Provides native-accelerated structural indexing (backed by the {@code libsimdjson}
- * C++ library) and a fused stage 2 + token walk via
- * {@link org.elasticsearch.simdjson.SimdJsonDirectWalker}.
+ * <p>Stage 1 structural indexing runs in {@code libsimdjson} (SIMD-backed C++). Stage 2 is
+ * fused with token walking via {@link org.elasticsearch.simdjson.SimdJsonDirectWalker} — no
+ * intermediate DOM or tape — streaming field events straight to a {@link
+ * org.elasticsearch.simdjson.JsonDocumentHandler}.
  *
  * <h2>Usage</h2>
  *
@@ -29,6 +29,12 @@
  *       {@link org.elasticsearch.simdjson.SimdJsonParserPool#releaseNames()} to merge newly
  *       discovered field names back to the shared cache.</li>
  * </ol>
+ *
+ * <p>Scalar and string parsing utilities are vendored from
+ * <a href="https://github.com/simdjson/simdjson-java">simdjson-java</a> under
+ * {@code org.elasticsearch.simdjson.internal.parsers}. Elasticsearch-specific integration
+ * (native stage 1, field-name cache, direct walker) lives in the exported API and sibling
+ * {@code internal} packages.
  *
  * @see org.elasticsearch.simdjson.SimdJsonParser
  * @see org.elasticsearch.simdjson.SimdJsonDirectWalker

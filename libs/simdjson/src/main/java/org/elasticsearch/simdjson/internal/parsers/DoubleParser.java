@@ -19,7 +19,7 @@
  * Modifications copyright (C) 2026 Elasticsearch B.V.
  */
 
-package org.elasticsearch.simdjson.internal;
+package org.elasticsearch.simdjson.internal.parsers;
 
 import static java.lang.Double.NEGATIVE_INFINITY;
 import static java.lang.Double.POSITIVE_INFINITY;
@@ -30,11 +30,11 @@ import static java.lang.Long.numberOfLeadingZeros;
 import static java.lang.Long.remainderUnsigned;
 import static java.lang.Math.abs;
 import static java.lang.Math.unsignedMultiplyHigh;
-import static org.elasticsearch.simdjson.internal.ExponentParser.isExponentIndicator;
-import static org.elasticsearch.simdjson.internal.NumberParserTables.MIN_POWER_OF_FIVE;
-import static org.elasticsearch.simdjson.internal.NumberParserTables.NUMBER_OF_ADDITIONAL_DIGITS_AFTER_LEFT_SHIFT;
-import static org.elasticsearch.simdjson.internal.NumberParserTables.POWERS_OF_FIVE;
-import static org.elasticsearch.simdjson.internal.NumberParserTables.POWER_OF_FIVE_DIGITS;
+import static org.elasticsearch.simdjson.internal.parsers.ExponentParser.isExponentIndicator;
+import static org.elasticsearch.simdjson.internal.parsers.NumberParserTables.MIN_POWER_OF_FIVE;
+import static org.elasticsearch.simdjson.internal.parsers.NumberParserTables.NUMBER_OF_ADDITIONAL_DIGITS_AFTER_LEFT_SHIFT;
+import static org.elasticsearch.simdjson.internal.parsers.NumberParserTables.POWERS_OF_FIVE;
+import static org.elasticsearch.simdjson.internal.parsers.NumberParserTables.POWER_OF_FIVE_DIGITS;
 
 public final class DoubleParser {
 

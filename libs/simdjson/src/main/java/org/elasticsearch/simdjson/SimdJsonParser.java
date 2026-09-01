@@ -9,8 +9,8 @@
 
 package org.elasticsearch.simdjson;
 
-import org.elasticsearch.simdjson.internal.BitIndexes;
 import org.elasticsearch.simdjson.internal.StructuralIndexer;
+import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 
 /**
  * JSON parser that runs native stage 1 (structural indexing + UTF-8 validation), then

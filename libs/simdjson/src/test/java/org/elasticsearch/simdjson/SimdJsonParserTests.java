@@ -9,7 +9,7 @@
 
 package org.elasticsearch.simdjson;
 
-import org.elasticsearch.simdjson.internal.BitIndexes;
+import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;

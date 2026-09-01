@@ -10,6 +10,7 @@
 package org.elasticsearch.simdjson.internal;
 
 import org.elasticsearch.simdjson.JsonParsingException;
+import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 

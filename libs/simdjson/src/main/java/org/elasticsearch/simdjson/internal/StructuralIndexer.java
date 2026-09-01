@@ -14,6 +14,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdjson.JsonParsingException;
 import org.elasticsearch.simdjson.SimdJsonSupport;
+import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 
 import java.lang.foreign.MemorySegment;
 import java.util.Objects;

@@ -19,7 +19,7 @@
  * Modifications copyright (C) 2026 Elasticsearch B.V.
  */
 
-package org.elasticsearch.simdjson.internal;
+package org.elasticsearch.simdjson.internal.parsers;
 
 /**
  * A compact array of byte-offset indices into a JSON buffer, identifying the positions of

@@ -9,8 +9,8 @@
 
 package org.elasticsearch.simdjson;
 
-import org.elasticsearch.simdjson.internal.BitIndexes;
 import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable;
+import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;

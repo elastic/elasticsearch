@@ -19,7 +19,7 @@
  * Modifications copyright (C) 2026 Elasticsearch B.V.
  */
 
-package org.elasticsearch.simdjson.internal;
+package org.elasticsearch.simdjson.internal.parsers;
 
 class NumberParserTables {
 

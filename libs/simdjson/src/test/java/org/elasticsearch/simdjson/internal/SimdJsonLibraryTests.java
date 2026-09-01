@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
 import org.elasticsearch.simdjson.SimdJsonSupport;
+import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 import org.elasticsearch.simdvec.GuardPageAllocator;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;

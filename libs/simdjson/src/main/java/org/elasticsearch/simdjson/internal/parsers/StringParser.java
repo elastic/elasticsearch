@@ -19,7 +19,7 @@
  * Modifications copyright (C) 2026 Elasticsearch B.V.
  */
 
-package org.elasticsearch.simdjson.internal;
+package org.elasticsearch.simdjson.internal.parsers;
 
 import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.VectorSpecies;
@@ -27,8 +27,8 @@ import jdk.incubator.vector.VectorSpecies;
 import org.elasticsearch.simdjson.JsonParsingException;
 import org.elasticsearch.simdjson.SimdJsonSupport;
 
-import static org.elasticsearch.simdjson.internal.CharacterUtils.escape;
-import static org.elasticsearch.simdjson.internal.CharacterUtils.hexToInt;
+import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.escape;
+import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.hexToInt;
 
 /**
  * Parses JSON string values from a byte buffer into a UTF-8 string buffer.

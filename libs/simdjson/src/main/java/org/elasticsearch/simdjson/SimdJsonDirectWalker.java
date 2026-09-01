@@ -9,11 +9,11 @@
 
 package org.elasticsearch.simdjson;
 
-import org.elasticsearch.simdjson.internal.BitIndexes;
-import org.elasticsearch.simdjson.internal.DoubleParser;
-import org.elasticsearch.simdjson.internal.StringParser;
 import org.elasticsearch.simdjson.internal.fieldnames.FieldNameHash;
 import org.elasticsearch.simdjson.internal.fieldnames.FieldNameLookup;
+import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
+import org.elasticsearch.simdjson.internal.parsers.DoubleParser;
+import org.elasticsearch.simdjson.internal.parsers.StringParser;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -22,7 +22,7 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
-import static org.elasticsearch.simdjson.internal.CharacterUtils.isStructuralOrWhitespace;
+import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.isStructuralOrWhitespace;
 
 /**
  * Fused stage-2 + token-walk that reads structural indices produced by

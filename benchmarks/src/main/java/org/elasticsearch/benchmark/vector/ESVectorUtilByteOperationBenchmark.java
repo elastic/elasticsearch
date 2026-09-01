@@ -9,7 +9,7 @@
 
 package org.elasticsearch.benchmark.vector;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
@@ -43,7 +43,7 @@ import java.util.concurrent.TimeUnit;
 public class ESVectorUtilByteOperationBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     @Param({ "SCALAR", "PANAMA", "NATIVE" })

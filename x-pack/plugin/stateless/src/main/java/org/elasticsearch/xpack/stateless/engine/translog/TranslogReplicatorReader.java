@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
 import org.elasticsearch.index.translog.Translog;
@@ -265,7 +266,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
                             eligibleOperations.add(operation);
                             updateOperationMetrics(operation);
                         }
-                    } else if (record instanceof Translog.IndexBatch batch) {
+                    } else if (record instanceof IndexOperationBatch.TranslogRecord batch) {
                         for (Translog.Operation operation : batch.explode()) {
                             opsRead++;
                             if (toSeqNo >= operation.seqNo() && fromSeqNo <= operation.seqNo()) {

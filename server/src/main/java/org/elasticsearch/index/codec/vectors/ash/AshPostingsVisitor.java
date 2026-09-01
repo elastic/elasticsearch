@@ -78,7 +78,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * @param qOffset the query minimum value (used as offset in correction)
      * @param constantCorrection precomputed centering correction term
      */
-    public record QuantizedQuery(byte[] queryQuantized, float invQScale, float qOffset, float constantCorrection) {}
+    private record QuantizedQuery(byte[] queryQuantized, float invQScale, float qOffset, float constantCorrection) {}
 
     /**
      * Quantizes a projected query vector for the integer scoring path.
@@ -89,7 +89,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * @param bitsPerDim bits per dimension for document codes
      * @return the quantized query and correction parameters
      */
-    public static QuantizedQuery quantizeQuery(float[] queryTransformed, int nDims, int queryBitsPerDim, int bitsPerDim) {
+    private static QuantizedQuery quantizeQuery(float[] queryTransformed, int nDims, int queryBitsPerDim, int bitsPerDim) {
         int planeBytes = (nDims + 7) >>> 3;
 
         float qMin = Float.MAX_VALUE, qMax = -Float.MAX_VALUE;
@@ -189,16 +189,10 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         }
     }
 
-    /** Strategy for applying per-vector corrections to a raw dot product. */
+    /** Strategy for transforming a score using per-vector correction data. */
     @FunctionalInterface
-    private interface CorrectionApplier {
-        float apply(float rawScore, byte[] corrections, int correctionOffset);
-    }
-
-    /** Strategy for converting a corrected dot product into a Lucene similarity score. */
-    @FunctionalInterface
-    private interface SimilarityConverter {
-        float convert(float approxDotProduct, byte[] corrections, int correctionOffset);
+    private interface ScoreTransform {
+        float apply(float score, byte[] corrections, int correctionOffset);
     }
 
     private final IndexInput indexInput;
@@ -217,8 +211,8 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
     private final T scorerQuery;
 
     // Correction and similarity strategies, selected once at construction time
-    private final CorrectionApplier correctionApplier;
-    private final SimilarityConverter similarityConverter;
+    private final ScoreTransform correctionApplier;
+    private final ScoreTransform similarityConverter;
 
     // Scratch buffers for bulk I/O
     private final DocIdsWriter idsWriter = new DocIdsWriter();
@@ -372,7 +366,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
             if (docIdsScratch[j] != -1) {
                 int corrOff = j * CORRECTION_BYTES;
                 float approxDotProduct = correctionApplier.apply(scores[j], bulkCorrectionsBuf, corrOff);
-                scores[j] = similarityConverter.convert(approxDotProduct, bulkCorrectionsBuf, corrOff);
+                scores[j] = similarityConverter.apply(approxDotProduct, bulkCorrectionsBuf, corrOff);
                 if (scores[j] > maxScore) {
                     maxScore = scores[j];
                 }

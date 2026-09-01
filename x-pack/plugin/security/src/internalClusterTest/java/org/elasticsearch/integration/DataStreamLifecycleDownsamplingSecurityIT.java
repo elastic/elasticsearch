@@ -234,12 +234,12 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         }
     }
 
-    private Map<String, String> collectErrorsFromStoreAsMap() {
+    private Map<Index, String> collectErrorsFromStoreAsMap() {
         Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
-        Map<String, String> indicesAndErrors = new HashMap<>();
+        Map<Index, String> indicesAndErrors = new HashMap<>();
         for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
             DataStreamLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
-            Set<String> allIndices = errorStore.getAllIndices(Metadata.DEFAULT_PROJECT_ID);
+            Set<Index> allIndices = errorStore.getAllIndices(Metadata.DEFAULT_PROJECT_ID);
             for (var index : allIndices) {
                 ErrorEntry error = errorStore.getError(Metadata.DEFAULT_PROJECT_ID, index);
                 if (error != null) {
@@ -266,7 +266,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         var indicesAndErrors = collectErrorsFromStoreAsMap();
         for (var entry : indicesAndErrors.entrySet()) {
             assertThat(
-                "unexpected authz error for index [" + entry.getKey() + "] with error message [" + entry.getValue() + "]",
+                "unexpected authz error for index [" + entry.getKey().getName() + "] with error message [" + entry.getValue() + "]",
                 entry.getValue(),
                 not(anyOf(containsString("security_exception"), containsString("unauthorized for user [_data_stream_lifecycle]")))
             );

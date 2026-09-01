@@ -311,7 +311,7 @@ public final class QuerySettingDef<T> {
      * operator can see the failure: on {@code PUT _cluster/settings} and on the {@code elasticsearch.yml} pass at
      * startup. Resolution only parses.
      */
-    public T readClusterValue(Settings settings) {
+    T readClusterValue(Settings settings) {
         assert clusterSetting != null && clusterParser != null : "setting [" + name + "] has no cluster default";
         String raw = settings.get(clusterSetting.getKey());
         return raw == null ? null : clusterParser.parse(raw);
@@ -674,7 +674,8 @@ public final class QuerySettingDef<T> {
             if (validator != null) {
                 String defaultError;
                 try {
-                    defaultError = validator.validate(defaultValue, CLUSTER_UPDATE_CONTEXT);
+                    // Validate the reparsed default, which is what Setting#get will hand the validator.
+                    defaultError = validator.validate(reparsed, CLUSTER_UPDATE_CONTEXT);
                 } catch (Exception e) {
                     throw new IllegalStateException(
                         "Setting [" + name + "] cannot have a cluster default: its own validator throws on its default",

@@ -1023,6 +1023,7 @@ public class ExternalSourceResolver {
         FileList listing = cacheable
             ? cachedListing(path, storagePath, provider, hints, config)
             : expandAndCompact(path, provider, hints, config, storagePath);
+        GlobExpander.replayExclusionWarnings(listing);
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
         return listing;
     }
@@ -2700,8 +2701,10 @@ public class ExternalSourceResolver {
             listing = GlobExpander.expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
         } else if (isCacheable(provider)) {
             listing = cachedListing(path, storagePath, provider, hints, config);
+            GlobExpander.replayExclusionWarnings(listing);
         } else {
             listing = expandAndCompact(path, provider, hints, config, storagePath);
+            GlobExpander.replayExclusionWarnings(listing);
         }
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
         if (listing.fileCount() == 0) {

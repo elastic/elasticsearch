@@ -3138,6 +3138,43 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    /**
+     * Cached inferred listings must replay {@code file_exclusions} headers. Expand used to warn only while
+     * listing; a warm UNION_BY_NAME hit skipped that. First resolve consumes the warning, second must
+     * emit it again with no extra LIST.
+     */
+    public void testListingCacheReplaysExclusionWarningOnSecondResolve() throws Exception {
+        String warning = "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the "
+            + "[file_exclusions] dataset setting, for example [_SUCCESS] which matched entry [**/_*]";
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/data/a.parquet", schema);
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/_SUCCESS", 0));
+        CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
+        String glob = "s3://bucket/data/*";
+        Map<String, Map<String, Object>> pathConfigs = Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME)));
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> first = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), pathConfigs, first);
+            ExternalSourceResolution res1 = first.actionGet();
+            assertEquals(1, res1.resolvedSource(glob).fileList().fileCount());
+            assertEquals(List.of(warning), res1.resolvedSource(glob).fileList().exclusionWarnings());
+            assertWarnings(warning);
+            int listCallsAfterFirst = countingProvider.listCallCount.get();
+            assertTrue("first resolve must list", listCallsAfterFirst > 0);
+
+            PlainActionFuture<ExternalSourceResolution> second = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), pathConfigs, second);
+            ExternalSourceResolution res2 = second.actionGet();
+            assertEquals(1, res2.resolvedSource(glob).fileList().fileCount());
+            assertEquals(List.of(warning), res2.resolvedSource(glob).fileList().exclusionWarnings());
+            assertEquals("second resolve must be a listing cache hit", listCallsAfterFirst, countingProvider.listCallCount.get());
+            assertWarnings(warning);
+        }
+    }
+
     public void testAggregateFileStatisticsAcceptsCachedAndUncachedShapes() {
         long uncachedRowCount = 42L;
         long cachedRowCount = 58L;

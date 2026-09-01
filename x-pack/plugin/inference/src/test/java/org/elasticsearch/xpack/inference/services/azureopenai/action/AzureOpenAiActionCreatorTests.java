@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.action;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
@@ -22,7 +22,6 @@ import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -657,7 +656,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
 
     private void validateRequestWithApiKey(MockRequest request, String apiKey) {
         assertNull(request.getUri().getQuery());
-        assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+        assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
         assertThat(request.getHeader(AzureOpenAiUtils.API_KEY_HEADER), equalTo(apiKey));
     }
 }

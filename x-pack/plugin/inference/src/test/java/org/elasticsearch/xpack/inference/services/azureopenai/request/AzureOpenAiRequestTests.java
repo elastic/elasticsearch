@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.request;
 
-import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -70,8 +69,8 @@ public class AzureOpenAiRequestTests extends ESTestCase {
         );
         HttpRequest httpRequest = RequestTests.getHttpRequestSync(request);
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap.get("input"), is(List.of(TEST_INPUT_TEXT_VALUE)));
     }
 
@@ -116,7 +115,7 @@ public class AzureOpenAiRequestTests extends ESTestCase {
         );
 
         HttpRequest httpRequest = RequestTests.getHttpRequestSync(request);
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
         assertThat(httpPost.getLastHeader(CUSTOM_HEADER_NAME).getValue(), is(CUSTOM_HEADER_VALUE));
     }
@@ -146,7 +145,7 @@ public class AzureOpenAiRequestTests extends ESTestCase {
         );
 
         HttpRequest httpRequest = RequestTests.getHttpRequestSync(request);
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
         assertThat(httpPost.getLastHeader(API_KEY_HEADER).getValue(), is(API_KEY_VALUE));
     }
@@ -166,7 +165,7 @@ public class AzureOpenAiRequestTests extends ESTestCase {
         );
         HttpRequest httpRequest = RequestTests.getHttpRequestSync(request);
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
         assertNull(httpPost.getFirstHeader(CUSTOM_HEADER_NAME));
     }
 }

@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.request.embeddings;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
@@ -24,6 +22,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
@@ -31,7 +30,6 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
@@ -50,7 +48,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testCreateRequest_WithApiKeyDefined() throws IOException {
+    public void testCreateRequest_WithApiKeyDefined() throws IOException, URISyntaxException {
         var input = "input";
         var user = "user";
         var apiKey = randomAlphaOfLength(10);
@@ -59,18 +57,17 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         var request = createRequest("resource", "deployment", "2024", apiKey, null, input, user, inputType);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
         assertThat(
-            httpPost.getURI().toString(),
+            httpPost.getUri().toString(),
             is("https://resource.openai.azure.com/openai/deployments/deployment/embeddings?api-version=2024")
         );
 
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(API_KEY_HEADER).getValue(), is(apiKey));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap.size(), equalTo(InputType.isSpecified(inputType) ? 4 : 3));
         assertThat(requestMap.get("input"), is(List.of(input)));
         assertThat(requestMap.get("user"), is(user));
@@ -80,7 +77,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         }
     }
 
-    public void testCreateRequest_WithEntraIdDefined() throws IOException {
+    public void testCreateRequest_WithEntraIdDefined() throws IOException, URISyntaxException {
         var input = "input";
         var user = "user";
         var entraId = randomAlphaOfLength(10);
@@ -89,18 +86,17 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         var request = createRequest("resource", "deployment", "2024", null, entraId, input, user, inputType);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
         assertThat(
-            httpPost.getURI().toString(),
+            httpPost.getUri().toString(),
             is("https://resource.openai.azure.com/openai/deployments/deployment/embeddings?api-version=2024")
         );
 
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer " + entraId));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap.size(), equalTo(InputType.isSpecified(inputType) ? 4 : 3));
         assertThat(requestMap.get("input"), is(List.of(input)));
         assertThat(requestMap.get("user"), is(user));
@@ -115,10 +111,9 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         var truncatedRequest = request.truncate();
 
         var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(2));
         assertThat(requestMap.get("input"), is(List.of("ab")));
         assertThat(requestMap.get("encoding_format"), is("base64"));

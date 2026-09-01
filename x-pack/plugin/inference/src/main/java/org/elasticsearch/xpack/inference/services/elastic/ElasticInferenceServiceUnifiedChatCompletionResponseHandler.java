@@ -50,7 +50,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends
         ErrorResponse errorResponse
     ) {
         assert outboundRequest.isStreaming() : "Only streaming requests support this format";
-        var responseStatusCode = result.response().getStatusLine().getStatusCode();
+        var responseStatusCode = result.response().getCode();
         if (outboundRequest.isStreaming()) {
             var restStatus = toRestStatus(responseStatusCode);
             return new UnifiedChatCompletionException(

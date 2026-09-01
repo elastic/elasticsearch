@@ -21,7 +21,7 @@ public class HttpUtils {
         OutboundRequest outboundRequest,
         HttpResult result
     ) {
-        if (result.response().getStatusLine().getStatusCode() >= 300) {
+        if (result.response().getCode() >= 300) {
             String message = getStatusCodeErrorMessage(outboundRequest, result);
 
             throttlerManager.warn(logger, message);
@@ -31,19 +31,19 @@ public class HttpUtils {
     }
 
     private static String getStatusCodeErrorMessage(OutboundRequest outboundRequest, HttpResult result) {
-        int statusCode = result.response().getStatusLine().getStatusCode();
+        int statusCode = result.response().getCode();
 
         if (statusCode >= 400) {
             return format(
                 "Received a failure status code for request from inference entity id [%s] status [%s]",
                 outboundRequest.getInferenceEntityId(),
-                result.response().getStatusLine().getStatusCode()
+                result.response().getCode()
             );
         } else if (statusCode >= 300) {
             return format(
                 "Unhandled redirection for request from inference entity id [%s] status [%s]",
                 outboundRequest.getInferenceEntityId(),
-                result.response().getStatusLine().getStatusCode()
+                result.response().getCode()
             );
         } else {
             return "";

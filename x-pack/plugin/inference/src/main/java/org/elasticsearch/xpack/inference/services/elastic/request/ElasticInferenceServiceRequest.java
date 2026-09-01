@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
@@ -56,7 +56,7 @@ public abstract class ElasticInferenceServiceRequest implements OutboundRequest 
 
     @Override
     public final void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpRequestBase request = createHttpRequestBase();
+        SimpleHttpRequest request = createSimpleHttpRequest();
         // TODO: consider moving tracing here, too
 
         var productOrigin = metadata.context().productOrigin();
@@ -82,7 +82,7 @@ public abstract class ElasticInferenceServiceRequest implements OutboundRequest 
         listener.onResponse(new HttpRequest(request, getInferenceEntityId()));
     }
 
-    private static void addRegionPolicyHeaders(HttpRequestBase request, @Nullable InferencePreferences preferences) {
+    private static void addRegionPolicyHeaders(SimpleHttpRequest request, @Nullable InferencePreferences preferences) {
         if (preferences == null || preferences.regionPolicy() == null) {
             return;
         }
@@ -99,7 +99,7 @@ public abstract class ElasticInferenceServiceRequest implements OutboundRequest 
         }
     }
 
-    protected abstract HttpRequestBase createHttpRequestBase();
+    protected abstract SimpleHttpRequest createSimpleHttpRequest();
 
     public static ElasticInferenceServiceRequestMetadata extractRequestMetadataFromThreadContext(ThreadContext context) {
         var inferenceProductContext = InferenceProductContext.create(context);

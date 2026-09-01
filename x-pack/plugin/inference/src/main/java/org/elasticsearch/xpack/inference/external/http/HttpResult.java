@@ -7,37 +7,36 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
-import org.apache.http.HttpResponse;
+import org.apache.hc.client5.http.async.methods.SimpleHttpResponse;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Streams;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.common.SizeLimitInputStream;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Objects;
 
 public record HttpResult(HttpResponse response, byte[] body) {
 
-    public static HttpResult create(ByteSizeValue maxResponseSize, HttpResponse response) throws IOException {
+    public static HttpResult create(ByteSizeValue maxResponseSize, SimpleHttpResponse response) throws IOException {
         return new HttpResult(response, limitBody(maxResponseSize, response));
     }
 
-    private static byte[] limitBody(ByteSizeValue maxResponseSize, HttpResponse response) throws IOException {
-        if (response.getEntity() == null) {
+    private static byte[] limitBody(ByteSizeValue maxResponseSize, SimpleHttpResponse response) throws IOException {
+        var bodyBytes = response.getBodyBytes();
+        if (bodyBytes == null) {
             return new byte[0];
         }
 
-        final byte[] body;
-        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            try (InputStream is = new SizeLimitInputStream(maxResponseSize, response.getEntity().getContent())) {
-                Streams.copy(is, outputStream);
-            }
-            body = outputStream.toByteArray();
+        // The response is already fully buffered in memory at this point, so a plain length check suffices; the exception type
+        // (and message) match SizeLimitInputStream, which the retry logic relies on when the limit is exceeded.
+        if (bodyBytes.length > maxResponseSize.getBytes()) {
+            throw new SizeLimitInputStream.InputStreamTooLargeException(
+                "Maximum limit of [" + maxResponseSize.getBytes() + "] bytes reached"
+            );
         }
 
-        return body;
+        return bodyBytes;
     }
 
     public HttpResult {
@@ -50,6 +49,6 @@ public record HttpResult(HttpResponse response, byte[] body) {
     }
 
     public boolean isSuccessfulResponse() {
-        return RestStatus.isSuccessful(response.getStatusLine().getStatusCode());
+        return RestStatus.isSuccessful(response.getCode());
     }
 }

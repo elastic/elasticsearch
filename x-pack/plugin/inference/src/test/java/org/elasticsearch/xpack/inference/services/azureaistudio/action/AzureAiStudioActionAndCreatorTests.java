@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.action;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -20,7 +20,6 @@ import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
@@ -230,7 +229,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
     private void assertWebServerRequest(String authorization, String authorizationHeaderValue) {
         assertThat(webServer.requests(), hasSize(1));
         assertNull(webServer.requests().get(0).getUri().getQuery());
-        assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+        assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
         assertThat(webServer.requests().get(0).getHeader(authorization), equalTo(authorizationHeaderValue));
     }
 

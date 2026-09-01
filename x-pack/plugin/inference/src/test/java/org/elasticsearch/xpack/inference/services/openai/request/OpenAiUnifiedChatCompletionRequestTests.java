@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.openai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
@@ -25,24 +23,22 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel.buildDefaultUri;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
 
-    public void testCreateRequest_WithUrlOrganizationUserDefined() throws IOException {
+    public void testCreateRequest_WithUrlOrganizationUserDefined() throws IOException, URISyntaxException {
         var request = createRequest("www.google.com", "org", "secret", "abc", "model", "user", true);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), is("www.google.com"));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), is("www.google.com"));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         assertThat(httpPost.getLastHeader(ORGANIZATION_HEADER).getValue(), is("org"));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertRequestMapWithUser(requestMap, "user");
     }
 
@@ -66,15 +62,14 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
         var request = createRequest(null, "org", "secret", "abc", "model", "user", true);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), is(buildDefaultUri().toString()));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), is(buildDefaultUri().toString()));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         assertThat(httpPost.getLastHeader(ORGANIZATION_HEADER).getValue(), is("org"));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertRequestMapWithUser(requestMap, "user");
 
     }
@@ -83,15 +78,14 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
         var request = createRequest(null, null, "secret", "abc", "model", null, true);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), is(buildDefaultUri().toString()));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), is(buildDefaultUri().toString()));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         assertNull(httpPost.getLastHeader(ORGANIZATION_HEADER));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertRequestMapWithoutUser(requestMap);
     }
 
@@ -99,10 +93,9 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
         var request = createRequest(null, null, "secret", "abc", "model", null, true);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap.get("stream"), is(true));
     }
 
@@ -112,10 +105,9 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
         assertThat(request.getURI().toString(), is(buildDefaultUri().toString()));
 
         var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(5));
 
         // We do not truncate for OpenAi chat completions

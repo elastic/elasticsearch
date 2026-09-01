@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.openai;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
@@ -119,12 +118,8 @@ public class OpenAiUnifiedChatCompletionResponseHandlerTests extends ESTestCase 
     }
 
     private static HttpResponse mock500Response() {
-        int statusCode = 500;
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
         var response = mock(HttpResponse.class);
-        when(response.getStatusLine()).thenReturn(statusLine);
+        when(response.getCode()).thenReturn(500);
 
         return response;
     }

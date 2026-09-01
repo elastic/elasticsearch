@@ -1,0 +1,8 @@
+
+Apache HttpComponents Core Reactive Extensions
+Copyright 2005-2021 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+

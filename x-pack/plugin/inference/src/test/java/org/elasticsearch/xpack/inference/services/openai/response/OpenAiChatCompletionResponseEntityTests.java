@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.openai.response;
 
-import org.apache.http.HttpResponse;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;

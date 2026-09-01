@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.common.oauth2;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.Method;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.Strings;
@@ -86,7 +86,7 @@ public class OAuth2TokenFetcherTests extends ESTestCase {
 
         assertThat(webServer.requests(), hasSize(1));
         var request = webServer.requests().getFirst();
-        assertThat(request.getMethod(), is(HttpPost.METHOD_NAME));
+        assertThat(request.getMethod(), is(Method.POST.name()));
         assertThat(request.getUri().getPath(), is(TOKEN_PATH));
         assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), containsString("Basic "));
         assertThat(request.getBody(), is(Strings.format("grant_type=client_credentials&scope=%s", SCOPE_ITEM)));

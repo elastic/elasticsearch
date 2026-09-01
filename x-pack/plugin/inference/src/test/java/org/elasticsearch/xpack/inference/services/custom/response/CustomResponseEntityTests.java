@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.custom.response;
 
-import org.apache.http.HttpResponse;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;

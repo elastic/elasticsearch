@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -80,10 +80,10 @@ public class HttpClientManagerTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.response().getStatusLine().getStatusCode(), equalTo(responseCode));
+            assertThat(result.response().getCode(), equalTo(responseCode));
             assertThat(new String(result.body(), StandardCharsets.UTF_8), is(body));
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().get(0).getUri().getPath(), equalTo(httpPost.httpRequestBase().getURI().getPath()));
+            assertThat(webServer.requests().get(0).getUri().getPath(), equalTo(httpPost.httpRequest().getUri().getPath()));
             assertThat(webServer.requests().get(0).getUri().getQuery(), equalTo(paramKey + "=" + paramValue));
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
         }
@@ -105,7 +105,7 @@ public class HttpClientManagerTests extends ESTestCase {
     }
 
     public void test_DoesNotStartANewEvictor_WithNewEvictionMaxIdle() {
-        var mockConnectionManager = mock(PoolingNHttpClientConnectionManager.class);
+        var mockConnectionManager = mock(PoolingAsyncClientConnectionManager.class);
 
         Settings settings = Settings.builder()
             .put(HttpClientManager.CONNECTION_EVICTION_THREAD_INTERVAL_SETTING.getKey(), TimeValue.timeValueNanos(1))

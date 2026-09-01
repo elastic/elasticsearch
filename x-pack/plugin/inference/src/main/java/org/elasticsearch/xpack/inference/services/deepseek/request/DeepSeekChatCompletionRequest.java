@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.deepseek.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
@@ -18,7 +18,6 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -49,11 +48,10 @@ public class DeepSeekChatCompletionRequest implements OutboundUnifiedCompletionR
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(model.uri());
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(model.uri()).build();
 
-        httpPost.setEntity(createEntity());
+        httpPost.setBody(createEntity(), ContentType.APPLICATION_JSON);
 
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         model.apiKey()
             .ifPresentOrElse(
                 apiKey -> httpPost.setHeader(createAuthBearerHeader(apiKey)),
@@ -63,7 +61,7 @@ public class DeepSeekChatCompletionRequest implements OutboundUnifiedCompletionR
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
-    private ByteArrayEntity createEntity() {
+    private byte[] createEntity() {
         var modelId = Objects.requireNonNullElseGet(unifiedChatInput.getRequest().model(), model::model);
         try (var builder = JsonXContent.contentBuilder()) {
             builder.startObject();
@@ -72,7 +70,7 @@ public class DeepSeekChatCompletionRequest implements OutboundUnifiedCompletionR
                 UnifiedCompletionRequest.withMaxTokens(modelId, ToXContent.EMPTY_PARAMS)
             );
             builder.endObject();
-            return new ByteArrayEntity(Strings.toString(builder).getBytes(StandardCharsets.UTF_8));
+            return Strings.toString(builder).getBytes(StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new ElasticsearchException("Failed to serialize request payload.", e);
         }

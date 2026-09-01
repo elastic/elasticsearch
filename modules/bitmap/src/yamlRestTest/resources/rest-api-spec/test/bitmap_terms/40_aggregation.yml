@@ -1,0 +1,455 @@
+# Binary values are base64 strings in JSON but remain byte arrays in binary XContent formats.
+# Pin search responses to JSON so the exact portable bitmap assertions are deterministic.
+---
+"roaring_bitmap aggregation on an integer field returns a portable bitmap and normal total hits":
+  - requires:
+      test_runner_features: headers
+
+  - do:
+      indices.create:
+        index: test_roaring_bitmap_aggregation
+        body:
+          mappings:
+            properties:
+              id:
+                type: integer
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_roaring_bitmap_aggregation
+        body:
+          - '{"index": {}}'
+          - '{"id": 5}'
+          - '{"index": {}}'
+          - '{"id": 10}'
+          - '{"index": {}}'
+          - '{"id": 5}'
+
+  - do:
+      headers:
+        Content-Type: application/json
+        Accept: application/json
+      search:
+        index: test_roaring_bitmap_aggregation
+        body:
+          size: 0
+          track_total_hits: true
+          aggs:
+            ids:
+              roaring_bitmap:
+                field: id
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.total.relation: "eq" }
+  # portable 32-bit Roaring serialization of the distinct set {5, 10}
+  - match: { aggregations.ids.value: "OjAAAAEAAAAAAAEAEAAAAAUACgA=" }
+  - is_false: aggregations.ids.cardinality
+
+---
+"roaring_bitmap aggregation on a long field returns a portable bitmap":
+  - requires:
+      test_runner_features: headers
+
+  - do:
+      indices.create:
+        index: test_roaring_bitmap_aggregation_long
+        body:
+          mappings:
+            properties:
+              id:
+                type: long
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_roaring_bitmap_aggregation_long
+        body:
+          - '{"index": {}}'
+          - '{"id": 1}'
+          - '{"index": {}}'
+          - '{"id": 1099511627776}'
+          - '{"index": {}}'
+          - '{"id": 9223372036854775807}'
+          - '{"index": {}}'
+          - '{"id": 1099511627776}'
+
+  - do:
+      headers:
+        Content-Type: application/json
+        Accept: application/json
+      search:
+        index: test_roaring_bitmap_aggregation_long
+        body:
+          size: 0
+          track_total_hits: true
+          aggs:
+            ids:
+              roaring_bitmap:
+                field: id
+
+  - match: { hits.total.value: 4 }
+  - match: { hits.total.relation: "eq" }
+  # portable 64-bit Roaring serialization of the distinct set {1, 2^40, Long.MAX_VALUE}
+  - match: { aggregations.ids.value: "AwAAAAAAAAAAAAAAOjAAAAEAAAAAAAAAEAAAAAEAAAEAADowAAABAAAAAAAAABAAAAAAAP///386MAAAAQAAAP//AAAQAAAA//8=" }
+
+---
+"roaring_bitmap aggregation on an integer field only sees documents matching a filter":
+  - requires:
+      test_runner_features: headers
+
+  - do:
+      indices.create:
+        index: test_roaring_bitmap_aggregation_filtered
+        body:
+          mappings:
+            properties:
+              id:
+                type: integer
+              category:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_roaring_bitmap_aggregation_filtered
+        body:
+          - '{"index": {}}'
+          - '{"id": 5, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"id": 10, "category": "even"}'
+          - '{"index": {}}'
+          - '{"id": 15, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"id": 20, "category": "even"}'
+
+  - do:
+      headers:
+        Content-Type: application/json
+        Accept: application/json
+      search:
+        index: test_roaring_bitmap_aggregation_filtered
+        body:
+          size: 0
+          track_total_hits: true
+          query:
+            term:
+              category: "odd"
+          aggs:
+            ids:
+              roaring_bitmap:
+                field: id
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: "eq" }
+  # portable 32-bit Roaring serialization of the distinct set {5, 15} -- only the "odd" docs
+  - match: { aggregations.ids.value: "OjAAAAEAAAAAAAEAEAAAAAUADwA=" }
+  - set: { aggregations.ids.value: bitmap }
+
+  # Passing the aggregation output directly to bitmap_terms selects only the exported values.
+  - do:
+      search:
+        index: test_roaring_bitmap_aggregation_filtered
+        body:
+          size: 0
+          track_total_hits: true
+          query:
+            bitmap_terms:
+              field: id
+              value: $bitmap
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: "eq" }
+
+---
+"roaring_bitmap aggregation on a long field only sees documents matching a filter":
+  - requires:
+      test_runner_features: headers
+
+  - do:
+      indices.create:
+        index: test_roaring_bitmap_aggregation_long_filtered
+        body:
+          mappings:
+            properties:
+              id:
+                type: long
+              category:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_roaring_bitmap_aggregation_long_filtered
+        body:
+          - '{"index": {}}'
+          - '{"id": 1, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"id": 1099511627776, "category": "even"}'
+          - '{"index": {}}'
+          - '{"id": 9223372036854775807, "category": "odd"}'
+
+  - do:
+      headers:
+        Content-Type: application/json
+        Accept: application/json
+      search:
+        index: test_roaring_bitmap_aggregation_long_filtered
+        body:
+          size: 0
+          track_total_hits: true
+          query:
+            term:
+              category: "odd"
+          aggs:
+            ids:
+              roaring_bitmap:
+                field: id
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: "eq" }
+  # portable 64-bit Roaring serialization of the distinct set {1, Long.MAX_VALUE} -- only the "odd" docs
+  - match: { aggregations.ids.value: "AgAAAAAAAAAAAAAAOjAAAAEAAAAAAAAAEAAAAAEA////fzowAAABAAAA//8AABAAAAD//w==" }
+  - set: { aggregations.ids.value: bitmap }
+
+  # Pin the portable 64-bit aggregation-to-query round trip and its selectivity.
+  - do:
+      search:
+        index: test_roaring_bitmap_aggregation_long_filtered
+        body:
+          size: 0
+          track_total_hits: true
+          query:
+            bitmap_terms:
+              field: id
+              value: $bitmap
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: "eq" }
+
+---
+"roaring_bitmap aggregation reads integer index terms":
+  - requires:
+      test_runner_features: headers
+
+  - do:
+      indices.create:
+        index: test_roaring_bitmap_aggregation_index_terms
+        body:
+          mappings:
+            properties:
+              id:
+                type: integer
+                index_terms: true
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_roaring_bitmap_aggregation_index_terms
+        body:
+          - '{"index": {}}'
+          - '{"id": 5}'
+          - '{"index": {}}'
+          - '{"id": 10}'
+          - '{"index": {}}'
+          - '{"id": 5}'
+
+  - do:
+      headers:
+        Content-Type: application/json
+        Accept: application/json
+      search:
+        index: test_roaring_bitmap_aggregation_index_terms
+        body:
+          size: 0
+          aggs:
+            ids:
+              roaring_bitmap:
+                field: id
+
+  # portable 32-bit Roaring serialization of the distinct set {5, 10}
+  - match: { aggregations.ids.value: "OjAAAAEAAAAAAAEAEAAAAAUACgA=" }
+
+---
+"roaring_bitmap aggregation reads long index terms":
+  - requires:
+      test_runner_features: headers
+
+  - do:
+      indices.create:
+        index: test_roaring_bitmap_aggregation_long_index_terms
+        body:
+          mappings:
+            properties:
+              id:
+                type: long
+                index_terms: true
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_roaring_bitmap_aggregation_long_index_terms
+        body:
+          - '{"index": {}}'
+          - '{"id": 1}'
+          - '{"index": {}}'
+          - '{"id": 1099511627776}'
+          - '{"index": {}}'
+          - '{"id": 9223372036854775807}'
+          - '{"index": {}}'
+          - '{"id": 1099511627776}'
+
+  - do:
+      headers:
+        Content-Type: application/json
+        Accept: application/json
+      search:
+        index: test_roaring_bitmap_aggregation_long_index_terms
+        body:
+          size: 0
+          aggs:
+            ids:
+              roaring_bitmap:
+                field: id
+
+  # portable 64-bit Roaring serialization of the distinct set {1, 2^40, Long.MAX_VALUE}
+  - match: { aggregations.ids.value: "AwAAAAAAAAAAAAAAOjAAAAEAAAAAAAAAEAAAAAEAAAEAADowAAABAAAAAAAAABAAAAAAAP///386MAAAAQAAAP//AAAQAAAA//8=" }
+
+---
+"roaring_bitmap aggregation with index terms falls back for a filtered query":
+  - requires:
+      test_runner_features: headers
+
+  - do:
+      indices.create:
+        index: test_roaring_bitmap_aggregation_index_terms_filtered
+        body:
+          mappings:
+            properties:
+              id:
+                type: integer
+                index_terms: true
+              category:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_roaring_bitmap_aggregation_index_terms_filtered
+        body:
+          - '{"index": {}}'
+          - '{"id": 5, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"id": 10, "category": "even"}'
+          - '{"index": {}}'
+          - '{"id": 15, "category": "odd"}'
+
+  - do:
+      headers:
+        Content-Type: application/json
+        Accept: application/json
+      search:
+        index: test_roaring_bitmap_aggregation_index_terms_filtered
+        body:
+          size: 0
+          query:
+            term:
+              category: "odd"
+          aggs:
+            ids:
+              roaring_bitmap:
+                field: id
+
+  # portable 32-bit Roaring serialization of the distinct set {5, 15}
+  - match: { aggregations.ids.value: "OjAAAAEAAAAAAAEAEAAAAAUADwA=" }
+
+---
+"roaring_bitmap aggregation is rejected inside a multi-bucket aggregation":
+  - do:
+      indices.create:
+        index: test_roaring_bitmap_aggregation_multi_bucket_parent
+        body:
+          mappings:
+            properties:
+              id:
+                type: integer
+              category:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_roaring_bitmap_aggregation_multi_bucket_parent
+        body:
+          - '{"index": {}}'
+          - '{"id": 5, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"id": 10, "category": "even"}'
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_roaring_bitmap_aggregation_multi_bucket_parent
+        body:
+          size: 0
+          aggs:
+            categories:
+              terms:
+                field: category
+              aggs:
+                ids:
+                  roaring_bitmap:
+                    field: id
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+
+---
+"roaring_bitmap aggregation is allowed inside a filter aggregation":
+  - requires:
+      test_runner_features: headers
+
+  - do:
+      indices.create:
+        index: test_roaring_bitmap_aggregation_filter_parent
+        body:
+          mappings:
+            properties:
+              id:
+                type: integer
+              category:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_roaring_bitmap_aggregation_filter_parent
+        body:
+          - '{"index": {}}'
+          - '{"id": 5, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"id": 10, "category": "even"}'
+          - '{"index": {}}'
+          - '{"id": 15, "category": "odd"}'
+
+  - do:
+      headers:
+        Content-Type: application/json
+        Accept: application/json
+      search:
+        index: test_roaring_bitmap_aggregation_filter_parent
+        body:
+          size: 0
+          aggs:
+            odd:
+              filter:
+                term:
+                  category: "odd"
+              aggs:
+                ids:
+                  roaring_bitmap:
+                    field: id
+
+  - match: { aggregations.odd.doc_count: 2 }
+  # a single-bucket parent yields the same distinct set {5, 15} as the equivalent top-level query
+  - match: { aggregations.odd.ids.value: "OjAAAAEAAAAAAAEAEAAAAAUADwA=" }

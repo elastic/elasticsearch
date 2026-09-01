@@ -437,4 +437,80 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
             unforwarded
         );
     }
+
+    /**
+     * The wrapper holds no resources of its own, so the release the {@link FormatReader} lifecycle contract drives
+     * has to reach the reader that does. A wrapper that swallowed {@code close()} would make the whole lifecycle a
+     * no-op for compressed files — and compressed files are exactly the ones whose reader is most likely to be
+     * holding a decompressor.
+     */
+    public void testCloseReachesTheInnerReader() throws IOException {
+        CloseCountingFormatReader inner = new CloseCountingFormatReader();
+        CompressionDelegatingFormatReader wrapper = new CompressionDelegatingFormatReader(inner, new GzipDecompressionCodec());
+
+        wrapper.close();
+
+        assertEquals(1, inner.closeCount);
+    }
+
+    /**
+     * A wither that mints a new inner reader must re-wrap it, so closing the derived wrapper releases the derived
+     * inner and not the one the caller still holds. Without that, a per-query configured wrapper would close the
+     * registry's shared reader.
+     */
+    public void testCloseOfADerivedWrapperReachesOnlyTheDerivedInner() throws IOException {
+        CloseCountingFormatReader inner = new CloseCountingFormatReader();
+        CompressionDelegatingFormatReader wrapper = new CompressionDelegatingFormatReader(inner, new GzipDecompressionCodec());
+
+        FormatReader derived = wrapper.withSchema(List.of());
+        assertThat(derived, instanceOf(CompressionDelegatingFormatReader.class));
+        assertNotSame("the inner reader minted, so the wrapper must have minted too", wrapper, derived);
+
+        derived.close();
+
+        assertEquals("the derived inner was released", 1, inner.derived.closeCount);
+        assertEquals("the caller's own reader was not", 0, inner.closeCount);
+    }
+
+    /** Counts closes and mints a distinct instance on {@code withSchema}, so a test can tell the two apart. */
+    private static class CloseCountingFormatReader implements NoConfigFormatReader {
+        int closeCount;
+        CloseCountingFormatReader derived;
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new UnsupportedOperationException("not read in these tests");
+        }
+
+        @Override
+        public FormatReader withSchema(List<org.elasticsearch.xpack.esql.core.expression.Attribute> schema) {
+            derived = new CloseCountingFormatReader();
+            return derived;
+        }
+
+        @Override
+        public String formatName() {
+            return "csv";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".csv");
+        }
+
+        @Override
+        public void close() {
+            closeCount++;
+        }
+    }
 }

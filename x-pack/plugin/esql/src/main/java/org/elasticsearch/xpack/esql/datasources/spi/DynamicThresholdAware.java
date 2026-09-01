@@ -17,6 +17,10 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 public interface DynamicThresholdAware {
     /**
      * Returns a reader copy that consults {@code threshold} at natural skip boundaries.
+     * <p>
+     * A {@code with*} on the reader like any other, so the lifecycle and ownership rules on {@link FormatReader}
+     * apply here too: return {@code this} when the threshold does not apply, acquire nothing eagerly, and leave
+     * the caller owning whatever new instance comes back.
      */
     FormatReader withDynamicThreshold(DynamicThreshold threshold);
 }

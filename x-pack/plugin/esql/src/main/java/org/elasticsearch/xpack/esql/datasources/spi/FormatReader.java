@@ -39,6 +39,34 @@ import java.util.concurrent.Executor;
  * or stripe skipping) are set via {@link #withPushedFilter(Object)}. Per-read execution
  * parameters (projection, batch size, limit, error policy, split config) are bundled in
  * {@link FormatReadContext}.
+ *
+ * <h2>Lifecycle and ownership</h2>
+ * The instance a reader registry hands out is a node-level singleton shared by every query, and is never
+ * closed. What {@link #close()} exists for are the <em>configured</em> instances the fluent {@code with*}
+ * methods return: those are per-query or per-file, and may end up holding resources (decompressors, native
+ * handles, cached footers) that the shared instance does not. Three rules make that ownership workable, and
+ * both implementations and callers must honour them:
+ * <ul>
+ *   <li><b>Ownership passes only with a new instance.</b> A {@code with*} method returns either
+ *       {@code this} — the setting does not apply, nothing was minted, and no ownership changes hands —
+ *       or a <b>new</b> instance that the caller owns and must {@link #close()} once it has finished
+ *       reading through it. A caller therefore closes the tail of a {@code with*} chain only when the
+ *       tail is not the same object as the reader it started from; closing the reader it was handed
+ *       would close something it does not own (in the worst case, the registry's singleton).</li>
+ *   <li><b>No eager acquisition.</b> A {@code with*} method must not acquire a releasable resource;
+ *       resources are acquired lazily, on the first {@link #read} / {@link #metadata} call. That is what
+ *       makes closing only the tail of a chain sufficient — the intermediate instances were never read
+ *       through, so they hold nothing — and what makes a reader that is configured but whose read never
+ *       starts leak-free by construction, mirroring the deferred pool lease the storage side uses in the
+ *       same code path. A caller that does read through more than one instance of a chain (e.g. calls
+ *       {@link #metadata} on one and then derives a schema-bound instance from it) owns, and closes,
+ *       each instance it read through.</li>
+ *   <li><b>Close releases only what this instance acquired.</b> Derived instances may share state with
+ *       the instance they were minted from, so {@code close()} must neither invalidate that shared state
+ *       nor close the parent, and it must be idempotent so that a defensive double close is harmless.</li>
+ * </ul>
+ * All current implementations are stateless and close to a no-op; the rules exist so that a reader which
+ * does hold native handles or decompressors gets a release path the framework already drives.
  */
 public interface FormatReader extends Closeable {
 

@@ -465,6 +465,10 @@ public final class ParallelParsingCoordinator {
         // against the file width. When this read includes the file-leading bytes (and therefore any
         // header), bind the full on-disk schema before segment workers run. For non-leading macro
         // splits, rebinding via metadata is unsafe because the split-local first row is data, not header.
+        //
+        // When the bind mints an instance, this coordinator owns it (see the ownership contract on FormatReader):
+        // every iterator below reads through it, so its release rides the iterator that is handed back rather than
+        // happening when this method returns. `reader` itself stays the caller's throughout.
         SegmentableFormatReader parallelReader = reader;
         if (projectedColumns != null && projectedColumns.isEmpty() && splitIncludesFileLeader) {
             var meta = parallelReader.metadata(storageObject);
@@ -472,66 +476,88 @@ public final class ParallelParsingCoordinator {
                 parallelReader = (SegmentableFormatReader) parallelReader.withSchema(meta.schema());
             }
         }
+        boolean handedOff = false;
+        try {
+            ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
+            // Empty list would read as "0-column schema"; pass null through.
+            FormatReadContext baseCtx = FormatReadContext.builder()
+                .projectedColumns(projectedColumns)
+                .batchSize(batchSize)
+                .errorPolicy(effectivePolicy)
+                .firstSplit(splitIncludesFileLeader)
+                // lastSplit is deliberately left to the builder default (true) and not set from splitIsFileFinal.
+                // This context is used two ways: as the single-threaded fallback below, which reads the whole
+                // storage object and so genuinely owns its trailing bytes, and as the base for per-segment
+                // contexts, which each set lastSplit themselves from their segment index. Setting it here from
+                // splitIsFileFinal breaks the first use, because the convenience overloads that assume a
+                // whole-file read (splitIncludesFileLeader=true) do not make the matching claim about the
+                // file's end. Reconciling those defaults is worth doing on its own, not as a side effect.
+                .recordAligned(splitStartsAtRecordBoundary)
+                .readSchema(readSchema)
+                .splitStartByte(baseFileOffset)
+                .maxRecordBytes(maxRecordBytes)
+                // Single-segment fallback reads this whole storage object in one shot, so its trailing stripe is
+                // file-final exactly when this macro-split is the file's final split (splitIsFileFinal). A mid-file
+                // macro-split is never file-final — a later split supplies the terminal stripe.
+                .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
+                .statsColumnScope(statsColumnScope)
+                .informationalWarningSink(warningSink)
+                .build();
+            if (parallelism <= 1 || fileLength < minSegment * 2) {
+                CloseableIterator<Page> single = ReaderReleasingIterator.wrap(
+                    parallelReader.read(storageObject, baseCtx),
+                    parallelReader,
+                    reader
+                );
+                handedOff = true;
+                return single;
+            }
 
-        ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
-        // Empty list would read as "0-column schema"; pass null through.
-        FormatReadContext baseCtx = FormatReadContext.builder()
-            .projectedColumns(projectedColumns)
-            .batchSize(batchSize)
-            .errorPolicy(effectivePolicy)
-            .firstSplit(splitIncludesFileLeader)
-            // lastSplit is deliberately left to the builder default (true) and not set from splitIsFileFinal.
-            // This context is used two ways: as the single-threaded fallback below, which reads the whole
-            // storage object and so genuinely owns its trailing bytes, and as the base for per-segment
-            // contexts, which each set lastSplit themselves from their segment index. Setting it here from
-            // splitIsFileFinal breaks the first use, because the convenience overloads that assume a
-            // whole-file read (splitIncludesFileLeader=true) do not make the matching claim about the
-            // file's end. Reconciling those defaults is worth doing on its own, not as a side effect.
-            .recordAligned(splitStartsAtRecordBoundary)
-            .readSchema(readSchema)
-            .splitStartByte(baseFileOffset)
-            .maxRecordBytes(maxRecordBytes)
-            // Single-segment fallback reads this whole storage object in one shot, so its trailing stripe is
-            // file-final exactly when this macro-split is the file's final split (splitIsFileFinal). A mid-file
-            // macro-split is never file-final — a later split supplies the terminal stripe.
-            .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
-            .statsColumnScope(statsColumnScope)
-            .informationalWarningSink(warningSink)
-            .build();
-        if (parallelism <= 1 || fileLength < minSegment * 2) {
-            return parallelReader.read(storageObject, baseCtx);
+            List<long[]> segments = computeSegments(parallelReader, storageObject, fileLength, parallelism, minSegment, maxRecordBytes);
+
+            if (segments.size() <= 1) {
+                CloseableIterator<Page> single = ReaderReleasingIterator.wrap(
+                    parallelReader.read(storageObject, baseCtx),
+                    parallelReader,
+                    reader
+                );
+                handedOff = true;
+                return single;
+            }
+
+            AsReadyParallelIterator iterator = new AsReadyParallelIterator(
+                parallelReader,
+                storageObject,
+                projectedColumns,
+                batchSize,
+                segments,
+                executor,
+                parallelism,
+                maxConcurrentOpenSegments,
+                effectivePolicy,
+                splitIncludesFileLeader,
+                readSchema,
+                baseFileOffset,
+                captureSink,
+                maxRecordBytes,
+                statsStripeSize,
+                statsColumnScope,
+                splitIsFileFinal,
+                metrics,
+                warningSink
+            );
+            // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
+            iterator.start();
+            CloseableIterator<Page> released = ReaderReleasingIterator.wrap(iterator, parallelReader, reader);
+            handedOff = true;
+            return released;
+        } finally {
+            // Nothing downstream holds the bound reader until an iterator carrying it has been returned, so a
+            // failure to open / segment / start releases it here instead.
+            if (handedOff == false) {
+                FormatReaderOwnership.closeIfDerived(parallelReader, reader);
+            }
         }
-
-        List<long[]> segments = computeSegments(parallelReader, storageObject, fileLength, parallelism, minSegment, maxRecordBytes);
-
-        if (segments.size() <= 1) {
-            return parallelReader.read(storageObject, baseCtx);
-        }
-
-        AsReadyParallelIterator iterator = new AsReadyParallelIterator(
-            parallelReader,
-            storageObject,
-            projectedColumns,
-            batchSize,
-            segments,
-            executor,
-            parallelism,
-            maxConcurrentOpenSegments,
-            effectivePolicy,
-            splitIncludesFileLeader,
-            readSchema,
-            baseFileOffset,
-            captureSink,
-            maxRecordBytes,
-            statsStripeSize,
-            statsColumnScope,
-            splitIsFileFinal,
-            metrics,
-            warningSink
-        );
-        // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
-        iterator.start();
-        return iterator;
     }
 
     /**

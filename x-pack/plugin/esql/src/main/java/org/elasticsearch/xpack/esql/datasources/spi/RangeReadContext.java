@@ -36,6 +36,11 @@ public final class RangeReadContext {
     private final int rowLimit;
     /**
      * Opaque file-level context, single-writer/single-reader, carried by the owning producer across successive readRange calls.
+     * <p>
+     * Its lifetime is the producer's, not the reader instance's: the producer re-mints a configured reader per split
+     * (and closes it when that split's iterator closes — see the ownership contract on {@link FormatReader}) while
+     * carrying the same context into the next split's read. A reader must therefore not release this context in
+     * {@link FormatReader#close()}.
      */
     @Nullable
     private Object fileContext;

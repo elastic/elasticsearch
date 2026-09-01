@@ -1610,6 +1610,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int rowsRemaining;
         @Nullable
         CloseableIterator<Page> pages;
+        /**
+         * The reader {@link #pages} reads through, when opening this unit minted one (a per-file pushed-filter
+         * adaptation, a {@code withReadConfig} stamp, a schema bind). Released by
+         * {@link #clearCurrentIterator} together with the iterator, because the reader stays in use for exactly
+         * as long as the iterator that reads through it — not just for the duration of the open call.
+         */
+        @Nullable
+        FormatReader unitReader;
         @Nullable
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo;
         @Nullable
@@ -1798,12 +1806,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * Closes the current page iterator (if any) so the next {@link #advanceToNextUnit} call starts
-     * cleanly. Safe to call multiple times.
+     * Closes the current page iterator (if any), and with it the per-unit reader the iterator read through, so
+     * the next {@link #advanceToNextUnit} call starts cleanly. Safe to call multiple times.
      */
-    private static void clearCurrentIterator(ProducerState state) {
+    private void clearCurrentIterator(ProducerState state) {
         closeQuietly(state.pages);
         state.pages = null;
+        // Close the reader after the iterator, not before: an iterator's own close may still call back into the
+        // reader (stats finalization, CPU accounting).
+        closeDerivedReader(state.unitReader);
+        state.unitReader = null;
     }
 
     /**
@@ -2023,8 +2035,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
 
         CloseableIterator<Page> pages = null;
+        FormatReader fileReader = null;
+        boolean opened = false;
         try {
-            FormatReader fileReader = readerForFile(fileSplit);
+            fileReader = readerForFile(fileSplit);
             boolean isRangeSplit = "true".equals(fileSplit.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
             if (isRangeSplit && fileReader instanceof RangeAwareFormatReader rangeReader) {
                 String fileLengthStr = (String) fileSplit.config().get(FileSplitProvider.FILE_LENGTH_KEY);
@@ -2087,7 +2101,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         }
                     }
                     if (cachedSchema != null) {
-                        fileReader = fileReader.withSchema(cachedSchema);
+                        FormatReader bound = fileReader.withSchema(cachedSchema);
+                        if (bound != fileReader) {
+                            // The metadata() call above read through the pre-bind instance, so this method owns
+                            // that one as well as the schema-bound one derived from it. A derived instance shares
+                            // no releasable state with its parent, so the parent can be released right here rather
+                            // than carried alongside the iterator.
+                            closeDerivedReader(fileReader);
+                            fileReader = bound;
+                        }
                         state.lastSchemaPath = fileSplit.path();
                         state.lastBoundSchema = cachedSchema;
                     }
@@ -2189,12 +2211,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 state.driverContext,
                 fileSplit.path()
             );
+            // The iterator reads through this reader for as long as it is open, so its release moves to
+            // clearCurrentIterator rather than happening when this method returns.
+            state.unitReader = fileReader;
+            opened = true;
             return true;
         } catch (Exception e) {
             closeQuietly(pages);
             if (e instanceof IOException io) throw io;
             if (e instanceof RuntimeException re) throw re;
             throw new IOException(e);
+        } finally {
+            if (opened == false) {
+                closeDerivedReader(fileReader);
+            }
         }
     }
 
@@ -2247,16 +2277,24 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         List<String> cols = dataProjectedColumns();
         RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) readerWithDynamicThreshold(formatReader);
         CloseableIterator<Page> pages = null;
+        boolean opened = false;
         try {
             pages = rangeReader.readAll(splitRefs, cols, batchSize);
             pages = applyRowPositionStrategy(rangeReader, pages, cols);
             state.pages = pages;
+            // Same handover as the leaf path: the batch iterator reads through this reader until it is closed.
+            state.unitReader = rangeReader;
+            opened = true;
             return true;
         } catch (Exception e) {
             closeQuietly(pages);
             if (e instanceof IOException io) throw io;
             if (e instanceof RuntimeException re) throw re;
             throw new IOException(e);
+        } finally {
+            if (opened == false) {
+                closeDerivedReader(rangeReader);
+            }
         }
     }
 
@@ -2293,6 +2331,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }
 
         CloseableIterator<Page> pages = null;
+        FormatReader fileReader = null;
+        boolean opened = false;
         try {
             StorageObject obj = storageProvider.newObject(files.path(fileIndex));
             attachStorageMetrics(obj); // before any read — see note at the single-object dispatch above
@@ -2314,7 +2354,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // Filter adaptation uses the query-width mapping. An empty queryDataSchema (COUNT(*),
             // KEEP-partition-only) skips adaptSchema and must not hand mapFilters a unified-width
             // mapping; pass null so pushedExpressions reach the reader unchanged, as before.
-            FormatReader fileReader = readerForMapping(queryDataSchema.isEmpty() ? null : mapping).withReadConfig(
+            fileReader = readerForMapping(queryDataSchema.isEmpty() ? null : mapping).withReadConfig(
                 readConfigFingerprinter.apply(perFileReadSchema)
             );
             pages = openWithParallelism(
@@ -2365,12 +2405,19 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext, files.path(fileIndex));
             state.currentObject = obj;
             state.currentObjectBytesSnapshot = readBytesOrZero(obj);
+            // See openNextSliceQueueLeaf: the reader's lifetime is the iterator's, so clearCurrentIterator owns it.
+            state.unitReader = fileReader;
+            opened = true;
             return true;
         } catch (Exception e) {
             closeQuietly(pages);
             if (e instanceof IOException io) throw io;
             if (e instanceof RuntimeException re) throw re;
             throw new IOException(e);
+        } finally {
+            if (opened == false) {
+                closeDerivedReader(fileReader);
+            }
         }
     }
 
@@ -2436,14 +2483,26 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .build();
         // No split here — this rail reads one whole file, so the pre-prune unified schema IS that file's schema.
         FormatReader reader = readerWithDynamicThreshold(formatReader).withReadConfig(readConfigFingerprinter.apply(unifiedReadSchema));
-        reader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
-            CloseableIterator<Page> wrapped = applyRowPositionStrategy(reader, iterator, projectedColumns);
-            consumePagesInBackground(wrapped, buffer, driverContext, storageObject, projectedColumns);
-        }, e -> {
-            buffer.onFailure(e);
-            driverContext.removeAsyncAction();
-            releaseOperator();
-        }));
+        boolean started = false;
+        try {
+            reader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
+                CloseableIterator<Page> wrapped = applyRowPositionStrategy(reader, iterator, projectedColumns);
+                // The read is still running behind this iterator, so the reader's release travels with it.
+                consumePagesInBackground(wrapped, buffer, driverContext, storageObject, projectedColumns, reader);
+            }, e -> {
+                closeDerivedReader(reader);
+                buffer.onFailure(e);
+                driverContext.removeAsyncAction();
+                releaseOperator();
+            }));
+            started = true;
+        } finally {
+            // readAsync may throw before either arm of the listener runs, in which case nothing downstream holds
+            // the reader. FormatReader#close is idempotent, so a race with a listener that did run is harmless.
+            if (started == false) {
+                closeDerivedReader(reader);
+            }
+        }
     }
 
     private void startSyncWrapperRead(
@@ -2464,97 +2523,117 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         executor.execute(ActionRunnable.run(failureListener, () -> {
             // Split-less whole-file read, as in the native-async branch above: the unified schema is this file's.
             FormatReader reader = readerWithDynamicThreshold(formatReader).withReadConfig(readConfigFingerprinter.apply(unifiedReadSchema));
-            // Install the hard-cancel signal as the ambient StorageRetryCancellation scope for the blocking open,
-            // so a parked storage retry/throttle backoff aborts on cancel rather than sleeping out its budget.
-            CloseableIterator<Page> pages = StorageRetryCancellation.callWithCancellation(buffer::readCancelled, () -> {
-                CloseableIterator<Page> opened = openWithParallelism(
-                    reader,
-                    storageObject,
-                    PhysicalNames.translateNames(projectedColumns, renames),
-                    errorPolicy,
-                    false,
-                    true,
-                    // Single whole-file read: the file is its own final split, so its trailing segment reaches EOF.
-                    true,
-                    null,
-                    0L,
-                    buffer.capturedSourceMetadataSink(),
-                    buffer::recordWarning,
-                    bufferedInformationalWarningSink(buffer)
-                );
-                if (opened == null) {
-                    FormatReadContext ctx = FormatReadContext.builder()
-                        .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
-                        .batchSize(batchSize)
-                        .rowLimit(rowLimit)
-                        .errorPolicy(errorPolicy)
-                        .maxRecordBytes(maxRecordBytes)
-                        .statsColumnScope(statsColumnScope)
-                        .informationalWarningSink(bufferedInformationalWarningSink(buffer))
-                        .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
-                        .build();
-                    opened = reader.read(storageObject, ctx);
-                }
-                return opened;
-            });
-            // Wrap with the deferred-extraction encoder (no-op when not enabled), then with the
-            // virtual-column iterator so {@code _file.*} columns flow through the producer pipeline
-            // alongside the data columns.
-            final CloseableIterator<Page> finalPages;
+            boolean handedOff = false;
             try {
-                pages = applyRowPositionStrategy(reader, pages, projectedColumns);
-                pages = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
-                CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
-                finalPages = wrapWithVirtualColumns(withEncoder, mergeStandardMetadata(partitionValues), driverContext);
-            } catch (Exception e) {
-                closeQuietly(pages);
-                throw e;
+                // Install the hard-cancel signal as the ambient StorageRetryCancellation scope for the blocking open,
+                // so a parked storage retry/throttle backoff aborts on cancel rather than sleeping out its budget.
+                CloseableIterator<Page> pages = StorageRetryCancellation.callWithCancellation(buffer::readCancelled, () -> {
+                    CloseableIterator<Page> opened = openWithParallelism(
+                        reader,
+                        storageObject,
+                        PhysicalNames.translateNames(projectedColumns, renames),
+                        errorPolicy,
+                        false,
+                        true,
+                        // Single whole-file read: the file is its own final split, so its trailing segment reaches EOF.
+                        true,
+                        null,
+                        0L,
+                        buffer.capturedSourceMetadataSink(),
+                        buffer::recordWarning,
+                        bufferedInformationalWarningSink(buffer)
+                    );
+                    if (opened == null) {
+                        FormatReadContext ctx = FormatReadContext.builder()
+                            .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
+                            .batchSize(batchSize)
+                            .rowLimit(rowLimit)
+                            .errorPolicy(errorPolicy)
+                            .maxRecordBytes(maxRecordBytes)
+                            .statsColumnScope(statsColumnScope)
+                            .informationalWarningSink(bufferedInformationalWarningSink(buffer))
+                            .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
+                            .build();
+                        opened = reader.read(storageObject, ctx);
+                    }
+                    return opened;
+                });
+                // Wrap with the deferred-extraction encoder (no-op when not enabled), then with the
+                // virtual-column iterator so {@code _file.*} columns flow through the producer pipeline
+                // alongside the data columns.
+                final CloseableIterator<Page> finalPages;
+                try {
+                    pages = applyRowPositionStrategy(reader, pages, projectedColumns);
+                    pages = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
+                    CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
+                    finalPages = wrapWithVirtualColumns(withEncoder, mergeStandardMetadata(partitionValues), driverContext);
+                } catch (Exception e) {
+                    closeQuietly(pages);
+                    throw e;
+                }
+                drainPagesAsync(
+                    finalPages,
+                    buffer,
+                    // Cold-path drain resumes on the consumer pool (esql_worker), not the read/parse pool, so the
+                    // drain never competes with parser workers for I/O threads. See runProducerLoop's split.
+                    producerExecutor,
+                    // Ambient hard-cancel signal so the drain's page-pull backoff aborts on cancel.
+                    buffer::readCancelled,
+                    // Close the iterator chain and record telemetry BEFORE notifying the buffer:
+                    // closing publishes the finalize marker into the capture sink (via
+                    // StatsCapturingIterator and the parallel coordinators' finalize hook), and
+                    // recordSingleFileTelemetry writes the splits_processed / bytes_read /
+                    // format-reader status counters that the operator status snapshot reads. The
+                    // Driver may snapshot status() synchronously the moment buffer.finish(false)
+                    // flips isFinished() to true; notifying the buffer first opens a window where
+                    // the snapshot lacks the marker (reconciler discards the partial contributions)
+                    // and the telemetry counters (profile shows zeros for an operator that did
+                    // real work). Telemetry runs on both success and failure to match the previous
+                    // runAfter semantics.
+                    ActionListener.runAfter(ActionListener.wrap(v -> {
+                        closeQuietly(finalPages);
+                        closeDerivedReader(reader);
+                        recordSingleFileTelemetry(storageObject, buffer);
+                        buffer.finish(false);
+                    }, e -> {
+                        closeQuietly(finalPages);
+                        closeDerivedReader(reader);
+                        recordSingleFileTelemetry(storageObject, buffer);
+                        buffer.onFailure(e);
+                    }), () -> {
+                        driverContext.removeAsyncAction();
+                        releaseOperator();
+                    })
+                );
+                handedOff = true;
+            } finally {
+                // Until drainPagesAsync has the iterator chain (and with it the reader's release, above), nothing
+                // downstream would close the reader if the open or the wrapping threw. FormatReader#close is
+                // idempotent, so racing the drain's own close is harmless.
+                if (handedOff == false) {
+                    closeDerivedReader(reader);
+                }
             }
-            drainPagesAsync(
-                finalPages,
-                buffer,
-                // Cold-path drain resumes on the consumer pool (esql_worker), not the read/parse pool, so the
-                // drain never competes with parser workers for I/O threads. See runProducerLoop's split.
-                producerExecutor,
-                // Ambient hard-cancel signal so the drain's page-pull backoff aborts on cancel.
-                buffer::readCancelled,
-                // Close the iterator chain and record telemetry BEFORE notifying the buffer:
-                // closing publishes the finalize marker into the capture sink (via
-                // StatsCapturingIterator and the parallel coordinators' finalize hook), and
-                // recordSingleFileTelemetry writes the splits_processed / bytes_read /
-                // format-reader status counters that the operator status snapshot reads. The
-                // Driver may snapshot status() synchronously the moment buffer.finish(false)
-                // flips isFinished() to true; notifying the buffer first opens a window where
-                // the snapshot lacks the marker (reconciler discards the partial contributions)
-                // and the telemetry counters (profile shows zeros for an operator that did
-                // real work). Telemetry runs on both success and failure to match the previous
-                // runAfter semantics.
-                ActionListener.runAfter(ActionListener.wrap(v -> {
-                    closeQuietly(finalPages);
-                    recordSingleFileTelemetry(storageObject, buffer);
-                    buffer.finish(false);
-                }, e -> {
-                    closeQuietly(finalPages);
-                    recordSingleFileTelemetry(storageObject, buffer);
-                    buffer.onFailure(e);
-                }), () -> {
-                    driverContext.removeAsyncAction();
-                    releaseOperator();
-                })
-            );
         }));
     }
 
+    /**
+     * @param reader the reader {@code pages} reads through, when {@link #startNativeAsyncRead} minted one for this
+     *               read. Closed after the iterator chain, on every exit path, since the read is only finished
+     *               once the iterator is.
+     */
     private void consumePagesInBackground(
         CloseableIterator<Page> pages,
         AsyncExternalSourceBuffer buffer,
         DriverContext driverContext,
         StorageObject storageObject,
-        List<String> projectedColumns
+        List<String> projectedColumns,
+        @Nullable FormatReader reader
     ) {
         final CloseableIterator<Page> capturing = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
         ActionListener<Void> failureListener = ActionListener.wrap(v -> {}, e -> {
             closeQuietly(capturing);
+            closeDerivedReader(reader);
             buffer.onFailure(e);
             driverContext.removeAsyncAction();
             releaseOperator();
@@ -2574,10 +2653,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // counters reach the operator status snapshot before isFinished() flips.
                 ActionListener.runAfter(ActionListener.wrap(v -> {
                     closeQuietly(wrapped);
+                    closeDerivedReader(reader);
                     recordSingleFileTelemetry(storageObject, buffer);
                     buffer.finish(false);
                 }, e -> {
                     closeQuietly(wrapped);
+                    closeDerivedReader(reader);
                     recordSingleFileTelemetry(storageObject, buffer);
                     buffer.onFailure(e);
                 }), () -> {
@@ -2669,6 +2750,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
             }
         }
+    }
+
+    /**
+     * Releases a {@link FormatReader} this factory minted for a single file, split or read — the per-unit
+     * re-mints made by {@link #readerForFile}, {@link #readerForMapping} and {@link #readerWithDynamicThreshold}.
+     * Deliberately skips {@link #formatReader} itself: that instance is shared by every operator and every file
+     * this factory serves, and is released exactly once through the {@code onClose} chain (see
+     * {@link #releaseOperator}). A per-file close of it would pull the reader out from under the files still to
+     * come.
+     */
+    private void closeDerivedReader(@Nullable FormatReader reader) {
+        FormatReaderOwnership.closeIfDerived(reader, formatReader);
     }
 
     private static void closeQuietly(Closeable closeable) {

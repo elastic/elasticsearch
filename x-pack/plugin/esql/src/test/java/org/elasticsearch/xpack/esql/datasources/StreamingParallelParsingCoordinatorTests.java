@@ -102,6 +102,40 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * After chunk 0 the segmentator swaps the caller's reader for a schema-bound one it minted itself. Under the
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader} ownership contract that instance is the
+     * iterator's — it never escapes to the caller, so nothing else could release it — and it must go when the
+     * iterator does, while the reader the caller handed in stays the caller's.
+     */
+    public void testSchemaBoundReaderIsReleasedWhenTheIteratorCloses() throws Exception {
+        int lineCount = 200;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            LineFormatReader reader = new LineFormatReader(1024);
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            assertEquals("nothing released while the iterator is live", List.of(), reader.closedInstances);
+
+            assertEquals(lineCount, collectLines(iterator).size());
+
+            assertEquals("exactly the bound instance was released", 1, reader.closedInstances.size());
+            assertFalse("the caller's reader is not the iterator's to close", reader.closedInstances.contains(reader));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     public void testSingleLineFallback() throws Exception {
         String content = "line-0000\n";
         InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
@@ -1982,6 +2016,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         final AtomicInteger boundReadCalls;
         final AtomicInteger unboundReadCalls;
         final List<FormatReadContext> seenContexts;
+        /** Every instance of the lineage that was closed, shared across the chain so a test can tell them apart. */
+        final List<FormatReader> closedInstances;
 
         LineFormatReader(long minSegment) {
             this(
@@ -1990,6 +2026,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 new AtomicInteger(),
                 new AtomicInteger(),
                 new AtomicInteger(),
+                Collections.synchronizedList(new ArrayList<>()),
                 Collections.synchronizedList(new ArrayList<>())
             );
         }
@@ -2000,7 +2037,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             AtomicInteger metadataCalls,
             AtomicInteger boundReadCalls,
             AtomicInteger unboundReadCalls,
-            List<FormatReadContext> seenContexts
+            List<FormatReadContext> seenContexts,
+            List<FormatReader> closedInstances
         ) {
             this.minSegment = minSegment;
             this.resolvedSchema = resolvedSchema;
@@ -2008,6 +2046,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             this.boundReadCalls = boundReadCalls;
             this.unboundReadCalls = unboundReadCalls;
             this.seenContexts = seenContexts;
+            this.closedInstances = closedInstances;
         }
 
         @Override
@@ -2031,7 +2070,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public FormatReader withSchema(List<Attribute> schema) {
-            return new LineFormatReader(minSegment, schema, metadataCalls, boundReadCalls, unboundReadCalls, seenContexts);
+            return new LineFormatReader(minSegment, schema, metadataCalls, boundReadCalls, unboundReadCalls, seenContexts, closedInstances);
         }
 
         @Override
@@ -2110,7 +2149,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public void close() {}
+        public void close() {
+            closedInstances.add(this);
+        }
     }
 
     /**

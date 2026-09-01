@@ -43,11 +43,13 @@ import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -2037,6 +2039,87 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
             contexts.add(context);
             return super.read(object, context);
+        }
+    }
+
+    /**
+     * COUNT(*) over a leader-bearing read: the coordinator binds the file's schema onto the reader before any
+     * segment worker runs, which mints an instance nothing outside the coordinator ever sees. Under the
+     * {@link FormatReader} ownership contract that instance is the coordinator's to release, and it is in use for
+     * exactly as long as the iterator that reads through it — so the release has to ride that iterator, not the
+     * {@code parallelRead} call. Both shapes are covered: the single-threaded fallback and the parallel iterator.
+     */
+    public void testSchemaBoundReaderIsReleasedWithTheIteratorItServes() throws Exception {
+        for (int parallelism : new int[] { 1, 4 }) {
+            byte[] content = "alpha\nbeta\ngamma\ndelta\n".getBytes(StandardCharsets.UTF_8);
+            StorageObject obj = new InMemoryStorageObject(content);
+            SchemaBindingLineReader reader = new SchemaBindingLineReader(blockFactory());
+
+            ExecutorService exec = Executors.newFixedThreadPool(4);
+            try {
+                // Empty projection + leader-bearing read is what triggers the bind.
+                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of(), 2, parallelism, exec);
+                assertEquals("the bind minted one instance at parallelism " + parallelism, 1, reader.bound.size());
+                assertEquals("held open while the iterator can still read through it", List.of(), reader.closed);
+
+                try (iter) {
+                    while (iter.hasNext()) {
+                        iter.next().releaseBlocks();
+                    }
+                }
+
+                assertEquals("released with its iterator", reader.bound, reader.closed);
+                assertFalse("the caller's own reader is not the coordinator's to close", reader.closed.contains(reader));
+            } finally {
+                exec.shutdown();
+            }
+        }
+    }
+
+    /**
+     * A {@link LineFormatReader} that answers the schema bind — {@code metadata} returns a non-empty schema and
+     * {@code withSchema} mints a distinct instance — and records every close against lists shared by the whole
+     * lineage, so a test can tell the bound instance's close from the caller's.
+     */
+    private static final class SchemaBindingLineReader extends LineFormatReader {
+        private final BlockFactory blockFactory;
+        private final List<SchemaBindingLineReader> bound;
+        private final List<SchemaBindingLineReader> closed;
+
+        SchemaBindingLineReader(BlockFactory blockFactory) {
+            super(blockFactory);
+            this.blockFactory = blockFactory;
+            this.bound = new CopyOnWriteArrayList<>();
+            this.closed = new CopyOnWriteArrayList<>();
+        }
+
+        private SchemaBindingLineReader(SchemaBindingLineReader parent) {
+            super(parent.blockFactory);
+            this.blockFactory = parent.blockFactory;
+            this.bound = parent.bound;
+            this.closed = parent.closed;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            Attribute line = new FieldAttribute(
+                Source.EMPTY,
+                "line",
+                new EsField("line", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            );
+            return new SimpleSourceMetadata(List.of(line), "test-line", object.path().toString());
+        }
+
+        @Override
+        public FormatReader withSchema(List<Attribute> schema) {
+            SchemaBindingLineReader derived = new SchemaBindingLineReader(this);
+            bound.add(derived);
+            return derived;
+        }
+
+        @Override
+        public void close() {
+            closed.add(this);
         }
     }
 

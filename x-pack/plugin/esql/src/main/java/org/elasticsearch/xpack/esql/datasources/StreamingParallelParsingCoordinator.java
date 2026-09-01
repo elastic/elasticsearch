@@ -1579,6 +1579,11 @@ public final class StreamingParallelParsingCoordinator {
             if (trackedBytes > 0) {
                 breaker.addWithoutBreaking(-trackedBytes);
             }
+            // Release the schema-bound reader the segmentator minted in bindInferredSchema. This iterator owns it
+            // (see the ownership contract on FormatReader) and is the only thing that can release it: it never
+            // escapes to the caller, which still holds only originalReader. Last, after the drain loop has waited
+            // out the parser tasks that read through it — with the same timeout caveat as the block drain above.
+            FormatReaderOwnership.closeIfDerived(reader, originalReader);
         }
 
         private void poisonCapturedStats(String path) {

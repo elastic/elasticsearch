@@ -1088,90 +1088,101 @@ public class FileSplitProvider implements SplitProvider {
         // declared-name binding bit rides the typed DeclaredReadSpec (NOT the config map), so it must be applied
         // here too, or the split-side reader's declaredNameBindingNeedsFileStart() is silently false and the gate
         // below never fires — the read-side reader would then hit a chunk with no header line to bind against.
-        FormatReader configuredReader = resolveConfiguredReader(task.filePath(), task.config());
+        ResolvedReader resolved = resolveConfiguredReader(task.filePath(), task.config());
+        FormatReader configuredReader = resolved.configured();
         if (configuredReader != null && task.declaredReadSpec().provenance() == SchemaProvenance.DECLARED) {
             configuredReader = configuredReader.withDeclaredProvenanceBinding(true);
         }
 
-        // Quoted or escaped CSV/TSV cannot be probed at arbitrary offsets (an in-quote newline, or a
-        // backslash-escaped raw newline, would be misread as a record terminator), so no start-anywhere
-        // splitting is safe: not newline-aligned macro-splits, nor compressed block/frame-aligned splits.
-        // Emit a single whole-file split (identical to the fallback below); the reader consumes it as one
-        // sequential stream and finds boundaries quote/escape-aware.
-        if (requiresSequentialWholeFileRead(configuredReader)) {
-            fileSplits.add(
-                wholeFileSplit(
-                    task.filePath(),
-                    task.fileLength(),
-                    task.format(),
-                    task.config(),
-                    task.partitionValues(),
-                    task.columnMapping(),
-                    task.readSchema()
-                )
-            );
-            return new PlanResult.Splits(fileSplits);
-        }
+        try {
+            // Quoted or escaped CSV/TSV cannot be probed at arbitrary offsets (an in-quote newline, or a
+            // backslash-escaped raw newline, would be misread as a record terminator), so no start-anywhere
+            // splitting is safe: not newline-aligned macro-splits, nor compressed block/frame-aligned splits.
+            // Emit a single whole-file split (identical to the fallback below); the reader consumes it as one
+            // sequential stream and finds boundaries quote/escape-aware.
+            if (requiresSequentialWholeFileRead(configuredReader)) {
+                fileSplits.add(
+                    wholeFileSplit(
+                        task.filePath(),
+                        task.fileLength(),
+                        task.format(),
+                        task.config(),
+                        task.partitionValues(),
+                        task.columnMapping(),
+                        task.readSchema()
+                    )
+                );
+                return new PlanResult.Splits(fileSplits);
+            }
 
-        // Try block-aligned splitting for splittable compressed files (e.g. .ndjson.bz2).
-        // This is independent of targetSplitSizeBytes — compressed files with splittable
-        // codecs are always split at block boundaries when possible.
-        if (tryBlockAlignedSplits(
-            task.filePath(),
-            task.fileLength(),
-            task.format(),
-            task.config(),
-            task.partitionValues(),
-            task.columnMapping(),
-            task.readSchema(),
-            fileSplits,
-            hoistedProvider
-        )) {
-            return new PlanResult.Splits(fileSplits);
-        }
+            // Try block-aligned splitting for splittable compressed files (e.g. .ndjson.bz2).
+            // This is independent of targetSplitSizeBytes — compressed files with splittable
+            // codecs are always split at block boundaries when possible.
+            if (tryBlockAlignedSplits(
+                task.filePath(),
+                task.fileLength(),
+                task.format(),
+                task.config(),
+                task.partitionValues(),
+                task.columnMapping(),
+                task.readSchema(),
+                fileSplits,
+                hoistedProvider
+            )) {
+                return new PlanResult.Splits(fileSplits);
+            }
 
-        if (tryRangeAwareSplits(
-            task.filePath(),
-            task.fileLength(),
-            task.format(),
-            task.config(),
-            task.partitionValues(),
-            task.columnMapping(),
-            task.readSchema(),
-            task.reconciledTypes(),
-            task.declaredReadSpec(),
-            task.inferredFileTypes(),
-            fileSplits,
-            hoistedProvider
-        )) {
-            return new PlanResult.Splits(fileSplits);
-        }
+            if (tryRangeAwareSplits(
+                task.filePath(),
+                task.fileLength(),
+                task.format(),
+                task.config(),
+                task.partitionValues(),
+                task.columnMapping(),
+                task.readSchema(),
+                task.reconciledTypes(),
+                task.declaredReadSpec(),
+                task.inferredFileTypes(),
+                fileSplits,
+                hoistedProvider
+            )) {
+                return new PlanResult.Splits(fileSplits);
+            }
 
-        DeferredNewlineSplits deferred = newlineMacroSplitCandidate(task, strideBytes, hoistedProvider, configuredReader);
-        if (deferred == null) {
-            // Whole-file split when macro splitting does not apply: small files, unsupported formats, or a file
-            // with no stride offset far enough from end-of-file to be worth cutting at.
-            fileSplits.add(
-                wholeFileSplit(
-                    task.filePath(),
-                    task.fileLength(),
-                    task.format(),
-                    task.config(),
-                    task.partitionValues(),
-                    task.columnMapping(),
-                    task.readSchema()
-                )
-            );
-            return new PlanResult.Splits(fileSplits);
+            DeferredNewlineSplits deferred = newlineMacroSplitCandidate(task, strideBytes, hoistedProvider, configuredReader);
+            if (deferred == null) {
+                // Whole-file split when macro splitting does not apply: small files, unsupported formats, or a file
+                // with no stride offset far enough from end-of-file to be worth cutting at.
+                fileSplits.add(
+                    wholeFileSplit(
+                        task.filePath(),
+                        task.fileLength(),
+                        task.format(),
+                        task.config(),
+                        task.partitionValues(),
+                        task.columnMapping(),
+                        task.readSchema()
+                    )
+                );
+                return new PlanResult.Splits(fileSplits);
+            }
+            // Offsets to probe mean a strided splitter, and its probes are deferred so they can share one
+            // concurrency budget with every other file's. A candidate with none can only be walked sequentially,
+            // so resolve it here, where it is at least concurrent with the planning of other files.
+            if (deferred.positions().isEmpty() == false) {
+                return new PlanResult.NeedsProbing(deferred);
+            }
+            RecordBoundaryProbe.ProvenWalk walk = provenMacroSplitStarts(deferred, isCancelled);
+            return new PlanResult.Walked(deferred, walk.boundaries(), walk.stoppedBeforeEndOfFile());
+        } finally {
+            // Planning-scoped: this reader is minted only to ask the format which record splitter and minimum
+            // segment size apply. Nothing past planning reads through it — a candidate carries the RecordSplitter
+            // itself, which the DeferredNewlineSplits contract already requires to be immutable and free of reader
+            // state — so it is released here, on every exit path. Closing the tail covers the whole chain (the
+            // intermediate was configured, never read through), and closeIfDerived leaves the registry's own
+            // instance alone when no with* call minted anything.
+            FormatReaderOwnership.closeIfDerived(configuredReader, resolved.base());
         }
-        // Offsets to probe mean a strided splitter, and its probes are deferred so they can share one
-        // concurrency budget with every other file's. A candidate with none can only be walked sequentially,
-        // so resolve it here, where it is at least concurrent with the planning of other files.
-        if (deferred.positions().isEmpty() == false) {
-            return new PlanResult.NeedsProbing(deferred);
-        }
-        RecordBoundaryProbe.ProvenWalk walk = provenMacroSplitStarts(deferred, isCancelled);
-        return new PlanResult.Walked(deferred, walk.boundaries(), walk.stoppedBeforeEndOfFile());
     }
 
     /**
@@ -1210,24 +1221,36 @@ public class FileSplitProvider implements SplitProvider {
      * strided one. {@code withConfig} returns {@code null} only for test mocks; the base reader is used
      * in that case. The compression suffix is stripped by {@link FormatNameResolver}, so this resolves the
      * inner text reader for compressed files (e.g. {@code .csv.bz2}) too.
+     * <p>
+     * Both instances are returned because the caller has to know which of the two it owns: under the
+     * {@link FormatReader} ownership contract {@code withConfig} hands the caller a new instance to close only when
+     * it actually minted one, and closing {@code base} would close the registry's node-level singleton.
      */
-    @Nullable
-    private FormatReader resolveConfiguredReader(StoragePath filePath, Map<String, Object> config) {
+    private ResolvedReader resolveConfiguredReader(StoragePath filePath, Map<String, Object> config) {
         if (formatRegistry == null) {
-            return null;
+            return ResolvedReader.UNRESOLVED;
         }
         String objectName = filePath.objectName();
         if (objectName == null) {
-            return null;
+            return ResolvedReader.UNRESOLVED;
         }
         try {
             FormatReader base = FormatNameResolver.resolveReader(config, objectName, formatRegistry);
             FormatReader configured = base.withConfig(config);
-            return configured != null ? configured : base;
+            return new ResolvedReader(configured != null ? configured : base, base);
         } catch (RuntimeException e) {
             LOGGER.debug(() -> Strings.format("Cannot resolve reader for [%s]; treating it as non-segmentable", objectName), e);
-            return null;
+            return ResolvedReader.UNRESOLVED;
         }
+    }
+
+    /**
+     * A file's config-aware reader paired with the registry instance {@code withConfig} was applied to. Both fields
+     * are {@code null} when the reader could not be resolved at all (see {@link #resolveConfiguredReader}), which
+     * the caller reads as "treat this file as non-segmentable".
+     */
+    private record ResolvedReader(@Nullable FormatReader configured, @Nullable FormatReader base) {
+        static final ResolvedReader UNRESOLVED = new ResolvedReader(null, null);
     }
 
     /**
@@ -1426,18 +1449,25 @@ public class FileSplitProvider implements SplitProvider {
             return false;
         }
 
+        FormatReader base;
         FormatReader reader;
         try {
-            reader = FormatNameResolver.resolveReader(config, filePath.objectName(), formatRegistry).withConfig(config);
+            base = FormatNameResolver.resolveReader(config, filePath.objectName(), formatRegistry);
+            reader = base.withConfig(config);
         } catch (Exception e) {
             return false;
         }
 
         if (reader instanceof RangeAwareFormatReader == false) {
+            // Nothing was read through the reader on this arm, but a with* mint still changed hands — release it
+            // rather than leave the one non-range format on this path holding a configured instance nobody closes.
+            FormatReaderOwnership.closeIfDerived(reader, base);
             return false;
         }
         RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) reader;
 
+        // Range discovery below reads the file's footer through this reader, so it is the instance that acquires
+        // and the instance this method has to release — on the fall-through-to-single-split paths too.
         try {
             StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
             StorageObject object = provider.newObject(filePath, fileLength);
@@ -1516,6 +1546,8 @@ public class FileSplitProvider implements SplitProvider {
         } catch (IOException e) {
             LOGGER.warn("Failed to discover split ranges for [{}], falling back to single split", filePath, e);
             return false;
+        } finally {
+            FormatReaderOwnership.closeIfDerived(reader, base);
         }
     }
 

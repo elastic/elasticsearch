@@ -71,11 +71,11 @@ import static org.hamcrest.Matchers.nullValue;
  *     <li>Multiple row groups → triggers byte-range splits, exercises {@code readRange()} and the
  *         per-split scoped extractors. This is the path that produced both production
  *         regressions.</li>
-     *     <li>Multiple files (wildcard URI) → multiple extractors registered concurrently per driver,
-     *         each with independent ids; verifies the registry's id encoding survives mixing.</li>
-     *     <li>Multiple files, optional deferred column all-null in file 1 and typed in file 2 →
-     *         same schema, all-null values (not a missing-column union). Phase 5 must concat a
-     *         {@code ConstantNullBlock} with a typed block using the inferred planner type.</li>
+ *     <li>Multiple files (wildcard URI) → multiple extractors registered concurrently per driver,
+ *         each with independent ids; verifies the registry's id encoding survives mixing.</li>
+ *     <li>Multiple files, optional deferred column all-null in file 1 and typed in file 2 →
+ *         same schema, all-null values (not a missing-column union). Phase 5 must concat a
+ *         {@code ConstantNullBlock} with a typed block using the inferred planner type.</li>
  *     <li>Pushed filter ({@code WHERE}) → exercises the rule's pushed-expressions branch and the
  *         narrowed projection's interaction with predicate columns.</li>
  *     <li>Tiny limits ({@code LIMIT 1}) → boundary case for the extractor permutation step.</li>

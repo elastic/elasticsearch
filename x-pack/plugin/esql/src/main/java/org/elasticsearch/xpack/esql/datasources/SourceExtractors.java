@@ -354,8 +354,9 @@ public final class SourceExtractors implements Releasable {
             // {@code ElementType.NULL}; using it as the builder type throws {@code "can't append
             // non-null values to a null block"} as soon as a later id contributes values. Typed
             // builders already accept all-null sources via {@code copyFrom}. If every per-id block
-            // is all-null and there is no declared type, leave the builder null so
-            // {@code newConstantNullBlock} below fills the column — and skip {@code copyFrom} for
+            // is all-null, leave the builder null so {@code newConstantNullBlock} below fills the
+            // column even when a declared type is present — allocating a typed builder of size
+            // {@code count} for an all-null deferred column is wasted. Skip {@code copyFrom} for
             // that column.
             // Hot-path optimization opportunity (deferred): when {@code snapSize == 1} the inverse
             // mapping is identity ({@code inverseId[s] == 0}, {@code inverseIndex[s] == s}) and the
@@ -370,7 +371,13 @@ public final class SourceExtractors implements Releasable {
                     if (declared != null) {
                         ElementType declaredEt = DeclaredTypeCoercions.elementTypeFor(declared);
                         if (declaredEt != ElementType.NULL) {
-                            builders[c] = declaredEt.newBlockBuilder(count, factory);
+                            for (int id = 0; id < snapSize; id++) {
+                                Block b = perColIdBlocks[c][id];
+                                if (b != null && b.elementType() != ElementType.NULL) {
+                                    builders[c] = declaredEt.newBlockBuilder(count, factory);
+                                    break;
+                                }
+                            }
                         }
                         continue;
                     }

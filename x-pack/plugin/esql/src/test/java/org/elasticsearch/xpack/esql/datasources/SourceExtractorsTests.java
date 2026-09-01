@@ -395,16 +395,16 @@ public class SourceExtractorsTests extends ESTestCase {
         }
     }
 
-    public void testMaterializeAllNullWithDeclaredTypeIsTypedNulls() {
-        // Declared type is type authority: an all-null deferred column still materializes as a
-        // typed all-null IntBlock, not ConstantNullBlock.
+    public void testMaterializeAllNullWithDeclaredTypeIsConstantNull() {
+        // All per-id blocks are ConstantNullBlock: keep that, even with a declared type. A typed
+        // builder of size {@code count} would only copy nulls.
         try (SourceExtractors registry = new SourceExtractors()) {
             int idA = registry.register(new NullableIntColumnsExtractor(Map.of("col", new Integer[] { null, null })));
             int idB = registry.register(new NullableIntColumnsExtractor(Map.of("col", new Integer[] { null })));
             long[] refs = new long[] { SourceExtractors.encode(idA, 0), SourceExtractors.encode(idB, 0), SourceExtractors.encode(idA, 1) };
             Block[] result = registry.materialize(refs, refs.length, List.of("col"), List.of(DataType.INTEGER), blockFactory);
             try {
-                assertEquals(ElementType.INT, result[0].elementType());
+                assertEquals(ElementType.NULL, result[0].elementType());
                 assertTrue(result[0].areAllValuesNull());
                 assertEquals(3, result[0].getPositionCount());
                 assertTrue(result[0].isNull(0));

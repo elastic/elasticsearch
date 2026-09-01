@@ -425,7 +425,7 @@ public final class FixtureDimensions {
                     // `gap.<v>`, `gap.<v>.<format>`, and the `rule.` pair. The kind comes from the key and
                     // the reason text must repeat it, so a copied line whose text says the other kind is a
                     // build failure rather than a report that quietly contradicts itself.
-                    case "gap", "rule" -> {
+                    case "gap", "rule", "bug" -> {
                         String slot = requireQualified(key, tail);
                         if (value.startsWith(head + ":") == false) {
                             throw new IllegalStateException(
@@ -1025,7 +1025,7 @@ public final class FixtureDimensions {
             // typed reason for every cell they would otherwise have to serve.
             // The resolver seam is wired for the shapes a standalone template can express; a value with
             // no shaping is licensed by a rule rather than served here.
-            case "resolver" -> seams.contains(Seam.RESOLVER) && FixtureCapabilities.resolverServes(dimension, value);
+            case "resolver" -> seams.contains(Seam.RESOLVER) && FixtureCapabilities.resolverServes(dimension, value, format);
             case "backend", "cluster" -> false;
             default -> throw new IllegalStateException("unhandled binds [" + binds(dimension) + "]");
         };

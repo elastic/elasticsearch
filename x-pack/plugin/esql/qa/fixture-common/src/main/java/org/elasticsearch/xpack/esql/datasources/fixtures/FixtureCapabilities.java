@@ -97,11 +97,20 @@ public final class FixtureCapabilities {
      * which reaches the file through the resolver's LISTING path rather than a direct get. {@code
      * comma_list} is not, and its rule says why: one element is indistinguishable from exact.
      */
-    private static final Set<String> RESOLVER_SERVED = Set.of("path_shape=glob");
+    private static final Set<String> RESOLVER_SERVED = Set.of(
+        // Format-qualified for the same reason the fixture rows are: a resolver shape can be reachable on
+        // one format and blocked on another. A `?` glob is blocked on csv and tsv by elastic/esql-planning#1841
+        // -- the CRUD validator truncates the object key at the `?`, so registering the dataset fails
+        // whenever a format-specific setting is present, which is nearly always on the text formats.
+        // ndjson and parquet register fine: ndjson's config keys are rarely set by these datasets, and
+        // parquet registers no format-specific keys at all since elastic/elasticsearch#157868.
+        "path_shape=glob@ndjson",
+        "path_shape=glob@parquet"
+    );
 
-    /** Whether a suite can ask for this resolver-bound value. */
-    public static boolean resolverServes(String dimension, String value) {
-        return RESOLVER_SERVED.contains(dimension + "=" + value);
+    /** Whether a suite can ask for this resolver-bound value on this format. */
+    public static boolean resolverServes(String dimension, String value, String format) {
+        return RESOLVER_SERVED.contains(dimension + "=" + value + "@" + format);
     }
 
     /** Whether a generator writes this cell's bytes and a suite can select them. */

@@ -69,4 +69,10 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
     public FunctionType functionType() {
         return FunctionType.WITHIN_SERIES_AGGREGATION;
     }
+
+    @Override
+    public boolean isIdentityTransparent() {
+        // Per-series aggregation (e.g. rate): series identity passes through unchanged.
+        return true;
+    }
 }

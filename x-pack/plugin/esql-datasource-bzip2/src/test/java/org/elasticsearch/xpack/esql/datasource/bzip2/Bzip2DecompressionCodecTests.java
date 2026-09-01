@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Unit tests for {@link Bzip2DecompressionCodec}.
@@ -160,14 +161,16 @@ public class Bzip2DecompressionCodecTests extends ESTestCase {
 
     /**
      * Sequential path (data &lt; {@link Bzip2DecompressionCodec#MIN_PARALLEL_SCAN_BYTES}) does no
-     * off-thread work, so the counter stays at zero. Parallel path is exercised by the IT tests.
+     * off-thread work, so the {@code cpuAccum} consumer is never called. Parallel path is
+     * exercised by the IT tests.
      */
-    public void testAsyncCpuNanosSequentialIsZero() throws IOException {
+    public void testCpuAccumNotCalledOnSequentialPath() throws IOException {
         byte[] data = bzip2("hello\nworld\n".getBytes(StandardCharsets.UTF_8));
         StorageObject object = new ByteArrayStorageObject(data);
         Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        codec.findBlockBoundaries(object, 0, data.length);
-        assertEquals(0L, codec.asyncCpuNanos());
+        AtomicLong cpuAccum = new AtomicLong();
+        codec.findBlockBoundaries(object, 0, data.length, cpuAccum::addAndGet);
+        assertEquals(0L, cpuAccum.get());
     }
 
     private static byte[] bzip2(byte[] input) throws IOException {

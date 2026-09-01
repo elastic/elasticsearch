@@ -24,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongConsumer;
 
 import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2BlockScanner.mergeSortedUnique;
 import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2BlockScanner.scanBlockOffsets;
@@ -53,7 +54,6 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
     private static final List<String> EXTENSIONS = List.of(".bz2", ".bz");
 
     private final Executor scanExecutor;
-    private final AtomicLong executorCpuNanos = new AtomicLong();
 
     /**
      * @param scanExecutor Elasticsearch-managed executor (e.g. {@code generic} thread pool) used for
@@ -137,7 +137,7 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
      * concurrently.
      */
     @Override
-    public long[] findBlockBoundaries(StorageObject object, long start, long end) throws IOException {
+    public long[] findBlockBoundaries(StorageObject object, long start, long end, LongConsumer cpuUsageConsumer) throws IOException {
         if (start >= end) {
             return new long[0];
         }
@@ -153,7 +153,7 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
             return findBlockBoundariesSequential(object, start, rangeLen);
         }
         long chunkLen = (rangeLen + numChunks - 1) / numChunks;
-        executorCpuNanos.set(0L);
+        AtomicLong localCpu = new AtomicLong();
         @SuppressWarnings("unchecked")
         CompletableFuture<long[]>[] futures = (CompletableFuture<long[]>[]) new CompletableFuture<?>[numChunks];
         for (int k = 0; k < numChunks; k++) {
@@ -174,7 +174,7 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
                 } catch (IOException e) {
                     throw new CompletionException(e);
                 } finally {
-                    if (cpuStart >= 0) executorCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
+                    if (cpuStart >= 0) localCpu.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
                 }
             }, scanExecutor);
         }
@@ -190,17 +190,13 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
             }
             throw new IOException("Failed parallel bzip2 block scan", c);
         }
+        cpuUsageConsumer.accept(localCpu.get());
         long[][] parts = new long[numChunks][];
         for (int i = 0; i < numChunks; i++) {
             // After allOf().join() every future is done successfully; getNow avoids redundant blocking joins.
             parts[i] = futures[i].getNow(null);
         }
         return mergeSortedUnique(parts);
-    }
-
-    @Override
-    public long asyncCpuNanos() {
-        return executorCpuNanos.get();
     }
 
     private static long[] findBlockBoundariesSequential(StorageObject object, long start, long rangeLen) throws IOException {

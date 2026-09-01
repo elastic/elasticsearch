@@ -88,6 +88,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
+import java.util.function.LongConsumer;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -4425,13 +4426,8 @@ public class FileSplitProviderTests extends ESTestCase {
         }
 
         @Override
-        public long[] findBlockBoundaries(StorageObject object, long start, long end) {
+        public long[] findBlockBoundaries(StorageObject object, long start, long end, LongConsumer ignored) {
             return boundaries.clone();
-        }
-
-        @Override
-        public long asyncCpuNanos() {
-            return 0L;
         }
 
         @Override

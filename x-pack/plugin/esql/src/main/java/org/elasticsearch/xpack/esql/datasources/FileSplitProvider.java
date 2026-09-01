@@ -1341,8 +1341,7 @@ public class FileSplitProvider implements SplitProvider {
             // per file. Fall back to the registry for zero-config or legacy callers.
             StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
             StorageObject object = provider.newObject(filePath, fileLength);
-            long[] boundaries = splittableCodec.findBlockBoundaries(object, 0, fileLength);
-            splitDiscoveryCpuNanos.addAndGet(splittableCodec.asyncCpuNanos());
+            long[] boundaries = splittableCodec.findBlockBoundaries(object, 0, fileLength, splitDiscoveryCpuNanos::addAndGet);
 
             if (boundaries.length == 0) {
                 splits.add(wholeFileSplit(filePath, fileLength, format, config, partitionValues, columnMapping, readSchema));

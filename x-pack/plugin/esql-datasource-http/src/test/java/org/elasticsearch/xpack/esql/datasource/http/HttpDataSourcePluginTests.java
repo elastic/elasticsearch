@@ -11,8 +11,10 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_HTTP_FEATURE_FLAG;
 import static org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG;
@@ -95,5 +97,27 @@ public class HttpDataSourcePluginTests extends ESTestCase {
         assumeFalse("only when http flag is off", ESQL_EXTERNAL_DATASOURCES_HTTP_FEATURE_FLAG.isEnabled());
         assertNotNull("local validator should be present", plugin.datasourceValidators(Settings.EMPTY).get("local"));
         assertTrue("file scheme should be registered", plugin.supportedSchemes().contains("file"));
+    }
+
+    // Format-aware HTTP(S): pins that query-string stripping is preserved for http/https schemes.
+    private static final FileDataSourceValidator.FormatConfigKeyResolver CSV_RESOLVER =
+        FileDataSourceValidator.FormatConfigKeyResolver.of(Map.of("csv", Set.of("delimiter")), Map.of(".csv", "csv"));
+
+    private static final DataSourceValidator FORMAT_AWARE_HTTP = new FileDataSourceValidator(
+        "http",
+        NoAuthDataSourceConfiguration::fromMap,
+        Set.of("http", "https")
+    ).withFormatConfigKeyResolver(CSV_RESOLVER, Set.of(".gz"));
+
+    public void testFormatAwareHttpPresignedUrlStripsQueryAndInfersExtension() {
+        // Row 1 of the naïve-fix breaks table: ?v=1.2 — naive fix gives ".2"; scheme-aware fix gives ".csv".
+        var result = FORMAT_AWARE_HTTP.validateDataset(Map.of(), "https://host/data.csv?v=1.2", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testFormatAwareHttpPresignedUrlWithDottedQueryString() {
+        // Row 2: GCS V4 signed URLs have dots in the query (?sig=a.b) — naive fix gives ".b", scheme-aware gives ".gz".
+        var result = FORMAT_AWARE_HTTP.validateDataset(Map.of(), "https://host/data.csv.gz?sig=a.b", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
     }
 }

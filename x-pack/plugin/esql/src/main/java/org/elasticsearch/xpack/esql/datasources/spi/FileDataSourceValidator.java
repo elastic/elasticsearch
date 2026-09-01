@@ -529,13 +529,23 @@ public class FileDataSourceValidator implements DataSourceValidator {
         return null;
     }
 
-    /** Extracts the object/path portion after the {@code scheme://host/} prefix, stripping any query or fragment. */
+    /**
+     * Extracts the object/path portion after the {@code scheme://host/} prefix.
+     *
+     * <p>Query-string ({@code ?}) and fragment ({@code #}) stripping is applied only for HTTP(S) schemes,
+     * where {@code ?} begins a query string (e.g. presigned URLs like {@code https://host/data.csv?sig=...}).
+     * For object-store schemes ({@code s3}, {@code gcs}, {@code az}, …) {@code ?} is a declared glob
+     * metacharacter ({@link StoragePath#GLOB_METACHARACTERS}) and {@code #} is a legal key character —
+     * stripping them before the extension lookup deletes the extension and breaks format inference for
+     * patterns like {@code day?.csv}.
+     */
     @Nullable
     private static String extractObjectName(String resource) {
         int schemeEnd = resource.indexOf("://");
         if (schemeEnd < 0) {
             return null;
         }
+        String scheme = resource.substring(0, schemeEnd).toLowerCase(Locale.ROOT);
         String afterScheme = resource.substring(schemeEnd + 3);
         int firstSlash = afterScheme.indexOf('/');
         String path;
@@ -544,13 +554,15 @@ public class FileDataSourceValidator implements DataSourceValidator {
         } else {
             path = afterScheme.substring(firstSlash + 1);
         }
-        int qMark = path.indexOf('?');
-        if (qMark >= 0) {
-            path = path.substring(0, qMark);
-        }
-        int hash = path.indexOf('#');
-        if (hash >= 0) {
-            path = path.substring(0, hash);
+        if (scheme.equals("http") || scheme.equals("https")) {
+            int qMark = path.indexOf('?');
+            if (qMark >= 0) {
+                path = path.substring(0, qMark);
+            }
+            int hash = path.indexOf('#');
+            if (hash >= 0) {
+                path = path.substring(0, hash);
+            }
         }
         return path;
     }

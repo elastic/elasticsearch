@@ -812,4 +812,36 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "auto", "delimiter", "|"))
         );
     }
+
+    // --- Glob metacharacter and object-key special-character tests ---
+    // '?' is a first-class glob metacharacter (StoragePath.GLOB_METACHARACTERS). Every object matched by
+    // "day?.csv" ends in ".csv", so the format is inferable from the pattern's own extension. The validator
+    // must not apply URL query-string semantics (truncation at '?') to object-store paths.
+
+    public void testFormatAwareValidatorInfersFormatThroughQuestionMarkGlob() {
+        // '?' is a glob metacharacter; every object this pattern matches ends in .csv.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/logs/day?.csv", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testFormatAwareValidatorInfersFormatThroughStarGlob() {
+        // '*' glob: same extension guarantee, same fix must not regress it.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/logs/day*.csv", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testFormatAwareValidatorHashInObjectKeyInfersFormat() {
+        // '#' is a legal object-store key character; it must not be treated as a URI fragment delimiter.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/report#1.csv", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testFormatAwareValidatorFormatFlipEdgeCaseDocumented() {
+        // An S3 key literally named "data.parquet?x=.csv" (no strip for object stores) has last extension
+        // ".csv", so the validator resolves format=csv and accepts CSV settings. This differs from the
+        // pre-fix behavior (which truncated at '?' and resolved "parquet"), but the input is contrived:
+        // real S3 presigned URLs use https://, never s3://, so no realistic key looks like this.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data.parquet?x=.csv", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
 }

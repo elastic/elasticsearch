@@ -120,6 +120,7 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -133,8 +134,6 @@ import static org.mockito.Mockito.doAnswer;
  * {@link #newStartedShard()} for a good starting points
  */
 public abstract class IndexShardTestCase extends ESTestCase {
-
-    public static final IndexEventListener EMPTY_EVENT_LISTENER = new IndexEventListener() {};
 
     public static final GlobalCheckpointSyncer NOOP_GCP_SYNCER = shardId -> {};
 
@@ -155,7 +154,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         ) {}
 
         @Override
-        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
             throw new AssertionError(e);
         }
 
@@ -546,7 +545,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             engineFactory,
             globalCheckpointSyncer,
             retentionLeaseSyncer,
-            EMPTY_EVENT_LISTENER,
+            IndexEventListener.NOOP,
             searchListeners,
             listeners
         );
@@ -767,7 +766,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             engineFactory,
             current.getGlobalCheckpointSyncer(),
             current.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER,
+            IndexEventListener.NOOP,
             Collections.emptyList(),
             listeners
         );
@@ -1041,7 +1040,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             future.actionGet();
             recoveryTarget.markAsDone();
         } catch (Exception e) {
-            recoveryTarget.fail(new RecoveryFailedException(request, e), false);
+            recoveryTarget.fail(new RecoveryFailedException(request, e), FAIL_SILENT);
             throw e;
         }
     }

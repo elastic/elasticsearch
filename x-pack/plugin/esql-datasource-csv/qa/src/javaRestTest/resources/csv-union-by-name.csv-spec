@@ -37,6 +37,7 @@ FROM employees_multifile_ubn_union
 | SORT name ASC
 | LIMIT 10
 ;
+warningRegex:declared column \[city\] is not present in some source files
 
 name:keyword | age:long | city:keyword
 alice        | 30       | null
@@ -57,12 +58,69 @@ FROM employees_multifile_ubn_union
 | SORT name ASC
 | LIMIT 10
 ;
+warningRegex:declared column \[city\] is not present in some source files
 
 name:keyword | city:keyword
 alice        | null
 bob          | null
 charlie      | paris
 dave         | london
+;
+
+// STATS BY a column missing from some files must still count those files' rows as the null group.
+multiFileUnionByNameCountByCity
+required_capability: dataset_in_from_command
+required_capability: external_csv_header_row_option
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| STATS c = COUNT(*) BY city
+| SORT city ASC;
+warningRegex:declared column \[city\] is not present in some source files
+
+c:long | city:keyword
+1      | london
+1      | paris
+2      | null
+;
+
+// KEEP a column missing from some files must still return those files' rows as null.
+multiFileUnionByNameProjectCityOnly
+required_capability: dataset_in_from_command
+required_capability: external_csv_header_row_option
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| KEEP city
+| SORT city ASC;
+warningRegex:declared column \[city\] is not present in some source files
+
+city:keyword
+london
+paris
+null
+null
+;
+
+// WHERE city IS NULL must match file A's rows (city is absent there, so every row is null).
+multiFileUnionByNameFilterCityIsNull
+required_capability: dataset_in_from_command
+required_capability: external_csv_header_row_option
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| WHERE city IS NULL
+| STATS count = COUNT(*);
+warningRegex:declared column \[city\] is not present in some source files
+
+count:long
+2
 ;
 
 // =========================================================================================

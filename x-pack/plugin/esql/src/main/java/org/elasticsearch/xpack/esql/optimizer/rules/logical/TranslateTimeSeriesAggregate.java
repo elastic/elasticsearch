@@ -316,7 +316,10 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                         addAttribute(g, a, firstPassAggs, secondPassGroupings, context, packDimensions, unpackDimensions, packPositions, i);
                     } else {
                         assert g instanceof Alias : "g must be an Alias at this point";
-                        if (unwrapped instanceof Bucket && timeBucket == null) {
+                        if (unwrapped instanceof Bucket bucket && bucket.field().dataType().isHistogram()) {
+                            Bucket secondPassBucket = histogramBucketForSecondPass(bucket, firstPassAggs);
+                            secondPassGroupings.add(new Alias(g.source(), g.name(), secondPassBucket, g.id()));
+                        } else if (unwrapped instanceof Bucket && timeBucket == null) {
                             throw new IllegalArgumentException(
                                 "Time-series aggregations require direct use of @timestamp which was not found. "
                                     + "If @timestamp was renamed in EVAL, use the original @timestamp field instead."
@@ -392,6 +395,34 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             }
             return new Project(newChild.source(), unpackDims, projects);
         }
+    }
+
+    private static Bucket histogramBucketForSecondPass(Bucket bucket, List<NamedExpression> firstPassAggs) {
+        Alias bucketInput = null;
+        AggregateFunction bucketInputAggregation = null;
+        for (NamedExpression candidate : firstPassAggs) {
+            if (candidate instanceof Alias alias
+                && Alias.unwrap(alias) instanceof AggregateFunction aggregation
+                && aggregation.field().semanticEquals(bucket.field())) {
+                if (bucketInputAggregation != null && bucketInputAggregation.semanticEquals(aggregation) == false) {
+                    throw new EsqlIllegalArgumentException(
+                        "all uses of histogram field [{}] must have the same per-series aggregation",
+                        bucket.field().sourceText()
+                    );
+                }
+                bucketInput = alias;
+                bucketInputAggregation = aggregation;
+            }
+        }
+        if (bucketInput == null) {
+            throw new EsqlIllegalArgumentException(
+                "histogram field [{}] used in BUCKET must also be aggregated in the same STATS command",
+                bucket.field().sourceText()
+            );
+        }
+        List<Expression> children = new ArrayList<>(bucket.children());
+        children.set(0, bucketInput.toAttribute());
+        return (Bucket) bucket.replaceChildren(children);
     }
 
     private static void shadowAggsOverriddenByGroupings(

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -136,8 +137,9 @@ public final class DataSourceModule implements Closeable {
         LocalFileAccess localFileAccess
     ) {
         this.capabilities = capabilities;
-        // Node telemetry sink for external-source read metrics; NOOP when no registry is supplied (tests).
-        this.externalSourceMetrics = meterRegistry == null ? ExternalSourceMetrics.NOOP : new ExternalSourceMetrics(meterRegistry);
+        // Always create a live accumulator so phone-home counters work even when APM is disabled.
+        DataSourceUsageAccumulator accumulator = new DataSourceUsageAccumulator();
+        this.externalSourceMetrics = new ExternalSourceMetrics(meterRegistry != null ? meterRegistry : MeterRegistry.NOOP, accumulator);
         LocalFileAccess effectiveLocalFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         // Off-timer scheduler for the async read-retry backoff, so a retry does not park a GENERIC-pool thread on
         // Thread.sleep while it waits; DIRECT (run promptly on the executor) when no ThreadPool is supplied (tests).
@@ -258,7 +260,14 @@ public final class DataSourceModule implements Closeable {
 
             // Table catalogs: register lazy wrappers
             for (String catalogType : plugin.supportedCatalogs()) {
-                LazyTableCatalogWrapper lazyCatalog = new LazyTableCatalogWrapper(state, catalogType, closeables, settings, credentials);
+                LazyTableCatalogWrapper lazyCatalog = new LazyTableCatalogWrapper(
+                    state,
+                    catalogType,
+                    closeables,
+                    settings,
+                    credentials,
+                    formatReaderRegistry
+                );
                 if (sourceFactoryMap.put(catalogType, lazyCatalog) != null) {
                     throw new IllegalArgumentException("Source factory for type [" + catalogType + "] is already registered");
                 }
@@ -334,7 +343,7 @@ public final class DataSourceModule implements Closeable {
         return sourceFactories;
     }
 
-    /** The node-level external-source telemetry holder, or {@link ExternalSourceMetrics#NOOP} when no registry was supplied. */
+    /** The node-level external-source telemetry holder. Always a live instance backed by a real {@link DataSourceUsageAccumulator}. */
     public ExternalSourceMetrics externalSourceMetrics() {
         return externalSourceMetrics;
     }
@@ -539,6 +548,7 @@ public final class DataSourceModule implements Closeable {
         private final List<Closeable> managedCloseables;
         private final Settings settings;
         private final DataSourceCredentials credentials;
+        private final FormatReaderRegistry formatReaderRegistry;
         private volatile TableCatalog delegate;
 
         LazyTableCatalogWrapper(
@@ -546,13 +556,15 @@ public final class DataSourceModule implements Closeable {
             String catalogType,
             List<Closeable> managedCloseables,
             Settings settings,
-            DataSourceCredentials credentials
+            DataSourceCredentials credentials,
+            FormatReaderRegistry formatReaderRegistry
         ) {
             this.state = state;
             this.catalogType = catalogType;
             this.managedCloseables = managedCloseables;
             this.settings = settings;
             this.credentials = credentials;
+            this.formatReaderRegistry = formatReaderRegistry;
         }
 
         @Override
@@ -582,6 +594,24 @@ public final class DataSourceModule implements Closeable {
             } catch (IllegalArgumentException e) {
                 return false;
             }
+        }
+
+        /**
+         * Declines when the config names an explicit registered file format (mirrors the complementary claim in
+         * {@link FileSourceFactory#canHandle(String, Map)}). Without this override the path-only form would win
+         * the factory race for every extensionless S3 object, even when the config carries an authoritative
+         * {@code format} setting — causing the catalog's {@code validateConfig} to reject the setting as unknown
+         * on the synchronous anchor-footer read path that strict mappings trigger.
+         */
+        @Override
+        public boolean canHandle(String path, Map<String, Object> config) {
+            if (config != null && config.isEmpty() == false) {
+                String format = FormatNameResolver.resolve(config, "");
+                if (format != null && formatReaderRegistry.hasFormat(format)) {
+                    return false;
+                }
+            }
+            return canHandle(path);
         }
 
         @Override

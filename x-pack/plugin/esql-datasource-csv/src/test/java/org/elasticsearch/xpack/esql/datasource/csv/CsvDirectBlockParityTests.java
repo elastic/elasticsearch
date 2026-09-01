@@ -964,6 +964,18 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(1L), row(2L)), rows);
     }
 
+    public void testTsvSeparatorOnlyRowNotDropped() throws IOException {
+        // A row that is all TAB delimiters (\t\t = 3 fields) must reach the output, not be silently
+        // dropped as blank. TAB (0x09) ≤ space (0x20), so the old delimiter-blind check wrongly skipped
+        // it; the delimiter-aware check must keep it.
+        List<List<Object>> rows = read(true, Map.of(), "a:keyword\tb:keyword\tc:keyword\nx\ty\tz\n\t\t\np\tq\tr\n");
+        assertEquals("separator-only TSV row must not be dropped", 3, rows.size());
+        // The separator row produces three empty/null fields on a keyword schema.
+        assertEquals(br(""), rows.get(1).get(0));
+        assertEquals(br(""), rows.get(1).get(1));
+        assertEquals(br(""), rows.get(1).get(2));
+    }
+
     public void testTsvPlainCommentLinesSkipped() throws IOException {
         List<List<Object>> rows = read(true, Map.of("comment", "//"), "a:long\n1\n// a comment\n2\n");
         assertEquals(List.of(row(1L), row(2L)), rows);
@@ -1268,6 +1280,91 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testTwoQuotedFieldsWithEmbeddedDelimiter() throws IOException {
         List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:keyword\n\"p,q\",\"r\"\n");
         assertEquals(List.of(row(br("p,q"), br("r"))), rows);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Fast path: quoted-dialect rows with no embedded quote or escape byte.
+    //
+    // splitAndConvertOptimisticQuoted does a single pass over the row, watching for a
+    // field-leading quote char or (when escaping is on) an escape char mid-field. On either
+    // detection it falls back to splitAndConvertQuoted; otherwise it emits each field directly
+    // via emitPlainField. These tests verify that the optimistic path produces byte-for-byte
+    // identical output to the Jackson baseline (which the read() harness checks automatically),
+    // covering both the no-special-char case and mixed inputs where some rows fall back.
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Rows with no embedded quotes or escapes — the common case for typical CSV — take the
+     * optimistic plain-field path within the quoted dialect. The A/B harness confirms the
+     * optimistic and Jackson/quoted arms produce identical typed blocks.
+     */
+    public void testQuotedDialectNoEmbeddedQuotesFastPath() throws IOException {
+        // Multi-type row: the optimistic path must handle all supported data types correctly.
+        List<List<Object>> rows = read(false, Map.of(), "id:long,name:keyword,score:double\n1,hello,1.5\n2,world,-2.5\n");
+        assertEquals(List.of(row(1L, br("hello"), 1.5), row(2L, br("world"), -2.5)), rows);
+    }
+
+    /**
+     * Rows with no embedded quotes interleaved with rows that do embed a quote or delimiter.
+     * The optimistic dispatcher re-evaluates each row independently, so plain rows and quoted
+     * rows can co-exist within a single file.
+     */
+    public void testQuotedDialectMixedFastPathAndQuotedPathRows() throws IOException {
+        String csv = "a:keyword,b:keyword\nplain,row\n\"has,comma\",quoted\nplain2,again\n";
+        List<List<Object>> rows = read(false, Map.of(), csv);
+        assertEquals(List.of(row(br("plain"), br("row")), row(br("has,comma"), br("quoted")), row(br("plain2"), br("again"))), rows);
+    }
+
+    /**
+     * A row that contains an unquoted escape sequence (e.g. {@code a\,b}) is NOT eligible for the
+     * plain-field path because the optimistic dispatcher detects the escape char and falls back to
+     * the quoted walker. The row must still parse correctly.
+     */
+    public void testQuotedDialectUnquotedEscapeBypassesFastPath() throws IOException {
+        List<List<Object>> rows = read(false, Map.of(), "k:keyword\na\\,b\n");
+        assertEquals(List.of(row(br("a,b"))), rows);
+    }
+
+    /**
+     * With {@code escape: none} the dialect is {@code quoting=true, escaping=false}. In this mode
+     * the optimistic dispatcher does not watch for the escape char; a backslash is a literal and
+     * a row containing one takes the plain-field fast path. The backslash must survive intact.
+     */
+    public void testQuotedDialectEscapeNoneFastPathPreservesBackslash() throws IOException {
+        List<List<Object>> rows = read(false, Map.of("escape", "none"), "k:keyword\nhello\\world\n");
+        assertEquals(List.of(row(br("hello\\world"))), rows);
+    }
+
+    /**
+     * {@code quoteChar == delimiter} is an invalid configuration: {@link CsvFormatOptions} rejects
+     * it at construction time, so the optimistic dispatcher can never encounter a row where the
+     * quote char and the field separator are the same character.
+     */
+    public void testQuotedDialectQuoteCharEqualsDelimiterIsRejected() {
+        // The default CSV delimiter is comma; setting quote=, makes quoteChar == delimiter.
+        assertThrows(IllegalArgumentException.class, () -> read(false, Map.of("quote", ","), "k:keyword\nhello\n"));
+    }
+
+    /**
+     * When a non-default {@code quoteChar} (here {@code |}) appears at field start in every data
+     * row, the optimistic dispatcher detects the field-leading {@code |} and hands off each row to
+     * {@code splitAndConvertQuoted}. The A/B harness confirms the quoted path and Jackson arms
+     * produce identical results.
+     */
+    public void testQuotedDialectCustomQuoteCharInEveryRowBypassesFastPath() throws IOException {
+        List<List<Object>> rows = read(false, Map.of("quote", "|"), "a:keyword,b:keyword\n|hello|,|world|\n|foo|,bar\n");
+        assertEquals(List.of(row(br("hello"), br("world")), row(br("foo"), br("bar"))), rows);
+    }
+
+    /**
+     * Doubling the {@code quoteChar} inside a quoted field is the RFC 4180 escape for a literal
+     * occurrence of that character. The optimistic dispatcher sees the field-leading {@code |} and
+     * routes the row through {@code splitAndConvertQuoted}, which must decode
+     * {@code |hello||world|} as {@code hello|world}.
+     */
+    public void testQuotedDialectCustomQuoteCharDoubledWithinQuotedField() throws IOException {
+        List<List<Object>> rows = read(false, Map.of("quote", "|"), "k:keyword\n|hello||world|\n");
+        assertEquals(List.of(row(br("hello|world"))), rows);
     }
 
     // ---------------------------------------------------------------------------------------------

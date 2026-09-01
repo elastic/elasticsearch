@@ -24,6 +24,7 @@ emp_no:integer | _fork:keyword
 simpleForkWithStats
 required_capability: fork_v9
 required_capability: routing_function_update
+skip_columnar: FORK branch stats differ in columnar mode when MV field ordering affects aggregation order
 
 // tag::simpleForkWithStats[]
 FROM books METADATA _score

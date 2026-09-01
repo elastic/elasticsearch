@@ -27,6 +27,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -44,13 +45,13 @@ import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.Sep
 public final class BinaryDocValuesContainsTermQuery extends Query {
     final String fieldName;
     final BytesRef containsTerm;
-    // See AbstractBinaryDocValuesQuery#arrayOrderInlineNull: selects the inline-null decoder for the multi-valued fallback path.
-    final boolean arrayOrderInlineNull;
+    // Selects the decoder for the multi-valued fallback path; see BinaryDocValuesFormat.
+    final BinaryDocValuesFormat binaryFormat;
 
-    BinaryDocValuesContainsTermQuery(String fieldName, BytesRef containsTerm, boolean arrayOrderInlineNull) {
+    BinaryDocValuesContainsTermQuery(String fieldName, BytesRef containsTerm, BinaryDocValuesFormat binaryFormat) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.containsTerm = Objects.requireNonNull(containsTerm);
-        this.arrayOrderInlineNull = arrayOrderInlineNull;
+        this.binaryFormat = Objects.requireNonNull(binaryFormat);
     }
 
     @Override
@@ -102,7 +103,7 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                         }
                         Predicate<BytesRef> predicate = bytes -> contains(bytes, containsTerm);
                         final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-                        return arrayOrderInlineNull
+                        return binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL
                             ? AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, predicate, matchCost())
                             : AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, predicate, matchCost());
                     }
@@ -140,12 +141,14 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
             return false;
         }
         BinaryDocValuesContainsTermQuery that = (BinaryDocValuesContainsTermQuery) o;
-        return Objects.equals(fieldName, that.fieldName) && Objects.equals(containsTerm, that.containsTerm);
+        return Objects.equals(fieldName, that.fieldName)
+            && Objects.equals(containsTerm, that.containsTerm)
+            && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, containsTerm);
+        return Objects.hash(classHash(), fieldName, containsTerm, binaryFormat);
     }
 
     public static boolean contains(BytesRef value, BytesRef term) {

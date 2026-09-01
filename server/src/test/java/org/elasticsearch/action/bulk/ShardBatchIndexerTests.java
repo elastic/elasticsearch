@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
@@ -83,7 +84,10 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
           }
         }""";
 
-    private final ShardBatchIndexer shardBatchIndexer = new ShardBatchIndexer(Settings.EMPTY, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private final ShardBatchIndexer shardBatchIndexer = new ShardBatchIndexer(
+        new BatchIndexingEnabled(ClusterSettings.createBuiltInClusterSettings()),
+        BytesRefRecycler.NON_RECYCLING_INSTANCE
+    );
 
     private final List<IndexShard> trackedShards = new ArrayList<>();
 

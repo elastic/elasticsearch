@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasource.snappy.SnappyDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -1016,8 +1017,8 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     /**
-     * Test-only plugin registering a mock {@code parquet} format so {@code reader=java}/{@code reader=parquet-rs}
-     * resolve to a real registry entry without pulling in the actual (whole-file-compression-incompatible)
+     * Test-only plugin registering a mock {@code parquet} format so {@code reader=java}
+     * resolves to a real registry entry without pulling in the actual (whole-file-compression-incompatible)
      * Parquet reader.
      */
     private static class MockParquetFormatPlugin implements DataSourcePlugin {
@@ -1103,8 +1104,68 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     /**
-     * Test that DataSourceModule correctly reports table catalog availability.
+     * {@link DataSourceModule.LazyTableCatalogWrapper#canHandle(String, Map)} must decline when the config carries an
+     * explicit registered file format. Without this, the Iceberg wrapper wins the factory race for extensionless S3
+     * paths even when an authoritative {@code format} setting is present — causing IcebergTableCatalog.validateConfig to
+     * reject the setting as unknown on the synchronous anchor-footer read that strict mappings trigger.
      */
+    public void testLazyTableCatalogWrapperDeclinesExplicitRegisteredFormat() {
+        // A plugin that registers "test-parquet" as a file format and "test-catalog" as a table catalog.
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("test-scheme");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                // Register both "test-parquet" (for the format= key cases) and "parquet" so the
+                // reader=java alias (READER_ALIAS_TO_FORMAT maps "java" → "parquet") is also covered.
+                return Set.of(FormatSpec.of("test-parquet", ".test-parquet"), FormatSpec.of("parquet", ".parquet"));
+            }
+
+            @Override
+            public Set<String> supportedCatalogs() {
+                return Set.of("test-catalog");
+            }
+        };
+
+        try (DataSourceModule module = createModule(List.of(plugin), Settings.EMPTY, blockFactory)) {
+            ExternalSourceFactory catalogFactory = module.sourceFactories().get("test-catalog");
+            assertNotNull("test-catalog factory must be registered", catalogFactory);
+
+            String extensionlessS3 = "s3://bucket/no-ext-object";
+
+            // Declines when config names the registered format.
+            assertFalse(catalogFactory.canHandle(extensionlessS3, Map.of("format", "test-parquet")));
+
+            // Still claims when format is auto (sentinel meaning "infer from extension").
+            assertTrue(catalogFactory.canHandle(extensionlessS3, Map.of("format", "auto")));
+
+            // Still claims when config is absent or empty — Iceberg heuristic remains operative.
+            assertTrue(catalogFactory.canHandle(extensionlessS3, null));
+            assertTrue(catalogFactory.canHandle(extensionlessS3, Map.of()));
+
+            // Still claims when the format name is not a registered file format.
+            assertTrue(catalogFactory.canHandle(extensionlessS3, Map.of("format", "not-a-registered-format")));
+
+            // reader=java is an alias for "parquet" (via FormatNameResolver.READER_ALIAS_TO_FORMAT) — declines because
+            // "parquet" is a registered format.
+            assertFalse(catalogFactory.canHandle(extensionlessS3, Map.of("reader", "java")));
+
+            // Regression pin: extensionful S3 path is never claimed regardless of config.
+            assertFalse(catalogFactory.canHandle("s3://bucket/obj.csv", Map.of()));
+            assertFalse(catalogFactory.canHandle("s3://bucket/obj.csv", Map.of("format", "test-parquet")));
+
+            // Regression pin: non-S3 scheme is never claimed.
+            assertFalse(catalogFactory.canHandle("file:///tmp/no-ext", Map.of()));
+            assertFalse(catalogFactory.canHandle("file:///tmp/no-ext", Map.of("format", "test-parquet")));
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /** Test that DataSourceModule correctly reports table catalog availability. */
     public void testTableCatalogAvailability() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
         DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);

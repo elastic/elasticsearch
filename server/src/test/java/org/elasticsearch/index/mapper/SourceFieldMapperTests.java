@@ -43,6 +43,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -544,7 +545,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
     public void testNonColumnarSourceModesRejectedInColumnarIndex() {
         // DISABLED and STORED are rejected on columnar index modes (SYNTHETIC is allowed)
-        for (var columnarMode : new IndexMode[] { IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR }) {
+        for (var columnarMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {
             for (var unsupportedMode : new SourceFieldMapper.Mode[] { SourceFieldMapper.Mode.DISABLED, SourceFieldMapper.Mode.STORED }) {
                 Settings settings = Settings.builder()
                     .put(IndexSettings.MODE.getKey(), columnarMode.toString())
@@ -561,16 +562,38 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                             + unsupportedMode
                             + "] for index mode ["
                             + columnarMode
-                            + "]; supported values: [SYNTHETIC, COLUMNAR_STORED]"
+                            + "]; supported values: "
+                            + columnarMode.supportedSourceModes()
                     )
                 );
             }
         }
     }
 
+    /** The vector columnar mode only supports synthetic source for now. */
+    public void testColumnarStoredSourceModeRejectedInVectordbColumnarIndex() {
+        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_COLUMNAR.toString())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .build();
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(settings, topMapping(b -> {}))
+        );
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                "unsupported source mode [COLUMNAR_STORED] for index mode ["
+                    + IndexMode.VECTORDB_COLUMNAR
+                    + "]; supported values: [SYNTHETIC]"
+            )
+        );
+    }
+
     public void testSyntheticRecoverySourceRequiredForColumnarIndex() {
         // Disabling synthetic recovery source is rejected for columnar index modes
-        for (var columnarMode : new IndexMode[] { IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR }) {
+        for (var columnarMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {
             Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), columnarMode.toString())
                 .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), false)

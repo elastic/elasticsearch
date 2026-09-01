@@ -46,12 +46,16 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     protected Logger log = LogManager.getLogger(getClass());
 
-    private static final List<Batch<PhysicalPlan>> RULES = rules();
-
     private final PhysicalVerifier verifier = PhysicalVerifier.LOCAL_INSTANCE;
+
+    private boolean approximationApplied;
 
     public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
         super(context);
+    }
+
+    public boolean approximationApplied() {
+        return approximationApplied;
     }
 
     public PhysicalPlan localOptimize(PhysicalPlan plan) {
@@ -69,10 +73,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     @Override
     protected List<Batch<PhysicalPlan>> batches() {
-        return RULES;
-    }
-
-    protected static List<Batch<PhysicalPlan>> rules() {
         // execute the rules multiple times to improve the chances of things being pushed down
         var pushdown = new Batch<>(
             "Push to ES",
@@ -88,7 +88,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new PushStatsToExternalSource(),
             new PushTopNIntoExternalSource(),
             new EnableSpatialDistancePushdown(),
-            new ReplaceSampledStatsBySampleAndStats(),
+            new ReplaceSampledStatsBySampleAndStats(() -> approximationApplied = true),
             new PushSampleToSource()
         );
 

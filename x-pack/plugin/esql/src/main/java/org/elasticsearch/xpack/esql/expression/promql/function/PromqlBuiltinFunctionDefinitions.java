@@ -24,10 +24,12 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoField;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
@@ -97,6 +99,87 @@ public class PromqlBuiltinFunctionDefinitions {
                 + "A `without` grouping clause is not yet supported."
         )
         .name("limitk");
+
+    /**
+     * {@code label_replace(v, dst_label, replacement, src_label, regex)} matches {@code regex} (fully anchored) against the
+     * value of {@code src_label} and, on a match, sets {@code dst_label} to the expanded {@code replacement}. It manipulates
+     * only labels/identity, never sample values, so it has no ES|QL function to build: it resolves into a dedicated node and
+     * is translated directly (see {@code ResolvePromqlFunctions} / {@code TranslatePromqlToEsqlPlan}).
+     */
+    public static final PromqlFunctionDefinition LABEL_REPLACE = PromqlFunctionDefinition.def()
+        .metadataManipulation(
+            new PromqlFunctionDefinition.PromqlFunctionArity(5, 5),
+            false,
+            List.of(
+                PromqlFunctionDefinition.INSTANT_VECTOR,
+                PromqlFunctionDefinition.PromqlParamInfo.of("dst_label", PromqlDataType.SCALAR, "Name of the label to set."),
+                PromqlFunctionDefinition.PromqlParamInfo.of(
+                    "replacement",
+                    PromqlDataType.SCALAR,
+                    "Replacement value, with `$1`/`$name`/`${name}` capture-group expansion."
+                ),
+                PromqlFunctionDefinition.PromqlParamInfo.of("src_label", PromqlDataType.SCALAR, "Name of the label to read."),
+                PromqlFunctionDefinition.PromqlParamInfo.of(
+                    "regex",
+                    PromqlDataType.SCALAR,
+                    "Regular expression matched against `src_label`."
+                )
+            )
+        )
+        .description(
+            "Matches the regular expression `regex` against the value of the label `src_label`. On a match, sets the label "
+                + "`dst_label` to the expansion of `replacement`, substituting `$1`, `$name`, and `${name}` with the matched "
+                + "capture groups; on no match the input series is returned unchanged."
+        )
+        .example("""
+            sum by (job2) (label_replace(http_requests_total, "job2", "$1", "job", "(.*)-server"))""")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
+        .differenceFromPrometheus(
+            "Supported in this version only when the derived destination label is consumed by an enclosing `by(...)` "
+                + "aggregation. The destination may be a new label or may overwrite a stored label (a dimension or "
+                + "`__name__`). A `without` grouping or a bare (non-aggregated) call are rejected. Regular expressions use "
+                + "the RE2 engine (RE2 syntax including `(?P<name>)`, `$1`/`$name`/`${name}` replacement expansion, no "
+                + "backreferences, fully anchored as `^(?s:regex)$`), matching Prometheus. Reading or overwriting "
+                + "`__name__` behaves like Prometheus only for Prometheus-style data that stores `__name__` as a label; "
+                + "for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here."
+        )
+        .name("label_replace");
+
+    /**
+     * {@code label_join(v, dst_label, separator, src_label_1, ... src_label_N)} sets {@code dst_label} to the values of the
+     * source labels joined by {@code separator}. Variadic in the source labels. Like {@code label_replace} it manipulates
+     * only labels/identity and is translated directly rather than lowered through the generic function builder.
+     */
+    public static final PromqlFunctionDefinition LABEL_JOIN = PromqlFunctionDefinition.def()
+        .metadataManipulation(
+            new PromqlFunctionDefinition.PromqlFunctionArity(3, Integer.MAX_VALUE),
+            true,
+            List.of(
+                PromqlFunctionDefinition.INSTANT_VECTOR,
+                PromqlFunctionDefinition.PromqlParamInfo.of("dst_label", PromqlDataType.SCALAR, "Name of the label to set."),
+                PromqlFunctionDefinition.PromqlParamInfo.of(
+                    "separator",
+                    PromqlDataType.SCALAR,
+                    "String inserted between the source values."
+                ),
+                PromqlFunctionDefinition.PromqlParamInfo.of("src_label", PromqlDataType.SCALAR, "Name of a label to join (repeatable).")
+            )
+        )
+        .description(
+            "Joins the values of the source labels `src_label_1` .. `src_label_N` using `separator` and stores the result in "
+                + "the label `dst_label`. A missing source label contributes an empty string."
+        )
+        .example("""
+            sum by (endpoint) (label_join(http_requests_total, "endpoint", "/", "job", "instance"))""")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
+        .differenceFromPrometheus(
+            "Supported in this version only when the derived destination label is consumed by an enclosing `by(...)` "
+                + "aggregation. The destination may be a new label or may overwrite a stored label (a dimension or "
+                + "`__name__`). A `without` grouping or a bare (non-aggregated) call are rejected. Reading or overwriting "
+                + "`__name__` behaves like Prometheus only for Prometheus-style data that stores `__name__` as a label; "
+                + "for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here."
+        )
+        .name("label_join");
 
     public static final PromqlFunctionDefinition VECTOR = PromqlFunctionDefinition.def()
         .vectorConversion()

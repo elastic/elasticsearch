@@ -250,6 +250,7 @@ public class InternalEngine extends Engine {
     private final boolean useTsdbSyntheticId;
 
     protected static final String REAL_TIME_GET_REFRESH_SOURCE = "realtime_get";
+    protected static final String REAL_TIME_GET_FOR_UPDATE_REFRESH_SOURCE = "realtime_get_for_update";
     protected static final String UNSAFE_VERSION_MAP_REFRESH_SOURCE = "unsafe_version_map";
 
     @SuppressWarnings("this-escape")
@@ -931,13 +932,25 @@ public class InternalEngine extends Engine {
     ) {
         try (var ignored = acquireEnsureOpenRef()) {
             if (get.realtime()) {
-                var result = realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, true);
+                var result = realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, REAL_TIME_GET_REFRESH_SOURCE, true);
                 assert result != null : "real-time get result must not be null";
                 return result;
             } else {
                 // we expose what has been externally expose in a point in time snapshot via an explicit refresh
                 return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, splitShardCountSummary, searcherWrapper), false);
             }
+        }
+    }
+
+    @Override
+    public GetResult getForUpdate(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Searcher, Searcher> searcherWrapper
+    ) {
+        try (var ignored = acquireEnsureOpenRef()) {
+            return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, REAL_TIME_GET_FOR_UPDATE_REFRESH_SOURCE, true);
         }
     }
 
@@ -949,7 +962,7 @@ public class InternalEngine extends Engine {
         Function<Searcher, Searcher> searcherWrapper
     ) {
         try (var ignored = acquireEnsureOpenRef()) {
-            return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, false);
+            return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, REAL_TIME_GET_REFRESH_SOURCE, false);
         }
     }
 
@@ -962,6 +975,7 @@ public class InternalEngine extends Engine {
         MappingLookup mappingLookup,
         DocumentParser documentParser,
         Function<Searcher, Searcher> searcherWrapper,
+        String refreshSource,
         boolean getFromSearcher
     ) {
         assert isDrainedForClose() == false;
@@ -1026,7 +1040,7 @@ public class InternalEngine extends Engine {
                     }
                 }
                 assert versionValue.seqNo >= 0 : versionValue;
-                refreshIfNeeded(REAL_TIME_GET_REFRESH_SOURCE, versionValue.seqNo);
+                refreshIfNeeded(refreshSource, versionValue.seqNo);
             }
             if (getFromSearcherIfNotInTranslog) {
                 return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
@@ -1713,7 +1727,11 @@ public class InternalEngine extends Engine {
                     // TODO: Batch Optimize the persisted seqNo
                     localCheckpointTracker.markSeqNoAsPersisted(result.getSeqNo());
                 }
-                result.setTook(relativeTimeInNanosSupplier.getAsLong() - subBatch.startTime());
+
+                // subBatch.startTime() is the start time of the first sub-batch.
+                // The numerator below is the cumulative time which includes all sub batches before the current one
+                // TODO: Add a BatchResult which contains the item level results but has a top level took time
+                result.setTook((relativeTimeInNanosSupplier.getAsLong() - subBatch.startTime()) / subBatchSize);
                 result.freeze();
             }
         } finally {
@@ -4318,7 +4336,7 @@ public class InternalEngine extends Engine {
         return preCommitSegmentGeneration.get();
     }
 
-    <T> T performActionWithDirectoryReader(SearcherScope scope, CheckedFunction<DirectoryReader, T, IOException> action)
+    protected <T> T performActionWithDirectoryReader(SearcherScope scope, CheckedFunction<DirectoryReader, T, IOException> action)
         throws EngineException {
         assert scope == SearcherScope.INTERNAL : "performActionWithDirectoryReader(...) isn't prepared for external usage";
         if (store.tryIncRef() == false) {

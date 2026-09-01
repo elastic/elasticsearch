@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.stateless.recovery;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.store.FilterIndexInput;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -51,6 +54,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
@@ -59,6 +63,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -81,9 +86,11 @@ import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.War
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
@@ -102,11 +109,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
@@ -120,6 +129,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static org.elasticsearch.xpack.stateless.recovery.SlowRelocationLogger.MAX_SLOW_OPERATION_THREAD_DUMPS;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
@@ -144,7 +154,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
-        plugins.add(DisableWarmOnUploadPlugin.class);
+        plugins.add(StatelessTestPlugin.class);
         plugins.add(MockRepository.Plugin.class);
         plugins.add(InternalSettingsPlugin.class);
         return List.copyOf(plugins);
@@ -1088,7 +1098,67 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         ensureGreen(indexName);
     }
 
-    public static class DisableWarmOnUploadPlugin extends TestUtils.StatelessPluginWithTrialLicense {
+    public void testPrewarmIdLookupsOnRelocation() {
+        TimeValue recentIdLookupThreshold = TimeValue.timeValueMinutes(5);
+        final var nodeSettings = Settings.builder()
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            .put(ID_LOOKUP_RECENCY_THRESHOLD_SETTING.getKey(), recentIdLookupThreshold)
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .build();
+        final var sourceNode = startMasterAndIndexNode(nodeSettings);
+        final var targetNode = startMasterAndIndexNode(nodeSettings);
+
+        // With recent ID lookups: prewarmIdLookups should be true on the target engine after relocation.
+        final var indexWithLookups = "index-with-lookups";
+        createIndex(indexWithLookups, indexSettings(1, 0).put("index.routing.allocation.require._name", sourceNode).build());
+        ensureGreen(indexWithLookups);
+        // Index a single document sometimes so min==max
+        var bulkResponse = indexDocs(indexWithLookups, randomIntBetween(1, 25), ESTestCase::randomUUID);
+        var indexedIds = new TreeSet<String>();
+        for (BulkItemResponse bulkItemResponse : bulkResponse) {
+            indexedIds.add(bulkItemResponse.getId());
+        }
+        flush(indexWithLookups);
+        assertTrue(getShardEngine(findIndexShard(indexWithLookups), IndexEngine.class).hasRecentIdLookup(recentIdLookupThreshold));
+        long prefetchCountBeforeRelocation = StatelessTestPlugin.timFilePrefetchCount.longValue();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", targetNode), indexWithLookups);
+        ensureGreen(indexWithLookups);
+        assertThat(StatelessTestPlugin.timFilePrefetchCount.longValue(), greaterThan(prefetchCountBeforeRelocation));
+        var cacheService = internalCluster().getInstance(StatelessPlugin.SharedBlobCacheServiceSupplier.class, targetNode).get();
+        long missCountBeforeIdLookups = cacheService.getStats().missCount();
+        // Ensure that the min and max _id's do not hit cache misses
+        try {
+            client().prepareIndex(indexWithLookups).setId(indexedIds.first()).setCreate(true).setSource(Map.of("key", "value")).get();
+        } catch (Exception e) {
+            // expected: document already exists
+        }
+        try {
+            client().prepareIndex(indexWithLookups).setId(indexedIds.last()).setCreate(true).setSource(Map.of("key", "value")).get();
+        } catch (Exception e) {
+            // expected: document already exists
+        }
+        assertThat(cacheService.getStats().missCount(), equalTo(missCountBeforeIdLookups));
+
+        // Without recent ID lookups: prewarmIdLookups should be false on the target engine after relocation.
+        final var indexWithoutLookups = "index-without-lookups";
+        createIndex(indexWithoutLookups, indexSettings(1, 0).put("index.routing.allocation.require._name", sourceNode).build());
+        ensureGreen(indexWithoutLookups);
+        flush(indexWithoutLookups);
+        assertFalse(
+            getShardEngine(findIndexShard(resolveIndex(indexWithoutLookups), 0, sourceNode), IndexEngine.class).hasRecentIdLookup(
+                recentIdLookupThreshold
+            )
+        );
+
+        long prefetchCountBeforeSecondRelocation = StatelessTestPlugin.timFilePrefetchCount.longValue();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", targetNode), indexWithoutLookups);
+        ensureGreen(indexWithoutLookups);
+        assertThat(StatelessTestPlugin.timFilePrefetchCount.longValue(), equalTo(prefetchCountBeforeSecondRelocation));
+    }
+
+    public static class StatelessTestPlugin extends TestUtils.StatelessPluginWithTrialLicense {
+
+        static final LongAdder timFilePrefetchCount = new LongAdder();
 
         static final Setting<Boolean> ENABLED_WARMING = Setting.boolSetting(
             "test.stateless.warm_on_upload_enabled",
@@ -1102,7 +1172,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             Setting.Property.NodeScope
         );
 
-        public DisableWarmOnUploadPlugin(Settings settings) {
+        public StatelessTestPlugin(Settings settings) {
             super(settings);
         }
 
@@ -1170,6 +1240,46 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     ActionListener.completeWith(listener, () -> null);
                 }
             };
+        }
+
+        @Override
+        protected IndexBlobStoreCacheDirectory createIndexBlobStoreCacheDirectory(
+            StatelessSharedBlobCacheService cacheService,
+            ShardId shardId
+        ) {
+            return new IndexBlobStoreCacheDirectory(cacheService, shardId) {
+                @Override
+                protected IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges) {
+                    return new PrefetchCountingIndexInput(super.doOpenInput(name, context, blobFileRanges), name.contains(".tim"));
+                }
+            };
+        }
+
+        private static final class PrefetchCountingIndexInput extends FilterIndexInput {
+            private final boolean countPrefetch;
+
+            PrefetchCountingIndexInput(IndexInput delegate, boolean countPrefetch) {
+                super(delegate.toString(), delegate);
+                this.countPrefetch = countPrefetch;
+            }
+
+            @Override
+            public void prefetch(long offset, long length) throws IOException {
+                if (countPrefetch) {
+                    timFilePrefetchCount.increment();
+                }
+                in.prefetch(offset, length);
+            }
+
+            @Override
+            public IndexInput clone() {
+                return new PrefetchCountingIndexInput(in.clone(), countPrefetch);
+            }
+
+            @Override
+            public IndexInput slice(String description, long offset, long length) throws IOException {
+                return new PrefetchCountingIndexInput(in.slice(description, offset, length), countPrefetch || description.contains(".tim"));
+            }
         }
     }
 
@@ -1259,10 +1369,10 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             Settings.builder()
                 .put(indexNodesSettings)
                 // Disable warm-on-upload since otherwise it populates the cache when uploading the flush after relocation handoff.
-                .put(DisableWarmOnUploadPlugin.ENABLED_WARMING.getKey(), false)
+                .put(StatelessTestPlugin.ENABLED_WARMING.getKey(), false)
                 // Ensure BCC header pre-warming completes before readIndexingShardState reads region 0, so the test
                 // observes exactly one cache write instead of two when they race to fill different sub-ranges.
-                .put(DisableWarmOnUploadPlugin.SYNC_BCC_HEADER_PREWARM.getKey(), true)
+                .put(StatelessTestPlugin.SYNC_BCC_HEADER_PREWARM.getKey(), true)
                 .build()
         );
         ensureStableCluster(3);

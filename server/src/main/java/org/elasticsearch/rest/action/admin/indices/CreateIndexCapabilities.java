@@ -9,6 +9,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.FieldMapper;
 
@@ -40,6 +41,11 @@ public class CreateIndexCapabilities {
      */
     private static final String VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY = "vectordb_document_index_mode";
 
+    /**
+     * Support vectordb_columnar index mode
+     */
+    private static final String VECTORDB_COLUMNAR_INDEX_MODE_CAPABILITY = "vectordb_columnar_index_mode";
+
     private static final String NESTED_DENSE_VECTOR_SYNTHETIC_TEST = "nested_dense_vector_synthetic_test";
 
     private static final String POORLY_FORMATTED_BAD_REQUEST = "poorly_formatted_bad_request";
@@ -57,8 +63,7 @@ public class CreateIndexCapabilities {
     private static final String SLICE_INDEXING_CAPABILITY = "slice_indexing";
 
     /**
-     * Support for {@code doc_values.on_failure=ignore} ({@code index.mapping.doc_values.on_failure=ignore}). Advertised
-     * only when the feature flag is on, so YAML tests can gate on it and skip on builds where the feature is unavailable.
+     * Support for {@code doc_values.on_failure=ignore}.
      */
     private static final String DOC_VALUES_ON_FAILURE_CAPABILITY = "doc_values_on_failure";
 
@@ -78,6 +83,9 @@ public class CreateIndexCapabilities {
         );
         caps.add(COLUMNAR_INDEX_MODES_CAPABILITY);
         caps.add(VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY);
+        if (IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            caps.add(VECTORDB_COLUMNAR_INDEX_MODE_CAPABILITY);
+        }
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             caps.add(SLICE_INDEXING_CAPABILITY);
         }

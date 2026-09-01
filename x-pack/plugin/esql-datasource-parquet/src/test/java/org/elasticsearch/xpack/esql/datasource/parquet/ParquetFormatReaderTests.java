@@ -1698,6 +1698,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
             // read_nanos must grow as the iterator is consumed (row-group transitions + per-batch
             // decode), not just cover the read()/readRange() setup phase measured before the loop.
             assertThat(reader.statusSnapshot().readNanos(), greaterThan(readNanosAfterOpen));
+            // read_cpu_nanos must be positive (ThreadMXBean fires on the same thread) and bounded by wall time.
+            assertThat(reader.statusSnapshot().readCpuNanos(), greaterThan(0L));
+            assertThat(reader.statusSnapshot().readCpuNanos(), lessThanOrEqualTo(reader.statusSnapshot().readNanos()));
         }
     }
 
@@ -2266,7 +2269,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
     /**
      * A timestamp[us] value beyond the representable date_nanos range (~year 2262) has no nanosecond
      * representation, so it is returned as null rather than silently wrapping around. A defined in-range
-     * value in the same column is unaffected.
+     * value in the same column is unaffected. The warning must use the supplied relay rather than the scan thread's
+     * response headers so it survives execution on another node.
      */
     public void testReadTimestampMicrosOutOfRangeReturnsNull() throws Exception {
         MessageType schema = Types.buildMessage()
@@ -2288,19 +2292,35 @@ public class ParquetFormatReaderTests extends ESTestCase {
             return List.of(g1, g2);
         });
 
-        StorageObject storageObject = createStorageObject(parquetData);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        String expectedWarning = timestampOutOfRangeWarning("ts");
+        for (ParquetFormatReader reader : List.of(
+            new ParquetFormatReader(blockFactory),
+            new ParquetFormatReader(blockFactory).withBaselinePath()
+        )) {
+            StorageObject storageObject = createStorageObject(parquetData);
+            SourceMetadata metadata = reader.metadata(storageObject);
+            assertEquals(DataType.DATE_NANOS, metadata.schema().get(0).dataType());
 
-        SourceMetadata metadata = reader.metadata(storageObject);
-        assertEquals(DataType.DATE_NANOS, metadata.schema().get(0).dataType());
-
-        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
-            assertTrue(iterator.hasNext());
-            Page page = iterator.next();
-            LongBlock block = (LongBlock) page.getBlock(0);
-            assertFalse("in-range value must be present", block.isNull(0));
-            assertEquals(inRangeMicros * 1_000, block.getLong(0));
-            assertTrue("out-of-range value must be null", block.isNull(1));
+            List<String> warnings = new ArrayList<>();
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    storageObject,
+                    FormatReadContext.builder().batchSize(10).informationalWarningSink(warnings::add).build()
+                )
+            ) {
+                assertTrue(iterator.hasNext());
+                Page page = iterator.next();
+                try {
+                    LongBlock block = (LongBlock) page.getBlock(0);
+                    assertFalse("in-range value must be present", block.isNull(0));
+                    assertEquals(inRangeMicros * 1_000, block.getLong(0));
+                    assertTrue("out-of-range value must be null", block.isNull(1));
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+            assertThat("the reader must relay its warning", warnings, contains(expectedWarning));
+            assertThat("the warning must not leak to the scan thread's response headers", drainWarnings(), empty());
         }
     }
 
@@ -3200,8 +3220,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     /**
      * A LIST of timestamp[us] resolves to a DATE_NANOS multivalue column: each element is scaled to epoch-nanos with
-     * full precision, null lists stay null, and null elements within a list are dropped (multivalue blocks have no
-     * per-element null slot). Both reader paths route list columns through the same shared decoder.
+     * full precision, null lists stay null, null elements within a list are dropped, and values outside the nanos
+     * range are dropped with a relayed warning. Both reader paths route list columns through the same shared decoder.
      */
     private void assertReadListOfDateNanosColumn(ParquetFormatReader reader) throws Exception {
         Type listType = Types.optionalList()
@@ -3213,11 +3233,13 @@ public class ParquetFormatReaderTests extends ESTestCase {
         long micros1 = 946728000000L * 1_000 + 111; // sub-millisecond fraction .000111 ms
         long micros2 = 946728000000L * 1_000 + 222;
         long micros3 = 946728000000L * 1_000 + 333;
+        long outOfRangeMicros = 20_000_000_000_000_000L;
         byte[] parquetData = createParquetFile(schema, factory -> {
-            // Row 0: [micros1, micros2]
+            // Row 0: [micros1, out-of-range, micros2]
             Group g1 = factory.newGroup();
             Group list1 = g1.addGroup("values");
             list1.addGroup("list").append("element", micros1);
+            list1.addGroup("list").append("element", outOfRangeMicros);
             list1.addGroup("list").append("element", micros2);
 
             // Row 1: null list
@@ -3236,29 +3258,41 @@ public class ParquetFormatReaderTests extends ESTestCase {
         SourceMetadata metadata = reader.metadata(storageObject);
         assertEquals(DataType.DATE_NANOS, metadata.schema().get(0).dataType());
 
-        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+        List<String> warnings = new ArrayList<>();
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                storageObject,
+                FormatReadContext.builder().batchSize(10).informationalWarningSink(warnings::add).build()
+            )
+        ) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
-            assertEquals(3, page.getPositionCount());
+            try {
+                assertEquals(3, page.getPositionCount());
 
-            LongBlock block = (LongBlock) page.getBlock(0);
-            // Row 0: [micros1, micros2] scaled to nanos with full precision
-            assertFalse(block.isNull(0));
-            assertEquals(2, block.getValueCount(0));
-            int start0 = block.getFirstValueIndex(0);
-            assertEquals(micros1 * 1_000, block.getLong(start0));
-            assertEquals(micros2 * 1_000, block.getLong(start0 + 1));
+                LongBlock block = (LongBlock) page.getBlock(0);
+                // Row 0: the in-range values are scaled to nanos; the out-of-range value is dropped.
+                assertFalse(block.isNull(0));
+                assertEquals(2, block.getValueCount(0));
+                int start0 = block.getFirstValueIndex(0);
+                assertEquals(micros1 * 1_000, block.getLong(start0));
+                assertEquals(micros2 * 1_000, block.getLong(start0 + 1));
 
-            // Row 1: null list
-            assertTrue(block.isNull(1));
+                // Row 1: null list
+                assertTrue(block.isNull(1));
 
-            // Row 2: [micros3]; the null element is dropped
-            assertFalse(block.isNull(2));
-            assertEquals(1, block.getValueCount(2));
-            assertEquals(micros3 * 1_000, block.getLong(block.getFirstValueIndex(2)));
+                // Row 2: [micros3]; the null element is dropped
+                assertFalse(block.isNull(2));
+                assertEquals(1, block.getValueCount(2));
+                assertEquals(micros3 * 1_000, block.getLong(block.getFirstValueIndex(2)));
+            } finally {
+                page.releaseBlocks();
+            }
         }
-        // Row 2's dropped element is announced, from the date_nanos loop's own row walk.
-        assertThat(drainWarnings(), contains(ParquetColumnDecoding.NULL_LIST_ELEMENTS_SUMMARY, droppedElementsNotice("values")));
+        assertThat(warnings, hasItem(timestampOutOfRangeWarning("values.list.element")));
+        assertThat(warnings, hasItem(ParquetColumnDecoding.NULL_LIST_ELEMENTS_SUMMARY));
+        assertThat(warnings, hasItem(droppedElementsNotice("values")));
+        assertThat("both notices must use the supplied relay", drainWarnings(), empty());
     }
 
     // --- LIST-under-STRUCT tests (elastic/esql-planning#1055) ---
@@ -5072,6 +5106,13 @@ public class ParquetFormatReaderTests extends ESTestCase {
     /** The per-column detail line for a LIST read that dropped null elements. */
     private static String droppedElementsNotice(String column) {
         return ParquetColumnDecoding.nullListElementsMessage(column);
+    }
+
+    private static String timestampOutOfRangeWarning(String column) {
+        return "Parquet timestamp column ["
+            + column
+            + "] contains values outside the representable date_nanos range (~1677-09-21 to 2262-04-11); "
+            + "such values are returned as null";
     }
 
     /**

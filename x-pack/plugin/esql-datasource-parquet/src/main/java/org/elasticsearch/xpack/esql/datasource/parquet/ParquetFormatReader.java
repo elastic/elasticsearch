@@ -47,7 +47,6 @@ import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -316,6 +315,21 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
     @Override
     public ParquetFormatReader withPushedFilter(Object pushedFilter) {
+        if (pushedFilter == null) {
+            if (pushedExpressions == null && FilterCompat.isFilteringRequired(this.pushedFilter) == false) {
+                return this;
+            }
+            return new ParquetFormatReader(
+                blockFactory,
+                FilterCompat.NOOP,
+                null,
+                forceBaselinePath,
+                optimizedReader,
+                dynamicThreshold,
+                declaredDateFormats,
+                declaredTypeColumns
+            );
+        }
         if (pushedFilter instanceof FilterCompat.Filter filter) {
             return new ParquetFormatReader(
                 blockFactory,
@@ -1293,10 +1307,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             // next() time its row-group transitions and per-page decode separately (see
             // ParquetColumnIterator / OptimizedParquetColumnIterator), accumulating into the same
             // counter so read_nanos covers the reader's full producer-thread lifecycle.
-            counters.addTotalReadNanos(System.nanoTime() - startNanos);
             if (startCpuNanos >= 0) {
                 counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
             }
+            counters.addTotalReadNanos(System.nanoTime() - startNanos);
         }
     }
 
@@ -1663,10 +1677,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 context.informationalWarningSink()
             );
         } finally {
-            counters.addTotalReadNanos(System.nanoTime() - startNanos);
             if (startCpuNanos >= 0) {
                 counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
             }
+            counters.addTotalReadNanos(System.nanoTime() - startNanos);
         }
     }
 
@@ -2964,10 +2978,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         @Nullable
         private final ColumnarRowDropHelper rowDropHelper;
         /**
-         * Relay for this read's per-value coercion warnings, or {@code null} to fall back to emitting
-         * directly via {@code HeaderWarning}. Under the async source
-         * this iterator runs on a background reader thread, so a non-null sink (the source buffer
-         * relay) is required for the warnings to reach the response; see {@link #coercionWarnings()}.
+         * Relay for this read's informational warnings, or {@code null} to fall back to emitting directly via
+         * {@code HeaderWarning}. Under the async source this iterator runs on a background reader thread, so a
+         * non-null sink (the source buffer relay) is required for the warnings to reach the response; see
+         * {@link #coercionWarnings()}.
          */
         @Nullable
         private final Consumer<String> warningSink;
@@ -3172,7 +3186,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                         ColumnInfo ci = columnInfos[i];
                         if (ci != null && ci.isRowPosition() == false && ci.maxRepLevel() == 0) {
                             PageReader pageReader = rowGroup.getPageReader(ci.descriptor());
-                            pageColumnReaders[i] = new PageColumnReader(pageReader, ci.descriptor(), ci, allRows, coercionWarnings());
+                            pageColumnReaders[i] = new PageColumnReader(
+                                pageReader,
+                                ci.descriptor(),
+                                ci,
+                                allRows,
+                                coercionWarnings(),
+                                warningSink
+                            );
                         }
                     }
                     if (rowDropHelper != null) {
@@ -3243,10 +3264,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 }
                 return rowsRemainingInGroup > 0;
             } finally {
-                counters.addTotalReadNanos(System.nanoTime() - startNanos);
                 if (startCpuNanos >= 0) {
                     counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
                 }
+                counters.addTotalReadNanos(System.nanoTime() - startNanos);
             }
         }
 
@@ -3329,10 +3350,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                         producedRows = rowsToRead - rowDropHelper.failedCount();
                     }
                 } catch (CircuitBreakingException e) {
-                    Releasables.closeExpectNoException(blocks);
+                    ParquetReadFailures.closePreservingCause(e, blocks);
                     throw e;
                 } catch (Exception e) {
-                    Releasables.closeExpectNoException(blocks);
+                    ParquetReadFailures.closePreservingCause(e, blocks);
                     throw ParquetReadFailures.wrap(
                         e,
                         "Failed to create Page batch at row group ["
@@ -3352,7 +3373,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 try {
                     listCorruptionHandler.completeBatch(rowsToRead, droppedRows, droppedRows > 0 ? coercionWarnings() : null);
                 } catch (RuntimeException e) {
-                    Releasables.closeExpectNoException(blocks);
+                    ParquetReadFailures.closePreservingCause(e, blocks);
                     throw e;
                 }
 
@@ -3362,7 +3383,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     try {
                         validateListColumnsExhausted();
                     } catch (RuntimeException e) {
-                        Releasables.closeExpectNoException(blocks);
+                        ParquetReadFailures.closePreservingCause(e, blocks);
                         throw e;
                     }
                 }
@@ -3375,10 +3396,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 emitAbsentColumnWarningsOnce();
                 return new Page(blocks);
             } finally {
-                counters.addTotalReadNanos(System.nanoTime() - startNanos);
                 if (startCpuNanos >= 0) {
                     counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
                 }
+                counters.addTotalReadNanos(System.nanoTime() - startNanos);
             }
         }
 
@@ -3436,6 +3457,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     attributes.get(colIndex).name(),
                     coercionWarnings(),
                     failedPositionSink,
+                    warningSink,
                     nullListElementWarnings()
                 );
             }
@@ -3706,7 +3728,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
          * Reads an INT64 {@code TIMESTAMP(MICROS|NANOS)} column into a {@code DATE_NANOS} block of epoch-nanoseconds.
          * {@code NANOS} passes through; {@code MICROS} is scaled ×1_000. A {@code MICROS} value whose scaled instant
          * would fall outside the representable {@code date_nanos} range (~1677-2262) has no nanosecond representation,
-         * so it is emitted as null (with a single deduplicated response warning) rather than silently wrapping around.
+         * so it is emitted as null (with a single deduplicated warning) rather than silently wrapping around.
          */
         private Block readDateNanosColumn(ColumnReader cr, ColumnInfo info, int rows) {
             LogicalTypeAnnotation logical = info.logicalType();
@@ -3735,7 +3757,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 cr.consume();
             }
             if (anyOverflow) {
-                ParquetColumnDecoding.warnTimestampOutOfRange(info);
+                ParquetColumnDecoding.warnTimestampOutOfRange(info, warningSink);
             }
             return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }

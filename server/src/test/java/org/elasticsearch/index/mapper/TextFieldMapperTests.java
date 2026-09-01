@@ -2512,12 +2512,36 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.omitNorms(), is(true));
     }
 
+    public void testNormsEnabledWhenIndexModeIsVectordbColumnar() throws IOException {
+        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_COLUMNAR.getName()).build();
+        XContentBuilder mapping = mapping(b -> b.startObject("potato").field("type", "text").endObject());
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> b.field("potato", "a potato flew around my room")));
+
+        assertTrue(
+            doc.rootDoc()
+                .getFields("potato")
+                .stream()
+                .anyMatch(
+                    field -> field.fieldType().indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS
+                        && field.fieldType().omitNorms() == false
+                )
+        );
+        assertTrue(doc.rootDoc().getFields("potato").stream().anyMatch(field -> field.fieldType().docValuesType() != DocValuesType.NONE));
+    }
+
     public void testDocValuesEnabledByDefaultWhenIndexModeIsColumnar() throws IOException {
         assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.COLUMNAR);
     }
 
     public void testDocValuesEnabledByDefaultWhenIndexModeIsColumnarLogsdb() throws IOException {
         assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.LOGSDB_COLUMNAR);
+    }
+
+    public void testDocValuesEnabledByDefaultWhenIndexModeIsVectordbColumnar() throws IOException {
+        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.VECTORDB_COLUMNAR);
     }
 
     private void assertDocValuesEnabledByDefaultInColumnarMode(IndexMode indexMode) throws IOException {

@@ -25,6 +25,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -330,6 +332,69 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 assertTrue(thrown.getMessage().startsWith("Failed to read external source: "));
                 assertTrue(thrown.getMessage().contains(failure.getMessage()));
                 assertSame(failure, thrown.getCause());
+            } finally {
+                op.close();
+            }
+        }
+    }
+
+    /**
+     * A storage-layer 503 already carries the retryable status. Classification at this operator
+     * must leave it unchanged rather than re-wrapping it as a client or server exception.
+     */
+    public void testUnavailableExceptionDuringMaterializationStays503() {
+        ExternalUnavailableException failure = new ExternalUnavailableException("store 503", new IOException("connection reset"));
+        try (SourceExtractors registry = new SourceExtractors()) {
+            int id = registry.register(new ThrowingExtractor(failure));
+            Page page = newPage(new long[] { 1L }, new long[] { SourceExtractors.encode(id, 0) }, new int[] { 9 });
+
+            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                1,
+                List.of(0, 2),
+                List.of("col"),
+                List.of(DataType.INTEGER),
+                registry,
+                blockFactory
+            );
+            op.addInput(page);
+            op.finish();
+            try {
+                ExternalUnavailableException thrown = expectThrows(ExternalUnavailableException.class, op::getOutput);
+                assertSame(failure, thrown);
+                assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
+                assertEquals("external_unavailable_exception", ElasticsearchException.getExceptionName(thrown));
+            } finally {
+                op.close();
+            }
+        }
+    }
+
+    /**
+     * Materializing against a closed registry is a broken invariant, not bad input. Classification
+     * at this operator must turn that {@link IllegalStateException} into a 500.
+     */
+    public void testClosedRegistryDuringMaterializationIsServerException() {
+        try (SourceExtractors registry = new SourceExtractors()) {
+            int id = registry.register(new IntListExtractor(new int[] { 10 }));
+            Page page = newPage(new long[] { 1L }, new long[] { SourceExtractors.encode(id, 0) }, new int[] { 9 });
+
+            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                1,
+                List.of(0, 2),
+                List.of("col"),
+                List.of(DataType.INTEGER),
+                registry,
+                blockFactory
+            );
+            op.addInput(page);
+            op.finish();
+            registry.close();
+            try {
+                ExternalServerException thrown = expectThrows(ExternalServerException.class, op::getOutput);
+                assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(thrown));
+                assertEquals("external_server_exception", ElasticsearchException.getExceptionName(thrown));
+                assertTrue(thrown.getCause() instanceof IllegalStateException);
+                assertEquals("SourceExtractors is closed", thrown.getCause().getMessage());
             } finally {
                 op.close();
             }

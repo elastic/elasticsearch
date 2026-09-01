@@ -315,6 +315,31 @@ public class SourceExtractorsTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@link SourceExtractors#materialize} must rethrow the extractor's {@link IOException} as the
+     * same instance. Wrapping it (for example in {@code UncheckedIOException}) would hide the
+     * checked type from {@code ExternalFailures.classify} at the operator boundary.
+     */
+    public void testMaterializeRethrowsExtractIoFailure() {
+        IOException failure = new IOException("simulated extract I/O failure");
+        try (SourceExtractors registry = new SourceExtractors()) {
+            int successfulId = registry.register(new IntListExtractor(new int[] { 10 }));
+            int failingId = registry.register(new IntListExtractor(new int[] { 20 }) {
+                @Override
+                public Block[] extract(String[] columnNames, DataType[] targetTypes, long[] localPositions, BlockFactory factory)
+                    throws IOException {
+                    throw failure;
+                }
+            });
+            long[] refs = new long[] { SourceExtractors.encode(successfulId, 0), SourceExtractors.encode(failingId, 0) };
+            IOException thrown = expectThrows(
+                IOException.class,
+                () -> registry.materialize(refs, refs.length, List.of("col"), null, blockFactory)
+            );
+            assertSame(failure, thrown);
+        }
+    }
+
     public void testMaterializeRejectsUnknownExtractorId() {
         try (SourceExtractors registry = new SourceExtractors()) {
             registry.register(new IntListExtractor(new int[] { 1, 2 }));

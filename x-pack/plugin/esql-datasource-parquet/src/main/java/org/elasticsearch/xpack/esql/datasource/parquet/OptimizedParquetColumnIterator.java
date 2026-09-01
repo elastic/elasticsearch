@@ -1620,14 +1620,22 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             // teardown here just narrows the leak window to "exception propagated and iterator
             // immediately discarded".
             for (Block[] arr : predicateBatches) {
-                Releasables.closeExpectNoException(arr);
+                ParquetReadFailures.closePreservingCause(e, arr);
             }
-            closePageColumnReaders();
+            try {
+                closePageColumnReaders();
+            } catch (RuntimeException | AssertionError cleanupEx) {
+                if (cleanupEx != e) {
+                    e.addSuppressed(cleanupEx);
+                }
+            }
             if (rowGroup != null) {
                 try {
                     rowGroup.close();
                 } catch (Exception closeEx) {
-                    e.addSuppressed(closeEx);
+                    if (closeEx != e) {
+                        e.addSuppressed(closeEx);
+                    }
                 }
                 rowGroup = null;
             }
@@ -1670,7 +1678,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             projectionStore = fetchProjectionPhase(block, survivorRanges, usePageFiltering);
         } catch (Throwable e) {
             for (Block[] arr : predicateBatches) {
-                Releasables.closeExpectNoException(arr);
+                ParquetReadFailures.closePreservingCause(e, arr);
             }
             throw e;
         }
@@ -1772,7 +1780,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
             return new BatchPredicateResult(predicateBlocks, positions, survivorCount);
         } catch (RuntimeException e) {
-            Releasables.closeExpectNoException(predicateBlocks);
+            ParquetReadFailures.closePreservingCause(e, predicateBlocks);
             throw e;
         }
     }
@@ -2593,7 +2601,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         try {
                             blocks[col] = sliceBlockHead(fullBlock, emitCount);
                         } catch (RuntimeException sliceEx) {
-                            Releasables.closeExpectNoException(fullBlock);
+                            ParquetReadFailures.closePreservingCause(sliceEx, fullBlock);
                             throw sliceEx;
                         }
                     } else {
@@ -2610,7 +2618,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     try {
                         blocks[col] = PageColumnReader.filterBlock(fullBlock, survivorPositions, emitCount, blockFactory);
                     } catch (RuntimeException filterEx) {
-                        Releasables.closeExpectNoException(fullBlock);
+                        ParquetReadFailures.closePreservingCause(filterEx, fullBlock);
                         throw filterEx;
                     }
                 }
@@ -2622,12 +2630,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             // therefore releases each Block exactly once. Surface the breaker exception unwrapped
             // to match the sibling iterator paths so upstream operators (LIMIT, exchange, breaker
             // telemetry) classify it correctly.
-            Releasables.closeExpectNoException(blocks);
-            Releasables.closeExpectNoException(predicateBlocks);
+            ParquetReadFailures.closePreservingCause(e, blocks);
+            ParquetReadFailures.closePreservingCause(e, predicateBlocks);
             throw e;
         } catch (RuntimeException e) {
-            Releasables.closeExpectNoException(blocks);
-            Releasables.closeExpectNoException(predicateBlocks);
+            ParquetReadFailures.closePreservingCause(e, blocks);
+            ParquetReadFailures.closePreservingCause(e, predicateBlocks);
             throw ParquetReadFailures.wrap(
                 e,
                 "Failed to emit two-phase Page at row group ["
@@ -2754,10 +2762,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
             }
         } catch (CircuitBreakingException e) {
-            Releasables.closeExpectNoException(blocks);
+            ParquetReadFailures.closePreservingCause(e, blocks);
             throw e;
         } catch (Exception e) {
-            Releasables.closeExpectNoException(blocks);
+            ParquetReadFailures.closePreservingCause(e, blocks);
             throw ParquetReadFailures.wrap(
                 e,
                 "Failed to create Page batch at row group ["
@@ -2864,10 +2872,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             counters.addRowsEmitted(survivorCount);
             return new Page(blocks);
         } catch (CircuitBreakingException e) {
-            Releasables.closeExpectNoException(blocks);
+            ParquetReadFailures.closePreservingCause(e, blocks);
             throw e;
         } catch (Exception e) {
-            Releasables.closeExpectNoException(blocks);
+            ParquetReadFailures.closePreservingCause(e, blocks);
             throw ParquetReadFailures.wrap(
                 e,
                 "Failed to create late-materialized Page at row group ["

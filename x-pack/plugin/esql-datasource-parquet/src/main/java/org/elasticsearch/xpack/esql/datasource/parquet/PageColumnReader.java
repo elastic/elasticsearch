@@ -344,7 +344,7 @@ final class PageColumnReader implements Releasable {
             // never saw the reference.
             return filterBlock(full, survivorPositions, survivorCount, blockFactory);
         } catch (RuntimeException e) {
-            Releasables.closeExpectNoException(full);
+            ParquetReadFailures.closePreservingCause(e, full);
             throw e;
         }
     }
@@ -444,7 +444,7 @@ final class PageColumnReader implements Releasable {
             return BlockChunks.concat(chunks, blockFactory);
         } catch (RuntimeException e) {
             for (Block chunk : chunks) {
-                Releasables.closeExpectNoException(chunk);
+                ParquetReadFailures.closePreservingCause(e, chunk);
             }
             throw e;
         }
@@ -1311,11 +1311,15 @@ final class PageColumnReader implements Releasable {
                 remaining -= fromPage;
             }
             if (builder != null) {
-                return builder.build();
+                Block result = builder.build();
+                Releasables.closeExpectNoException(builder);
+                builder = null;
+                return result;
             }
             return blockFactory.newConstantBytesRefBlockWith(constant == null ? new BytesRef() : constant, produced);
-        } finally {
-            Releasables.closeExpectNoException(builder);
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, builder);
+            throw e;
         }
     }
 
@@ -1353,14 +1357,18 @@ final class PageColumnReader implements Releasable {
                 return blockFactory.newConstantNullBlock(produced);
             }
             if (builder != null) {
-                return builder.build();
+                Block result = builder.build();
+                Releasables.closeExpectNoException(builder);
+                builder = null;
+                return result;
             }
             assert produced == 0;
             try (var empty = blockFactory.newBytesRefBlockBuilder(0)) {
                 return empty.build();
             }
-        } finally {
-            Releasables.closeExpectNoException(builder);
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, builder);
+            throw e;
         }
     }
 
@@ -1497,17 +1505,13 @@ final class PageColumnReader implements Releasable {
         }
         IntBlock ordinalsBlock = null;
         BytesRefVector dictVector = null;
-        boolean success = false;
         try {
             ordinalsBlock = buildOrdinalsBlock(ordinals, nulls, produced, blockFactory);
             dictVector = buildDictionaryVector(dict, blockFactory);
-            OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(ordinalsBlock, dictVector);
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(ordinalsBlock, dictVector);
-            }
+            return new OrdinalBytesRefBlock(ordinalsBlock, dictVector);
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, ordinalsBlock, dictVector);
+            throw e;
         }
     }
 
@@ -1658,18 +1662,24 @@ final class PageColumnReader implements Releasable {
             if (combinedNulls != null && combinedNulls.isEmpty() == false) {
                 Block allNull = ConstantBlockDetection.tryAllNull(combinedNulls.toBitSet(), filled, blockFactory);
                 if (allNull != null) {
+                    Releasables.closeExpectNoException(builder);
+                    builder = null;
                     return allNull;
                 }
             }
             if (builder != null) {
-                return builder.build();
+                Block result = builder.build();
+                Releasables.closeExpectNoException(builder);
+                builder = null;
+                return result;
             }
             assert filled == 0;
             try (var empty = blockFactory.newBytesRefBlockBuilder(0)) {
                 return empty.build();
             }
-        } finally {
-            Releasables.closeExpectNoException(builder);
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, builder);
+            throw e;
         }
     }
 

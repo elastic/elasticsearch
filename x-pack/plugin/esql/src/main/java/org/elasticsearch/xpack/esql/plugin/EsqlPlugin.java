@@ -140,7 +140,9 @@ import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.ClusterQuerySettings;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -575,7 +577,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 PromqlFunctionRegistry.INSTANCE,
                 parser,
                 cacheService,
-                services.indicesService().getAnalysis()
+                services.indicesService().getAnalysis(),
+                new ClusterQuerySettings(services.clusterService())
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -641,6 +644,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             )
         );
         settings.addAll(PlannerSettings.settings());
+
+        // The cluster settings backing ES|QL query-setting defaults, derived from the query-settings registry —
+        // one per setting declared with withClusterDefault(). Never hand-maintained: opting a setting in is one
+        // word at its declaration in QuerySettings, and this list follows.
+        settings.addAll(QuerySettings.clusterSettings());
 
         // Inference command settings
         settings.addAll(InferenceSettings.getSettings());

@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -151,6 +154,28 @@ import java.util.function.UnaryOperator;
  */
 public final class QuerySettingDef<T> {
 
+    /**
+     * Namespace for every derived cluster setting. Plural, and mirroring the request body one-to-one: a setting
+     * reachable in the body at {@code settings.time_zone} is reachable from cluster settings at
+     * {@code esql.query.settings.time_zone}. A dedicated segment also keeps these keys from ever colliding with the
+     * hand-written {@code esql.query.*} settings on {@link org.elasticsearch.xpack.esql.plugin.EsqlPlugin}.
+     */
+    public static final String CLUSTER_SETTING_PREFIX = "esql.query.settings.";
+
+    /**
+     * The context a setting's own {@link Validator} runs under when an operator writes the cluster setting — on
+     * {@code PUT _cluster/settings} and on the {@code elasticsearch.yml} pass at node startup.
+     * <p>
+     * {@code isSnapshot} is truthful: the build type is fixed for the JVM. {@code crossProjectEnabled} is a
+     * placeholder — it is read from node settings that this class has no access to at class-init — so no
+     * cluster-defaultable setting may read it. {@link Builder#withClusterDefault()} enforces that structurally by
+     * refusing a {@code serverlessOnly} setting, which is the marker the one such validator carries.
+     */
+    private static final SettingsValidationContext CLUSTER_UPDATE_CONTEXT = new SettingsValidationContext(
+        false,
+        Build.current().isSnapshot()
+    );
+
     public static Builder<String> string(String name) {
         return Builder.<String>of(name, DataType.KEYWORD).fromString(s -> s);
     }
@@ -160,13 +185,17 @@ public final class QuerySettingDef<T> {
     }
 
     public static Builder<Boolean> bool(String name) {
-        return Builder.<Boolean>of(name, DataType.BOOLEAN).jsonReader(XContentParser::booleanValue).expressionReader(e -> {
-            Object value = Foldables.literalValueOf(e);
-            if (value instanceof Boolean b) {
-                return b;
-            }
-            throw new IllegalArgumentException("Setting [" + name + "] must be a boolean, got [" + value + "]");
-        }).streamFormat((out, value) -> out.writeBoolean(value), StreamInput::readBoolean);
+        return Builder.<Boolean>of(name, DataType.BOOLEAN)
+            .clusterParser(Booleans::parseBoolean)
+            .jsonReader(XContentParser::booleanValue)
+            .expressionReader(e -> {
+                Object value = Foldables.literalValueOf(e);
+                if (value instanceof Boolean b) {
+                    return b;
+                }
+                throw new IllegalArgumentException("Setting [" + name + "] must be a boolean, got [" + value + "]");
+            })
+            .streamFormat((out, value) -> out.writeBoolean(value), StreamInput::readBoolean);
     }
 
     /** Escape hatch for non-primitive types. Supply both a JSON and an expression parser. */
@@ -201,6 +230,8 @@ public final class QuerySettingDef<T> {
     @Nullable
     private final String deprecationMessage;
     private final UnaryOperator<T> canonicalizer;
+    @Nullable
+    private final Setting<T> clusterSetting;
 
     private QuerySettingDef(Builder<T> b) {
         this.name = b.name;
@@ -219,6 +250,7 @@ public final class QuerySettingDef<T> {
         this.serverlessOnly = b.serverlessOnly;
         this.deprecationMessage = b.deprecationMessage;
         this.canonicalizer = b.canonicalizer;
+        this.clusterSetting = b.derivedClusterSetting;
     }
 
     /**
@@ -248,6 +280,20 @@ public final class QuerySettingDef<T> {
 
     public boolean requestBody() {
         return requestBody;
+    }
+
+    /**
+     * The cluster setting backing this setting's default, or {@code null} if it was not declared with
+     * {@link Builder#withClusterDefault()}. Derived at {@code build()} from the factory's own string parser;
+     * registered with the node by {@link QuerySettings#clusterSettings()}.
+     * <p>
+     * Its declared default <b>is</b> {@link #defaultValue()} — there is one default in the system, and an operator
+     * overrides it rather than adding a second. The resolver therefore keys off {@link Setting#exists} (did an
+     * operator actually set the key) and never off the value, so an unset key contributes no layer at all.
+     */
+    @Nullable
+    public Setting<T> clusterSetting() {
+        return clusterSetting;
     }
 
     public List<RequestBodyBinding> aliases() {
@@ -345,6 +391,11 @@ public final class QuerySettingDef<T> {
         @Nullable
         private String deprecationMessage = null;
         private UnaryOperator<T> canonicalizer = UnaryOperator.identity();
+        @Nullable
+        private FromString<T> clusterParser;
+        private boolean clusterDefault = false;
+        @Nullable
+        private Setting<T> derivedClusterSetting;
 
         private Builder(String name, @Nullable DataType type) {
             this.name = name;
@@ -396,6 +447,34 @@ public final class QuerySettingDef<T> {
          */
         public Builder<T> withReconciler(SettingReconciler<T> reconciler) {
             this.reconciler = reconciler;
+            return this;
+        }
+
+        /**
+         * Opt this setting into a cluster-settings-backed default, registered at {@code esql.query.settings.<name>}.
+         * <p>
+         * This is <b>not a second default</b>. There is one default in the system — the one given to
+         * {@link #withDefault} — and the derived cluster setting declares that same value as its own default so
+         * {@code GET _cluster/settings?include_defaults} reports the truthful effective value. What the key adds is
+         * the ability for an operator to <i>replace</i> that default for every query on the cluster; any per-query
+         * source still overrides it. Precedence becomes {@code default < cluster < body < SET}, ordered by whose
+         * decision it is.
+         * <p>
+         * Opting in registers a key, never a value: nothing is written to cluster state, and the resolver contributes
+         * a layer only when an operator actually set the key. A setting without this call has no cluster key at all
+         * and resolves exactly as it did before.
+         * <p>
+         * Everything else is derived — the key, the type, the parser, the properties, the registration. The parser is
+         * the same {@link FromString} the factory already uses for {@code SET} and the body, so a malformed value is
+         * rejected on {@code PUT _cluster/settings} by the code that rejects it in a query, and the two cannot drift.
+         * <p>
+         * {@code build()} refuses the combination when it cannot honour it: no registry default to declare, no string
+         * form to parse (the {@code object}/{@code builder} factories), or an availability marker that makes a
+         * permanent public cluster key wrong ({@code snapshotOnly}) or its validator unevaluable at write time
+         * ({@code serverlessOnly}).
+         */
+        public Builder<T> withClusterDefault() {
+            this.clusterDefault = true;
             return this;
         }
 
@@ -451,10 +530,15 @@ public final class QuerySettingDef<T> {
             return this;
         }
 
+        Builder<T> clusterParser(FromString<T> parser) {
+            this.clusterParser = parser;
+            return this;
+        }
+
         Builder<T> fromString(FromString<T> from) {
-            return jsonReader(p -> from.parse(p.text())).expressionReader(
-                e -> from.parse(Foldables.stringLiteralValueOf(e, "Unexpected value"))
-            ).streamFormat((out, value) -> out.writeString(value.toString()), in -> from.parse(in.readString()));
+            return clusterParser(from).jsonReader(p -> from.parse(p.text()))
+                .expressionReader(e -> from.parse(Foldables.stringLiteralValueOf(e, "Unexpected value")))
+                .streamFormat((out, value) -> out.writeString(value.toString()), in -> from.parse(in.readString()));
         }
 
         /**
@@ -491,7 +575,105 @@ public final class QuerySettingDef<T> {
                     "Setting [" + name + "] has no stream format — call streamFormat(writer, reader) before build()"
                 );
             }
+            if (clusterDefault) {
+                derivedClusterSetting = deriveClusterSetting();
+            }
             return new QuerySettingDef<>(this);
+        }
+
+        /**
+         * Build the cluster setting backing this setting's default. Everything comes from what the declaration already
+         * supplied: the key from the name, the parser from the factory, the declared default from {@link #withDefault},
+         * the write-time check from {@link #withValidator}.
+         * <p>
+         * The refusals below all fire at class initialization, so an incoherent declaration stops the node from
+         * starting rather than surfacing in production — the same failure class as the other {@code build()} checks.
+         */
+        private Setting<T> deriveClusterSetting() {
+            String key = CLUSTER_SETTING_PREFIX + name;
+            if (defaultValue == null) {
+                throw new IllegalStateException(
+                    "Setting ["
+                        + name
+                        + "] cannot have a cluster default: it has no registry default. The cluster setting declares the "
+                        + "registry default as its own, so there must be one — add withDefault(...) or drop withClusterDefault()"
+                );
+            }
+            if (clusterParser == null) {
+                throw new IllegalStateException(
+                    "Setting ["
+                        + name
+                        + "] cannot have a cluster default: its value has no string form. Only settings declared via "
+                        + "string(...) or bool(...) derive a cluster setting"
+                );
+            }
+            if (serverlessOnly) {
+                throw new IllegalStateException(
+                    "Setting ["
+                        + name
+                        + "] cannot have a cluster default: a serverlessOnly setting's validator reads environment that is "
+                        + "not available when a cluster setting is written, so it cannot be checked at that surface"
+                );
+            }
+            if (snapshotOnly) {
+                throw new IllegalStateException(
+                    "Setting ["
+                        + name
+                        + "] cannot have a cluster default: a snapshot-only setting must not register a permanent public "
+                        + "cluster key that outlives its snapshot-only status"
+                );
+            }
+            // The declared default is the registry default rendered as a string, so include_defaults reports the value
+            // queries actually get. That round trip is already load-bearing for the wire format (see fromString, which
+            // writes value.toString() and reads it back through the same parser); assert it here so a default that
+            // cannot survive it fails at boot rather than reporting a different value than the one in force.
+            String rendered = defaultValue.toString();
+            T reparsed;
+            try {
+                reparsed = clusterParser.parse(rendered);
+            } catch (Exception e) {
+                throw new IllegalStateException(
+                    "Setting [" + name + "] cannot have a cluster default: its default [" + rendered + "] does not parse back",
+                    e
+                );
+            }
+            if (canonicalizer.apply(reparsed).equals(canonicalizer.apply(defaultValue)) == false) {
+                throw new IllegalStateException(
+                    "Setting ["
+                        + name
+                        + "] cannot have a cluster default: its default does not round-trip through its own parser ["
+                        + defaultValue
+                        + "] -> ["
+                        + rendered
+                        + "] -> ["
+                        + reparsed
+                        + "]"
+                );
+            }
+            Validator<T> declared = validator;
+            // Run the setting's own validator at write time, so an operator's mistake is refused on PUT _cluster/settings
+            // and at node startup for elasticsearch.yml — never as a per-query failure that the operator never sees.
+            Setting.Validator<T> writeTimeValidator = value -> {
+                String error;
+                try {
+                    error = declared == null ? null : declared.validate(value, CLUSTER_UPDATE_CONTEXT);
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("[" + key + "] " + e.getMessage(), e);
+                }
+                if (error != null) {
+                    throw new IllegalArgumentException("[" + key + "] " + error);
+                }
+            };
+            List<Setting.Property> properties = new ArrayList<>();
+            properties.add(Setting.Property.NodeScope);
+            // Dynamic in every case: resolution reads the value once per query on the coordinator and ships the resolved
+            // value onward, so an update can never tear a query in flight, and per-query variability is already the
+            // framework's premise. A query setting that needed node-static behaviour would not be a query setting.
+            properties.add(Setting.Property.Dynamic);
+            if (deprecationMessage != null) {
+                properties.add(Setting.Property.DeprecatedWarning);
+            }
+            return new Setting<>(key, rendered, clusterParser::parse, writeTimeValidator, properties.toArray(Setting.Property[]::new));
         }
     }
 

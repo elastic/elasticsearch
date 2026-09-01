@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.ClusterQuerySettings;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -716,7 +717,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             PromqlFunctionRegistry.INSTANCE,
             TEST_PARSER,
             null,
-            EsqlTestUtils.TEST_ANALYSIS_REGISTRY
+            EsqlTestUtils.TEST_ANALYSIS_REGISTRY,
+            ClusterQuerySettings.EMPTY
         );
     }
 

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.ClusterQuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
@@ -73,6 +74,7 @@ public class PlanExecutor {
     private final DataSourceModule dataSourceModule;
     private final ExternalSourceCacheService cacheService;
     private final AnalysisRegistry analysisRegistry;
+    private final ClusterQuerySettings clusterQuerySettings;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -86,7 +88,8 @@ public class PlanExecutor {
         PromqlFunctionRegistry promqlFunctionRegistry,
         EsqlParser parser,
         ExternalSourceCacheService cacheService,
-        AnalysisRegistry analysisRegistry
+        AnalysisRegistry analysisRegistry,
+        ClusterQuerySettings clusterQuerySettings
     ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
@@ -101,6 +104,7 @@ public class PlanExecutor {
         this.dataSourceModule = dataSourceModule;
         this.cacheService = cacheService;
         this.analysisRegistry = analysisRegistry;
+        this.clusterQuerySettings = clusterQuerySettings;
     }
 
     /**
@@ -209,6 +213,7 @@ public class PlanExecutor {
             indicesExpressionGrouper,
             services.projectResolver().getProjectMetadata(services.clusterService().state()),
             services.plannerSettings().get(),
+            clusterQuerySettings,
             services
         );
         QueryMetric clientId = QueryMetric.fromString("rest");

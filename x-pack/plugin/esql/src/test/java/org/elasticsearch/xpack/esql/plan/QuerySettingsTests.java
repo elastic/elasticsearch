@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
@@ -629,4 +631,219 @@ public class QuerySettingsTests extends ESTestCase {
         );
         toc.renderDocs();
     }
+
+    // ---- Cluster (operator) defaults: default < cluster < body < SET ----
+
+    private static Settings clusterSetting(QuerySettingDef<?> def, String value) {
+        return Settings.builder().put(QuerySettingDef.CLUSTER_SETTING_PREFIX + def.name(), value).build();
+    }
+
+    public void testClusterSettingsDerivedOnlyForOptedInSettings() {
+        Set<String> derivedKeys = new HashSet<>();
+        for (Setting<?> setting : QuerySettings.clusterSettings()) {
+            derivedKeys.add(setting.getKey());
+        }
+        assertThat(derivedKeys, equalTo(Set.of("esql.query.settings.time_zone", "esql.query.settings.unmapped_fields")));
+
+        // A setting that did not opt in has no key at all, so the key stays unknown and is rejected as a typo
+        // rather than silently accepted.
+        assertThat(QuerySettings.COLUMN_METADATA.clusterSetting(), is(nullValue()));
+        assertThat(QuerySettings.APPROXIMATION.clusterSetting(), is(nullValue()));
+        assertThat(QuerySettings.PROJECT_ROUTING.clusterSetting(), is(nullValue()));
+    }
+
+    public void testDerivedClusterSettingIsDynamicAndNodeScoped() {
+        for (Setting<?> setting : QuerySettings.clusterSettings()) {
+            assertThat(setting.getKey(), setting.isDynamic(), is(true));
+            assertThat(setting.getKey(), setting.hasNodeScope(), is(true));
+        }
+    }
+
+    public void testClusterSettingDeclaredDefaultIsTheRegistryDefault() {
+        // There is one default in the system. The derived setting declares the registry default as its own so
+        // include_defaults reports the value queries actually get — it is not a second, independent default.
+        assertThat(QuerySettings.TIME_ZONE.clusterSetting().get(Settings.EMPTY), equalTo(ZoneOffset.UTC));
+        assertThat(QuerySettings.TIME_ZONE.clusterSetting().get(Settings.EMPTY), equalTo(QuerySettings.TIME_ZONE.defaultValue()));
+        assertThat(
+            QuerySettings.UNMAPPED_FIELDS.clusterSetting().get(Settings.EMPTY),
+            equalTo(QuerySettings.UNMAPPED_FIELDS.defaultValue())
+        );
+    }
+
+    public void testClusterDefaultAppliesWhenNoPerQuerySource() {
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.TIME_ZONE, "Europe/Paris"),
+            Map.of(),
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Europe/Paris")));
+    }
+
+    public void testRequestBodyOverridesClusterDefault() {
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.TIME_ZONE, ZoneId.of("Asia/Tokyo"));
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.TIME_ZONE, "Europe/Paris"),
+            requestParams,
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Asia/Tokyo")));
+    }
+
+    public void testQuerySetOverridesClusterDefaultAndBody() {
+        // The full chain in one query: operator says Paris, the calling application says Tokyo, the query author
+        // says Berlin. The narrowest scope of authority wins.
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.TIME_ZONE, ZoneId.of("Asia/Tokyo"));
+        QuerySetting set = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, "time_zone", of("Europe/Berlin")));
+        EsqlStatement statement = new EsqlStatement(null, List.of(set));
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.TIME_ZONE, "Europe/Paris"),
+            requestParams,
+            statement,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Europe/Berlin")));
+    }
+
+    public void testUnsetClusterKeyContributesNoLayerToTheReconciler() {
+        // Presence, not value — and the difference is only observable through a reconciler that combines rather than
+        // replaces. Reading the derived setting unconditionally would fold a phantom layer holding the registry
+        // default, which is a no-op for a last-wins scalar (both currently opted-in settings are scalars, so they
+        // cannot pin this) but corrupts a merging one. This concatenating reconciler makes the phantom visible.
+        QuerySettingDef<String> merging = QuerySettingDef.string("merging")
+            .withDefault("d")
+            .withReconciler((previous, current) -> previous == null ? current : previous + "+" + current)
+            .withClusterDefault()
+            .build();
+
+        ResolvedSettings unset = QuerySettings.resolve(List.of(merging), Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat("an unset key must contribute no layer at all", unset.get(merging), equalTo("d"));
+
+        ResolvedSettings set = QuerySettings.resolve(
+            List.of(merging),
+            Settings.builder().put(merging.clusterSetting().getKey(), "op").build(),
+            Map.of(),
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat("a set key must fold through the reconciler", set.get(merging), equalTo("d+op"));
+    }
+
+    public void testUnsetClusterLayerLeavesResolutionUnchanged() {
+        ResolvedSettings withEmptyCluster = QuerySettings.resolve(Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        ResolvedSettings withoutClusterLayer = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(withEmptyCluster, equalTo(withoutClusterLayer));
+
+        // An unrelated key present in the same Settings must not be mistaken for one of ours.
+        Settings unrelated = Settings.builder().put("esql.query.allow_partial_results", false).build();
+        assertThat(QuerySettings.resolve(unrelated, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED), equalTo(withoutClusterLayer));
+    }
+
+    public void testSettingWithoutClusterDefaultIgnoresItsWouldBeKey() {
+        // column_metadata did not opt in, so even a value sitting at its would-be key changes nothing.
+        Settings stray = Settings.builder().put("esql.query.settings.column_metadata", true).build();
+        ResolvedSettings resolved = QuerySettings.resolve(stray, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.COLUMN_METADATA), equalTo(Boolean.FALSE));
+        assertThat(resolved, equalTo(QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED)));
+    }
+
+    public void testClusterDefaultIsNotSubjectToTheQueryTimeValidator() {
+        // An operator value is validated where the operator can see the failure — on PUT _cluster/settings and at
+        // node startup. If the environment later drifts so that the stored value no longer validates, resolution
+        // must still not throw: one operator mistake cannot be allowed to fail every query on the cluster.
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.UNMAPPED_FIELDS, "LOAD_ALL"),
+            Map.of(),
+            null,
+            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD_ALL));
+    }
+
+    public void testUnmappedFieldsIsClusterSettableButNotBodyExposed() {
+        // The sources are independent axes, not a ladder: unmapped_fields is SET-only on the request side and still
+        // takes an operator default.
+        assertThat(QuerySettings.UNMAPPED_FIELDS.requestBody(), is(false));
+        assertNotNull(QuerySettings.UNMAPPED_FIELDS.clusterSetting());
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.UNMAPPED_FIELDS, "NULLIFY"),
+            Map.of(),
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.NULLIFY));
+    }
+
+    public void testDerivedClusterSettingRejectsMalformedValueAtWriteTime() {
+        // The derived parser is the same FromString the SET and body surfaces use, so the two cannot drift.
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> QuerySettings.TIME_ZONE.clusterSetting().get(clusterSetting(QuerySettings.TIME_ZONE, "Not/AZone"))
+        );
+        assertThat(e.getMessage(), containsString("Invalid time zone [Not/AZone]"));
+    }
+
+    public void testDerivedClusterSettingRunsTheDeclaredValidatorAtWriteTime() {
+        QuerySettingDef<String> def = QuerySettingDef.string("write_time_validated")
+            .withDefault("ok")
+            .withValidator((value, ctx) -> value.equals("bad") ? "value [bad] is not allowed" : null)
+            .withClusterDefault()
+            .build();
+        // The default still resolves.
+        assertThat(def.clusterSetting().get(Settings.EMPTY), equalTo("ok"));
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> def.clusterSetting().get(Settings.builder().put(def.clusterSetting().getKey(), "bad").build())
+        );
+        assertThat(e.getMessage(), containsString("value [bad] is not allowed"));
+    }
+
+    public void testBuildRejectsClusterDefaultWithoutRegistryDefault() {
+        var e = expectThrows(IllegalStateException.class, () -> QuerySettingDef.string("x").withClusterDefault().build());
+        assertThat(e.getMessage(), containsString("it has no registry default"));
+    }
+
+    public void testBuildRejectsClusterDefaultWithoutStringForm() {
+        var e = expectThrows(
+            IllegalStateException.class,
+            () -> QuerySettingDef.object("x", p -> p.text(), ex -> "v")
+                .withDefault("v")
+                .streamFormat((out, value) -> out.writeString(value), in -> in.readString())
+                .withClusterDefault()
+                .build()
+        );
+        assertThat(e.getMessage(), containsString("its value has no string form"));
+    }
+
+    public void testBuildRejectsClusterDefaultOnServerlessOnly() {
+        // serverlessOnly marks the settings whose validator reads environment we cannot evaluate when an operator
+        // writes the key, so the placeholder cross-project flag in that context can never be reached.
+        var e = expectThrows(
+            IllegalStateException.class,
+            () -> QuerySettingDef.string("x").withDefault("v").withServerlessOnly().withClusterDefault().build()
+        );
+        assertThat(e.getMessage(), containsString("a serverlessOnly setting's validator reads environment"));
+    }
+
+    public void testBuildRejectsClusterDefaultOnSnapshotOnly() {
+        var e = expectThrows(
+            IllegalStateException.class,
+            () -> QuerySettingDef.string("x").withDefault("v").withSnapshotOnly().withClusterDefault().build()
+        );
+        assertThat(e.getMessage(), containsString("must not register a permanent public cluster key"));
+    }
+
+    public void testBuildRejectsClusterDefaultWhoseDefaultDoesNotRoundTrip() {
+        // The declared default is the registry default rendered with toString(); a default that cannot survive that
+        // round trip would make include_defaults report a different value than the one actually in force.
+        var e = expectThrows(
+            IllegalStateException.class,
+            () -> QuerySettingDef.string("x", v -> "always-this").withDefault("something-else").withClusterDefault().build()
+        );
+        assertThat(e.getMessage(), containsString("does not round-trip through its own parser"));
+    }
+
 }

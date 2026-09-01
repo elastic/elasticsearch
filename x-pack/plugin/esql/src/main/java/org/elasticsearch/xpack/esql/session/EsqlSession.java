@@ -100,6 +100,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.ClusterQuerySettings;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
@@ -218,6 +219,7 @@ public class EsqlSession {
     private final RemoteClusterService remoteClusterService;
     private final BlockFactory blockFactory;
     private final PlannerSettings plannerSettings;
+    private final ClusterQuerySettings clusterQuerySettings;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
     private final String localNodeName;
@@ -315,6 +317,7 @@ public class EsqlSession {
         IndicesExpressionGrouper indicesExpressionGrouper,
         ProjectMetadata projectMetadata,
         PlannerSettings plannerSettings,
+        ClusterQuerySettings clusterQuerySettings,
         TransportActionServices services
     ) {
         this.sessionId = sessionId;
@@ -341,6 +344,7 @@ public class EsqlSession {
         this.remoteClusterService = services.transportService().getRemoteClusterService();
         this.blockFactory = services.blockFactoryProvider().blockFactory();
         this.plannerSettings = plannerSettings;
+        this.clusterQuerySettings = clusterQuerySettings;
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
         this.localNodeName = services.clusterService().getNodeName();
@@ -396,6 +400,7 @@ public class EsqlSession {
         // resolved values (default < request body < in-query SET) and never re-derives precedence. This also runs
         // each setting's validator (e.g. the project_routing cross-project gate) before any view-resolution work.
         ResolvedSettings resolved = QuerySettings.resolve(
+            clusterQuerySettings.values(),
             request.requestSettings(),
             statement,
             SettingsValidationContext.from(crossProjectModeDecider)

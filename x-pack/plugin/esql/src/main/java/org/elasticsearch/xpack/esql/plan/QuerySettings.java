@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.plan;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
@@ -78,6 +80,7 @@ public final class QuerySettings {
     @Example(file = "tbucket", tag = "set-timezone-example")
     public static final QuerySettingDef<ZoneId> TIME_ZONE = QuerySettingDef.string("time_zone", QuerySettings::parseZoneId)
         .withDefault(ZoneOffset.UTC)
+        .withClusterDefault()
         .withRequestBody()
         .withAliasAtRoot()
         .canonicalize(ZoneId::normalized)
@@ -139,6 +142,7 @@ public final class QuerySettings {
                 : null
         )
         .withDefault(UnmappedResolution.DEFAULT)
+        .withClusterDefault()
         .build();
 
     @Param(
@@ -215,6 +219,25 @@ public final class QuerySettings {
     /** All declared settings. */
     public static List<QuerySettingDef<?>> all() {
         return ALL;
+    }
+
+    /**
+     * The cluster settings derived from the registry — one per setting declared with
+     * {@link QuerySettingDef.Builder#withClusterDefault()}. Registered by
+     * {@link org.elasticsearch.xpack.esql.plugin.EsqlPlugin#getSettings()}; a setting without an operator default
+     * contributes nothing, so its key stays unknown and is rejected as a typo.
+     * <p>
+     * Derived, never hand-maintained: opting a setting in is one word at its declaration, and this list follows.
+     */
+    public static List<Setting<?>> clusterSettings() {
+        List<Setting<?>> out = new ArrayList<>();
+        for (QuerySettingDef<?> def : all()) {
+            Setting<?> clusterSetting = def.clusterSetting();
+            if (clusterSetting != null) {
+                out.add(clusterSetting);
+            }
+        }
+        return out;
     }
 
     /** The setting with this name, or {@code null} if no such setting is declared. */
@@ -323,24 +346,55 @@ public final class QuerySettings {
     }
 
     /**
-     * Folds {@code registry default < request body < in-query SET} into a single {@link ResolvedSettings},
-     * applying each setting's {@link QuerySettingDef#reconciler()} at every step.
+     * Folds {@code registry default < cluster < request body < in-query SET} into a single {@link ResolvedSettings},
+     * applying each setting's {@link QuerySettingDef#reconciler()} at every step. The chain is ordered by whose
+     * decision a value is: the product's default, then the operator's, then the calling application's, then the
+     * query author's, each narrower scope of authority overriding the broader one.
+     *
+     * @param clusterDefaults the cluster settings as an operator left them — see
+     *     {@link ClusterQuerySettings}. Only keys an operator actually set contribute a layer; the fold reads
+     *     presence, never the derived setting's declared default, so an unset key leaves resolution exactly as it
+     *     was before operator defaults existed. {@link Settings#EMPTY} is the correct value for a caller with no
+     *     cluster context.
      */
     public static ResolvedSettings resolve(
+        Settings clusterDefaults,
+        Map<QuerySettingDef<?>, Object> requestParams,
+        @Nullable EsqlStatement statement,
+        SettingsValidationContext ctx
+    ) {
+        return resolve(all(), clusterDefaults, requestParams, statement, ctx);
+    }
+
+    // Package-private + parameterized over the registry, so the fold is unit-testable against a purpose-built
+    // setting without registering one JVM-globally — same seam, and same reason, as byName(List) above.
+    static ResolvedSettings resolve(
+        List<QuerySettingDef<?>> defs,
+        Settings clusterDefaults,
         Map<QuerySettingDef<?>, Object> requestParams,
         @Nullable EsqlStatement statement,
         SettingsValidationContext ctx
     ) {
         Map<QuerySettingDef<?>, Object> resolved = new HashMap<>();
-        for (QuerySettingDef<?> def : all()) {
-            resolveSingle(def, requestParams, statement, ctx, resolved);
+        for (QuerySettingDef<?> def : defs) {
+            resolveSingle(def, clusterDefaults, requestParams, statement, ctx, resolved);
         }
         return new ResolvedSettings(resolved);
+    }
+
+    /** Resolve with no operator defaults in play. */
+    public static ResolvedSettings resolve(
+        Map<QuerySettingDef<?>, Object> requestParams,
+        @Nullable EsqlStatement statement,
+        SettingsValidationContext ctx
+    ) {
+        return resolve(Settings.EMPTY, requestParams, statement, ctx);
     }
 
     @SuppressWarnings("unchecked")
     private static <T> void resolveSingle(
         QuerySettingDef<T> def,
+        Settings clusterDefaults,
         Map<QuerySettingDef<?>, Object> requestParams,
         @Nullable EsqlStatement statement,
         SettingsValidationContext ctx,
@@ -348,6 +402,18 @@ public final class QuerySettings {
     ) {
         T value = def.defaultValue();
         boolean userSupplied = false;
+
+        Setting<T> clusterSetting = def.clusterSetting();
+        // Presence, not value: the derived setting declares the registry default as its own, so reading it
+        // unconditionally would fold a phantom layer on every query — a no-op for a last-wins scalar, but not
+        // through a merging reconciler, and it would make every setting look operator-configured to the checks below.
+        if (clusterSetting != null && clusterSetting.exists(clusterDefaults)) {
+            value = def.reconciler().reconcile(value, clusterSetting.get(clusterDefaults));
+            // Deliberately not userSupplied. An operator's value was already parsed and validated where the operator
+            // could see the failure — on PUT _cluster/settings, and at startup for elasticsearch.yml. Re-running the
+            // validator here under the query-time context would let one operator mistake, or a later environment
+            // change, fail every query on the cluster for users who cannot fix it.
+        }
 
         if (requestParams.containsKey(def)) {
             T requestValue = (T) requestParams.get(def);

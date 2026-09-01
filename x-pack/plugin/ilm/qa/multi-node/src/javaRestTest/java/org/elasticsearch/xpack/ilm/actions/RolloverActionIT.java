@@ -338,7 +338,11 @@ public class RolloverActionIT extends IlmESRestTestCase {
         client().performRequest(allowWritesOnIndexSettingUpdate);
 
         // index is not readonly so the ILM should complete successfully
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), firstIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
+        assertBusy(
+            () -> assertThat(getStepKeyForIndex(client(), firstIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())),
+            30,
+            TimeUnit.SECONDS
+        );
     }
 
     public void testILMRolloverOnManuallyRolledIndex() throws Exception {

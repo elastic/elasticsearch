@@ -107,3 +107,36 @@ to confirm Linux `.so` files meet the RHEL 8 baseline (GLIBCXX ≤ 3.4.25, GLIBC
 # ESCF integration tests that exercise the simdjson encode path
 ./gradlew :server:test --tests org.elasticsearch.escf.EscfEncoderSimdJsonTests
 ```
+
+To fully exercise this module, run the unit suite under the JDK versions and vector
+widths the code supports, and use a local native binary when iterating on C++ changes.
+
+**JDK 21 runtime.** Stage 1 downcalls use `@Critical` with a heap-segment fallback on
+JDK 21. Verify that path explicitly:
+
+```bash
+./gradlew :libs:simdjson:test -Druntime.java=21
+```
+
+**Vector API bit widths.** `StringParser` selects its species from
+`-Dtests.vectorsize` (see `SimdJsonVectorSupport`). Run all three fixed widths so
+the vector and scalar tail paths are covered on every platform:
+
+```bash
+for width in 128 256 512; do
+  ./gradlew :libs:simdjson:test -Dtests.vectorsize=$width
+done
+```
+
+**Local native library.** When changing `native/`, build and install before testing
+(see [Building the native library](#building-the-native-library)):
+
+```bash
+cd native && make install
+LOCAL_SIMDJSON_BINARY=1 ./gradlew :libs:simdjson:test
+```
+
+Use `--rerun-tasks` to force Gradle to re-execute the test task (for example after
+a prior successful run with the same arguments). The Elasticsearch-specific
+`-Dtests.timestamp=$(date +%s)` property is only needed when re-running with
+*identical* JVM args and bypassing per-seed result caching; see CONTRIBUTING.md.

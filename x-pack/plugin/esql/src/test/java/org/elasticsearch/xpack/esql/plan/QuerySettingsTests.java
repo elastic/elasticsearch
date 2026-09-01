@@ -720,7 +720,7 @@ public class QuerySettingsTests extends ESTestCase {
             .build();
 
         ResolvedSettings unset = QuerySettings.resolve(List.of(merging), Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
-        assertThat("an unset key must contribute no layer at all", unset.get(merging), equalTo("d"));
+        assertThat("an unset key must leave the registry default alone", unset.get(merging), equalTo("d"));
 
         ResolvedSettings set = QuerySettings.resolve(
             List.of(merging),
@@ -729,7 +729,9 @@ public class QuerySettingsTests extends ESTestCase {
             null,
             SNAPSHOT_CTX_WITH_CPS_ENABLED
         );
-        assertThat("a set key must fold through the reconciler", set.get(merging), equalTo("d+op"));
+        // The operator changes what the default IS. Reconciling it with the registry default would merge the two —
+        // "d+op" — which is what the earlier shape did and is wrong: there is one default, and this replaces it.
+        assertThat("a set key must replace the registry default, not merge with it", set.get(merging), equalTo("op"));
     }
 
     public void testUnsetClusterLayerLeavesResolutionUnchanged() {
@@ -750,38 +752,77 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(resolved, equalTo(QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED)));
     }
 
-    public void testClusterDefaultIsNotSubjectToTheQueryTimeValidator() {
-        // An operator value is validated where the operator can see the failure — on PUT _cluster/settings and at
-        // node startup. If the environment later drifts so that the stored value no longer validates, resolution
-        // must still not throw: one operator mistake cannot be allowed to fail every query on the cluster.
+    public void testSnapshotOnlyOperatorValueDoesNotEscapeOntoAReleaseBuild() {
+        // unmapped_fields=LOAD_ALL is snapshot-only, enforced by the setting's own validator. Written on a snapshot
+        // build the value persists; if the cluster later runs a release build it must stop applying rather than
+        // silently remain in force. Whether it is refused depends on the build this test runs on, which is what the
+        // write-time context reports, so assert against that rather than hardcoding one build type.
         ResolvedSettings resolved = QuerySettings.resolve(
             clusterSetting(QuerySettings.UNMAPPED_FIELDS, "LOAD_ALL"),
             Map.of(),
             null,
-            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
         );
-        assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD_ALL));
+        UnmappedResolution expected = Build.current().isSnapshot() ? UnmappedResolution.LOAD_ALL : UnmappedResolution.DEFAULT;
+        assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(expected));
     }
 
-    public void testResolutionNeverRunsTheValidatorOnAnOperatorValue() {
+    public void testDriftedOperatorValueFallsBackToTheRegistryDefault() {
         // A value that was valid when the operator wrote it and is not any more — the environment drifted, or the
-        // cluster restarted onto a different build. Resolution must hand it through regardless: one operator
-        // mistake, or one environment change, cannot be allowed to fail every query on the cluster for users who
-        // cannot fix it. Reading the derived setting through Setting#get would re-validate here and throw.
+        // cluster restarted onto a build where it is no longer allowed. Two things must both hold: the query must not
+        // fail (the operator is not in the request path, so failing punishes users who cannot fix it), and the value
+        // must not stay in force either (it is no longer permitted). So it falls back to the registry default.
         QuerySettingDef<String> def = QuerySettingDef.string("drifted_operator_value")
             .withDefault("ok")
             .withValidator((value, ctx) -> value.equals("drifted") ? "no longer valid in this environment" : null)
             .withClusterDefault()
             .build();
+        Settings drifted = Settings.builder().put(def.clusterSetting().getKey(), "drifted").build();
 
-        ResolvedSettings resolved = QuerySettings.resolve(
-            List.of(def),
-            Settings.builder().put(def.clusterSetting().getKey(), "drifted").build(),
-            Map.of(),
-            null,
-            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        ResolvedSettings resolved = QuerySettings.resolve(List.of(def), drifted, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(def), equalTo("ok"));
+
+        // ... and the operator is told, on their own channel rather than in every query.
+        assertThat(def.clusterValueError(drifted), equalTo("no longer valid in this environment"));
+    }
+
+    public void testUnparseableOperatorValueFallsBackToTheRegistryDefault() {
+        // Rejected when written, so this is only reachable by drift — a stored raw that a later build no longer
+        // parses. It must not throw out of resolution.
+        QuerySettingDef<String> def = QuerySettingDef.string("strict_parse", value -> {
+            if (value.equals("bad")) {
+                throw new IllegalArgumentException("cannot parse [bad]");
+            }
+            return value;
+        }).withDefault("ok").withClusterDefault().build();
+        Settings bad = Settings.builder().put(def.clusterSetting().getKey(), "bad").build();
+
+        ResolvedSettings resolved = QuerySettings.resolve(List.of(def), bad, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(def), equalTo("ok"));
+        assertThat(def.clusterValueError(bad), containsString("cannot parse [bad]"));
+    }
+
+    public void testUsableOperatorValueReportsNoError() {
+        assertThat(QuerySettings.TIME_ZONE.clusterValueError(clusterSetting(QuerySettings.TIME_ZONE, "Europe/Paris")), is(nullValue()));
+        assertThat(QuerySettings.TIME_ZONE.clusterValueError(Settings.EMPTY), is(nullValue()));
+    }
+
+    public void testBuildRejectsClusterDefaultWhoseDefaultDoesNotParse() {
+        var e = expectThrows(
+            IllegalStateException.class,
+            () -> QuerySettingDef.string("x", value -> { throw new IllegalArgumentException("nope"); })
+                .withDefault("v")
+                .withClusterDefault()
+                .build()
         );
-        assertThat(resolved.get(def), equalTo("drifted"));
+        assertThat(e.getMessage(), containsString("does not parse back"));
+    }
+
+    public void testBuildRejectsClusterDefaultWhoseValidatorThrowsOnItsDefault() {
+        var e = expectThrows(IllegalStateException.class, () -> QuerySettingDef.string("x").withDefault("v").withValidator((value, ctx) -> {
+            throw new IllegalStateException("validator blew up");
+        }).withClusterDefault().build());
+        assertThat(e.getMessage(), containsString("its own validator throws on its default"));
     }
 
     public void testBuildRejectsClusterDefaultWhoseDefaultFailsItsOwnValidator() {

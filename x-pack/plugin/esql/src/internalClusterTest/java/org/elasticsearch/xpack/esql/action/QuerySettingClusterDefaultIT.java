@@ -8,13 +8,17 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.junit.After;
 
 import java.util.List;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * End-to-end for an operator-supplied query-setting default: what a cluster setting is set to has to reach query
@@ -27,6 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class QuerySettingClusterDefaultIT extends AbstractEsqlIntegTestCase {
 
     private static final String TIME_ZONE_KEY = "esql.query.settings.time_zone";
+    private static final String UNMAPPED_FIELDS_KEY = "esql.query.settings.unmapped_fields";
 
     // Truncating to the day is timezone-sensitive, and this instant is chosen so the two answers fall on different
     // calendar days: just past midnight in UTC, still the previous evening at -05:00. A change that only reached the
@@ -38,8 +43,8 @@ public class QuerySettingClusterDefaultIT extends AbstractEsqlIntegTestCase {
     private static final String MINUS_FIVE_RESULT = "2025-12-31T00:00:00.000-05:00";
 
     @After
-    public void clearClusterTimeZone() {
-        setClusterTimeZone(null);
+    public void clearClusterDefaults() {
+        updateClusterSettings(Settings.builder().putNull(TIME_ZONE_KEY).putNull(UNMAPPED_FIELDS_KEY));
     }
 
     public void testClusterDefaultAppliesToQueriesThatDoNotSpecifyIt() {
@@ -65,6 +70,29 @@ public class QuerySettingClusterDefaultIT extends AbstractEsqlIntegTestCase {
             () -> updateClusterSettings(Settings.builder().put("esql.query.settings.column_metadata", true))
         );
         assertThat(e.getMessage(), containsString("esql.query.settings.column_metadata"));
+    }
+
+    public void testUnmappedFieldsClusterDefaultChangesQueryOutcome() {
+        // A second setting, and one whose cluster default changes whether a query succeeds at all rather than just
+        // what it returns. It is also SET-only on the request side, so this is the axis-independence case end to end.
+        assertAcked(prepareCreate("cluster_default_unmapped").setMapping("mapped_field", "type=keyword"));
+        client().prepareIndex("cluster_default_unmapped").setSource("mapped_field", "v").setRefreshPolicy(IMMEDIATE).get();
+
+        String query = "FROM cluster_default_unmapped | KEEP mapped_field, absent_field | LIMIT 1";
+
+        // Built-in default is DEFAULT: referencing an unmapped field is an error.
+        expectThrows(VerificationException.class, () -> run(query).close());
+
+        updateClusterSettings(Settings.builder().put(UNMAPPED_FIELDS_KEY, "NULLIFY"));
+        try (EsqlQueryResponse response = run(query)) {
+            List<Object> row = getValuesList(response).get(0);
+            assertThat(row.get(0), equalTo("v"));
+            assertThat(row.get(1), nullValue());
+        }
+
+        // Removing it restores the built-in default.
+        updateClusterSettings(Settings.builder().putNull(UNMAPPED_FIELDS_KEY));
+        expectThrows(VerificationException.class, () -> run(query).close());
     }
 
     private String truncatedDay(String query) {

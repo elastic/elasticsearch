@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.plan.ClusterQuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -834,6 +835,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
             null,
             null,
             Mockito.mock(PlannerSettings.Holder.class),
+            ClusterQuerySettings.EMPTY,
             null
         );
         return new RemoteFetchService(

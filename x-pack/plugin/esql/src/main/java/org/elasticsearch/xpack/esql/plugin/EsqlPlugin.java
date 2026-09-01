@@ -140,7 +140,6 @@ import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.plan.ClusterQuerySettings;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -577,8 +576,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 PromqlFunctionRegistry.INSTANCE,
                 parser,
                 cacheService,
-                services.indicesService().getAnalysis(),
-                new ClusterQuerySettings(services.clusterService())
+                services.indicesService().getAnalysis()
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),

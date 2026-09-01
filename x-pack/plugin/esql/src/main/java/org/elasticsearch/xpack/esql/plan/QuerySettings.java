@@ -409,20 +409,12 @@ public final class QuerySettings {
         SettingsValidationContext ctx,
         Map<QuerySettingDef<?>, Object> resolved
     ) {
-        T value = def.defaultValue();
+        // The bottom of the chain is the setting's default as it stands on this cluster: an operator's value if one
+        // is configured and usable, the registry default otherwise. The operator layer is not a separate fold step —
+        // it changes what the default IS, so it replaces rather than reconciles, and it is never treated as
+        // userSupplied: an operator's value was checked where the operator could see the failure.
+        T value = def.effectiveDefault(clusterDefaults);
         boolean userSupplied = false;
-
-        Setting<T> clusterSetting = def.clusterSetting();
-        // Presence, not value: the derived setting declares the registry default as its own, so reading it
-        // unconditionally would fold a phantom layer on every query — a no-op for a last-wins scalar, but not
-        // through a merging reconciler, and it would make every setting look operator-configured to the checks below.
-        if (clusterSetting != null && clusterSetting.exists(clusterDefaults)) {
-            value = def.reconciler().reconcile(value, def.readClusterValue(clusterDefaults));
-            // Deliberately not userSupplied. An operator's value was already parsed and validated where the operator
-            // could see the failure — on PUT _cluster/settings, and at startup for elasticsearch.yml. Re-running the
-            // validator here under the query-time context would let one operator mistake, or a later environment
-            // change, fail every query on the cluster for users who cannot fix it.
-        }
 
         if (requestParams.containsKey(def)) {
             T requestValue = (T) requestParams.get(def);

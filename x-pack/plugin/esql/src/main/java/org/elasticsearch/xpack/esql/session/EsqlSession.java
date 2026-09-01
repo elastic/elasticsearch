@@ -317,7 +317,6 @@ public class EsqlSession {
         IndicesExpressionGrouper indicesExpressionGrouper,
         ProjectMetadata projectMetadata,
         PlannerSettings plannerSettings,
-        ClusterQuerySettings clusterQuerySettings,
         TransportActionServices services
     ) {
         this.sessionId = sessionId;
@@ -344,7 +343,7 @@ public class EsqlSession {
         this.remoteClusterService = services.transportService().getRemoteClusterService();
         this.blockFactory = services.blockFactoryProvider().blockFactory();
         this.plannerSettings = plannerSettings;
-        this.clusterQuerySettings = clusterQuerySettings;
+        this.clusterQuerySettings = services.clusterQuerySettings();
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
         this.localNodeName = services.clusterService().getNodeName();

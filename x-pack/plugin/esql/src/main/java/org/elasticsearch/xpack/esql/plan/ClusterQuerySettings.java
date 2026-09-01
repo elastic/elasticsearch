@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +32,8 @@ import java.util.List;
  */
 public final class ClusterQuerySettings {
 
+    private static final Logger logger = LogManager.getLogger(ClusterQuerySettings.class);
+
     /** No operator defaults in play — the correct value for tests and for callers with no cluster context. */
     public static final ClusterQuerySettings EMPTY = new ClusterQuerySettings();
 
@@ -44,7 +48,33 @@ public final class ClusterQuerySettings {
         // Seed from node settings so a value in elasticsearch.yml is in force before the first cluster state is
         // applied; the update consumer does not fire on registration, only on change.
         this.values = filterToDerived(clusterService.getSettings(), derived);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(updated -> this.values = updated, derived);
+        reportUnusableValues(this.values);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(updated -> {
+            this.values = updated;
+            reportUnusableValues(updated);
+        }, derived);
+    }
+
+    /**
+     * Log any configured value this cluster cannot use. A value is refused when it is written, so this can only fire
+     * when the environment has drifted underneath one that was legitimate at the time — most often a cluster that
+     * restarted onto a build where the stored value is no longer allowed. Resolution falls back to the registry
+     * default for such a value rather than failing queries, which would leave the operator with no signal at all;
+     * this is that signal, on the operator's own channel and once per observation rather than once per query.
+     */
+    private static void reportUnusableValues(Settings settings) {
+        for (QuerySettingDef<?> def : QuerySettings.all()) {
+            String error = def.clusterValueError(settings);
+            if (error != null) {
+                logger.warn(
+                    "Cluster setting [{}{}] is configured but not usable on this cluster and is being ignored; "
+                        + "queries fall back to the built-in default. Reason: {}",
+                    QuerySettingDef.CLUSTER_SETTING_PREFIX,
+                    def.name(),
+                    error
+                );
+            }
+        }
     }
 
     private static Settings filterToDerived(Settings settings, List<Setting<?>> derived) {

@@ -19,6 +19,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.plan.ClusterQuerySettings;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 public record TransportActionServices(
@@ -34,5 +35,6 @@ public record TransportActionServices(
     IpLocationService ipLocationService,
     BlockFactoryProvider blockFactoryProvider,
     PlannerSettings.Holder plannerSettings,
+    ClusterQuerySettings clusterQuerySettings,
     CrossProjectModeDecider crossProjectModeDecider
 ) {}

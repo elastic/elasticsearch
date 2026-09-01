@@ -126,6 +126,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             IpLocationService.NOOP,
             new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
             new PlannerSettings.Holder(clusterService),
+            ClusterQuerySettings.EMPTY,
             cpsDecider
         );
     }
@@ -717,8 +718,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             PromqlFunctionRegistry.INSTANCE,
             TEST_PARSER,
             null,
-            EsqlTestUtils.TEST_ANALYSIS_REGISTRY,
-            ClusterQuerySettings.EMPTY
+            EsqlTestUtils.TEST_ANALYSIS_REGISTRY
         );
     }
 

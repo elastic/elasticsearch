@@ -301,20 +301,68 @@ public final class QuerySettingDef<T> {
     }
 
     /**
-     * The operator-supplied value, parsed with this setting's own parser. Callers must first establish that an
-     * operator actually set the key, with {@code clusterSetting().exists(settings)}.
+     * This setting's default, as it stands on this cluster: the operator's value if one is configured and usable, and
+     * the registry default otherwise. This is the bottom of the precedence chain — a per-query source still overrides
+     * whatever comes back.
      * <p>
-     * Deliberately <b>not</b> {@link Setting#get(Settings)}. That re-runs the setting's validator on every read, so a
-     * stored value whose verdict later changed — an environment shift, a restart onto a different build — would throw
-     * on every query on the cluster, which is precisely the failure this design exists to prevent. It also fires the
-     * per-read deprecation side effect of {@code Setting#getRaw}. An operator's value is checked once, where the
-     * operator can see the failure: on {@code PUT _cluster/settings} and on the {@code elasticsearch.yml} pass at
-     * startup. Resolution only parses.
+     * The operator's value <b>replaces</b> the registry default rather than reconciling with it. There is one default
+     * in the system and an operator changes what it is; folding the two through the reconciler would merge a
+     * structured value with the product's default instead of substituting it.
+     * <p>
+     * Deliberately <b>not</b> {@link Setting#get(Settings)}, which re-runs the validator on every read and would throw
+     * on a stored value whose verdict has since changed. An operator's value is checked where the operator can see the
+     * failure — on {@code PUT _cluster/settings} and on the {@code elasticsearch.yml} pass at startup. Here a value
+     * that no longer parses or no longer validates falls back to the registry default rather than failing the query:
+     * the environment can drift under a value that was legitimate when it was written (a cluster restarted onto a
+     * different build, say), and an operator's stale configuration must neither fail every query nor quietly stay in
+     * force after it stopped being allowed. {@link #clusterValueError} reports the same condition for logging.
      */
-    T readClusterValue(Settings settings) {
-        assert clusterSetting != null && clusterParser != null : "setting [" + name + "] has no cluster default";
-        String raw = settings.get(clusterSetting.getKey());
-        return raw == null ? null : clusterParser.parse(raw);
+    T effectiveDefault(Settings clusterDefaults) {
+        if (clusterSetting == null || clusterSetting.exists(clusterDefaults) == false) {
+            return defaultValue;
+        }
+        T parsed;
+        try {
+            parsed = clusterParser.parse(clusterDefaults.get(clusterSetting.getKey()));
+        } catch (Exception e) {
+            return defaultValue;
+        }
+        if (validator != null) {
+            try {
+                if (validator.validate(parsed, CLUSTER_UPDATE_CONTEXT) != null) {
+                    return defaultValue;
+                }
+            } catch (Exception e) {
+                return defaultValue;
+            }
+        }
+        return parsed;
+    }
+
+    /**
+     * Why this setting's configured operator value cannot be used on this cluster, or {@code null} if there is no
+     * configured value or it is usable. Lets {@link ClusterQuerySettings} report a stale or inapplicable operator
+     * value on the operator's own channel, once when it is observed, rather than on every query.
+     */
+    @Nullable
+    String clusterValueError(Settings clusterDefaults) {
+        if (clusterSetting == null || clusterSetting.exists(clusterDefaults) == false) {
+            return null;
+        }
+        T parsed;
+        try {
+            parsed = clusterParser.parse(clusterDefaults.get(clusterSetting.getKey()));
+        } catch (Exception e) {
+            return e.getMessage();
+        }
+        if (validator == null) {
+            return null;
+        }
+        try {
+            return validator.validate(parsed, CLUSTER_UPDATE_CONTEXT);
+        } catch (Exception e) {
+            return e.getMessage();
+        }
     }
 
     public List<RequestBodyBinding> aliases() {

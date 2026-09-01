@@ -13,7 +13,9 @@ import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 
@@ -44,14 +46,93 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
         assertPages(docValues, ROOMY, Shape.VALUES);
     }
 
-    /** A column with no dictionary always hands over values. */
-    public void testPlainColumnComesBackAsValues() throws IOException {
+    /** A column with no dictionary, every value distinct, so the values come back as themselves. */
+    public void testPlainColumnOfDistinctValuesComesBackAsValues() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(500, 2000)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef("plain-" + d);
+        }
+        assertPages(docValues, DictionaryPolicy.NONE, Shape.VALUES);
+    }
+
+    /**
+     * A column with no dictionary whose values rotate, so no two documents that are next to each other hold
+     * the same one. A page still holds three values however long it is, and it is those the ordinals name.
+     */
+    public void testPlainColumnOfRotatingValuesComesBackAsOrdinals() throws IOException {
         final String[] terms = { "red", "green", "blue" };
         final BytesRef[] docValues = new BytesRef[between(500, 2000)];
         for (int d = 0; d < docValues.length; d++) {
             docValues[d] = new BytesRef(terms[d % terms.length]);
         }
-        assertPages(docValues, DictionaryPolicy.NONE, Shape.VALUES);
+        assertPages(docValues, DictionaryPolicy.NONE, Shape.ORDINALS);
+    }
+
+    /**
+     * An ordinal names a value, so a page hands back one slot a value however many documents carry it and
+     * wherever they sit. A value returning to a page after another one is the case coalescing what arrives
+     * together cannot see: stored twice it is two addresses, which say nothing about the bytes being equal.
+     */
+    public void testAValueReturningToAPageKeepsItsOrdinal() throws IOException {
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            final BytesRef[] docValues = new BytesRef[600];
+            for (int d = 0; d < docValues.length; d++) {
+                // Runs that restart, the shape a column clustered by region rather than sorted has.
+                docValues[d] = new BytesRef((d / 2) % 2 == 0 ? "podA" : "podB");
+            }
+            assertDistinctOrdinals("rotating runs", docValues, policy);
+        }
+    }
+
+    /**
+     * The same, for values the dictionary does not name. Two documents holding the same escaped bytes are
+     * one value, and the page has no ordinal to tell it by, only the bytes.
+     */
+    public void testARepeatedEscapedValueKeepsItsOrdinal() throws IOException {
+        final BytesRef[] docValues = new BytesRef[3000];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = d % 7 == 3 ? new BytesRef("tail-" + d) : new BytesRef("common-" + (d % 3));
+        }
+        // Held by two documents of one page, and still dropped from a vocabulary this small.
+        docValues[5] = new BytesRef("tail-shared");
+        docValues[100] = new BytesRef("tail-shared");
+        assertDistinctOrdinals("repeated escape", docValues, new DictionaryPolicy(64, 0.1, 0.9));
+    }
+
+    /** Every value of a page appears in its dictionary once, whatever the column's shape. */
+    private void assertDistinctOrdinals(String label, BytesRef[] docValues, DictionaryPolicy policy) throws IOException {
+        withColumn(docValues, 512, randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+            final int pageSize = Math.min(512, docValues.length);
+            final int[] docs = new int[pageSize];
+            for (int d = 0; d < docs.length; d++) {
+                docs[d] = d;
+            }
+            final boolean[] sawOrdinals = { false };
+            assertTrue(label + " page", reader.readBlock(docs, 0, docs.length, new StringBlockSink() {
+                @Override
+                public void appendOrdinals(int[] ordinals, int count, BytesRef[] dictionary, int dictionarySize) {
+                    sawOrdinals[0] = true;
+                    final Map<String, Integer> slotOf = new HashMap<>();
+                    for (int i = 0; i < dictionarySize; i++) {
+                        final String value = dictionary[i].utf8ToString();
+                        final Integer first = slotOf.putIfAbsent(value, i);
+                        assertNull(label + " holds [" + value + "] at slots " + first + " and " + i, first);
+                    }
+                    // And the ordinals still name the values the documents hold.
+                    for (int i = 0; i < count; i++) {
+                        assertEquals(label + " doc " + docs[i], docValues[docs[i]].utf8ToString(), dictionary[ordinals[i]].utf8ToString());
+                    }
+                }
+
+                @Override
+                public void appendValues(BytesRef[] values, int count) {
+                    for (int i = 0; i < count; i++) {
+                        assertEquals(label + " doc " + docs[i], docValues[docs[i]].utf8ToString(), values[i].utf8ToString());
+                    }
+                }
+            }));
+            assertTrue(label + " expected a page of ordinals", sawOrdinals[0]);
+        });
     }
 
     /** Escaped documents are their own entries, and have to rebuild as themselves. */

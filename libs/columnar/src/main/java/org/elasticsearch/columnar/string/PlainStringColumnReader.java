@@ -146,28 +146,37 @@ public final class PlainStringColumnReader extends StringColumnReader {
     @Override
     protected boolean appendPage(int count, StringBlockSink sink) throws IOException {
         pageBytesLength = 0;
-        int runs = 0;
+        startPageSlots(count);
+        int slots = 0;
         long previous = -1;
         int previousLength = -1;
+        int previousSlot = -1;
         for (int i = 0; i < count; i++) {
             final long identity = values.read(pageRanks[i], scratch);
-            if (runs == 0 || identity != previous || scratch.length != previousLength) {
-                appendToPage(runs++, scratch);
+            // A run is stored once, so where a value was read tells a repeat of the one before it from a
+            // new value without looking at any bytes. A value the page held earlier is a different address
+            // and has to be found by its bytes, or the same value would take two slots.
+            if (previousSlot < 0 || identity != previous || scratch.length != previousLength) {
+                final int slot = pageSlotFor(scratch, slots);
+                if (slot == slots) {
+                    slots++;
+                }
                 previous = identity;
                 previousLength = scratch.length;
+                previousSlot = slot;
             }
-            pageOrdinals[i] = runs - 1;
+            pageOrdinals[i] = previousSlot;
         }
-        point(pageDictionary, runs);
+        point(pageDictionary, slots);
         // As many entries as documents is no shorter as ordinals than as values.
-        if ((long) runs * MIN_PAGE_REPEAT > count) {
+        if ((long) slots * MIN_PAGE_REPEAT > count) {
             for (int i = 0; i < count; i++) {
                 pageValues[i] = pageDictionary[pageOrdinals[i]];
             }
             sink.appendValues(pageValues, count);
             return true;
         }
-        sink.appendOrdinals(pageOrdinals, count, pageDictionary, runs);
+        sink.appendOrdinals(pageOrdinals, count, pageDictionary, slots);
         return true;
     }
 }

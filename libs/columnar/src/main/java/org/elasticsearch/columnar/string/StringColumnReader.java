@@ -66,6 +66,13 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     private byte[] pageBytes = new byte[0];
     protected int pageBytesLength;
 
+    // A page's slots found by the bytes in them, so a value the page already holds is one slot and not two.
+    // Stamped by generation rather than cleared, as the ordinal slots of a dictionary column are.
+    private int[] slotByHash = new int[0];
+    private int[] slotStamp = new int[0];
+    private int slotGeneration;
+    private int slotMask;
+
     StringColumnReader(StringColumnMetadata meta, IndexInput data, int blockSize) throws IOException {
         assert meta.multiValued() == false : "this surface carries one value per document";
         this.meta = meta;
@@ -429,6 +436,64 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     protected abstract boolean appendPage(int count, StringBlockSink sink) throws IOException;
 
     /** Copies a value into the page's own bytes, so the reader's buffer can be reused for the next one. */
+    /**
+     * Opens a page's dictionary for at most {@code slots} entries found by their bytes, which is what
+     * {@link #pageSlotFor} then finds them by.
+     */
+    protected void startPageSlots(int slots) {
+        int capacity = 16;
+        while (capacity < slots * 2) {
+            capacity <<= 1;
+        }
+        if (slotByHash.length < capacity) {
+            slotByHash = new int[capacity];
+            slotStamp = new int[capacity];
+            slotGeneration = 0;
+        }
+        if (++slotGeneration == Integer.MAX_VALUE) {
+            Arrays.fill(slotStamp, 0);
+            slotGeneration = 1;
+        }
+        slotMask = capacity - 1;
+    }
+
+    /**
+     * The slot holding {@code value}: one the page already has when it holds those bytes, and {@code next}
+     * otherwise, the value having been appended there. A caller advances its own count when what it gets
+     * back is the slot it offered.
+     *
+     * <p>An ordinal names a value, so a page hands back one slot a value however many documents carry it.
+     * Coalescing only what arrives together is not enough for that: a value can return to a page after
+     * another one, and stored twice it is two addresses that say nothing about the bytes being the same.
+     */
+    protected int pageSlotFor(BytesRef value, int next) {
+        int i = value.hashCode() & slotMask;
+        while (slotStamp[i] == slotGeneration) {
+            final int slot = slotByHash[i];
+            if (pageSlotHolds(slot, value)) {
+                return slot;
+            }
+            i = (i + 1) & slotMask;
+        }
+        slotStamp[i] = slotGeneration;
+        slotByHash[i] = next;
+        appendToPage(next, value);
+        return next;
+    }
+
+    /** Whether the bytes a slot already holds are {@code value}'s. */
+    private boolean pageSlotHolds(int slot, BytesRef value) {
+        return pageLengths[slot] == value.length
+            && Arrays.equals(
+                pageBytes,
+                pageStarts[slot],
+                pageStarts[slot] + value.length,
+                value.bytes,
+                value.offset,
+                value.offset + value.length
+            );
+    }
+
     protected void appendToPage(int slot, BytesRef value) {
         if (pageBytes.length < pageBytesLength + value.length) {
             pageBytes = ArrayUtil.grow(pageBytes, pageBytesLength + value.length);

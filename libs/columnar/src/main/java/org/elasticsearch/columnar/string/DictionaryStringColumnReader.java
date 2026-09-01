@@ -406,21 +406,27 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             dictionary.get(touched[slot], scratch);
             appendToPage(slot, scratch);
         }
+        startPageSlots(escapedInPage);
         for (int i = 0; i < count; i++) {
             final int ordinal = pageOrdinals[i];
             if (ordinal < dictionarySize) {
                 pageOrdinals[i] = slotOf(ordinal, distinct);
             } else {
-                // Every escaped document is its own entry: nothing names it but its bytes.
+                // Nothing names an escaped value but its bytes, so two documents holding the same ones are
+                // found to share a slot by those bytes. They cannot be found among the terms: a value
+                // escaped because the vocabulary does not hold it.
                 escapes.get(escapeRankOf(pageRanks[i]), scratch);
-                appendToPage(slot, scratch);
-                pageOrdinals[i] = slot++;
+                final int found = pageSlotFor(scratch, slot);
+                if (found == slot) {
+                    slot++;
+                }
+                pageOrdinals[i] = found;
             }
         }
         point(pageDictionary, slot);
 
         // A page with as many entries as documents is no shorter as ordinals than as values.
-        if ((long) (distinct + escapedInPage) * MIN_PAGE_REPEAT > count) {
+        if ((long) slot * MIN_PAGE_REPEAT > count) {
             for (int i = 0; i < count; i++) {
                 pageValues[i] = pageDictionary[pageOrdinals[i]];
             }

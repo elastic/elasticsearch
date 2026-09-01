@@ -78,7 +78,7 @@ public class TransportClosePointInTimeAction extends HandledTransportAction<Clos
      * because the contexts will expire naturally via their keep-alive TTL if the mark request
      * cannot be delivered.
      */
-    public static void markContextsAsRelocating(
+    static void markContextsAsRelocating(
         DiscoveryNodes nodes,
         SearchTransportService searchTransportService,
         Collection<SearchContextIdForNode> contextIds
@@ -108,7 +108,7 @@ public class TransportClosePointInTimeAction extends HandledTransportAction<Clos
     /**
      * Closes the given context id and reports the number of freed contexts via the listener
      */
-    public static void closeContexts(
+    private static void closeContexts(
         DiscoveryNodes nodes,
         SearchTransportService searchTransportService,
         Collection<SearchContextIdForNode> contextIds,

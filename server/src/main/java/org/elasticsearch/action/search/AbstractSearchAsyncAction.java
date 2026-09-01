@@ -759,7 +759,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         SearchContextId original = originalPit.getSearchContextId(namedWriteableRegistry);
         // only create the following two collections if we detect an id change
         Map<ShardId, SearchContextIdForNode> updatedShardMap = null;
-        Collection<SearchContextIdForNode> contextsToClose = null;
+        Collection<SearchContextIdForNode> contextsToCleanUp = null;
         logger.debug("checking [{}] search result shards to detect PIT node changes", results.size());
         for (Result result : results) {
             SearchShardTarget searchShardTarget = result.getSearchShardTarget();
@@ -773,7 +773,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
                     if (updatedShardMap == null) {
                         // initialize the map with entries from old map to keep ids for shards that have not responded in this results
                         updatedShardMap = new HashMap<>(original.shards());
-                        contextsToClose = new ArrayList<>();
+                        contextsToCleanUp = new ArrayList<>();
                     }
                     SearchContextIdForNode updatedId = new SearchContextIdForNode(
                         searchShardTarget.getClusterAlias(),
@@ -789,7 +789,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
                         updatedId
                     );
                     updatedShardMap.put(shardId, updatedId);
-                    contextsToClose.add(original.shards().get(shardId));
+                    contextsToCleanUp.add(original.shards().get(shardId));
 
                 }
             }
@@ -801,7 +801,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
             // immediate close could interrupt a concurrent search in the phase-transition gap
             // when no reference is held. The contexts will also expire naturally via their
             // keep-alive TTL if the mark request cannot be delivered.
-            markContextsAsRelocating(nodes, searchTransportService, contextsToClose);
+            markContextsAsRelocating(nodes, searchTransportService, contextsToCleanUp);
             return SearchContextId.encode(updatedShardMap, original.aliasFilter(), mintransportVersion, ShardSearchFailure.EMPTY_ARRAY);
         } else {
             return originalPit.getEncodedId();

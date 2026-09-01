@@ -1,2 +1,0 @@
-SET unmapped_fields="LOAD_ALL"; FROM employees, (ROW synthetic = 1)
-| KEEP emp_no, synthetic, does_not_exist

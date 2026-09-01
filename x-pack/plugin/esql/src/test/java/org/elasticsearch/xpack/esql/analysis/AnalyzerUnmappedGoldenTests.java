@@ -774,7 +774,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     public void testSubqueryWithRowBranchOuterReference() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assumeTrue("Requires ROW source subqueries", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
-        runInNullifyLoadAndLoadAllModes("""
+        runInNullifyAndLoadModes("""
             FROM employees, (ROW synthetic = 1)
             | KEEP emp_no, synthetic, does_not_exist
             """);

@@ -3467,8 +3467,8 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_SKIPS_VALUELESS_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
-         * Support for subqueries (in {@code FROM} and {@code IN}/{@code NOT IN}) under
-         * {@code unmapped_fields="LOAD_ALL"}. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
+         * Support for {@code FROM} subqueries under {@code unmapped_fields="LOAD_ALL"}.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
          */
         OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 

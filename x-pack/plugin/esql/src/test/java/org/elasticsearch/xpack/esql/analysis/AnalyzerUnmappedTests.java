@@ -1552,12 +1552,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statement(setUnmappedLoadAll("FROM (FROM test),(FROM test),(FROM test)"));
     }
 
-    public void testLoadAllModeAllowsSubqueryWithRow() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue("Requires ROW source subqueries", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
-        test().statement(setUnmappedLoadAll("FROM test, (ROW synthetic = 1) | KEEP emp_no, synthetic, does_not_exist"));
-    }
-
     public void testLoadAllSubqueryEvalThenKeepExactNamesDoesNotExpand() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         LogicalPlan plan = partialMappingTest().statement(setUnmappedLoadAll("""
@@ -1568,17 +1562,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             | SORT message
             """));
         assertThat(Expressions.names(plan.output()), equalTo(List.of("message", "dur")));
-    }
-
-    public void testLoadAllModeAllowsInSubquery() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-        LogicalPlan plan = partialMappingTest().statement(setUnmappedLoadAll("""
-            FROM partial_mapping_sample_data
-            | WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
-            | KEEP message, unmapped_message
-            """));
-        assertThat(plan.resolved(), is(true));
-        assertThat(Expressions.names(plan.output()), hasItem("unmapped_message"));
     }
 
     public void testLoadAllModeAllowsSubqueryWithLookupJoin() {

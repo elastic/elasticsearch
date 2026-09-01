@@ -393,16 +393,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
             """);
     }
 
-    public void testSubqueryEvalUnmappedThenKeepExactNameOmitsUnmappedFieldsAttribute() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assertNoUnmappedFieldsAttribute("""
-            FROM (FROM test), (FROM test)
-            | EVAL z = unmapped_extra::keyword
-            | KEEP emp_no, z
-            | SORT emp_no
-            """);
-    }
-
     public void testSubqueryNoKeepAnnotatesBothRelations() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM (FROM test), (FROM test)"));

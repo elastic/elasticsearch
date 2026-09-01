@@ -703,7 +703,8 @@ public class AuthorizationService {
         auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
         if (ex instanceof NoMatchingProjectException && authentication.isApiKey()) {
             listener.onFailure(
-                actionDenied(authentication, authzInfo, action, request, "because Elasticsearch API keys cannot access linked projects", ex)
+                new NoMatchingProjectException(ex.getMessage() + "; the request was authenticated with an Elasticsearch API key, which " +
+                    "can only access the origin project and never linked projects; to access linked projects, use a Cloud API key instead")
             );
         } else if (ex instanceof IndexNotFoundException
             || ex instanceof NoMatchingProjectException

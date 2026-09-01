@@ -78,7 +78,6 @@ import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettin
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -3615,84 +3614,16 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
      * {@link IndexReshardingState.Split.TargetShardState#HANDOFF} in resharding metadata but before the target
      * primary is started in routing. Both force gateway recovery and verify the reshard completes with all
      * documents searchable. Post-handoff recovery does not copy blobs (CLONE already finished), so the target's
-     * {@link ShardStateAction#SHARD_STARTED_ACTION_NAME} notification to master is blocked to keep routing
+     * {@link ShardStateAction#SHARD_STARTED_ACTION_NAME} notification to master is suppressed to keep routing
      * {@code !started()} while metadata is {@code HANDOFF}.
+     * <p>
+     * The notification is suppressed by failing the send with a {@link ConnectTransportException} rather than
+     * blocking: a master-channel exception makes {@link ShardStateAction} re-register a
+     * {@link org.elasticsearch.cluster.ClusterStateObserver} retry, so no thread is ever parked inside the
+     * intercept. Blocking instead would park the cluster applier thread when the retry fires mid-publication,
+     * stalling the ack of the new master's first cluster state and deadlocking the restart.
      */
     public void testTargetRecoversAfterMasterRestartDuringHandoff() throws Exception {
-        var setup = startHandoffRestartCluster();
-
-        // Throw rather than block so the cluster applier thread is never parked inside the intercept.
-        // Parking it might stall ack of the new master's first publication, deadlocking the restart.
-        AtomicBoolean suppressShardStarted = new AtomicBoolean(true);
-        AtomicReference<String> retryThread = new AtomicReference<>();
-        CountDownLatch masterStopped = new CountDownLatch(1);
-        CountDownLatch shardStartedAttempted = new CountDownLatch(1);
-        AtomicBoolean firstAttempt = new AtomicBoolean(true);
-        MockTransportService targetTransport = MockTransportService.getInstance(setup.targetIndexNode());
-        targetTransport.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (ShardStateAction.SHARD_STARTED_ACTION_NAME.equals(action)) {
-                if (firstAttempt.compareAndSet(true, false)) {
-                    // Hold the first send until the master is gone so it fails against the dead master,
-                    // forcing the ClusterStateObserver retry path mid-restart.
-                    shardStartedAttempted.countDown();
-                    safeAwait(masterStopped, TimeValue.timeValueSeconds(60));
-                } else {
-                    // The retry fires on the cluster applier thread (via ClusterStateObserver.onNewClusterState).
-                    retryThread.compareAndSet(null, Thread.currentThread().getName());
-                    if (suppressShardStarted.get()) {
-                        throw new ConnectTransportException(connection.getNode(), "suppressed until master restart completes");
-                    }
-                }
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
-
-        try {
-            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(setup.indexName()));
-            awaitHandoffUnstarted(resolveIndex(setup.indexName()));
-            safeAwait(shardStartedAttempted, TimeValue.timeValueSeconds(60));
-
-            internalCluster().restartNode(setup.masterNode(), new InternalTestCluster.RestartCallback() {
-                @Override
-                public Settings onNodeStopped(String nodeName) throws Exception {
-                    masterStopped.countDown();
-                    return super.onNodeStopped(nodeName);
-                }
-
-                @Override
-                public boolean validateClusterForming() {
-                    return false;
-                }
-            });
-            suppressShardStarted.set(false);
-            assertBusy(() -> ensureStableCluster(5));
-
-            assertReshardCompleted(setup.indexName(), setup.numDocs());
-            assertThat(
-                "SHARD_STARTED retry must fire on the cluster applier thread (mid-publication ordering)",
-                retryThread.get(),
-                containsString(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)
-            );
-        } finally {
-            masterStopped.countDown();
-            shardStartedAttempted.countDown();
-            suppressShardStarted.set(false);
-            targetTransport.clearAllRules();
-        }
-    }
-
-    /**
-     * Verifies split target shards recover after a master restart during HANDOFF, where SHARD_STARTED is
-     * suppressed across the restart and retried only once the new master is elected and stable.
-     * <p>
-     * Complements {@link #testTargetRecoversAfterMasterRestartDuringHandoff()}: that test forces the
-     * dangerous ordering where SHARD_STARTED retry fires on the cluster applier thread while the new
-     * master's first publication is still in progress. This test exercises the safe ordering: SHARD_STARTED
-     * is held back for the entire restart, and released only after the new master has committed its first
-     * cluster state. The retry therefore finds a stable master and sends from a transport-worker thread
-     * without touching the applier thread mid-publication.
-     */
-    public void testTargetStartsAfterMasterRestartDuringHandoff() throws Exception {
         var setup = startHandoffRestartCluster();
 
         AtomicBoolean suppressShardStarted = new AtomicBoolean(true);

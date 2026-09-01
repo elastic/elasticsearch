@@ -13,10 +13,10 @@ import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 import org.elasticsearch.test.ESTestCase;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.simdjson.SimdJsonTestSupport.newParser;
 import static org.elasticsearch.simdjson.SimdJsonTestSupport.walkJson;
 
@@ -212,7 +212,7 @@ public class SimdJsonDirectWalkerTests extends ESTestCase {
 
     public void testFieldNameCaching() {
         String json = "{\"field\":1}";
-        byte[] buffer = json.getBytes(StandardCharsets.UTF_8);
+        byte[] buffer = json.getBytes(UTF_8);
         int len = buffer.length;
 
         SimdJsonParser parser = newParser(len);
@@ -244,21 +244,21 @@ public class SimdJsonDirectWalkerTests extends ESTestCase {
 
     public void testDocumentExactly16Bytes() {
         String json = "{\"a\":\"b\"       }";
-        assertEquals(16, json.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals(16, json.getBytes(UTF_8).length);
         List<String> events = walkJson(json);
         assertEquals(List.of("string(a=b)"), events);
     }
 
     public void testDocumentExactly32Bytes() {
         String json = "{\"abcd\":\"efghijklmnopqr\"       }";
-        assertEquals(32, json.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals(32, json.getBytes(UTF_8).length);
         List<String> events = walkJson(json);
         assertEquals(List.of("string(abcd=efghijklmnopqr)"), events);
     }
 
     public void testDocumentExactly64Bytes() {
         String json = "{\"abcdefghijk\":\"lmnopqrstuvwxyz0123456789ABCDEFGHIJKLMN\"       }";
-        assertEquals(64, json.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals(64, json.getBytes(UTF_8).length);
         List<String> events = walkJson(json);
         assertEquals(List.of("string(abcdefghijk=lmnopqrstuvwxyz0123456789ABCDEFGHIJKLMN)"), events);
     }
@@ -363,6 +363,24 @@ public class SimdJsonDirectWalkerTests extends ESTestCase {
     }
 
     /**
+     * Truncated JSON (missing closing brace) must not yield a successful walk — either stage 1
+     * or the direct walker must reject it.
+     */
+    public void testTruncatedJsonMustNotWalkSuccessfully() {
+        byte[] buffer = "{\"a\":1".getBytes(UTF_8);
+        try (SimdJsonParser parser = newParser(buffer.length)) {
+            parser.stage1(buffer, buffer.length);
+            parser.prepareDocumentWindow(0, buffer.length);
+            FrozenFieldNameTable parent = new FrozenFieldNameTable();
+            SimdJsonDirectWalker walker = new SimdJsonDirectWalker(parent.makeChild());
+            SimdJsonTestSupport.RecordingHandler handler = new SimdJsonTestSupport.RecordingHandler();
+            expectThrows(Exception.class, () -> walker.walkDocument(buffer, buffer.length, parser, handler));
+        } catch (JsonParsingException e) {
+            // stage 1 rejection is acceptable
+        }
+    }
+
+    /**
      * Walks a JSON document using a buffer of exactly {@code docLen + paddingBytes}.
      */
     private void walkWithExactPadding(String json, int paddingBytes) {
@@ -373,7 +391,7 @@ public class SimdJsonDirectWalkerTests extends ESTestCase {
      * Walks a JSON document and returns the recording handler for assertion.
      */
     private SimdJsonTestSupport.RecordingHandler walkAndRecord(String json, int paddingBytes) {
-        byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
+        byte[] jsonBytes = json.getBytes(UTF_8);
         int len = jsonBytes.length;
         byte[] buffer = Arrays.copyOf(jsonBytes, len + paddingBytes);
 

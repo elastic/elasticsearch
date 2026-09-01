@@ -9,11 +9,13 @@
 
 package org.elasticsearch.simdjson;
 
+import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 import org.elasticsearch.test.ESTestCase;
 
-import java.nio.charset.StandardCharsets;
+import java.util.List;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.simdjson.SimdJsonTestSupport.buildBatchBuffer;
 import static org.elasticsearch.simdjson.SimdJsonTestSupport.computeLengths;
 import static org.elasticsearch.simdjson.SimdJsonTestSupport.computeOffsets;
@@ -147,7 +149,7 @@ public class SimdJsonParserTests extends ESTestCase {
 
     public void testStage1WithOffset() {
         String json = "{\"a\":1}";
-        byte[] raw = json.getBytes(StandardCharsets.UTF_8);
+        byte[] raw = json.getBytes(UTF_8);
         int offset = 32;
         byte[] buffer = new byte[offset + raw.length];
         System.arraycopy(raw, 0, buffer, offset, raw.length);
@@ -202,7 +204,7 @@ public class SimdJsonParserTests extends ESTestCase {
 
     public void testPrepareDocumentWindowChunkedMultipleChunks() {
         String doc = "{\"i\":0}";
-        int docLen = doc.getBytes(StandardCharsets.UTF_8).length;
+        int docLen = doc.getBytes(UTF_8).length;
         int docsNeeded = (SimdJsonParser.CHUNK_BYTE_LIMIT / docLen) + 100;
         String[] docs = new String[docsNeeded];
         for (int i = 0; i < docsNeeded; i++) {
@@ -230,7 +232,7 @@ public class SimdJsonParserTests extends ESTestCase {
     public void testPrepareDocumentWindowChunkedDocAtExactChunkBoundary() {
         int chunkLimit = SimdJsonParser.CHUNK_BYTE_LIMIT;
         String smallDoc = "{\"x\":1}";
-        int smallDocLen = smallDoc.getBytes(StandardCharsets.UTF_8).length;
+        int smallDocLen = smallDoc.getBytes(UTF_8).length;
         int docsInFirstChunk = chunkLimit / smallDocLen;
         int firstChunkActualSize = docsInFirstChunk * smallDocLen;
 
@@ -284,7 +286,7 @@ public class SimdJsonParserTests extends ESTestCase {
 
     public void testBeginBatchSubRange() {
         String doc = "{\"sub\":true}";
-        byte[] raw = doc.getBytes(StandardCharsets.UTF_8);
+        byte[] raw = doc.getBytes(UTF_8);
         int offset = 50;
         byte[] buffer = new byte[offset + raw.length];
         System.arraycopy(raw, 0, buffer, offset, raw.length);
@@ -305,7 +307,7 @@ public class SimdJsonParserTests extends ESTestCase {
     public void testPrepareDocumentWindowMinimalDoc() {
         String doc = "{}";
         byte[] buffer = buildBatchBuffer(doc);
-        int total = doc.getBytes(StandardCharsets.UTF_8).length;
+        int total = doc.getBytes(UTF_8).length;
 
         SimdJsonParser batch = newParser(CAPACITY);
         batch.beginBatch(buffer, total);
@@ -321,7 +323,7 @@ public class SimdJsonParserTests extends ESTestCase {
     public void testPrepareDocumentWindowSingleFieldDoc() {
         String doc = "{\"a\":1}";
         byte[] buffer = buildBatchBuffer(doc);
-        int total = doc.getBytes(StandardCharsets.UTF_8).length;
+        int total = doc.getBytes(UTF_8).length;
 
         SimdJsonParser batch = newParser(CAPACITY);
         batch.beginBatch(buffer, total);
@@ -387,5 +389,58 @@ public class SimdJsonParserTests extends ESTestCase {
             assertEquals('{', buffer[firstIdx]);
             assertTrue("index " + firstIdx + " within doc bounds", firstIdx >= offsets[d] && firstIdx < offsets[d] + lengths[d]);
         }
+    }
+
+    /**
+     * {@link SimdJsonParser} requires ascending document offsets. Preparing a later document
+     * before an earlier one in the same batch must not silently walk the earlier document.
+     */
+    public void testOutOfOrderDocumentWindowThrows() throws Exception {
+        String first = "{\"first\":1}";
+        String second = "{\"second\":2}";
+        byte[] buffer = buildBatchBuffer(first, second);
+        int[] offsets = computeOffsets(first, second);
+        int[] lengths = computeLengths(first, second);
+
+        SimdJsonParser parser = newParser(CAPACITY);
+        FrozenFieldNameTable table = new FrozenFieldNameTable();
+        SimdJsonDirectWalker walker = new SimdJsonDirectWalker(table.makeChild());
+        parser.beginBatch(buffer, buffer.length);
+
+        parser.prepareDocumentWindowChunked(offsets[1], lengths[1]);
+        SimdJsonTestSupport.RecordingHandler handler = new SimdJsonTestSupport.RecordingHandler();
+        walker.walkDocument(buffer, lengths[1], parser, handler);
+        assertEquals(List.of("long(second=2,fitsInt=true)"), handler.events);
+
+        parser.prepareDocumentWindowChunked(offsets[0], lengths[0]);
+        handler.events.clear();
+        expectThrows(JsonParsingException.class, () -> walker.walkDocument(buffer, lengths[0], parser, handler));
+    }
+
+    /**
+     * Re-running stage 1 on the same parser for a second document must not leak structural
+     * indices from the first document into the second walk.
+     */
+    public void testSecondStage1DoesNotLeakPriorDocument() throws Exception {
+        String doc1 = "{\"only\":1}";
+        String doc2 = "{\"other\":2}";
+        List<String> baseline2 = SimdJsonTestSupport.walkJson(doc2);
+
+        SimdJsonParser parser = newParser(CAPACITY);
+        FrozenFieldNameTable table = new FrozenFieldNameTable();
+        SimdJsonDirectWalker walker = new SimdJsonDirectWalker(table.makeChild());
+
+        byte[] buf1 = doc1.getBytes(UTF_8);
+        parser.stage1(buf1, buf1.length);
+        parser.prepareDocumentWindow(0, buf1.length);
+        walker.walkDocument(buf1, buf1.length, parser, new SimdJsonTestSupport.RecordingHandler());
+
+        byte[] buf2 = doc2.getBytes(UTF_8);
+        parser.stage1(buf2, buf2.length);
+        parser.prepareDocumentWindow(0, buf2.length);
+        SimdJsonTestSupport.RecordingHandler handler = new SimdJsonTestSupport.RecordingHandler();
+        walker.walkDocument(buf2, buf2.length, parser, handler);
+
+        assertEquals(baseline2, handler.events);
     }
 }

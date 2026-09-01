@@ -17,6 +17,8 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.sourcebatch.ArrayReader;
+import org.elasticsearch.sourcebatch.KeyValueReader;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceRowToXContent;
 import org.elasticsearch.test.ESTestCase;
@@ -646,6 +648,20 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     }
 
     /**
+     * Duplicate keys inside an object nested in an array are written into the KEY_VALUE blob,
+     * bypassing {@link EscfRowBuffer}'s duplicate-leaf rejection at the root. Both parser paths
+     * retain multiple entries for the same key.
+     */
+    public void testDuplicateKeysInsideArrayObjectKvBlobAreRetained() throws IOException {
+        String json = "{\"items\":[{\"a\":1,\"a\":2}]}";
+        List<String> simdKeys = readItemsObjectKeys(json, true);
+        List<String> jacksonKeys = readItemsObjectKeys(json, false);
+
+        assertEquals(List.of("a", "a"), simdKeys);
+        assertEquals(simdKeys, jacksonKeys);
+    }
+
+    /**
      * Root-level array leaves must fire onArrayLeaf once on both parser paths.
      */
     public void testArrayLeafSinkFiresOnce() throws IOException {
@@ -1138,6 +1154,34 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
 
     private static Recycler<BytesRef> newRecycler() {
         return new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+    }
+
+    private static List<String> readItemsObjectKeys(String json, boolean allowSimd) throws IOException {
+        Recycler<BytesRef> recycler = newRecycler();
+        try (EscfEncoder encoder = new EscfEncoder(recycler, allowSimd)) {
+            encoder.addDocument(new BytesArray(json), XContentType.JSON, 0);
+            try (EscfBatch batch = encoder.buildPartition(0)) {
+                int itemsCol = findColumn(batch, "items");
+                ArrayReader array = batch.row(0).getArrayValue(itemsCol);
+                assertTrue(array.next());
+                KeyValueReader kv = array.nestedKeyValue();
+                List<String> keys = new ArrayList<>();
+                while (kv.next()) {
+                    keys.add(kv.key());
+                }
+                return keys;
+            }
+        }
+    }
+
+    private static int findColumn(EscfBatch batch, String path) {
+        for (int col = 0; col < batch.columnCount(); col++) {
+            if (path.equals(batch.schema().getFullPath(col))) {
+                return col;
+            }
+        }
+        fail("column not found: " + path);
+        return -1;
     }
 
     /** Builds {@code {"l0":{"l1":...:leaf}}} with {@code depth} nested object wrappers. */

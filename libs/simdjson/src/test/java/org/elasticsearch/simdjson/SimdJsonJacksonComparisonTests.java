@@ -31,9 +31,16 @@ public class SimdJsonJacksonComparisonTests extends ESTestCase {
     // ---- Jackson/XContent walker ----
 
     private List<String> walkWithJackson(String json) throws IOException {
+        return walkWithJackson(json, false);
+    }
+
+    private List<String> walkWithJackson(String json, boolean allowDuplicateKeys) throws IOException {
         List<String> events = new ArrayList<>();
         byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
         try (XContentParser p = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bytes)) {
+            if (allowDuplicateKeys) {
+                p.allowDuplicateKeys(true);
+            }
             XContentParser.Token token = p.nextToken();
             assert token == XContentParser.Token.START_OBJECT : "expected START_OBJECT but got " + token;
             walkJacksonObject(p, events);
@@ -166,7 +173,11 @@ public class SimdJsonJacksonComparisonTests extends ESTestCase {
     // ---- Comparison helper ----
 
     private void assertParsersAgree(String json) throws IOException {
-        List<String> jacksonEvents = walkWithJackson(json);
+        assertParsersAgree(json, false);
+    }
+
+    private void assertParsersAgree(String json, boolean allowDuplicateKeys) throws IOException {
+        List<String> jacksonEvents = walkWithJackson(json, allowDuplicateKeys);
         List<String> simdEvents = walkJson(json, true);
         assertEquals("Event streams differ for: " + json, jacksonEvents, simdEvents);
     }
@@ -305,6 +316,16 @@ public class SimdJsonJacksonComparisonTests extends ESTestCase {
 
     public void testNewlinesAndTabs() throws IOException {
         assertParsersAgree("{\n\t\"a\":\t1,\n\t\"b\":\t2\n}");
+    }
+
+    /**
+     * Duplicate object keys: Jackson rejects by default but emits every occurrence when
+     * {@link XContentParser#allowDuplicateKeys(boolean) allowDuplicateKeys(true)}, as
+     * {@link org.elasticsearch.escf.EscfEncoder} configures its parser. The direct walker
+     * must produce the same event stream in that mode.
+     */
+    public void testDuplicateKeysMatchJacksonWhenAllowed() throws IOException {
+        assertParsersAgree("{\"k\":1,\"k\":2,\"k\":3}", true);
     }
 
     // ---- Numeric edge cases ----

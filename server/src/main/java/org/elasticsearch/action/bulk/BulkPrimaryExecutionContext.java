@@ -396,6 +396,8 @@ class BulkPrimaryExecutionContext {
         // anymore.
         if (primary.routingEntry().isSearchable() == false) {
             if (requestToExecute != null) {
+                // In the failure path (i.e. after a memory pressure rejection) getCurrent() == requestToExecute
+                // and thus the expansionDeltaBytes == 0 and this will be a no-op
                 pressureExpansionTracker.removeExpandedBytes(expansionDeltaBytes(getCurrent(), requestToExecute));
             }
             requestToExecute = null;

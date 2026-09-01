@@ -37,7 +37,7 @@ public class FrozenIndexShardTests extends IndexShardTestCase {
         IndexShard frozenShard = reinitShard(
             indexShard,
             reinitRouting,
-            newRecoveryState(reinitRouting, reinitRouting.primary() ? null : DiscoveryNodeUtils.create("source-node")),
+            reinitRouting.primary() ? null : DiscoveryNodeUtils.create("source-node"),
             indexShard.indexSettings().getIndexMetadata(),
             config -> new FrozenEngine(config, true, randomBoolean())
         );

@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -106,6 +107,7 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
         // Fake large heap memory usages to block allocation
         final var interceptor = new HeapUsagePublicationInterceptor(
             MockTransportService.getInstance(masterNodeName),
+            internalCluster().getInstance(StatelessMemoryMetricsService.class, masterNodeName),
             nodeHeapMaxLookupById
         );
         interceptor.injectAll(nodeHeapMaxLookupById.keySet());
@@ -242,6 +244,7 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
         // No injection yet — nodes start well below the 80% high watermark.
         final var interceptor = new HeapUsagePublicationInterceptor(
             MockTransportService.getInstance(masterNodeName),
+            internalCluster().getInstance(StatelessMemoryMetricsService.class, masterNodeName),
             nodeHeapMaxLookupById
         );
         interceptor.waitForNextPublication();
@@ -320,19 +323,25 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
      * Intercepts {@link TransportPublishHeapMemoryMetrics} requests on the master and optionally replaces the reported mapping sizes with
      * the node's full heap max, simulating a node that is fully saturated. Nodes are added to and removed from injection via
      * {@link #injectAll(Collection)} and {@link #stopInjecting(String)}. Use {@link #waitForNextPublication()} to synchronize
-     * with the next publication cycle from every tracked node.
+     * with the master actually holding the delivered mapping sizes for every tracked node.
      */
     private class HeapUsagePublicationInterceptor {
 
         private final Map<String, Long> nodeHeapMaxLookupById;
         private final Set<String> nodesToInject = ConcurrentCollections.newConcurrentSet();
         private final ConcurrentHashMap<String, CountDownLatch> nodeIdToPublicationLatch;
+        private final StatelessMemoryMetricsService masterMemoryMetricsService;
 
-        HeapUsagePublicationInterceptor(MockTransportService masterMockTransportService, Map<String, Long> nodeHeapMaxLookupById) {
+        HeapUsagePublicationInterceptor(
+            MockTransportService masterMockTransportService,
+            StatelessMemoryMetricsService masterMemoryMetricsService,
+            Map<String, Long> nodeHeapMaxLookupById
+        ) {
             this.nodeHeapMaxLookupById = nodeHeapMaxLookupById;
             this.nodeIdToPublicationLatch = new ConcurrentHashMap<>(
                 Maps.transformValues(nodeHeapMaxLookupById, v -> new CountDownLatch(1))
             );
+            this.masterMemoryMetricsService = masterMemoryMetricsService;
             masterMockTransportService.addRequestHandlingBehavior(TransportPublishHeapMemoryMetrics.NAME, this::handlePublication);
         }
 
@@ -347,13 +356,14 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
         }
 
         /**
-         * Resets the per-node latches and blocks until each tracked node has completed one publication cycle. This ensures callers
-         * observe a publication that started after any injection-set changes were made.
+         * Resets the per-node latches and blocks until each tracked node's delivered mapping sizes are the ones the master holds.
+         * Delivering a publication is not enough: the master silently skips a payload whose sequence number is behind one it already
+         * applied, so callers must wait for the applied sizes rather than the transport handshake.
          */
         void waitForNextPublication() {
             nodeIdToPublicationLatch.keySet().forEach(nodeId -> nodeIdToPublicationLatch.put(nodeId, new CountDownLatch(1)));
             nodeIdToPublicationLatch.forEach((nodeId, latch) -> {
-                logger.info("--> waiting for publication from node [{}]", nodeId);
+                logger.info("--> waiting for applied mapping sizes from node [{}]", nodeId);
                 safeAwait(latch);
             });
         }
@@ -378,10 +388,11 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
             // is set, and the test can fail. Therefore, we take the latch before handling the publication. If a new latch is set halfway
             // through the publication handling, it will not be pulled by the existing publication, but the next one, which is expected.
             final CountDownLatch latch = nodeIdToPublicationLatch.get(nodeId);
+            final Map<ShardId, ShardMappingSize> deliveredShardMappingSizes;
             if (nodesToInject.contains(nodeId)) {
                 assertThat(nodeHeapMaxLookupById, hasKey(nodeId));
                 final long nodeHeapMax = nodeHeapMaxLookupById.get(nodeId);
-                final var updatedShardMappingSizes = shardMappingSizes.entrySet()
+                deliveredShardMappingSizes = shardMappingSizes.entrySet()
                     .stream()
                     .collect(
                         Collectors.toUnmodifiableMap(
@@ -402,7 +413,7 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
                     new PublishHeapMemoryMetricsRequest(
                         new HeapMemoryUsage(
                             heapMemoryUsage.publicationSeqNo(),
-                            updatedShardMappingSizes,
+                            deliveredShardMappingSizes,
                             heapMemoryUsage.clusterStateVersion()
                         )
                     ),
@@ -410,9 +421,20 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
                     task
                 );
             } else {
+                deliveredShardMappingSizes = shardMappingSizes;
                 handler.messageReceived(request, channel, task);
             }
-            latch.countDown();
+            if (masterHoldsDeliveredSizes(deliveredShardMappingSizes)) {
+                latch.countDown();
+            }
+        }
+
+        private boolean masterHoldsDeliveredSizes(Map<ShardId, ShardMappingSize> deliveredShardMappingSizes) {
+            final var appliedByShard = masterMemoryMetricsService.getShardMemoryMetrics();
+            return deliveredShardMappingSizes.entrySet().stream().allMatch(delivered -> {
+                final var applied = appliedByShard.get(delivered.getKey());
+                return applied != null && applied.getMappingSizeInBytes() == delivered.getValue().mappingSizeInBytes();
+            });
         }
 
         private static String nodeIdFromShardMappingSizes(HeapMemoryUsage heapMemoryUsage) {

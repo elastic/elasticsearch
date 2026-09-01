@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasource.lz4.Lz4DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
 import org.junit.Before;
 
@@ -268,6 +269,24 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
         assertReadCpuNanos("parquet");
         assertSplitDiscoveryCpuNanos("parquet");
+    }
+
+    /**
+     * Multi-file dataset — exercises the BoundedParallelGather path
+     * where each file's split discovery runs on an executor thread (Change 2 CPU accounting).
+     * Uses a glob URI so {@code FileSplitProvider} receives multiple file tasks and spawns BPG workers.
+     */
+    public void testMetricsCollectorMultiFileCsv() throws Exception {
+        Path dir = createTempDir();
+        for (int i = 0; i < 3; i++) {
+            Files.writeString(dir.resolve("data_" + i + ".csv"), createCsv(20));
+        }
+
+        registerDataset("metrics_multifile_csv_ds", StoragePath.fileUri(dir) + "/*.csv", Map.of("format", "csv"));
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_multifile_csv_ds | LIMIT 200"), TIMEOUT)) {}
+
+        assertSplitDiscoveryCpuNanos("multifile-csv");
     }
 
     public void testNoCollectionWithoutExternalData() throws Exception {

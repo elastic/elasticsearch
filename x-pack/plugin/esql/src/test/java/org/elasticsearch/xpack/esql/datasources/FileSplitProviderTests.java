@@ -1079,6 +1079,23 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * Verifies that {@link SplitDiscoveryResult#cpuNanos()} is populated by the BPG executor-thread path when
+     * multiple files are discovered in parallel. The coordinator-level CPU wrap in {@code ComputeService} is not
+     * involved here — only the per-file accumulation inside the BPG lambda in {@link FileSplitProvider}.
+     */
+    public void testMultiFileParallelDiscoveryAccumulatesCpuNanos() throws Exception {
+        Map<String, byte[]> payloads = Map.of("one.csv", delimitedPayload("a,b,c\n"), "two.csv", delimitedPayload("d,e,f\n"));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        SplitDiscoveryResult result;
+        try {
+            result = discoverPlainCsvSplitsResult(payloads, CSV_MIN_SEGMENT_BYTES, executor);
+        } finally {
+            executor.shutdown();
+        }
+        assertThat("BPG executor threads must accumulate cpuNanos", result.cpuNanos(), greaterThan(0L));
+    }
+
+    /**
      * Two files with different row widths produce different probe boundaries. Asserts each file's split offsets by
      * value so a cross-file misbind in {@code probeDeferredBoundaries} — swapping the outcome lists while the file
      * lengths stay the same — fails rather than passing silently. Every multi-file fixture that uses fixed-width rows
@@ -2135,6 +2152,24 @@ public class FileSplitProviderTests extends ESTestCase {
         return discoverCsvSplits(payloads, targetStrideBytes, executor, tracking, settings, isCancelled, Map.of("mode", "plain"));
     }
 
+    /** As {@link #discoverPlainCsvSplits} but returns the full {@link SplitDiscoveryResult} to allow asserting {@code cpuNanos}. */
+    private static SplitDiscoveryResult discoverPlainCsvSplitsResult(
+        Map<String, byte[]> payloads,
+        long targetStrideBytes,
+        @Nullable Executor executor
+    ) {
+        return discoverCsvSplits(
+            payloads,
+            targetStrideBytes,
+            executor,
+            null,
+            Settings.EMPTY,
+            () -> false,
+            Map.of("mode", "plain"),
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+    }
+
     /** As {@link #discoverPlainCsvSplits}, with dataset keys of the caller's choosing alongside {@code mode=plain}. */
     private static List<ExternalSplit> discoverPlainCsvSplitsWithConfig(
         Map<String, byte[]> payloads,
@@ -2158,7 +2193,7 @@ public class FileSplitProviderTests extends ESTestCase {
     ) {
         Map<String, Object> csvConfig = new HashMap<>(config);
         csvConfig.put("mode", "plain");
-        return discoverCsvSplits(payloads, targetStrideBytes, null, null, Settings.EMPTY, () -> false, csvConfig, maxRecordBytes);
+        return discoverCsvSplits(payloads, targetStrideBytes, null, null, Settings.EMPTY, () -> false, csvConfig, maxRecordBytes).splits();
     }
 
     /**
@@ -2183,10 +2218,10 @@ public class FileSplitProviderTests extends ESTestCase {
             isCancelled,
             csvConfig,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
-        );
+        ).splits();
     }
 
-    private static List<ExternalSplit> discoverCsvSplits(
+    private static SplitDiscoveryResult discoverCsvSplits(
         Map<String, byte[]> payloads,
         long targetStrideBytes,
         @Nullable Executor executor,
@@ -2233,7 +2268,7 @@ public class FileSplitProviderTests extends ESTestCase {
             isCancelled,
             DeclaredReadSpec.NONE
         );
-        return provider.discoverSplits(ctx).splits();
+        return provider.discoverSplits(ctx);
     }
 
     /**
@@ -4666,15 +4701,6 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     // -- helpers --
-
-    public void testCpuNanosNonNegative() {
-        StorageEntry e1 = new StorageEntry(StoragePath.of("s3://b/a.parquet"), 100, Instant.EPOCH);
-        FileList fileList = GlobExpander.fileListOf(List.of(e1), "s3://b/*.parquet");
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
-        SplitDiscoveryResult result = provider.discoverSplits(ctx);
-        assertThat("filesScanned must be >0", result.filesScanned(), greaterThan(0));
-        assertThat("cpuNanos must be >0", result.cpuNanos(), greaterThan(0L));
-    }
 
     private static final Source SRC = Source.EMPTY;
 

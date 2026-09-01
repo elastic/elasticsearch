@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.hasSize;
  *   <li>the test-only system property {@code
  *       org.elasticsearch.xpack.esql.datasource.s3.stsEndpointOverride} pointing at a local
  *       {@link AwsStsHttpFixture} so STS calls hit a fake endpoint instead of AWS,</li>
- *   <li>{@code esql.datasource.managed_identity.enabled=true} so the validator accepts the data
+ *   <li>{@code esql.external.managed_identity.enabled=true} so the validator accepts the data
  *       source.</li>
  * </ul>
  *
@@ -102,7 +102,7 @@ public class IrsaManagedIdentityAuthIT extends ESRestTestCase {
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
-        .setting("esql.datasource.managed_identity.enabled", "true")
+        .setting("esql.external.managed_identity.enabled", "true")
         // The plugin requires the operator to symlink the EKS-injected web-identity token to a
         // fixed location under config; the cluster builder writes the token bytes there directly.
         .configFile("esql-datasource-s3/aws-web-identity-token-file", Resource.fromString(WEB_IDENTITY_TOKEN_FILE_CONTENTS))
@@ -170,7 +170,7 @@ public class IrsaManagedIdentityAuthIT extends ESRestTestCase {
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(
                 org.apache.http.util.EntityUtils.toString(ex.getResponse().getEntity()),
-                containsString("esql.datasource.managed_identity.enabled")
+                containsString("esql.external.managed_identity.enabled")
             );
         } finally {
             setManagedIdentityEnabled(true);
@@ -222,7 +222,7 @@ public class IrsaManagedIdentityAuthIT extends ESRestTestCase {
     private static void setManagedIdentityEnabled(boolean enabled) throws IOException {
         Request req = new Request("PUT", "/_cluster/settings");
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().startObject("persistent").field("esql.datasource.managed_identity.enabled", enabled).endObject().endObject();
+            b.startObject().startObject("persistent").field("esql.external.managed_identity.enabled", enabled).endObject().endObject();
             req.setJsonEntity(Strings.toString(b));
         }
         Response r = client().performRequest(req);

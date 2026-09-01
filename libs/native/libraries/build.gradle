@@ -37,9 +37,8 @@ configurations.consumable('nativeLibs') {
   attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
 }
 
-var zstdVersion = "1.5.7"
-var vecVersion = "1.0.138"
-var pqrsVersion = "0.2.0"
+var zstdVersion = "1.5.7-1"
+var vecVersion = "1.0.139"
 
 repositories {
   exclusiveContent {
@@ -54,7 +53,6 @@ repositories {
     filter {
       includeModule("org.elasticsearch", "zstd")
       includeModule("org.elasticsearch", "vec")
-      includeModule("org.elasticsearch", "es-parquet-rs")
     }
   }
 }
@@ -68,19 +66,20 @@ dependencies {
     transformSpec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
     transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
   });
-  libs "org.elasticsearch:zstd:${zstdVersion}:darwin-aarch64"
-  libs "org.elasticsearch:zstd:${zstdVersion}:darwin-x86-64"
-  libs "org.elasticsearch:zstd:${zstdVersion}:linux-aarch64"
-  libs "org.elasticsearch:zstd:${zstdVersion}:linux-x86-64"
-  libs "org.elasticsearch:zstd:${zstdVersion}:windows-x86-64"
+  // To use a locally built libzstd, set LOCAL_ZSTD_BINARY=1 and copy the library to
+  // libs/native/libraries/build/platform/<os>-<arch>/libzstd.so (or .dylib on macOS).
+  // Build locally with: cd dev-tools && ./publish_zstd_binaries.sh --local-only
+  if (System.getenv("LOCAL_ZSTD_BINARY") == null) {
+    libs "org.elasticsearch:zstd:${zstdVersion}:darwin-aarch64"
+    libs "org.elasticsearch:zstd:${zstdVersion}:darwin-x86-64"
+    libs "org.elasticsearch:zstd:${zstdVersion}:linux-aarch64"
+    libs "org.elasticsearch:zstd:${zstdVersion}:linux-x86-64"
+    libs "org.elasticsearch:zstd:${zstdVersion}:windows-x86-64"
+  }
   // if testing locally, its assumed that the custom compiled binaries are copied to the correct directory
   // See `simdvec/native/Makefile` for details on how to compile locally
   if (System.getenv("LOCAL_VEC_BINARY_OS") == null){
     libs "org.elasticsearch:vec:${vecVersion}@zip"
-  }
-  // See `libs/parquet-rs/native/Makefile` for local builds
-  if (System.getenv("LOCAL_PQRS_BINARY") == null){
-    libs "org.elasticsearch:es-parquet-rs:${pqrsVersion}@zip"
   }
 }
 

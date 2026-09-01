@@ -103,7 +103,8 @@ public class IndexMetadataStatsTests extends ESTestCase {
             primary,
             recoverySource,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRoutingHelper.recoveryPriorityForNewlyCreatedShard(primary)
         );
         shardRouting = ShardRoutingHelper.initialize(shardRouting, UUIDs.randomBase64UUID());
         shardRouting = ShardRoutingHelper.moveToStarted(shardRouting);

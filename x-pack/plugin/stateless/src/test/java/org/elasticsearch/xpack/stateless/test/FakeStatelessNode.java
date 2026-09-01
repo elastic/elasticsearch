@@ -374,10 +374,15 @@ public class FakeStatelessNode implements Closeable {
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
             DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING,
             ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL,
+            ObjectStoreService.OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
-            StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING
+            StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING
         );
     }
 
@@ -442,7 +447,14 @@ public class FakeStatelessNode implements Closeable {
         CacheBlobReaderService cacheBlobReaderService,
         MutableObjectStoreUploadTracker objectStoreUploadTracker
     ) {
-        return new SearchDirectory(sharedCacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, randomBoolean());
+        return new SearchDirectory(
+            sharedCacheService,
+            cacheBlobReaderService,
+            objectStoreUploadTracker,
+            shardId,
+            randomBoolean(),
+            indexSettings.getIndexVersionCreated()
+        );
     }
 
     protected StatelessSharedBlobCacheService createCacheService(
@@ -455,7 +467,13 @@ public class FakeStatelessNode implements Closeable {
     }
 
     protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
-        return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool);
+        return new CacheBlobReaderService(
+            nodeSettings,
+            cacheService,
+            client,
+            threadPool,
+            TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+        );
     }
 
     public List<StatelessCommitRef> generateIndexCommits(int commitsNumber) throws IOException {

@@ -9,15 +9,14 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.sourcebatch.SourceBatch;
-
-import java.util.List;
+import org.elasticsearch.sourcebatch.MappedColumns;
 
 /**
- * A batch of index operations ready for engine-level processing, produced by the bulk batch
- * indexing path and consumed by {@link Engine#indexBatch}.
+ * A mapped, engine-ready batch produced by {@link org.elasticsearch.index.mapper.ShardBatchMapper}.
+ * Contains the flattened operation record ({@link IndexOperationBatch}) and the assembled Lucene
+ * column data ({@link MappedColumns}) for the columnar write path.
  *
- * @param operations  per-document {@link Engine.Index} operations for this batch
- * @param sourceBatch the raw encoded source data backing the operations
+ * @param batch   the flattened per-document operation data (uids, sources, seq_no byte arrays, etc.)
+ * @param columns the assembled {@link MappedColumns}.
  */
-public record EngineBatch(List<Engine.Index> operations, SourceBatch sourceBatch) {}
+public record EngineBatch(IndexOperationBatch batch, MappedColumns columns) {}

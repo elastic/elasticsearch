@@ -12,6 +12,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatField;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -19,6 +20,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -288,6 +290,37 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             SearchStats stats = SearchContextStats.from(List.of(ctx));
             assertFalse(
                 "keyword field with MVs must not be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("kw"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    public void testDocValuesOnlyKeywordIsNotDetectedAsSingleValued() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final IndexReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(
+                List.of(new SortedSetDocValuesField("kw", new BytesRef("A")), new SortedSetDocValuesField("kw", new BytesRef("B")))
+            );
+            writer.addDocument(List.of(new SortedSetDocValuesField("kw", new BytesRef("C"))));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = ((DirectoryReader) reader).leaves().get(0).reader();
+            assertNull(leafReader.terms("kw"));
+
+            SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
+            SearchStats stats = SearchContextStats.from(List.of(ctx));
+            assertFalse(
+                "keyword field without terms must not be reported as single-valued",
                 stats.isSingleValue(new FieldAttribute.FieldName("kw"))
             );
         } finally {

@@ -2601,7 +2601,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     /**
      * Blocks in {@code consumeHits} after {@code super} returns (first batch taken) until the test finishes {@code finishHim},
      * so {@link AbstractAsyncBulkByPaginatedSearchAction#currentPaginatedSearchResponse} stays {@code null} across {@code finishHim}'s
-     * {@code getAndSet} when {@code maxDocs} leaves a partial scroll batch.
+     * {@code getAndSet} when {@code maxDocs} leaves a partial batch.
      */
     private static final class PaginatedSearchConsumableHitsResponseGate extends
         AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse {

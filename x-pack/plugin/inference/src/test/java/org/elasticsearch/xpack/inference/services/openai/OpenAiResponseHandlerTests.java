@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -34,141 +35,128 @@ import static org.mockito.Mockito.when;
 
 public class OpenAiResponseHandlerTests extends ESTestCase {
 
-    public void testCheckForFailureStatusCode() {
-        var statusLine = mock(StatusLine.class);
-
-        var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-        var header = mock(Header.class);
-        when(header.getElements()).thenReturn(new HeaderElement[] {});
-        when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
-
-        var mockRequest = RequestTests.mockRequest("id");
-        var httpResult = new HttpResult(httpResponse, new byte[] {});
-        var handler = new OpenAiResponseHandler("", (request, result) -> null, false);
-
-        // 503
-        when(statusLine.getStatusCode()).thenReturn(503);
-        var retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
+    public void testBuildFailureStatusCodeException_ReturnsFor503_WithShouldRetryTrue() {
+        var retryException = callHandleFailureStatusCode(503);
         assertTrue(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
             containsString("Received a server busy error status code for request from inference entity id [id] status [503]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
-        // 501
-        when(statusLine.getStatusCode()).thenReturn(501);
-        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor501() {
+        var retryException = callHandleFailureStatusCode(501);
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
             containsString("Received a server error status code for request from inference entity id [id] status [501]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
-        // 500
-        when(statusLine.getStatusCode()).thenReturn(500);
-        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor500_WithShouldRetryTrue() {
+        var retryException = callHandleFailureStatusCode(500);
         assertTrue(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
             containsString("Received a server error status code for request from inference entity id [id] status [500]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
-        // 429
-        when(statusLine.getStatusCode()).thenReturn(429);
-        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor429_WithShouldRetryTrue() {
+        var retryException = callHandleFailureStatusCode(429);
         assertTrue(retryException.shouldRetry());
         assertThat(retryException.getCause().getMessage(), containsString("Received a rate limit status code. Token limit"));
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
-        // 413
-        when(statusLine.getStatusCode()).thenReturn(413);
-        retryException = expectThrows(ContentTooLargeException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor413_ContentTooLarge() {
+        var retryException = callHandleFailureStatusCode(413);
+        assertThat(retryException, instanceOf(ContentTooLargeException.class));
         assertTrue(retryException.shouldRetry());
         assertThat(retryException.getCause().getMessage(), containsString("Received a content too large status code"));
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
-        // 400 content too large
-        retryException = expectThrows(
-            ContentTooLargeException.class,
-            () -> handler.handleFailureStatusCode(mockRequest, createContentTooLargeResult(400))
-        );
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor400_ContentTooLarge() {
+        var retryException = callHandleFailureStatusCode(createContentTooLargeResult(400));
+        assertThat(retryException, instanceOf(ContentTooLargeException.class));
         assertTrue(retryException.shouldRetry());
         assertThat(retryException.getCause().getMessage(), containsString("Received a content too large status code"));
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
-        // 400 generic bad request should not be marked as a content too large
-        when(statusLine.getStatusCode()).thenReturn(400);
-        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor400_GenericBadRequest() {
+        var retryException = callHandleFailureStatusCode(400);
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
             containsString("Received a bad request status code for request from inference entity id [id] status [400]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
-        // 400 is not flagged as a content too large when the error message is different
-        when(statusLine.getStatusCode()).thenReturn(400);
-        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, createResult(400, "blah")));
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor400_NotContentTooLargeWithDifferentErrorMessage() {
+        var retryException = callHandleFailureStatusCode(createResult(400, "blah"));
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
             containsString("Received a bad request status code for request from inference entity id [id] status [400]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
-        // 401
-        when(statusLine.getStatusCode()).thenReturn(401);
-        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor422() {
+        var retryException = callHandleFailureStatusCode(422);
+        assertFalse(retryException.shouldRetry());
+        assertThat(
+            retryException.getCause().getMessage(),
+            containsString("Received an input validation error response for request from inference entity id [id] status [422]")
+        );
+        assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.UNPROCESSABLE_ENTITY));
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor401() {
+        var retryException = callHandleFailureStatusCode(401);
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
             containsString("Received an authentication error status code for request from inference entity id [id] status [401]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.UNAUTHORIZED));
-        // 300
-        when(statusLine.getStatusCode()).thenReturn(300);
-        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor401_CallsOnAuthenticationFailure() {
+        var failure = invokeHandlerExpectingFailure(401);
+        assertFalse(failure.exception().shouldRetry());
+        verify(failure.request()).onAuthenticationFailure();
+    }
+
+    public void testBuildFailureStatusCodeException_Non401_DoesNotCallOnAuthenticationFailure() {
+        var failure = invokeHandlerExpectingFailure(500);
+        verify(failure.request(), never()).onAuthenticationFailure();
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor300_Redirection() {
+        var retryException = callHandleFailureStatusCode(300);
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
             containsString("Unhandled redirection for request from inference entity id [id] status [300]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
-        // 402
-        when(statusLine.getStatusCode()).thenReturn(402);
-        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor402() {
+        var retryException = callHandleFailureStatusCode(402);
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
             containsString("Received an unsuccessful status code for request from inference entity id [id] status [402]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.PAYMENT_REQUIRED));
-    }
-
-    public void testCheckForFailureStatusCode_401_CallsOnAuthenticationFailure() {
-        var failure = invokeHandlerExpectingFailure(401);
-        assertFalse(failure.exception().shouldRetry());
-        verify(failure.request()).onAuthenticationFailure();
-    }
-
-    public void testCheckForFailureStatusCode_Non401_DoesNotCallOnAuthenticationFailure() {
-        var failure = invokeHandlerExpectingFailure(500);
-        verify(failure.request(), never()).onAuthenticationFailure();
-    }
-
-    private record FailureResult(OutboundRequest request, RetryException exception) {}
-
-    private static FailureResult invokeHandlerExpectingFailure(int statusCode) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-        var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-        var header = mock(Header.class);
-        when(header.getElements()).thenReturn(new HeaderElement[] {});
-        when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
-
-        var mockRequest = RequestTests.mockRequest("id");
-        var httpResult = new HttpResult(httpResponse, new byte[] {});
-        var handler = new OpenAiResponseHandler("", (request, result) -> null, false);
-
-        var exception = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
-        return new FailureResult(mockRequest, exception);
     }
 
     public void testBuildRateLimitErrorMessage() {
@@ -239,6 +227,45 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
                 containsString("Token limit [10000], remaining tokens [unknown]. Request limit [unknown], remaining requests [2999]")
             );
         }
+    }
+
+    private record FailureResult(OutboundRequest request, RetryException exception) {}
+
+    private static RetryException callHandleFailureStatusCode(int statusCode) {
+        var statusLine = mock(StatusLine.class);
+        when(statusLine.getStatusCode()).thenReturn(statusCode);
+        var httpResponse = mock(HttpResponse.class);
+        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        var header = mock(Header.class);
+        when(header.getElements()).thenReturn(new HeaderElement[] {});
+        when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
+        var mockRequest = RequestTests.mockRequest("id");
+        var httpResult = new HttpResult(httpResponse, new byte[] {});
+        var handler = new OpenAiResponseHandler("", (request, result) -> null, false);
+        return handler.buildFailureStatusCodeException(mockRequest, httpResult);
+    }
+
+    private static RetryException callHandleFailureStatusCode(HttpResult httpResult) {
+        var mockRequest = RequestTests.mockRequest("id");
+        var handler = new OpenAiResponseHandler("", (request, result) -> null, false);
+        return handler.buildFailureStatusCodeException(mockRequest, httpResult);
+    }
+
+    private static FailureResult invokeHandlerExpectingFailure(int statusCode) {
+        var statusLine = mock(StatusLine.class);
+        when(statusLine.getStatusCode()).thenReturn(statusCode);
+        var httpResponse = mock(HttpResponse.class);
+        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        var header = mock(Header.class);
+        when(header.getElements()).thenReturn(new HeaderElement[] {});
+        when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
+
+        var mockRequest = RequestTests.mockRequest("id");
+        var httpResult = new HttpResult(httpResponse, new byte[] {});
+        var handler = new OpenAiResponseHandler("", (request, result) -> null, false);
+
+        var exception = handler.buildFailureStatusCodeException(mockRequest, httpResult);
+        return new FailureResult(mockRequest, exception);
     }
 
     private static HttpResult createContentTooLargeResult(int statusCode) {

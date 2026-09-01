@@ -11,7 +11,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -25,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -39,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchPhraseQuery;
 
@@ -72,7 +78,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MatchPhrase.class)
         .ternary(MatchPhrase::new)
-        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix", "runtime_options")
+        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix", "runtime_options", "runtime_analyzer", "runtime_score")
         .name("match_phrase");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT, NULL);
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
@@ -111,12 +117,18 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             values row by row, which may be slower on large datasets.
             On a `keyword` expression the whole query string must equal a value exactly, matching
             the term query semantics of `match_phrase` on an indexed keyword field.
-            Additionally, `MATCH_PHRASE` on an expression does not contribute to the relevance score
-            when using `METADATA _score`.
+            When using `METADATA _score`, `MATCH_PHRASE` on an expression contributes to the relevance
+            score: a matching row scores the `boost` option (1.0 by default). Unlike indexed fields,
+            expressions are not scored with BM25, as there are no index statistics for an expression.
 
             When searching `text` expressions, <<esql-function-named-params,function named parameters>>
-            (match_phrase query options) are supported, except for `analyzer`: expression values are
-            always analyzed with the `standard` analyzer. On `keyword` expressions options are not supported.
+            (match_phrase query options) are supported. As on an indexed field, the `analyzer` option
+            applies to the query string only: how the expression's values are analyzed is declared where
+            the column is created, through `TO_TEXT`'s `analyzer` option, and the query analyzer defaults
+            to that values analyzer (`standard` when none is declared). Analyzer names must name a
+            registered analyzer (prebuilt or plugin-contributed); per-index custom analyzers cannot be
+            used because the expression is not backed by an index. On `keyword` expressions options are
+            not supported.
 
             :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
@@ -144,8 +156,10 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
                     name = "analyzer",
                     type = "keyword",
                     valueHint = { "standard" },
-                    description = "Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer"
-                        + " mapped for the field. If no analyzer is mapped, the index’s default analyzer is used."
+                    description = "Analyzer used to convert the text in the query value into tokens. Defaults to the index-time analyzer"
+                        + " mapped for the field; if no analyzer is mapped, the index’s default analyzer is used. For expressions not"
+                        + " backed by an index, defaults to the values analyzer declared through `TO_TEXT` (`standard` when none is"
+                        + " declared)."
                 ),
                 @MapParam.MapParamEntry(
                     name = "slop",
@@ -234,6 +248,22 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         return ALLOWED_OPTIONS;
     }
 
+    /**
+     * Whether the field declares a values analyzer other than the default {@code standard}. The fast token-stream
+     * matcher requires slop-0 adjacency and cannot express the position gaps a stopword-removing analyzer leaves
+     * behind, so any other declared analyzer routes through the Lucene {@link org.apache.lucene.index.memory.MemoryIndex}
+     * path (which honors positions) even without options. An explicitly declared {@code standard} is identical to no
+     * declaration, so it keeps the fast path.
+     * <p>
+     * TODO: other gap-free analyzers (whitespace, simple, keyword, ...) could also keep the fast path, but whether an
+     * arbitrary registered analyzer emits position gaps is not introspectable, so that would take a maintained
+     * allowlist of known-safe names — worth it only if the MemoryIndex path shows up in profiles.
+     */
+    private boolean hasNonStandardValuesAnalyzer() {
+        String name = valuesAnalyzerName();
+        return name != null && name.equals("standard") == false;
+    }
+
     private Map<String, Object> matchPhraseQueryOptions() throws InvalidArgumentException {
         if (options() == null) {
             return Map.of();
@@ -292,9 +322,17 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             // This isn't a field in the index, so the expression is evaluated at runtime, row by row.
             return true;
         }
-        // A potentially unmapped field cannot be pushed down: the Lucene query would silently miss the rows of the
-        // indices where the field is unmapped, so it is matched at runtime instead.
-        return fieldAttribute.isPotentiallyUnmapped();
+        if (fieldAttribute.isPotentiallyUnmapped()) {
+            // A potentially unmapped field cannot be pushed down: the Lucene query would silently miss the rows of the
+            // indices where the field is unmapped, so it is matched at runtime instead.
+            return true;
+        }
+        if (fieldAttribute.field() instanceof FunctionEsField functionEsField) {
+            // This is a pushed block loader. There is no indexed Lucene field behind it, so the match must run at
+            // runtime. We can only support FIELD_EXTRACT(flattened, "constant"), here named EXTRACT_FLATTENED_SUBFIELD.
+            return functionEsField.functionConfig().function() == BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD;
+        }
+        return false;
     }
 
     @Override
@@ -313,13 +351,19 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     }
 
     @Override
-    protected void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
-        super.fieldVerifier(plan, function, field, failures);
+    protected void fieldVerifier(
+        LogicalPlan plan,
+        FullTextFunction function,
+        Expression field,
+        @Nullable AnalysisRegistry analysisRegistry,
+        Failures failures
+    ) {
+        super.fieldVerifier(plan, function, field, analysisRegistry, failures);
         if (isRuntimeSearch() == false) {
             return;
         }
         if (options() != null && field().dataType() == TEXT) {
-            verifyRuntimeOptions(function, field, failures);
+            verifyRuntimeOptions(function, field, analysisRegistry, failures);
         } else if (options() != null) {
             failures.add(
                 Failure.fail(
@@ -334,22 +378,25 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
 
     /**
      * Validates the options for a runtime-search {@code match_phrase} on a {@code text} field. Checks that the
-     * {@code analyzer} option is absent (not supported for runtime fields) and that the options produce a valid
+     * {@code analyzer} option (if present) names a registered analyzer and that the options produce a valid
      * {@code MatchPhraseQueryBuilder}.
      */
-    private void verifyRuntimeOptions(FullTextFunction function, Expression field, Failures failures) {
+    private void verifyRuntimeOptions(
+        FullTextFunction function,
+        Expression field,
+        @Nullable AnalysisRegistry analysisRegistry,
+        Failures failures
+    ) {
         Map<String, Object> opts = matchPhraseQueryOptions();
-        // TODO: Allowing `analyzer` requires a validation to make sure this is a built-in analyzer.
-        // It also requires tweaking `toEvaluator` and `RuntimeSearchExecutionContext` that currently only use the standard analyzer.
-        if (opts.containsKey(ANALYZER_FIELD.getPreferredName())) {
-            failures.add(
-                Failure.fail(
-                    function,
-                    "The analyzer option is not supported for [MATCH_PHRASE] function call on non-index-mapped field [{}]",
-                    field.sourceText()
-                )
-            );
-            return;
+        // The registry is only available in the post-analysis pass; analyzer names cannot change during
+        // optimization, so the post-optimization pass runs with a null registry and skips this check.
+        if (analysisRegistry != null && opts.containsKey(ANALYZER_FIELD.getPreferredName())) {
+            try {
+                PlannerUtils.resolveAnalyzer(BytesRefs.toString(opts.get(ANALYZER_FIELD.getPreferredName())), analysisRegistry);
+            } catch (InvalidArgumentException e) {
+                failures.add(Failure.fail(function, "{}", e.getMessage()));
+                return;
+            }
         }
         if (query() instanceof Literal) {
             // Validate that the options produce a valid MatchPhraseQueryBuilder at plan-verification time rather than at execution time.
@@ -375,13 +422,17 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             return super.toEvaluator(toEvaluator);
         }
 
-        if (field.dataType() == TEXT && options() == null) {
+        if (field.dataType() == TEXT && options() == null && hasNonStandardValuesAnalyzer() == false) {
             return runtimeTextEvaluator(toEvaluator, RuntimeSearch.PhraseMatcher::new);
         }
-        // When options are used, we build a Lucene query
+        // When options or a values analyzer are used, we build a Lucene query
         if (field.dataType() == TEXT) {
-            var matchPhraseQuery = new MatchPhraseQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), matchPhraseQueryOptions());
-            return RuntimeSearch.textEvaluatorForQuery(source(), toEvaluator.apply(field()), matchPhraseQuery);
+            Map<String, Object> opts = matchPhraseQueryOptions();
+            return textEvaluatorForQueryWithOptions(
+                new MatchPhraseQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts),
+                opts,
+                toEvaluator
+            );
         }
         // Guard against a field type that resolveField() accepts but this method was not taught to evaluate:
         // falling through to exact matching would silently give it the wrong semantics. NULL fields never get
@@ -398,5 +449,35 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             (BytesRef) Foldables.queryAsObject(query(), sourceText()),
             context -> new BytesRef()
         );
+    }
+
+    @Override
+    public boolean contributesToScore() {
+        return true;
+    }
+
+    /**
+     * Scores runtime phrase matches with {@link RuntimeSearch}'s boolean-similarity semantics — there are no corpus
+     * statistics to feed BM25 (for now ...) — so a matched phrase scores its boost, 1.0 by default. Keyword exact matches
+     * score 1.0.
+     */
+    @Override
+    public ExpressionEvaluator.Factory toScorer(ToScorer toScorer) {
+        if (false == isRuntimeSearch()) {
+            // Pushed-down match_phrase is scored by running the Lucene query on the shard.
+            return super.toScorer(toScorer);
+        }
+
+        // With options or a declared values analyzer, score through the same Lucene query the boolean evaluator runs.
+        if (field.dataType() == TEXT && (options() != null || hasNonStandardValuesAnalyzer())) {
+            Map<String, Object> opts = matchPhraseQueryOptions();
+            return textScoreEvaluatorForQueryWithOptions(
+                new MatchPhraseQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts),
+                opts,
+                toScorer.toEvaluator()
+            );
+        }
+        // No options, so both the text phrase matcher and the keyword exact matcher both score 1.0 on hits.
+        return new RuntimeSearchScoreFromBooleanEvaluator.Factory(source(), toEvaluator(toScorer.toEvaluator()));
     }
 }

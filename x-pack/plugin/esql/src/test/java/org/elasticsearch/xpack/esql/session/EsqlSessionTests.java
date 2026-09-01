@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.index.MappingException;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
@@ -703,6 +704,7 @@ public class EsqlSessionTests extends ESTestCase {
             false,
             false,
             false,
+            false,
             List.of(path),
             List.of()
         );
@@ -716,7 +718,7 @@ public class EsqlSessionTests extends ESTestCase {
 
     private static IndexResolution resolvedIndex(String indexName) {
         return IndexResolution.valid(
-            new EsIndex(indexName, Map.of(), Map.of(indexName, IndexMode.STANDARD), Map.of(), Map.of()),
+            new EsIndex(indexName, Map.of(), Map.of(indexName, new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of()),
             Set.of(indexName),
             Map.of()
         );

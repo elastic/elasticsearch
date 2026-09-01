@@ -18,6 +18,7 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.sourcebatch.SourceBatch;
 
 import java.io.IOException;
+import java.util.List;
 
 public class BulkShardBatch implements Writeable {
 
@@ -57,6 +58,25 @@ public class BulkShardBatch implements Writeable {
     }
 
     /**
+     * Returns true if {@code items} map 1:1 and in order onto {@code batch}'s rows.
+     */
+    static boolean rowsAlignWithItems(SourceBatch batch, List<BulkItemRequest> items) {
+        if (items.size() != batch.docCount()) {
+            return false;
+        }
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).request() instanceof IndexRequest indexRequest) {
+                if (indexRequest.indexSource().rowIndex() != i) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Wires the given batch into every item's {@link IndexSource} that has a pending row index. This is called on the
      * receiving node after a {@link BulkShardRequest} (and its embedded batch) have been deserialized.
      */
@@ -75,7 +95,7 @@ public class BulkShardBatch implements Writeable {
     }
 
     /**
-     * For each item converted to an EIRF row, serializes that row back into its original content type and restores it as the
+     * For each item converted to a batch row, serializes that row back into its original content type and restores it as the
      * inline source, then detaches the batch from the request. No-op if no batch is attached.
      */
     public static void ensureInlineSources(BulkShardRequest request) throws IOException {

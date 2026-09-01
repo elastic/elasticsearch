@@ -32,6 +32,7 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
     @Before
     public void assumeTopkEnabled() {
         assumeTrue("Requires PROMQL_TOPK capability", EsqlCapabilities.Cap.PROMQL_TOPK.isEnabled());
+        assumeTrue("Requires PROMQL_BOTTOMK capability", EsqlCapabilities.Cap.PROMQL_BOTTOMK.isEnabled());
     }
 
     public void testTopkProducesDescendingTopNBy() {
@@ -45,6 +46,17 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(((Number) topNBy.limitPerGroup().fold(FoldContext.small())).intValue(), equalTo(2));
     }
 
+    public void testBottomkProducesAscendingTopNBy() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(bottomk(2, network.bytes_in))", false)
+        );
+
+        var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
+        assertThat(topNBy.order(), hasSize(1));
+        assertThat(topNBy.order().get(0).direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(((Number) topNBy.limitPerGroup().fold(FoldContext.small())).intValue(), equalTo(2));
+    }
+
     /**
      * Unlike {@code sum(...)}, whose {@code NONE} grouping collapses every series into a single scalar, {@code topk}'s
      * ranking only trims the series count - the winning series keep their full label identity.
@@ -52,6 +64,14 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
     public void testTopkBareKeepsFullSeriesIdentity() {
         var plan = logicalOptimizerWithLatestVersion.optimize(
             planPromql("PROMQL index=k8s step=1h result=(topk(2, network.bytes_in))", false)
+        );
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.TIMESERIES));
+    }
+
+    public void testBottomkBareKeepsFullSeriesIdentity() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(bottomk(2, network.bytes_in))", false)
         );
 
         assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.TIMESERIES));
@@ -73,12 +93,31 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(topNBy.groupings().stream().map(g -> g instanceof Attribute a ? a.name() : g.toString()).toList(), hasItem("pod"));
     }
 
+    public void testBottomkByGroupingPartitionsByLabelAndKeepsFullIdentity() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(bottomk(2, network.bytes_in) by (pod))", false)
+        );
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.TIMESERIES));
+
+        var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
+        assertThat(topNBy.groupings().stream().map(g -> g instanceof Attribute a ? a.name() : g.toString()).toList(), hasItem("pod"));
+    }
+
     public void testTopkWithoutGroupingNotYetSupported() {
         var e = expectThrows(
             VerificationException.class,
             () -> planPromql("PROMQL index=k8s step=1h result=(topk(2, network.bytes_in) without (pod))", true)
         );
         assertThat(e.getMessage(), containsString("topk"));
+    }
+
+    public void testBottomkWithoutGroupingNotYetSupported() {
+        var e = expectThrows(
+            VerificationException.class,
+            () -> planPromql("PROMQL index=k8s step=1h result=(bottomk(2, network.bytes_in) without (pod))", true)
+        );
+        assertThat(e.getMessage(), containsString("bottomk"));
     }
 
     /**
@@ -94,6 +133,84 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         );
 
         var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
+        Aggregate outer = as(topNBy.child().collect(Aggregate.class).get(0), Aggregate.class);
+        NamedExpression valueAgg = outer.aggregates().get(0);
+        assertThat(Alias.unwrap(valueAgg), instanceOf(Values.class));
+    }
+
+    public void testBottomkOverSumByWrapsPassthroughInValues() {
+        assumeTrue("Requires FIX_PROMQL_TOPK_OVER_AGGREGATE capability", EsqlCapabilities.Cap.FIX_PROMQL_TOPK_OVER_AGGREGATE.isEnabled());
+
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(bottomk(2, sum by (pod) (network.bytes_in)))", false)
+        );
+
+        var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
+        Aggregate outer = as(topNBy.child().collect(Aggregate.class).get(0), Aggregate.class);
+        NamedExpression valueAgg = outer.aggregates().get(0);
+        assertThat(Alias.unwrap(valueAgg), instanceOf(Values.class));
+    }
+
+    public void testLimitkProducesEmptyOrderTopNBy() {
+        assumeTrue("Requires PROMQL_LIMITK capability", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
+
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(limitk(2, network.bytes_in))", false)
+        );
+
+        var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
+        assertThat(topNBy.order(), hasSize(0));
+        assertThat(((Number) topNBy.limitPerGroup().fold(FoldContext.small())).intValue(), equalTo(2));
+    }
+
+    /**
+     * Unlike {@code topk}/{@code bottomk} which rank by value, {@code limitk} keeps the first-k series in storage
+     * order - the winning series still keep their full label identity.
+     */
+    public void testLimitkBareKeepsFullSeriesIdentity() {
+        assumeTrue("Requires PROMQL_LIMITK capability", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
+
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(limitk(2, network.bytes_in))", false)
+        );
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.TIMESERIES));
+    }
+
+    public void testLimitkByGroupingPartitionsByLabelAndKeepsFullIdentity() {
+        assumeTrue("Requires PROMQL_LIMITK capability", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
+
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(limitk(2, network.bytes_in) by (pod))", false)
+        );
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.TIMESERIES));
+
+        var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
+        assertThat(topNBy.order(), hasSize(0));
+        assertThat(topNBy.groupings().stream().map(g -> g instanceof Attribute a ? a.name() : g.toString()).toList(), hasItem("pod"));
+    }
+
+    public void testLimitkWithoutGroupingNotYetSupported() {
+        assumeTrue("Requires PROMQL_LIMITK capability", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
+
+        var e = expectThrows(
+            VerificationException.class,
+            () -> planPromql("PROMQL index=k8s step=1h result=(limitk(2, network.bytes_in) without (pod))", true)
+        );
+        assertThat(e.getMessage(), containsString("limitk"));
+    }
+
+    public void testLimitkOverSumByWrapsPassthroughInValues() {
+        assumeTrue("Requires PROMQL_LIMITK capability", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
+        assumeTrue("Requires FIX_PROMQL_TOPK_OVER_AGGREGATE capability", EsqlCapabilities.Cap.FIX_PROMQL_TOPK_OVER_AGGREGATE.isEnabled());
+
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(limitk(2, sum by (pod) (network.bytes_in)))", false)
+        );
+
+        var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
+        assertThat(topNBy.order(), hasSize(0));
         Aggregate outer = as(topNBy.child().collect(Aggregate.class).get(0), Aggregate.class);
         NamedExpression valueAgg = outer.aggregates().get(0);
         assertThat(Alias.unwrap(valueAgg), instanceOf(Values.class));

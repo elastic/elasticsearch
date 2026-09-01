@@ -85,11 +85,6 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
         }
     }
 
-    @Override
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
     /**
      * Plugins to add to the test.
      */

@@ -107,7 +107,7 @@ public class MethodHandleResolverClassTests extends ProcessorTestCase {
         CompilationResult result = compile("test.MyLib", source);
 
         assertFalse("Expected compilation to fail when resolver has no no-arg constructor", result.success());
-        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must have a public no-arg constructor"));
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must have a no-arg constructor reachable from package"));
         assertTrue("Expected error about no-arg constructor but got: " + result.errors(), hasError);
     }
 

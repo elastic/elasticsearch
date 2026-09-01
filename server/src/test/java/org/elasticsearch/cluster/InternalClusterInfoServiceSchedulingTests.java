@@ -130,7 +130,9 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             client,
             mockEstimatedHeapUsageCollector,
             mockCacheSizesAndCommitmentCollector,
-            nodeUsageStatsForThreadPoolsCollector
+            PartitionSizeCollector.EMPTY,
+            nodeUsageStatsForThreadPoolsCollector,
+            SearchLaneRequirementsCollector.EMPTY
         );
         final WriteLoadConstraintMonitor usageMonitor = spy(
             new WriteLoadConstraintMonitor(
@@ -182,8 +184,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             // Addition of node should have triggered refresh
             // should have run two client requests: nodes stats request and indices stats request
             assertThat(client.requestCount, equalTo(initialRequestCount + 2));
-            verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should have polled for heap usage
-            verify(mockEstimatedHeapUsageCollector).collectShardHeapUsage(any());
+            verify(mockEstimatedHeapUsageCollector).collectEstimatedHeapUsage(any()); // Should have polled for heap usage
             verify(mockCacheSizesAndCommitmentCollector).collectCacheSizesAndCommitmentStats(any(), any());
             verify(nodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
             assertThat(clusterInfoService.getClusterInfo().getShardCacheRequirements(), equalTo(shardCacheRequirements));
@@ -240,8 +241,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             runFor(deterministicTaskQueue, duration);
             deterministicTaskQueue.runAllRunnableTasks();
             assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests per interval
-            verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should poll for heap usage once per interval
-            verify(mockEstimatedHeapUsageCollector).collectShardHeapUsage(any());
+            verify(mockEstimatedHeapUsageCollector).collectEstimatedHeapUsage(any()); // Should poll for heap usage once per interval
             verify(mockCacheSizesAndCommitmentCollector).collectCacheSizesAndCommitmentStats(any(), any());
             verify(nodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
         }
@@ -263,13 +263,8 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
     private static class StubEstimatedEstimatedHeapUsageCollector implements EstimatedHeapUsageCollector {
 
         @Override
-        public void collectClusterHeapUsage(ActionListener<Map<String, NodeHeapEstimates>> listener) {
-            listener.onResponse(Map.of());
-        }
-
-        @Override
-        public void collectShardHeapUsage(ActionListener<ShardHeapUsageEstimates> listener) {
-            listener.onResponse(ShardHeapUsageEstimates.empty());
+        public void collectEstimatedHeapUsage(ActionListener<EstimatedHeapUsageStats> listener) {
+            listener.onResponse(EstimatedHeapUsageStats.EMPTY);
         }
     }
 

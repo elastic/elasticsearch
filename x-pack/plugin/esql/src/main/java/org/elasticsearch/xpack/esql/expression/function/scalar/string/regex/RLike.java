@@ -42,7 +42,9 @@ public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
             Use `RLIKE` to filter data based on string patterns using
             <<regexp-syntax,regular expressions>>. `RLIKE` usually acts on a field placed on
             the left-hand side of the operator, but it can also act on a constant (literal)
-            expression. The right-hand side of the operator represents the pattern.""",
+            expression. The right-hand side of the operator represents the pattern, which can
+            be a string literal, a query parameter, or any constant expression such as a call
+            to `CONCAT` or `TO_UPPER`.""",
 
         // we use an inline example here because ?pattern not supported in csv-spec test
         detailedDescription = """
@@ -80,6 +82,13 @@ public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
             ```{applies_to}
             stack: ga 9.3
             ```
+
+            ```{applies_to}
+            stack: ga 9.6
+            ```
+            The pattern can also be any constant expression, such as a call to `CONCAT` or `TO_UPPER`.
+
+            <<load-esql-example, file=where-like tag=rlikeConstExprConcat>>
             """,
         operator = NAME,
         examples = @Example(file = "docs", tag = "rlike")

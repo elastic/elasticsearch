@@ -124,10 +124,9 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeClusterServiceAndThreadPool() throws Exception {
         clusterService.close();
         terminate(threadPool);
-        super.tearDown();
     }
 
     private static DLMFrozenTransitionExecutor newTransitionExecutor(

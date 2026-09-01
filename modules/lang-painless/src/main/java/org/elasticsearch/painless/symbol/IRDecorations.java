@@ -347,6 +347,14 @@ public class IRDecorations {
         }
     }
 
+    /** marks a typed-capture reference ({@code def s = obj; s::method}, known target type) whose target should be charged */
+    public static class IRCChargeAllocation implements IRCondition {
+
+        private IRCChargeAllocation() {
+
+        }
+    }
+
     /** marks a def call that might resolve to a {@code @script_aware} augmentation so the script receiver is pushed */
     public static class IRCScriptAware implements IRCondition {
 
@@ -372,6 +380,18 @@ public class IRDecorations {
 
         public IRDMaxAllocationBytes(Long value) {
             super(value);
+        }
+    }
+
+    /**
+     * describes a function whose return path records the execution's allocation total. Attached only when metrics are
+     * enabled; metrics also enable the counter on their own, so it joins {@link IRDMaxAllocationBytes} in the writer's
+     * "is tracking on" test.
+     */
+    public static class IRCRecordAllocationMetrics implements IRCondition {
+
+        private IRCRecordAllocationMetrics() {
+
         }
     }
 

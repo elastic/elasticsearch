@@ -84,6 +84,10 @@ dependencies {
   api(buildLibs.spotless.plugin) {
     exclude module: "groovy-xml"
   }
+  // spotless-lib (the core spotless library) is an implementation dependency of
+  // spotless-plugin-gradle and is therefore not exposed on our compile classpath.
+  // We need it explicitly so FormattingPrecommitPlugin can reference LineEnding directly.
+  compileOnly buildLibs.spotless.lib
 }
 
 project.getPlugins().withType(JavaBasePlugin.class) {

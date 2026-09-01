@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.aggregation.PromqlHistogramQuantileStates.Bucket;
+import org.elasticsearch.compute.aggregation.PromqlHistogramStates.Bucket;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -30,6 +30,16 @@ public class PromqlHistogramQuantileGroupingAggregatorFunctionTests extends Grou
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
         return new PromqlHistogramQuantileAggregatorFunctionSupplier(TestWarningsSource.INSTANCE, quantile);
+    }
+
+    /**
+     * The generic grouping-aggregator harness (e.g. testNullGroups) feeds randomized null-group values that are
+     * not valid histograms, so this aggregator legitimately warns while computing quantiles. Those warnings are
+     * incidental to what those shared tests assert, so exempt them from the per-driver warnings leak-check.
+     */
+    @Override
+    protected boolean assertNoLeakedWarnings() {
+        return false;
     }
 
     @Override

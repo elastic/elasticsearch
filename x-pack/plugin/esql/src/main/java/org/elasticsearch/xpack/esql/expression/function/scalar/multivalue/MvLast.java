@@ -14,6 +14,8 @@ import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
@@ -61,6 +63,7 @@ public class MvLast extends AbstractMultivalueFunction implements AnyNullIsNull 
             "date_nanos",
             "date_range",
             "double",
+            "double_range",
             "flattened",
             "geo_point",
             "geo_shape",
@@ -98,6 +101,7 @@ public class MvLast extends AbstractMultivalueFunction implements AnyNullIsNull 
                 "date_nanos",
                 "date_range",
                 "double",
+                "double_range",
                 "flattened",
                 "geo_point",
                 "geo_shape",
@@ -148,6 +152,7 @@ public class MvLast extends AbstractMultivalueFunction implements AnyNullIsNull 
             case BOOLEAN -> new MvLastBooleanEvaluator.Factory(fieldEval);
             case BYTES_REF -> new MvLastBytesRefEvaluator.Factory(fieldEval);
             case DOUBLE -> new MvLastDoubleEvaluator.Factory(fieldEval);
+            case DOUBLE_RANGE -> new MvLastDoubleRangeEvaluator.Factory(fieldEval);
             case INT -> new MvLastIntEvaluator.Factory(fieldEval);
             case LONG -> new MvLastLongEvaluator.Factory(fieldEval);
             case LONG_RANGE -> new MvLastLongRangeEvaluator.Factory(fieldEval);
@@ -194,5 +199,15 @@ public class MvLast extends AbstractMultivalueFunction implements AnyNullIsNull 
     @MvEvaluator(extraName = "LongRange")
     static LongRangeBlockBuilder.LongRange process(LongRangeBlock block, int start, int end, LongRangeBlockBuilder.LongRange scratch) {
         return block.getLongRange(end - 1, scratch);
+    }
+
+    @MvEvaluator(extraName = "DoubleRange")
+    static DoubleRangeBlockBuilder.DoubleRange process(
+        DoubleRangeBlock block,
+        int start,
+        int end,
+        DoubleRangeBlockBuilder.DoubleRange scratch
+    ) {
+        return block.getDoubleRange(end - 1, scratch);
     }
 }

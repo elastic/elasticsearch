@@ -255,4 +255,46 @@ public class LuceneBinaryColumnTests extends ESTestCase {
         LuceneBinaryColumn col = buildStringColumn("only");
         assertSame(col, col.toLuceneColumn());
     }
+
+    public void testRowFieldCursorValuesSurviveAdvance() {
+        // Dense STRING column — exercises the BytesRefTupleCursor path in AbstractVarColumn.
+        {
+            LuceneBinaryColumn col = buildStringColumn("alpha", "beta", "gamma");
+            LuceneColumn.RowFieldCursor cursor = col.rowFieldCursor();
+            List<IndexableField> fields = new ArrayList<>();
+
+            // Collect all fields before reading any, mirroring RowCursor.advance() behaviour.
+            int doc;
+            while ((doc = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                cursor.appendCurrentFields(fields);
+                cursor.nextDoc(); // advance past the field before we read it
+                break;           // only need to show the first field survives one advance
+            }
+            // The BytesRef stored in the first field must still equal "alpha" even after nextDoc().
+            assertFalse("expected at least one field", fields.isEmpty());
+            assertEquals("alpha", fields.get(0).binaryValue().utf8ToString());
+        }
+
+        // ARRAY column — exercises the EscfArrayColumn.bytesRefCursor() path.
+        {
+            // 2 docs: doc 0 has ["hello", "world"], doc 1 has ["!"]
+            LuceneBinaryColumn col = buildArrayColumn(2, new int[] { 0, 0, 1 }, new String[] { "hello", "world", "!" });
+            LuceneColumn.RowFieldCursor cursor = col.rowFieldCursor();
+
+            // Mirror MappedColumns.RowCursor.advance(): appendCurrentFields then nextDoc, alternating.
+            // doc 0, first element "hello"
+            assertEquals(0, cursor.nextDoc());
+            List<IndexableField> doc0fields = new ArrayList<>();
+            cursor.appendCurrentFields(doc0fields);  // appends Field("hello")
+            // advance to second element of doc 0 — must not corrupt the "hello" Field
+            assertEquals(0, cursor.nextDoc());
+            cursor.appendCurrentFields(doc0fields);  // appends Field("world")
+            // advance to doc 1 — must not corrupt either doc 0 Field
+            assertEquals(1, cursor.nextDoc());
+
+            assertEquals(2, doc0fields.size());
+            assertEquals("hello", doc0fields.get(0).binaryValue().utf8ToString());
+            assertEquals("world", doc0fields.get(1).binaryValue().utf8ToString());
+        }
+    }
 }

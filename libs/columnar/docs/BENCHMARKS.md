@@ -7,16 +7,28 @@ ColumNAR's JMH benchmarks live in the shared `:benchmarks` module, package
 
 These drive the full stack through plain Lucene (`IndexWriter`, `IndexSearcher`) and compare
 ColumNAR against the numeric codecs it aims to reach parity with. Each takes a `format`
-param (`COLUMNAR`, `ES819`, `ES95`).
+param (`LUCENE`, `ES819`, `ES95`, `COLUMNAR`) and a `blockSize` param.
 
 - `ColumnarNumericIngestBenchmark` — ingest cost and storage. `merge` selects no merges, natural
   merges, or a force-merge; secondary counters report bytes on disk and total bytes written.
+- `ColumnarNumericDecodeBenchmark` — full-scan sequential decode throughput. One segment is built
+  once per trial and decoded repeatedly; measures the average time per full pass.
 - `ColumnarNumericRangeSlicingBenchmark` — range-query latency under
   `DataPartitioning.DOC` slicing.
 
+LUCENE and ES819 ignore `blockSize`; run them once at 128 as a baseline. ES95 and ColumNAR both
+support 128 and 512; run them together for an apples-to-apples parity comparison.
+
 ```
-./gradlew :benchmarks:run --args="ColumnarNumericIngestBenchmark -p format=COLUMNAR,ES819,ES95"
-./gradlew :benchmarks:run --args="ColumnarNumericRangeSlicingBenchmark -p format=COLUMNAR,ES819 -p workload=RANDOM_FULL"
+# Baselines
+./gradlew :benchmarks:run --args="ColumnarNumericIngestBenchmark -p format=LUCENE,ES819 -p blockSize=128"
+./gradlew :benchmarks:run --args="ColumnarNumericDecodeBenchmark -p format=LUCENE,ES819 -p blockSize=128"
+./gradlew :benchmarks:run --args="ColumnarNumericRangeSlicingBenchmark -p format=LUCENE,ES819 -p workload=MONOTONIC_TIMESTAMPS,RANDOM_FULL -p blockSize=128"
+
+# Parity (ES95 vs ColumNAR at matching block sizes)
+./gradlew :benchmarks:run --args="ColumnarNumericIngestBenchmark -p format=ES95,COLUMNAR -p blockSize=128,512"
+./gradlew :benchmarks:run --args="ColumnarNumericDecodeBenchmark -p format=ES95,COLUMNAR -p blockSize=128,512"
+./gradlew :benchmarks:run --args="ColumnarNumericRangeSlicingBenchmark -p format=ES95,COLUMNAR -p workload=MONOTONIC_TIMESTAMPS,RANDOM_FULL -p blockSize=128,512"
 ```
 
 ## Per-stage encode/decode benchmarks

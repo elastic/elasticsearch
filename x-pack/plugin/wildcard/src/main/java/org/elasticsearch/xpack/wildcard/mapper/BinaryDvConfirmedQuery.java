@@ -187,16 +187,14 @@ abstract class BinaryDvConfirmedQuery extends Query {
                     return null;
                 }
 
-                // Checkpoint before opening the binary doc values reader for this surviving clause/segment pair.
-                ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
-
-                final SortedBinaryDocValues values = arrayOrder
-                    ? SortingArrayOrderBinaryDocValues.from(context.reader(), field)
-                    : MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), field);
-
                 return new ScorerSupplier() {
                     @Override
                     public Scorer get(long leadCost) throws IOException {
+                        // Checkpoint before opening the binary doc values reader for this surviving clause/segment pair.
+                        ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
+                        final SortedBinaryDocValues values = arrayOrder
+                            ? SortingArrayOrderBinaryDocValues.from(context.reader(), field)
+                            : MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), field);
                         final Scorer approxScorer = approxScorerSupplier.get(leadCost);
                         final DocIdSetIterator approxDisi = approxScorer.iterator();
                         final TwoPhaseIterator twoPhase = new TwoPhaseIterator(approxDisi) {

@@ -71,7 +71,8 @@ public class NumericStorageSizeTests extends ESTestCase {
         }
         NumericPipeline pipeline = new NumericPipeline(
             new BlockTransform[] { new SplitDeltaTransform(), DeltaTransform.INSTANCE, OffsetTransform.INSTANCE, GcdTransform.INSTANCE },
-            new ForTerminal(BLOCK)
+            new ForTerminal(BLOCK),
+            BLOCK
         );
         int size = encodedSize(pipeline, block);
         assertTrue("SplitDelta TSDB block must be far below raw: " + size, size < RAW_BYTES / 10);
@@ -89,7 +90,8 @@ public class NumericStorageSizeTests extends ESTestCase {
                 DeltaTransform.INSTANCE,
                 OffsetTransform.INSTANCE,
                 GcdTransform.INSTANCE },
-            new ForTerminal(BLOCK)
+            new ForTerminal(BLOCK),
+            BLOCK
         );
         int size = encodedSize(pipeline, block);
         assertTrue("ALP constant-double block must be far below raw: " + size, size < RAW_BYTES / 100);

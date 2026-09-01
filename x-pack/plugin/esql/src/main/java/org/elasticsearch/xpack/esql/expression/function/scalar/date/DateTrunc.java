@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -73,6 +74,7 @@ public class DateTrunc extends EsqlConfigurationFunction implements AnyNullIsNul
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "date", "date_nanos" },
+        signatures = { @Signature(params = { "date_period|time_duration", "date|date_nanos" }, returnType = "$1") },
         briefSummary = "Rounds down a date to the closest interval.",
         description = "Rounds down a date to the closest interval since epoch, which starts at `0001-01-01T00:00:00Z`.",
         examples = {
@@ -322,6 +324,6 @@ public class DateTrunc extends EsqlConfigurationFunction implements AnyNullIsNul
     }
 
     public Bucket timeBucketSpecRef() {
-        return new Bucket(source(), field(), interval(), null, null, configuration());
+        return new Bucket(source(), field(), interval(), null, null, null, configuration());
     }
 }

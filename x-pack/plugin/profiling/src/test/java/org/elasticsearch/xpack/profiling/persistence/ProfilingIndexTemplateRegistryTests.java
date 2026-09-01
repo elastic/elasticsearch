@@ -89,9 +89,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         threadPool.shutdownNow();
     }
 
@@ -109,6 +107,9 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() throws Exception {
+        // ECS templates include standalone index templates (sq-executables, sq-leafframes, returnpads-private) that
+        // have no required component templates. The second assertBusy relies on being able to install at least two
+        // composable templates from an empty cluster state.
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 

@@ -92,6 +92,7 @@ import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 import org.elasticsearch.plugins.SearchPlugin.SignificanceHeuristicSpec;
 import org.elasticsearch.plugins.SearchPlugin.SuggesterSpec;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -398,6 +399,8 @@ public class SearchModule {
     }
 
     private ValuesSourceRegistry registerAggregations(List<SearchPlugin> plugins) {
+        AggregatorFactories.setMaxNestedDepth(AggregatorFactories.MAX_NESTED_DEPTH_SETTING.get(settings));
+
         ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder(telemetryProvider.getMeterRegistry());
 
         registerAggregation(

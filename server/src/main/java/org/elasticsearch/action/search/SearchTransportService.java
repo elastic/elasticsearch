@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -356,14 +357,14 @@ public class SearchTransportService {
         final TransportVersion dataNodeVersion = connection.getTransportVersion();
         boolean dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_DOC_ID_ORDER);
         boolean isCCSQuery = shardTarget.getClusterAlias() != null;
-        boolean isScrollOrReindex = context.getRequest().scroll() != null
+        boolean isScroll = context.getRequest().scroll() != null
             || (shardFetchRequest.getShardSearchRequest() != null && shardFetchRequest.getShardSearchRequest().scroll() != null);
 
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "FetchSearchPhase decision for shard {}: chunkEnabled={}, "
                     + "dataNodeSupports={}, dataNodeVersionId={}, CHUNKED_FETCH_DOC_ID_ORDER_id={}, "
-                    + "targetNode={}, isCCSQuery={}, isScrollOrReindex={}",
+                    + "targetNode={}, isCCSQuery={}, isScroll={}",
                 shardTarget.getShardId(),
                 searchService.fetchPhaseChunked(),
                 dataNodeSupports,
@@ -371,7 +372,7 @@ public class SearchTransportService {
                 CHUNKED_FETCH_DOC_ID_ORDER.id(),
                 connection.getNode(),
                 isCCSQuery,
-                isScrollOrReindex
+                isScroll
             );
         }
 
@@ -379,8 +380,8 @@ public class SearchTransportService {
         // 1. Feature flag enabled
         // 2. Data node supports CHUNKED_FETCH_DOC_ID_ORDER transport version
         // 3. Not a cross-cluster search (CCS)
-        // 4. Not a scroll or reindex operation
-        if (searchService.fetchPhaseChunked() && dataNodeSupports && isCCSQuery == false && isScrollOrReindex == false) {
+        // 4. Not a scroll operation
+        if (searchService.fetchPhaseChunked() && dataNodeSupports && isCCSQuery == false && isScroll == false) {
             // Route through local TransportFetchPhaseCoordinationAction
             shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
             shardFetchRequest.setCoordinatingTaskId(task.getId());
@@ -536,14 +537,15 @@ public class SearchTransportService {
     public static void registerRequestHandler(
         TransportService transportService,
         SearchService searchService,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        Settings settings
     ) {
         final TransportRequestHandler<ScrollFreeContextRequest> freeContextHandler = (request, channel, task) -> {
             boolean freed = searchService.freeReaderContext(request.id());
             logger.trace("releasing search context [{}], [{}]", request.id(), freed);
             channel.sendResponse(SearchFreeContextResponse.of(freed));
         };
-        final Executor freeContextExecutor = buildFreeContextExecutor(transportService);
+        final Executor freeContextExecutor = buildFreeContextExecutor(transportService, settings);
         transportService.registerRequestHandler(
             FREE_CONTEXT_SCROLL_ACTION_NAME,
             freeContextExecutor,
@@ -870,10 +872,15 @@ public class SearchTransportService {
         }
     }
 
-    private static Executor buildFreeContextExecutor(TransportService transportService) {
+    // package-private for testing
+    static int freeContextConcurrency(Settings settings) {
+        return Math.max(1, EsExecutors.allocatedProcessors(settings) / 2);
+    }
+
+    private static Executor buildFreeContextExecutor(TransportService transportService, Settings settings) {
         final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner(
             "free_context",
-            1,
+            freeContextConcurrency(settings),
             transportService.getThreadPool().generic()
         );
         return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {

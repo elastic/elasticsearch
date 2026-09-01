@@ -31,6 +31,12 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
      */
     protected static final String FIELD_ABSENT_EVERYWHERE = "does_not_exist";
 
+    protected UnmappedGoldenTestCase() {}
+
+    protected UnmappedGoldenTestCase(String mode) {
+        super(mode);
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         var filtered = new ArrayList<>(super.filteredWarnings());

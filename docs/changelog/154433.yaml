@@ -1,6 +1,0 @@
-area: Search
-issues:
- - 154354
-pr: 154433
-summary: Return 400 for sorts on unsortable fields
-type: bug

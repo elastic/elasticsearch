@@ -25,10 +25,12 @@ import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
@@ -71,7 +73,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
         return plan;
     }
 
-    private PhysicalPlan rule(TimeSeriesAggregateExec oldAgg, LocalPhysicalOptimizerContext context) {
+    PhysicalPlan rule(TimeSeriesAggregateExec oldAgg, LocalPhysicalOptimizerContext context) {
         AttributeSet inputAttributes = oldAgg.inputSet();
         var sourceAttr = inputAttributes.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
         if (sourceAttr == null) {
@@ -82,70 +84,67 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
             return oldAgg;
         }
         List<NamedExpression> newAggregates = new ArrayList<>();
-        List<Attribute> dimensionFields = new ArrayList<>();
+        List<Attribute> readDims = new ArrayList<>();
+        List<Attribute> packDims = new ArrayList<>();
         List<Alias> aliases = new ArrayList<>();
+        Attribute packedAttr = null;
         Set<AggregateFunction> seen = new HashSet<>();
         List<Attribute> oldIntermediates = oldAgg.intermediateAttributes();
         List<Attribute> newIntermediates = new ArrayList<>(oldIntermediates.subList(0, oldAgg.groupings().size()));
         int intermediateOffset = oldAgg.groupings().size();
         for (var agg : oldAgg.aggregates()) {
-            Attribute dimensionField = null;
+            boolean skipAgg = false;
             if (Alias.unwrap(agg) instanceof AggregateFunction af) {
-                dimensionField = valuesOfDimensionField(af, inputAttributes);
-                if (seen.add(af)) {
-                    int size = intermediateStateSize(af);
-                    if (dimensionField != null) {
+                if (af instanceof PackDimsAgg packDimsAgg) {
+                    skipAgg = true;
+                    if (seen.add(af)) {
+                        int size = intermediateStateSize(af);
                         if (size != 1) {
                             throw new IllegalStateException("expected one intermediate attribute for [" + af + "] but got [" + size + "]");
                         }
-                        Attribute oldAttr = oldIntermediates.get(intermediateOffset);
-                        if (dimensionField instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
-                            var withoutFields = timeSeriesMetadataAttribute.excludedFields();
-                            var sourceField = new TimeSeriesMetadataAttribute(
-                                dimensionField.source(),
-                                null,
-                                dimensionField.qualifier(),
-                                dimensionField.name(),
-                                new FunctionEsField(
-                                    new EsField(
-                                        SourceFieldMapper.NAME,
-                                        DataType.KEYWORD,
-                                        Map.of(),
-                                        false,
-                                        EsField.TimeSeriesFieldType.DIMENSION
-                                    ),
-                                    DataType.KEYWORD,
-                                    new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, withoutFields)
-                                ),
-                                dimensionField.nullable(),
-                                null,
-                                true,
-                                withoutFields
-                            );
-                            aliases.add(new Alias(agg.source(), agg.name(), sourceField, oldAttr.id()));
-                        } else {
-                            aliases.add(new Alias(agg.source(), agg.name(), dimensionField, oldAttr.id()));
-                            dimensionFields.add(dimensionField);
+                        packedAttr = oldIntermediates.get(intermediateOffset);
+                        for (Expression dim : packDimsAgg.dims()) {
+                            Attribute attr = readDimAttribute((Attribute) dim);
+                            readDims.add(attr);
+                            packDims.add(attr);
                         }
-                    } else {
-                        for (int i = 0; i < size; i++) {
-                            newIntermediates.add(oldIntermediates.get(intermediateOffset + i));
-                        }
+                        intermediateOffset += size;
                     }
-                    intermediateOffset += size;
+                } else {
+                    Attribute dimensionField = valuesOfDimensionField(af, inputAttributes);
+                    skipAgg = (dimensionField != null);
+                    if (seen.add(af)) {
+                        int size = intermediateStateSize(af);
+                        if (dimensionField != null) {
+                            if (size != 1) {
+                                throw new IllegalStateException(
+                                    "expected one intermediate attribute for [" + af + "] but got [" + size + "]"
+                                );
+                            }
+                            Attribute oldAttr = oldIntermediates.get(intermediateOffset);
+                            dimensionField = readDimAttribute(dimensionField);
+                            aliases.add(new Alias(agg.source(), agg.name(), dimensionField, oldAttr.id()));
+                            readDims.add(dimensionField);
+                        } else {
+                            for (int i = 0; i < size; i++) {
+                                newIntermediates.add(oldIntermediates.get(intermediateOffset + i));
+                            }
+                        }
+                        intermediateOffset += size;
+                    }
                 }
             }
-            if (dimensionField == null) {
+            if (skipAgg == false) {
                 newAggregates.add(agg);
             }
         }
-        if (aliases.isEmpty()) {
+        if (aliases.isEmpty() && packedAttr == null) {
             return oldAgg;
         }
         Attribute docAttr = new ReferenceAttribute(oldAgg.source(), sourceAttr.qualifier(), sourceAttr.name(), sourceAttr.dataType());
         newIntermediates.add(docAttr);
         newAggregates.add(new Alias(oldAgg.source(), sourceAttr.name(), new FirstDocId(oldAgg.source(), sourceAttr)));
-        TimeSeriesAggregateExec newStats = new TimeSeriesAggregateExec(
+        PhysicalPlan plan = new TimeSeriesAggregateExec(
             oldAgg.source(),
             oldAgg.child(),
             oldAgg.groupings(),
@@ -153,24 +152,25 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
             oldAgg.getMode(),
             newIntermediates,
             oldAgg.estimatedRowSize(),
-            oldAgg.timeBucket(),
-            oldAgg.outputTimeBucket()
+            oldAgg.timeBucket()
         );
-        final EvalExec evalExec;
-        if (dimensionFields.isEmpty()) {
-            evalExec = new EvalExec(oldAgg.source(), newStats, aliases);
-        } else {
-            PhysicalPlan readDims = new ReadDimsExec(
+        if (readDims.isEmpty() == false) {
+            plan = new ReadDimsExec(
                 oldAgg.source(),
-                newStats,
+                plan,
                 docAttr,
                 tsidAttr,
-                dimensionFields,
+                readDims,
                 context.configuration().pragmas().fieldExtractPreference()
             );
-            evalExec = new EvalExec(oldAgg.source(), readDims, aliases);
         }
-        return new ProjectExec(oldAgg.source(), evalExec, oldIntermediates);
+        if (packedAttr != null) {
+            plan = new PackDimsExec(oldAgg.source(), plan, packDims, packedAttr);
+        }
+        if (aliases.isEmpty() == false) {
+            plan = new EvalExec(oldAgg.source(), plan, aliases);
+        }
+        return new ProjectExec(oldAgg.source(), plan, oldIntermediates);
     }
 
     private static Attribute tsidGroupingAttribute(TimeSeriesAggregateExec agg) {
@@ -196,4 +196,25 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
         return AggregateMapper.intermediateStateDesc(af, true).size();
     }
 
+    static Attribute readDimAttribute(Attribute dim) {
+        if (dim instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
+            var withoutFields = timeSeriesMetadataAttribute.excludedFields();
+            return new TimeSeriesMetadataAttribute(
+                dim.source(),
+                null,
+                dim.qualifier(),
+                dim.name(),
+                new FunctionEsField(
+                    new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
+                    DataType.KEYWORD,
+                    new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, withoutFields)
+                ),
+                dim.nullable(),
+                null,
+                true,
+                withoutFields
+            );
+        }
+        return dim;
+    }
 }

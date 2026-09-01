@@ -132,6 +132,11 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             StoredFields storedFields = super.storedFields();
             return new StoredFields() {
                 @Override
+                public void prefetch(int docID) throws IOException {
+                    storedFields.prefetch(docID);
+                }
+
+                @Override
                 public void document(int docID, StoredFieldVisitor visitor) throws IOException {
                     if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
                         storedFields.document(docID, new FieldUsageFieldsVisitor((FieldNamesProvidingStoredFieldsVisitor) visitor));

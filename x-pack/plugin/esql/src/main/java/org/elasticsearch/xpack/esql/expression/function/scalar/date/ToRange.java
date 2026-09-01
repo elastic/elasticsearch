@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -54,6 +55,9 @@ public class ToRange extends EsqlScalarFunction implements AnyNullIsNull {
 
     @FunctionInfo(
         returnType = { "date_range", "double_range" },
+        signatures = {
+            @Signature(params = { "date", "date" }, returnType = "date_range"),
+            @Signature(params = { "double", "double" }, returnType = "double_range") },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
         briefSummary = "Constructs a range from two boundary values.",

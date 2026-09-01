@@ -75,8 +75,13 @@ public class MergeReaderWrapper extends FlatVectorsReader {
     }
 
     @Override
-    public FlatVectorsReader getMergeInstance() {
-        return mergeReader;
+    public FlatVectorsReader getMergeInstance() throws IOException {
+        return mergeReader.getMergeInstance();
+    }
+
+    @Override
+    public void finishMerge() throws IOException {
+        mergeReader.finishMerge();
     }
 
     @Override

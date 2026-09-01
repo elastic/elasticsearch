@@ -21,7 +21,7 @@ import org.apache.lucene.store.FilterIndexOutput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.openjdk.jmh.annotations.AuxCounters;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -55,10 +55,13 @@ import java.util.concurrent.TimeUnit;
 public class ColumnarNumericIngestBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
-    private static final String FIELD = "value";
+    /** Segments the indexing loop flushes, so that the merge parameter has something to merge. */
+    private static final int SEGMENTS = 10;
+
+    private static final String FIELD = NumericFormat.FIELD;
 
     public enum Merge {
         NONE,
@@ -66,14 +69,17 @@ public class ColumnarNumericIngestBenchmark {
         FORCE
     }
 
-    @Param({ "COLUMNAR", "ES819", "ES95" })
+    @Param({ "LUCENE", "ES819", "ES95", "COLUMNAR" })
     private NumericFormat format;
 
-    @Param({ "MONOTONIC_TIMESTAMPS", "COUNTER_STEADY", "GAUGE", "RANDOM_FULL" })
+    @Param({ "MONOTONIC_TIMESTAMPS", "COUNTER_STEADY", "GAUGE", "DOUBLE_GAUGE", "DOUBLE_COUNTER", "RANDOM_FULL" })
     private String workload;
 
     @Param({ "NONE", "NATURAL", "FORCE" })
     private Merge merge;
+
+    @Param({ "128", "512" })
+    private int blockSize;
 
     @Param("200000")
     private int docCount;
@@ -84,7 +90,7 @@ public class ColumnarNumericIngestBenchmark {
     @Setup(Level.Trial)
     public void setup() {
         values = NumericData.generate(workload, docCount);
-        codec = format.codec();
+        codec = format.codec(workload, blockSize);
     }
 
     /** Secondary metrics: bytes on disk at the end, and total bytes written across all segments. */
@@ -109,11 +115,17 @@ public class ColumnarNumericIngestBenchmark {
             config.setMergePolicy(NoMergePolicy.INSTANCE); // otherwise the default policy merges naturally
         }
         final BytesRefBuilder builder = new BytesRefBuilder();
+        // Flush periodically so the index holds more than one segment. Buffered on its own, the whole run
+        // lands in a single segment, and NoMergePolicy and forceMerge(1) then produce identical output.
+        final int docsPerSegment = Math.max(1, docCount / SEGMENTS);
         try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int i = 0; i < docCount; i++) {
                 final Document doc = new Document();
                 format.addField(doc, FIELD, values[i], builder);
                 writer.addDocument(doc);
+                if ((i + 1) % docsPerSegment == 0) {
+                    writer.flush();
+                }
             }
             if (merge == Merge.FORCE) {
                 writer.forceMerge(1);
@@ -128,7 +140,6 @@ public class ColumnarNumericIngestBenchmark {
         directory.close();
     }
 
-    /** Wraps a directory to total the bytes written across every output, including files later merged away. */
     private static final class CountingDirectory extends FilterDirectory {
         private long bytesWritten;
 

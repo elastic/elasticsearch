@@ -59,10 +59,11 @@ public final class RangeMinDoubleEvaluator implements ExpressionEvaluator {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       DoubleRangeBlockBuilder.DoubleRange rangeScratch = new DoubleRangeBlockBuilder.DoubleRange();
       position: for (int p = 0; p < positionCount; p++) {
+        if (rangeBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (rangeBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -89,7 +90,7 @@ public final class RangeMinDoubleEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

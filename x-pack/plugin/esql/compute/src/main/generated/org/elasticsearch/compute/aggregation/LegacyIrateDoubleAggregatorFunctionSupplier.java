@@ -10,7 +10,6 @@ import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
-import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link LegacyIrateDoubleAggregator}.
@@ -45,7 +44,7 @@ public final class LegacyIrateDoubleAggregatorFunctionSupplier implements Aggreg
   @Override
   public LegacyIrateDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    var warnings = driverContext.createWarnings(warningsSource);
     return new LegacyIrateDoubleGroupingAggregatorFunction(warnings, channels, driverContext, isDateNanos);
   }
 

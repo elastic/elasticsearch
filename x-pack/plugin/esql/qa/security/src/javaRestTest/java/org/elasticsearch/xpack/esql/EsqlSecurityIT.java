@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -58,12 +59,18 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlSecurityIT extends ESRestTestCase {
-    private static final String INDEX_PARTIAL_MAPPING = "index-partial-mapping";
+    protected static final String INDEX_PARTIAL_MAPPING = "index-partial-mapping";
     private static final String INDEX_FULL_MAPPING = "index-full-mapping";
     private static final String SECURITY_IT_SHARED_DATASOURCE = "security_it_shared_ds";
     private static final String SECURITY_IT_OTHER_DATASOURCE = "other_tenant_ds";
 
     private static boolean securityItDatasourcesInitialized;
+
+    @BeforeClass
+    public static void resetSecurityItDatasourcesInitialized() {
+        // reset this for the subclasses
+        securityItDatasourcesInitialized = false;
+    }
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -164,6 +171,18 @@ public class EsqlSecurityIT extends ESRestTestCase {
         client().performRequest(indexDoc);
     }
 
+    protected Settings indexSettings() {
+        return Settings.EMPTY;
+    }
+
+    /**
+     * Prefix prepended to every test index mapping. Empty in standard mode; the logsdb / logsdb_columnar subclasses override it to
+     * disable the data-stream {@code @timestamp} metadata field those modes enable by default, so the shared documents index unchanged.
+     */
+    protected String mappingPrefix() {
+        return "";
+    }
+
     @Before
     public void indexDocuments() throws IOException {
         Settings lookupSettings = Settings.builder().put("index.mode", "lookup").build();
@@ -171,22 +190,22 @@ public class EsqlSecurityIT extends ESRestTestCase {
             "properties":{"value": {"type": "double"}, "org": {"type": "keyword"}, "other": {"type": "keyword"}}
             """;
 
-        createIndex("index", Settings.EMPTY, mapping);
+        createIndex("index", indexSettings(), mappingPrefix() + mapping);
         indexDocument("index", 1, 10.0, "sales");
         indexDocument("index", 2, 20.0, "engineering");
         refresh("index");
 
-        createIndex("index-user1", Settings.EMPTY, mapping);
+        createIndex("index-user1", indexSettings(), mappingPrefix() + mapping);
         indexDocument("index-user1", 1, 12.0, "engineering");
         indexDocument("index-user1", 2, 31.0, "sales");
         refresh("index-user1");
 
-        createIndex("index-user2", Settings.EMPTY, mapping);
+        createIndex("index-user2", indexSettings(), mappingPrefix() + mapping);
         indexDocument("index-user2", 1, 32.0, "marketing");
         indexDocument("index-user2", 2, 40.0, "sales");
         refresh("index-user2");
 
-        createIndex("indexpartial", Settings.EMPTY, mapping);
+        createIndex("indexpartial", indexSettings(), mappingPrefix() + mapping);
         indexDocument("indexpartial", 1, 32.0, "marketing");
         indexDocument("indexpartial", 2, 40.0, "sales");
         refresh("indexpartial");
@@ -201,7 +220,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         String mappingPartial = """
             "dynamic":"false","properties":{"value": {"type": "double"}}
             """;
-        createIndex(INDEX_PARTIAL_MAPPING, Settings.EMPTY, mappingPartial);
+        createIndex(INDEX_PARTIAL_MAPPING, indexSettings(), mappingPrefix() + mappingPartial);
         indexFlsTestDocument(INDEX_PARTIAL_MAPPING, 1, 10.0, "sales", 100000L, "2024-01-01", "10.0.0.1");
         indexFlsTestDocument(INDEX_PARTIAL_MAPPING, 2, 20.0, "engineering", 200000L, "2023-06-15", "10.0.0.2");
         refresh(INDEX_PARTIAL_MAPPING);
@@ -210,7 +229,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             "properties":{"value":{"type":"double"},"org":{"type":"keyword"},"salary":{"type":"long"},\
             "hire_date":{"type":"date"},"ip_addr":{"type":"ip"}}
             """;
-        createIndex(INDEX_FULL_MAPPING, Settings.EMPTY, mappingFull);
+        createIndex(INDEX_FULL_MAPPING, indexSettings(), mappingPrefix() + mappingFull);
         indexFlsTestDocument(INDEX_FULL_MAPPING, 1, 30.0, "marketing", 300000L, "2022-03-01", "10.0.0.3");
         indexFlsTestDocument(INDEX_FULL_MAPPING, 2, 40.0, "support", 400000L, "2021-11-20", "10.0.0.4");
         refresh(INDEX_FULL_MAPPING);
@@ -1056,6 +1075,61 @@ public class EsqlSecurityIT extends ESRestTestCase {
                     )
                 )
                 .entry("values", List.of(Arrays.asList(null, null), Arrays.asList(null, null)))
+        );
+    }
+
+    /**
+     * The {@code LOAD_ALL} counterpart of {@link #testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoad}: no unmapped field is
+     * referenced, so every unmapped {@code _source} key becomes a column of its own. An FLS-denied field must not become one of
+     * them. {@code fls_deny_value_org_user} is denied the mapped {@code value} and the unmapped {@code org}, so neither may show
+     * up as a column, while the admin running the same query sees both.
+     */
+    public void testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD_ALL support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.capabilityName()))
+        );
+        // Sorting on the unmapped salary keeps the row order stable for both users; the only mapped field is denied below.
+        String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM " + INDEX_PARTIAL_MAPPING + " | SORT salary | LIMIT 10";
+
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "salary").entry("type", "keyword"),
+                        matchesMap().entry("name", "hire_date").entry("type", "keyword"),
+                        matchesMap().entry("name", "ip_addr").entry("type", "keyword"),
+                        matchesMap().entry("name", "org").entry("type", "keyword")
+                    )
+                )
+                .entry(
+                    "values",
+                    List.of(
+                        List.of(10.0, "100000", "2024-01-01", "10.0.0.1", "sales"),
+                        List.of(20.0, "200000", "2023-06-15", "10.0.0.2", "engineering")
+                    )
+                )
+        );
+
+        Response restrictedResp = runESQLCommand("fls_deny_value_org_user", query);
+        assertOK(restrictedResp);
+        assertMap(
+            entityAsMap(restrictedResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "salary").entry("type", "keyword"),
+                        matchesMap().entry("name", "hire_date").entry("type", "keyword"),
+                        matchesMap().entry("name", "ip_addr").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(List.of("100000", "2024-01-01", "10.0.0.1"), List.of("200000", "2023-06-15", "10.0.0.2")))
         );
     }
 

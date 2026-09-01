@@ -20,7 +20,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -95,8 +95,7 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
             // Both recovery and new commit notifications backfill referenced BCC metadata-read regions only after parsing referenced CCs
             // via this path.
             .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-            // Time-based caching (BACKFILL_IN_PROGRESS stamping + backfill) is only enabled when cache boost preference is on.
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(), true)
             // Enough room to keep every region cached for the duration of the test (no eviction).
             .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(16))
             .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE)
@@ -557,9 +556,17 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            return new CapturingCacheService(nodeEnvironment, settings, clusterService.getClusterSettings(), threadPool, blobCacheMetrics);
+            return new CapturingCacheService(
+                nodeEnvironment,
+                settings,
+                clusterService.getClusterSettings(),
+                threadPool,
+                blobCacheMetrics,
+                metricHolder
+            );
         }
     }
 
@@ -572,9 +579,18 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
             Settings settings,
             ClusterSettings clusterSettings,
             ThreadPool threadPool,
-            BlobCacheMetrics blobCacheMetrics
+            BlobCacheMetrics blobCacheMetrics,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            this(environment, settings, clusterSettings, threadPool, blobCacheMetrics, new TimestampCapturingEvictionPolicy());
+            this(
+                environment,
+                settings,
+                clusterSettings,
+                threadPool,
+                blobCacheMetrics,
+                metricHolder,
+                new TimestampCapturingEvictionPolicy()
+            );
         }
 
         private CapturingCacheService(
@@ -583,6 +599,7 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
             ClusterSettings clusterSettings,
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder,
             TimestampCapturingEvictionPolicy capturingPolicy
         ) {
             super(
@@ -594,7 +611,7 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
                 capturingPolicy,
                 System::nanoTime,
                 threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                metricHolder
             );
             this.capturingPolicy = capturingPolicy;
         }

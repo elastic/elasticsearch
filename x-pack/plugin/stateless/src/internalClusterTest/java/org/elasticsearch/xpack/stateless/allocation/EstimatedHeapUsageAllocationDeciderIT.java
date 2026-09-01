@@ -87,9 +87,12 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
 
         // Override the WORKLOAD_MEMORY_OVERHEAD of 500MB because testing often runs 512MB nodes.
         // Shards need more space to be assigned than what's leftover with the default node overheads. A value of 100 is arbitrary.
+        // Applied on every node: the master uses it for the allocation estimates, and each index node's recovery gate uses it for
+        // its node-local estimate (with the 500MB default, the gate would exceed the high watermark and defer all recoveries).
         // Refreshes so this value is set before creating indices below
-        internalCluster().getInstance(StatelessMemoryMetricsService.class, internalCluster().getMasterName())
-            .setWorkloadMemoryOverheadOverrideForTesting(100);
+        for (StatelessMemoryMetricsService service : internalCluster().getInstances(StatelessMemoryMetricsService.class)) {
+            service.setWorkloadMemoryOverheadOverrideForTesting(100);
+        }
         refreshClusterInfo();
 
         // Place index shards on both index nodes.
@@ -213,9 +216,12 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
 
         // Override the WORKLOAD_MEMORY_OVERHEAD of 500MB because testing often runs 512MB nodes.
         // Shards need more space to be assigned than what's leftover with the default node overheads. A value of 100 is arbitrary.
+        // Applied on every node: the master uses it for the allocation estimates, and each index node's recovery gate uses it for
+        // its node-local estimate (with the 500MB default, the gate would exceed the high watermark and defer all recoveries).
         // Refreshes so this value is set before creating indices below
-        internalCluster().getInstance(StatelessMemoryMetricsService.class, internalCluster().getMasterName())
-            .setWorkloadMemoryOverheadOverrideForTesting(100);
+        for (StatelessMemoryMetricsService service : internalCluster().getInstances(StatelessMemoryMetricsService.class)) {
+            service.setWorkloadMemoryOverheadOverrideForTesting(100);
+        }
         refreshClusterInfo();
 
         // Place index shards on both index nodes so that both publish memory metrics.

@@ -6,16 +6,13 @@
  */
 package org.elasticsearch.xpack.ml.action.datafeed;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -29,8 +26,6 @@ import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchIntervalTests;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -53,7 +48,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -105,33 +99,6 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(previewDatafeed.getCloudInternalCredential(), nullValue());
     }
 
-    public void testExtractCallerCloudCredential_GivenCloudManagedCredential_ShouldReturnExtractedCredential() {
-        CloudCredentialManager cloudCredentialManager = mock(CloudCredentialManager.class);
-        ThreadContext threadContext = threadPool.getThreadContext();
-        CloudCredential expected = new CloudCredential(new SecureString("caller-cred".toCharArray()));
-        when(cloudCredentialManager.hasCloudManagedCredential(threadContext)).thenReturn(true);
-        when(cloudCredentialManager.extractCloudManagedCredential(threadContext)).thenReturn(expected);
-
-        assertThat(
-            TransportPreviewDatafeedAction.extractCallerCloudCredential(cloudCredentialManager, threadContext),
-            sameInstance(expected)
-        );
-    }
-
-    public void testExtractCallerCloudCredential_GivenNoCloudManagedCredential_ShouldReturnNull() {
-        CloudCredentialManager cloudCredentialManager = mock(CloudCredentialManager.class);
-        ThreadContext threadContext = threadPool.getThreadContext();
-        when(cloudCredentialManager.hasCloudManagedCredential(threadContext)).thenReturn(false);
-
-        assertThat(TransportPreviewDatafeedAction.extractCallerCloudCredential(cloudCredentialManager, threadContext), nullValue());
-    }
-
-    public void testProjectRoutingRequiresCpsException_ShouldMatchPutDatafeedMessage() {
-        ElasticsearchStatusException exception = DatafeedConfig.projectRoutingRequiresCpsException();
-        assertThat(exception.getMessage(), equalTo(DatafeedConfig.PROJECT_ROUTING_REQUIRES_CPS_MESSAGE));
-        assertThat(exception.status(), equalTo(org.elasticsearch.rest.RestStatus.BAD_REQUEST));
-    }
-
     public void testWithCrossProjectModeIfEnabled_GivenCpsEnabled_ShouldEnableCrossProjectIndicesOptions() {
         assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("preview_cps_feed", "job_foo");
@@ -141,9 +108,40 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
             Settings.builder().put("serverless.cross_project.enabled", true).build()
         );
 
-        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider);
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider, true);
 
         assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_FlagOffPreviewClearsProjectRouting() {
+        assumeFalse("Run with -Des.ml_cross_project_feature_flag_enabled=false", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("preview_flag_off_feed", "job_foo");
+        builder.setIndices(Collections.singletonList("logs-*"));
+        builder.setProjectRouting("_alias:prod-*");
+        CrossProjectModeDecider decider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", true).build()
+        );
+
+        DatafeedConfig previewConfig = TransportPreviewDatafeedAction.buildPreviewDatafeed(builder.build()).build();
+        DatafeedConfig effective = DatafeedConfig.withCrossProjectModeIfEnabled(previewConfig, decider, true);
+
+        assertThat(effective.getProjectRouting(), nullValue());
+        assertThat(effective.getIndicesOptions().resolveCrossProjectIndexExpression(), is(false));
+        assertThat(previewConfig.getProjectRouting(), equalTo("_alias:prod-*"));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenNoCallerCredential_DoesNotPromote() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("preview_no_cred_feed", "job_foo");
+        builder.setIndices(Collections.singletonList("logs-*"));
+        builder.setIndicesOptions(org.elasticsearch.action.support.IndicesOptions.STRICT_EXPAND_OPEN);
+        CrossProjectModeDecider decider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", true).build()
+        );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider, false);
+
+        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), is(false));
     }
 
     public void testBuildDateNanosFieldCapsRequest_GivenCpsIndicesOptions_ShouldRequestResolvedTo() {
@@ -154,7 +152,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         CrossProjectModeDecider decider = new CrossProjectModeDecider(
             Settings.builder().put("serverless.cross_project.enabled", true).build()
         );
-        DatafeedConfig datafeed = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider);
+        DatafeedConfig datafeed = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider, true);
         assertThat(datafeed.getIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
 
         FieldCapabilitiesRequest request = TransportPreviewDatafeedAction.buildDateNanosFieldCapsRequest(datafeed, "time");

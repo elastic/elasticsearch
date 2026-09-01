@@ -284,6 +284,15 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         // do nothing
     }
 
+    /**
+     * Whether this metadata mapper can participate in the columnar bulk batch-mapping path.
+     */
+    public boolean supportsColumnarMetadataParse(IndexSettings indexSettings) {
+        // This allows some metadata mappers to not block columnar indexing but still force a fall back
+        // if we do not supportsColumnarParse on specific fields
+        return supportsColumnarParse(indexSettings);
+    }
+
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);

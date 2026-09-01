@@ -50,7 +50,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 /// Integration tests for source-side (see [PeerRecoverySourceService]) and target-side recovery queues (see [ThrottlingRecoveryService])
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -593,9 +592,9 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
                 equalTo("INIT")
             );
             assertThat(
-                "expected queued recovery to be omitted from /_recovery?active_only=true",
-                activeOnlyResponse.evaluate(indexTwo),
-                nullValue()
+                "expected queued recovery to be included in /_recovery?active_only=true",
+                activeOnlyResponse.evaluate(indexTwo + ".shards.0.stage"),
+                equalTo("CREATED")
             );
 
             catStageByIndex = catRecoveryStageByIndex(true, Set.of(indexOne, indexTwo));
@@ -605,9 +604,9 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
                 equalTo("init")
             );
             assertThat(
-                "expected queued recovery to be omitted from /_cat/recovery?active_only=true",
+                "expected queued recovery to be included in /_cat/recovery?active_only=true",
                 catStageByIndex.get(indexTwo),
-                nullValue()
+                equalTo("created")
             );
         } finally {
             proceedWithRecovery.countDown();

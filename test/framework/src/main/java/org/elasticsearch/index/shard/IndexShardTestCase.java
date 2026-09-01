@@ -818,18 +818,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /**
-     * Creates the initial {@link RecoveryState} for a newly built shard with the given routing. Recovery sources that
-     * recover from another shard (peer and reshard-split) require the source node. Pass {@code null} for the other types.
-     */
-    protected static RecoveryState newRecoveryState(ShardRouting routing, @Nullable DiscoveryNode source) {
-        final RecoverySource.Type recoveryType = routing.recoverySource().getType();
-        final boolean recoversFromAnotherShard = recoveryType == RecoverySource.Type.PEER
-            || recoveryType == RecoverySource.Type.RESHARD_SPLIT;
-        assert (source != null) == recoversFromAnotherShard : "recovery source [" + recoveryType + "]";
-        return new RecoveryState(routing, DiscoveryNodeUtils.builder(routing.currentNodeId()).build(), source);
-    }
-
-    /**
      * Creates a new empty shard and starts it. The shard will randomly be a replica or a primary.
      */
     protected IndexShard newStartedShard() throws IOException {

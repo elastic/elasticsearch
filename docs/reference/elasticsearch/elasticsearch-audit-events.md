@@ -665,7 +665,22 @@ The events with `event.type` equal to `rest` have one of the following `event.ac
 :   The HTTP method of the REST request associated with this event. It is one of GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH, TRACE and CONNECT.
 
 `request.body`
-:   The full content of the REST request associated with this event, if enabled. This contains the HTTP request body. The body is escaped as a string value according to the JSON RFC 4627.
+:   The full content of the REST request associated with this event, if enabled. This contains the HTTP request body. The body is escaped as a string value according to the JSON RFC 4627. {applies_to}`stack: ga 9.4` Requests whose body is not a JSON-representable format emit `request.raw_body` instead of this attribute.
+
+`request.raw_body`
+:   {applies_to}`stack: ga 9.4` The full content of the REST request associated with this event, base64-encoded, if enabled. This attribute is emitted in place of `request.body` when the request body cannot be represented as JSON. Currently this applies to requests with a `Content-Type` of `application/x-protobuf` (for example, OTLP and Prometheus remote-write requests). The bytes are recorded as received by the request handler: compression that the HTTP layer does not decompress, such as snappy for Prometheus remote-write, is preserved verbatim.
+
+    To decode the value of `request.raw_body`:
+
+    1. Base64-decode the value.
+    2. If `request.raw_body_content_encoding` is present, apply the matching decompression (for example, snappy for Prometheus remote-write, gzip for gzip-compressed OTLP).
+    3. Parse the resulting bytes as the protobuf message identified by `request.raw_body_content_type` together with `url.path` (which selects between OTLP logs, metrics, or traces and Prometheus remote-write).
+
+`request.raw_body_content_type`
+:   {applies_to}`stack: ga 9.4` The value of the `Content-Type` request header for the request whose body was recorded under `request.raw_body`. Identifies the wire format (for example, `application/x-protobuf`) so that a decoder does not have to infer it from the URL path.
+
+`request.raw_body_content_encoding`
+:   {applies_to}`stack: ga 9.4` The value of the `Content-Encoding` request header for the request whose body was recorded under `request.raw_body`, if the request carried one (for example, `snappy` for Prometheus remote-write). The audit log preserves the encoded bytes verbatim, so a decoder must apply the matching decompression after base64-decoding. Absent when the request had no `Content-Encoding` header.
 
 
 ### Audit event attributes of the `transport` event type [_audit_event_attributes_of_the_transport_event_type]

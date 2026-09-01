@@ -487,9 +487,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.RestartIT
   method: testRestart {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/155609
-- class: org.elasticsearch.xpack.downsample.DownsampleRateIT
-  method: testTimeSeriesQuerying_RandomDocuments
-  issue: https://github.com/elastic/elasticsearch/issues/153348
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingBucketIncludeEmptyBucketsIT
   method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
   issue: https://github.com/elastic/elasticsearch/issues/155663
@@ -604,9 +601,6 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
   method: testAsyncSearchFailingQueryErrorTraceFalseOnSubmitAndTrueOnGet
   issue: https://github.com/elastic/elasticsearch/issues/156435
-- class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
-  method: testPointInTimeRelocationClosingSourceContexts
-  issue: https://github.com/elastic/elasticsearch/issues/156463
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/156465
@@ -704,9 +698,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
   method: testCreateAndRestorePartialSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/157256
-- class: org.elasticsearch.xpack.stateless.StatelessSearchIT
-  method: testRefreshOnBulkWithNewShardAllocation
-  issue: https://github.com/elastic/elasticsearch/issues/157260
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/395_binary_doc_values_search/Test keyword range uses indexed byte ordering for binary doc values}
   issue: https://github.com/elastic/elasticsearch/issues/157314
@@ -740,9 +731,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithReadFromObjectStoreTests
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/157733
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=health/10_basic/cluster health basic test}
-  issue: https://github.com/elastic/elasticsearch/issues/157740
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {bad_ARROW-GH-43605}
   issue: https://github.com/elastic/elasticsearch/issues/157747
@@ -812,9 +800,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
   method: test {csv-spec:tdigest.count with bucket, time, and instance in FROM}
   issue: https://github.com/elastic/elasticsearch/issues/158089
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=mapping/42_doc_values_on_failure/index.mapping.doc_values.on_failure=ignore applies to nullability violations (logsdb_columnar)}
-  issue: https://github.com/elastic/elasticsearch/issues/158006
 - class: org.elasticsearch.foreign.processor.BoundsCheckGeneratedClassBehaviorTests
   method: testSlicedSegmentCheckThrowsWhenSliceExceedsSegment
   issue: https://github.com/elastic/elasticsearch/issues/158125
@@ -827,3 +812,19 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsdbFieldLevelSecurityChallengeRestIT
   method: testFieldLevelSecuritySourceEquivalence
   issue: https://github.com/elastic/elasticsearch/issues/158180
+- class: org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReaderStatusSnapshotTests
+  method: testCountersPopulatedAfterDrain
+  issue: https://github.com/elastic/elasticsearch/issues/158220
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedFormatSpecIT
+  method: test {csv-spec:external-multivalue.mvRLikeFromDataset [snappy/GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/158221
+- class: org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReaderTests
+  method: testSyntheticSourceWithCopyToKeywordDestinationAndFLSDocValues
+  issue: https://github.com/elastic/elasticsearch/issues/158222
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  issue: https://github.com/elastic/elasticsearch/issues/158224
+- class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
+  issue: https://github.com/elastic/elasticsearch/issues/158226
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetNullListElementWarningIT
+  method: testDroppedNullElementIsAnnouncedInEveryDistributionMode
+  issue: https://github.com/elastic/elasticsearch/issues/158281

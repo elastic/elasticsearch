@@ -125,18 +125,20 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      */
     private final long[] rowGroupOffsets;
     /**
-     * Relay for per-value declared-coercion warnings, or {@code null} to fall back to emitting
-     * directly via {@code HeaderWarning}. The extractor runs on the
-     * driver thread, so direct emission is correct; a non-null sink is the budget-gated wrapper that
-     * caps the whole source. See {@link #coercionWarnings()}.
+     * Relay for read-time informational warnings, or {@code null} to fall back to emitting directly via
+     * {@code HeaderWarning}. Production always supplies one: it is the budget-gated wrapper that caps the whole
+     * source and ends in {@code DriverContext#addWarning}. Running on the driver thread is not enough to make the
+     * fallback correct — when the scan runs on a node other than the coordinator that thread's response headers do
+     * not reach the client (elastic/esql-planning#1837) — so the {@code null} case is for tests only.
+     * See {@link #coercionWarnings()}.
      */
     @Nullable
     private final Consumer<String> warningSink;
 
     /**
      * Delegates to {@link #ParquetColumnExtractor(StorageObject, ParquetFormatReader, ParquetMetadata, ErrorPolicy, Consumer)}
-     * with no warning sink, so coercion warnings emit directly via {@code HeaderWarning} (per-instance
-     * cap only). Used by tests and any on-driver-thread caller that does not centrally cap the channel.
+     * with no warning sink, so coercion warnings emit directly via {@code HeaderWarning} (per-instance cap only, and
+     * only visible when the scan happens to run on the coordinator). Tests only; production hands in a sink.
      */
     ParquetColumnExtractor(StorageObject storageObject, ParquetFormatReader reader, ParquetMetadata ownedFooter, ErrorPolicy errorPolicy) {
         this(storageObject, reader, ownedFooter, errorPolicy, null);
@@ -153,9 +155,8 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * @param errorPolicy   the read's error policy, inherited from the iterator that produced the
      *                      row identities so the deferred columns fail (or warn+null) exactly like
      *                      the eagerly scanned ones
-     * @param warningSink   where per-value coercion warnings are relayed (budget-gated direct
-     *                      emission on the driver thread), or {@code null} for direct
-     *                      {@code HeaderWarning} emission
+     * @param warningSink   where read-time informational warnings are relayed (budget-gated, ending in the driver's
+     *                      warning sink), or {@code null} for direct {@code HeaderWarning} emission
      */
     ParquetColumnExtractor(
         StorageObject storageObject,
@@ -769,13 +770,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * the row-group rows in source order, alternating skips and reads to produce exactly the
      * surviving rows.
      */
-    private static Block decodeFlat(
-        Bucket bucket,
-        ColumnInfo info,
-        PrefetchedPageReadStore store,
-        int rgRowCount,
-        BlockFactory blockFactory
-    ) {
+    private Block decodeFlat(Bucket bucket, ColumnInfo info, PrefetchedPageReadStore store, int rgRowCount, BlockFactory blockFactory) {
         PageReader pr = store.getPageReader(info.descriptor());
         try (
             PageColumnReader pageReader = new PageColumnReader(
@@ -784,7 +779,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 info,
                 // RowRanges.all() lets every page through loadNextPage()'s page-skip check; the
                 // sparse loop drives skip/read by in-group position from there.
-                RowRanges.all(rgRowCount)
+                RowRanges.all(rgRowCount),
+                null,
+                warningSink
             )
         ) {
             return pageReader.readBatchSparse(rgRowCount, blockFactory, bucket.uniquePositions, bucket.uniqueCount);
@@ -858,6 +855,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                         columnName,
                         null,
                         null,
+                        warningSink,
                         nullListElementWarnings()
                     )
                 );

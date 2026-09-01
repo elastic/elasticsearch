@@ -2964,10 +2964,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         @Nullable
         private final ColumnarRowDropHelper rowDropHelper;
         /**
-         * Relay for this read's per-value coercion warnings, or {@code null} to fall back to emitting
-         * directly via {@code HeaderWarning}. Under the async source
-         * this iterator runs on a background reader thread, so a non-null sink (the source buffer
-         * relay) is required for the warnings to reach the response; see {@link #coercionWarnings()}.
+         * Relay for this read's informational warnings, or {@code null} to fall back to emitting directly via
+         * {@code HeaderWarning}. Under the async source this iterator runs on a background reader thread, so a
+         * non-null sink (the source buffer relay) is required for the warnings to reach the response; see
+         * {@link #coercionWarnings()}.
          */
         @Nullable
         private final Consumer<String> warningSink;
@@ -3172,7 +3172,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                         ColumnInfo ci = columnInfos[i];
                         if (ci != null && ci.isRowPosition() == false && ci.maxRepLevel() == 0) {
                             PageReader pageReader = rowGroup.getPageReader(ci.descriptor());
-                            pageColumnReaders[i] = new PageColumnReader(pageReader, ci.descriptor(), ci, allRows, coercionWarnings());
+                            pageColumnReaders[i] = new PageColumnReader(
+                                pageReader,
+                                ci.descriptor(),
+                                ci,
+                                allRows,
+                                coercionWarnings(),
+                                warningSink
+                            );
                         }
                     }
                     if (rowDropHelper != null) {
@@ -3436,6 +3443,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     attributes.get(colIndex).name(),
                     coercionWarnings(),
                     failedPositionSink,
+                    warningSink,
                     nullListElementWarnings()
                 );
             }
@@ -3706,7 +3714,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
          * Reads an INT64 {@code TIMESTAMP(MICROS|NANOS)} column into a {@code DATE_NANOS} block of epoch-nanoseconds.
          * {@code NANOS} passes through; {@code MICROS} is scaled ×1_000. A {@code MICROS} value whose scaled instant
          * would fall outside the representable {@code date_nanos} range (~1677-2262) has no nanosecond representation,
-         * so it is emitted as null (with a single deduplicated response warning) rather than silently wrapping around.
+         * so it is emitted as null (with a single deduplicated warning) rather than silently wrapping around.
          */
         private Block readDateNanosColumn(ColumnReader cr, ColumnInfo info, int rows) {
             LogicalTypeAnnotation logical = info.logicalType();
@@ -3735,7 +3743,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 cr.consume();
             }
             if (anyOverflow) {
-                ParquetColumnDecoding.warnTimestampOutOfRange(info);
+                ParquetColumnDecoding.warnTimestampOutOfRange(info, warningSink);
             }
             return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }

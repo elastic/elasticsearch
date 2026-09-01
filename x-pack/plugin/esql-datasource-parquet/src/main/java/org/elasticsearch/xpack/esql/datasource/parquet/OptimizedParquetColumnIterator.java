@@ -129,10 +129,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     /** See {@link #nullListElementWarnings()}. */
     private SkipWarnings nullListElementWarnings;
     /**
-     * Relay for this eager read's per-value coercion warnings, or {@code null} to fall back to
-     * emitting directly via {@code HeaderWarning}. This iterator
-     * runs on a background reader thread under the async source, so a non-null sink (the source
-     * buffer relay) is required for the warnings to reach the response; see {@link #coercionWarnings()}.
+     * Relay for this eager read's informational warnings, or {@code null} to fall back to emitting directly via
+     * {@code HeaderWarning}. This iterator runs on a background reader thread under the async source, so a non-null
+     * sink (the source buffer relay) is required for the warnings to reach the response; see
+     * {@link #coercionWarnings()}.
      */
     @Nullable
     private final Consumer<String> warningSink;
@@ -1958,7 +1958,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 && columnInfos[i].maxRepLevel() == 0) {
                 ColumnDescriptor desc = columnInfos[i].descriptor();
                 PageReader pr = rowGroup.getPageReader(desc);
-                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], null, coercionWarnings());
+                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], null, coercionWarnings(), warningSink);
             }
         }
         // Sink intentionally not armed: see Javadoc above.
@@ -1987,7 +1987,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 && columnInfos[i].maxRepLevel() == 0) {
                 ColumnDescriptor desc = columnInfos[i].descriptor();
                 PageReader pr = rowGroup.getPageReader(desc);
-                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], survivorRowRanges, coercionWarnings());
+                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], survivorRowRanges, coercionWarnings(), warningSink);
             }
         }
         // Sink intentionally not armed: see Javadoc above.
@@ -2041,7 +2041,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false && columnInfos[i].maxRepLevel() == 0) {
                 ColumnDescriptor desc = columnInfos[i].descriptor();
                 PageReader pr = rowGroup.getPageReader(desc);
-                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], currentRowRanges, coercionWarnings());
+                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], currentRowRanges, coercionWarnings(), warningSink);
             }
         }
         // Arm the sink only when this batch will be processed by nextStandard, which is the only
@@ -2979,6 +2979,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 attributes.get(colIndex).name(),
                 coercionWarnings(),
                 listColumnSink,
+                warningSink,
                 nullListElementWarnings()
             );
         }

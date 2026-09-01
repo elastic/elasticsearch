@@ -38,13 +38,18 @@ import java.util.Map;
  */
 public class RecoveryState implements ToXContentFragment, Writeable {
 
+    private static final TransportVersion RECOVERY_PRIORITY_TRANSPORT_VERSION = TransportVersion.fromName(
+        "recovery_priority_in_recovery_state"
+    );
+    private static final TransportVersion RECOVERY_STAGE_CREATED = TransportVersion.fromName("recovery_stage_created");
+
     public enum Stage {
         /**
          * the index shard and its recovery state object have been created but recovery has not started yet. It is
          * possibly still queued on the data node. Initial stage of every recovery. Moves to {@link #INIT} once the
          * recovery actually starts. The recovery timer is not running at this stage, so a queued recovery reports
          * zero timings rather than counting the time it spends queued as recovery time.
-         * note: stage ids are append-only for wire compatibility, hence this stage's id is out of declaration order.
+         * note: stage ids are append-only for wire compatibility, so this stage's id is out of declaration order.
          */
         CREATED((byte) 6),
 
@@ -159,11 +164,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         verifyIndex = new VerifyIndex();
         this.timer = timer;
     }
-
-    private static final TransportVersion RECOVERY_PRIORITY_TRANSPORT_VERSION = TransportVersion.fromName(
-        "recovery_priority_in_recovery_state"
-    );
-    private static final TransportVersion RECOVERY_STAGE_CREATED = TransportVersion.fromName("recovery_stage_created");
 
     private RecoveryState(StreamInput in) throws IOException {
         timer = new Timer(in);

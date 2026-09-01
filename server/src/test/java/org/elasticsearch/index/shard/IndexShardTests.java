@@ -989,10 +989,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 final DiscoveryNode sourceNode = routing.recoverySource().getType() == RecoverySource.Type.PEER
                     ? DiscoveryNodeUtils.builder("sourceNode").build()
                     : null;
-                indexShard = newShard(
-                    routing,
-                    new RecoveryState(routing, DiscoveryNodeUtils.builder(routing.currentNodeId()).build(), sourceNode)
-                );
+                indexShard = newShard(routing, newRecoveryState(routing, sourceNode));
                 engineClosed = true;
             }
             case 2 -> {
@@ -2660,11 +2657,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardRouting primaryTargetRouting = primarySource.routingEntry().getTargetRelocatingShard();
         final IndexShard primaryTarget = newShard(
             primaryTargetRouting,
-            new RecoveryState(
-                primaryTargetRouting,
-                DiscoveryNodeUtils.builder(primaryTargetRouting.currentNodeId()).build(),
-                DiscoveryNodeUtils.builder(primarySource.routingEntry().currentNodeId()).build()
-            )
+            newRecoveryState(primaryTargetRouting, DiscoveryNodeUtils.builder(primarySource.routingEntry().currentNodeId()).build())
         );
         updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetadata());
         recoverReplica(primaryTarget, primarySource, true);
@@ -4265,12 +4258,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .build();
         final IndexShard newShard = newShard(
             shardRouting,
-            new RecoveryState(
-                shardRouting,
-                DiscoveryNodeUtils.builder(shardRouting.currentNodeId()).build(),
-                // no source shard exists in this test; fabricate a source node for the replica (peer recovery) case
-                isPrimary ? null : DiscoveryNodeUtils.builder("fake-source-node").build()
-            ),
+            newRecoveryState(shardRouting, isPrimary ? null : DiscoveryNodeUtils.builder("fake-source-node").build()),
             indexShard.shardPath(),
             indexMetadata,
             null,
@@ -6038,11 +6026,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
         final IndexShard replicaShard = newShard(
             shardRouting,
-            new RecoveryState(
-                shardRouting,
-                DiscoveryNodeUtils.builder(shardRouting.currentNodeId()).build(),
-                DiscoveryNodeUtils.builder(primary.routingEntry().currentNodeId()).build()
-            ),
+            newRecoveryState(shardRouting, DiscoveryNodeUtils.builder(primary.routingEntry().currentNodeId()).build()),
             shardPath,
             primary.indexSettings().getIndexMetadata(),
             null,

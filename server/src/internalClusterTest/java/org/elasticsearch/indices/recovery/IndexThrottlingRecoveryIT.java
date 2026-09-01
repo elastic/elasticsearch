@@ -563,12 +563,12 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
             assertThat(recoveryResponse.evaluate(indexOne + ".shards.0.stage"), equalTo("INIT"));
             assertThat(recoveryResponse.evaluate(indexTwo + ".shards.0.stage"), equalTo("CREATED"));
 
-            // The queued recovery has not started its timer
             assertThat(
                 "an active recovery reports a start time",
                 evaluateLong(recoveryResponse, indexOne + ".shards.0.start_time_in_millis"),
                 greaterThan(0L)
             );
+            // The queued recovery has not started its timer
             assertThat(
                 "a queued recovery must not report a start time",
                 evaluateLong(recoveryResponse, indexTwo + ".shards.0.start_time_in_millis"),
@@ -580,7 +580,7 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
                 equalTo(0L)
             );
 
-            Map<String, String> catStageByIndex = catRecoveryStageByIndex(false, indexOne, indexTwo);
+            Map<String, String> catStageByIndex = catRecoveryStageByIndex(false, Set.of(indexOne, indexTwo));
             assertThat("expected active recovery to be reported by /_cat/recovery", catStageByIndex.get(indexOne), equalTo("init"));
             assertThat("expected queued recovery to be reported by /_cat/recovery", catStageByIndex.get(indexTwo), equalTo("created"));
 
@@ -598,7 +598,7 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
                 nullValue()
             );
 
-            catStageByIndex = catRecoveryStageByIndex(true, indexOne, indexTwo);
+            catStageByIndex = catRecoveryStageByIndex(true, Set.of(indexOne, indexTwo));
             assertThat(
                 "expected active recovery to be reported by /_cat/recovery?active_only=true",
                 catStageByIndex.get(indexOne),
@@ -621,17 +621,19 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
         return value.longValue();
     }
 
-    private static Map<String, String> catRecoveryStageByIndex(boolean activeOnly, String... indices) throws IOException {
+    private static Map<String, String> catRecoveryStageByIndex(boolean activeOnly, Set<String> indices) throws IOException {
+        if (indices.isEmpty()) {
+            return Map.of();
+        }
         final var request = new Request("GET", "/_cat/recovery");
         request.addParameter("h", "index,stage");
         if (activeOnly) {
             request.addParameter("active_only", "true");
         }
-        final var expectedIndices = Set.of(indices);
         return EntityUtils.toString(getRestClient().performRequest(request).getEntity())
             .lines()
             .map(line -> line.trim().split("\\s+"))
-            .filter(cells -> cells.length == 2 && expectedIndices.contains(cells[0]))
+            .filter(cells -> cells.length == 2 && indices.contains(cells[0]))
             .collect(Collectors.toMap(cells -> cells[0], cells -> cells[1]));
     }
 

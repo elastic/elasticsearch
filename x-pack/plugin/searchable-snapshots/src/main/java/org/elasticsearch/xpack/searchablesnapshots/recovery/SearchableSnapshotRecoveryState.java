@@ -41,8 +41,6 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
 
         if (stage == Stage.INIT) {
             remoteTranslogSet = false;
-            // Pre-warming spans the whole recovery rather than just Stage.INDEX, so the index timer is started as soon as the
-            // recovery leaves Stage.CREATED.
             ((Index) getIndex()).startTimer();
         }
 
@@ -151,8 +149,6 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
         @Override
         public synchronized void reset() {}
 
-        /// Starts the timer when the recovery starts. Idempotent, since a recovery may be reset back to [Stage#INIT] and must
-        /// then keep its original start time.
         private synchronized void startTimer() {
             if (startTime() == 0) {
                 super.start();

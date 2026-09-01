@@ -433,8 +433,8 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
     }
 
     /**
-     * Every clause must admit elements that require no action at all ({@code count: 0}) — the shape the
-     * Kibana indexer writes for a type that opts out of privilege gating. {@code terms_set} alone cannot express this.
+     * Every clause must admit elements requiring no action ({@code count: 0}) — the shape Kibana writes
+     * for a type that opts out of gating, which {@code terms_set} alone cannot express.
      */
     public void testEveryClauseAdmitsElementsRequiringNoActions() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
@@ -478,10 +478,9 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
     }
 
     /**
-     * The {@code count: 0} escape must not become a way around space scoping: a space clause still
-     * filters on {@code .space}, so a zero-requirement element is public only within its own space.
-     * (The space-less clause has no such filter by design — a wildcard grant means the user is in every
-     * space, so a zero-requirement element anywhere is legitimately theirs to read.)
+     * The {@code count: 0} escape must not bypass space scoping: a space clause still filters on
+     * {@code .space}, so a zero-requirement element is public only within its own space. (The space-less
+     * clause has no such filter — a wildcard grant already puts the user in every space.)
      */
     public void testZeroCountEscapeStaysInsideTheSpaceFilter() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
@@ -674,8 +673,8 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     private static List<String> spacesOfClause(Map<String, Object> clause) {
-        // Both filters of a clause are bools (spaces, then required actions), so match on the field
-        // rather than on position: the actions bool carries no .space and must yield nothing here.
+        // Match on the field, not position: a clause's filters are both bools (spaces, then required
+        // actions), and the actions bool carries no .space so it yields nothing here.
         for (Map<String, Object> filter : filtersOfClause(clause)) {
             if (filter.containsKey("bool") == false) {
                 continue;
@@ -710,11 +709,7 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         throw new AssertionError("no terms_set in clause " + clause);
     }
 
-    /**
-     * The {@code terms_set} query of a required-actions should-arm, or {@code null} when the arm carries
-     * none. The arm wraps {@code terms_set} in a {@code bool} alongside the {@code count >= 1} guard, so
-     * this descends into that {@code bool}; a bare {@code terms_set} is handled too for robustness.
-     */
+    /** The {@code terms_set} of a required-actions should-arm, unwrapping the {@code count >= 1} guard bool, or {@code null}. */
     @SuppressWarnings("unchecked")
     private static Map<String, Object> termsSetOfShould(Map<String, Object> should) {
         if (should.containsKey("terms_set")) {
@@ -734,9 +729,8 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
     }
 
     /**
-     * The should-arms of a clause's required-actions bool: the count:0 escape and the terms_set. Found
-     * by looking for the terms_set rather than by position, so a clause carrying a space filter and one
-     * carrying none are handled the same way.
+     * The should-arms of a clause's required-actions bool (the count:0 escape and the terms_set). Found
+     * by the terms_set rather than by position, so clauses with and without a space filter are alike.
      */
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> requiredActionsShouldsOfClause(Map<String, Object> clause) {
@@ -753,10 +747,9 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
     }
 
     /**
-     * True when a clause admits elements requiring no action at all, i.e. carries the zero-requirement
-     * escape. Asserts the whole pair — {@code count: 0} AND {@code must_not exists} on {@code .name} —
-     * rather than the count term alone: an escape that admitted a malformed {@code count: 0} element
-     * still naming actions would read as public, which is the regression this guards.
+     * True when a clause carries the zero-requirement escape. Checks the whole pair — {@code count: 0}
+     * AND {@code must_not exists} on {@code .name} — not just the count term: matching count alone would
+     * treat a malformed {@code count: 0} element that still names actions as public.
      */
     @SuppressWarnings("unchecked")
     private static boolean hasZeroCountEscape(Map<String, Object> clause) {
@@ -776,8 +769,7 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
 
     /**
      * True when a clause gates its {@code terms_set} arm on {@code count >= 1}, so a malformed
-     * {@code count: 0} element that still names a held action fails closed instead of satisfying the
-     * covering query's zero minimum. This is the core production safeguard, so it is pinned explicitly.
+     * {@code count: 0} element naming a held action fails closed.
      */
     @SuppressWarnings("unchecked")
     private static boolean hasHeldActionsGuard(Map<String, Object> clause) {
@@ -806,7 +798,7 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
             return false;
         }
         Object gte = ((Map<String, Object>) range.get(COUNT_FIELD)).get("gte");
-        return gte instanceof Number number && number.intValue() == 1;
+        return gte instanceof Number number && number.doubleValue() == 1.0d;
     }
 
     /** True for {@code {"term": {"...count": {"value": 0}}}}. */

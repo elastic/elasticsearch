@@ -78,9 +78,8 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         "mixed-counts",
         "shared-dashboard"
     );
-    // The wildcard-resource grant reaches finance-dashboard and engineering-public (no space
-    // restriction), but it holds only dashboard/read, so mixed-counts (satisfiable only with
-    // workflow/read) drops out.
+    // The wildcard-resource grant reaches finance-dashboard and engineering-public, but holds only
+    // dashboard/read, so mixed-counts (needs workflow/read) drops out.
     private static final List<String> WILDCARD_GRANT_VISIBLE_DOC_IDS = List.of(
         "all-spaces-dashboard",
         "all-spaces-public",
@@ -400,9 +399,8 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
-        // VISIBLE: requires no action in marketing, and the user is in marketing. This is what Kibana
-        // writes for an SML type that opts out of privilege gating: an element with an empty `name` and
-        // `count: 0`.
+        // VISIBLE: requires no action, in marketing where the user is. This is what Kibana writes for
+        // an SML type that opts out of gating: empty `name`, `count: 0`.
         indexDoc("marketing-public", """
             {
               "type": "dashboard",
@@ -412,8 +410,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
-        // HIDDEN: requires no action, but in a space the user is not in ("public" means public
-        // within its own space).
+        // HIDDEN: requires no action, but in a space the user is not in (public only within its space).
         indexDoc("engineering-public", """
             {
               "type": "dashboard",
@@ -423,8 +420,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
-        // VISIBLE: requires no action, in every space. This is the entry that
-        // is genuinely public to any user the provider grants at all.
+        // VISIBLE: requires no action, in every space — genuinely public to any granted user.
         indexDoc("all-spaces-public", """
             {
               "type": "dashboard",
@@ -434,12 +430,9 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
-        // HIDDEN: malformed — `count: 0` while still naming an action. The Kibana indexer derives
-        // `count` from the action list, so this shape can only come from a buggy or hostile producer,
-        // and it must fail CLOSED. The named action is one NO test role holds, which is what isolates
-        // the zero-requirement escape: `terms_set` never visits this element (its name is in none of
-        // the query's postings), so before the escape required an absent `name` the bare `count: 0`
-        // arm admitted it for every user.
+        // HIDDEN: malformed — `count: 0` while still naming an action. Only a buggy or hostile producer
+        // writes this, so it must fail closed. No test role holds the named action, so `terms_set` never
+        // visits it — isolating the count:0 escape (arm one) from the terms_set arm.
         indexDoc("malformed-zero-count", """
             {
               "type": "dashboard",
@@ -459,8 +452,8 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
-        // VISIBLE: no permissions block at all → public document, via the must_not(nested(match_all)) branch.
-        // Kibana never writes this shape, but the branch must keep working for any other producer writing to the index.
+        // VISIBLE: no permissions block → public, via the must_not(nested(match_all)) branch. Kibana
+        // never writes this, but the branch must work for any other producer.
         indexDoc("global-no-perms", """
             {
               "type": "dashboard"

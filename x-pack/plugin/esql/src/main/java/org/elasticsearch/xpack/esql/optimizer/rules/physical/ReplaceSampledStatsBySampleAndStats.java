@@ -63,6 +63,12 @@ import java.util.stream.Collectors;
  */
 public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.OptimizerRule<SampledAggregateExec> {
 
+    private final Runnable registerApproximatedApplied;
+
+    public ReplaceSampledStatsBySampleAndStats(Runnable registerApproximatedApplied) {
+        this.registerApproximatedApplied = registerApproximatedApplied;
+    }
+
     @Override
     protected PhysicalPlan rule(SampledAggregateExec plan) {
         // Partial input is already corrected for sampling.
@@ -79,6 +85,8 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
         }
 
         assert (double) Foldables.literalValueOf(plan.sampleProbability()) < 1.0;
+
+        registerApproximatedApplied.run();
 
         PhysicalPlan child = addSample(plan.child(), plan.sampleProbability());
 

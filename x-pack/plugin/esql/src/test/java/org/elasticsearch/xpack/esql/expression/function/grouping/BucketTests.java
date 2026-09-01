@@ -991,12 +991,13 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         suppliers.add(new TestCaseSupplier(name, List.of(histogramSupplier.type(), bucketsType, fromType, toType), () -> {
                             List<TestCaseSupplier.TypedData> args = new ArrayList<>();
                             TestCaseSupplier.TypedData histogram = histogramSupplier.get();
-                            Number bucketCount = bucketsType == DataType.LONG ? randomLongBetween(1, 10_000) : randomIntBetween(1, 10_000);
                             // Expand to integral boundaries so casting to any supported bound type preserves
                             // a non-empty range containing the histogram. Empty histograms have no finite
                             // extrema, so use an arbitrary valid range for them.
-                            double rangeFrom = Math.floor(histogramMin(histogram.data())) - 1;
-                            double rangeTo = Math.ceil(histogramMax(histogram.data())) + 1;
+                            double histMin = histogramMin(histogram.data());
+                            double histMax = histogramMax(histogram.data());
+                            double rangeFrom = Math.floor(histMin) - 1;
+                            double rangeTo = Math.ceil(histMax) + 1;
                             if (Double.isFinite(rangeFrom) == false || Double.isFinite(rangeTo) == false) {
                                 rangeFrom = 0.0;
                                 rangeTo = 1000.0;
@@ -1006,6 +1007,10 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                                 rangeFrom = Math.max(rangeFrom, 0.0);
                                 rangeTo = Math.max(rangeTo, rangeFrom + 1.0);
                             }
+                            long maxCount = maxHistogramBucketCount(histMin, histMax, rangeFrom, rangeTo);
+                            Number bucketCount = bucketsType == DataType.LONG
+                                ? randomLongBetween(1, maxCount)
+                                : randomIntBetween(1, Math.toIntExact(maxCount));
                             args.add(histogram);
                             args.add(new TestCaseSupplier.TypedData(bucketCount, bucketsType, "buckets").forceLiteral());
                             args.add(numericBound("from", fromType, rangeFrom));
@@ -1021,6 +1026,24 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * Largest bucket count that keeps a t-digest scan under {@link Bucket#MAX_TDIGEST_CANDIDATE_BUCKETS}.
+     * Unsigned_long bounds may clamp {@code from} to 0 and shrink {@code [from, to]} while the histogram
+     * still spans negatives; a 1..10000 count over that smaller range would then exceed the cap.
+     */
+    private static long maxHistogramBucketCount(double histMin, double histMax, double rangeFrom, double rangeTo) {
+        long max = (long) Bucket.MAX_TDIGEST_CANDIDATE_BUCKETS;
+        if (Double.isFinite(histMin) == false || Double.isFinite(histMax) == false) {
+            return max;
+        }
+        double histSpan = histMax - histMin;
+        double rangeSpan = rangeTo - rangeFrom;
+        if (histSpan <= 0 || rangeSpan <= 0) {
+            return max;
+        }
+        return Math.max(1L, Math.min(max, (long) Math.floor((max - 1) * rangeSpan / histSpan)));
     }
 
     private static double histogramMin(Object histogram) {

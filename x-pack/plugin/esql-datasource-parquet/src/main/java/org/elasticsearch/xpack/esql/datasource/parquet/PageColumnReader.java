@@ -278,10 +278,12 @@ final class PageColumnReader implements Releasable {
 
     /**
      * Filters a block to retain only the positions specified by {@code positions}.
-     * Takes ownership of {@code source}: the source block is closed after filtering
-     * and the caller owns the returned block.
+     * On success the source block is closed and the caller owns the returned block. On failure
+     * ownership stays with the caller — {@code readBatchFiltered} and the late-materialization
+     * call sites rely on this to release the source themselves.
      *
-     * @param source        the block to filter; ownership is transferred to this method
+     * @param source        the block to filter; ownership transfers on success only — if this method
+     *                       throws, the caller still owns {@code source} and must release it
      * @param positions     the positions to retain (ascending, no duplicates)
      * @param survivorCount the number of valid entries in {@code positions}
      * @param blockFactory  the factory used to create replacement blocks
@@ -292,8 +294,12 @@ final class PageColumnReader implements Releasable {
             return source;
         }
         if (survivorCount == 0) {
+            // Allocate before consuming the source: newConstantNullBlock charges the breaker and can
+            // throw, and if it does the caller must still own source exactly once. Closing first
+            // leaves a released block in the caller's array for its cleanup path to release again.
+            Block empty = blockFactory.newConstantNullBlock(0);
             source.close();
-            return blockFactory.newConstantNullBlock(0);
+            return empty;
         }
         if (positions.length != survivorCount) {
             positions = Arrays.copyOf(positions, survivorCount);

@@ -13,10 +13,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.util.Objects;
@@ -31,17 +31,17 @@ class SwitchingEvictionPolicy implements EvictionPolicy<FileCacheKey> {
     private volatile EvictionPolicy<FileCacheKey> delegate;
     private final Releasable closeOnce;
 
-    SwitchingEvictionPolicy(Settings settings, ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
+    SwitchingEvictionPolicy(Settings settings, ClusterService clusterService, IndicesService indicesService, TimeProvider timeProvider) {
         assert DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         final var clusterSettings = Objects.requireNonNull(clusterService).getClusterSettings();
         this.delegate = StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.get(settings)
-            .create(clusterService, indicesService, threadPool);
+            .create(clusterService, indicesService, timeProvider);
         final Releasable releasePolicyTypeUpdater = Releasables.releaseOnce(
             clusterSettings.addRemovableSettingsUpdateConsumer(
                 StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING,
                 newEvictionPolicyType -> {
                     final var oldDelegate = this.delegate;
-                    this.delegate = newEvictionPolicyType.create(clusterService, indicesService, threadPool);
+                    this.delegate = newEvictionPolicyType.create(clusterService, indicesService, timeProvider);
                     oldDelegate.close();
                 }
             )

@@ -66,12 +66,15 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.booleanToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateRangeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.doubleRangeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.exponentialHistogramToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.geoGridToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.intToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.numericBooleanToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
@@ -235,7 +238,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
 
     @ConvertEvaluator(extraName = "FromBoolean")
     static BytesRef fromBoolean(boolean bool) {
-        return numericBooleanToString(bool);
+        return booleanToString(bool);
     }
 
     @ConvertEvaluator(extraName = "FromIP")
@@ -265,12 +268,12 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
 
     @ConvertEvaluator(extraName = "FromLong")
     static BytesRef fromDouble(long lng) {
-        return numericBooleanToString(lng);
+        return longToString(lng);
     }
 
     @ConvertEvaluator(extraName = "FromInt")
     static BytesRef fromDouble(int integer) {
-        return numericBooleanToString(integer);
+        return intToString(integer);
     }
 
     @ConvertEvaluator(extraName = "FromVersion")

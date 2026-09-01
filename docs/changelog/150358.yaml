@@ -1,0 +1,6 @@
+area: Transform
+issues:
+ - 150357
+pr: 150358
+summary: Add an `initial_delay` parameter to the transform `_start` API that applies a reduced sync delay until the transform first processes data, then reverts to the steady-state `sync.time.delay`
+type: enhancement

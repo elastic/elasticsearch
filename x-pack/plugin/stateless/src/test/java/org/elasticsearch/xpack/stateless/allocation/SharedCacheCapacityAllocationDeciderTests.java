@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
@@ -614,7 +615,8 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
             false,
             RecoverySource.PeerRecoverySource.INSTANCE,
             TestShardRouting.buildUnassignedInfo("auto generated for test"),
-            ShardRouting.Role.SEARCH_ONLY
+            ShardRouting.Role.SEARCH_ONLY,
+            TestShardRouting.buildRecoveryPriority(ShardRoutingState.UNASSIGNED, false)
         );
     }
 

@@ -1,5 +1,0 @@
-area: Security
-issues: []
-pr: 155819
-summary: Upgrade bouncycastle to 1.85
-type: upgrade

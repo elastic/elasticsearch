@@ -32,6 +32,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -308,7 +309,11 @@ public class JobDataDeleter {
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             client.execute(DeleteByQueryAction.INSTANCE, dbqRequest).get();
         } catch (Exception e) {
-            logger.error("[" + jobId + "] An error occurred while deleting interim results", e);
+            if (ExceptionsHelper.unwrapCause(e) instanceof CircuitBreakingException) {
+                logger.warn("[" + jobId + "] An error occurred while deleting interim results", e);
+            } else {
+                logger.error("[" + jobId + "] An error occurred while deleting interim results", e);
+            }
         }
     }
 

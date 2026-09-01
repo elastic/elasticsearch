@@ -68,6 +68,7 @@ import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.RetentionLeases;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
@@ -357,7 +358,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 getEngineFactory(shardRouting),
                 NOOP_GCP_SYNCER,
                 retentionLeaseSyncer,
-                EMPTY_EVENT_LISTENER
+                IndexEventListener.NOOP
             );
             replicas.add(newReplica);
             if (replicationTargets != null) {

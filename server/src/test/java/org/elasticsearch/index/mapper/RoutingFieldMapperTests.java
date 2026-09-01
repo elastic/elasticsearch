@@ -26,10 +26,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -333,7 +336,13 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
         IndexRequest[] requests = new IndexRequest[] {
             new IndexRequest("index").id("1").routing("route-a"),
             new IndexRequest("index").id("2") };
-        BatchMappingContext context = new BatchMappingContext(requests, mapperService.mappingLookup(), mapperService.getIndexSettings());
+        IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);
+        BatchMappingContext context = new BatchMappingContext(
+            batch,
+            mapperService.mappingLookup(),
+            mapperService.getIndexSettings(),
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
 
         mapper.preColumnarParse(context);
 

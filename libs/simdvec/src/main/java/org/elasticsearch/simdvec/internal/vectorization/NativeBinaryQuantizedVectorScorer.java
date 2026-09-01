@@ -11,9 +11,8 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
-import org.elasticsearch.simdvec.IndexInputUtils;
+import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.internal.AddressesScratch;
 import org.elasticsearch.simdvec.internal.BufferScratch;
 import org.elasticsearch.simdvec.internal.OffsetsScratch;
@@ -24,9 +23,7 @@ import java.lang.foreign.ValueLayout;
 
 public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantizedVectorScorer {
 
-    private static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow(AssertionError::new);
+    private static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
     private final BufferScratch bufferScratch = new BufferScratch();
     private final AddressesScratch addrsScratch = new AddressesScratch();
@@ -49,7 +46,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
 
         var offset = ((long) targetOrd * byteSize);
         slice.seek(offset);
-        return IndexInputUtils.withSlice(slice, byteSize, bufferScratch::get, segment -> {
+        return IndexInputUtils.withFloatSlice(slice, byteSize, bufferScratch, segment -> {
             var indexLowerInterval = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, numBytes);
             var indexUpperInterval = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, numBytes + Float.BYTES);
             var indexAdditionalCorrection = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, numBytes + 2 * Float.BYTES);
@@ -95,7 +92,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
         }
 
         float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
-        boolean resolved = IndexInputUtils.withSliceAddresses(slice, vectorOffsets, byteSize, bulkSize, addrsScratch::get, addrs -> {
+        boolean resolved = IndexInputUtils.withSliceAddresses(slice, vectorOffsets, byteSize, bulkSize, addrsScratch, addrs -> {
             var scoresSegment = MemorySegment.ofArray(scores);
             DISTANCE_FUNCS.dotProductD1Q4BulkSparse(addrs, MemorySegment.ofArray(q), numBytes, bulkSize, scoresSegment);
             maxScore[0] = ScoreCorrections.nativeBbqApplyCorrectionsBulk(

@@ -33,6 +33,7 @@ import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -155,9 +156,9 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var failureListener = getModelListenerForException(
-                ElasticsearchStatusException.class,
-                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+            var failureListener = getModelListenerForExceptionWithMessageEnding(
+                XContentParseException.class,
+                Strings.format("[%s] unknown field [extra_key]", ModelConfigurations.SERVICE_SETTINGS)
             );
             service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, config, failureListener);
         }
@@ -193,9 +194,9 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
                 secretSettings
             );
 
-            var failureListener = getModelListenerForException(
-                ElasticsearchStatusException.class,
-                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+            var failureListener = getModelListenerForExceptionWithMessageEnding(
+                XContentParseException.class,
+                Strings.format("[%s] unknown field [extra_key]", ModelConfigurations.SERVICE_SETTINGS)
             );
             service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, config, failureListener);
         }
@@ -644,42 +645,50 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             InferenceEventsAssertion.assertThat(result)
                 .hasFinishedStream()
                 .hasNoErrors()
-                // message_start: role, model, initial prompt-token usage
+                // message_start: role chunk — id/model/object propagated; usage emitted later at message_stop
                 .hasEvent(XContentHelper.stripWhitespace("""
                     {
                         "id": "msg_01",
                         "choices": [{"delta": {"role": "assistant"}, "index": 0}],
                         "model": "claude-sonnet-4-5",
-                        "object": null,
-                        "usage": {"completion_tokens": 1, "prompt_tokens": 10, "total_tokens": 11}
+                        "object": "chat.completion.chunk"
                     }
                     """))
                 // content_block_start: initial (empty) text delta
                 .hasEvent(XContentHelper.stripWhitespace("""
                     {
-                        "id": null,
+                        "id": "msg_01",
                         "choices": [{"delta": {"content": ""}, "index": 0}],
-                        "model": null,
-                        "object": null
+                        "model": "claude-sonnet-4-5",
+                        "object": "chat.completion.chunk"
                     }
                     """))
                 // content_block_delta: text fragment
                 .hasEvent(XContentHelper.stripWhitespace("""
                     {
-                        "id": null,
+                        "id": "msg_01",
                         "choices": [{"delta": {"content": "Hello, world!"}, "index": 0}],
-                        "model": null,
-                        "object": null
+                        "model": "claude-sonnet-4-5",
+                        "object": "chat.completion.chunk"
                     }
                     """))
-                // message_delta: stop reason + output-token usage
+                // message_delta: stop reason only — usage accumulated but emitted at message_stop
                 .hasEvent(XContentHelper.stripWhitespace("""
                     {
-                        "id": null,
+                        "id": "msg_01",
                         "choices": [{"delta": {}, "finish_reason": "stop", "index": 0}],
-                        "model": null,
-                        "object": null,
-                        "usage": {"completion_tokens": 5, "prompt_tokens": 0, "total_tokens": 5}
+                        "model": "claude-sonnet-4-5",
+                        "object": "chat.completion.chunk"
+                    }
+                    """))
+                // message_stop: accumulated usage (input_tokens=10 from message_start, output_tokens=5 from message_delta)
+                .hasEvent(XContentHelper.stripWhitespace("""
+                    {
+                        "id": "msg_01",
+                        "choices": [],
+                        "model": "claude-sonnet-4-5",
+                        "object": "chat.completion.chunk",
+                        "usage": {"completion_tokens": 5, "prompt_tokens": 10, "total_tokens": 15}
                     }
                     """));
         }
@@ -795,5 +804,12 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
             assertThat(resultModel, is(model));
         }
+    }
+
+    private static ActionListener<Model> getModelListenerForExceptionWithMessageEnding(Class<?> exceptionClass, String expectedEnding) {
+        return ActionListener.wrap(model -> fail("Model parsing should have failed"), e -> {
+            assertThat(e, instanceOf(exceptionClass));
+            assertThat(e.getMessage(), Matchers.endsWith(expectedEnding));
+        });
     }
 }

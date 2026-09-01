@@ -153,6 +153,13 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_CONTINUED_REALTIME = "Datafeed continued in real-time";
     public static final String JOB_AUDIT_DATAFEED_DATA_ANALYSIS_ERROR = "Datafeed is encountering errors submitting data for analysis: {0}";
     public static final String JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR = "Datafeed is encountering errors extracting data: {0}";
+    public static final String JOB_AUDIT_DATAFEED_PARENT_CIRCUIT_BREAKER =
+        "A node ran low on memory and rejected this search. This is usually transient (for example during catch-up) and needs no action. "
+            + "The failed interval was not advanced: a continuously running datafeed retries it automatically; "
+            + "a one-off lookback must be restarted. "
+            + "If this keeps recurring, narrow the datafeed''s indices or query, reduce chunking_config.time_span, "
+            + "use aggregations, or scale up the node. "
+            + "Details: {0}";
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED = "Datafeed lookback completed";
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_NO_DATA = "Datafeed lookback retrieved no data";
     public static final String JOB_AUDIT_DATAFEED_NO_DATA = "Datafeed has been retrieving no data for a while";
@@ -193,6 +200,12 @@ public final class Messages {
         "Automatic rollback snapshot retained before project_routing scope change [{0}] -> [{1}]";
     public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGE_ROLLBACK_SNAPSHOT_RETAINED =
         "Rollback model snapshot [{0}] retained before project_routing scope change: {1}";
+    public static final String JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED =
+        "Datafeed project_routing changed via API request: [{0}] -> [{1}]." + " Data distribution may change when the datafeed runs.";
+    public static final String JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED_SNAPSHOT_RETAINED =
+        " A rollback model snapshot was retained; review recent snapshots if detection quality degrades.";
+    public static final String JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED_NO_SNAPSHOT =
+        " Review recent model snapshots for potential rollback if detection quality degrades.";
     public static final String JOB_AUDIT_IDLE_JOB_CLOSED = "Job closed automatically during maintenance: datafeed was stopped"
         + " and no data was received for [{0}]. To change the idle timeout,"
         + " adjust the [xpack.ml.idle_job_auto_close_timeout] setting"

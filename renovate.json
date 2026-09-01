@@ -11,7 +11,7 @@
     ">non-issue",
     ":Delivery/Packaging",
     ":Delivery/Build",
-    "Team:Delivery",
+    "Team:Core/Infra",
     "auto-merge-without-approval"
   ],
   "ignorePaths": [
@@ -66,12 +66,6 @@
     "9.5",
     "9.4",
     "9.3",
-    "8.19"
-  ],
-  "baseBranches": [
-    "main",
-    "9.5",
-    "9.4",
     "8.19"
   ]
 }

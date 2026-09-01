@@ -37,6 +37,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.IsBlockedResult;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -389,12 +390,33 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
      * for: ERROR by default, or WARN for the warn-level sites.
      */
     public void testGenuineFailuresAreLoggedAtRequestedLevel() {
+        Exception failure = new IllegalStateException("boom");
+        assertExchangeFailureLoggedAt(Level.ERROR, failure);
+        assertExchangeFailureLoggedAt(Level.WARN, failure);
+    }
+
+    /**
+     * Circuit breaker trips are backpressure, not bugs. They are logged at WARN when the caller opts in so
+     * quality gates and on-call alerts are not tripped by expected heap pressure.
+     */
+    public void testCircuitBreakingFailuresAreLoggedAtWarn() {
         for (Exception failure : List.of(
-            new IllegalStateException("boom"),
-            new CircuitBreakingException("over", CircuitBreaker.Durability.PERMANENT)
+            new CircuitBreakingException("over", CircuitBreaker.Durability.PERMANENT),
+            new CircuitBreakingException("transient", CircuitBreaker.Durability.TRANSIENT)
         )) {
-            assertExchangeFailureLoggedAt(Level.ERROR, failure);
-            assertExchangeFailureLoggedAt(Level.WARN, failure);
+            assertCircuitBreakingFailureLoggedAtWarn(failure);
+        }
+    }
+
+    /**
+     * Client and server exchange layers suppress duplicate circuit breaker WARN logs; the operator opts in.
+     */
+    public void testCircuitBreakingFailuresAreLoggedAtDebugWhenNotReported() {
+        for (Exception failure : List.of(
+            new CircuitBreakingException("over", CircuitBreaker.Durability.PERMANENT),
+            new CircuitBreakingException("transient", CircuitBreaker.Durability.TRANSIENT)
+        )) {
+            assertCircuitBreakingFailureLoggedAtDebug(failure);
         }
     }
 
@@ -473,6 +495,31 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     }
 
     /**
+     * A lookup-join whose target index is transiently unavailable on the routed node (for example during a
+     * rolling restart, or before the index has recovered/propagated) fails with {@link IndexNotFoundException},
+     * including when wrapped by transport ({@link RemoteTransportException}), which is the shape that reaches
+     * the setup/status callbacks. The failure is still propagated to the coordinator, so these are downgraded to
+     * DEBUG (not ERROR or WARN) regardless of the non-cancellation level the caller asked for, to avoid spurious
+     * noise and Serverless promotion quality-gate log-error-rate trips.
+     */
+    public void testIndexNotFoundIsLoggedAtDebugNotError() {
+        for (Exception failure : List.of(
+            new IndexNotFoundException(".entities.v2.latest.security_default-00001"),
+            new RemoteTransportException("node", new IndexNotFoundException(".entities.v2.latest.security_default-00001"))
+        )) {
+            Logger clientLogger = LogManager.getLogger(BidirectionalBatchExchangeClient.class);
+            String loggerName = BidirectionalBatchExchangeClient.class.getCanonicalName();
+            MockLog.assertThatLogger(
+                () -> BidirectionalBatchExchangeBase.logExchangeFailure(clientLogger, Level.ERROR, failure, "failure: {}", "msg"),
+                BidirectionalBatchExchangeClient.class,
+                new MockLog.SeenEventExpectation("logged at DEBUG", loggerName, Level.DEBUG, "failure: msg"),
+                new MockLog.UnseenEventExpectation("not logged at ERROR", loggerName, Level.ERROR, "*"),
+                new MockLog.UnseenEventExpectation("not logged at WARN", loggerName, Level.WARN, "*")
+            );
+        }
+    }
+
+    /**
      * Asserts that {@link BidirectionalBatchExchangeBase#logExchangeFailure}, called with
      * {@code nonCancellationLevel}, logs the given failure at {@code nonCancellationLevel} for a genuine failure,
      * or at DEBUG for a cancellation (which is downgraded), and not at the other of those two levels.
@@ -488,6 +535,29 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             BidirectionalBatchExchangeClient.class,
             new MockLog.SeenEventExpectation("logged at " + expectedLevel, loggerName, expectedLevel, "failure: msg"),
             new MockLog.UnseenEventExpectation("not logged at " + unexpectedLevel, loggerName, unexpectedLevel, "*")
+        );
+    }
+
+    private static void assertCircuitBreakingFailureLoggedAtWarn(Exception failure) {
+        Logger clientLogger = LogManager.getLogger(BidirectionalBatchExchangeClient.class);
+        String loggerName = BidirectionalBatchExchangeClient.class.getCanonicalName();
+        MockLog.assertThatLogger(
+            () -> BidirectionalBatchExchangeBase.logExchangeFailure(clientLogger, Level.ERROR, true, failure, "failure: {}", "msg"),
+            BidirectionalBatchExchangeClient.class,
+            new MockLog.SeenEventExpectation("logged at WARN", loggerName, Level.WARN, "failure: msg"),
+            new MockLog.UnseenEventExpectation("not logged at ERROR", loggerName, Level.ERROR, "*")
+        );
+    }
+
+    private static void assertCircuitBreakingFailureLoggedAtDebug(Exception failure) {
+        Logger clientLogger = LogManager.getLogger(BidirectionalBatchExchangeClient.class);
+        String loggerName = BidirectionalBatchExchangeClient.class.getCanonicalName();
+        MockLog.assertThatLogger(
+            () -> BidirectionalBatchExchangeBase.logExchangeFailure(clientLogger, Level.ERROR, false, failure, "failure: {}", "msg"),
+            BidirectionalBatchExchangeClient.class,
+            new MockLog.SeenEventExpectation("logged at DEBUG", loggerName, Level.DEBUG, "failure: msg"),
+            new MockLog.UnseenEventExpectation("not logged at WARN", loggerName, Level.WARN, "*"),
+            new MockLog.UnseenEventExpectation("not logged at ERROR", loggerName, Level.ERROR, "*")
         );
     }
 

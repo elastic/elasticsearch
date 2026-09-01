@@ -1,6 +1,0 @@
-area: ILM
-issues:
- - 141807
-pr: 155602
-summary: Support dynamic enabling of history indexes in ILMHistoryTemplateRegistry
-type: bug

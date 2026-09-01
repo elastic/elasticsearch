@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +32,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.telemetry.InferenceStats;
@@ -37,9 +40,13 @@ import org.elasticsearch.inference.telemetry.NodeTelemetryAttributes;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -61,6 +68,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
@@ -214,6 +222,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -233,7 +242,8 @@ public class InferencePlugin extends Plugin
         SearchPlugin,
         InternalSearchPlugin,
         ClusterPlugin,
-        PersistentTaskPlugin {
+        PersistentTaskPlugin,
+        CircuitBreakerPlugin {
 
     /**
      * When this setting is true the verification check that
@@ -275,8 +285,14 @@ public class InferencePlugin extends Plugin
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
     public static final String INFERENCE_RESPONSE_THREAD_POOL_NAME = "inference_response";
+    public static final String INFERENCE_CIRCUIT_BREAKER_NAME = "inference";
 
     private static final String INFERENCE_INDEX_DESCRIPTION = "Contains inference service and model configuration";
+
+    // 50% of the available heap will be the upper limit for the memory
+    // the inference plugin can use for various tasks (in-flight requests to external providers for example)
+    public static final long DEFAULT_INFERENCE_CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
+    public static final double DEFAULT_INFERENCE_CIRCUIT_BREAKER_OVERHEAD = 1.0D;
 
     /**
      * TransportVersion indicating when Mixedbread features were added. The Mixedbread integration has been removed, but this transport
@@ -284,6 +300,8 @@ public class InferencePlugin extends Plugin
      */
     @SuppressWarnings("unused")
     public static final TransportVersion INFERENCE_MIXEDBREAD_ADDED = TransportVersion.fromName("inference_mixedbread_added");
+
+    private static final Logger logger = LogManager.getLogger(InferencePlugin.class);
 
     private final Settings settings;
     private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
@@ -299,8 +317,14 @@ public class InferencePlugin extends Plugin
     private final SetOnce<ShardBulkInferenceActionFilter> shardBulkInferenceActionFilter = new SetOnce<>();
     private final SetOnce<ModelRegistry> modelRegistry = new SetOnce<>();
     private final SetOnce<CCMFeature> ccmFeature = new SetOnce<>();
+    private final SetOnce<InferenceIndexMappingManager> inferenceIndexManager = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
     private final SetOnce<AuthorizationTaskExecutor> authorizationTaskExecutorRef = new SetOnce<>();
+    /**
+      * Used to limit the amount of memory mainly in-flight request objects
+     *  (e.g. {@link org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput} can allocate.
+      */
+    private final SetOnce<CircuitBreaker> inferenceCircuitBreaker = new SetOnce<>();
 
     public InferencePlugin(Settings settings) {
         this.settings = settings;
@@ -373,18 +397,37 @@ public class InferencePlugin extends Plugin
         var throttlerManager = new ThrottlerManager(settings, services.threadPool());
         throttlerManager.init(services.clusterService());
 
+        var circuitBreaker = Objects.requireNonNullElseGet(inferenceCircuitBreaker.get(), () -> {
+            assert false
+                : "the inference circuit breaker was not registered, is InferencePlugin wrapped by a plugin that does not "
+                    + "implement CircuitBreakerPlugin?";
+            logger.warn(
+                "No inference circuit breaker was registered, falling back to a noop breaker: "
+                    + "memory used by in-flight inference requests will not be limited"
+            );
+            return new NoopCircuitBreaker(INFERENCE_CIRCUIT_BREAKER_NAME);
+        });
+
         var truncator = new Truncator(settings, services.clusterService());
-        serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
+        serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator, circuitBreaker));
         threadPoolSetOnce.set(services.threadPool());
 
-        var httpClientManager = HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager);
+        var httpClientManager = HttpClientManager.create(
+            settings,
+            services.threadPool(),
+            services.clusterService(),
+            throttlerManager,
+            circuitBreaker
+        );
         var httpRequestSenderFactory = new HttpRequestSender.Factory(serviceComponents.get(), httpClientManager, services.clusterService());
         httpFactory.set(httpRequestSenderFactory);
 
         var amazonBedrockRequestSenderFactory = new AmazonBedrockRequestSender.Factory(serviceComponents.get(), services.clusterService());
         amazonBedrockFactory.set(amazonBedrockRequestSenderFactory);
 
-        modelRegistry.set(new ModelRegistry(services.clusterService(), services.client(), services.featureService()));
+        inferenceIndexManager.set(new InferenceIndexMappingManager(services.client(), createInferenceIndexDescriptor(getIndexSettings())));
+
+        modelRegistry.set(new ModelRegistry(services.clusterService(), services.client(), inferenceIndexManager.get()));
         services.clusterService().addListener(modelRegistry.get());
 
         if (inferenceServiceExtensions == null) {
@@ -396,7 +439,12 @@ public class InferencePlugin extends Plugin
         var inferenceServiceSettings = new CCMInformedSettings(settings, ccmFeature.get());
         inferenceServiceSettings.init(services.clusterService());
 
-        var eisRequestSenderFactoryComponents = createEisRequestSenderComponents(services, throttlerManager, inferenceServiceSettings);
+        var eisRequestSenderFactoryComponents = createEisRequestSenderComponents(
+            services,
+            throttlerManager,
+            inferenceServiceSettings,
+            circuitBreaker
+        );
         var elasticInferenceServiceHttpClientManager = eisRequestSenderFactoryComponents.httpClientManager();
         elasticInferenceServiceFactory.set(eisRequestSenderFactoryComponents.factory());
 
@@ -497,6 +545,7 @@ public class InferencePlugin extends Plugin
 
         components.add(serviceRegistry);
         components.add(modelRegistry.get());
+        components.add(inferenceIndexManager.get());
         components.add(
             new TransportGetInferenceDiagnosticsAction.ClientManagers(httpClientManager, elasticInferenceServiceHttpClientManager)
         );
@@ -592,7 +641,8 @@ public class InferencePlugin extends Plugin
     private EisRequestSenderComponents createEisRequestSenderComponents(
         PluginServices services,
         ThrottlerManager throttlerManager,
-        ElasticInferenceServiceSettings inferenceServiceSettings
+        ElasticInferenceServiceSettings inferenceServiceSettings,
+        CircuitBreaker circuitBreaker
     ) {
         // Always use the SSL service to respect SSL settings like verification_mode even in CCM mode.
         // This allows local development with self-signed certificates when verification_mode=none.
@@ -602,7 +652,8 @@ public class InferencePlugin extends Plugin
             services.clusterService(),
             throttlerManager,
             getSslService(),
-            inferenceServiceSettings.getConnectionTtl()
+            inferenceServiceSettings.getConnectionTtl(),
+            circuitBreaker
         );
 
         return new EisRequestSenderComponents(
@@ -627,41 +678,60 @@ public class InferencePlugin extends Plugin
         inferenceServiceExtensions = loader.loadExtensions(InferenceServiceExtension.class);
     }
 
-    public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
-        return List.of(
-            context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get(), context),
-            // If more services end up needing the project resolver or token cache let's move them to ServiceComponents
-            context -> new OpenAiService(
-                httpFactory.get(),
-                serviceComponents.get(),
-                context,
-                oauth2TokenCache.get(),
-                projectResolver.get()
+    @Override
+    public BreakerSettings getCircuitBreaker(Settings settingsToUse) {
+        return BreakerSettings.updateFromSettings(
+            new BreakerSettings(
+                INFERENCE_CIRCUIT_BREAKER_NAME,
+                DEFAULT_INFERENCE_CIRCUIT_BREAKER_LIMIT,
+                DEFAULT_INFERENCE_CIRCUIT_BREAKER_OVERHEAD,
+                CircuitBreaker.Type.NOOP,
+                CircuitBreaker.Durability.TRANSIENT
             ),
-            context -> new GroqService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new CohereService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new ContextualAiService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new FireworksAiService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new MistralService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new AnthropicService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get(), context),
-            context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new JinaAIService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new LlamaService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new Ai21Service(httpFactory.get(), serviceComponents.get(), context),
-            context -> new OpenShiftAiService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new NvidiaService(httpFactory.get(), serviceComponents.get(), context),
-            ElasticsearchInternalService::new,
-            context -> new CustomService(httpFactory.get(), serviceComponents.get(), context)
+            settingsToUse
         );
+    }
+
+    @Override
+    public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
+        // Ensures correct circuit breaker is set for the plugin
+        assert circuitBreaker.getName().equals(INFERENCE_CIRCUIT_BREAKER_NAME);
+        this.inferenceCircuitBreaker.set(circuitBreaker);
+    }
+
+    public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
+        var factories = new ArrayList<InferenceServiceExtension.Factory>();
+        factories.add(context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get(), context));
+        // If more services end up needing the project resolver or token cache let's move them to ServiceComponents
+        factories.add(
+            context -> new OpenAiService(httpFactory.get(), serviceComponents.get(), context, oauth2TokenCache.get(), projectResolver.get())
+        );
+        factories.add(context -> new GroqService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new CohereService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new ContextualAiService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new FireworksAiService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new MistralService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new AnthropicService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new JinaAIService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new LlamaService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new Ai21Service(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new OpenShiftAiService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new NvidiaService(httpFactory.get(), serviceComponents.get(), context));
+        if (XPackSettings.MACHINE_LEARNING_ENABLED.get(settings) && XPackSettings.NLP_ENABLED.get(settings)) {
+            factories.add(ElasticsearchInternalService::new);
+        }
+        factories.add(context -> new CustomService(httpFactory.get(), serviceComponents.get(), context));
+        return List.copyOf(factories);
     }
 
     @Override
@@ -726,22 +796,30 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return List.of(createInferenceIndexDescriptor(), createInferenceSecretsIndexDescriptor(), createCCMIndexDescriptor());
+        return List.of(
+            createInferenceIndexDescriptor(getIndexSettings()),
+            createInferenceSecretsIndexDescriptor(),
+            createCCMIndexDescriptor()
+        );
     }
 
-    private SystemIndexDescriptor createInferenceIndexDescriptor() {
+    /**
+     * Creates the descriptor for the inference system index
+     * @param indexSettings the index settings
+     * @return the descriptor
+     */
+    public static SystemIndexDescriptor createInferenceIndexDescriptor(Settings indexSettings) {
         SystemIndexDescriptor.Builder builder = SystemIndexDescriptor.builder()
             .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
             .setIndexPattern(InferenceIndex.INDEX_PATTERN)
             .setAliasName(InferenceIndex.INDEX_ALIAS)
             .setPrimaryIndex(InferenceIndex.INDEX_NAME)
             .setDescription(INFERENCE_INDEX_DESCRIPTION)
-            .setSettings(getIndexSettings())
+            .setSettings(indexSettings)
             .setOrigin(ClientHelper.INFERENCE_ORIGIN);
 
         SystemIndexDescriptor v1 = builder.setMappings(InferenceIndex.mappingsV1()).build();
         SystemIndexDescriptor v2 = builder.setMappings(InferenceIndex.mappingsV2()).build();
-
         SystemIndexDescriptor v3 = builder.setMappings(InferenceIndex.mappingsV3()).build();
         return builder.setMappings(InferenceIndex.mappingsV4()).setPriorSystemIndexDescriptors(List.of(v1, v2, v3)).build();
     }

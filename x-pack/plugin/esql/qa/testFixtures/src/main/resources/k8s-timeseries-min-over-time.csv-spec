@@ -880,3 +880,19 @@ bytes:double | step:datetime            | pod:keyword
 1086.0       | 2024-05-09T23:30:00.000Z | two
 1102.0       | 2024-05-09T23:50:00.000Z | one
 ;
+
+min_over_time_of_keyword_dimension
+required_capability: ts_command_v0
+TS k8s | STATS r = min(min_over_time(pod)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
+
+r:keyword | cluster:keyword | time_bucket:datetime
+one       | prod            | 2024-05-10T00:00:00.000Z
+one       | qa              | 2024-05-10T00:00:00.000Z
+one       | staging         | 2024-05-10T00:00:00.000Z
+one       | prod            | 2024-05-10T00:10:00.000Z
+one       | qa              | 2024-05-10T00:10:00.000Z
+one       | staging         | 2024-05-10T00:10:00.000Z
+one       | prod            | 2024-05-10T00:20:00.000Z
+one       | qa              | 2024-05-10T00:20:00.000Z
+one       | staging         | 2024-05-10T00:20:00.000Z
+;

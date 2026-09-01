@@ -9,7 +9,7 @@
 
 package org.elasticsearch.benchmark.index.codec.columnar;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.columnar.numeric.AlpDoubleTransform;
 import org.elasticsearch.columnar.numeric.BlockTransform;
 import org.elasticsearch.columnar.numeric.DeltaTransform;
@@ -81,7 +81,7 @@ import java.util.function.IntFunction;
 public abstract class BlockTransformBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     // NOTE: ALP metadata is at most e/f (2B) + vint count (5B) + exceptions * 10B. ALP fires only
@@ -98,18 +98,24 @@ public abstract class BlockTransformBenchmark {
     private static final Map<String, IntFunction<NumericPipeline>> PIPELINE_FACTORIES;
     static {
         PIPELINE_FACTORIES = new LinkedHashMap<>();
-        PIPELINE_FACTORIES.put("delta", bs -> new NumericPipeline(new BlockTransform[] { DeltaTransform.INSTANCE }, RawTerminal.INSTANCE));
+        PIPELINE_FACTORIES.put(
+            "delta",
+            bs -> new NumericPipeline(new BlockTransform[] { DeltaTransform.INSTANCE }, RawTerminal.INSTANCE, bs)
+        );
         PIPELINE_FACTORIES.put(
             "offset",
-            bs -> new NumericPipeline(new BlockTransform[] { OffsetTransform.INSTANCE }, RawTerminal.INSTANCE)
+            bs -> new NumericPipeline(new BlockTransform[] { OffsetTransform.INSTANCE }, RawTerminal.INSTANCE, bs)
         );
-        PIPELINE_FACTORIES.put("gcd", bs -> new NumericPipeline(new BlockTransform[] { GcdTransform.INSTANCE }, RawTerminal.INSTANCE));
+        PIPELINE_FACTORIES.put("gcd", bs -> new NumericPipeline(new BlockTransform[] { GcdTransform.INSTANCE }, RawTerminal.INSTANCE, bs));
         PIPELINE_FACTORIES.put(
             "splitDelta",
-            bs -> new NumericPipeline(new BlockTransform[] { new SplitDeltaTransform() }, RawTerminal.INSTANCE)
+            bs -> new NumericPipeline(new BlockTransform[] { new SplitDeltaTransform() }, RawTerminal.INSTANCE, bs)
         );
-        PIPELINE_FACTORIES.put("alp", bs -> new NumericPipeline(new BlockTransform[] { new AlpDoubleTransform(bs) }, RawTerminal.INSTANCE));
-        PIPELINE_FACTORIES.put("for", bs -> new NumericPipeline(new BlockTransform[] {}, new ForTerminal(bs)));
+        PIPELINE_FACTORIES.put(
+            "alp",
+            bs -> new NumericPipeline(new BlockTransform[] { new AlpDoubleTransform(bs) }, RawTerminal.INSTANCE, bs)
+        );
+        PIPELINE_FACTORIES.put("for", bs -> new NumericPipeline(new BlockTransform[] {}, new ForTerminal(bs), bs));
     }
 
     // keep in sync with PIPELINE_FACTORIES.keySet()

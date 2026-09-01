@@ -278,7 +278,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
         },
-        Property.IndexScope
+        Property.IndexScope,
+        Property.DeprecatedWarning
     );
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
@@ -2109,6 +2110,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder numberOfShards(int numberOfShards) {
             settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+            return this;
+        }
+
+        public Builder priority(int priority) {
+            settings = Settings.builder().put(settings).put(SETTING_PRIORITY, priority).build();
             return this;
         }
 

@@ -400,7 +400,8 @@ public class PatternTextFieldMapper extends FieldMapper {
     @Override
     public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final int docCount = ctx.docCount();
-        final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source);
+        // retainValues=false: every value is consumed within one loop iteration, before the cursor advances.
+        final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
 
         // Zero-copy path: when the source is a plain STRING column (no UNION wrapper for nulls)
         // the analyzed column can share the column data directly. A builder is allocated lazily

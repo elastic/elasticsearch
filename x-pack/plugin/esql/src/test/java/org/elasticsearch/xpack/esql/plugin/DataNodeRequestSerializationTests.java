@@ -21,15 +21,25 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
+import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.io.IOException;
@@ -44,6 +54,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DataNodeRequestSerializationTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
     @Override
@@ -134,6 +145,54 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         assertFalse(downgraded.retainSearchContexts());
     }
 
+    public void testLoadAllUnmappedFieldsAttributeRoundTripsInPhysicalPlan() throws IOException {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.isEnabled());
+
+        String query = "FROM test | KEEP first_name*";
+        Configuration configuration = randomConfiguration(query, randomTables());
+        Versioned<LogicalPlan> logicalPlan = parse(query, UnmappedResolution.LOAD_ALL);
+        var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, logicalPlan.minimumVersion()));
+        PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(new Mapper().map(logicalPlan));
+        PhysicalPlan dataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
+            EstimatesRowSize.estimateRowSize(0, physicalPlan),
+            configuration
+        ).v2();
+        UnmappedFieldsAttribute before = unmappedFieldsAttribute(dataNodePlan);
+        assertTrue(before.pattern().matches("first_name_suffix"));
+        assertFalse(before.pattern().matches("first_name"));
+
+        DataNodeRequest request = new DataNodeRequest(
+            "load-all-session",
+            configuration,
+            "",
+            List.of(new DataNodeRequest.Shard(new ShardId("test", "n/a", 0), SplitShardCountSummary.fromInt(0))),
+            Map.of(),
+            dataNodePlan,
+            new String[] { "test" },
+            IndicesOptions.STRICT_EXPAND_OPEN,
+            false,
+            false,
+            false
+        );
+
+        DataNodeRequest copy = copyInstance(request, TransportVersion.current());
+        UnmappedFieldsAttribute after = unmappedFieldsAttribute(copy.plan());
+        assertThat(after, equalTo(before));
+    }
+
+    private static UnmappedFieldsAttribute unmappedFieldsAttribute(PhysicalPlan plan) {
+        List<UnmappedFieldsAttribute> attributes = new ArrayList<>();
+        plan.forEachDown(
+            FragmentExec.class,
+            fragment -> fragment.fragment()
+                .forEachDown(
+                    EsRelation.class,
+                    relation -> attributes.addAll(CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class))
+                )
+        );
+        return EsqlTestUtils.singleValue("expected one UnmappedFieldsAttribute in FragmentExec EsRelation output", attributes);
+    }
+
     @Override
     protected DataNodeRequest mutateInstance(DataNodeRequest in) throws IOException {
         var sessionId = in.sessionId();
@@ -219,7 +278,11 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
     }
 
     static Versioned<LogicalPlan> parse(String query) {
-        var analyzer = analyzer().addIndex("test", "mapping-basic.json").buildAnalyzer();
+        return parse(query, UnmappedResolution.DEFAULT);
+    }
+
+    static Versioned<LogicalPlan> parse(String query, UnmappedResolution unmappedResolution) {
+        var analyzer = analyzer().addIndex("test", "mapping-basic.json").unmappedResolution(unmappedResolution).buildAnalyzer();
         TransportVersion minimumVersion = analyzer.context().minimumVersion();
         var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(TEST_CFG, FoldContext.small(), minimumVersion));
         return new Versioned<>(logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query))), minimumVersion);

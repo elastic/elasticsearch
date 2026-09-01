@@ -394,8 +394,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
     private final SharedBytes sharedBytes;
     private final long cacheSize;
-    private final int regionSize;
-    private final int rangeSize;
+    protected final int regionSize;
+    protected final int rangeSize;
     private final int recoveryRangeSize;
 
     protected final int numRegions;
@@ -599,10 +599,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         return regionSize;
     }
 
-    CacheFileRegion<KeyType> get(KeyType cacheKey, long fileLength, int region) {
-        return get(cacheKey, fileLength, region, UNKNOWN_TIMESTAMP);
-    }
-
     CacheFileRegion<KeyType> get(KeyType cacheKey, long fileLength, int region, long timestampMillis) {
         return cache.get(cacheKey, fileLength, region, timestampMillis).chunk;
     }
@@ -616,27 +612,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * If an exception is thrown from the writer then the cache entry being downloaded is freed
      * and unlinked
      *
-     * @param cacheKey      the key to fetch data for
-     * @param region        the region of the blob to fetch
-     * @param blobLength    the length of the blob from which the region is fetched (used to compute the size of the ending region)
-     * @param writer        a writer that handles writing of newly downloaded data to the shared cache
-     * @param fetchExecutor an executor to use for reading from the blob store
-     * @param listener      a listener that is completed with {@code true} if the current thread triggered the fetching of the region, in
-     *                      which case the data is available in cache. The listener is completed with {@code false} in every other cases: if
-     *                      the region to write is already available in cache, if the region is pending fetching via another thread or if
-     *                      there is not enough free pages to fetch the region.
+     * @param cacheKey         the key to fetch data for
+     * @param region           the region of the blob to fetch
+     * @param blobLength       the length of the blob from which the region is fetched (used to compute the size of the ending region)
+     * @param writer           a writer that handles writing of newly downloaded data to the shared cache
+     * @param fetchExecutor    an executor to use for reading from the blob store
+     * @param timestampMillis  representative data timestamp to stamp on the cache region
+     * @param listener         a listener that is completed with {@code true} if the current thread triggered the fetching of the region, in
+     *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases:
+     *                         if the region to write is already available in cache, if the region is pending fetching via another thread or
+     *                         if there is not enough free pages to fetch the region.
      */
-    public void maybeFetchRegion(
-        final KeyType cacheKey,
-        final int region,
-        final long blobLength,
-        final RangeMissingHandler writer,
-        final Executor fetchExecutor,
-        final ActionListener<Boolean> listener
-    ) {
-        maybeFetchRegion(cacheKey, region, blobLength, writer, fetchExecutor, UNKNOWN_TIMESTAMP, listener);
-    }
-
     public void maybeFetchRegion(
         final KeyType cacheKey,
         final int region,
@@ -662,30 +648,19 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * If an exception is thrown from the writer then the cache entry being downloaded is freed
      * and unlinked
      *
-     * @param cacheKey      the key to fetch data for
-     * @param region        the region of the blob to fetch
-     * @param blobLength    the length of the blob from which the region is fetched (used to compute the size of the ending region)
-     * @param writer        a writer that handles writing of newly downloaded data to the shared cache
-     * @param fetchExecutor an executor to use for reading from the blob store
-     * @param force         flag indicating whether the cache should free an occupied region to accommodate the requested
-     *                      region when none are free.
-     * @param listener      a listener that is completed with {@code true} if the current thread triggered the fetching of the region, in
-     *                      which case the data is available in cache. The listener is completed with {@code false} in every other cases: if
-     *                      the region to write is already available in cache, if the region is pending fetching via another thread or if
-     *                      there is not enough free pages to fetch the region.
+     * @param cacheKey         the key to fetch data for
+     * @param region           the region of the blob to fetch
+     * @param blobLength       the length of the blob from which the region is fetched (used to compute the size of the ending region)
+     * @param writer           a writer that handles writing of newly downloaded data to the shared cache
+     * @param fetchExecutor    an executor to use for reading from the blob store
+     * @param force            flag indicating whether the cache should free an occupied region to accommodate the requested
+     *                         region when none are free.
+     * @param timestampMillis  representative data timestamp to stamp on the cache region
+     * @param listener         a listener that is completed with {@code true} if the current thread triggered the fetching of the region, in
+     *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases:
+     *                         if the region to write is already available in cache, if the region is pending fetching via another thread or
+     *                         if there is not enough free pages to fetch the region.
      */
-    public void fetchRegion(
-        final KeyType cacheKey,
-        final int region,
-        final long blobLength,
-        final RangeMissingHandler writer,
-        final Executor fetchExecutor,
-        final boolean force,
-        final ActionListener<Boolean> listener
-    ) {
-        fetchRegion(cacheKey, region, blobLength, writer, fetchExecutor, force, UNKNOWN_TIMESTAMP, listener);
-    }
-
     public void fetchRegion(
         final KeyType cacheKey,
         final int region,
@@ -732,29 +707,18 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * If an exception is thrown from the writer then the cache entry being downloaded is freed
      * and unlinked
      *
-     * @param cacheKey      the key to fetch data for
-     * @param region        the region of the blob
-     * @param range         the range of the blob to fetch
-     * @param blobLength    the length of the blob from which the region is fetched (used to compute the size of the ending region)
-     * @param writer        a writer that handles writing of newly downloaded data to the shared cache
-     * @param fetchExecutor an executor to use for reading from the blob store
-     * @param listener      a listener that is completed with {@code true} if the current thread triggered the fetching of the range, in
-     *                      which case the data is available in cache. The listener is completed with {@code false} in every other cases: if
-     *                      the range to write is already available in cache, if the range is pending fetching via another thread or if
-     *                      there is not enough free pages to fetch the range.
+     * @param cacheKey         the key to fetch data for
+     * @param region           the region of the blob
+     * @param range            the range of the blob to fetch
+     * @param blobLength       the length of the blob from which the region is fetched (used to compute the size of the ending region)
+     * @param writer           a writer that handles writing of newly downloaded data to the shared cache
+     * @param fetchExecutor    an executor to use for reading from the blob store
+     * @param timestampMillis  representative data timestamp to stamp on the cache region
+     * @param listener         a listener that is completed with {@code true} if the current thread triggered the fetching of the range, in
+     *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases:
+     *                         if the range to write is already available in cache, if the range is pending fetching via another thread or
+     *                         if there is not enough free pages to fetch the range.
      */
-    public void maybeFetchRange(
-        final KeyType cacheKey,
-        final int region,
-        final ByteRange range,
-        final long blobLength,
-        final RangeMissingHandler writer,
-        final Executor fetchExecutor,
-        final ActionListener<Boolean> listener
-    ) {
-        maybeFetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, UNKNOWN_TIMESTAMP, listener);
-    }
-
     public void maybeFetchRange(
         final KeyType cacheKey,
         final int region,
@@ -780,32 +744,20 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * If an exception is thrown from the writer then the cache entry being downloaded is freed
      * and unlinked
      *
-     * @param cacheKey      the key to fetch data for
-     * @param region        the region of the blob
-     * @param range         the range of the blob to fetch
-     * @param blobLength    the length of the blob from which the region is fetched (used to compute the size of the ending region)
-     * @param writer        a writer that handles writing of newly downloaded data to the shared cache
-     * @param fetchExecutor an executor to use for reading from the blob store
-     * @param force         flag indicating whether the cache should free an occupied region to accommodate the requested
-     *                      range when none are free.
-     * @param listener      a listener that is completed with {@code true} if the current thread triggered the fetching of the range, in
-     *                      which case the data is available in cache. The listener is completed with {@code false} in every other cases: if
-     *                      the range to write is already available in cache, if the range is pending fetching via another thread or if
-     *                      there is not enough free pages to fetch the range.
+     * @param cacheKey         the key to fetch data for
+     * @param region           the region of the blob
+     * @param range            the range of the blob to fetch
+     * @param blobLength       the length of the blob from which the region is fetched (used to compute the size of the ending region)
+     * @param writer           a writer that handles writing of newly downloaded data to the shared cache
+     * @param fetchExecutor    an executor to use for reading from the blob store
+     * @param force            flag indicating whether the cache should free an occupied region to accommodate the requested
+     *                         range when none are free.
+     * @param timestampMillis  representative data timestamp to stamp on the cache region
+     * @param listener         a listener that is completed with {@code true} if the current thread triggered the fetching of the range, in
+     *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases:
+     *                         if the range to write is already available in cache, if the range is pending fetching via another thread or
+     *                         if there is not enough free pages to fetch the range.
      */
-    public void fetchRange(
-        final KeyType cacheKey,
-        final int region,
-        final ByteRange range,
-        final long blobLength,
-        final RangeMissingHandler writer,
-        final Executor fetchExecutor,
-        final boolean force,
-        final ActionListener<Boolean> listener
-    ) {
-        fetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, force, UNKNOWN_TIMESTAMP, listener);
-    }
-
     public void fetchRange(
         final KeyType cacheKey,
         final int region,
@@ -2153,10 +2105,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         public String toString() {
             return "SharedCacheFile{" + "cacheKey=" + cacheKey + ", length=" + length + '}';
         }
-    }
-
-    public CacheFile getCacheFile(KeyType cacheKey, long length, CacheMissHandler cacheMissHandler) {
-        return getCacheFile(cacheKey, length, cacheMissHandler, UNKNOWN_TIMESTAMP);
     }
 
     public CacheFile getCacheFile(KeyType cacheKey, long length, CacheMissHandler cacheMissHandler, long timestampMillis) {

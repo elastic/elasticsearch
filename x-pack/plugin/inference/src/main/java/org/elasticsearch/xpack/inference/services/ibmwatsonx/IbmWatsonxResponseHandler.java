@@ -20,32 +20,32 @@ public class IbmWatsonxResponseHandler extends BaseResponseHandler {
     }
 
     /**
-     * Handles failure status codes by throwing a RetryException.
+     * Handles failure status codes by returning a RetryException.
      * Only called when the HTTP response status code is not in the range [200, 300).
      *
      * The IBM Cloud error codes for text_embedding are loosely
      * defined <a href="https://cloud.ibm.com/apidocs/watsonx-ai#text-embeddings">here</a>.
      * @param outboundRequest the http request
      * @param result the http response and body
-     * @throws RetryException thrown if status code is {@code >= 300 or < 200}
+     * @return a RetryException describing the failure
      */
     @Override
-    protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
+    public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
-            throw new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
+            return new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 404) {
-            throw new RetryException(false, buildError(resourceNotFoundError(outboundRequest), outboundRequest, result));
+            return new RetryException(false, buildError(resourceNotFoundError(outboundRequest), outboundRequest, result));
         } else if (statusCode == 403) {
-            throw new RetryException(false, buildError(PERMISSION_DENIED, outboundRequest, result));
+            return new RetryException(false, buildError(PERMISSION_DENIED, outboundRequest, result));
         } else if (statusCode == 401) {
-            throw new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
+            return new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
         } else if (statusCode == 400) {
-            throw new RetryException(false, buildError(BAD_REQUEST, outboundRequest, result));
+            return new RetryException(false, buildError(BAD_REQUEST, outboundRequest, result));
         } else if (statusCode >= 300 && statusCode < 400) {
-            throw new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
+            return new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
         } else {
-            throw new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
+            return new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
         }
     }
 }

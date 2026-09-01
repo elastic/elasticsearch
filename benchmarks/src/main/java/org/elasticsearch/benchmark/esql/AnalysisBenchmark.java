@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark.esql;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -72,7 +73,7 @@ import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 @State(Scope.Benchmark)
 public class AnalysisBenchmark {
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     /**
@@ -200,6 +201,6 @@ public class AnalysisBenchmark {
             mapping.put(name, new EsField(name, DataType.KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         }
 
-        return new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of());
+        return new EsIndex("test", mapping, Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
     }
 }

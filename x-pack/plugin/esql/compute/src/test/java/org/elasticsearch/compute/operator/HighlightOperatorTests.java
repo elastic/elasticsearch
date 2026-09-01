@@ -11,6 +11,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
@@ -19,11 +21,15 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -34,6 +40,8 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.hamcrest.Matcher;
 
@@ -46,6 +54,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class HighlightOperatorTests extends OperatorTestCase {
@@ -138,6 +147,134 @@ public class HighlightOperatorTests extends OperatorTestCase {
             BytesRef scratch = new BytesRef();
             assertThat(result.getBytesRef(first, scratch).utf8ToString(), equalTo("Senior Team <em>Lead</em>"));
             assertThat(result.getBytesRef(first + 1, scratch).utf8ToString(), equalTo("<em>Lead</em> Architect"));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testMultiValuedKeywordAnalyzerAnalyzesValuesSeparately() {
+        BytesRefBlock result = highlight(
+            config("foo", 5, 0, 0),
+            contentTerm("foo"),
+            new KeywordAnalyzer(),
+            bytesRefs(List.of(List.of("foo", "bar")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("<em>foo</em>"));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testMultiValuedAnalyzerDoesNotCreateCrossValueTokens() {
+        BytesRefBlock result = highlight(
+            config("foo bar", 5, 0, 0),
+            contentTerm("foo bar"),
+            shingleAnalyzer(),
+            bytesRefs(List.of(List.of("foo", "bar")))
+        );
+        try {
+            assertThat(result.isNull(0), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testMaxAnalyzedOffsetAppliesAcrossValues() {
+        BytesRefBlock result = highlight(
+            configWithMaxAnalyzedOffset("foo", 4),
+            contentTerm("foo"),
+            new KeywordAnalyzer(),
+            bytesRefs(List.of(List.of("long", "foo")))
+        );
+        try {
+            assertThat(result.isNull(0), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
+    // The MemoryIndex omits tokens past the offset limit.
+    public void testMaxAnalyzedOffsetBoundsMultiTermMatching() {
+        // "fox" begins at offset 28, beyond the limit.
+        Query query = new BooleanQuery.Builder().add(contentTerm("quick"), BooleanClause.Occur.MUST)
+            .add(new PrefixQuery(new Term(CONTENT_FIELD, "fo")), BooleanClause.Occur.MUST)
+            .build();
+        BytesRefBlock result = highlight(
+            configWithMaxAnalyzedOffset("+quick +fo*", 20),
+            query,
+            bytesRefs(List.of(List.of("quick brown padding padding fox")))
+        );
+        try {
+            assertThat(result.isNull(0), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
+    // Excluded terms past the limit cannot suppress a row.
+    public void testMaxAnalyzedOffsetHidesExcludedTermFromMultiTermMatching() {
+        Query query = new BooleanQuery.Builder().add(new PrefixQuery(new Term(CONTENT_FIELD, "qui")), BooleanClause.Occur.MUST)
+            .add(contentTerm("fox"), BooleanClause.Occur.MUST_NOT)
+            .build();
+        BytesRefBlock result = highlight(
+            configWithMaxAnalyzedOffset("qui* -fox", 20),
+            query,
+            bytesRefs(List.of(List.of("quick brown padding padding fox")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("<em>quick</em> brown padding padding fox"));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testMultiValuedEmptyValuesKeepOffsets() {
+        BytesRefBlock result = highlight(
+            config("foo", 5, 0, 0),
+            contentTerm("foo"),
+            new KeywordAnalyzer(),
+            bytesRefs(List.of(List.of("", "foo", "")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("<em>foo</em>"));
+        } finally {
+            result.close();
+        }
+    }
+
+    // Without the analyzer's position gap, the phrase matches across the value boundary.
+    public void testMultiValuePositionGapPreventsCrossValuePhraseMatch() {
+        Query phrase = new PhraseQuery(CONTENT_FIELD, "lead", "lead");
+        List<List<String>> rows = List.of(List.of("Senior Team Lead", "Lead Architect"));
+
+        BytesRefBlock withoutGap = highlight(config("\"lead lead\"", 5, 0, 0), phrase, standardAnalyzerWithGap(0), bytesRefs(rows));
+        try {
+            assertThat(withoutGap.isNull(0), equalTo(false));
+        } finally {
+            withoutGap.close();
+        }
+
+        BytesRefBlock withGap = highlight(config("\"lead lead\"", 5, 0, 0), phrase, standardAnalyzerWithGap(100), bytesRefs(rows));
+        try {
+            assertThat(withGap.isNull(0), equalTo(true));
+        } finally {
+            withGap.close();
+        }
+    }
+
+    // The gap must not affect a phrase contained in one value.
+    public void testMultiValuePositionGapKeepsWithinValuePhraseMatch() {
+        Query phrase = new PhraseQuery(CONTENT_FIELD, "team", "lead");
+        BytesRefBlock result = highlight(
+            config("\"team lead\"", 5, 0, 0),
+            phrase,
+            standardAnalyzerWithGap(100),
+            bytesRefs(List.of(List.of("Senior Team Lead", "Lead Architect")))
+        );
+        try {
+            assertThat(result.getValueCount(0), equalTo(1));
+            assertThat(value(result, 0), equalTo("Senior <em>Team Lead</em>"));
         } finally {
             result.close();
         }
@@ -392,7 +529,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
-    public void testMultiTermQueryDisablesFiltering() {
+    public void testMultiTermQueryFiltersViaAutomaton() {
         Query prefixQuery = new PrefixQuery(new Term(CONTENT_FIELD, "fo"));
         BytesRefBlock result = highlight(
             config("fo*", 5, 0, 0),
@@ -407,12 +544,113 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
+    public void testLeadingWildcardQueryFiltersViaAutomaton() {
+        Query wildcardQuery = new WildcardQuery(new Term(CONTENT_FIELD, "*ox"));
+        BytesRefBlock result = highlight(
+            config("*ox", 5, 0, 0),
+            wildcardQuery,
+            bytesRefs(List.of(List.of("the quick fox jumps"), List.of("a plain sentence")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("the quick <em>fox</em> jumps"));
+            assertThat(result.isNull(1), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testRegexpQueryFiltersViaAutomaton() {
+        Query regexpQuery = new RegexpQuery(new Term(CONTENT_FIELD, "f.x"));
+        BytesRefBlock result = highlight(
+            config("/f.x/", 5, 0, 0),
+            regexpQuery,
+            bytesRefs(List.of(List.of("the quick fox"), List.of("a plain sentence")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("the quick <em>fox</em>"));
+            assertThat(result.isNull(1), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testFuzzyQueryFiltersViaAutomaton() {
+        // The default edit distance matches fox but not the other tokens.
+        Query fuzzyQuery = new FuzzyQuery(new Term(CONTENT_FIELD, "box"));
+        BytesRefBlock result = highlight(
+            config("box~", 5, 0, 0),
+            fuzzyQuery,
+            bytesRefs(List.of(List.of("the quick fox"), List.of("a plain sentence")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("the quick <em>fox</em>"));
+            assertThat(result.isNull(1), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testRangeQueryFiltersViaAutomaton() {
+        // [fo, fp) includes fox and excludes the other tokens.
+        Query rangeQuery = TermRangeQuery.newStringRange(CONTENT_FIELD, "fo", "fp", true, false);
+        BytesRefBlock result = highlight(
+            config("[fo TO fp}", 5, 0, 0),
+            rangeQuery,
+            bytesRefs(List.of(List.of("the quick fox"), List.of("a plain sentence")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("the quick <em>fox</em>"));
+            assertThat(result.isNull(1), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
+    // Highlight output cannot show whether filtering ran. Check the keep set directly.
+    public void testMultiTermKeepSetRetainsMatchingAndDropsNonMatchingTokens() {
+        assertKeepSetDiscriminates(new PrefixQuery(new Term(CONTENT_FIELD, "fo")), "fox", "bar");
+        assertKeepSetDiscriminates(new WildcardQuery(new Term(CONTENT_FIELD, "*ox")), "box", "cat");
+        assertKeepSetDiscriminates(new RegexpQuery(new Term(CONTENT_FIELD, "f.x")), "fix", "food");
+        assertKeepSetDiscriminates(new FuzzyQuery(new Term(CONTENT_FIELD, "box")), "fox", "sentence");
+        assertKeepSetDiscriminates(TermRangeQuery.newStringRange(CONTENT_FIELD, "fo", "fp", true, false), "fox", "zebra");
+    }
+
+    private static void assertKeepSetDiscriminates(Query query, String keptToken, String droppedToken) {
+        HighlightOperator.TokenKeepSet keepSet = HighlightOperator.buildKeepSet(query);
+        assertThat("query [" + query + "] must keep filtering on", keepSet, notNullValue());
+        assertThat("[" + keptToken + "] should match " + query, keeps(keepSet, keptToken), equalTo(true));
+        assertThat("[" + droppedToken + "] should not match " + query, keeps(keepSet, droppedToken), equalTo(false));
+    }
+
+    private static boolean keeps(HighlightOperator.TokenKeepSet keepSet, String token) {
+        char[] buffer = token.toCharArray();
+        return keepSet.accept(buffer, buffer.length);
+    }
+
     public void testMustNotTermExcludesRow() {
         Query query = new BooleanQuery.Builder().add(termQuery(CONTENT_FIELD, "fox"), BooleanClause.Occur.MUST)
             .add(termQuery(CONTENT_FIELD, "dog"), BooleanClause.Occur.MUST_NOT)
             .build();
         BytesRefBlock result = highlight(
             config("+fox -dog", 5, 0, 0),
+            query,
+            bytesRefs(List.of(List.of("the fox and the dog"), List.of("the fox in the barn")))
+        );
+        try {
+            assertThat(result.isNull(0), equalTo(true));
+            assertThat(value(result, 1), equalTo("the <em>fox</em> in the barn"));
+        } finally {
+            result.close();
+        }
+    }
+
+    // The operator's MemoryIndex preserves MUST_NOT terms for multi-term queries.
+    public void testMustNotTermExcludesRowForMultiTermQuery() {
+        Query query = new BooleanQuery.Builder().add(new PrefixQuery(new Term(CONTENT_FIELD, "fo")), BooleanClause.Occur.MUST)
+            .add(termQuery(CONTENT_FIELD, "dog"), BooleanClause.Occur.MUST_NOT)
+            .build();
+        BytesRefBlock result = highlight(
+            config("+fo* -dog", 5, 0, 0),
             query,
             bytesRefs(List.of(List.of("the fox and the dog"), List.of("the fox in the barn")))
         );
@@ -447,6 +685,22 @@ public class HighlightOperatorTests extends OperatorTestCase {
 
     private static Query termQuery(String field, String term) {
         return new TermQuery(new Term(field, term));
+    }
+
+    private static Analyzer standardAnalyzerWithGap(int gap) {
+        return new NamedAnalyzer("standard", AnalyzerScope.GLOBAL, new StandardAnalyzer(), gap);
+    }
+
+    private static Analyzer shingleAnalyzer() {
+        return new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer tokenizer = new StandardTokenizer();
+                ShingleFilter shingles = new ShingleFilter(new LowerCaseFilter(tokenizer), 2, 2);
+                shingles.setOutputUnigrams(false);
+                return new TokenStreamComponents(tokenizer, shingles);
+            }
+        };
     }
 
     private static Analyzer synonymAnalyzer(SynonymMap synonyms) {
@@ -580,6 +834,23 @@ public class HighlightOperatorTests extends OperatorTestCase {
             orderByScore,
             null,
             -1
+        );
+    }
+
+    private static HighlightConfig configWithMaxAnalyzedOffset(String queryText, int maxAnalyzedOffset) {
+        return new HighlightConfig(
+            queryText,
+            DEFAULT_PRE_TAG,
+            DEFAULT_POST_TAG,
+            DEFAULT_ENCODER,
+            5,
+            0,
+            0,
+            false,
+            Locale.ROOT,
+            false,
+            null,
+            maxAnalyzedOffset
         );
     }
 

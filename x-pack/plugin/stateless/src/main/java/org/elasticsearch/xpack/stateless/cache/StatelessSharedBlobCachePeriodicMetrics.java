@@ -17,10 +17,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.ConsumingLongGaugeMetric;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -38,6 +41,7 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
     public static final TimeValue MIN_METRICS_INTERVAL = TimeValue.timeValueSeconds(1L);
 
     private static final String METRICS_INTERVAL_SETTING_KEY = "stateless.cache.metrics_interval";
+    private static final Logger logger = LogManager.getLogger(StatelessSharedBlobCachePeriodicMetrics.class);
 
     /**
      * How often this component will sample. A value of {@link TimeValue#MINUS_ONE} disables sampling.
@@ -112,6 +116,14 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
      * eviction-policy protection.
      */
     public static final String MINIMAL_METRIC = "es.blob_cache.regions.minimal_timestamp.current";
+    /**
+     * Counts occupied regions carrying {@link SearchDirectory#PRE_TIMESTAMP_FIELD_FALLBACK_MILLIS}, the fallback
+     * timestamp for compound commits with no recorded {@code @timestamp} range on an index created before that
+     * range was introduced in the CC header, independent of eviction-policy protection. This count may also include
+     * regions whose real midpoint happens to coincide with the fallback date, but this should be extremely rare
+     * and thus negligible.
+     */
+    public static final String PRE_TIMESTAMP_FIELD_METRIC = "es.blob_cache.regions.pre_timestamp_field.current";
 
     private final SharedBlobCacheService<?> cacheService;
     private final ThreadPool threadPool;
@@ -128,6 +140,7 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
     private final SetOnce<ConsumingLongGaugeMetric> backfillMetric = new SetOnce<>();
     private final SetOnce<ConsumingLongGaugeMetric> unknownMetric = new SetOnce<>();
     private final SetOnce<ConsumingLongGaugeMetric> minimalMetric = new SetOnce<>();
+    private final SetOnce<ConsumingLongGaugeMetric> preTimestampFieldMetric = new SetOnce<>();
 
     public StatelessSharedBlobCachePeriodicMetrics(
         SharedBlobCacheService<?> cacheService,
@@ -241,6 +254,14 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
                 "regions"
             )
         );
+        preTimestampFieldMetric.set(
+            ConsumingLongGaugeMetric.create(
+                meterRegistry,
+                PRE_TIMESTAMP_FIELD_METRIC,
+                "Number of occupied regions carrying the pre-timestamp-field fallback timestamp",
+                "regions"
+            )
+        );
     }
 
     private void clearGauges() {
@@ -257,6 +278,7 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
         backfillMetric.get().set(0);
         unknownMetric.get().set(0);
         minimalMetric.get().set(0);
+        preTimestampFieldMetric.get().set(0);
     }
 
     private void sample() {
@@ -272,6 +294,7 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
         final ConsumingLongGaugeMetric backfill = backfillMetric.get();
         final ConsumingLongGaugeMetric unknown = unknownMetric.get();
         final ConsumingLongGaugeMetric minimal = minimalMetric.get();
+        final ConsumingLongGaugeMetric preTimestampField = preTimestampFieldMetric.get();
         assert filled != null;
         assert total != null;
         assert protectedRegions != null;
@@ -280,8 +303,19 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
         assert backfill != null;
         assert unknown != null;
         assert minimal != null;
+        assert preTimestampField != null;
         total.set(cacheService.getStats().numberOfRegions());
-        sampleRegions(cacheService, filled, protectedRegions, protectedFreq0, protectedFreqPositive, backfill, unknown, minimal);
+        sampleRegions(
+            cacheService,
+            filled,
+            protectedRegions,
+            protectedFreq0,
+            protectedFreqPositive,
+            backfill,
+            unknown,
+            minimal,
+            preTimestampField
+        );
     }
 
     /**
@@ -295,7 +329,8 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
         ConsumingLongGaugeMetric protectedFreqPositiveMetric,
         ConsumingLongGaugeMetric backfillMetric,
         ConsumingLongGaugeMetric unknownMetric,
-        ConsumingLongGaugeMetric minimalMetric
+        ConsumingLongGaugeMetric minimalMetric,
+        ConsumingLongGaugeMetric preTimestampFieldMetric
     ) {
         final EvictionPolicy<KeyType> policy = cacheService.getEvictionPolicy();
         final long[] filled = new long[1];
@@ -305,6 +340,8 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
         final long[] backfill = new long[1];
         final long[] unknown = new long[1];
         final long[] minimalTimestamp = new long[1];
+        final long[] preTimestampField = new long[1];
+        final long startTime = System.nanoTime();
         cacheService.iterateCachedRegions((CacheRegion<KeyType> region, Integer freq) -> {
             filled[0]++;
             final long timestampMillis = region.timestampMillis();
@@ -314,6 +351,8 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
                 backfill[0]++;
             } else if (timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
                 unknown[0]++;
+            } else if (timestampMillis == SearchDirectory.PRE_TIMESTAMP_FIELD_FALLBACK_MILLIS) {
+                preTimestampField[0]++;
             }
             if (policy.isProtected(region) == false) {
                 return;
@@ -326,6 +365,7 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
                 protectedFreqPositive[0]++;
             }
         });
+        logger.debug("scanned [{}] regions in [{}]", filled[0], TimeValue.timeValueNanos(System.nanoTime() - startTime));
         filledMetric.set(filled[0]);
         protectedMetric.set(protectedCount[0]);
         protectedFreq0Metric.set(protectedFreq0[0]);
@@ -333,6 +373,7 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
         backfillMetric.set(backfill[0]);
         unknownMetric.set(unknown[0]);
         minimalMetric.set(minimalTimestamp[0]);
+        preTimestampFieldMetric.set(preTimestampField[0]);
     }
 
     @Override

@@ -10,9 +10,12 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutputHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -34,7 +37,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
 
     // vints are unlike normal ints in that they may require 5 bytes instead of 4
     // see BytesStreamOutput.writeVInt()
-    private static final int VINT_MAX_BYTES = 5;
+    public static final int VINT_MAX_BYTES = 5;
 
     /**
      * Controls how values are collected and ordered in a multi-valued binary doc values field.
@@ -239,6 +242,12 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     public static class SeparateCount extends MultiValuedBinaryDocValuesField {
 
         public static final String COUNT_FIELD_SUFFIX = ".counts";
+
+        /**
+         * The field type of the {@code .counts} companion, as produced by {@link NumericDocValuesField#indexedField}. Exposed so the
+         * columnar batch-mapping path can attach a {@code .counts} output column carrying exactly the type the row path writes.
+         */
+        public static final IndexableFieldType COUNT_FIELD_TYPE = NumericDocValuesField.indexedField("_sentinel", 0).fieldType();
 
         // Held here so addToDoc can update the count on each value without a second keyedFields lookup.
         NumericDocValuesField countField;
@@ -517,38 +526,25 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
 
         /**
-         * Array-backed variant of {@link #encode(Collection)} for callers that buffer slots in a
-         * pre-allocated array. Avoids {@link java.util.List} allocation for the common small
-         * multi-value case. A {@code null} element at position {@code i < count} denotes a null slot.
-         * Must only be called when at least one non-null value is present.
+         * Appends one slot to a document blob under construction in {@code blob}, growing it as needed, and returns
+         * the write position just past the slot. A {@code null} {@code value} denotes a null slot. Same wire format
+         * as {@link #encode(Collection)}: {@code [len+1][val]}, with {@code [0]} for a null slot.
+         *
+         * <p>Note this always writes the length prefix, including for the first slot. A document that turns out to
+         * hold exactly one non-null slot is stored raw (see {@link #encode(Collection)}); the caller handles that by
+         * emitting a view that starts after the prefix, which sits at {@code returnedPos - value.length}.
          */
-        public static BytesRef encode(BytesRef[] slots, int count) {
-            assert count >= 1 : "encode requires at least one slot";
-            if (count == 1) {
-                assert slots[0] != null : "a lone null slot must not write a binary value";
-                return slots[0];
+        public static int appendSlot(BytesRefBuilder blob, int pos, BytesRef value) {
+            final int valueLength = value == null ? 0 : value.length;
+            // grow (not growNoCopy): earlier slots of this document must survive.
+            blob.grow(pos + VINT_MAX_BYTES + valueLength);
+            final byte[] buffer = blob.bytes();
+            pos = StreamOutputHelper.putVInt(buffer, value == null ? 0 : valueLength + 1, pos);
+            if (value != null) {
+                System.arraycopy(value.bytes, value.offset, buffer, pos, valueLength);
+                pos += valueLength;
             }
-            int byteCount = 0;
-            for (int i = 0; i < count; i++) {
-                if (slots[i] != null) {
-                    byteCount += slots[i].length;
-                }
-            }
-            int streamSize = byteCount + count * VINT_MAX_BYTES;
-            try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
-                for (int i = 0; i < count; i++) {
-                    BytesRef slot = slots[i];
-                    if (slot == null) {
-                        out.writeVInt(0);
-                    } else {
-                        out.writeVInt(slot.length + 1);
-                        out.writeBytes(slot.bytes, slot.offset, slot.length);
-                    }
-                }
-                return out.bytes().toBytesRef();
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to encode binary value", e);
-            }
+            return pos;
         }
 
         /**
@@ -684,8 +680,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             for (BytesRef slot : slots) {
                 byteCount += slot.length;
             }
-            int streamSize = byteCount + slotCount * VINT_MAX_BYTES;
-            try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
+            try (BytesStreamOutput out = new BytesStreamOutput(streamSize(byteCount, slotCount))) {
                 for (int i = 0; i < slotCount; i++) {
                     BytesRef slot = slots.get(i);
                     if (nullMarkers.get(i)) {
@@ -706,6 +701,37 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to encode keyed inline null binary value", e);
             }
+        }
+
+        /**
+         * Appends one keyed slot to a document blob under construction in {@code blob}, growing it as needed, and
+         * returns the write position just past the slot. {@code keyPrefix} is {@code key\0}; a {@code null}
+         * {@code value} denotes a null slot.
+         *
+         * <p>Same wire format as {@link #encode(ArrayList, BitSet)}: {@code [valueLen+1][key\0value]}, with
+         * {@code [0][key\0]} for a null slot. Every slot carries a VInt prefix (no single-slot raw passthrough);
+         * the separator byte is always written; slot order is load-bearing.
+         */
+        public static int appendSlot(BytesRefBuilder blob, int pos, BytesRef keyPrefix, BytesRef value) {
+            assert keyPrefix.length > 0 && keyPrefix.bytes[keyPrefix.offset + keyPrefix.length - 1] == 0
+                : "key prefix must be non-empty and end with \\0";
+            final int valueLength = value == null ? 0 : value.length;
+            // grow (not growNoCopy): earlier slots of this document must survive.
+            blob.grow(pos + VINT_MAX_BYTES + keyPrefix.length + valueLength);
+            final byte[] buffer = blob.bytes();
+            // Null slot: [0]key\0. Non-null slot: [valueLen+1]key\0value.
+            pos = StreamOutputHelper.putVInt(buffer, value == null ? 0 : valueLength + 1, pos);
+            System.arraycopy(keyPrefix.bytes, keyPrefix.offset, buffer, pos, keyPrefix.length);
+            pos += keyPrefix.length;
+            if (value != null) {
+                System.arraycopy(value.bytes, value.offset, buffer, pos, valueLength);
+                pos += valueLength;
+            }
+            return pos;
+        }
+
+        private static int streamSize(int byteCount, int slotCount) {
+            return byteCount + slotCount * VINT_MAX_BYTES;
         }
 
     }

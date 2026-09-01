@@ -14,12 +14,24 @@ export SKIP_NODE_SETUP=false
 # Don't do this part on Windows
 if ! command -v choco > /dev/null; then
   if [[ "$(uname -s)" == "Linux" ]]; then
-    _glibc=$(ldd --version 2>/dev/null | awk 'NR==1{print $NF}')
-    _major=${_glibc%%.*}
-    _minor=${_glibc##*.}
-    if [[ "$_major" -lt 2 ]] || [[ "$_major" -eq 2 && "$_minor" -lt 25 ]]; then
-      echo "Skipping Node.js setup: glibc ${_glibc} < 2.25 (Node.js 24 requires glibc >= 2.25)"
-      export SKIP_NODE_SETUP=true
+    # `|| true` is required: the hook runs under `set -euo pipefail`, so a
+    # missing or non-zero-exiting ldd (musl, stripped images) would otherwise
+    # abort the hook — the exact failure this check exists to avoid.
+    _glibc=$( { ldd --version 2>/dev/null || true; } | awk 'NR==1{print $NF}')
+    # Only compare when the last field really is a MAJOR.MINOR version: other
+    # libc implementations and localized ldd output put arbitrary text there,
+    # and arithmetic comparison of a non-number would abort the hook too.
+    if [[ "$_glibc" =~ ^([0-9]+)\.([0-9]+) ]]; then
+      _major=${BASH_REMATCH[1]}
+      _minor=${BASH_REMATCH[2]}
+      if [[ "$_major" -lt 2 ]] || [[ "$_major" -eq 2 && "$_minor" -lt 25 ]]; then
+        echo "Skipping Node.js setup: glibc ${_glibc} < 2.25 (Node.js 24 requires glibc >= 2.25)"
+        export SKIP_NODE_SETUP=true
+      fi
+    else
+      # Unknown libc: attempt the install rather than silently disabling smart
+      # retry. A genuinely unusable node still fails loudly below.
+      echo "Could not determine glibc version from ldd output [${_glibc}]; attempting Node.js setup anyway"
     fi
     unset _glibc _major _minor
   fi

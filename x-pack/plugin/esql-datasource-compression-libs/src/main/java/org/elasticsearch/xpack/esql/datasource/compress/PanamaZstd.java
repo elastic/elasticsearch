@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.compress;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.Zstd;
 
@@ -178,9 +179,22 @@ public final class PanamaZstd {
      * @throws IllegalStateException if {@link #isAvailable()} returns {@code false}
      */
     public InputStream wrap(InputStream compressed) {
+        return wrap(compressed, null);
+    }
+
+    /**
+     * Overload of {@link #wrap(InputStream)} that accounts the wrapper's native footprint against
+     * {@code breaker}. Construction charges with {@code addEstimateBytesAndMaybeBreak} so a saturated
+     * breaker rejects the stream before decode starts. Window growth after the first read uses
+     * {@code addWithoutBreaking} and is released on {@link InputStream#close()}. A {@code null} breaker
+     * disables accounting and reproduces the historical behavior of {@link #wrap(InputStream)}.
+     *
+     * @throws IllegalStateException if {@link #isAvailable()} returns {@code false}
+     */
+    public InputStream wrap(InputStream compressed, CircuitBreaker breaker) {
         if (zstd == null) {
             throw new IllegalStateException("Panama zstd binding is not available on this platform");
         }
-        return new PanamaZstdInputStream(compressed, zstd);
+        return new PanamaZstdInputStream(compressed, zstd, breaker);
     }
 }

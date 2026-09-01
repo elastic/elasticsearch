@@ -13,9 +13,12 @@ import org.elasticsearch.foreign.DefaultMethodHandleResolver;
 import org.elasticsearch.foreign.DefaultSymbolResolver;
 import org.elasticsearch.foreign.LibrarySpecification;
 import org.elasticsearch.foreign.MethodHandleResolver;
+import org.elasticsearch.foreign.Platform;
 import org.elasticsearch.foreign.SymbolResolver;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -45,9 +48,11 @@ import javax.tools.Diagnostic.Kind;
  * @param simpleName the simple interface or class name
  * @param packageName the package name (may be empty)
  * @param libraryName the native library name from {@code @LibrarySpecification.name()} (may be empty)
+ * @param system whether {@code libraryName} is loaded via {@code System.loadLibrary} rather than
+ *        {@code LoaderHelper.loadLibrary}, from {@code @LibrarySpecification.system()}
  * @param methods all native methods in declaration order
  * @param unavailableOn enum constant names of platforms where this library is unavailable (empty means available everywhere)
- * @param structs all {@code @StructSpecification} types enclosed in this interface, in declaration order
+ * @param structs every {@code @StructSpecification} type enclosed in this interface, in declaration order
  * @param symbolResolverClassName fully-qualified name of the {@link SymbolResolver} implementation
  *        (defaults to {@code org.elasticsearch.foreign.DefaultSymbolResolver})
  * @param methodHandleResolverClassName fully-qualified name of the {@link MethodHandleResolver} implementation
@@ -59,6 +64,7 @@ public record LibraryModel(
     String simpleName,
     String packageName,
     String libraryName,
+    boolean system,
     List<MethodModel> methods,
     List<String> unavailableOn,
     List<StructModel> structs,
@@ -67,14 +73,12 @@ public record LibraryModel(
     boolean isAbstractClass
 ) {
 
-    /** All known platform names — used to detect a library that can never be natively loaded. */
-    private static final Set<String> ALL_PLATFORM_NAMES = Set.of(
-        "LINUX_X64",
-        "LINUX_AARCH64",
-        "DARWIN_X64",
-        "DARWIN_AARCH64",
-        "WINDOWS_X64"
-    );
+    /**
+     * All known platform names in {@link Platform} enum (ordinal) order — used to detect a library
+     * that can never be natively loaded, and as the canonical iteration order for the supported
+     * platform set so generated output is deterministic. Derived from the enum so it stays in sync.
+     */
+    private static final List<String> ALL_PLATFORM_NAMES = Arrays.stream(Platform.values()).map(Enum::name).toList();
 
     public static final String SYMBOL_RESOLVER_INTERFACE_FQN = SymbolResolver.class.getName();
     public static final String DEFAULT_SYMBOL_RESOLVER_FQN = DefaultSymbolResolver.class.getName();
@@ -82,6 +86,7 @@ public record LibraryModel(
     public static final String DEFAULT_MH_RESOLVER_FQN = DefaultMethodHandleResolver.class.getName();
     public static final String LIBRARY_SPECIFICATION_FQN = LibrarySpecification.class.getName();
     public static final String STRUCT_SPECIFICATION_FQN = org.elasticsearch.foreign.StructSpecification.class.getName();
+    public static final String ADDRESSABLE_FQN = org.elasticsearch.foreign.Addressable.class.getName();
 
     /** Fully-qualified name of the {@code $Impl} class generated for this library. */
     public String implQualifiedName() {
@@ -115,6 +120,7 @@ public record LibraryModel(
 
         LibrarySpecification annotation = element.getAnnotation(LibrarySpecification.class);
         String libraryName = annotation != null ? annotation.name() : "";
+        boolean system = annotation != null && annotation.system();
         String qualifiedName = element.getQualifiedName().toString();
         String simpleName = element.getSimpleName().toString();
         String packageName = env.getElementUtils().getPackageOf(element).getQualifiedName().toString();
@@ -124,12 +130,20 @@ public record LibraryModel(
 
         boolean hasError = false;
         if (unavailableOn.containsAll(ALL_PLATFORM_NAMES)) {
+            // No supported platforms means no layout can be resolved, so bail out before parsing
+            // structs (which would otherwise operate over an empty platform set). This is an
+            // invalid specification, not a degraded-but-usable one.
             messager.printMessage(
                 Kind.ERROR,
                 "@LibrarySpecification.unavailableOn lists all known platforms; the library will never be natively loaded",
                 element,
                 specMirror
             );
+            return null;
+        }
+
+        if (system && libraryName.isEmpty()) {
+            messager.printMessage(Kind.ERROR, "@LibrarySpecification.system requires a non-empty name", element, specMirror);
             hasError = true;
         }
 
@@ -148,6 +162,10 @@ public record LibraryModel(
             hasError = true;
         }
 
+        // Compute the set of platforms this library is available on.
+        Set<String> supportedPlatforms = new LinkedHashSet<>(ALL_PLATFORM_NAMES);
+        supportedPlatforms.removeAll(unavailableOn);
+
         // First pass: collect struct specifications in declaration order
         List<StructModel> structs = new ArrayList<>();
         List<String> structSimpleNames = new ArrayList<>();
@@ -164,6 +182,14 @@ public record LibraryModel(
             TypeElement typeElement = (TypeElement) enclosed;
             AnnotationMirror structSpecMirror = ModelUtil.findAnnotationMirror(typeElement, STRUCT_SPECIFICATION_FQN);
             if (structSpecMirror == null) {
+                // Not a @StructSpecification type, but a record or class that directly implements
+                // Addressable (e.g. a Handle/Address wrapper) is still a legitimate ADDRESSABLE
+                // parameter type. Record its simple name alongside struct names so
+                // MethodModel#from's parameter classification recognizes it, without adding a
+                // StructModel for it — it needs no generated $Impl.
+                if (findTypeElement(typeElement, ADDRESSABLE_FQN) != null) {
+                    structSimpleNames.add(typeElement.getSimpleName().toString());
+                }
                 continue;
             }
             if (kind != ElementKind.RECORD && kind != ElementKind.INTERFACE) {
@@ -178,8 +204,8 @@ public record LibraryModel(
             }
 
             StructModel structModel = kind == ElementKind.RECORD
-                ? StructSpecParser.fromRecord(typeElement, messager)
-                : StructSpecParser.fromInterface(typeElement, structSimpleNames, env, messager);
+                ? StructSpecParser.fromRecord(typeElement, supportedPlatforms, messager)
+                : StructSpecParser.fromInterface(typeElement, structSimpleNames, supportedPlatforms, unavailableOn, env, messager);
             if (structModel == null) {
                 hasError = true;
             } else {
@@ -207,7 +233,7 @@ public record LibraryModel(
                 }
             }
 
-            MethodModel methodModel = MethodModel.from(method, env, structSimpleNames);
+            MethodModel methodModel = MethodModel.from(method, env, structSimpleNames, unavailableOn);
             if (methodModel == null) {
                 hasError = true;
             } else {
@@ -222,6 +248,7 @@ public record LibraryModel(
                 simpleName,
                 packageName,
                 libraryName,
+                system,
                 methods,
                 unavailableOn,
                 structs,

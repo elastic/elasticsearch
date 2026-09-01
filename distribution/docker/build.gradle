@@ -134,11 +134,11 @@ dependencies {
   metricbeat_fips_x86_64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
 
   // FIPS 140-2 libraries (default)
-  fips "org.bouncycastle:bc-fips:1.0.2.6"
+  fips "org.bouncycastle:bc-fips:1.0.2.7"
   fips "org.bouncycastle:bctls-fips:1.0.24"
 
   // FIPS 140-3 libraries
-  fips_140_3 "org.bouncycastle:bc-fips:2.0.1"
+  fips_140_3 "org.bouncycastle:bc-fips:2.0.2"
   fips_140_3 "org.bouncycastle:bctls-fips:2.0.24"
   fips_140_3 "org.bouncycastle:bcutil-fips:2.0.7"
 
@@ -156,7 +156,7 @@ ext.expansions = { Architecture architecture, DockerBase base, String publicatio
   def buildDate = buildParams.ci ? buildParams.buildDate : buildParams.buildDate.truncatedTo(ChronoUnit.DAYS).toString()
 
   // BC-FIPS version depends on FIPS version (140-2 vs 140-3)
-  def bcFipsVersion = isFips140_3 ? '2.0.1' : '1.0.2.6'
+  def bcFipsVersion = isFips140_3 ? '2.0.2' : '1.0.2.7'
 
   return [
     'arch'               : architecture.classifier,

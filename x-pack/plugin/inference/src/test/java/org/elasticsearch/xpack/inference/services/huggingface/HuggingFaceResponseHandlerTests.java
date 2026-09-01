@@ -14,17 +14,17 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
-import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class HuggingFaceResponseHandlerTests extends ESTestCase {
 
-    public void testHandleFailureStatusCode() {
+    public void testBuildFailureStatusCodeException() {
         var statusLine = mock(StatusLine.class);
 
         var httpResponse = mock(HttpResponse.class);
@@ -38,7 +38,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
 
         // 503
         when(statusLine.getStatusCode()).thenReturn(503);
-        var retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
+        var retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
         assertTrue(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
@@ -47,7 +47,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 502
         when(statusLine.getStatusCode()).thenReturn(502);
-        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
+        retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
         assertTrue(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
@@ -56,7 +56,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 429
         when(statusLine.getStatusCode()).thenReturn(429);
-        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
+        retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
         assertTrue(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
@@ -65,13 +65,14 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
         // 413
         when(statusLine.getStatusCode()).thenReturn(413);
-        retryException = expectThrows(ContentTooLargeException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
+        retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
+        assertThat(retryException, instanceOf(ContentTooLargeException.class));
         assertTrue(retryException.shouldRetry());
         assertThat(retryException.getCause().getMessage(), containsString("Received a content too large status code"));
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
         // 401
         when(statusLine.getStatusCode()).thenReturn(401);
-        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
+        retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
@@ -80,7 +81,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.UNAUTHORIZED));
         // 300
         when(statusLine.getStatusCode()).thenReturn(300);
-        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
+        retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
@@ -89,7 +90,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
         // 402
         when(statusLine.getStatusCode()).thenReturn(402);
-        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
+        retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),

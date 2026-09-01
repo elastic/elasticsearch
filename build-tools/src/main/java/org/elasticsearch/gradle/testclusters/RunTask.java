@@ -68,6 +68,8 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
     private Boolean useTransportTls = false;
 
+    private Integer nodeCount = null;
+
     private final Path tlsBasePath = Path.of(
         new File(getProject().getRootDir(), "build-tools-internal/src/main/resources/run.ssl").toURI()
     );
@@ -237,6 +239,17 @@ public abstract class RunTask extends DefaultTestClustersTask {
         return useTransportTls;
     }
 
+    @Option(option = "nodes", description = "Number of nodes to start in the cluster (default: 1)")
+    public void setNodeCount(String nodeCount) {
+        this.nodeCount = Integer.parseInt(nodeCount);
+    }
+
+    @Input
+    @Optional
+    public Integer getNodeCount() {
+        return nodeCount;
+    }
+
     @Override
     public void beforeStart() {
         int httpPort = 9200;
@@ -251,6 +264,11 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     entry -> entry.getValue().toString()
                 )
             );
+        if (nodeCount != null) {
+            for (ElasticsearchCluster cluster : getClusters()) {
+                cluster.setNumberOfNodes(nodeCount);
+            }
+        }
         boolean singleNode = getClusters().stream().mapToLong(c -> c.getNodes().size()).sum() == 1;
         final Function<ElasticsearchNode, Path> getDataPath;
         if (singleNode) {

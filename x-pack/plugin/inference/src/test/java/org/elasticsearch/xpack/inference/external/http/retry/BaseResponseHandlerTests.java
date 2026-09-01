@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -42,15 +42,15 @@ public class BaseResponseHandlerTests extends ESTestCase {
         assertThat(toRestStatus(1000), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testValidateResponse_SkipsHandleFailureStatusCode_WhenResponseIsSuccessful() {
+    public void testValidateResponse_SkipsBuildFailureStatusCodeException_WhenResponseIsSuccessful() {
         var handler = new BaseResponseHandler(
             "test",
             (OutboundRequest outboundRequest, HttpResult result) -> null,
             ErrorMessageResponseEntity::fromResponse
         ) {
             @Override
-            protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) {
-                throw new RetryException(false, new RuntimeException("should not be called"));
+            public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
+                return new RetryException(false, new RuntimeException("should not be called"));
             }
         };
 
@@ -58,7 +58,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
         var request = mock(OutboundRequest.class);
         when(request.getInferenceEntityId()).thenReturn("test-id");
 
-        // 200 → handleFailureStatusCode must not be called
+        // 200 → buildFailureStatusCodeException must not be called
         handler.validateResponse(
             mock(ThrottlerManager.class),
             mock(Logger.class),
@@ -67,7 +67,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
         );
     }
 
-    public void testValidateResponse_CallsHandleFailureStatusCode_WhenResponseIsNotSuccessful() {
+    public void testValidateResponse_CallsBuildFailureStatusCodeException_WhenResponseIsNotSuccessful() {
         var handlerCalled = new AtomicBoolean(false);
         var handler = new BaseResponseHandler(
             "test",
@@ -75,9 +75,9 @@ public class BaseResponseHandlerTests extends ESTestCase {
             ErrorMessageResponseEntity::fromResponse
         ) {
             @Override
-            protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) {
+            public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
                 handlerCalled.set(true);
-                throw new RetryException(false, new RuntimeException("failure"));
+                return new RetryException(false, new RuntimeException("failure"));
             }
         };
 
@@ -196,6 +196,33 @@ public class BaseResponseHandlerTests extends ESTestCase {
         );
     }
 
+    public void testValidateResponse_UsesBuildFailureStatusCodeException_WhenResponseIsNotSuccessful_AndBodyIsEmpty() {
+        var handler = new BaseResponseHandler(
+            "test",
+            (OutboundRequest outboundRequest, HttpResult result) -> null,
+            ErrorMessageResponseEntity::fromResponse
+        ) {
+            @Override
+            public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
+                return new RetryException(false, new RuntimeException("failure exception"));
+            }
+        };
+
+        var statusLine = mock(StatusLine.class);
+        when(statusLine.getStatusCode()).thenReturn(500);
+        var response = mock(HttpResponse.class);
+        when(response.getStatusLine()).thenReturn(statusLine);
+        var request = mock(OutboundRequest.class);
+        when(request.getInferenceEntityId()).thenReturn("test-id");
+
+        // An empty body must not suppress the failure-status exception; buildFailureStatusCodeException wins.
+        var thrownException = expectThrows(
+            RetryException.class,
+            () -> handler.validateResponse(mock(ThrottlerManager.class), mock(Logger.class), request, new HttpResult(response, new byte[0]))
+        );
+        assertThat(thrownException.getCause().getMessage(), is("failure exception"));
+    }
+
     private static HttpResponse mock200Response() {
         int statusCode = 200;
         var statusLine = mock(StatusLine.class);
@@ -214,7 +241,9 @@ public class BaseResponseHandlerTests extends ESTestCase {
             ErrorMessageResponseEntity::fromResponse
         ) {
             @Override
-            protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) {}
+            public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
+                return new RetryException(false, new RuntimeException("failure"));
+            }
         };
     }
 }

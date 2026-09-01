@@ -9,9 +9,6 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.DataOutput;
-
 import java.io.IOException;
 
 /** Delta-encodes strictly monotonic runs (first value kept as a delta from the second). Frozen id 0. */
@@ -28,7 +25,7 @@ public final class DeltaTransform implements BlockTransform {
     }
 
     @Override
-    public boolean tryEncode(long[] block, int valueCount, DataOutput params) throws IOException {
+    public boolean tryEncode(long[] block, int valueCount, MetadataWriter params) throws IOException {
         if (isMonotonic(block, valueCount) == false) {
             return false;
         }
@@ -68,7 +65,7 @@ public final class DeltaTransform implements BlockTransform {
     }
 
     @Override
-    public void decode(long[] block, int valueCount, DataInput params) throws IOException {
+    public void decode(long[] block, int valueCount, MetadataReader params) throws IOException {
         block[0] += params.readZLong();
         long sum = 0;
         for (int i = 0; i < valueCount; ++i) {

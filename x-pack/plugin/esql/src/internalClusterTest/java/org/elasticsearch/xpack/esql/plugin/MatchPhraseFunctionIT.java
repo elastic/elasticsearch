@@ -574,7 +574,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testSimpleWhereRuntimeMatchPhraseWithScore() {
-        // Runtime match_phrase does not contribute to the score, so matching rows keep a 0.0 score.
         var query = """
             FROM test METADATA _score
             | WHERE match_phrase(to_text(concat(content, " extra")), "brown fox")
@@ -585,7 +584,39 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
-            assertValues(resp.values(), List.of(List.of(1, 0.0), List.of(6, 0.0)));
+            // A runtime match_phrase scores the boost (1.0 by default) on match.
+            assertValues(resp.values(), List.of(List.of(1, 1.0), List.of(6, 1.0)));
+        }
+    }
+
+    public void testWhereRuntimeMatchPhraseWithBoostAndScore() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match_phrase(to_text(concat(content, " extra")), "brown fox", { "boost": 2.0 })
+            | KEEP id, _score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 2.0), List.of(6, 2.0)));
+        }
+    }
+
+    public void testWhereRuntimeMatchPhraseKeywordWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | EVAL exact = concat(content, "")
+            | WHERE match_phrase(exact, "This is a brown fox")
+            | KEEP id, _score
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            // Keyword expressions match by exact value equality and score 1.0.
+            assertValues(resp.values(), List.of(List.of(1, 1.0)));
         }
     }
 
@@ -602,11 +633,12 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchPhraseRuntimeWithAnalyzerOption() {
-        // The whitespace analyzer does not lowercase, so "Brown Fox" only matches the value that kept the capitals.
+        // The whitespace values analyzer, declared through to_text, does not lowercase, and the query analyzer
+        // defaults to it: "Brown Fox" only matches the value that kept the capitals.
         var query = """
-            ROW content = to_text(["a Brown Fox runs", "a brown fox runs"])
+            ROW content = to_text(["a Brown Fox runs", "a brown fox runs"], {"analyzer": "whitespace"})
             | MV_EXPAND content
-            | WHERE match_phrase(content, "Brown Fox", {"analyzer": "whitespace"})
+            | WHERE match_phrase(content, "Brown Fox")
             """;
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("content"));
@@ -614,14 +646,29 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testMatchPhraseRuntimeAnalyzerOptionAppliesToQueryStringOnly() {
+        // match_phrase's analyzer option keeps the query's capitals while the values stay standard-analyzed
+        // (lowercased): the case-mismatched phrase matches nothing.
+        var query = """
+            ROW content = to_text(["a Brown Fox runs", "a brown fox runs"])
+            | MV_EXPAND content
+            | WHERE match_phrase(content, "Brown Fox", {"analyzer": "whitespace"})
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
     public void testUnmappedWithAnalyzerOption() {
-        // The whitespace analyzer does not lowercase: the phrase "This is" only matches values that kept the
-        // capital T (ids 1 and 2), on both the mapped and the unmapped (loaded from _source) index.
+        // The whitespace analyzer applies to the query string only, so the lowercase phrase "this is" matches the
+        // standard-analyzed (lowercased) values of ids 1 and 2 on both the mapped and the unmapped (loaded from
+        // _source) index.
         var query = """
             SET unmapped_fields = "LOAD";
             FROM test, test_unmapped METADATA _index
             | EVAL content = to_text(content)
-            | WHERE match_phrase(content, "This is", {"analyzer": "whitespace"})
+            | WHERE match_phrase(content, "this is", {"analyzer": "whitespace"})
             | KEEP id, _index
             | SORT id, _index
             """;

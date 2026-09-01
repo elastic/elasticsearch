@@ -13,6 +13,18 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.5.2 [connectors-9.5.2-release-notes]
+
+### Fixes [connectors-9.5.2-fixes]
+* Fix long-running syncs being falsely marked as idle when Elasticsearch was temporarily slow or refresh calls timed out. The connector service no longer forces an index refresh on every job status check, keeps the ingestion heartbeat alive through transient errors, and retries job status checks during active syncs. [#4367](https://github.com/elastic/connectors/pull/4367), [#4311](https://github.com/elastic/connectors/issues/4311)
+
+## 9.5.1 [connectors-9.5.1-release-notes]
+
+### Fixes [connectors-9.5.1-fixes]
+* Fix Document Level Security for the Outlook connector, where content documents were indexed with identities that did not match the ones granted by the access control documents, so owners could not retrieve their own synced documents. [#4313](https://github.com/elastic/connectors/pull/4313), [#4290](https://github.com/elastic/connectors/issues/4290)
+* Fix the SharePoint Online connector to skip the system list `SharePointHomeCacheList`, so syncs are no longer aborted by Unauthorized responses when fetching its attachments. [#4308](https://github.com/elastic/connectors/pull/4308)
+* Fix Confluence connector Document Level Security to index effective page view restrictions by intersecting the child's and all ancestors' read restrictions, instead of over-granting through space-level permissions. [#4303](https://github.com/elastic/connectors/pull/4303), [#4095](https://github.com/elastic/connectors/issues/4095)
+
 ## 9.5.0 [connectors-9.5.0-release-notes]
 
 ### Features and enhancements [connectors-9.5.0-features-enhancements]
@@ -23,6 +35,16 @@ It includes detailed steps, tooling, and resources to help you transition to sup
 * Fixed the SharePoint Online connector to surface a clear, actionable error when role assignments are unauthorized while Document Level Security is enabled, naming the affected site and explaining how to grant `Sites.FullControl.All` or disable DLS. [#4266](https://github.com/elastic/connectors/pull/4266), [#3293](https://github.com/elastic/connectors/issues/3293)
 * Fixed the Outlook connector to skip unexpected Exchange item types, unresolvable or inaccessible folders, and related edge cases with a warning instead of aborting the sync. [#4158](https://github.com/elastic/connectors/pull/4158)
 * Fixed the Outlook connector aborting an entire sync when Exchange returned an unrecognised EWS element (for example a stray `EndTimeZone` alongside a calendar item). Such elements are now skipped with a warning and the rest of the mailbox continues to sync. [#4287](https://github.com/elastic/connectors/pull/4287)
+
+## 9.4.5 [connectors-9.4.5-release-notes]
+
+### Fixes [connectors-9.4.5-fixes]
+* Fix Document Level Security for the Outlook connector, where content documents were indexed with identities that did not match the ones granted by the access control documents, so owners could not retrieve their own synced documents. [#4312](https://github.com/elastic/connectors/pull/4312), [#4290](https://github.com/elastic/connectors/issues/4290)
+* Fix the SharePoint Online connector to skip the system list `SharePointHomeCacheList`, so syncs are no longer aborted by Unauthorized responses when fetching its attachments. [#4307](https://github.com/elastic/connectors/pull/4307)
+* Fix Confluence connector Document Level Security to index effective page view restrictions by intersecting the child's and all ancestors' read restrictions, instead of over-granting through space-level permissions. [#4302](https://github.com/elastic/connectors/pull/4302), [#4095](https://github.com/elastic/connectors/issues/4095)
+* Fix the Outlook connector aborting a sync when Exchange returned an unrecognised EWS element; such elements are now skipped with a warning and the rest of the mailbox continues to sync. [#4292](https://github.com/elastic/connectors/pull/4292)
+* Fix the SharePoint Online connector to surface a clear, actionable error when role assignments are unauthorized while Document Level Security is enabled. [#4268](https://github.com/elastic/connectors/pull/4268), [#3293](https://github.com/elastic/connectors/issues/3293)
+* Fix the Outlook connector to skip unexpected Exchange item types, unresolvable or inaccessible folders, and related edge cases with a warning instead of aborting the sync. [#4177](https://github.com/elastic/connectors/pull/4177), [#4158](https://github.com/elastic/connectors/pull/4158)
 
 ## 9.4.4 [connectors-9.4.4-release-notes]
 

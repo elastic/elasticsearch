@@ -27,8 +27,8 @@ dependencies {
   implementation project(":libs:entitlement")
   implementation project(path: "bc", configuration: 'shadow')
   // TODO: asm is picked up from the plugin scanner and entitlements, we should consolidate so it is not defined twice
-  implementation 'org.ow2.asm:asm:9.9'
-  implementation 'org.ow2.asm:asm-tree:9.9'
+  implementation 'org.ow2.asm:asm:9.10.1'
+  implementation 'org.ow2.asm:asm-tree:9.10.1'
 
   testImplementation project(":test:framework")
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"

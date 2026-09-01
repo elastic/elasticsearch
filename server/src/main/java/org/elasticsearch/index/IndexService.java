@@ -774,6 +774,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Integer requestSize,
         ShardSearchStats shardSearchStats
     ) {
+        if (this.mapperService == null || this.indexCache == null) {
+            throw new IllegalStateException(
+                format(
+                    "cannot create a search execution context for index %s: this IndexService was created for a "
+                        + "closed index and therefore has no mapper service or caches (current index state [%s])",
+                    index(),
+                    indexSettings.getIndexMetadata().getState()
+                )
+            );
+        }
+
         final SearchIndexNameMatcher indexNameMatcher = new SearchIndexNameMatcher(
             index().getName(),
             clusterAlias,

@@ -3777,6 +3777,62 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary, replica);
     }
 
+    public void testPreRecoveryThrowsIndexShardClosedException() throws IOException {
+        IndexShard shard = newShard(randomBoolean());
+        DiscoveryNode target = getFakeDiscoNode("target");
+        shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), target, null));
+        closeShards(shard);
+        expectThrows(IndexShardClosedException.class, () -> shard.preRecovery(ActionListener.noop()));
+    }
+
+    public void testPrepareForIndexRecoveryThrowsIndexShardClosedException() throws IOException {
+        IndexShard shard = newShard(randomBoolean());
+        DiscoveryNode target = getFakeDiscoNode("target");
+        shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), target, null));
+        closeShards(shard);
+        expectThrows(IndexShardClosedException.class, shard::prepareForIndexRecovery);
+    }
+
+    public void testRecoverLocallyUpToGlobalCheckpointFailsWithIndexShardClosedException() throws IOException {
+        IndexShard shard = newShard(randomBoolean());
+        DiscoveryNode source = getFakeDiscoNode("source");
+        DiscoveryNode target = getFakeDiscoNode("target");
+        shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), target, source));
+        closeShards(shard);
+        PlainActionFuture<Long> future = new PlainActionFuture<>();
+        shard.recoverLocallyUpToGlobalCheckpoint(future);
+        expectThrows(IndexShardClosedException.class, future::actionGet);
+    }
+
+    public void testOpenEngineAndRecoverFromTranslogThrowsIndexShardClosedException() throws IOException {
+        IndexShard shard = newStartedShard(true);
+        shard = reinitShard(shard);
+        DiscoveryNode target = getFakeDiscoNode("target");
+        shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), target, null));
+        shard.prepareForIndexRecovery();
+        shard.recoveryState().getIndex().setFileDetailsComplete();
+        closeShardNoCheck(shard);
+        try {
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            shard.openEngineAndRecoverFromTranslog(future);
+            expectThrows(IndexShardClosedException.class, future::actionGet);
+        } finally {
+            IOUtils.close(shard.store());
+        }
+    }
+
+    public void testResetRecoveryStageThrowsIndexShardClosedException() throws IOException {
+        final IndexMetadata metadata = newTestIndexMetadata();
+        final IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "node1", metadata, null);
+        recoverShardFromStore(primary);
+        final IndexShard replica = newShard(primary.shardId(), false, "node2", metadata, null);
+        final DiscoveryNode node1 = getFakeDiscoNode(primary.routingEntry().currentNodeId());
+        final DiscoveryNode node2 = getFakeDiscoNode(replica.routingEntry().currentNodeId());
+        replica.markAsRecovering("peer", new RecoveryState(replica.routingEntry(), node1, node2));
+        closeShards(primary, replica);
+        expectThrows(IndexShardClosedException.class, replica::resetRecoveryStage);
+    }
+
     public void testCompletionStatsMarksSearcherAccessed() throws Exception {
         IndexShard indexShard = null;
         try {

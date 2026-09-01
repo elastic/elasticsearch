@@ -2075,11 +2075,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void preRecovery(ActionListener<Void> listener) {
-        final IndexShardState currentState = this.state; // single volatile read
-        if (currentState == IndexShardState.CLOSED) {
-            throw new IndexShardNotRecoveringException(shardId, currentState);
-        }
-        assert currentState == IndexShardState.RECOVERING : "expected a recovering shard " + shardId + " but got " + currentState;
+        verifyRecovering();
         indexEventListener.beforeIndexShardRecovery(this, indexSettings, listener);
     }
 
@@ -2184,9 +2180,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * called before starting to copy index files over
      */
     public void prepareForIndexRecovery() {
-        if (state != IndexShardState.RECOVERING) {
-            throw new IndexShardNotRecoveringException(shardId, state);
-        }
+        verifyRecovering();
         recoveryState.setStage(RecoveryState.Stage.INDEX);
         assert currentEngine.get() == null;
     }
@@ -2199,8 +2193,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void recoverLocallyUpToGlobalCheckpoint(ActionListener<Long> recoveryStartingSeqNoListener) {
         assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
-        if (state != IndexShardState.RECOVERING) {
-            recoveryStartingSeqNoListener.onFailure(new IndexShardNotRecoveringException(shardId, state));
+        try {
+            verifyRecovering();
+        } catch (IndexShardClosedException e) {
+            recoveryStartingSeqNoListener.onFailure(e);
             return;
         }
         try {
@@ -2505,9 +2501,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private void innerOpenEngineAndTranslog(LongSupplier globalCheckpointSupplier) throws IOException {
         assert Thread.holdsLock(mutex) == false : "opening engine under mutex";
         assert assertNoEngineResetLock();
-        if (state != IndexShardState.RECOVERING) {
-            throw new IndexShardNotRecoveringException(shardId, state);
-        }
+        verifyRecovering();
         final EngineConfig config = newEngineConfig(globalCheckpointSupplier);
 
         // we disable deletes since we allow for operations to be executed against the shard while recovering
@@ -2617,9 +2611,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void resetRecoveryStage() {
         assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
         assert currentEngine.get() == null;
-        if (state != IndexShardState.RECOVERING) {
-            throw new IndexShardNotRecoveringException(shardId, state);
-        }
+        verifyRecovering();
         synchronized (mutex) {
             this.recoveryState = recoveryState().reset();
         }
@@ -2796,6 +2788,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             throw exc;
         }
+    }
+
+    /// Verify that current state is [IndexShardState#RECOVERING]
+    /// or throw [IndexShardClosedException] if shard has been [IndexShardState#CLOSED].
+    /// Treat other cases as bugs with assertion.
+    private void verifyRecovering() throws IndexShardClosedException {
+        final IndexShardState currentState = this.state; // single volatile read
+        if (currentState == IndexShardState.CLOSED) {
+            throw new IndexShardClosedException(shardId);
+        }
+        assert currentState == IndexShardState.RECOVERING : "expected a recovering shard " + shardId + " but got " + currentState;
     }
 
     /**

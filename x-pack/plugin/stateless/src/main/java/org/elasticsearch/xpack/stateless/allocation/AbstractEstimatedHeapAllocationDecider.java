@@ -26,6 +26,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.util.Comparator;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 /**
  * Base class for heap-usage-based allocation deciders. Provides the full allocation decision skeleton:
  * <ol>
@@ -63,8 +67,10 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
     // Pre-built decisions for cases whose explanation is fixed per decider instance. Avoids String
     // concatenation and Decision.Single allocation on every call through these guard checks.
     private final Decision disabledDecision;
-    private final Decision notIndexNodeDecision;
+    private final Decision notApplicableNodeDecision;
     private final Decision canRemainDisabledDecision;
+
+    private final Set<DiscoveryNodeRole> applicableRoles;
 
     protected final FrequencyCappedAction logCanRemainMessage;
     protected final FrequencyCappedAction logCanAllocateMessage;
@@ -72,16 +78,27 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
     /**
      * @param name              allocation-decider name passed to {@link RoutingAllocation#decision}
      * @param deciderDescription human-readable description used in decision messages, e.g. {@code "estimated heap"}
+     * @param applicableRoles   the set of node roles this decider acts on; nodes without any matching role receive an immediate YES
      */
-    protected AbstractEstimatedHeapAllocationDecider(String name, String deciderDescription, ClusterSettings clusterSettings) {
+    protected AbstractEstimatedHeapAllocationDecider(
+        String name,
+        String deciderDescription,
+        Set<DiscoveryNodeRole> applicableRoles,
+        ClusterSettings clusterSettings
+    ) {
         this.logger = LogManager.getLogger(getClass());
         this.name = name;
         this.deciderDescription = deciderDescription;
+        this.applicableRoles = applicableRoles;
         this.disabledDecision = Decision.single(Decision.Type.YES, name, deciderDescription + " allocation decider is disabled");
-        this.notIndexNodeDecision = Decision.single(
+        final String roleNames = applicableRoles.stream()
+            .map(DiscoveryNodeRole::roleName)
+            .sorted(Comparator.naturalOrder())
+            .collect(Collectors.joining(", "));
+        this.notApplicableNodeDecision = Decision.single(
             Decision.Type.YES,
             name,
-            deciderDescription + " allocation decider is applicable only to index nodes"
+            deciderDescription + " allocation decider is applicable only to " + roleNames + " nodes"
         );
         this.canRemainDisabledDecision = Decision.single(Decision.Type.YES, name, deciderDescription + " decider can remain disabled");
         logCanRemainMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
@@ -298,8 +315,8 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
             return allocation.debugDecision() ? disabledDecision : Decision.YES;
         }
 
-        if (node.node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
-            return allocation.debugDecision() ? notIndexNodeDecision : Decision.YES;
+        if (node.node().getRoles().stream().noneMatch(applicableRoles::contains)) {
+            return allocation.debugDecision() ? notApplicableNodeDecision : Decision.YES;
         }
 
         final NodeHeapMetrics nodeHeapMetrics = allocation.clusterInfo().getNodeHeapMetrics().get(node.nodeId());

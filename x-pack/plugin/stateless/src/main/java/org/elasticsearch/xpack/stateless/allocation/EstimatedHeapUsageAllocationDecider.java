@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.allocation;
 
 import org.elasticsearch.cluster.NodeHeapMetrics;
 import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -16,6 +17,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.xpack.stateless.EstimatedHeapSettings;
+
+import java.util.Set;
 
 /**
  * An allocation decider that prevents shard allocation to index nodes where the estimated total JVM heap usage
@@ -57,7 +60,7 @@ public class EstimatedHeapUsageAllocationDecider extends AbstractEstimatedHeapAl
     private final EstimatedHeapSettings estimatedHeapSettings;
 
     public EstimatedHeapUsageAllocationDecider(EstimatedHeapSettings estimatedHeapSettings, ClusterSettings clusterSettings) {
-        super(NAME, DESCRIPTION, clusterSettings);
+        super(NAME, DESCRIPTION, Set.of(DiscoveryNodeRole.INDEX_ROLE), clusterSettings);
         this.estimatedHeapSettings = estimatedHeapSettings;
     }
 

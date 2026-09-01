@@ -20,7 +20,7 @@ import java.util.List;
 
 import static org.hamcrest.CoreMatchers.is;
 
-public class AzureAiStudioChatCompletionRequestEntityTests extends ESTestCase {
+public class AzureAiStudioCompletionRequestEntityTests extends ESTestCase {
 
     public void testToXContent_WhenTokenEndpoint_NoParameters() throws IOException {
         var entity = new AzureAiStudioChatCompletionRequestEntity(

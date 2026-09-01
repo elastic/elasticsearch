@@ -20,17 +20,17 @@ import java.util.Objects;
  * {@link org.elasticsearch.inference.InferenceService#infer} code path. These are requests sent to the
  * API without using the {@link TaskType#CHAT_COMPLETION} task type.
  */
-public class ChatCompletionInput extends InferenceInputs {
+public class CompletionInput extends InferenceInputs {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ChatCompletionInput.class);
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CompletionInput.class);
 
     private final List<String> input;
 
-    public ChatCompletionInput(List<String> input) {
+    public CompletionInput(List<String> input) {
         this(input, false);
     }
 
-    public ChatCompletionInput(List<String> input, boolean stream) {
+    public CompletionInput(List<String> input, boolean stream) {
         super(stream);
         this.input = Objects.requireNonNull(input);
     }

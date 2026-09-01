@@ -12,7 +12,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
@@ -21,7 +21,7 @@ import java.util.List;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class OpenAiChatCompletionResponseEntity {
+public class OpenAiCompletionResponseEntity {
 
     /**
      * Parses the OpenAI chat completion response.
@@ -66,11 +66,11 @@ public class OpenAiChatCompletionResponseEntity {
      * </pre>
      */
 
-    public static ChatCompletionResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
+    public static CompletionResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
         return fromResponse(response.body());
     }
 
-    public static ChatCompletionResults fromResponse(byte[] response) throws IOException {
+    public static CompletionResults fromResponse(byte[] response) throws IOException {
         try (var p = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, response)) {
             return CompletionResult.PARSER.apply(p, null).toChatCompletionResults();
         }
@@ -88,10 +88,8 @@ public class OpenAiChatCompletionResponseEntity {
             PARSER.declareObjectArray(constructorArg(), Choice.PARSER::apply, new ParseField("choices"));
         }
 
-        public ChatCompletionResults toChatCompletionResults() {
-            return new ChatCompletionResults(
-                choices.stream().map(choice -> new ChatCompletionResults.Result(choice.message.content)).toList()
-            );
+        public CompletionResults toChatCompletionResults() {
+            return new CompletionResults(choices.stream().map(choice -> new CompletionResults.Result(choice.message.content)).toList());
         }
     }
 

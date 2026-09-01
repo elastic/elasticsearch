@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
+public class AzureAiStudioCompletionRequestTests extends ESTestCase {
 
     public void testCreateRequest_WithOpenAiProviderTokenEndpoint_NoParams() throws IOException {
         var request = createRequest(
@@ -428,7 +428,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
         return map;
     }
 
-    public static AzureAiStudioChatCompletionRequest createRequest(
+    public static AzureAiStudioCompletionRequest createRequest(
         String target,
         AzureAiStudioProvider provider,
         AzureAiStudioEndpointType endpointType,
@@ -438,7 +438,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
         return createRequest(target, provider, endpointType, apiKey, null, null, null, null, input);
     }
 
-    public static AzureAiStudioChatCompletionRequest createRequest(
+    public static AzureAiStudioCompletionRequest createRequest(
         String target,
         AzureAiStudioProvider provider,
         AzureAiStudioEndpointType endpointType,
@@ -461,6 +461,6 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             maxNewTokens,
             null
         );
-        return new AzureAiStudioChatCompletionRequest(model, List.of(input), false);
+        return new AzureAiStudioCompletionRequest(model, List.of(input), false);
     }
 }

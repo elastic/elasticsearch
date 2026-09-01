@@ -37,12 +37,12 @@ import java.util.stream.Collectors;
  * }
  *
  */
-public record ChatCompletionResults(List<Result> results) implements InferenceServiceResults {
+public record CompletionResults(List<Result> results) implements InferenceServiceResults {
 
     public static final String NAME = "chat_completion_service_results";
     public static final String COMPLETION = "completion";
 
-    public ChatCompletionResults(StreamInput in) throws IOException {
+    public CompletionResults(StreamInput in) throws IOException {
         this(in.readCollectionAsList(Result::new));
     }
 

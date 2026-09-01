@@ -4,7 +4,10 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+
 package org.elasticsearch.upgrades;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
@@ -16,10 +19,11 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -41,7 +45,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.oneOf;
 
-public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
+public class TransformSurvivesUpgradeIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
     private static final String TRANSFORM_ENDPOINT = "/_transform/";
     private static final String CONTINUOUS_TRANSFORM_ID = "continuous-transform-upgrade-job";
@@ -52,8 +56,16 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         .map(TimeValue::timeValueMinutes)
         .collect(Collectors.toList());
 
-    protected static void waitForPendingTransformTasks() throws Exception {
-        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(TRANSFORM_TASK_NAME) == false);
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildCluster();
+
+    public TransformSurvivesUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     @Override
@@ -64,11 +76,14 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         return builder.build();
     }
 
+    protected static void waitForPendingTransformTasks() throws Exception {
+        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(TRANSFORM_TASK_NAME) == false);
+    }
+
     /**
      * The purpose of this test is to ensure that when a transform is running through a rolling upgrade it
      * keeps working and does not fail
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84283")
     public void testTransformRollingUpgrade() throws Exception {
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity("""
@@ -83,26 +98,18 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         Request waitForYellow = new Request("GET", "/_cluster/health");
         waitForYellow.addParameter("wait_for_nodes", "3");
         waitForYellow.addParameter("wait_for_status", "yellow");
-        switch (CLUSTER_TYPE) {
-            case OLD -> {
-                client().performRequest(waitForYellow);
-                createAndStartContinuousTransform();
-            }
-            case MIXED -> {
-                client().performRequest(waitForYellow);
-                long lastCheckpoint = 1;
-                if (Booleans.parseBoolean(System.getProperty("tests.first_round")) == false) {
-                    lastCheckpoint = 2;
-                }
-                verifyContinuousTransformHandlesData(lastCheckpoint);
-            }
-            case UPGRADED -> {
-                client().performRequest(waitForYellow);
-                verifyContinuousTransformHandlesData(3);
-                verifyUpgrade();
-                cleanUpTransforms();
-            }
-            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        if (isOldCluster()) {
+            client().performRequest(waitForYellow);
+            createAndStartContinuousTransform();
+        } else if (isMixedCluster()) {
+            client().performRequest(waitForYellow);
+            long lastCheckpoint = isFirstMixedCluster() ? 1 : 2;
+            verifyContinuousTransformHandlesData(lastCheckpoint);
+        } else if (isUpgradedCluster()) {
+            client().performRequest(waitForYellow);
+            verifyContinuousTransformHandlesData(3);
+            verifyUpgrade();
+            cleanUpTransforms();
         }
     }
 

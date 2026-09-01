@@ -66,7 +66,7 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private final int noMatchSize;
     private final CustomFieldHighlighter fieldHighlighter;
     private final int maxAnalyzedOffset;
-    private final Integer queryMaxAnalyzedOffset;
+    private final QueryMaxAnalyzedOffset queryMaxAnalyzedOffset;
 
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
@@ -94,7 +94,7 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
         int noMatchSize,
         int maxPassages,
         int maxAnalyzedOffset,
-        Integer queryMaxAnalyzedOffset,
+        QueryMaxAnalyzedOffset queryMaxAnalyzedOffset,
         boolean requireFieldMatch,
         boolean weightMatchesEnabled
     ) {
@@ -125,9 +125,9 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
             return null;
         }
         int fieldValueLength = fieldValue.length();
-        if (((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset > maxAnalyzedOffset)
+        if ((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset.getNotNull() > maxAnalyzedOffset)
             && (getOffsetSource(field) == OffsetSource.ANALYSIS)
-            && (fieldValueLength > maxAnalyzedOffset))) {
+            && (fieldValueLength > maxAnalyzedOffset)) {
             throw new IllegalArgumentException(
                 "The length ["
                     + fieldValueLength

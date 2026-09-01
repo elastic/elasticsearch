@@ -13,10 +13,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.test.ParameterizedRollingUpgradeTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.upgrades.ParameterizedRollingUpgradeTestCase;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -31,10 +31,6 @@ public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCas
 
     static final String MODELS_RENAMED_TO_ENDPOINTS = "8.15.0";
 
-    public InferenceUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
-        super(upgradedNodes);
-    }
-
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -43,6 +39,10 @@ public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCas
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .build();
+
+    public InferenceUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     @Override
     protected ElasticsearchCluster getUpgradeCluster() {

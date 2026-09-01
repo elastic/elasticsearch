@@ -55,8 +55,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class ApiKeyBackwardsCompatibilityIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
-    private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
-
     public ApiKeyBackwardsCompatibilityIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }

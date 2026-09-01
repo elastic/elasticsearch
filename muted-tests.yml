@@ -16,9 +16,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/search/retriever/line_983}
   issue: https://github.com/elastic/elasticsearch/issues/156119
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.highlight/30_max_analyzed_offset/Plain highlighter with max_analyzed_offset < 0 should FAIL}
-  issue: https://github.com/elastic/elasticsearch/issues/156122
 - class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
   method: test500Queries
   issue: https://github.com/elastic/elasticsearch/issues/148056
@@ -60,9 +57,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.ManyRequestsIT
   method: testManyRequests
   issue: https://github.com/elastic/elasticsearch/issues/151627
-- class: org.elasticsearch.xpack.inference.InferenceRestIT
-  method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
-  issue: https://github.com/elastic/elasticsearch/issues/157795
 - class: org.elasticsearch.xpack.ilm.actions.RolloverActionIT
   method: testILMRolloverRetriesOnReadOnlyBlock
   issue: https://github.com/elastic/elasticsearch/issues/157832
@@ -75,6 +69,67 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Explain data frame analytics}
   issue: https://github.com/elastic/elasticsearch/issues/157943
+- class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
+  method: testSnapshotUpgrader {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/158091
+- class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
+  method: testSnapshotUpgrader {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/158092
+- class: org.elasticsearch.upgrades.RolesBackwardsCompatibilityIT
+  issue: https://github.com/elastic/elasticsearch/issues/158093
+- class: org.elasticsearch.upgrades.SemanticTextUpgradeIT
+  issue: https://github.com/elastic/elasticsearch/issues/158094
+- class: org.elasticsearch.upgrades.MlAssignmentPlannerUpgradeIT
+  method: testMlAssignmentPlannerUpgrade {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/158099
+- class: org.elasticsearch.upgrades.MlAssignmentPlannerUpgradeIT
+  method: testMlAssignmentPlannerUpgrade {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/158100
+- class: org.elasticsearch.upgrades.ApiKeyBackwardsCompatibilityIT
+  method: testCreatingAndUpdatingApiKeys {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/158101
+- class: org.elasticsearch.upgrades.ApiKeyBackwardsCompatibilityIT
+  method: testCreatingAndUpdatingApiKeys {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/158102
+- class: org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests
+  method: testInvalidMaxAnalyzedOffset
+  issue: https://github.com/elastic/elasticsearch/issues/158105
+- class: org.elasticsearch.upgrades.XpackSystemIndicesUpgradeIT
+  method: testUpgradeSystemIndexAndDataStream {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/158120
+- class: org.elasticsearch.upgrades.XpackSystemIndicesUpgradeIT
+  method: testUpgradeSystemIndexAndDataStream {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/158121
+- class: org.elasticsearch.upgrades.XpackSystemIndicesUpgradeIT
+  method: testUpgradeSystemIndexAndDataStream {upgradedNodes=0}
+  issue: https://github.com/elastic/elasticsearch/issues/158122
+- class: org.elasticsearch.upgrades.XpackSystemIndicesUpgradeIT
+  method: testUpgradeSystemIndexAndDataStream {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/158123
+- class: org.elasticsearch.index.mapper.BinaryFieldMapperTests
+  method: testSyntheticSourceMany
+  issue: https://github.com/elastic/elasticsearch/issues/158124
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster}
+  issue: https://github.com/elastic/elasticsearch/issues/158132
+- class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
+  method: testUniDirectionalIndexFollowing
+  issue: https://github.com/elastic/elasticsearch/issues/153050
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=upgraded_cluster/90_ml_data_frame_analytics_crud/Get mixed cluster outlier_detection job stats}
+  issue: https://github.com/elastic/elasticsearch/issues/158136
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=upgraded_cluster/90_ml_data_frame_analytics_crud/Get mixed cluster outlier_detection job}
+  issue: https://github.com/elastic/elasticsearch/issues/158137
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/preview_datafeed/Test preview aggregation datafeed with doc_count}
+  issue: https://github.com/elastic/elasticsearch/issues/158138
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
+  issue: https://github.com/elastic/elasticsearch/issues/158139
+- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
+  method: testExchangeSourceContinueOnFailure
+  issue: https://github.com/elastic/elasticsearch/issues/157535
 
 # Examples:
 #

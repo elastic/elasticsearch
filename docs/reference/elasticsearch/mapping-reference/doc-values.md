@@ -229,16 +229,16 @@ The response returns `_source.kw: ["val1","val2","val3"]` and `_ignored: ["kw"]`
 
 ### Interaction with multi-fields [doc-values-on-failure-multi-fields]
 
-[Multi-fields](/reference/elasticsearch/mapping-reference/multi-fields.md) are always parsed independently of their parent field. A `multi_value: false` or `nullability: false` violation on the parent does **not** propagate to its sub-fields — every value that the parent rejected is still passed to each multi-field, which then applies its own `doc_values` configuration. This is consistent with the general rule that [a multi-field inherits no mapping options from its parent](/reference/elasticsearch/mapping-reference/multi-fields.md), and with how `ignore_above` and `ignore_malformed` already behave.
+[Multi-fields](/reference/elasticsearch/mapping-reference/multi-fields.md) are always parsed independently of their parent field. A `multi_value: false` or `nullability: false` violation on the parent does **not** propagate to its sub-fields. Every value that the parent rejected is still passed to each multi-field, which then applies its own `doc_values` configuration. This is consistent with the general rule that [a multi-field inherits no mapping options from its parent](/reference/elasticsearch/mapping-reference/multi-fields.md), and with how `ignore_above` and `ignore_malformed` already behave.
 
 As a consequence, parent and multi-field can legitimately hold **different** value sets. A query on `field.raw` may match a value that a query on `field` does not, because the parent redirected that value to its failure column while the multi-field indexed it normally.
 
 To give a sub-field the same single-value semantics, configure `doc_values: { multi_value: false }` on the sub-field itself. It then enforces the constraint independently and redirects its own duplicate to a separate `<field>.<sub>._on_failure` column.
 
-The index-level defaults ([`index.mapping.doc_values.multi_value`](#doc-values-multi-value), [`index.mapping.doc_values.nullability`](#doc-values-nullability), and [`index.mapping.doc_values.on_failure`](#doc-values-on-failure)) apply to every field in the index, multi-fields included. That is the only path by which a sub-field picks up a constraint it does not name in its own mapping.
+The index-level defaults ([`index.mapping.doc_values.multi_value`](#doc-values-multi-value), [`index.mapping.doc_values.nullability`](#doc-values-nullability), and [`index.mapping.doc_values.on_failure`](#doc-values-on-failure)) apply to every field in the index, multi-fields included. This is the only way a sub-field inherits a constraint not named in its own mapping.
 
 ::::{important}
-A sub-field that has `multi_value: false` at the default `on_failure: fail` will **reject the whole document** even when its parent is configured to `ignore` the violation, because each field's `on_failure` setting is evaluated independently.
+A sub-field with `multi_value: false` at the default `on_failure: fail` rejects the entire document. This occurs even when its parent is configured to ignore the violation, because each field's `on_failure` setting is evaluated independently.
 ::::
 
 The following example illustrates the asymmetry. The parent `kw` is configured with `multi_value: false, on_failure: ignore`, while the sub-field `kw.raw` uses the defaults. Indexing `["val1","val2"]` keeps `val1` in `kw` and indexes both values in `kw.raw`:

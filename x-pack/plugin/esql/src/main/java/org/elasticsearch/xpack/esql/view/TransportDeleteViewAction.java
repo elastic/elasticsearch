@@ -84,6 +84,13 @@ public class TransportDeleteViewAction extends AcknowledgedTransportMasterNodePr
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
+        for (String name : viewNames) {
+            if (SystemViews.isSystemView(name)) {
+                // Checked after wildcard resolution so a pattern that expands to a system view is rejected too.
+                listener.onFailure(new IllegalArgumentException("system view [" + name + "] cannot be deleted"));
+                return;
+            }
+        }
         viewService.deleteViews(state.projectId(), request.masterNodeTimeout(), request.ackTimeout(), viewNames, listener);
     }
 

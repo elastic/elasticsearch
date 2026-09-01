@@ -120,6 +120,72 @@ public class ViewRestTests extends AbstractViewTestCase {
         assertNull(response.getViews().iterator().next().description());
     }
 
+    public void testSystemViewIsBootstrappedOnStartup() throws Exception {
+        // SystemViewsCreator runs as a master-only cluster-state listener, so the built-in view materializes shortly
+        // after the node forms its (single-node) cluster. Wait for it rather than assuming it is instantly present.
+        awaitSystemView(systemViewName());
+    }
+
+    public void testSystemViewCannotBeUpdated() {
+        // The guard is purely name-based, so it rejects regardless of whether the bootstrap has run yet.
+        final String systemView = systemViewName();
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(systemView, "FROM blah"))
+            ).actionGet(TEST_REQUEST_TIMEOUT)
+        );
+        assertThat(error.getMessage(), equalTo("system view [" + systemView + "] cannot be updated"));
+    }
+
+    public void testSystemViewCannotBeDeletedByName() throws Exception {
+        final String systemView = systemViewName();
+        // The delete path resolves names against cluster state first, so the view must exist to reach the guard.
+        awaitSystemView(systemView);
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { systemView })
+            ).actionGet(TEST_REQUEST_TIMEOUT)
+        );
+        assertThat(error.getMessage(), equalTo("system view [" + systemView + "] cannot be deleted"));
+    }
+
+    public void testSystemViewCannotBeDeletedByWildcard() throws Exception {
+        final String systemView = systemViewName();
+        awaitSystemView(systemView);
+        // A wildcard that expands to the system view must be rejected too, since the guard runs after resolution.
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { ".ml-*" })
+            ).actionGet(TEST_REQUEST_TIMEOUT)
+        );
+        assertThat(error.getMessage(), equalTo("system view [" + systemView + "] cannot be deleted"));
+    }
+
+    private static String systemViewName() {
+        return SystemViews.VIEWS.keySet().iterator().next();
+    }
+
+    private void awaitSystemView(String systemView) throws Exception {
+        assertBusy(() -> {
+            GetViewAction.Request getRequest = new GetViewAction.Request(TEST_REQUEST_TIMEOUT);
+            getRequest.indices(systemView);
+            final GetViewAction.Response response;
+            try {
+                response = client().execute(GetViewAction.INSTANCE, getRequest).actionGet(TEST_REQUEST_TIMEOUT);
+            } catch (ResourceNotFoundException e) {
+                throw new AssertionError("system view [" + systemView + "] not created yet", e);
+            }
+            assertThat(response.getViews(), hasSize(1));
+            assertThat(response.getViews().iterator().next().name(), equalTo(systemView));
+        });
+    }
+
     public void testGetViewByMissingNameReturnsCleanNotFound() {
         // GET a view by a name that does not exist. The view resolver throws IndexNotFoundException; the transport must
         // translate it to a clean view-shaped not-found, never leak the raw index_not_found_exception. Mirrors the

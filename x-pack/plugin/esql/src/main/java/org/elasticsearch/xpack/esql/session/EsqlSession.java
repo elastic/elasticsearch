@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -100,7 +101,6 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.plan.ClusterQuerySettings;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
@@ -219,7 +219,7 @@ public class EsqlSession {
     private final RemoteClusterService remoteClusterService;
     private final BlockFactory blockFactory;
     private final PlannerSettings plannerSettings;
-    private final ClusterQuerySettings clusterQuerySettings;
+    private final ClusterService clusterService;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
     private final String localNodeName;
@@ -343,7 +343,7 @@ public class EsqlSession {
         this.remoteClusterService = services.transportService().getRemoteClusterService();
         this.blockFactory = services.blockFactoryProvider().blockFactory();
         this.plannerSettings = plannerSettings;
-        this.clusterQuerySettings = services.clusterQuerySettings();
+        this.clusterService = services.clusterService();
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
         this.localNodeName = services.clusterService().getNodeName();
@@ -401,7 +401,8 @@ public class EsqlSession {
         // supplied, before any view-resolution work. An operator's cluster default can never fail a query here: if it
         // is no longer usable the setting falls back to its built-in default, and the operator is told separately.
         ResolvedSettings resolved = QuerySettings.resolve(
-            clusterQuerySettings.values(),
+            clusterService.state().metadata().settings(),
+            clusterService.getSettings(),
             request.requestSettings(),
             statement,
             SettingsValidationContext.from(crossProjectModeDecider)

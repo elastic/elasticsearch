@@ -445,6 +445,16 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         AtomicBoolean flattenedDataTypeEnabled = new AtomicBoolean(FLATTENED_ENABLED.get(settings));
         services.clusterService().getClusterSettings().addSettingsUpdateConsumer(FLATTENED_ENABLED, flattenedDataTypeEnabled::set);
 
+        // An operator default this node cannot use is ignored at resolution and the built-in default applies, so
+        // without this warning the operator would see their configuration silently not take effect. Only the update
+        // path needs it: an unusable value in elasticsearch.yml already stops the node starting.
+        services.clusterService()
+            .getClusterSettings()
+            .addSettingsUpdateConsumer(
+                updated -> QuerySettings.warnUnusableClusterDefaults(updated, services.clusterService().getSettings()),
+                QuerySettings.clusterSettings()
+            );
+
         // Create DataSourceModule with all discovered plugins.
         // This executor backs SPI coordination, decompression, and async-I/O plugin callbacks (e.g. the HTTP
         // client) — NOT the file-read path. Blocking external reads run on the esql_worker pool via

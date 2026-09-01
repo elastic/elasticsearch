@@ -315,8 +315,8 @@ public final class QuerySettingDef<T> {
      * reachable only for cluster state arriving over the wire, since yml is validated at startup and recovered state
      * is archived rather than applied.
      */
-    T effectiveDefault(Settings clusterDefaults) {
-        String raw = clusterSetting == null ? null : clusterDefaults.get(clusterSetting.getKey());
+    T effectiveDefault(Settings clusterState, Settings nodeSettings) {
+        String raw = rawOperatorValue(clusterState, nodeSettings);
         if (raw == null) {
             // Absent and present-but-null both read as null here, and "unset" is the right reading of both, so
             // testing Setting#exists as well would add nothing.
@@ -352,8 +352,8 @@ public final class QuerySettingDef<T> {
      * configuration simply not apply.
      */
     @Nullable
-    String clusterValueError(Settings clusterDefaults) {
-        String raw = clusterSetting == null ? null : clusterDefaults.get(clusterSetting.getKey());
+    String clusterValueError(Settings clusterState, Settings nodeSettings) {
+        String raw = rawOperatorValue(clusterState, nodeSettings);
         if (raw == null) {
             return null;
         }
@@ -371,6 +371,20 @@ public final class QuerySettingDef<T> {
         } catch (Exception e) {
             return describe(e);
         }
+    }
+
+    /**
+     * The operator's configured value as written, or {@code null} if there is none. Cluster state wins over
+     * {@code elasticsearch.yml}, which is the precedence {@code AbstractScopedSettings} itself applies when it merges
+     * the two — read here from the same two sources rather than from a mirror of them.
+     */
+    @Nullable
+    private String rawOperatorValue(Settings clusterState, Settings nodeSettings) {
+        if (clusterSetting == null) {
+            return null;
+        }
+        String fromClusterState = clusterState.get(clusterSetting.getKey());
+        return fromClusterState != null ? fromClusterState : nodeSettings.get(clusterSetting.getKey());
     }
 
     /** Never null: a null message here would report "usable" for a value {@link #effectiveDefault} is falling back on. */

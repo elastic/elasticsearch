@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -52,6 +54,8 @@ import java.util.Map;
  * {@code MY_SETTING.get(resolvedSettings)}.
  */
 public final class QuerySettings {
+
+    private static final Logger logger = LogManager.getLogger(QuerySettings.class);
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(QuerySettings.class);
 
@@ -356,29 +360,50 @@ public final class QuerySettings {
      * applying each setting's {@link QuerySettingDef#reconciler()} at every step. The chain is ordered by whose
      * decision a value is: the product's, the operator's, the calling application's, the query author's.
      *
-     * @param clusterDefaults the cluster settings as an operator left them, see {@link ClusterQuerySettings};
-     *     {@link Settings#EMPTY} for a caller with no cluster context
+     * @param clusterState the cluster-state settings, {@link Settings#EMPTY} for a caller with no cluster context
+     * @param nodeSettings this node's settings, which carry any {@code elasticsearch.yml} value
      */
     public static ResolvedSettings resolve(
-        Settings clusterDefaults,
+        Settings clusterState,
+        Settings nodeSettings,
         Map<QuerySettingDef<?>, Object> requestParams,
         @Nullable EsqlStatement statement,
         SettingsValidationContext ctx
     ) {
-        return resolve(all(), clusterDefaults, requestParams, statement, ctx);
+        return resolve(all(), clusterState, nodeSettings, requestParams, statement, ctx);
+    }
+
+    /**
+     * Log any operator default this node cannot use. Resolution falls back to the built-in default for such a value
+     * rather than failing queries, so without this the operator would have no signal at all.
+     */
+    public static void warnUnusableClusterDefaults(Settings clusterState, Settings nodeSettings) {
+        for (QuerySettingDef<?> def : all()) {
+            String error = def.clusterValueError(clusterState, nodeSettings);
+            if (error != null) {
+                logger.warn(
+                    "Cluster setting [{}{}] is configured but not usable on this cluster and is being ignored; "
+                        + "queries fall back to the built-in default. Reason: {}",
+                    QuerySettingDef.CLUSTER_SETTING_PREFIX,
+                    def.name(),
+                    error
+                );
+            }
+        }
     }
 
     // Parameterized over the registry so the fold is testable against a purpose-built setting, as byName(List) is.
     static ResolvedSettings resolve(
         List<QuerySettingDef<?>> defs,
-        Settings clusterDefaults,
+        Settings clusterState,
+        Settings nodeSettings,
         Map<QuerySettingDef<?>, Object> requestParams,
         @Nullable EsqlStatement statement,
         SettingsValidationContext ctx
     ) {
         Map<QuerySettingDef<?>, Object> resolved = new HashMap<>();
         for (QuerySettingDef<?> def : defs) {
-            resolveSingle(def, clusterDefaults, requestParams, statement, ctx, resolved);
+            resolveSingle(def, clusterState, nodeSettings, requestParams, statement, ctx, resolved);
         }
         return new ResolvedSettings(resolved);
     }
@@ -389,13 +414,14 @@ public final class QuerySettings {
         @Nullable EsqlStatement statement,
         SettingsValidationContext ctx
     ) {
-        return resolve(Settings.EMPTY, requestParams, statement, ctx);
+        return resolve(Settings.EMPTY, Settings.EMPTY, requestParams, statement, ctx);
     }
 
     @SuppressWarnings("unchecked")
     private static <T> void resolveSingle(
         QuerySettingDef<T> def,
-        Settings clusterDefaults,
+        Settings clusterState,
+        Settings nodeSettings,
         Map<QuerySettingDef<?>, Object> requestParams,
         @Nullable EsqlStatement statement,
         SettingsValidationContext ctx,
@@ -403,7 +429,7 @@ public final class QuerySettings {
     ) {
         // Never userSupplied: an operator's value was checked where the operator could see the failure, and must
         // not be revalidated under the query-time context.
-        T value = def.effectiveDefault(clusterDefaults);
+        T value = def.effectiveDefault(clusterState, nodeSettings);
         boolean userSupplied = false;
 
         if (requestParams.containsKey(def)) {

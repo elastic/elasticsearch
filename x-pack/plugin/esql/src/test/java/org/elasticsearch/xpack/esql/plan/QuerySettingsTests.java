@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.hamcrest.Matcher;
 import org.junit.AfterClass;
 
@@ -46,6 +49,7 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -654,6 +658,69 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(QuerySettings.PROJECT_ROUTING.clusterSetting(), is(nullValue()));
     }
 
+    public void testDerivedSettingsAreRegisteredByThePlugin() {
+        // Without this the documented keys are unwritable — PUT _cluster/settings rejects them as unknown and a node
+        // carrying one in elasticsearch.yml refuses to start — while every other test still passes.
+        List<Setting<?>> pluginSettings = new EsqlPlugin().getSettings();
+        for (Setting<?> derived : QuerySettings.clusterSettings()) {
+            assertThat(pluginSettings, hasItem(derived));
+        }
+    }
+
+    public void testNodeSettingsSupplyTheDefaultWhenClusterStateHasNone() {
+        // The elasticsearch.yml path. Both sources are read directly, so a yml value applies with no cluster state.
+        ResolvedSettings resolved = QuerySettings.resolve(
+            Settings.EMPTY,
+            clusterSetting(QuerySettings.TIME_ZONE, "Europe/Paris"),
+            Map.of(),
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Europe/Paris")));
+    }
+
+    public void testClusterStateWinsOverNodeSettings() {
+        // The precedence AbstractScopedSettings itself applies when it merges the two.
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.TIME_ZONE, "Asia/Tokyo"),
+            clusterSetting(QuerySettings.TIME_ZONE, "Europe/Paris"),
+            Map.of(),
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Asia/Tokyo")));
+    }
+
+    public void testUnusableValueIsReportedOnTheOperatorChannel() {
+        // Resolution falls back silently, so this log is the only thing telling an operator their configuration is
+        // being ignored.
+        String key = QuerySettingDef.CLUSTER_SETTING_PREFIX + QuerySettings.UNMAPPED_FIELDS.name();
+        Settings unusable = Settings.builder().put(key, "not_a_resolution").build();
+        MockLog.assertThatLogger(
+            () -> QuerySettings.warnUnusableClusterDefaults(unusable, Settings.EMPTY),
+            QuerySettings.class,
+            new MockLog.SeenEventExpectation(
+                "unusable operator value",
+                QuerySettings.class.getCanonicalName(),
+                Level.WARN,
+                "*" + key + "*not usable*fall back*Invalid unmapped_fields resolution*"
+            )
+        );
+    }
+
+    public void testUsableAndAbsentValuesAreNotReported() {
+        MockLog.assertThatLogger(
+            () -> QuerySettings.warnUnusableClusterDefaults(clusterSetting(QuerySettings.TIME_ZONE, "Europe/Paris"), Settings.EMPTY),
+            QuerySettings.class,
+            new MockLog.UnseenEventExpectation("no warning", QuerySettings.class.getCanonicalName(), Level.WARN, "*")
+        );
+        MockLog.assertThatLogger(
+            () -> QuerySettings.warnUnusableClusterDefaults(Settings.EMPTY, Settings.EMPTY),
+            QuerySettings.class,
+            new MockLog.UnseenEventExpectation("no warning", QuerySettings.class.getCanonicalName(), Level.WARN, "*")
+        );
+    }
+
     public void testDerivedClusterSettingIsDynamicAndNodeScoped() {
         for (Setting<?> setting : QuerySettings.clusterSettings()) {
             assertThat(setting.getKey(), setting.isDynamic(), is(true));
@@ -675,6 +742,7 @@ public class QuerySettingsTests extends ESTestCase {
     public void testClusterDefaultAppliesWhenNoPerQuerySource() {
         ResolvedSettings resolved = QuerySettings.resolve(
             clusterSetting(QuerySettings.TIME_ZONE, "Europe/Paris"),
+            Settings.EMPTY,
             Map.of(),
             null,
             SNAPSHOT_CTX_WITH_CPS_ENABLED
@@ -687,6 +755,7 @@ public class QuerySettingsTests extends ESTestCase {
         requestParams.put(QuerySettings.TIME_ZONE, ZoneId.of("Asia/Tokyo"));
         ResolvedSettings resolved = QuerySettings.resolve(
             clusterSetting(QuerySettings.TIME_ZONE, "Europe/Paris"),
+            Settings.EMPTY,
             requestParams,
             null,
             SNAPSHOT_CTX_WITH_CPS_ENABLED
@@ -703,6 +772,7 @@ public class QuerySettingsTests extends ESTestCase {
         EsqlStatement statement = new EsqlStatement(null, List.of(set));
         ResolvedSettings resolved = QuerySettings.resolve(
             clusterSetting(QuerySettings.TIME_ZONE, "Europe/Paris"),
+            Settings.EMPTY,
             requestParams,
             statement,
             SNAPSHOT_CTX_WITH_CPS_ENABLED
@@ -721,12 +791,20 @@ public class QuerySettingsTests extends ESTestCase {
             .withClusterDefault()
             .build();
 
-        ResolvedSettings unset = QuerySettings.resolve(List.of(merging), Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        ResolvedSettings unset = QuerySettings.resolve(
+            List.of(merging),
+            Settings.EMPTY,
+            Settings.EMPTY,
+            Map.of(),
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
         assertThat("an unset key must leave the registry default alone", unset.get(merging), equalTo("d"));
 
         ResolvedSettings set = QuerySettings.resolve(
             List.of(merging),
             Settings.builder().put(merging.clusterSetting().getKey(), "op").build(),
+            Settings.EMPTY,
             Map.of(),
             null,
             SNAPSHOT_CTX_WITH_CPS_ENABLED
@@ -737,19 +815,28 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testUnsetClusterLayerLeavesResolutionUnchanged() {
-        ResolvedSettings withEmptyCluster = QuerySettings.resolve(Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        ResolvedSettings withEmptyCluster = QuerySettings.resolve(
+            Settings.EMPTY,
+            Settings.EMPTY,
+            Map.of(),
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
         ResolvedSettings withoutClusterLayer = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
         assertThat(withEmptyCluster, equalTo(withoutClusterLayer));
 
         // An unrelated key present in the same Settings must not be mistaken for one of ours.
         Settings unrelated = Settings.builder().put("esql.query.allow_partial_results", false).build();
-        assertThat(QuerySettings.resolve(unrelated, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED), equalTo(withoutClusterLayer));
+        assertThat(
+            QuerySettings.resolve(unrelated, Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED),
+            equalTo(withoutClusterLayer)
+        );
     }
 
     public void testSettingWithoutClusterDefaultIgnoresItsWouldBeKey() {
         // column_metadata did not opt in, so even a value sitting at its would-be key changes nothing.
         Settings stray = Settings.builder().put("esql.query.settings.column_metadata", true).build();
-        ResolvedSettings resolved = QuerySettings.resolve(stray, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        ResolvedSettings resolved = QuerySettings.resolve(stray, Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
         assertThat(resolved.get(QuerySettings.COLUMN_METADATA), equalTo(Boolean.FALSE));
         assertThat(resolved, equalTo(QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED)));
     }
@@ -761,6 +848,7 @@ public class QuerySettingsTests extends ESTestCase {
         // write-time context reports, so assert against that rather than hardcoding one build type.
         ResolvedSettings resolved = QuerySettings.resolve(
             clusterSetting(QuerySettings.UNMAPPED_FIELDS, "LOAD_ALL"),
+            Settings.EMPTY,
             Map.of(),
             null,
             SNAPSHOT_CTX_WITH_CPS_ENABLED
@@ -781,11 +869,18 @@ public class QuerySettingsTests extends ESTestCase {
             .build();
         Settings drifted = Settings.builder().put(def.clusterSetting().getKey(), "drifted").build();
 
-        ResolvedSettings resolved = QuerySettings.resolve(List.of(def), drifted, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        ResolvedSettings resolved = QuerySettings.resolve(
+            List.of(def),
+            drifted,
+            Settings.EMPTY,
+            Map.of(),
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
         assertThat(resolved.get(def), equalTo("ok"));
 
         // ... and the operator is told, on their own channel rather than in every query.
-        assertThat(def.clusterValueError(drifted), equalTo("no longer valid in this environment"));
+        assertThat(def.clusterValueError(drifted, Settings.EMPTY), equalTo("no longer valid in this environment"));
     }
 
     public void testUnparseableOperatorValueFallsBackToTheRegistryDefault() {
@@ -799,9 +894,9 @@ public class QuerySettingsTests extends ESTestCase {
         }).withDefault("ok").withClusterDefault().build();
         Settings bad = Settings.builder().put(def.clusterSetting().getKey(), "bad").build();
 
-        ResolvedSettings resolved = QuerySettings.resolve(List.of(def), bad, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        ResolvedSettings resolved = QuerySettings.resolve(List.of(def), bad, Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
         assertThat(resolved.get(def), equalTo("ok"));
-        assertThat(def.clusterValueError(bad), containsString("cannot parse [bad]"));
+        assertThat(def.clusterValueError(bad, Settings.EMPTY), containsString("cannot parse [bad]"));
     }
 
     public void testValidatorThrowingAtResolveTimeFallsBackAndIsReported() {
@@ -815,8 +910,11 @@ public class QuerySettingsTests extends ESTestCase {
         }).withClusterDefault().build();
         Settings boom = Settings.builder().put(def.clusterSetting().getKey(), "boom").build();
 
-        assertThat(QuerySettings.resolve(List.of(def), boom, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED).get(def), equalTo("ok"));
-        assertThat(def.clusterValueError(boom), equalTo("validator blew up"));
+        assertThat(
+            QuerySettings.resolve(List.of(def), boom, Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED).get(def),
+            equalTo("ok")
+        );
+        assertThat(def.clusterValueError(boom, Settings.EMPTY), equalTo("validator blew up"));
     }
 
     public void testCanonicalizerRejectingTheOperatorValueFallsBack() {
@@ -830,7 +928,10 @@ public class QuerySettingsTests extends ESTestCase {
         }).withClusterDefault().build();
         Settings bad = Settings.builder().put(def.clusterSetting().getKey(), "unrepresentable").build();
 
-        assertThat(QuerySettings.resolve(List.of(def), bad, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED).get(def), equalTo("ok"));
+        assertThat(
+            QuerySettings.resolve(List.of(def), bad, Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED).get(def),
+            equalTo("ok")
+        );
     }
 
     public void testErrorIsReportedForAnExceptionCarryingNoMessage() {
@@ -844,15 +945,21 @@ public class QuerySettingsTests extends ESTestCase {
         }).withDefault("ok").withClusterDefault().build();
         Settings any = Settings.builder().put(def.clusterSetting().getKey(), "whatever").build();
 
-        String error = def.clusterValueError(any);
+        String error = def.clusterValueError(any, Settings.EMPTY);
         assertThat(error, is(notNullValue()));
         assertThat(error, is(not(emptyString())));
-        assertThat(QuerySettings.resolve(List.of(def), any, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED).get(def), equalTo("ok"));
+        assertThat(
+            QuerySettings.resolve(List.of(def), any, Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED).get(def),
+            equalTo("ok")
+        );
     }
 
     public void testUsableOperatorValueReportsNoError() {
-        assertThat(QuerySettings.TIME_ZONE.clusterValueError(clusterSetting(QuerySettings.TIME_ZONE, "Europe/Paris")), is(nullValue()));
-        assertThat(QuerySettings.TIME_ZONE.clusterValueError(Settings.EMPTY), is(nullValue()));
+        assertThat(
+            QuerySettings.TIME_ZONE.clusterValueError(clusterSetting(QuerySettings.TIME_ZONE, "Europe/Paris"), Settings.EMPTY),
+            is(nullValue())
+        );
+        assertThat(QuerySettings.TIME_ZONE.clusterValueError(Settings.EMPTY, Settings.EMPTY), is(nullValue()));
     }
 
     public void testBuildRejectsClusterDefaultWhoseDefaultDoesNotParse() {
@@ -889,6 +996,7 @@ public class QuerySettingsTests extends ESTestCase {
         assertNotNull(QuerySettings.UNMAPPED_FIELDS.clusterSetting());
         ResolvedSettings resolved = QuerySettings.resolve(
             clusterSetting(QuerySettings.UNMAPPED_FIELDS, "NULLIFY"),
+            Settings.EMPTY,
             Map.of(),
             null,
             SNAPSHOT_CTX_WITH_CPS_ENABLED

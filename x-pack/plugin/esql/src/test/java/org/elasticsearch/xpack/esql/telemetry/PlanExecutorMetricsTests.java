@@ -20,6 +20,7 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -64,7 +65,6 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.plan.ClusterQuerySettings;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -126,7 +126,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             IpLocationService.NOOP,
             new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
             new PlannerSettings.Holder(clusterService),
-            ClusterQuerySettings.EMPTY,
             cpsDecider
         );
     }
@@ -142,6 +141,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         settings.addAll(PlannerSettings.settings());
         var clusterSettings = new ClusterSettings(Settings.EMPTY, settings);
         doReturn(clusterSettings).when(service).getClusterSettings();
+        // Query-setting resolution reads the cluster-state settings for operator-supplied defaults.
+        doReturn(ClusterState.EMPTY_STATE).when(service).state();
         return service;
     }
 

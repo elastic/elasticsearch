@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.parquet;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
@@ -29,7 +30,7 @@ public class Clusters {
     /**
      * Installs the project-encryption-key (PEK) secure settings so data-source secrets can be encrypted
      * when a data source is registered via {@code PUT /_query/data_source}. Mirrors the single-node esql
-     * qa datasource-CRUD cluster config. Applied only by {@link #testClusterWithEncryption}.
+     * qa datasource-CRUD cluster config. Applied only by the encryption-enabled cluster helpers.
      */
     private static final LocalClusterConfigProvider DATASET_ENCRYPTION_CONFIG = builder -> builder.keystore(
         "cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID,
@@ -59,9 +60,25 @@ public class Clusters {
     }
 
     public static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier, LocalClusterConfigProvider configProvider) {
+        return clusterBuilder(s3EndpointSupplier, configProvider).shared(true).build();
+    }
+
+    /**
+     * A non-shared, {@code nodeCount}-node variant of {@link #testClusterWithEncryption(Supplier)}. Needed by suites
+     * whose subject is <em>where</em> an external read runs: the
+     * shared single-node cluster collapses the coordinator and the data node onto one JVM, so it cannot distinguish a
+     * coordinator-local scan from one shipped to another node.
+     */
+    public static ElasticsearchCluster multiNodeTestClusterWithEncryption(Supplier<String> s3EndpointSupplier, int nodeCount) {
+        return clusterBuilder(s3EndpointSupplier, DATASET_ENCRYPTION_CONFIG).nodes(nodeCount).build();
+    }
+
+    private static LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder(
+        Supplier<String> s3EndpointSupplier,
+        LocalClusterConfigProvider configProvider
+    ) {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .shared(true)
             .plugin("inference-service-test")
             // Enable S3 repository plugin for S3 access
             .module("repository-s3")
@@ -95,8 +112,7 @@ public class Clusters {
             // This must be set as a JVM arg to take effect before any Arrow classes are loaded
             .jvmArg("-Darrow.allocation.manager.type=Unsafe")
             // Apply any additional configuration
-            .apply(() -> configProvider)
-            .build();
+            .apply(() -> configProvider);
     }
 
     public static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {

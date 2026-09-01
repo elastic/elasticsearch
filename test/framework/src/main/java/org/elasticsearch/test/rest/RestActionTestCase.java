@@ -140,8 +140,8 @@ public abstract class RestActionTestCase extends ESTestCase {
         }
 
         /**
-         * Sets the function that will be called when {@link #executeAndReturnTask(ActionType, ActionRequest, ActionListener)} is called. The
-         * given function should return either a subclass of {@link ActionResponse} or {@code null}.
+         * Sets the function that will be called when {@link #executeAndReturnTask(ActionType, ActionRequest, ActionListener)} is called.
+         * The given function should return either a subclass of {@link ActionResponse} or {@code null}.
          * @param verifier A function which is called in place of {@link #executeAndReturnTask(ActionType, ActionRequest, ActionListener)}
          */
         public void setExecuteAndReturnTaskVerifier(BiFunction<ActionType<?>, ActionRequest, ActionResponse> verifier) {

@@ -128,6 +128,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             "time",
             "type",
             "stage",
+            "failures",
             "priority",
             "source_host",
             "source_node",
@@ -166,6 +167,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
                 new TimeValue(state.getTimer().time()),
                 state.getRecoverySource().getType().name().toLowerCase(Locale.ROOT),
                 state.getStage().name().toLowerCase(Locale.ROOT),
+                0, // failures
                 state.getRecoveryPriority().name().toLowerCase(Locale.ROOT),
                 state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName(),
                 state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName(),

@@ -12,6 +12,7 @@ package org.elasticsearch.columnar;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.BinaryDocValues;
@@ -139,6 +140,29 @@ public final class ColumnarTestUtils {
     /**
      * Returns a {@link Codec} that routes all doc-values fields through {@code fmt}.
      */
+    /**
+     * The columnar format for {@code field} and the default for everything else, for a test that needs a
+     * companion field the columnar format does not write, such as one to sort the index on.
+     */
+    public static Codec columnarCodecForField(final String field) {
+        final Codec base = TestUtil.getDefaultCodec();
+        final DocValuesFormat columnar = new ColumNARDocValuesFormat();
+        final DocValuesFormat fallback = new Lucene90DocValuesFormat();
+        return new FilterCodec(base.getName(), base) {
+            private final DocValuesFormat perField = new PerFieldDocValuesFormat() {
+                @Override
+                public DocValuesFormat getDocValuesFormatForField(String name) {
+                    return name.equals(field) ? columnar : fallback;
+                }
+            };
+
+            @Override
+            public DocValuesFormat docValuesFormat() {
+                return perField;
+            }
+        };
+    }
+
     public static Codec columnarCodec(final DocValuesFormat fmt) {
         final Codec base = TestUtil.getDefaultCodec();
         return new FilterCodec(base.getName(), base) {

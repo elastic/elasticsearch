@@ -12,6 +12,7 @@ package org.elasticsearch.columnar;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -22,11 +23,14 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.StringColumnReader;
+import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -120,8 +124,133 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
         }
     }
 
+    /**
+     * Segments where the field is absent altogether merged with segments where it is not. A merge reads the
+     * field from the readers that have it and has to leave the rest without a value rather than a wrong one,
+     * so what survives is checked document by document and not only in the aggregate.
+     */
+    public void testMergeWithSegmentsMissingTheField() throws IOException {
+        final List<String> values = new ArrayList<>();
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(ColumnarTestUtils.columnarCodecForField(FIELD))
+                .setMergePolicy(new LogDocMergePolicy());
+            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (int segment = 0; segment < 6; segment++) {
+                    // Every other segment holds the field; the rest hold only the companion.
+                    final boolean holdsTheField = segment % 2 == 0;
+                    for (int d = 0; d < 300; d++) {
+                        final Document doc = new Document();
+                        doc.add(new NumericDocValuesField("other", d));
+                        if (holdsTheField) {
+                            final String value = TERMS[(segment + d) % TERMS.length];
+                            doc.add(new Field(FIELD, new BytesRef(value), type));
+                            values.add(value);
+                        } else {
+                            values.add(null);
+                        }
+                        writer.addDocument(doc);
+                    }
+                    writer.flush();
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals("merged into one segment", 1, reader.leaves().size());
+                final LeafReader leaf = reader.leaves().get(0).reader();
+                final StringColumnReader column = ((ColumnarStringBinaryDocValues) leaf.getBinaryDocValues(FIELD)).reader();
+
+                // Exactly the documents that were given a value have one, and it is the one they were given.
+                final ColumnIterator presence = column.iterator();
+                final List<Integer> withAValue = new ArrayList<>();
+                for (int doc = presence.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = presence.nextDoc()) {
+                    withAValue.add(doc);
+                    assertEquals(
+                        "value at doc " + doc,
+                        values.get(doc),
+                        column.valueAt(column.firstValueAddress(presence.rank())).utf8ToString()
+                    );
+                }
+                final List<Integer> expectedDocs = new ArrayList<>();
+                for (int d = 0; d < values.size(); d++) {
+                    if (values.get(d) != null) {
+                        expectedDocs.add(d);
+                    }
+                }
+                assertEquals("documents with a value", expectedDocs, withAValue);
+
+                final IndexSearcher searcher = new IndexSearcher(reader);
+                for (String probe : TERMS) {
+                    assertEquals(
+                        "term [" + probe + "] after merging past segments without the field",
+                        expected(values, probe, true),
+                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
+                    );
+                }
+            }
+        }
+    }
+
     public void testMergedSegmentsAreNotCalledSorted() throws IOException {
         assertQueries(values(between(600, 2000), d -> TERMS[d % TERMS.length]), true);
+    }
+
+    /**
+     * Documents put in term order by a Lucene index sort rather than by the order they were added, so the
+     * column is written from documents the merge reordered.
+     *
+     * <p>The sort is on a companion numeric field: an index sort on the keyword field itself would need
+     * sorted doc values, and the column is written as binary ones. The companion carries each value's place
+     * in term order, which puts the column in term order all the same.
+     */
+    public void testIndexSortedColumnBisects() throws IOException {
+        final List<String> terms = Arrays.asList(TERMS);
+        final List<String> values = values(between(600, 2000), d -> TERMS[(d * 7 + 3) % TERMS.length]);
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(ColumnarTestUtils.columnarCodecForField(FIELD))
+                .setMergePolicy(new LogDocMergePolicy())
+                .setIndexSort(new Sort(new SortField("order", SortField.Type.LONG)));
+            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                int written = 0;
+                for (String value : values) {
+                    if (++written % 200 == 0) {
+                        writer.flush();
+                    }
+                    final Document doc = new Document();
+                    doc.add(new Field(FIELD, new BytesRef(value), type));
+                    doc.add(new NumericDocValuesField("order", terms.indexOf(value)));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final LeafReader leaf = reader.leaves().get(0).reader();
+                final StringColumnReader column = ((ColumnarStringBinaryDocValues) leaf.getBinaryDocValues(FIELD)).reader();
+                assertTrue("expected a column in term order", column.valuesSorted());
+
+                // The sort reordered the documents, so what each one holds is read back rather than assumed.
+                final List<String> inDocOrder = new ArrayList<>();
+                for (int d = 0; d < leaf.maxDoc(); d++) {
+                    inDocOrder.add(column.valueAt(column.firstValueAddress(d)).utf8ToString());
+                }
+                final IndexSearcher searcher = new IndexSearcher(reader);
+                for (String probe : TERMS) {
+                    assertEquals(
+                        "term [" + probe + "] on an index-sorted column",
+                        expected(inDocOrder, probe, true),
+                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
+                    );
+                }
+                for (String probe : Arrays.asList("al", "alp", "b", "d", "az", "zzz", "")) {
+                    assertEquals(
+                        "prefix [" + probe + "] on an index-sorted column",
+                        expected(inDocOrder, probe, false),
+                        found(searcher, ColumnarStringTermQuery.prefix(FIELD, new BytesRef(probe)))
+                    );
+                }
+            }
+        }
     }
 
     /**

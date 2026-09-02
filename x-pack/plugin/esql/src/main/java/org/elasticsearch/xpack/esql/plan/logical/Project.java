@@ -31,7 +31,7 @@ import java.util.Objects;
  * In {@code FROM idx | KEEP x, y}, the {@code KEEP} command is a Project.
  * But it can also stand for {@code DROP} and {@code RENAME}, or a mix of all of them (after optimization).
  */
-public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortPreserving {
+public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortPreserving, DocPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Project", Project::new);
 
     /**

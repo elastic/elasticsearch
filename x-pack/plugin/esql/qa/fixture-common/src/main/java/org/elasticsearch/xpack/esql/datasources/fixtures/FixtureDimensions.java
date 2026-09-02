@@ -72,7 +72,7 @@ public final class FixtureDimensions {
      * {@code directive} and {@code pragma} travel with the query, {@code backend} selects where the data
      * lives, and {@code cluster} needs a differently-configured node.
      */
-    public static final Set<String> BINDS = Set.of("fixture", "resolver", "directive", "pragma", "backend", "cluster");
+    public static final Set<String> BINDS = Set.of("fixture", "resolver", "directive", "pragma", "backend", "cluster", "cluster_setting");
 
     private static final class Holder {
         private static final FixtureDimensions INSTANCE = load();
@@ -89,6 +89,7 @@ public final class FixtureDimensions {
     private final Map<String, Map<String, String>> derivedValuesByName;
     private final Map<String, String> readKeyByName;
     private final Map<String, String> pragmaKeyByName;
+    private final Map<String, String> clusterSettingKeyByName;
     private final Map<String, Map<String, String>> formatDefaultsByName;
     private final Map<String, Map<String, String>> backendByName;
     private final Map<String, Map<String, String>> extensionByName;
@@ -108,6 +109,7 @@ public final class FixtureDimensions {
         Map<String, Map<String, String>> derivedValuesByName,
         Map<String, String> readKeyByName,
         Map<String, String> pragmaKeyByName,
+        Map<String, String> clusterSettingKeyByName,
         Map<String, Map<String, String>> formatDefaultsByName,
         Map<String, Map<String, String>> backendByName,
         Map<String, Map<String, String>> extensionByName,
@@ -126,6 +128,7 @@ public final class FixtureDimensions {
         this.derivedValuesByName = Map.copyOf(derivedValuesByName);
         this.readKeyByName = Map.copyOf(readKeyByName);
         this.pragmaKeyByName = Map.copyOf(pragmaKeyByName);
+        this.clusterSettingKeyByName = Map.copyOf(clusterSettingKeyByName);
         this.formatDefaultsByName = Map.copyOf(formatDefaultsByName);
         this.backendByName = Map.copyOf(backendByName);
         this.extensionByName = Map.copyOf(extensionByName);
@@ -203,6 +206,19 @@ public final class FixtureDimensions {
      */
     public String pragmaKey(String dimension) {
         return pragmaKeyByName.get(dimension);
+    }
+
+    /**
+     * The dynamic cluster setting a value is applied through, or null when the dimension is not one.
+     *
+     * <p>Separate from pragmaKey because the mechanism differs: a pragma rides the query, while this is a
+     * cluster-wide update that must be applied before the query and put back after. Only settings marked
+     * {@code Property.Dynamic} can be carried this way -- of the fourteen esql.external.* settings, three
+     * are: cache.enabled, max_glob_expansion and max_discovered_files. The rest are NodeScope and would
+     * need a cluster per value, which is the `cluster` seam's problem, not this one.
+     */
+    public String clusterSettingKey(String dimension) {
+        return clusterSettingKeyByName.get(dimension);
     }
 
     /**
@@ -327,6 +343,28 @@ public final class FixtureDimensions {
      * slots are absent too; a caller that wants those has to supply them from the dataset, and
      * {@link #derivedFrom} names what it needs.
      */
+    /**
+     * The cluster settings the running vector pins, keyed by their settings-API key.
+     *
+     * <p>Only slots off their format's default appear. The cluster already sits at the default, so an
+     * unvaried case issues no settings update at all -- and that is what lets the restore be a plain
+     * removal rather than a saved-and-replayed copy of whatever was there before.
+     *
+     * <p>Only DYNAMIC settings can be carried this way; a NodeScope-only setting needs a cluster per
+     * value, which is the {@code cluster} seam's problem, not this one's.
+     */
+    public Map<String, String> clusterSettings(Map<String, String> vector, String format) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, String> slot : vector.entrySet()) {
+            String key = clusterSettingKey(slot.getKey());
+            if (key == null || slot.getValue().equals(defaultValue(slot.getKey(), format))) {
+                continue;
+            }
+            out.put(key, settingValue(slot.getKey(), slot.getValue()));
+        }
+        return out;
+    }
+
     public Map<String, String> directiveSettings(Map<String, String> vector) {
         Map<String, String> out = new LinkedHashMap<>();
         for (Map.Entry<String, String> slot : vector.entrySet()) {
@@ -382,6 +420,7 @@ public final class FixtureDimensions {
         Map<String, String> readKeys = new LinkedHashMap<>();
         Map<String, String> declaredKeys = new LinkedHashMap<>();
         Map<String, String> pragmaKeys = new LinkedHashMap<>();
+        Map<String, String> clusterSettingKeys = new LinkedHashMap<>();
         Map<String, Map<String, String>> formatDefaults = new LinkedHashMap<>();
         Map<String, Map<String, String>> backends = new LinkedHashMap<>();
         Map<String, Map<String, String>> extensions = new LinkedHashMap<>();
@@ -497,6 +536,10 @@ public final class FixtureDimensions {
             String owner = declared.getKey();
             if ("pragma".equals(binds.get(owner))) {
                 pragmaKeys.put(owner, declared.getValue());
+            } else if ("cluster_setting".equals(binds.get(owner))) {
+                // Same reason the pragma key is kept apart: routed into directiveKeyByName it would make a
+                // cluster setting look directive-expressible and inject an unknown key into every WITH clause.
+                clusterSettingKeys.put(owner, declared.getValue());
             } else {
                 directiveKeys.put(owner, declared.getValue());
             }
@@ -710,6 +753,7 @@ public final class FixtureDimensions {
             derivedValues,
             readKeys,
             pragmaKeys,
+            clusterSettingKeys,
             formatDefaults,
             backends,
             extensions,
@@ -1130,7 +1174,10 @@ public final class FixtureDimensions {
         RESOLVER,
         BACKEND,
         PRAGMA,
-        CLUSTER
+        /** Fixed at cluster construction -- a topology cannot change between cases. */
+        CLUSTER,
+        /** A DYNAMIC cluster setting: updatable around a single case, and put back after. */
+        CLUSTER_SETTING
     }
 
     /**
@@ -1190,6 +1237,10 @@ public final class FixtureDimensions {
             // The resolver seam is wired for the shapes a standalone template can express; a value with
             // no shaping is licensed by a rule rather than served here.
             case "resolver" -> seams.contains(Seam.RESOLVER) && FixtureCapabilities.resolverServes(dimension, value, format);
+            // A DYNAMIC cluster setting is not the `cluster` seam: `cluster` means fixed at construction
+            // (a multi-node topology cannot change per case), while these can be updated and put back
+            // around a single query. Conflating them would make cluster_size look reachable.
+            case "cluster_setting" -> seams.contains(Seam.CLUSTER_SETTING) && clusterSettingKey(dimension) != null;
             case "backend", "cluster" -> false;
             default -> throw new IllegalStateException("unhandled binds [" + binds(dimension) + "]");
         };
@@ -1222,7 +1273,37 @@ public final class FixtureDimensions {
      * <p>Deduplication is unavoidable here -- every group shares the all-defaults baseline -- but it
      * costs one set of maps rather than a set of maps plus a rendered key per vector.
      */
+    /**
+     * The generated vectors, built once.
+     *
+     * <p>Generation is the expensive half -- t-way completion walks every combination of dimensions -- and
+     * expressibleVectors asks for it once per format, so regenerating made the cost four times what it had
+     * to be. Measured at t=4: 58s to generate, 230s to answer four formats from scratch, against 58s total
+     * once memoised. Immutable and derived purely from the declaration, so caching it changes nothing but
+     * the clock.
+     */
+    private volatile List<Map<String, String>> generated;
+
+    private List<Map<String, String>> generatedVectors() {
+        List<Map<String, String>> local = generated;
+        if (local == null) {
+            synchronized (this) {
+                local = generated;
+                if (local == null) {
+                    List<Map<String, String>> built = new ArrayList<>();
+                    generateVectors(built::add);
+                    generated = local = List.copyOf(built);
+                }
+            }
+        }
+        return local;
+    }
+
     public void forEachVector(Consumer<Map<String, String>> consumer) {
+        generatedVectors().forEach(consumer);
+    }
+
+    private void generateVectors(Consumer<Map<String, String>> consumer) {
         Set<Map<String, String>> seen = new LinkedHashSet<>();
         for (Set<String> group : groups()) {
             Set<String> formats = formatsFor(group);
@@ -1251,7 +1332,10 @@ public final class FixtureDimensions {
                 }
             }
         }
-        completeTuples(2, seen, consumer);
+        // t=2 first, then 3: cheap combinations get covered by cheap vectors before the expensive pass
+        // runs, so the t=3 pass adds only what pairwise could not reach. t=4 was measured and rejected --
+        // the t<=3 vectors already carry 90.3% of the 215,659 legal 4-tuples, and closing the remaining
+        // 9.7% costs 3.6x the vectors. Strength is not where this matrix is thin; dimensions are.
         completeTuples(3, seen, consumer);
     }
 

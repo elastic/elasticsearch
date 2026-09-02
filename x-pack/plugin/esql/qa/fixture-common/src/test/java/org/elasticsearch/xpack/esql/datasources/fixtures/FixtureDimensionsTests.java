@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasources.fixtures;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -17,6 +19,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -34,6 +39,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class FixtureDimensionsTests extends ESTestCase {
 
     private final FixtureDimensions dimensions = FixtureDimensions.get();
+
+    private static final Pattern PER_FORMAT_DEFAULT = Pattern.compile("dimension\\.[a-z_]+\\.default\\.(.+)");
 
     /**
      * The pair table must be total. This is the gate that turns "did anyone think about this
@@ -425,9 +432,9 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testDirectiveExpressibleCountsPerFormat() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(1439));
-        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(1340));
-        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(232));
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(1743));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(1620));
+        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(316));
         assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(197));
     }
 
@@ -455,17 +462,72 @@ public class FixtureDimensionsTests extends ESTestCase {
     }
 
     /**
-     * The universe is a property of the contract, not of any format's defaults. Correcting the baseline
-     * fill must not add or drop a single vector -- if it does, the per-format default has leaked into
-     * the derivation rather than only into what is selectable from it.
+     * A per-format default is format-local. Declaring one for tsv decides what tsv's own unlisted slots
+     * are filled with, and it must not move a single vector of any other format -- if it does, the
+     * default has leaked out of the format it was declared for and into the shared derivation.
+     *
+     * <p>It does legitimately move tsv's own vectors, and with them the total: the baseline fill is what
+     * unlisted slots sit at, so a tsv baseline of (plain, tab) yields a different -- measured here, 142
+     * smaller -- tsv universe than the global (quoted, comma) would. Locality is the property worth
+     * pinning. Equality of the total is not true and never was: the assertion that stood here claimed it
+     * in prose while only ever counting vectors under one set of defaults, so nothing tested the claim.
      */
-    public void testTheVectorUniverseIsUnchangedByPerFormatDefaults() {
+    public void testAPerFormatDefaultOnlyMovesItsOwnFormatsVectors() {
+        FixtureDimensions declared = FixtureDimensions.get();
+        Properties collapsed = realDeclaration();
+        Set<String> ownDefault = new TreeSet<>();
+        for (String key : new TreeSet<>(collapsed.stringPropertyNames())) {
+            Matcher matcher = PER_FORMAT_DEFAULT.matcher(key);
+            if (matcher.matches()) {
+                ownDefault.add(matcher.group(1));
+                collapsed.remove(key);
+            }
+        }
+        assertThat("no per-format default is declared, so this test proves nothing", ownDefault, not(empty()));
+
+        Map<String, Set<Map<String, String>>> before = universeByFormat(declared);
+        Map<String, Set<Map<String, String>>> after = universeByFormat(FixtureDimensions.parse(collapsed));
+        for (String format : declared.values("format")) {
+            if (ownDefault.contains(format)) {
+                continue;
+            }
+            assertThat(
+                "[" + format + "] declares no per-format default, so removing " + ownDefault + "'s must not move it",
+                after.get(format),
+                equalTo(before.get(format))
+            );
+        }
+    }
+
+    /**
+     * A checkpoint on the size of the universe, not an invariant: every dimension added to the contract
+     * moves this number, and moving it is how a coverage change announces itself in the diff. Update it
+     * when the contract changed on purpose; investigate when it moved and nothing was meant to.
+     */
+    public void testTheVectorUniverseSizeIsPinned() {
         int[] seen = { 0 };
         FixtureDimensions.get().forEachVector(v -> seen[0]++);
-        // 10,997 rather than 11,685: the declared value-disjoint pair removes 688 vectors the reader
-        // cannot be configured to run. A declared, counted removal of the unconstructible -- not lost
-        // coverage, and not a number to adjust when it drifts.
-        assertThat(seen[0], equalTo(31366));
+        assertThat(seen[0], equalTo(33579));
+    }
+
+    private static Properties realDeclaration() {
+        Properties props = new Properties();
+        try (InputStream in = FixtureDimensions.class.getResourceAsStream("fixture-dimensions.properties")) {
+            assertThat("the declaration must be on the test classpath", in, notNullValue());
+            props.load(in);
+        } catch (IOException e) {
+            throw new AssertionError("could not read the declaration", e);
+        }
+        return props;
+    }
+
+    private static Map<String, Set<Map<String, String>>> universeByFormat(FixtureDimensions dimensions) {
+        Map<String, Set<Map<String, String>>> byFormat = new LinkedHashMap<>();
+        for (String format : dimensions.values("format")) {
+            byFormat.put(format, new LinkedHashSet<>());
+        }
+        dimensions.forEachVector(vector -> byFormat.get(vector.get("format")).add(vector));
+        return byFormat;
     }
 
     /** No vector may survive carrying a combination the reader rejects outright. */
@@ -489,9 +551,9 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testDisjointRemovalLeavesEveryFormatsSelectionUntouched() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(1439));
-        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(1340));
-        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(232));
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(1743));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(1620));
+        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(316));
         assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(197));
     }
 
@@ -636,11 +698,12 @@ public class FixtureDimensionsTests extends ESTestCase {
         FixtureDimensions d = FixtureDimensions.get();
         Set<FixtureDimensions.Seam> directiveOnly = Set.of(FixtureDimensions.Seam.DIRECTIVE);
         Set<FixtureDimensions.Seam> both = Set.of(FixtureDimensions.Seam.DIRECTIVE, FixtureDimensions.Seam.FIXTURE);
-        // csv and tsv now match at 153: both text generators render the same dialect set on top of the
-        // same three codecs, so the symmetry is the claim. They differ only in WHICH values are off
-        // default (csv defaults to quoted, tsv to plain), never in how many. ndjson has the codecs and
-        // no dialects, which is the 27.
-        Map<String, Integer> expectedGap = Map.of("csv", 1333, "tsv", 1234, "ndjson", 126); // dimension-copy-ok: a test that pins
+        // The gap is the number of vectors that exist only because the fixture seam renders bytes -- the
+        // codec and dialect trees. It moves whenever a value becomes writable, which is exactly what
+        // these numbers are here to announce: all three grew when lz4 and snappy stopped being gaps and
+        // the generators began producing them. ndjson sits well below csv and tsv because it carries the
+        // codecs and none of the dialects.
+        Map<String, Integer> expectedGap = Map.of("csv", 1637, "tsv", 1514, "ndjson", 210); // dimension-copy-ok: a test that pins
                                                                                             // per-format
                                                                                             // expectations must name the formats it pins
         for (String format : List.of("csv", "tsv", "ndjson")) { // dimension-copy-ok: a test that pins per-format expectations must name the

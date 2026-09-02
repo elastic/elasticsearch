@@ -7,14 +7,20 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.parquet.column.Encoding;
+import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -41,10 +47,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  * Tests that the prefetch pipeline reduces the number of synchronous I/O calls by serving
@@ -202,6 +215,139 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             }
             assertEquals("Depth should not drop below the byte-based floor", floor, opi.prefetchDepth());
         }
+    }
+
+    /**
+     * Pins the request shape used to validate the retained depth-three floor. A deterministic
+     * scheduling model with 20 row groups, ten 50 ms requests per group, 10 ms decode, and a
+     * 16-request provider limit reduced modeled elapsed time from 1010 ms at depth 1 to 660 ms at
+     * depth 3 (at 50 slots: 1010 ms to 370 ms). Those measurements are evidence, not wall-clock
+     * assertions; this test fixes only the deterministic fan-out policy.
+     */
+    public void testCappedRequestWaveFanOutPolicy() {
+        BlockMetaData block = createCappedRequestWaveBlock();
+        Set<String> projectedColumns = block.getColumns()
+            .stream()
+            .map(column -> column.getPath().toDotString())
+            .collect(Collectors.toSet());
+        List<CoalescedRangeReader.MergedRange> requests = CoalescedRangeReader.mergeRanges(
+            ColumnChunkPrefetcher.computeColumnChunkRanges(block, projectedColumns),
+            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP
+        );
+
+        assertEquals("30 contiguous 5 MiB chunks must form ten capped requests", 10, requests.size());
+        int initialDepth = OptimizedParquetColumnIterator.computePrefetchDepth(List.of(block), projectedColumns);
+        assertEquals("the >32 MB projected footprint retains the measured depth-three floor", 3, initialDepth);
+        assertEquals("initial queue-wide request fan-out", 30, initialDepth * requests.size());
+        assertEquals(
+            "adaptive maximum queue-wide request fan-out",
+            80,
+            OptimizedParquetColumnIterator.MAX_PREFETCH_DEPTH * requests.size()
+        );
+    }
+
+    public void testPrefetchFailureEntersAndSuccessfulProbeExitsProbeMode() throws Exception {
+        byte[] parquetData = createLargeUncompressedProjectedRowGroupsFile();
+        FailFirstAsyncStorageObject storage = new FailFirstAsyncStorageObject(
+            parquetData,
+            asyncIoExecutor,
+            new IOException("injected prefetch failure")
+        );
+
+        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
+            int floor = opi.prefetchDepth();
+            assertTrue("fixture must produce a nontrivial byte-based prefetch floor", floor > 1);
+
+            assertTrue(iter.hasNext());
+            assertEquals("the first real prefetch must fail", 1, storage.failedAsyncReadCount.get());
+            assertTrue(opi.probingPrefetch());
+            assertEquals(1, opi.prefetchDepth());
+            Page first = iter.next();
+            first.releaseBlocks();
+
+            assertTrue(storage.successfulAsyncReads.await(10, TimeUnit.SECONDS));
+            assertTrue(iter.hasNext());
+            assertFalse(opi.probingPrefetch());
+            assertEquals(floor, opi.prefetchDepth());
+            assertEquals("the fallback barrier must not leak queued-byte accounting", 0L, opi.queuedPrefetchBytes());
+            Page second = iter.next();
+            second.releaseBlocks();
+            assertFalse(iter.hasNext());
+        }
+    }
+
+    public void testNestedWrappedErrorFromPrefetchEscapesWithoutSyncFallback() throws Exception {
+        byte[] parquetData = smallInt64MultiRowGroupFile();
+        AssertionError injected = new AssertionError("injected wrapped prefetch error");
+        FailFirstAsyncStorageObject storage = new FailFirstAsyncStorageObject(
+            parquetData,
+            asyncIoExecutor,
+            new CompletionException(new CompletionException(injected))
+        );
+
+        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+            int syncReadBaseline = storage.syncReadCount.get();
+            AssertionError actual = expectThrows(AssertionError.class, iter::hasNext);
+            assertSame(injected, actual);
+            assertEquals("wrapped Errors must be classified before synchronous fallback", syncReadBaseline, storage.syncReadCount.get());
+        }
+    }
+
+    private byte[] createLargeUncompressedProjectedRowGroupsFile() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .named("payload")
+            .named("large_projected_row_group");
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(outputStream))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(false)
+                .withRowGroupSize(1)
+                .withRowGroupRowCountLimit(1)
+                .withPageSize(10 * 1024 * 1024)
+                .build()
+        ) {
+            // Two >8 MB row groups cross SHALLOW_PREFETCH_BYTES and provide a real successful
+            // probe after the first row group's failed prefetch falls back synchronously.
+            byte[] value = new byte[9 * 1024 * 1024];
+            for (int i = 0; i < 2; i++) {
+                writer.write(groupFactory.newGroup().append("payload", Binary.fromConstantByteArray(value)));
+            }
+        }
+        return outputStream.toByteArray();
+    }
+
+    @SuppressWarnings("deprecation")
+    private static BlockMetaData createCappedRequestWaveBlock() {
+        BlockMetaData block = new BlockMetaData();
+        block.setRowCount(100);
+        long chunkBytes = 5L * 1024 * 1024;
+        long position = 1;
+        for (int i = 0; i < 30; i++) {
+            String name = "col_" + i;
+            block.addColumn(
+                ColumnChunkMetaData.get(
+                    ColumnPath.get(name),
+                    PrimitiveType.PrimitiveTypeName.INT64,
+                    CompressionCodecName.UNCOMPRESSED,
+                    Set.of(Encoding.PLAIN),
+                    Statistics.createStats(Types.required(PrimitiveType.PrimitiveTypeName.INT64).named(name)),
+                    position,
+                    0,
+                    100,
+                    chunkBytes,
+                    chunkBytes
+                )
+            );
+            position += chunkBytes;
+        }
+        return block;
     }
 
     /**
@@ -461,6 +607,47 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
                     buffer.flip();
                     listener.onResponse(new DirectReadBuffer(buffer, () -> {}));
                 } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        }
+    }
+
+    private static final class FailFirstAsyncStorageObject extends CountingStorageObject {
+        private final Executor failureExecutor;
+        private final Exception firstFailure;
+        private final AtomicBoolean failNextAsyncRead = new AtomicBoolean(true);
+        private final AtomicInteger failedAsyncReadCount = new AtomicInteger();
+        private final CountDownLatch successfulAsyncReads = new CountDownLatch(2);
+
+        private FailFirstAsyncStorageObject(byte[] data, ExecutorService asyncIoExecutor, Exception firstFailure) {
+            super(data, asyncIoExecutor);
+            this.failureExecutor = asyncIoExecutor;
+            this.firstFailure = firstFailure;
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            if (failNextAsyncRead.compareAndSet(true, false)) {
+                failedAsyncReadCount.incrementAndGet();
+                failureExecutor.execute(() -> listener.onFailure(firstFailure));
+                return;
+            }
+            super.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
+                @Override
+                public void onResponse(DirectReadBuffer response) {
+                    listener.onResponse(response);
+                    successfulAsyncReads.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
             });

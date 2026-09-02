@@ -771,7 +771,7 @@ public class ParquetLimitIoClipTests extends ESTestCase {
                 try {
                     int pos = (int) position;
                     int len = (int) Math.min(length, data.length - position);
-                    DirectReadBuffer allocated = factory.allocate(len);
+                    DirectReadBuffer allocated = factory.allocateWritableWindow(len);
                     ByteBuffer buffer = allocated.buffer();
                     buffer.put(data, pos, len);
                     buffer.flip();

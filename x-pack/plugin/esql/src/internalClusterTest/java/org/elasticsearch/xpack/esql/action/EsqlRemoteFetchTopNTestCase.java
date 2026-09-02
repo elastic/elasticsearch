@@ -400,6 +400,24 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
         }
     }
 
+    public void testRemoteFetchDeferredMetadataId() {
+        try (
+            EsqlQueryResponse response = runQuery(
+                "FROM " + indexName + " METADATA _id | SORT unique_sort + 1 DESC | LIMIT 3 | KEEP _id, payload",
+                true
+            )
+        ) {
+            assertThat(
+                EsqlTestUtils.getValuesList(response),
+                equalTo(List.of(List.of("63", "payload-63"), List.of("62", "payload-62"), List.of("61", "payload-61")))
+            );
+            assertRemoteFetchRows(response, 3);
+            assertFieldLoadedBeforeFetch(response, "unique_sort");
+            assertFieldNotLoadedBeforeFetch(response, "_id");
+            assertFieldNotLoadedBeforeFetch(response, "payload");
+        }
+    }
+
     public void testNoRemoteFetchAfterAggregation() {
         try (
             EsqlQueryResponse response = runQuery(

@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.expression.function.scalar.RemoteFetchHandleFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -35,6 +38,7 @@ import java.util.function.Function;
  * Builds the node-reduction and shard plans after a data node has received the distributed plan.
  */
 public final class ReductionPlanner {
+    private static final Logger logger = LogManager.getLogger(ReductionPlanner.class);
 
     /**
      * Builds a reduction plan without request-specific remote-fetch state. This entry point also supports plan snapshot tests.
@@ -134,8 +138,13 @@ public final class ReductionPlanner {
                     p -> p instanceof EvalExec eval && eval.fields().stream().anyMatch(a -> a.child() instanceof RemoteFetchHandleFunction)
                 );
             if (producesHandle == false) {
+                logger.debug(() -> Strings.format("failed to rebuild remote-fetch node reduction for plan [%s]", originalPlan));
                 throw new IllegalStateException(
-                    "coordinator planned remote-fetch TopN but the node reduction could not be rebuilt for plan [" + originalPlan + "]"
+                    "coordinator planned remote-fetch TopN but the node reduction could not be rebuilt for fragment ["
+                        + originalPlan.child().nodeName()
+                        + "] with ["
+                        + originalPlan.output().size()
+                        + "] output attributes"
                 );
             }
         }

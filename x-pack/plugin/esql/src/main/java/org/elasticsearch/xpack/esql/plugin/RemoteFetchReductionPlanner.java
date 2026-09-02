@@ -239,9 +239,12 @@ final class RemoteFetchReductionPlanner {
         // this check when new fetch plan shapes (e.g. LIMIT) stop guaranteeing sorted shard output.
         boolean fragmentIsSorted = updatedFragmentExec.fragment() instanceof Project p && p.child() instanceof TopN;
         assert fragmentIsSorted : "expected Project -> TopN fragment shape";
+        if (fragmentIsSorted == false) {
+            return Optional.empty();
+        }
         PhysicalPlan reductionPlan = toPhysicalPlanForReductionSchema(fragmentExec.fragment(), context).transformDown(TopNExec.class, t -> {
             PhysicalPlan exchangeExec = new ExchangeSourceExec(topN.source(), expectedDataOutput, false);
-            return fragmentIsSorted ? t.replaceChild(exchangeExec).withSortedInput() : t.replaceChild(exchangeExec);
+            return t.replaceChild(exchangeExec).withSortedInput();
         });
         Alias handleAlias = new Alias(
             Source.EMPTY,
@@ -282,7 +285,9 @@ final class RemoteFetchReductionPlanner {
             return (fieldAttribute.field() instanceof PotentiallyUnmappedKeywordEsField) == false
                 && (fieldAttribute.field() instanceof UnionTypeEsField) == false;
         }
-        return attr instanceof MetadataAttribute || attr instanceof TemporalityAttribute;
+        return attr instanceof MetadataAttribute metadataAttribute
+            ? MetadataAttribute.SCORE.equals(metadataAttribute.name()) == false
+            : attr instanceof TemporalityAttribute;
     }
 
     private static Optional<TopNPlanningContext> topNPlanningContext(

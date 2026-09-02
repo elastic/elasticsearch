@@ -17,16 +17,19 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assume.assumeFalse;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class RemoteFetchTopNIT extends ESRestTestCase {
@@ -47,7 +50,7 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
             "the current version must support remote-fetch TopN",
             TransportVersion.current().supports(REMOTE_FETCH_TOPN_TRANSPORT_VERSION)
         );
-        assertFalse(
+        assumeFalse(
             "the mixed cluster minimum transport version must not support remote-fetch TopN",
             minimumTransportVersion().supports(REMOTE_FETCH_TOPN_TRANSPORT_VERSION)
         );
@@ -150,10 +153,23 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
     }
 
     private RestClient currentNodeClient() throws IOException {
-        // Clusters.mixedVersionCluster creates nodes in old/current/old/current order. Do not classify by version string:
-        // detached BWC refs can report the same version as current nodes.
-        HttpHost[] currentNodes = { HttpHost.create(cluster.getHttpAddress(1)), HttpHost.create(cluster.getHttpAddress(3)) };
-        return buildClient(restClientSettings(), currentNodes);
+        ObjectPath nodes = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes")));
+        Map<String, Object> nodesMap = nodes.evaluate("nodes");
+        List<HttpHost> currentNodes = new ArrayList<>();
+        for (String id : nodesMap.keySet()) {
+            TransportVersion transportVersion = getTransportVersionWithFallback(
+                nodes.evaluate("nodes." + id + ".version"),
+                nodes.evaluate("nodes." + id + ".transport_version"),
+                TransportVersion::minimumCompatible
+            );
+            if (transportVersion.supports(REMOTE_FETCH_TOPN_TRANSPORT_VERSION)) {
+                currentNodes.add(HttpHost.create(nodes.evaluate("nodes." + id + ".http.publish_address")));
+            }
+        }
+        if (currentNodes.isEmpty()) {
+            throw new IllegalStateException("no nodes support remote-fetch TopN");
+        }
+        return buildClient(restClientSettings(), currentNodes.toArray(HttpHost[]::new));
     }
 
     private static boolean containsRemoteFetchOperator(Object value) {

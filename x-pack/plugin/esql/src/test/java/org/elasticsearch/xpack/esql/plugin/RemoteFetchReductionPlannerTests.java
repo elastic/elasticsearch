@@ -61,6 +61,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class RemoteFetchReductionPlannerTests extends ESTestCase {
     public void testDistributedPlannerOwnsCoordinatorRewrite() {
@@ -135,6 +136,10 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
         assertSpecializedFieldIsNotFetchable(
             new MultiTypeEsField("specialized", DataType.DATE_NANOS, true, Map.of(), EsField.TimeSeriesFieldType.NONE, null)
         );
+    }
+
+    public void testDoesNotRemoteFetchScore() {
+        assertAttributeIsNotFetchable(new MetadataAttribute(Source.EMPTY, MetadataAttribute.SCORE, DataType.DOUBLE, false));
     }
 
     public void testCoordinatorAndReducePlansUseRemoteFetchHandleSchema() {
@@ -290,6 +295,7 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
             )
         );
         assertThat(e.getMessage(), containsString("node reduction could not be rebuilt"));
+        assertThat(e.getMessage(), not(containsString(sink.toString())));
     }
 
     private static FieldAttribute field(String name, DataType dataType) {
@@ -297,9 +303,12 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
     }
 
     private static void assertSpecializedFieldIsNotFetchable(EsField specializedField) {
+        assertAttributeIsNotFetchable(new FieldAttribute(Source.EMPTY, "specialized", specializedField));
+    }
+
+    private static void assertAttributeIsNotFetchable(Attribute attribute) {
         Attribute doc = new MetadataAttribute(Source.EMPTY, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false);
         Attribute sort = field("sort", DataType.LONG);
-        Attribute specialized = new FieldAttribute(Source.EMPTY, "specialized", specializedField);
         List<Order> order = List.of(new Order(Source.EMPTY, sort, Order.OrderDirection.ASC, Order.NullsPosition.LAST));
         EsRelation relation = new EsRelation(
             Source.EMPTY,
@@ -308,12 +317,12 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
             Map.of(),
             Map.of(),
             Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
-            List.of(doc, sort, specialized)
+            List.of(doc, sort, attribute)
         );
         Project dataProject = new Project(
             Source.EMPTY,
             new TopN(Source.EMPTY, new Project(Source.EMPTY, relation, List.of(doc, sort)), order, EsqlTestUtils.of(10), false),
-            List.of(sort, specialized)
+            List.of(sort, attribute)
         );
         ExchangeSinkExec dataPlan = new ExchangeSinkExec(Source.EMPTY, dataProject.output(), false, new FragmentExec(dataProject));
         PhysicalPlan coordinatorPlan = new ProjectExec(

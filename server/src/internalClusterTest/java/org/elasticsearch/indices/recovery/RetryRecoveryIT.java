@@ -1,0 +1,997 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.indices.recovery;
+
+import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.cluster.action.shard.ShardStateAction.SHARD_FAILED_ACTION_NAME;
+import static org.elasticsearch.indices.recovery.RetryRecoveryIT.FailureTarget.AFTER_INDEX_SHARD_RECOVERY;
+import static org.elasticsearch.indices.recovery.RetryRecoveryIT.FailureTarget.BEFORE_INDEX_SHARD_RECOVERY;
+import static org.elasticsearch.indices.recovery.RetryRecoveryIT.FailureTarget.STATE_CHANGED_POST_RECOVERY;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
+
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
+    private static final String RETRY_MESSAGE = "RETRY_CAUSE";
+    private static final RuntimeException RETRY_CAUSE = new RuntimeException(RETRY_MESSAGE);
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(RetryRecoveryTestPlugin.class);
+        return plugins;
+    }
+
+    @After
+    public void reset() {
+        RetryRecoveryTestPlugin.reset();
+    }
+
+    public void testRetryOnFailureOnRecoveryFromEmptyStore() {
+        String node = internalCluster().startNode();
+        String indexName = randomIndexName();
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.failureTarget.set(BEFORE_INDEX_SHARD_RECOVERY);
+
+            // Recover from empty store
+            createIndex(indexName, indexSettings(1, 0).build());
+
+            ensureGreen(indexName);
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromExistingStore() {
+        String node = internalCluster().startNode();
+        final var indexName = randomIndexName();
+
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+        assertAcked(indicesAdmin().prepareClose(indexName));
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.reset();
+            RetryRecoveryTestPlugin.armRandomFailure();
+
+            // Recover from existing store
+            assertAcked(indicesAdmin().prepareOpen(indexName).execute());
+
+            ensureGreen(indexName);
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromLocalShard() {
+        String node = internalCluster().startNode();
+        final var sourceIndexName = randomIndexName();
+        final var targetIndexName = randomIndexName();
+
+        createIndex(sourceIndexName, indexSettings(1, 0).build());
+        indexDoc(sourceIndexName, "1", "f", randomAlphaOfLength(10));
+        flush(sourceIndexName);
+        ensureGreen(sourceIndexName);
+
+        // Required for clone
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.reset();
+            RetryRecoveryTestPlugin.armRandomFailure();
+
+            // Recover from local shard
+            ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
+
+            ensureGreen(sourceIndexName);
+            ensureGreen(targetIndexName);
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromSnapshot() {
+        String node = internalCluster().startNode();
+        final var indexName = randomIndexName();
+        final var repoName = "test-repo";
+
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).get();
+
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.reset();
+            RetryRecoveryTestPlugin.armRandomFailure();
+
+            // Recover from snapshot
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).execute();
+
+            ensureGreen(indexName);
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testDontRetryAfterShardClosedDuringRecoveryFromEmptyStore() throws Exception {
+        String node = internalCluster().startNode();
+        String indexName = randomIndexName();
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            Gate gate = RetryRecoveryTestPlugin.beforeIndexShardRecoveryGate;
+            gate.block();
+
+            prepareCreate(indexName, indexSettings(1, 0)).execute();
+            gate.await();
+
+            PlainActionFuture<Void> closed = new PlainActionFuture<>();
+            internalCluster().getInstance(IndicesService.class, node)
+                .indexServiceSafe(resolveIndex(indexName))
+                .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
+            gate.release();
+            safeGet(closed);
+
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
+            assertThat(
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(),
+                equalTo(ClusterHealthStatus.YELLOW)
+            );
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testDontRetryAfterShardClosedDuringRecoveryFromExistingStore() throws Exception {
+        String node = internalCluster().startNode();
+        String indexName = randomIndexName();
+
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+        assertAcked(indicesAdmin().prepareClose(indexName));
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.reset();
+            Gate gate = RetryRecoveryTestPlugin.beforeIndexShardRecoveryGate;
+            gate.block();
+
+            indicesAdmin().prepareOpen(indexName).execute();
+            gate.await();
+
+            PlainActionFuture<Void> closed = new PlainActionFuture<>();
+            internalCluster().getInstance(IndicesService.class, node)
+                .indexServiceSafe(resolveIndex(indexName))
+                .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
+            gate.release();
+            safeGet(closed);
+
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
+            // EXISTING_STORE inactive primaries are RED (see ClusterShardHealth#getInactivePrimaryHealth)
+            assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(), equalTo(ClusterHealthStatus.RED));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testDontRetryAfterShardClosedDuringRecoveryFromLocalShard() throws Exception {
+        String node = internalCluster().startNode();
+        final var sourceIndexName = randomIndexName();
+        final var targetIndexName = randomIndexName();
+
+        createIndex(sourceIndexName, indexSettings(1, 0).build());
+        indexDoc(sourceIndexName, "1", "f", randomAlphaOfLength(10));
+        flush(sourceIndexName);
+        ensureGreen(sourceIndexName);
+
+        // Required for clone
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.reset();
+            Gate gate = RetryRecoveryTestPlugin.beforeIndexShardRecoveryGate;
+            gate.block();
+
+            // Recover from local shard
+            ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
+            gate.await();
+
+            PlainActionFuture<Void> closed = new PlainActionFuture<>();
+            internalCluster().getInstance(IndicesService.class, node)
+                .indexServiceSafe(resolveIndex(targetIndexName))
+                .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
+            gate.release();
+            safeGet(closed);
+
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
+            assertThat(
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, targetIndexName).get().getStatus(),
+                equalTo(ClusterHealthStatus.YELLOW)
+            );
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testDontRetryAfterShardClosedDuringRecoveryFromSnapshot() throws Exception {
+        String node = internalCluster().startNode();
+        final var indexName = randomIndexName();
+        final var repoName = "test-repo";
+
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).get();
+
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.reset();
+            Gate gate = RetryRecoveryTestPlugin.beforeIndexShardRecoveryGate;
+            gate.block();
+
+            // Recover from snapshot
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).execute();
+            gate.await();
+
+            PlainActionFuture<Void> closed = new PlainActionFuture<>();
+            internalCluster().getInstance(IndicesService.class, node)
+                .indexServiceSafe(resolveIndex(indexName))
+                .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
+            gate.release();
+            safeGet(closed);
+
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
+            assertThat(
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(),
+                equalTo(ClusterHealthStatus.YELLOW)
+            );
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnAlreadyClosedExceptionDuringCreateEmptyFromEmptyStore() {
+        String node = internalCluster().startNode();
+        String indexName = randomIndexName();
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.armDirectoryAce();
+
+            // Recover from empty store; Store.createEmpty hits a one-shot AlreadyClosedException
+            createIndex(indexName, indexSettings(1, 0).build());
+
+            ensureGreen(indexName);
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnAlreadyClosedExceptionDuringAddIndicesFromLocalShards() {
+        String node = internalCluster().startNode();
+        final var sourceIndexName = randomIndexName();
+        final var targetIndexName = randomIndexName();
+
+        createIndex(sourceIndexName, indexSettings(1, 0).build());
+        indexDoc(sourceIndexName, "1", "f", randomAlphaOfLength(10));
+        flush(sourceIndexName);
+        ensureGreen(sourceIndexName);
+
+        // Required for clone
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.reset();
+            RetryRecoveryTestPlugin.armDirectoryAce();
+
+            // Recover from local shards; addIndices' temporary IndexWriter hits ACE once
+            ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
+
+            ensureGreen(sourceIndexName);
+            ensureGreen(targetIndexName);
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnAlreadyClosedExceptionDuringBootstrapNewHistoryFromExistingStore() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        String node1 = internalCluster().startNode();
+        final var indexName = randomIndexName();
+
+        createIndex(indexName, indexSettings(1, 1).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        String node2 = internalCluster().startNode();
+        ensureGreen(indexName);
+
+        Settings node1DataPathSettings = internalCluster().dataPathSettings(node1);
+        internalCluster().stopNode(node1);
+
+        // Index on node2 so node1's copy becomes stale in the master's in-sync set
+        indexDoc(indexName, "2", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        internalCluster().stopNode(node2);
+
+        node1 = internalCluster().startNode(node1DataPathSettings);
+        // Only one data node remains; drop replicas so allocate_stale_primary can go green
+        updateIndexSettings(Settings.builder().put("index.number_of_replicas", 0), indexName);
+
+        MockTransportService transportService = MockTransportService.getInstance(node1);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.reset();
+            RetryRecoveryTestPlugin.armDirectoryAce();
+
+            // Force stale primary → bootstrapNewHistory temporary IndexWriter hits ACE once
+            ClusterRerouteUtils.reroute(client(), new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true));
+
+            ensureGreen(indexName);
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromEmptyStoreRaceWithIndexDeletion() throws Exception {
+        String node = internalCluster().startNode();
+        String indexName = randomIndexName();
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.armRandomFailure();
+            Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
+            gate.block();
+
+            prepareCreate(indexName, indexSettings(1, 0)).execute();
+            gate.await();
+            indicesAdmin().prepareDelete(indexName).execute();
+
+            // Release will make recovery/retry race with index deletion
+            gate.release();
+
+            waitNoPendingTasksOnAll();
+            assertThat(indexExists(indexName), equalTo(false));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromExistingStoreRaceWithIndexDeletion() throws Exception {
+        String node = internalCluster().startNode();
+        String indexName = randomIndexName();
+
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+        assertAcked(indicesAdmin().prepareClose(indexName));
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.armRandomFailure();
+            Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
+            gate.block();
+
+            // Recover from existing store
+            indicesAdmin().prepareOpen(indexName).execute();
+            gate.await();
+            indicesAdmin().prepareDelete(indexName).execute();
+
+            // Release recovery will make recovery/retry race with index deletion
+            gate.release();
+
+            waitNoPendingTasksOnAll();
+            assertThat(indexExists(indexName), equalTo(false));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromLocalShardRaceWithIndexDeletion() throws Exception {
+        String node = internalCluster().startNode();
+        final var sourceIndexName = randomIndexName();
+        final var targetIndexName = randomIndexName();
+
+        createIndex(sourceIndexName, indexSettings(1, 0).build());
+        indexDoc(sourceIndexName, "1", "f", randomAlphaOfLength(10));
+        flush(sourceIndexName);
+        ensureGreen(sourceIndexName);
+
+        // Required for clone
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.armRandomFailure();
+            Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
+            gate.block();
+
+            // Recover from local shard async
+            ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
+            gate.await();
+            indicesAdmin().prepareDelete(targetIndexName).execute();
+
+            // Release recovery will make recovery/retry race with index deletion
+            gate.release();
+
+            waitNoPendingTasksOnAll();
+            assertThat(indexExists(targetIndexName), equalTo(false));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromSnapshotRaceWithIndexDeletion() throws Exception {
+        String node = internalCluster().startNode();
+        final var indexName = randomIndexName();
+        final var repoName = "test-repo";
+
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).get();
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.reset();
+            RetryRecoveryTestPlugin.armRandomFailure();
+            Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
+            gate.block();
+
+            // Recover from snapshot async
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(false).execute();
+            gate.await();
+            indicesAdmin().prepareDelete(indexName).execute();
+
+            // Release recovery will make recovery/retry race with index deletion
+            gate.release();
+
+            waitNoPendingTasksOnAll();
+            assertThat(indexExists(indexName), equalTo(false));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromEmptyStoreRaceWithNetworkDisruption() throws Exception {
+        String master = internalCluster().startMasterOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+        String indexName = randomIndexName();
+
+        MockTransportService masterATransport = MockTransportService.getInstance(master);
+        try {
+            failTestIfReceiveShardFailure(masterATransport);
+
+            RetryRecoveryTestPlugin.armRandomFailure();
+            Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
+            gate.block();
+
+            // Create index async
+            prepareCreate(indexName, indexSettings(1, 0)).execute();
+            gate.await();
+
+            // Isolating dataNode will cause shard to go unassigned
+            NetworkDisruption disruption = new NetworkDisruption(
+                new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(master)),
+                NetworkDisruption.DISCONNECT
+            );
+            internalCluster().setDisruptionScheme(disruption);
+            disruption.startDisrupting();
+            String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
+            awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
+
+            // Release recovery will make recovery/retry race with network disruption
+            gate.release();
+            disruption.stopDisrupting();
+
+            waitNoPendingTasksOnAll();
+            ensureGreen(indexName);
+        } finally {
+            masterATransport.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromExistingStoreRaceWithNetworkDisruption() throws Exception {
+        String master = internalCluster().startMasterOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+        String indexName = randomIndexName();
+
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+        assertAcked(indicesAdmin().prepareClose(indexName));
+
+        MockTransportService masterATransport = MockTransportService.getInstance(master);
+        try {
+            failTestIfReceiveShardFailure(masterATransport);
+
+            RetryRecoveryTestPlugin.armRandomFailure();
+            Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
+            gate.block();
+
+            // Recover from existing store async
+            indicesAdmin().prepareOpen(indexName).execute();
+            gate.await();
+
+            // Isolating dataNode will cause shard to go unassigned
+            NetworkDisruption disruption = new NetworkDisruption(
+                new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(master)),
+                NetworkDisruption.DISCONNECT
+            );
+            internalCluster().setDisruptionScheme(disruption);
+            disruption.startDisrupting();
+            String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
+            awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
+
+            // Release recovery will make recovery/retry race with network disruption
+            gate.release();
+            disruption.stopDisrupting();
+
+            waitNoPendingTasksOnAll();
+            ensureGreen(indexName);
+        } finally {
+            masterATransport.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromLocalShardRaceWithNetworkDisruption() throws Exception {
+        String master = internalCluster().startMasterOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+        final var sourceIndexName = randomIndexName();
+        final var targetIndexName = randomIndexName();
+
+        createIndex(sourceIndexName, indexSettings(1, 0).build());
+        indexDoc(sourceIndexName, "1", "f", randomAlphaOfLength(10));
+        flush(sourceIndexName);
+        ensureGreen(sourceIndexName);
+
+        // Required for clone
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
+
+        MockTransportService masterATransport = MockTransportService.getInstance(master);
+        try {
+            failTestIfReceiveShardFailure(masterATransport);
+
+            RetryRecoveryTestPlugin.armRandomFailure();
+            Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
+            gate.block();
+
+            // Recover from local shard async
+            ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
+            gate.await();
+
+            // Isolating dataNode will cause shard to go unassigned
+            NetworkDisruption disruption = new NetworkDisruption(
+                new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(master)),
+                NetworkDisruption.DISCONNECT
+            );
+            internalCluster().setDisruptionScheme(disruption);
+            disruption.startDisrupting();
+            String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
+            awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
+
+            // Release recovery will make recovery/retry race with network disruption
+            gate.release();
+            disruption.stopDisrupting();
+
+            waitNoPendingTasksOnAll();
+            ensureGreen(sourceIndexName);
+            ensureGreen(targetIndexName);
+        } finally {
+            masterATransport.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromSnapshotRaceWithNetworkDisruption() throws Exception {
+        String master = internalCluster().startMasterOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+        final var indexName = randomIndexName();
+        final var repoName = "test-repo";
+
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).get();
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        MockTransportService masterATransport = MockTransportService.getInstance(master);
+        try {
+            failTestIfReceiveShardFailure(masterATransport);
+
+            RetryRecoveryTestPlugin.armRandomFailure();
+            Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
+            gate.block();
+
+            // Recover from snapshot async
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(false).execute();
+            gate.await();
+
+            // Isolating dataNode will cause shard to go unassigned
+            NetworkDisruption disruption = new NetworkDisruption(
+                new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(master)),
+                NetworkDisruption.DISCONNECT
+            );
+            internalCluster().setDisruptionScheme(disruption);
+            disruption.startDisrupting();
+            String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
+            awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
+
+            // Release recovery will make recovery/retry race with network disruption
+            gate.release();
+            disruption.stopDisrupting();
+
+            waitNoPendingTasksOnAll();
+            ensureGreen(indexName);
+        } finally {
+            masterATransport.clearAllRules();
+        }
+    }
+
+    /// Local recovery retries is about preventing the round trip to master on a failed recovery
+    /// (we retry directly on the data node instead).
+    /// Since master would also retry, that could mask potential bugs in the local retry functionality.
+    /// This utility method prevents that by failing the test if master receives a "shard failed" message.
+    private static void failTestIfReceiveShardFailure(MockTransportService mockTransportService) {
+        mockTransportService.addRequestHandlingBehavior(
+            SHARD_FAILED_ACTION_NAME,
+            (handler, request, channel, task) -> fail("should not send shard failure")
+        );
+    }
+
+    /// Think of a Gate as... well, a gate with a visitor and a guard.
+    /// The visitor tries to [enter] the gate and when it leaves, [exit] the gate.
+    /// The guard might prevent the visitor from entering by [block] the gate, then [await] for visitor to try to [enter],
+    /// and finally [release] to let the visitor in.
+    /// Visitor/T1:
+    /// ```
+    /// gate.enter();
+    /// // Do stuff while inside
+    /// gate.exit();
+    /// ```
+    /// Guard/T2:
+    /// ```
+    /// gate.block();
+    /// gate.await();
+    /// // Do stuff while visitor is waiting to enter
+    /// gate.release();
+    /// ```
+    static class Gate {
+        private final Semaphore gate = new Semaphore(1);
+        private final Semaphore entered = new Semaphore(0);
+        /// Name is useful for logging while testing
+        private final String name;
+
+        Gate(String name) {
+            this.name = name;
+        }
+
+        void reset() {
+            gate.drainPermits();
+            gate.release();
+            entered.drainPermits();
+        }
+
+        /// Block visitor from enter
+        void block() {
+            safeAcquire(gate);
+        }
+
+        /// Wait for visitor to try and enter
+        void await() {
+            safeAcquire(entered);
+            entered.release();
+        }
+
+        /// Allow visitor to enter
+        public void release() {
+            gate.release();
+        }
+
+        /// Try to enter through the gate
+        void enter() {
+            entered.release();
+            safeAcquire(gate);
+        }
+
+        /// Exit through the gate
+        void exit() {
+            gate.release();
+            safeAcquire(entered);
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    /// This plugin does a few things:
+    /// - Count number of recovery attempts [recoveryCounter]
+    /// - Inject failures into recover path through [IndexEventListener] and [failureTarget] + [FailureTarget]
+    /// - Concurrency control by injecting [Gate]s on shard creation/recovery path through [IndexEventListener]
+    /// - Inject a one-shot [AlreadyClosedException] from the Lucene Directory during temporary IndexWriter use
+    /// - Set indices.recovery.local_retry=true
+    public static class RetryRecoveryTestPlugin extends Plugin {
+        private static final AtomicReference<FailureTarget> failureTarget = new AtomicReference<>(null);
+        private static final AtomicInteger recoveryCounter = new AtomicInteger();
+        private static final AtomicBoolean throwAceOnCreateOutput = new AtomicBoolean();
+
+        // Gates in the order they are invoked
+        private static final Gate beforeIndexShardCreatedGate = new Gate("beforeIndexShardCreateGate");
+        private static final Gate onStoreCreatedGate = new Gate("onStoreCreatedGate");
+        private static final Gate afterIndexShardCreatedGate = new Gate("afterIndexShardCreatedGate");
+        private static final Gate stateChangeRecoveringGate = new Gate("stateChangeRecoveringGate");
+        private static final Gate beforeIndexShardRecoveryGate = new Gate("beforeIndexShardRecoveryGate");
+        private static final Gate stateChangePostRecoveryGate = new Gate("stateChangePostRecoveryGate");
+        private static final List<Gate> allGates = List.of(
+            beforeIndexShardCreatedGate,
+            onStoreCreatedGate,
+            afterIndexShardCreatedGate,
+            stateChangeRecoveringGate,
+            beforeIndexShardRecoveryGate,
+            stateChangePostRecoveryGate
+        );
+
+        public static void reset() {
+            failureTarget.set(null);
+            recoveryCounter.set(0);
+            throwAceOnCreateOutput.set(false);
+            allGates.forEach(Gate::reset);
+        }
+
+        /// Arm index event listener with a random failure target
+        /// This will cause the next recovery to fail with a [RETRY_CAUSE]
+        /// exception when it reaches the [FailureTarget]
+        public static void armRandomFailure() {
+            failureTarget.set(randomFrom(FailureTarget.values()));
+        }
+
+        /// Arm the Directory wrapper so the next [IndexOutput] create throws [AlreadyClosedException].
+        /// Used to fail temporary IndexWriters used in StoreRecovery once, then allow retry to succeed.
+        public static void armDirectoryAce() {
+            throwAceOnCreateOutput.set(true);
+        }
+
+        /// Returns a [Gate] that sits at some random point before the currently armed [FailureTarget].
+        /// This is useful because we want to race recovery retry against some other concurrent event or operation
+        /// and in order to do that we want to make that the recovery has started but not yet failed.
+        public static Gate randomGateBeforeTargetFailure() {
+            assert failureTarget.get() != null;
+            List<Gate> validGates = switch (failureTarget.get()) {
+                case BEFORE_INDEX_SHARD_RECOVERY, AFTER_INDEX_SHARD_RECOVERY -> allGatesExcept(stateChangePostRecoveryGate);
+                case STATE_CHANGED_POST_RECOVERY -> allGates;
+            };
+            return randomFrom(validGates);
+        }
+
+        public static List<Gate> allGatesExcept(Gate... excluded) {
+            List<Gate> result = new ArrayList<>(allGates);
+            for (Gate gate : excluded) {
+                result.remove(gate);
+            }
+            return result;
+        }
+
+        @Override
+        public Settings additionalSettings() {
+            return Settings.builder()
+                .put(super.additionalSettings())
+                .put(IndicesClusterStateService.LOCAL_RECOVERY_RETRY.getKey(), true)
+                .build();
+        }
+
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            indexModule.setDirectoryWrapper((directory, shardRouting) -> new FilterDirectory(directory) {
+                @Override
+                public IndexOutput createOutput(String name, IOContext context) throws IOException {
+                    if (throwAceOnCreateOutput.compareAndSet(true, false)) {
+                        throw new AlreadyClosedException("test createEmpty ACE");
+                    }
+                    return super.createOutput(name, context);
+                }
+            });
+            indexModule.addIndexEventListener(new IndexEventListener() {
+
+                @Override
+                public void beforeIndexShardCreated(ShardRouting routing, Settings indexSettings) {
+                    // Failure here will not cause recovery retry, only gate
+                    beforeIndexShardCreatedGate.enter();
+                    beforeIndexShardCreatedGate.exit();
+                }
+
+                @Override
+                public void onStoreCreated(ShardId shardId) {
+                    // Failure here will not cause recovery retry, only gate
+                    onStoreCreatedGate.enter();
+                    onStoreCreatedGate.exit();
+                }
+
+                @Override
+                public void afterIndexShardCreated(IndexShard indexShard) {
+                    // Failure here will not cause recovery retry, only gate
+                    afterIndexShardCreatedGate.enter();
+                    afterIndexShardCreatedGate.exit();
+                }
+
+                @Override
+                public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                    beforeIndexShardRecoveryGate.enter();
+                    try {
+                        maybeThrow(BEFORE_INDEX_SHARD_RECOVERY);
+                        listener.onResponse(null);
+                    } finally {
+                        beforeIndexShardRecoveryGate.exit();
+                    }
+                }
+
+                @Override
+                public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+                    maybeThrow(AFTER_INDEX_SHARD_RECOVERY);
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void indexShardStateChanged(
+                    IndexShard indexShard,
+                    IndexShardState previousState,
+                    IndexShardState currentState,
+                    String reason
+                ) {
+                    if (currentState == IndexShardState.RECOVERING) {
+                        stateChangeRecoveringGate.enter();
+                        recoveryCounter.incrementAndGet();
+                        stateChangeRecoveringGate.exit();
+                    }
+                    if (currentState == IndexShardState.POST_RECOVERY) {
+                        stateChangePostRecoveryGate.enter();
+                        try {
+                            maybeThrow(STATE_CHANGED_POST_RECOVERY);
+                        } finally {
+                            stateChangePostRecoveryGate.exit();
+                        }
+                    }
+                }
+
+                private void maybeThrow(FailureTarget target) {
+                    if (failureTarget.compareAndSet(target, null)) {
+                        throw RETRY_CAUSE;
+                    }
+                }
+            });
+        }
+    }
+
+    /// Failure target describe different possible failure points during recovery.
+    /// Typically on different calls to [IndexEventListener].
+    enum FailureTarget {
+        BEFORE_INDEX_SHARD_RECOVERY,
+        AFTER_INDEX_SHARD_RECOVERY,
+        STATE_CHANGED_POST_RECOVERY
+    }
+}

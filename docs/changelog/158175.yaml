@@ -1,0 +1,5 @@
+area: Templates
+issues: []
+pr: 158175
+summary: Reduce memory usage during serialization when retrieving component and composable templates via the GET APIs
+type: bug

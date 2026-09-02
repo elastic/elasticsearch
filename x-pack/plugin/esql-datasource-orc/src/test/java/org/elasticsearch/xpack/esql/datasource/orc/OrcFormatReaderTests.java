@@ -44,6 +44,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.After;
 import org.junit.Before;
@@ -842,6 +844,66 @@ public class OrcFormatReaderTests extends ESTestCase {
     public void testWithPushedFilterNullReturnsThis() {
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
         assertSame("withPushedFilter(null) must return same instance", reader, reader.withPushedFilter(null));
+    }
+
+    public void testWithPushedFilterNullClearsExistingFilter() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 5;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            for (int i = 0; i < 5; i++) {
+                idCol.vector[i] = i + 1;
+            }
+        });
+
+        SearchArgument sarg = SearchArgumentFactory.newBuilder()
+            .startNot()
+            .lessThanEquals("id", PredicateLeaf.Type.LONG, 100L)
+            .end()
+            .build();
+
+        OrcFormatReader filtered = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(sarg);
+        StorageObject storageObject = createStorageObject(orcData);
+        try (CloseableIterator<Page> filteredIter = filtered.read(storageObject, null, 1024)) {
+            assertFalse("No rows should match the filter", filteredIter.hasNext());
+        }
+
+        FormatReader cleared = filtered.withPushedFilter(null);
+        assertNotSame("withPushedFilter(null) must fork when a filter is installed", filtered, cleared);
+        assertSame("second null is identity", cleared, cleared.withPushedFilter(null));
+        assertEquals(5, countRows((OrcFormatReader) cleared, storageObject, null, 1024));
+    }
+
+    public void testWithPushedFilterNullClearsPushedExpressions() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 5;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            for (int i = 0; i < 5; i++) {
+                idCol.vector[i] = i + 1;
+            }
+        });
+
+        OrcPushedExpressions pushed = new OrcPushedExpressions(
+            List.of(
+                new GreaterThan(
+                    Source.EMPTY,
+                    new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG),
+                    new Literal(Source.EMPTY, 100L, DataType.LONG),
+                    null
+                )
+            )
+        );
+        OrcFormatReader filtered = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(pushed);
+        StorageObject storageObject = createStorageObject(orcData);
+        try (CloseableIterator<Page> filteredIter = filtered.read(storageObject, null, 1024)) {
+            assertFalse("No rows should match the pushed expressions", filteredIter.hasNext());
+        }
+
+        FormatReader cleared = filtered.withPushedFilter(null);
+        assertNotSame("withPushedFilter(null) must fork when expressions are installed", filtered, cleared);
+        assertSame("second null is identity", cleared, cleared.withPushedFilter(null));
+        assertEquals(5, countRows((OrcFormatReader) cleared, storageObject, null, 1024));
     }
 
     public void testReadWithPushedFilterMatchingAll() throws Exception {

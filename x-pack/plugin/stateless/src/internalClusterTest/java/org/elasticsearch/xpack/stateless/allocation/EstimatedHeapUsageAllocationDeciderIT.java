@@ -323,7 +323,7 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
      * Intercepts {@link TransportPublishHeapMemoryMetrics} requests on the master and optionally replaces the reported mapping sizes with
      * the node's full heap max, simulating a node that is fully saturated. Nodes are added to and removed from injection via
      * {@link #injectAll(Collection)} and {@link #stopInjecting(String)}. Use {@link #waitForNextPublication()} to synchronize
-     * with the master actually holding the delivered mapping sizes for every tracked node.
+     * with the master actually applying a publication from every tracked node.
      */
     private class HeapUsagePublicationInterceptor {
 
@@ -356,14 +356,14 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
         }
 
         /**
-         * Resets the per-node latches and blocks until each tracked node's delivered mapping sizes are the ones the master holds.
-         * Delivering a publication is not enough: the master silently skips a payload whose sequence number is behind one it already
-         * applied, so callers must wait for the applied sizes rather than the transport handshake.
+         * Resets the per-node latches and blocks until each tracked node has a publication applied on the master. Delivering a
+         * publication is not enough: the master silently skips a payload whose sequence number is behind one it already applied, so
+         * callers wait until the applied seq no matches the delivered publication seq no.
          */
         void waitForNextPublication() {
             nodeIdToPublicationLatch.keySet().forEach(nodeId -> nodeIdToPublicationLatch.put(nodeId, new CountDownLatch(1)));
             nodeIdToPublicationLatch.forEach((nodeId, latch) -> {
-                logger.info("--> waiting for applied mapping sizes from node [{}]", nodeId);
+                logger.info("--> waiting for applied publication from node [{}]", nodeId);
                 safeAwait(latch);
             });
         }
@@ -424,16 +424,16 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
                 deliveredShardMappingSizes = shardMappingSizes;
                 handler.messageReceived(request, channel, task);
             }
-            if (masterHoldsDeliveredSizes(deliveredShardMappingSizes)) {
+            if (masterHasAppliedPublication(heapMemoryUsage.publicationSeqNo(), deliveredShardMappingSizes.keySet())) {
                 latch.countDown();
             }
         }
 
-        private boolean masterHoldsDeliveredSizes(Map<ShardId, ShardMappingSize> deliveredShardMappingSizes) {
+        private boolean masterHasAppliedPublication(long publicationSeqNo, Set<ShardId> shardIds) {
             final var appliedByShard = masterMemoryMetricsService.getShardMemoryMetrics();
-            return deliveredShardMappingSizes.entrySet().stream().allMatch(delivered -> {
-                final var applied = appliedByShard.get(delivered.getKey());
-                return applied != null && applied.getMappingSizeInBytes() == delivered.getValue().mappingSizeInBytes();
+            return shardIds.stream().allMatch(shardId -> {
+                final var applied = appliedByShard.get(shardId);
+                return applied != null && applied.getSeqNo() == publicationSeqNo;
             });
         }
 

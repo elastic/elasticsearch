@@ -652,12 +652,18 @@ public class QuerySettingsTests extends ESTestCase {
         }
         assertThat(
             derivedKeys,
-            equalTo(Set.of("esql.query.settings.time_zone", "esql.query.settings.unmapped_fields", "esql.query.settings.column_metadata"))
+            equalTo(
+                Set.of(
+                    "esql.query.settings.time_zone",
+                    "esql.query.settings.unmapped_fields",
+                    "esql.query.settings.column_metadata",
+                    "esql.query.settings.approximation"
+                )
+            )
         );
 
         // A setting that did not opt in has no key at all, so the key stays unknown and is rejected as a typo
         // rather than silently accepted.
-        assertThat(QuerySettings.APPROXIMATION.clusterSetting(), is(nullValue()));
         assertThat(QuerySettings.PROJECT_ROUTING.clusterSetting(), is(nullValue()));
     }
 
@@ -875,7 +881,7 @@ public class QuerySettingsTests extends ESTestCase {
 
     public void testSettingWithoutClusterDefaultIgnoresItsWouldBeKey() {
         // column_metadata did not opt in, so even a value sitting at its would-be key changes nothing.
-        Settings stray = Settings.builder().put("esql.query.settings.approximation", true).build();
+        Settings stray = Settings.builder().put("esql.query.settings.project_routing", "some-project").build();
         ResolvedSettings resolved = QuerySettings.resolve(stray, Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
         assertThat(resolved, equalTo(QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED)));
     }
@@ -1112,6 +1118,63 @@ public class QuerySettingsTests extends ESTestCase {
             () -> QuerySettingDef.string("x", v -> "always-this").withDefault("something-else").withClusterDefault().build()
         );
         assertThat(e.getMessage(), containsString("does not round-trip through its own parser"));
+    }
+
+    // ---- approximation as an operator default: the behaviour table ----
+
+    private static ApproximationSettings resolveApprox(String clusterValue, ApproximationSettings body, Expression set) {
+        Settings cluster = clusterValue == null
+            ? Settings.EMPTY
+            : Settings.builder().put(QuerySettingDef.CLUSTER_SETTING_PREFIX + "approximation", clusterValue).build();
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        if (body != null) {
+            requestParams.put(QuerySettings.APPROXIMATION, body);
+        }
+        EsqlStatement statement = set == null
+            ? null
+            : new EsqlStatement(null, List.of(new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, "approximation", set))));
+        return QuerySettings.APPROXIMATION.get(
+            QuerySettings.resolve(cluster, Settings.EMPTY, requestParams, statement, SNAPSHOT_CTX_WITH_CPS_ENABLED)
+        );
+    }
+
+    public void testApproximationFalseIsIndistinguishableFromUnsetFromEveryLayer() {
+        // The invariant this whole opt-in rests on. It was false before the operator layer folded through the
+        // reconciler: "false" parses to the disabled sentinel, and substituting it turned approximation ON.
+        assertThat(resolveApprox(null, null, null), is(nullValue()));
+        assertThat("operator false", resolveApprox("false", null, null), is(nullValue()));
+        assertThat("operator null", resolveApprox("null", null, null), is(nullValue()));
+        assertThat("body false", resolveApprox(null, ApproximationSettings.EXPLICIT_NULL, null), is(nullValue()));
+        assertThat("SET false", resolveApprox(null, null, Literal.fromBoolean(Source.EMPTY, false)), is(nullValue()));
+    }
+
+    public void testApproximationOperatorValueApplies() {
+        assertThat(resolveApprox("true", null, null), equalTo(ApproximationSettings.DEFAULT));
+        ApproximationSettings fromMap = resolveApprox("{\"rows\": 20000}", null, null);
+        assertThat(fromMap.rows(), equalTo(20000));
+    }
+
+    public void testApproximationUserMapPatchesTheOperatorValue() {
+        // The merging reconciler: a user names one field and inherits the rest from the operator.
+        ApproximationSettings resolved = resolveApprox(
+            "{\"rows\": 20000}",
+            null,
+            approxMap("confidence_level", Literal.fromDouble(Source.EMPTY, 0.8))
+        );
+        assertThat(resolved.rows(), equalTo(20000));
+        assertThat(resolved.confidenceLevel(), equalTo(0.8));
+    }
+
+    public void testApproximationUserFalseClearsTheOperatorValue() {
+        // The escape hatch: a user must be able to opt out of an operator's default entirely.
+        assertThat(resolveApprox("{\"rows\": 20000}", ApproximationSettings.EXPLICIT_NULL, null), is(nullValue()));
+    }
+
+    public void testApproximationClusterKeyRejectsMalformedValues() {
+        Setting<?> setting = QuerySettings.APPROXIMATION.clusterSetting();
+        for (String bad : List.of("{\"rows\": 5}", "{\"confidence_level\": 0.99}", "not json", "false true")) {
+            expectThrows(IllegalArgumentException.class, bad, () -> setting.get(Settings.builder().put(setting.getKey(), bad).build()));
+        }
     }
 
 }

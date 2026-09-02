@@ -213,6 +213,7 @@ public final class QuerySettings {
         .withRequestBody()
         .withAliasAtRoot()
         .withReconciler((previous, current) -> new ApproximationSettings.Builder(false).merge(previous).merge(current).build())
+        .withClusterDefault("false")
         .streamFormat((out, value) -> value.writeTo(out), ApproximationSettings::new)
         .build();
 

@@ -171,6 +171,12 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
 
     @Override
     public FormatReader withPushedFilter(Object pushedFilter) {
+        if (pushedFilter == null) {
+            if (this.pushedFilter == null && this.pushedExpressions == null) {
+                return this;
+            }
+            return new OrcFormatReader(blockFactory, null, null, dynamicThreshold, declaredDateFormats, declaredTypeColumns);
+        }
         if (pushedFilter instanceof SearchArgument sarg) {
             return new OrcFormatReader(this.blockFactory, sarg, null, dynamicThreshold, declaredDateFormats, declaredTypeColumns);
         }
@@ -787,6 +793,23 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     @Override
     public FilterPushdownSupport filterPushdownSupport() {
         return new OrcFilterPushdownSupport();
+    }
+
+    /**
+     * ORC keeps dropping rows for {@code skip_row} with a SearchArgument pushed into it, so it opts into the
+     * pushdown the SPI withholds by default.
+     * <p>
+     * Two properties earn that: the reader has a single decode path — {@code convertToPage} always runs
+     * {@code ColumnarRowDropHelper#filterBlocks} — and it never calls {@code OrcFile.ReaderOptions#setRowFilter},
+     * so a SearchArgument prunes whole stripes and row-index ranges but never individual rows inside a batch.
+     * Batch coordinates therefore stay intact and the positions the coercion reports still address the blocks
+     * the helper compacts. A future row-level ORC predicate path would break both and must revisit this
+     * answer; {@code OrcFormatReaderTests#testDropsRowsUnderPushedFilter} demonstrates the drop under a real
+     * pushed SearchArgument rather than leaving it asserted.
+     */
+    @Override
+    public boolean dropsRowsUnderPushedFilter() {
+        return true;
     }
 
     @Override
@@ -1504,10 +1527,10 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             } catch (IOException e) {
                 throw new IllegalArgumentException("Failed to read ORC batch", e);
             } finally {
-                counters.addReadNanos(System.nanoTime() - startNanos);
                 if (startCpuNanos >= 0) {
                     counters.addReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
                 }
+                counters.addReadNanos(System.nanoTime() - startNanos);
             }
         }
 

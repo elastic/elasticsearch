@@ -314,7 +314,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             timer
         );
         freshState.setStage(Stage.INIT);
-        freshState.setLocalRetries(localRetries);
+        freshState.setLocalRetries(getLocalRetries());
         return freshState;
     }
 

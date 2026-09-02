@@ -35,7 +35,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -347,7 +347,7 @@ public class TransportUpdateInferenceModelActionSecretRotationTests extends ESTe
 
         doAnswer(inv -> {
             ActionListener<InferenceServiceResults> listener = inv.getArgument(3);
-            listener.onResponse(new ChatCompletionResults(List.of(new ChatCompletionResults.Result("hello"))));
+            listener.onResponse(new CompletionResults(List.of(new CompletionResults.Result("hello"))));
             return null;
         }).when(spyService).unifiedCompletionInfer(any(), any(), any(), any());
 

@@ -36,13 +36,16 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -91,6 +94,119 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             assertNotNull(stream);
             assertEquals(0, stream.getPos());
         }
+    }
+
+    /**
+     * Incomplete window fill (cancel / exception mid-GET) must {@code abortStream} the range
+     * rather than {@code close()}, which on S3 would drain the remaining 4–16 MiB.
+     */
+    public void testIncompleteWindowFillAbortsRatherThanDrains() throws IOException {
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
+        randomBytes(data);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject raw = DrainSimulatingStorageObject.create(data, tracking);
+        StorageObject failing = incompleteWindowStorage(raw);
+
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(failing, breaker);
+        try (SeekableInputStream stream = adapter.newStream()) {
+            expectThrows(IOException.class, () -> stream.readFully(new byte[1024]));
+        }
+
+        assertTrue("incomplete window fill must abort the range GET", tracking.aborted.get());
+        assertThat(
+            "incomplete fill must not drain the window; consumed " + tracking.bytesConsumed.get() + " of " + data.length,
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan((long) data.length / 2)
+        );
+    }
+
+    /**
+     * A fully-read window must still {@code close()} the range GET. Abort-after-success would
+     * handshake every 4–16 MiB parquet window.
+     */
+    public void testCompleteWindowFillClosesRatherThanAborts() throws IOException {
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
+        randomBytes(data);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject storage = DrainSimulatingStorageObject.create(data, tracking);
+
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, breaker);
+        try (SeekableInputStream stream = adapter.newStream()) {
+            byte[] buf = new byte[1024];
+            stream.readFully(buf);
+        }
+
+        assertFalse("completed window must close(), not abortStream", tracking.aborted.get());
+        assertTrue("completed window must close the range GET", tracking.closed.get());
+    }
+
+    private static StorageObject incompleteWindowStorage(StorageObject raw) {
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() throws IOException {
+                return throwAfterPrefix(raw.newStream());
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) throws IOException {
+                return throwAfterPrefix(raw.newStream(position, length));
+            }
+
+            @Override
+            public void abortStream(InputStream stream) throws IOException {
+                raw.abortStream(stream);
+            }
+
+            @Override
+            public long length() throws IOException {
+                return raw.length();
+            }
+
+            @Override
+            public Instant lastModified() throws IOException {
+                return raw.lastModified();
+            }
+
+            @Override
+            public boolean exists() throws IOException {
+                return raw.exists();
+            }
+
+            @Override
+            public StoragePath path() {
+                return raw.path();
+            }
+        };
+    }
+
+    private static InputStream throwAfterPrefix(InputStream inner) {
+        return new FilterInputStream(inner) {
+            int consumed;
+
+            @Override
+            public int read() throws IOException {
+                if (consumed >= 8192) {
+                    throw new IOException("simulated incomplete window");
+                }
+                int b = super.read();
+                if (b >= 0) {
+                    consumed++;
+                }
+                return b;
+            }
+
+            @Override
+            public int read(byte[] buf, int off, int len) throws IOException {
+                if (consumed >= 8192) {
+                    throw new IOException("simulated incomplete window");
+                }
+                int n = super.read(buf, off, Math.min(len, 8192 - consumed));
+                if (n > 0) {
+                    consumed += n;
+                }
+                return n;
+            }
+        };
     }
 
     /**

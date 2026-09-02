@@ -52,19 +52,17 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  * status code, exception type, top-level {@code reason} and the full {@code caused_by} chain that
  * each one produces.
  *
- * <p>This is a <em>discovery</em> harness first and a regression pin second. The recorded matrix is
- * written to {@code build/external-error-surface.md} (overridable with {@code -Dtests.error.report})
- * so the messages can be read side by side; the assertions at the end are deliberately about
- * properties that hold across the whole matrix rather than about individual strings:
+ * <p>The recorded matrix is written to {@code build/external-error-surface.md} (overridable with
+ * {@code -Dtests.error.report}) so the messages can be read side by side. What it asserts:
  * <ul>
- *   <li>the top-level {@code reason} must not collapse distinct root conditions onto one string, and</li>
- *   <li>the top-level {@code reason} must not contain a JVM type name, which is what a flattened cause
- *   chain looks like from outside.</li>
+ *   <li>the top-level {@code reason} must not collapse distinct root conditions onto one string,</li>
+ *   <li>neither the {@code reason} nor any entry in the cause chain may contain a JVM type name, which
+ *   is what a flattened cause chain looks like from outside,</li>
+ *   <li>every probe returns the status recorded in {@link #EXPECTED_STATUS}, including the outcomes that
+ *   are currently 200, and</li>
+ *   <li>every {@link #KNOWN_OPEN} entry still collides -- an entry whose defect has been fixed has to go
+ *   in the same change, rather than staying on to exempt a condition that no longer needs it.</li>
  * </ul>
- * <b>Status codes are deliberately not asserted.</b> The matrix shows several user-caused conditions
- * reported as 5xx, which is wrong, but correcting a status is a compatibility-visible change and is
- * being handled separately from the message work; the per-probe status is recorded in the report so the
- * follow-up has its evidence. Adding the assertion here is the first step of that follow-up.
  * Each violation is collected and reported together, so one run tells us everything that is wrong
  * rather than stopping at the first case.
  */
@@ -226,6 +224,10 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * outcome so that fixing one — turning it into a 400 — fails here and forces the expectation to be updated.
      */
     private static final Map<String, Integer> EXPECTED_STATUS = Map.ofEntries(
+        // The three 200s below -- multi-character delimiter, multi-character quote, malformed endpoint -- are
+        // misconfigurations the engine currently accepts. They are esql-planning#1550, whose fix is in flight as
+        // elastic/elasticsearch#157197: when it lands these become 400 and these three entries move with it in the
+        // same change. They are pinned rather than skipped so that fix cannot land silently.
         entry("tsv object does not exist", 400),
         entry("tsv object is empty", 400),
         entry("tsv declared as parquet", 400),

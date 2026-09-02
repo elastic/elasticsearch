@@ -15,7 +15,6 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
-import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
@@ -168,11 +167,6 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 path,
                 s3.statusCode()
             );
-        }
-        if (cause instanceof NoSuchBucketException) {
-            // Distinct from a missing key: the bucket name itself is wrong, so naming the object would
-            // send the user looking in a bucket that does not exist.
-            return new IOException("Bucket not found: " + path.host(), cause);
         }
         if (cause instanceof NoSuchKeyException) {
             return new IOException("Object not found: " + path, cause);

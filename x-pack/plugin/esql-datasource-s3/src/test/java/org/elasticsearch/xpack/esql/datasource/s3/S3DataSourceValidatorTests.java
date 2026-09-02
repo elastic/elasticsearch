@@ -741,8 +741,19 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
         assertThat(e.validationErrors(), hasSize(2));
         assertThat(e.validationErrors(), hasItem("[resource] is required"));
-        // The "known settings: [...]" suffix lists an unordered set, so match only the stable prefix.
+        // The "known settings: [...]" suffix is sorted, so it is stable across JVM runs and can be matched
+        // in full. Matching only the prefix would let the list go back to Set.of iteration order unnoticed.
         assertThat(e.validationErrors(), hasItem(containsString("unknown setting [delimiter]")));
+        assertThat(
+            e.validationErrors(),
+            hasItem(
+                containsString(
+                    "known settings: [error_mode, file_exclusions, format, hive_partitioning, max_error_ratio, "
+                        + "max_errors, max_split_probes, partition_detection, partition_path, schema_resolution, "
+                        + "schema_sample_size, split_probe_window, target_split_size]"
+                )
+            )
+        );
     }
 
     public void testUnknownExplicitFormatRejected() {

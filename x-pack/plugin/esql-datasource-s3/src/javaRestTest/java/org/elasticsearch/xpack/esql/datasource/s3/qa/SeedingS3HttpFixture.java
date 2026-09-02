@@ -12,7 +12,6 @@ import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
 
-import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.ExceptionsHelper;
@@ -20,11 +19,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.function.BiPredicate;
 
 import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
+import static fixture.aws.AwsFixtureUtils.sendError;
 
 /**
  * {@link S3HttpFixture} subclass that captures the underlying {@link S3HttpHandler} so the test JVM
@@ -64,7 +62,9 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
             try {
                 if (checkAuthorization(authorizationPredicate, exchange)) {
                     if (addressesAnotherBucket(exchange.getRequestURI().getPath())) {
-                        respondNoSuchBucket(exchange);
+                        // S3 answers a request for a bucket that does not exist with 404 NoSuchBucket;
+                        // the shared handler answers 500, which would make a probe measure the fixture.
+                        sendError(exchange, RestStatus.NOT_FOUND, "NoSuchBucket", "The specified bucket does not exist");
                         return;
                     }
                     handler.handle(exchange);
@@ -95,22 +95,6 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
      */
     private boolean addressesAnotherBucket(String requestPath) {
         return requestPath.startsWith("/" + bucket + "/") == false && requestPath.equals("/" + bucket) == false;
-    }
-
-    /**
-     * The error code matters as much as the status: the SDK selects NoSuchBucketException on the Code element,
-     * and without it a 404 is mapped to NoSuchKeyException and collapses into the missing-object case.
-     */
-    @SuppressForbidden(reason = "uses the JDK HttpServer exchange, as the surrounding fixture does")
-    private static void respondNoSuchBucket(HttpExchange exchange) throws IOException {
-        byte[] body = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-            + "<Error><Code>NoSuchBucket</Code><Message>The specified bucket does not exist</Message></Error>").getBytes(
-                StandardCharsets.UTF_8
-            );
-        exchange.getResponseHeaders().add("Content-Type", "application/xml");
-        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), body.length);
-        exchange.getResponseBody().write(body);
-        exchange.close();
     }
 
 }

@@ -23,6 +23,8 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class ExternalFailuresTests extends ESTestCase {
 
     public void testErrorIsRethrown() {
@@ -227,4 +229,26 @@ public class ExternalFailuresTests extends ESTestCase {
         assertSame("classify must pass an already-typed surface() result through unchanged", surfaced, classified);
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
     }
+
+    public void testLocateOmitsThePrefixWhenTheDetailAlreadyNamesTheLocation() {
+        String location = "s3://bucket/data/good.csv";
+        assertThat(
+            ExternalFailures.locate("Failed to resolve external source", location, "Object not found: " + location),
+            equalTo("Object not found: s3://bucket/data/good.csv")
+        );
+    }
+
+    public void testLocateAddsThePrefixWhenTheDetailDoesNotNameTheLocation() {
+        assertThat(
+            ExternalFailures.locate("Failed to resolve external source", "s3://bucket/data/good.csv", "CSV file has no schema line"),
+            equalTo("Failed to resolve external source [s3://bucket/data/good.csv]: CSV file has no schema line")
+        );
+    }
+
+    public void testLocateNamesTheLocationExactlyOnce() {
+        String location = "s3://bucket/data/good.csv";
+        String message = ExternalFailures.locate("Failed to resolve external source", location, "Object not found: " + location);
+        assertThat("the location must not be printed twice", message.indexOf(location), equalTo(message.lastIndexOf(location)));
+    }
+
 }

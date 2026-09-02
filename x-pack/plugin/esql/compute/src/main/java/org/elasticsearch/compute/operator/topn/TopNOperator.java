@@ -280,8 +280,16 @@ public class TopNOperator implements Operator, Accountable {
     @Nullable
     private SharedGlobalTopK globalTopK;
 
+    /**
+     * Sort keys of rows that entered {@link #inputQueue} since the last global merge. Passed as
+     * the delta to {@link SharedGlobalTopK#mergeKeys} so that already-contributed rows are never
+     * re-added (which would create duplicates in the global heap and publish a bound that is too
+     * tight).
+     * <p>
+     * {@code null} when no {@link GlobalTopKMergeConfig} is active.
+     */
     @Nullable
-    private BytesRef lastMergedWorstKept;
+    private final List<BytesRef> pendingGlobalKeys;
 
     private int globalTopKBatchPages;
 
@@ -384,6 +392,7 @@ public class TopNOperator implements Operator, Accountable {
         this.minCompetitiveSupplier = minCompetitiveSupplier;
         this.globalTopKMergeConfig = globalTopKMergeConfig;
         this.globalTopK = globalTopK;
+        this.pendingGlobalKeys = globalTopK != null ? new ArrayList<>() : null;
         this.blockFactory = blockFactory;
         this.breaker = breaker;
         this.maxPageRows = maxPageRows;
@@ -438,6 +447,9 @@ public class TopNOperator implements Operator, Accountable {
                 if (inputQueue.size() < inputQueue.topCount) {
                     // Heap not yet full, just add elements
                     rowFiller.writeValues(i, spare);
+                    if (pendingGlobalKeys != null) {
+                        pendingGlobalKeys.add(BytesRef.deepCopyOf(spare.keys.bytesRefView()));
+                    }
                     inputQueue.add(spare);
                     spare = null;
                     modified = true;
@@ -445,6 +457,9 @@ public class TopNOperator implements Operator, Accountable {
                     // Heap full AND this node fits in it.
                     TopNRow nextSpare = inputQueue.top();
                     rowFiller.writeValues(i, spare);
+                    if (pendingGlobalKeys != null) {
+                        pendingGlobalKeys.add(BytesRef.deepCopyOf(spare.keys.bytesRefView()));
+                    }
                     inputQueue.updateTop(spare);
                     spare = nextSpare;
                     modified = true;
@@ -478,11 +493,11 @@ public class TopNOperator implements Operator, Accountable {
         if (globalTopK == null || globalTopKBatchPages <= 0 || pagesReceived % globalTopKBatchPages != 0) {
             return;
         }
-        if (globalTopK.mergeLocalHeap(inputQueue, lastMergedWorstKept)) {
-            minCompetitiveUpdates++;
-        }
-        if (inputQueue != null && inputQueue.size() >= inputQueue.topCount) {
-            lastMergedWorstKept = BytesRef.deepCopyOf(inputQueue.top().keys.bytesRefView());
+        if (pendingGlobalKeys != null && pendingGlobalKeys.isEmpty() == false) {
+            if (globalTopK.mergeKeys(pendingGlobalKeys)) {
+                minCompetitiveUpdates++;
+            }
+            pendingGlobalKeys.clear();
         }
     }
 
@@ -518,10 +533,11 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public void finish() {
-        if (globalTopK != null) {
-            if (globalTopK.mergeLocalHeapOnFinish(inputQueue)) {
+        if (globalTopK != null && pendingGlobalKeys != null && pendingGlobalKeys.isEmpty() == false) {
+            if (globalTopK.mergeKeys(pendingGlobalKeys)) {
                 minCompetitiveUpdates++;
             }
+            pendingGlobalKeys.clear();
         }
         if (output == null) {
             long start = System.nanoTime();

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -22,7 +23,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Unit tests for {@link SharedGlobalTopK}: global heap merge, publish timing, and dirty-skip.
+ * Unit tests for {@link SharedGlobalTopK}: global heap merge, publish timing, and correctness
+ * under multiple merge rounds.
  */
 public class SharedGlobalTopKTests extends ESTestCase {
     private final CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
@@ -34,10 +36,8 @@ public class SharedGlobalTopKTests extends ESTestCase {
             SharedMinCompetitive minCompetitive = minCompetitiveSupplier.get();
             SharedGlobalTopK globalTopK = globalTopKSupplier(3, minCompetitiveSupplier).get()
         ) {
-            try (TopNQueue local = localQueue(3, false, false, 100L, 200L)) {
-                assertFalse(globalTopK.mergeLocalHeap(local, null));
-            }
-            assertThat(minCompetitive.minCompetitiveValue(), nullValue());
+            assertFalse(globalTopK.mergeKeys(encodedKeys(false, false, 100L, 200L)));
+            assertThat(minCompetitive.rawBound(), nullValue());
             assertThat(globalTopK.publishCount(), equalTo(0));
         }
     }
@@ -45,23 +45,57 @@ public class SharedGlobalTopKTests extends ESTestCase {
     public void testMergePublishesWhenGlobalHeapFull() {
         SharedMinCompetitive.Supplier minCompetitiveSupplier = minCompetitiveSupplier(false, false);
         try (SharedGlobalTopK globalTopK = globalTopKSupplier(2, minCompetitiveSupplier).get()) {
-            try (TopNQueue local = localQueue(2, false, false, 1_000L, 2_000L)) {
-                assertTrue(globalTopK.mergeLocalHeap(local, null));
-            }
+            assertTrue(globalTopK.mergeKeys(encodedKeys(false, false, 1_000L, 2_000L)));
             assertThat(globalTopK.publishCount(), equalTo(1));
         }
     }
 
-    public void testSkipsMergeWhenLocalWorstKeptUnchanged() {
+    public void testEmptyKeyListIsNoOp() {
         SharedMinCompetitive.Supplier minCompetitiveSupplier = minCompetitiveSupplier(false, false);
         try (SharedGlobalTopK globalTopK = globalTopKSupplier(2, minCompetitiveSupplier).get()) {
-            try (TopNQueue local = localQueue(2, false, false, 1_000L, 2_000L)) {
-                assertTrue(globalTopK.mergeLocalHeap(local, null));
-                var worstKept = local.top().keys.bytesRefView();
-                assertFalse(globalTopK.mergeLocalHeap(local, worstKept));
-            }
-            assertThat(globalTopK.mergesSkippedUnchanged(), equalTo(1));
-            assertThat(globalTopK.publishCount(), equalTo(1));
+            // First fill the global heap so it would publish if any key were contributed.
+            assertTrue(globalTopK.mergeKeys(encodedKeys(false, false, 1_000L, 2_000L)));
+            int publishesBefore = globalTopK.publishCount();
+
+            // Passing an empty list must be a no-op: no publish, no exception.
+            assertFalse(globalTopK.mergeKeys(List.of()));
+            assertThat(globalTopK.publishCount(), equalTo(publishesBefore));
+        }
+    }
+
+    /**
+     * Two merge rounds for the same driver: the second round passes only the new key that entered
+     * the local queue (evicting the previous worst). The bound must reflect the N-th best row
+     * across both rounds, not be skewed by re-adding already-contributed rows.
+     *
+     * <p>Scenario (N=3, DESC sort — keeping largest timestamps):
+     * <ol>
+     *   <li>Round 1 delta = {ts=1, ts=2, ts=3}. Global fills: bound = ts=1 (worst of {1,2,3}).</li>
+     *   <li>ts=4 arrives; local evicts ts=1. Round 2 delta = {ts=4}.
+     *       Correct global after merge: {ts=2, ts=3, ts=4}; bound = ts=2.</li>
+     * </ol>
+     * If the full local queue {ts=2, ts=3, ts=4} were re-passed in round 2, the global heap would
+     * contain duplicates and publish a bound of ts=3 instead of the correct ts=2, which would cause
+     * documents with timestamps between 2 and 3 to be incorrectly skipped.
+     */
+    public void testSecondMergeRoundDoesNotBiasGlobalBound() {
+        SharedMinCompetitive.Supplier minCompetitiveSupplier = minCompetitiveSupplier(false, false);
+        try (
+            SharedMinCompetitive minCompetitive = minCompetitiveSupplier.get();
+            SharedGlobalTopK globalTopK = globalTopKSupplier(3, minCompetitiveSupplier).get()
+        ) {
+            // Round 1: contribute {ts=1, ts=2, ts=3}.
+            assertTrue(globalTopK.mergeKeys(encodedKeys(false, false, 1L, 2L, 3L)));
+            BytesRef boundAfterRound1 = minCompetitive.rawBound();
+            assertThat(boundAfterRound1, equalTo(encodedKey(false, false, 1L)));
+
+            // Round 2: only the new row (ts=4) entered the local queue; old rows must NOT be re-passed.
+            globalTopK.mergeKeys(encodedKeys(false, false, 4L));
+
+            // The bound should now reflect {ts=2, ts=3, ts=4}: worst = ts=2.
+            // If the full queue {ts=2, ts=3, ts=4} were re-added, duplicates would shift the bound to ts=3.
+            BytesRef boundAfterRound2 = minCompetitive.rawBound();
+            assertThat(boundAfterRound2, equalTo(encodedKey(false, false, 2L)));
         }
     }
 
@@ -71,9 +105,7 @@ public class SharedGlobalTopKTests extends ESTestCase {
             SharedMinCompetitive minCompetitive = minCompetitiveSupplier.get();
             SharedGlobalTopK globalTopK = globalTopKSupplier(2, minCompetitiveSupplier).get()
         ) {
-            try (TopNQueue local = localQueue(2, false, true, null, null)) {
-                assertTrue(globalTopK.mergeLocalHeap(local, null));
-            }
+            assertTrue(globalTopK.mergeKeys(encodedKeys(false, true, null, null)));
             assertTrue(minCompetitive.noFurtherCandidates());
             assertThat(globalTopK.publishCount(), equalTo(1));
         }
@@ -90,19 +122,16 @@ public class SharedGlobalTopKTests extends ESTestCase {
         return new SharedGlobalTopK.Supplier(breaker, topCount, minCompetitive);
     }
 
-    private TopNQueue localQueue(int topCount, boolean asc, boolean nullsFirst, Long... values) {
-        TopNQueue queue = TopNQueue.build(breaker, topCount);
+    /** Returns encoded sort keys for the given values as a list ready to pass to {@link SharedGlobalTopK#mergeKeys}. */
+    private List<BytesRef> encodedKeys(boolean asc, boolean nullsFirst, Long... values) {
+        List<BytesRef> keys = new java.util.ArrayList<>(values.length);
         for (Long value : values) {
-            TopNRow row = longRow(value, asc, nullsFirst);
-            TopNRow leftover = queue.addRow(row);
-            if (leftover != null) {
-                leftover.close();
-            }
+            keys.add(encodedKey(asc, nullsFirst, value));
         }
-        return queue;
+        return keys;
     }
 
-    private TopNRow longRow(Long value, boolean asc, boolean nullsFirst) {
+    private BytesRef encodedKey(boolean asc, boolean nullsFirst, Long value) {
         LongBlock block = value == null
             ? blockFactory.newLongBlockBuilder(1).appendNull().build()
             : blockFactory.newLongBlockBuilder(1).appendLong(value).build();
@@ -113,9 +142,9 @@ public class SharedGlobalTopKTests extends ESTestCase {
             byte nonNul = nullsFirst ? TopNOperator.BIG_NULL : TopNOperator.SMALL_NULL;
             KeyExtractorForLong extractor = KeyExtractorForLong.extractorFor(encoder, asc, nul, nonNul, block);
             extractor.writeKey(row.keys, 0);
+            return BytesRef.deepCopyOf(row.keys.bytesRefView());
         } finally {
-            Releasables.close(block);
+            Releasables.close(block, row);
         }
-        return row;
     }
 }

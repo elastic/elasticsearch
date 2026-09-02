@@ -10,10 +10,10 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.operator.SideChannel;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static org.elasticsearch.compute.operator.topn.TopNOperator.SMALL_NULL;
@@ -57,7 +57,6 @@ public final class SharedGlobalTopK extends SideChannel {
     private final CircuitBreaker breaker;
 
     private int mergeAttempts;
-    private int mergesSkippedUnchanged;
     private int publishCount;
 
     private SharedGlobalTopK(CircuitBreaker breaker, int topCount, SharedMinCompetitive minCompetitive, Supplier supplier) {
@@ -68,59 +67,32 @@ public final class SharedGlobalTopK extends SideChannel {
     }
 
     /**
-     * Merges all rows currently in {@code local} into the global heap and publishes a new bound
-     * if the global heap is now full.
+     * Adds the sort keys of rows that newly entered a driver's local queue since the last call
+     * into the global heap, and publishes a new competitive bound if the heap is now full.
      *
-     * <p>Skips the merge when the local heap's worst-kept row hasn't changed since the last merge
-     * (dirty-skip optimization): if {@code lastMergedWorstKept} matches the current local top, the
-     * local heap contributed nothing new and re-merging would be wasteful.
+     * <p><b>Caller contract</b>: {@code newKeys} must contain <em>only</em> keys that were not
+     * passed in any previous call for this driver. Repeating a previously-contributed key inserts
+     * a duplicate into the global heap, which can shift the published bound to a value that is too
+     * tight, causing documents that belong in the top-N to be skipped.
      *
-     * @param local               the driver's local top-N queue (not modified, not closed here)
-     * @param lastMergedWorstKept the worst-kept key from the last successful merge for this driver,
-     *                            or {@code null} on the first call
+     * <p>In practice the caller ({@link TopNOperator}) tracks exactly which rows entered its local
+     * queue since the last merge and passes only those keys here; rows already in the queue are
+     * never re-passed.
+     *
+     * @param newKeys encoded sort keys for rows that entered the driver's local queue since the
+     *                last call; an empty list is a no-op
      * @return {@code true} if a new competitive bound was published to {@link SharedMinCompetitive}
      */
-    public boolean mergeLocalHeap(TopNQueue local, @Nullable BytesRef lastMergedWorstKept) {
+    public boolean mergeKeys(List<BytesRef> newKeys) {
         mergeAttempts++;
-        if (local == null || local.size() == 0) {
-            return false;
-        }
-        BytesRef localWorstKept = local.size() >= local.topCount ? local.top().keys.bytesRefView() : null;
-        if (localWorstKept != null && lastMergedWorstKept != null && localWorstKept.equals(lastMergedWorstKept)) {
-            mergesSkippedUnchanged++;
+        if (newKeys.isEmpty()) {
             return false;
         }
         lock.lock();
         try {
-            for (TopNRow row : local) {
-                TopNRow copy = copySortKeys(row);
-                TopNRow leftover = globalQueue.addRow(copy);
-                if (leftover != null) {
-                    leftover.close();
-                }
-            }
-            return publishIfFull();
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    /**
-     * Final merge when a driver finishes. Always attempts to merge even if the local worst-kept
-     * hasn't changed, to ensure the global heap reflects the driver's final state.
-     *
-     * @param local the driver's local top-N queue (not modified, not closed here)
-     * @return {@code true} if a new competitive bound was published to {@link SharedMinCompetitive}
-     */
-    public boolean mergeLocalHeapOnFinish(TopNQueue local) {
-        mergeAttempts++;
-        if (local == null || local.size() == 0) {
-            return false;
-        }
-        lock.lock();
-        try {
-            for (TopNRow row : local) {
-                TopNRow copy = copySortKeys(row);
+            for (BytesRef key : newKeys) {
+                TopNRow copy = new TopNRow(breaker, key.length, 0);
+                copy.keys.append(key);
                 TopNRow leftover = globalQueue.addRow(copy);
                 if (leftover != null) {
                     leftover.close();
@@ -165,19 +137,8 @@ public final class SharedGlobalTopK extends SideChannel {
         return false;
     }
 
-    /** Copies only the sort-key bytes from {@code source}, discarding value columns. */
-    private TopNRow copySortKeys(TopNRow source) {
-        TopNRow copy = new TopNRow(breaker, source.keys.length(), 0);
-        copy.keys.append(source.keys.bytesRefView());
-        return copy;
-    }
-
     int mergeAttempts() {
         return mergeAttempts;
-    }
-
-    int mergesSkippedUnchanged() {
-        return mergesSkippedUnchanged;
     }
 
     int publishCount() {

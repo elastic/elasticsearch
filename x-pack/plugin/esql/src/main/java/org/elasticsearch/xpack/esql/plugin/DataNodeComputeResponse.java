@@ -57,6 +57,7 @@ final class DataNodeComputeResponse extends TransportResponse {
                 List.of(),
                 java.util.Map.of(),
                 false,
+                false,
                 Set.of()
             );
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);

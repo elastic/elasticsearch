@@ -335,6 +335,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 LoggingAuditTrail.INCLUDE_EVENT_SETTINGS,
                 LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS,
                 LoggingAuditTrail.INCLUDE_REQUEST_BODY,
+                LoggingAuditTrail.MAX_REQUEST_BODY_SIZE,
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_PRINCIPALS,
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_REALMS,
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_ROLES,
@@ -2919,6 +2920,69 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertMsg(logger, checkedFields);
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
         threadContext.stashContext();
+    }
+
+    /**
+     * With {@code emit_request_body} enabled, a protobuf body is emitted under {@code request.raw_body} (base64) rather than
+     * {@code request.body}, alongside its {@code Content-Type} and {@code Content-Encoding} (when present).
+     */
+    public void testAuthenticationSuccessRestWithProtobufBody() throws Exception {
+        final InetSocketAddress address = new InetSocketAddress(
+            forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1"),
+            randomIntBetween(9200, 9300)
+        );
+        final byte[] protobufBody = randomByteArrayOfLength(randomIntBetween(1, 64));
+        final boolean withContentEncoding = randomBoolean();
+        final String contentEncoding = withContentEncoding ? randomFrom("snappy", "gzip", "identity") : null;
+        final Builder builder = new Builder(NamedXContentRegistry.EMPTY);
+        builder.withContent(new BytesArray(protobufBody), null);
+        final Map<String, List<String>> headers = new HashMap<>();
+        headers.put("Content-Type", List.of("application/x-protobuf"));
+        if (contentEncoding != null) {
+            headers.put("Content-Encoding", List.of(contentEncoding));
+        }
+        builder.withHeaders(headers);
+        builder.withPath("_uri");
+        builder.withRemoteAddress(address);
+        builder.withMethod(RestRequest.Method.POST);
+        final RestRequest request = builder.build();
+        final Channel channel = mock(Channel.class);
+        when(channel.remoteAddress()).thenReturn(address);
+
+        final String requestId = AuditUtil.generateRequestId(threadContext);
+        final Authentication authentication = createAuthentication();
+        authentication.writeToContext(threadContext);
+        RemoteHostHeader.process(channel, threadContext);
+
+        updateLoggerSettings(
+            Settings.builder()
+                .put(this.settings)
+                .put("xpack.security.audit.logfile.events.include", "authentication_success")
+                .put("xpack.security.audit.logfile.events.emit_request_body", true)
+                .build()
+        );
+        auditTrail.authenticationSuccess(request);
+
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success");
+        checkedFields.put(LoggingAuditTrail.REALM_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getName());
+        checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address));
+        checkedFields.put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, "POST");
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
+        checkedFields.put(LoggingAuditTrail.RAW_REQUEST_BODY_FIELD_NAME, Base64.getEncoder().encodeToString(protobufBody));
+        checkedFields.put(LoggingAuditTrail.RAW_REQUEST_BODY_CONTENT_TYPE_FIELD_NAME, "application/x-protobuf");
+        // null value asserts the field is absent (i.e. no Content-Encoding header on the wire)
+        checkedFields.put(LoggingAuditTrail.RAW_REQUEST_BODY_CONTENT_ENCODING_FIELD_NAME, contentEncoding);
+        checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, null);
+        authentication(authentication, checkedFields);
+        opaqueId(threadContext, checkedFields);
+        traceId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedFields);
+        assertMsg(logger, checkedFields);
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
     }
 
     public void testAuthenticationSuccessTransport() throws Exception {

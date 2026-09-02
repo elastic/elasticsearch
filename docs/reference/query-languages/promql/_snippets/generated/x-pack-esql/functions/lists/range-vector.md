@@ -6,6 +6,9 @@
 :::{include} ../avg_over_time.md
 :::
 
+:::{include} ../changes.md
+:::
+
 :::{include} ../count_over_time.md
 :::
 

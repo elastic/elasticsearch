@@ -1,0 +1,50 @@
+// PromQL changes() is intentionally not exposed as an ES|QL aggregate. These
+// tests exercise it through PROMQL command integration only.
+
+changes_of_double_promql_expanded
+required_capability: promql_command_v0
+required_capability: promql_changes
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:08:00.000Z" end="2024-05-10T00:10:00.000Z" cost_changes=(sum(changes(network.cost[1m])))
+| SORT step;
+
+cost_changes:double | step:datetime
+3.0                 | 2024-05-10T00:08:00.000Z
+2.0                 | 2024-05-10T00:09:00.000Z
+11.0                | 2024-05-10T00:10:00.000Z
+;
+
+changes_of_integer_promql_expanded
+required_capability: promql_command_v0
+required_capability: promql_changes
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:08:00.000Z" end="2024-05-10T00:10:00.000Z" client_changes=(sum(changes(network.eth0.currently_connected_clients[1m])))
+| SORT step;
+
+client_changes:double | step:datetime
+3.0                   | 2024-05-10T00:08:00.000Z
+2.0                   | 2024-05-10T00:09:00.000Z
+11.0                  | 2024-05-10T00:10:00.000Z
+;
+
+changes_of_counter_promql_grouping
+required_capability: promql_command_v0
+required_capability: promql_changes
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=10m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:20:00.000Z" byte_changes=(sum by (cluster) (changes(network.total_bytes_in[10m])))
+| SORT step, cluster;
+
+byte_changes:double | step:datetime            | cluster:keyword
+20.0                | 2024-05-10T00:10:00.000Z | prod
+34.0                | 2024-05-10T00:10:00.000Z | qa
+21.0                | 2024-05-10T00:10:00.000Z | staging
+28.0                | 2024-05-10T00:20:00.000Z | prod
+37.0                | 2024-05-10T00:20:00.000Z | qa
+21.0                | 2024-05-10T00:20:00.000Z | staging
+;

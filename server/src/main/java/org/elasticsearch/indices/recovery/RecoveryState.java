@@ -147,7 +147,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         boolean primary,
         RecoverySource recoverySource,
         ShardRouting.RecoveryPriority recoveryPriority,
-        DiscoveryNode sourceNode,
+        @Nullable DiscoveryNode sourceNode,
         DiscoveryNode targetNode,
         Index index,
         Timer timer
@@ -244,7 +244,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
                 );
             }
             case INIT -> {
-                // reinitializing stop remove all state except for start time
+                // Covers both the CREATED to INIT transition and re-initialization via reset().
+                // In both cases, all substate is reset but the start time is preserved once set.
                 this.stage = Stage.INIT;
                 if (timer.startTime() == 0) {
                     timer.start();

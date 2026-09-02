@@ -1001,7 +1001,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode localNode,
-        final DiscoveryNode sourceNode,
+        @Nullable final DiscoveryNode sourceNode,
         long clusterStateVersion
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);

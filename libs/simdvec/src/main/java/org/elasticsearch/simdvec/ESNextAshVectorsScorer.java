@@ -10,8 +10,6 @@
 package org.elasticsearch.simdvec;
 
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.simdvec.internal.vectorization.BBQDotProduct;
-import org.elasticsearch.simdvec.internal.vectorization.ESNextAshBBQVectorsScorer;
 
 import java.io.IOException;
 
@@ -28,11 +26,6 @@ public final class ESNextAshVectorsScorer {
     /** Creates a scalar {@link AshScorer} for the float-query path. */
     public static AshScorer<float[]> createFloat(IndexInput in, int nDims, int bitsPerDim) {
         return new FloatImpl(in, nDims, bitsPerDim);
-    }
-
-    /** Creates a scalar {@link AshScorer} for the integer-query path. */
-    public static AshScorer<byte[]> createInteger(IndexInput in, int nDims, int bitsPerDim, int queryBitsPerDim) {
-        return new ESNextAshBBQVectorsScorer(BBQDotProduct.create(in, nDims, bitsPerDim, queryBitsPerDim));
     }
 
     /** Scalar float-path scorer. */

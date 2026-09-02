@@ -223,7 +223,6 @@ import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearch
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardMetrics;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
-import org.elasticsearch.xpack.stateless.reshard.ReshardSearchWarmer;
 import org.elasticsearch.xpack.stateless.reshard.ReshardUnownedBitsetCache;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
@@ -1579,7 +1578,6 @@ public class StatelessPlugin extends Plugin
             );
         }
         if (hasSearchRole) {
-            indexModule.addIndexEventListener(new ReshardSearchWarmer());
             indexModule.addIndexEventListener(
                 new StatelessSearchNodeLifecycleListener(
                     searchShardSizeCollector.get(),

@@ -12,6 +12,7 @@ package org.elasticsearch.sourcebatch;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.FixedBitSet;
 
 import java.util.List;
 
@@ -23,6 +24,36 @@ public interface LuceneColumn extends SliceableColumn {
 
     @Override
     LuceneColumn slice(int from, int count);
+
+    /**
+     * Returns a copy of this column that emits only documents whose bit is set in {@code filter}.
+     * The returned column has {@link Column.Density#SPARSE} density. Pass {@code null} to remove
+     * any existing filter and restore the original density.
+     *
+     * @param filter a bitset of length equal to this column's doc count, or {@code null}
+     */
+    LuceneColumn withFilter(FixedBitSet filter);
+
+    /**
+     * Windows {@code src} to the range {@code [base, base + count)}, producing a new
+     * {@link FixedBitSet} of size {@code count}. Returns {@code null} when all bits in the
+     * range are set (equivalent to no filter — every doc passes).
+     */
+    static FixedBitSet slicedFilter(FixedBitSet src, int base, int count) {
+        for (int i = 0; i < count; i++) {
+            if (src.get(base + i) == false) {
+                FixedBitSet out = new FixedBitSet(count);
+                out.set(0, i); // bits 0..i-1 were all set
+                for (int j = i + 1; j < count; j++) {
+                    if (src.get(base + j)) {
+                        out.set(j);
+                    }
+                }
+                return out;
+            }
+        }
+        return null;
+    }
 
     /**
      * Returns a Lucene {@link Column} for this column's current window, for use with

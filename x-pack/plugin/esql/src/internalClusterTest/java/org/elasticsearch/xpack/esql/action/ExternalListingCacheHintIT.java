@@ -30,9 +30,10 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
  *
  * <p>Two conditions are load-bearing and easy to get subtly wrong:
  * <ul>
- *   <li><b>{@code schema_resolution: first_file_wins}.</b> The default is {@code union_by_name}, whose reconciliation
- *       path never consults the listing cache. A poisoning test on the default path passes for the wrong reason — it
- *       never touches the cache at all.</li>
+ *   <li><b>Product path.</b> Dataset settings are the default ({@code union_by_name}) so hint keys are computed on
+ *       the rail users hit. Assertions are row counts: they catch a cached listing keyed without hints, not a
+ *       skip-cache regression (fresh lists still yield 6). Listing hit/miss is asserted in
+ *       {@code ExternalSourceResolverTests}.</li>
  *   <li><b>Both queries on one coordinator.</b> The listing cache is a node singleton on the resolving coordinator, so
  *       the sequence must be pinned to a single node with {@code client(coordinator)} for the second query to hit the
  *       first's entry.</li>
@@ -84,12 +85,13 @@ public class ExternalListingCacheHintIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * The core defect (esql-planning#1174's headline example): a filtered query narrows the listing to a subset of the
+     * The core defect: a filtered query narrows the listing to a subset of the
      * files and caches it; keyed only on the path, that subset is then served to a later unfiltered query, which
      * silently reads fewer files than the dataset holds. Uses a {@code _file.name} filter on a plain glob — that
-     * pruning runs on any multi-file listing, so the defect is not specific to hive-partitioned globs. The listing
-     * cache is only consulted under {@code first_file_wins} (the default {@code union_by_name} never lists through it),
-     * and it is a node singleton, so both queries are pinned to one coordinator.
+     * pruning runs on any multi-file listing, so the defect is not specific to hive-partitioned globs. Runs on the
+     * default {@code union_by_name} rail so poison keys are computed on the product path. Row counts do not prove a
+     * cache hit — skip-cache still returns 6. Hit/miss is {@code ExternalSourceResolverTests}. Both queries are pinned
+     * to one coordinator because the listing cache is a node singleton.
      */
     public void testFilteredThenUnfilteredSeesEveryFile() throws Exception {
         for (TextFormat format : TextFormat.values()) {
@@ -99,7 +101,7 @@ public class ExternalListingCacheHintIT extends AbstractExternalDataSourceIT {
             writeFile(root, "c", format, List.of(new String[] { "5", "epsilon" }, new String[] { "6", "zeta" }));
 
             String glob = StoragePath.fileUri(root) + "/*" + format.ext;
-            String dataset = registerDataset("poison_" + format.tag, glob, Map.of("schema_resolution", "first_file_wins"));
+            String dataset = registerDataset("poison_" + format.tag, glob, Map.of());
             String coordinator = internalCluster().getNodeNames()[0];
 
             long filtered = count(

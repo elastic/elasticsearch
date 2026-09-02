@@ -17,32 +17,42 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL;
 import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.SEPARATE_COUNT;
-import static org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery.getContainsPattern;
+import static org.elasticsearch.lucene.queries.ScanningBinaryDocValuesAutomatonQuery.getContainsPattern;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
-public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
+public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
 
     public void testArrayOrderInlineNull() throws Exception {
         String fieldName = "field";
@@ -58,18 +68,18 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
                     // Automaton wildcard "be*" matches "beta" and "best"; the all-null doc preceding "best" must not be matched.
                     assertEquals(
                         2,
-                        searcher.count(new ScanningBinaryDocValuesWildcardQuery(fieldName, "be*", false, ARRAY_ORDER_INLINE_NULL))
+                        searcher.count(ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "be*", false, ARRAY_ORDER_INLINE_NULL))
                     );
-                    // "*et*" rewrites to a contains query: with a multi-valued doc present in the segment the contains fast path is gated
-                    // off and the per-value decode fallback runs, so only "beta" (which contains "et") matches — not "best".
+                    // "*et*" short-circuits to a contains query: with a multi-valued doc present in the segment the contains fast path is
+                    // gated off and the per-value decode fallback runs, so only "beta" (which contains "et") matches — not "best".
                     assertEquals(
                         1,
-                        searcher.count(new ScanningBinaryDocValuesWildcardQuery(fieldName, "*et*", false, ARRAY_ORDER_INLINE_NULL))
+                        searcher.count(ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*et*", false, ARRAY_ORDER_INLINE_NULL))
                     );
                     // "*ph*" contains-matches "alpha" only.
                     assertEquals(
                         1,
-                        searcher.count(new ScanningBinaryDocValuesWildcardQuery(fieldName, "*ph*", false, ARRAY_ORDER_INLINE_NULL))
+                        searcher.count(ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*ph*", false, ARRAY_ORDER_INLINE_NULL))
                     );
                 }
             }
@@ -112,10 +122,41 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
                     IndexSearcher searcher = newSearcher(reader);
                     for (var entry : expectedCounts.entrySet()) {
                         long count = searcher.count(
-                            new ScanningBinaryDocValuesWildcardQuery(fieldName, entry.getKey() + "*", false, SEPARATE_COUNT)
+                            ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, entry.getKey() + "*", false, SEPARATE_COUNT)
                         );
                         assertEquals(entry.getValue().longValue(), count);
                     }
+                }
+            }
+        }
+    }
+
+    /** Exercises the primary constructor with a union automaton — the shape ESQL's LIKE-list pushdown produces. */
+    public void testBasicsUnionAutomaton() throws Exception {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
+                addDoc(writer, fieldName, "alpha");
+                addDoc(writer, fieldName, "beta");
+                addDoc(writer, fieldName, "gamma");
+                addDoc(writer, fieldName, "delta");
+                addDoc(writer, fieldName, "alpha", "gamma"); // multi-valued: both arms match, count as 1 doc
+
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+
+                    // union of "alpha" and "beta" — matches first, second, and fifth docs
+                    Automaton automaton = Operations.determinize(
+                        Operations.union(Arrays.asList(Automata.makeString("alpha"), Automata.makeString("beta"))),
+                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+                    );
+                    Query query = new ScanningBinaryDocValuesAutomatonQuery(
+                        fieldName,
+                        automaton,
+                        SEPARATE_COUNT,
+                        "LIKE(\"alpha\", \"beta\"), caseInsensitive=false"
+                    );
+                    assertEquals(3, searcher.count(query));
                 }
             }
         }
@@ -130,7 +171,7 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesWildcardQuery(fieldName, "a*", false, SEPARATE_COUNT);
+                    Query query = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "a*", false, SEPARATE_COUNT);
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -155,7 +196,7 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesWildcardQuery(fieldName, "a*", false, SEPARATE_COUNT);
+                    Query query = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "a*", false, SEPARATE_COUNT);
                     assertEquals(1, searcher.count(query));
                 }
             }
@@ -199,7 +240,7 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
                     );
                     TopDocs baselineResults = searcher.search(baselineQuery, 32);
 
-                    Query contenderQuery = new ScanningBinaryDocValuesWildcardQuery(
+                    Query contenderQuery = ScanningBinaryDocValuesAutomatonQuery.forWildcard(
                         "contender_field",
                         randomWildcard,
                         false,
@@ -235,7 +276,7 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
         assertThat(getContainsPattern("*fo\\**"), nullValue());
     }
 
-    public void testRewriteToContainsQuery() throws IOException {
+    public void testForWildcardReturnsContainsQueryForStarLiteralStar() throws IOException {
         String fieldName = "field";
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
@@ -247,16 +288,15 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesWildcardQuery(fieldName, "*search*", false, SEPARATE_COUNT);
-                    Query rewritten = query.rewrite(searcher);
-                    assertThat(rewritten, instanceOf(BinaryDocValuesContainsTermQuery.class));
-                    assertEquals(3, searcher.count(rewritten));
+                    Query query = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*search*", false, SEPARATE_COUNT);
+                    assertThat(query, instanceOf(BinaryDocValuesContainsTermQuery.class));
+                    assertEquals(3, searcher.count(query));
                 }
             }
         }
     }
 
-    public void testRewriteToContainsQueryMultiValued() throws IOException {
+    public void testForWildcardReturnsContainsQueryMultiValued() throws IOException {
         String fieldName = "field";
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
@@ -267,16 +307,15 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesWildcardQuery(fieldName, "*ell*", false, SEPARATE_COUNT);
-                    Query rewritten = query.rewrite(searcher);
-                    assertThat(rewritten, instanceOf(BinaryDocValuesContainsTermQuery.class));
-                    assertEquals(2, searcher.count(rewritten));
+                    Query query = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*ell*", false, SEPARATE_COUNT);
+                    assertThat(query, instanceOf(BinaryDocValuesContainsTermQuery.class));
+                    assertEquals(2, searcher.count(query));
                 }
             }
         }
     }
 
-    public void testCaseInsensitiveNotRewrittenToContains() throws IOException {
+    public void testCaseInsensitiveNotOptimizedToContains() throws IOException {
         String fieldName = "field";
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
@@ -284,16 +323,15 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesWildcardQuery(fieldName, "*search*", true, SEPARATE_COUNT);
-                    Query rewritten = query.rewrite(searcher);
-                    assertThat(rewritten, instanceOf(ScanningBinaryDocValuesWildcardQuery.class));
-                    assertEquals(1, searcher.count(rewritten));
+                    Query query = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*search*", true, SEPARATE_COUNT);
+                    assertThat(query, instanceOf(ScanningBinaryDocValuesAutomatonQuery.class));
+                    assertEquals(1, searcher.count(query));
                 }
             }
         }
     }
 
-    public void testNonContainsPatternNotRewritten() throws IOException {
+    public void testNonContainsPatternNotOptimized() throws IOException {
         String fieldName = "field";
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
@@ -302,14 +340,160 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
 
-                    Query prefixQuery = new ScanningBinaryDocValuesWildcardQuery(fieldName, "foo*", false, SEPARATE_COUNT);
-                    assertThat(prefixQuery.rewrite(searcher), instanceOf(ScanningBinaryDocValuesWildcardQuery.class));
+                    Query prefixQuery = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "foo*", false, SEPARATE_COUNT);
+                    assertThat(prefixQuery, instanceOf(ScanningBinaryDocValuesAutomatonQuery.class));
+                    assertThat(prefixQuery, sameInstance(prefixQuery.rewrite(searcher)));
 
-                    Query multiWildcard = new ScanningBinaryDocValuesWildcardQuery(fieldName, "*foo*bar*", false, SEPARATE_COUNT);
-                    assertThat(multiWildcard.rewrite(searcher), instanceOf(ScanningBinaryDocValuesWildcardQuery.class));
+                    Query multiWildcard = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*foo*bar*", false, SEPARATE_COUNT);
+                    assertThat(multiWildcard, instanceOf(ScanningBinaryDocValuesAutomatonQuery.class));
 
-                    Query singleCharWildcard = new ScanningBinaryDocValuesWildcardQuery(fieldName, "*fo?*", false, SEPARATE_COUNT);
-                    assertThat(singleCharWildcard.rewrite(searcher), instanceOf(ScanningBinaryDocValuesWildcardQuery.class));
+                    Query singleCharWildcard = ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*fo?*", false, SEPARATE_COUNT);
+                    assertThat(singleCharWildcard, instanceOf(ScanningBinaryDocValuesAutomatonQuery.class));
+                }
+            }
+        }
+    }
+
+    public void testToString() {
+        // wildcard factory — description contains the pattern and caseInsensitive flag
+        Query q1 = ScanningBinaryDocValuesAutomatonQuery.forWildcard("my_field", "foo*", false, SEPARATE_COUNT);
+        String str1 = q1.toString("other_field");
+        assertThat(str1, containsString("my_field")); // stored fieldName, not the Lucene context param
+        assertThat(str1, containsString("foo*"));
+        assertThat(str1, not(containsString("other_field")));
+
+        // primary ctor — description is caller-supplied
+        Automaton automaton = Automata.makeString("hello");
+        Query q2 = new ScanningBinaryDocValuesAutomatonQuery("my_field", automaton, SEPARATE_COUNT, "custom desc");
+        assertThat(q2.toString("other_field"), containsString("my_field"));
+        assertThat(q2.toString("other_field"), containsString("custom desc"));
+    }
+
+    public void testVisitor() {
+        Automaton automaton = Automata.makeString("hello");
+        ScanningBinaryDocValuesAutomatonQuery query = new ScanningBinaryDocValuesAutomatonQuery(
+            "my_field",
+            automaton,
+            SEPARATE_COUNT,
+            "desc"
+        );
+
+        AtomicBoolean called = new AtomicBoolean(false);
+        query.visit(new QueryVisitor() {
+            @Override
+            public boolean acceptField(String field) {
+                return "my_field".equals(field);
+            }
+
+            @Override
+            public void consumeTermsMatching(Query query, String field, java.util.function.Supplier<ByteRunAutomaton> automaton) {
+                called.set(true);
+                assertEquals("my_field", field);
+                // the automaton supplier returns a functional ByteRunAutomaton
+                ByteRunAutomaton bra = automaton.get();
+                BytesRef hello = new BytesRef("hello");
+                assertTrue(bra.run(hello.bytes, hello.offset, hello.length));
+                BytesRef world = new BytesRef("world");
+                assertFalse(bra.run(world.bytes, world.offset, world.length));
+            }
+        });
+        assertTrue("consumeTermsMatching should have been called", called.get());
+
+        // acceptField == false → consumeTermsMatching not called
+        AtomicBoolean notCalled = new AtomicBoolean(false);
+        query.visit(new QueryVisitor() {
+            @Override
+            public boolean acceptField(String field) {
+                return false;
+            }
+
+            @Override
+            public void consumeTermsMatching(Query q, String field, java.util.function.Supplier<ByteRunAutomaton> automaton) {
+                notCalled.set(true);
+            }
+        });
+        assertFalse("consumeTermsMatching should NOT have been called when acceptField returns false", notCalled.get());
+    }
+
+    public void testEqualsAndHashCode() {
+        Automaton automaton1 = Automata.makeString("hello");
+        Automaton automaton2 = Automata.makeString("hello"); // same language, built independently
+        Automaton automaton3 = Automata.makeString("world"); // different language
+
+        // Instances with structurally equal automatons are equal regardless of description.
+        // Description is display-only and does not participate in equals/hashCode.
+        ScanningBinaryDocValuesAutomatonQuery q1 = new ScanningBinaryDocValuesAutomatonQuery("field", automaton1, SEPARATE_COUNT, "desc-a");
+        ScanningBinaryDocValuesAutomatonQuery q2 = new ScanningBinaryDocValuesAutomatonQuery(
+            "field",
+            automaton2,
+            SEPARATE_COUNT,
+            "desc-b" // different description, same automaton
+        );
+        assertEquals(q1, q2);
+        assertEquals(q1.hashCode(), q2.hashCode());
+
+        // Different automaton → not equal.
+        ScanningBinaryDocValuesAutomatonQuery q3 = new ScanningBinaryDocValuesAutomatonQuery("field", automaton3, SEPARATE_COUNT, "desc-a");
+        assertNotEquals(q1, q3);
+
+        // Different field → not equal.
+        ScanningBinaryDocValuesAutomatonQuery q4 = new ScanningBinaryDocValuesAutomatonQuery(
+            "other_field",
+            automaton1,
+            SEPARATE_COUNT,
+            "desc-a"
+        );
+        assertNotEquals(q1, q4);
+
+        // Different binaryFormat → not equal.
+        ScanningBinaryDocValuesAutomatonQuery q5 = new ScanningBinaryDocValuesAutomatonQuery(
+            "field",
+            automaton1,
+            ARRAY_ORDER_INLINE_NULL,
+            "desc-a"
+        );
+        assertNotEquals(q1, q5);
+
+        // forWildcard with the same inputs produces equal instances.
+        Query fw1 = ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", false, SEPARATE_COUNT);
+        Query fw2 = ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", false, SEPARATE_COUNT);
+        assertEquals(fw1, fw2);
+        assertEquals(fw1.hashCode(), fw2.hashCode());
+
+        // forWildcard differs with different caseInsensitive (different automaton).
+        Query fw3 = ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", true, SEPARATE_COUNT);
+        assertNotEquals(fw1, fw3);
+
+        // Instances of different types are never equal (sameClassAs check).
+        assertNotEquals(q1, new ScanningBinaryDocValuesRegexpQuery("field", "hello", 0, 0, 10, SEPARATE_COUNT, null));
+    }
+
+    public void testUnionMatchesAllPatterns() throws IOException {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
+                addDoc(writer, fieldName, "apple");
+                addDoc(writer, fieldName, "banana");
+                addDoc(writer, fieldName, "cherry");
+                addDoc(writer, fieldName, "date"); // should not match
+
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+
+                    // Three-pattern union: apple | banana | cherry
+                    Automaton automaton = Operations.determinize(
+                        Operations.union(
+                            Arrays.asList(Automata.makeString("apple"), Automata.makeString("banana"), Automata.makeString("cherry"))
+                        ),
+                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+                    );
+                    Query query = new ScanningBinaryDocValuesAutomatonQuery(
+                        fieldName,
+                        automaton,
+                        SEPARATE_COUNT,
+                        "LIKE(\"apple\", \"banana\", \"cherry\"), caseInsensitive=false"
+                    );
+                    assertEquals(3, searcher.count(query));
                 }
             }
         }
@@ -338,4 +522,7 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
         return new RandomIndexWriter(random(), dir, iwc);
     }
 
+    private static BinaryDocValuesFormat randomFormat() {
+        return randomFrom(SEPARATE_COUNT, ARRAY_ORDER_INLINE_NULL);
+    }
 }

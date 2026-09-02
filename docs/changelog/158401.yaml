@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158401
+summary: HIGHLIGHT grammar for optional query/ON
+type: feature

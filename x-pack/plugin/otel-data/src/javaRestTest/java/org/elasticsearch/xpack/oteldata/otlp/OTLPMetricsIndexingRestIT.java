@@ -10,16 +10,21 @@ package org.elasticsearch.xpack.oteldata.otlp;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.api.trace.TraceFlags;
+import io.opentelemetry.api.trace.TraceState;
 import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
 import io.opentelemetry.sdk.common.Clock;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.AggregationTemporality;
+import io.opentelemetry.sdk.metrics.data.DoubleExemplarData;
 import io.opentelemetry.sdk.metrics.data.ExponentialHistogramBuckets;
 import io.opentelemetry.sdk.metrics.data.HistogramData;
 import io.opentelemetry.sdk.metrics.data.HistogramPointData;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableDoubleExemplarData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableDoublePointData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableExponentialHistogramData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableExponentialHistogramPointData;
@@ -31,6 +36,7 @@ import io.opentelemetry.sdk.resources.Resource;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
@@ -51,13 +57,17 @@ import static org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsIndexingRestIT.Mo
 import static org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsIndexingRestIT.Monotonicity.NON_MONOTONIC;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
+
+    private static final FeatureFlag METRIC_EXEMPLARS_FEATURE_FLAG = new FeatureFlag("metric_exemplars");
 
     private OtlpHttpMetricExporter exporter;
     private SdkMeterProvider meterProvider;
@@ -71,7 +81,7 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     public void initMetricExporter() throws Exception {
         exporter = OtlpHttpMetricExporter.builder()
             .setEndpoint(getClusterHosts().getFirst().toURI() + "/_otlp/v1/metrics")
-            .addHeader("Authorization", "ApiKey " + createApiKey("metrics-*"))
+            .addHeader("Authorization", "ApiKey " + createApiKey("metrics-*", "exemplars-*"))
             .build();
         meterProvider = SdkMeterProvider.builder()
             .registerMetricReader(
@@ -192,6 +202,65 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         assertThat(evaluate(metrics, "long_gauge.type"), equalTo("long"));
         assertThat(evaluate(metrics, "long_gauge.meta.unit"), equalTo("By"));
         assertThat(evaluate(metrics, "long_gauge.time_series_metric"), equalTo("gauge"));
+    }
+
+    public void testExemplars() throws Exception {
+        assumeTrue("requires metric exemplar ingestion", METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
+        long dataPointTimestamp = Clock.getDefault().now();
+        long exemplarTimestamp = dataPointTimestamp - TimeUnit.MILLISECONDS.toNanos(1);
+        SpanContext spanContext = SpanContext.create(
+            "00112233445566778899aabbccddeeff",
+            "0011223344556677",
+            TraceFlags.getSampled(),
+            TraceState.getDefault()
+        );
+        DoubleExemplarData exemplar = ImmutableDoubleExemplarData.create(
+            Attributes.of(AttributeKey.longKey("thread.id"), 42L),
+            exemplarTimestamp,
+            spanContext,
+            0.42
+        );
+        MetricData metric = ImmutableMetricData.createDoubleGauge(
+            Resource.create(Attributes.of(stringKey("service.name"), "checkout-service")),
+            io.opentelemetry.sdk.common.InstrumentationScopeInfo.create("io.opentelemetry.http"),
+            "request.duration",
+            "",
+            "s",
+            ImmutableGaugeData.create(
+                List.of(
+                    ImmutableDoublePointData.create(
+                        dataPointTimestamp,
+                        dataPointTimestamp,
+                        Attributes.of(stringKey("route"), "/checkout"),
+                        1.0,
+                        List.of(exemplar, ImmutableDoubleExemplarData.create(Attributes.empty(), exemplarTimestamp, spanContext, 0.43))
+                    )
+                )
+            )
+        );
+
+        export(List.of(metric));
+        assertOK(client().performRequest(new Request("GET", "metrics-*,exemplars-*/_refresh")));
+
+        ObjectPath metricSearch = search("metrics-generic.otel-default");
+        ObjectPath exemplarSearch = search("exemplars-generic.otel-default");
+        assertThat(metricSearch.evaluate("hits.total.value"), equalTo(1));
+        assertThat(exemplarSearch.evaluate("hits.total.value"), equalTo(1));
+        Map<String, Object> metricSource = metricSearch.evaluate("hits.hits.0._source");
+        Map<String, Object> exemplarSource = exemplarSearch.evaluate("hits.hits.0._source");
+        assertThat(evaluate(exemplarSource, "data_stream.type"), equalTo("exemplars"));
+        assertThat(evaluate(exemplarSource, "resource.attributes.service\\.name"), equalTo("checkout-service"));
+        assertThat(evaluate(exemplarSource, "scope.name"), equalTo("io.opentelemetry.http"));
+        assertThat(evaluate(exemplarSource, "attributes.route"), equalTo("/checkout"));
+        assertThat(evaluate(exemplarSource, "filtered_attributes.thread\\.id"), equalTo(42));
+        assertThat(evaluate(exemplarSource, "trace_id"), equalTo("00112233445566778899aabbccddeeff"));
+        assertThat(evaluate(exemplarSource, "span_id"), equalTo("0011223344556677"));
+        assertThat(ObjectPath.<Number>evaluate(exemplarSource, "metrics.request\\.duration").doubleValue(), closeTo(0.42, 0.000001));
+        assertThat(evaluate(exemplarSource, "_metric_names_hash"), equalTo(evaluate(metricSource, "_metric_names_hash")));
+
+        Map<String, Object> exemplarMetrics = evaluate(getMapping("exemplars-generic.otel-default"), "properties.metrics.properties");
+        assertThat(evaluate(exemplarMetrics, "request\\.duration.type"), equalTo("double"));
+        assertThat(evaluate(exemplarMetrics, "request\\.duration.time_series_metric"), nullValue());
     }
 
     public void testCounterTemporality() throws Exception {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
+import io.opentelemetry.proto.metrics.v1.Exemplar;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Metric;
@@ -61,6 +62,13 @@ public interface DataPoint {
      * @return a list of key-value pairs representing the attributes
      */
     List<KeyValue> getAttributes();
+
+    /**
+     * Returns the exemplars associated with the data point.
+     */
+    default List<Exemplar> getExemplars() {
+        return List.of();
+    }
 
     /**
      * Returns the unit of measurement for the data point.
@@ -133,6 +141,11 @@ public interface DataPoint {
         @Override
         public List<KeyValue> getAttributes() {
             return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public List<Exemplar> getExemplars() {
+            return dataPoint.getExemplarsList();
         }
 
         @Override
@@ -219,6 +232,11 @@ public interface DataPoint {
         @Override
         public List<KeyValue> getAttributes() {
             return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public List<Exemplar> getExemplars() {
+            return dataPoint.getExemplarsList();
         }
 
         @Override
@@ -311,6 +329,11 @@ public interface DataPoint {
         @Override
         public List<KeyValue> getAttributes() {
             return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public List<Exemplar> getExemplars() {
+            return dataPoint.getExemplarsList();
         }
 
         @Override

@@ -886,19 +886,14 @@ public class FileSplitProvider implements SplitProvider {
                         probeTasks.add(new ProbeTask(deferred, position));
                     }
                 }
-                List<RecordBoundaryProbe.Outcome> outcomes = BoundedParallelGather.gather(
-                    probeTasks,
-                    probe -> {
-                        long cpuStart = ThreadCpuTimer.currentNanos();
-                        try {
-                            return runProbe(probe, probeWindowBytes, isCancelled);
-                        } finally {
-                            if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
-                        }
-                    },
-                    splitDiscoveryConcurrency(),
-                    executor
-                );
+                List<RecordBoundaryProbe.Outcome> outcomes = BoundedParallelGather.gather(probeTasks, probe -> {
+                    long cpuStart = ThreadCpuTimer.currentNanos();
+                    try {
+                        return runProbe(probe, probeWindowBytes, isCancelled);
+                    } finally {
+                        if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
+                    }
+                }, splitDiscoveryConcurrency(), executor);
 
                 // Results come back in input order, and each file's offsets were added in ascending order, so
                 // grouping by file preserves the ascending order the reduction requires.

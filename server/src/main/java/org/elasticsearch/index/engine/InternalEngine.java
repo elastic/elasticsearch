@@ -1503,6 +1503,7 @@ public class InternalEngine extends Engine {
         int subBatchIdx,
         int subBatchSize
     ) {
+        assert requiresRowPath(plans, subBatchSize) == false;
         int excluded = 0;
         for (int i = 0; i < subBatchSize; i++) {
             if (allResults[subBatchIdx + i] != null || plans[i].indexIntoLucene == false) {

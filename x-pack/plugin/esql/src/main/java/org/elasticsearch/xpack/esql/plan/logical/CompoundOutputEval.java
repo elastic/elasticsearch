@@ -50,7 +50,8 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
         PostAnalysisVerificationAware,
         Streaming,
         SortAgnostic,
-        SortPreserving {
+        SortPreserving,
+        DocPreserving {
 
     /**
      * The input by which the evaluation is performed.

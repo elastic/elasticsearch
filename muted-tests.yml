@@ -501,3 +501,6 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=update_by_query/10_basic/Response for version conflict with conflicts=proceed}
   issue: https://github.com/elastic/elasticsearch/issues/158337
+- class: org.elasticsearch.common.LocalTimeOffsetTests
+  method: testOverlap
+  issue: https://github.com/elastic/elasticsearch/issues/158343

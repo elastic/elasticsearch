@@ -407,16 +407,15 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         // check special wildcard case
         if (patterns.size() == 1) {
             var idCtx = patterns.get(0);
-            boolean unresolvedStar = false;
-            if (idCtx.ID_PATTERN() != null && idCtx.ID_PATTERN().getText().equals(WILDCARD)) {
-                unresolvedStar = true;
-            }
-            if (idCtx.parameter() != null || idCtx.doubleParameter() != null) {
+            // Checking the whole pattern's text, not just an ID_PATTERN token, because after ON (e.g. HIGHLIGHT ON *)
+            // the parser stays in EXPRESSION_MODE, where a bare `*` arrives as an identifier/ASTERISK token via
+            // expressionModeIdentifierPattern rather than ID_PATTERN. Quoted identifiers keep their quote characters
+            // in getText(), and parameters render as `?`/`??`-prefixed text, so neither can equal WILDCARD here.
+            boolean unresolvedStar = idCtx.getText().equals(WILDCARD);
+            if (unresolvedStar == false && (idCtx.parameter() != null || idCtx.doubleParameter() != null)) {
                 Expression exp = resolveParamInIdentifierPosition(idCtx, src, unqualifiedCtx.getText());
-                if (exp instanceof UnresolvedNamePattern up) {
-                    if (up.name() != null && up.name().equals(WILDCARD)) {
-                        unresolvedStar = true;
-                    }
+                if (exp instanceof UnresolvedNamePattern up && WILDCARD.equals(up.name())) {
+                    unresolvedStar = true;
                 }
             }
             if (unresolvedStar) {
@@ -442,6 +441,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             EsqlBaseParser.IdentifierPatternContext pattern = patterns.get(i);
             if (pattern.ID_PATTERN() != null) {
                 patternContext = pattern.ID_PATTERN().getText();
+            } else if (pattern.expressionModeIdentifierPattern() != null) {
+                patternContext = pattern.expressionModeIdentifierPattern().getText();
             } else if (pattern.parameter() != null || pattern.doubleParameter() != null) {
                 Expression exp = resolveParamInIdentifierPosition(pattern, src, unqualifiedCtx.getText());
                 if (exp instanceof UnresolvedAttribute ua) { // identifier provided in QueryParam is treated as unquoted string

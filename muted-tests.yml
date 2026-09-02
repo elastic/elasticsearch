@@ -35,9 +35,6 @@ tests:
 - class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
   method: testOpenAiEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/144440
-- class: org.elasticsearch.xpack.esql.planner.LocalExecutionPlannerTests
-  method: testLuceneTopNSourceOperator {estimatedRowSizeIsHuge=true}
-  issue: https://github.com/elastic/elasticsearch/issues/152799
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial.convertCartesianFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144580
@@ -701,9 +698,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {bad_ARROW-GH-43605}
   issue: https://github.com/elastic/elasticsearch/issues/157747
-- class: org.elasticsearch.snapshots.RestoreOverOpenIndexIT
-  method: testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore
-  issue: https://github.com/elastic/elasticsearch/issues/157793
 - class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
   method: testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes
   issue: https://github.com/elastic/elasticsearch/issues/157799
@@ -791,9 +785,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexTests
   method: testEvaluateBlockWithoutNulls {TestCase=geo_shape with literal precision and bounds}
   issue: https://github.com/elastic/elasticsearch/issues/158128
-- class: org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReaderStatusSnapshotTests
-  method: testCountersPopulatedAfterDrain
-  issue: https://github.com/elastic/elasticsearch/issues/158220
 - class: org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReaderTests
   method: testSyntheticSourceWithCopyToKeywordDestinationAndFLSDocValues
   issue: https://github.com/elastic/elasticsearch/issues/158222
@@ -816,3 +807,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.index.IndexPropertiesTests
   method: testDeserializationFromPreShardCountsVersionDefaultsToZero
   issue: https://github.com/elastic/elasticsearch/issues/158380
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:SUBQUERIES}
+  issue: https://github.com/elastic/elasticsearch/issues/149681

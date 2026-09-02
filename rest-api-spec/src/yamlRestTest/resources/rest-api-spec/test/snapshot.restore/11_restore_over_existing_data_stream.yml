@@ -30,6 +30,14 @@ setup:
 ---
 "Restore over an existing data stream with restore_over_existing":
 
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_snapshot/{repository}/{snapshot}/_restore
+          capabilities: [ restore_over_existing ]
+      reason: "restore_over_existing is a new request parameter that older nodes do not understand, so skip on mixed-version clusters"
+
   # index a document so the snapshot has content, then snapshot the data stream
   - do:
       index:

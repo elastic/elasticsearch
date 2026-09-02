@@ -44,10 +44,12 @@ import static org.hamcrest.Matchers.equalTo;
  * lookup, an empty result, or the low-cost side of the threshold → {@link LuceneSliceQueue.PartitioningStrategy#SEGMENT};
  * a costly point/multi-term clause → SEGMENT; {@code MatchAll} → DOC.
  *
- * <p>A <b>limited</b> scan (implicit {@code LIMIT}) uses the same cost-aware rule with
- * {@link LuceneSliceQueue.PartitioningStrategy#SHARD} as only the cheap outcome: a cheap indexed lookup (cost below
- * threshold) keeps {@code SHARD}, while scan-heavy queries — doc-values-only filters or {@code MatchAll} (both cost
- * ≈ maxDoc) — are promoted to {@link LuceneSliceQueue.PartitioningStrategy#DOC} because the limit rarely fires early.
+ * <p>A <b>limited</b> scan (implicit {@code LIMIT}) has three outcomes: (1) a costly-to-build clause (BKD point range,
+ * multi-term) keeps {@link LuceneSliceQueue.PartitioningStrategy#SHARD} — a single shard-level walk beats rebuilding
+ * per-segment scorers when the limit fires early; (2) a non-costly cheap query (cost below threshold) keeps
+ * {@code SHARD}; (3) a non-costly scan-heavy query (doc-values-only filter or {@code MatchAll}, cost ≈ maxDoc) is
+ * promoted to {@link LuceneSliceQueue.PartitioningStrategy#DOC} because those scans visit ~maxDoc and the limit
+ * rarely fires early.
  */
 public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
 
@@ -110,13 +112,19 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
     }
 
     public void testLimitedMatchAllPicksDoc() throws IOException {
-        // FROM foo | LIMIT N: cost = maxDoc, so parallelize with DOC even though the limit might fire early.
+        // FROM foo | LIMIT N: cost = maxDoc, not a costly clause — parallelize with DOC.
         assertThat(pick(Queries.ALL_DOCS_INSTANCE, between(1, 1000)), equalTo(DOC));
     }
 
     public void testLimitedCheapTermPicksShard() throws IOException {
-        // Term query: cost = one matching doc, well below MIN_COST_FOR_DOC threshold, keep SHARD.
+        // Term query: not costly to build, cost = 1 (below threshold) → SHARD.
         assertThat(pick(new TermQuery(new Term("kw", "v7")), between(1, 1000)), equalTo(SHARD));
+    }
+
+    public void testLimitedPointRangePicksShard() throws IOException {
+        // BKD point range: costly to build, so keep SHARD — single shard-level BKD walk beats
+        // one scorer-rebuild per segment when the limit fires early.
+        assertThat(pick(LongPoint.newRangeQuery("pt", 0, NUM_DOCS / 2), between(1, 1000)), equalTo(SHARD));
     }
 
     private static final int NO_LIMIT = LuceneOperator.NO_LIMIT;

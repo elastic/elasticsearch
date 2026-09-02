@@ -61,8 +61,7 @@ import java.util.function.UnaryOperator;
  * </ul>
  *
  * Inferred: body parser wiring, {@code SET} dispatch, the derived cluster setting and its registration, the
- * precedence fold ({@code default < cluster < body < SET}; the cluster value substitutes for the default, and the
- * per-query sources fold on top via the reconciler), the read API. The one thing
+ * precedence fold ({@code default < cluster < body < SET}, every layer applied through the reconciler), the read API. The one thing
  * you write outside the declaration is adding the constant to {@link QuerySettings#ALL} to register it.
  *
  * <h2>How to declare a setting</h2>
@@ -305,8 +304,12 @@ public final class QuerySettingDef<T> {
 
     /**
      * This setting's default as it stands on this cluster: the operator's value when one is configured and usable,
-     * the registry default otherwise. An operator changes what the default is, so their value replaces it rather than
-     * reconciling with it — reconciling would merge a structured value with the product's default.
+     * the registry default otherwise.
+     * <p>
+     * The operator's value is folded through the setting's {@link #reconciler()}, exactly as the request body and
+     * {@code SET} layers are. Substituting it instead would make the same input resolve differently depending on
+     * which layer supplied it — for a setting whose reconciler is not last-wins, a value meaning "off" arrives as a
+     * sentinel the reconciler would have collapsed, and lands as "on".
      * <p>
      * Not {@link Setting#get(Settings)}, which validates on every read and would throw on a stored value whose verdict
      * has since changed. An operator's value is checked where the operator sees the failure, on
@@ -337,13 +340,18 @@ public final class QuerySettingDef<T> {
                 return defaultValue;
             }
         }
+        T folded;
         try {
-            // The one remaining path by which an operator's value could otherwise throw on the query path.
-            canonicalizer.apply(parsed);
+            // Same fold as every other layer, so an operator value is normalised the way a per-query one would be.
+            // Also the one remaining path by which an operator's value could otherwise throw on the query path.
+            folded = reconciler.reconcile(defaultValue, parsed);
+            if (folded != null) {
+                canonicalizer.apply(folded);
+            }
         } catch (Exception e) {
             return defaultValue;
         }
-        return parsed;
+        return folded;
     }
 
     /**
@@ -556,8 +564,10 @@ public final class QuerySettingDef<T> {
          * This is <b>not a second default</b>. There is one default in the system — the one given to
          * {@link #withDefault} — and the derived cluster setting declares that same value as its own default so
          * {@code GET _cluster/settings?include_defaults} reports the truthful effective value. What the key adds is
-         * the ability for an operator to <i>replace</i> that default for every query on the cluster; any per-query
-         * source still overrides it. Precedence becomes {@code default < cluster < body < SET}, ordered by whose
+         * the ability for an operator to change that default for every query on the cluster; any per-query source
+         * still overrides it. The operator's value is folded through the reconciler like every other layer, so the
+         * same input resolves identically whichever layer supplied it. Precedence becomes {@code default < cluster < body < SET},
+         * ordered by whose
          * decision it is.
          * <p>
          * Opting in registers a key, never a value: nothing is written to cluster state, and the resolver contributes

@@ -804,17 +804,45 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Europe/Berlin")));
     }
 
-    public void testOperatorValueReplacesTheDefaultRatherThanReconcilingWithIt() {
-        // An operator changes what the default IS, so their value substitutes for the registry default rather than
-        // reconciling with it. The difference is only visible through a reconciler that combines rather than replaces:
-        // both opted-in settings are last-wins scalars, for which substituting and reconciling agree, so neither can
-        // pin this. A concatenating reconciler separates them — merging would give "d+op".
+    public void testOperatorValueFoldsExactlyAsAPerQueryValueDoes() {
+        // The layer-equivalence invariant: the same input must resolve to the same value whichever layer supplied it.
+        // Only visible through a reconciler that is not last-wins — the three real settings are all last-wins, so none
+        // of them can pin this. Substituting the operator value instead of folding it silently broke the contract
+        // QuerySettings.resolve already documents ("applying each setting's reconciler at every step"), and for
+        // approximation it turned an operator's "false" into approximation ON.
         QuerySettingDef<String> merging = QuerySettingDef.string("merging")
             .withDefault("d")
             .withReconciler((previous, current) -> previous == null ? current : previous + "+" + current)
             .withClusterDefault()
             .build();
 
+        ResolvedSettings viaCluster = QuerySettings.resolve(
+            List.of(merging),
+            Settings.builder().put(merging.clusterSetting().getKey(), "op").build(),
+            Settings.EMPTY,
+            Map.of(),
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        ResolvedSettings viaBody = QuerySettings.resolve(
+            List.of(merging),
+            Settings.EMPTY,
+            Settings.EMPTY,
+            Map.of(merging, "op"),
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+
+        assertThat("an operator value must fold, not substitute", viaCluster.get(merging), equalTo("d+op"));
+        assertThat("the layer a value came from must not change what it resolves to", viaCluster, equalTo(viaBody));
+    }
+
+    public void testUnsetOperatorValueLeavesTheRegistryDefaultAlone() {
+        QuerySettingDef<String> merging = QuerySettingDef.string("merging")
+            .withDefault("d")
+            .withReconciler((previous, current) -> previous == null ? current : previous + "+" + current)
+            .withClusterDefault()
+            .build();
         ResolvedSettings unset = QuerySettings.resolve(
             List.of(merging),
             Settings.EMPTY,
@@ -823,19 +851,7 @@ public class QuerySettingsTests extends ESTestCase {
             null,
             SNAPSHOT_CTX_WITH_CPS_ENABLED
         );
-        assertThat("an unset key must leave the registry default alone", unset.get(merging), equalTo("d"));
-
-        ResolvedSettings set = QuerySettings.resolve(
-            List.of(merging),
-            Settings.builder().put(merging.clusterSetting().getKey(), "op").build(),
-            Settings.EMPTY,
-            Map.of(),
-            null,
-            SNAPSHOT_CTX_WITH_CPS_ENABLED
-        );
-        // The operator changes what the default IS. Reconciling it with the registry default would merge the two —
-        // "d+op" — which is what the earlier shape did and is wrong: there is one default, and this replaces it.
-        assertThat("a set key must replace the registry default, not merge with it", set.get(merging), equalTo("op"));
+        assertThat(unset.get(merging), equalTo("d"));
     }
 
     public void testUnsetClusterLayerLeavesResolutionUnchanged() {

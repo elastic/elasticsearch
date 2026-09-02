@@ -638,28 +638,64 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         }
     }
 
-    /// Regression test for the race where an active recovery completes during service shutdown and would cause
-    /// a new pending recovery to be started after the lifecycle already moved to `State.STOPPED`.
-    /// The queue is now drained before the lifecycle state changes.
-    public void testCompletingRecoveryWhileStopping() throws Exception {
+    public void testEnqueueAfterStopFails() throws Exception {
+        final IndexShard primary = newStartedShard(true);
+        final var task = newRecoveryTask();
+
+        try (var service = newPeerRecoverySourceService(1)) {
+            service.start();
+            service.stop();
+            assertTrue(service.ongoingRecoveries.closed());
+
+            final AtomicReference<Exception> response = new AtomicReference<>();
+            service.ongoingRecoveries.enqueueRecovery(
+                newStartRecoveryRequest(primary),
+                task,
+                primary,
+                ActionListener.wrap(r -> fail("unexpected success"), response::set)
+            );
+            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(0));
+            assertThat(response.get(), instanceOf(DelayRecoveryException.class));
+            assertThat(response.get().getMessage(), containsString("source node is closing"));
+            assertTrue(primary.recoveryStats().noCurrentRecoveries());
+
+            closeShards(primary);
+        }
+    }
+
+    public void testStopDrainsQueueAndCloseAwaitsActiveRecoveries() throws Exception {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
         final var task = newRecoveryTask();
         final var block = blockShardRecovery(primary1);
 
-        try (var service = newPeerRecoverySourceService(1)) {
+        final var service = newPeerRecoverySourceService(1);
+        try {
             service.start();
-
-            // Fill slot
             service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
 
-            // Queue another recovery
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+            final AtomicReference<Exception> queuedResponse = new AtomicReference<>();
+            service.ongoingRecoveries.enqueueRecovery(
+                newStartRecoveryRequest(primary2),
+                task,
+                primary2,
+                ActionListener.wrap(r -> fail("unexpected success"), queuedResponse::set)
+            );
+            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(1));
             assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
 
-            // Stop the service and complete listener. Lifecycle assertions in the production code must hold.
-            // The pending recovery should never start after the service moved to `State.STOPPED`.
-            runInParallel(service::stop, block::close);
+            // stop() cancels the queued recovery but returns without waiting for the active one.
+            service.stop();
+            assertThat(queuedResponse.get(), instanceOf(DelayRecoveryException.class));
+            assertThat(queuedResponse.get().getMessage(), containsString("source node is closing"));
+            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(1));
+            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+
+            // close() waits for the active recovery, which completes once its permit block is released.
+            runInParallel(service::close, block::close);
+            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(0));
+        } finally {
             closeShards(primary1, primary2);
         }
     }

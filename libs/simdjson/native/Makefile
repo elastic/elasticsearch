@@ -14,9 +14,8 @@
 # so we compile a single source file per platform — no tier-1/tier-2 split.
 #
 # Intended to be run inside the shared cross-compilation toolchain container
-# (es-native-cross-toolchain:4 — clang-21 plus GCC 8 libstdc++ cross libs).
-# The Darwin target requires a macOS SDK, fetched on-demand via xmac from
-# Apple's public CDN and cached in build/.macos-sdk/.
+# (es-native-cross-toolchain:6 — clang-21 plus GCC 8 libstdc++ cross libs and
+# the open-source Darwin sysroot baked in). See publish_simdjson_binaries.sh.
 #
 # Linux cross builds pin libstdc++ to GCC 8 (GLIBCXX_3.4.25) while keeping
 # clang-21 codegen. Clang supplies intrinsics/SIMD headers; only C++ stdlib
@@ -34,17 +33,21 @@ CLANG_CXX ?= clang++-21
 # Derive the LLVM tool version suffix from CLANG_CXX
 LLVM_SUFFIX := $(patsubst clang++%,%,$(firstword $(CLANG_CXX)))
 
-# --- macOS SDK (fetched on demand via xmac) ---
-MACOS_SDK_DIR  = build/.macos-sdk
-MACOS_SDK_OK   = $(MACOS_SDK_DIR)/.ok
-MACOS_SDK      = $(MACOS_SDK_DIR)/SDKs/MacOSX.sdk
-XMAC_ARCH      := $(if $(filter aarch64,$(shell uname -m)),arm64,x64)
-XMAC_URL       = https://github.com/jarred-sumner/xmac/releases/latest/download/xmac-linux-$(XMAC_ARCH)
-
-# Darwin cross-compilation using the macOS SDK sysroot
-CLANG       = $(CLANG_CXX) --target=arm64-apple-macos14 -isysroot $(MACOS_SDK)
+# Darwin cross-compilation. The sysroot is assembled from Apple's open-source
+# distributions plus upstream libc++ headers and baked into the toolchain image; see
+# libs/simdvec/native/darwin-sysroot/assemble.sh. -nostdinc blocks the host (glibc)
+# headers, then the three -isystem paths are added in this order deliberately:
+# libc++ must come before the clang resource directory (otherwise libc++'s <cstddef>
+# cannot find its own <stddef.h>), and the resource directory before the sysroot so
+# clang supplies the target headers (arm_neon.h, arm_sve.h, stdarg.h).
+MACOS_SYSROOT ?= /opt/darwin-sysroot
+CLANG_RESOURCE = $(shell $(CLANG_CXX) -print-resource-dir)
+CLANG       = $(CLANG_CXX) --target=arm64-apple-macos14 -nostdinc \
+                -isystem $(MACOS_SYSROOT)/usr/include/c++/v1 \
+                -isystem $(CLANG_RESOURCE)/include \
+                -isystem $(MACOS_SYSROOT)/usr/include
 CLANG_LINK  = $(CLANG_CXX) --target=arm64-apple-macos14 -fuse-ld=lld \
-                -isysroot $(MACOS_SDK) -nostdlib -Wl,-undefined,dynamic_lookup
+                -nostdlib -Wl,-undefined,dynamic_lookup
 CLANG_RESOURCE_ARM = $(shell $(CLANG_CXX) --target=aarch64-linux-gnu -print-resource-dir)
 CLANG_RESOURCE_X64 = $(shell $(CLANG_CXX) --target=x86_64-linux-gnu -print-resource-dir)
 
@@ -89,20 +92,7 @@ DYLIB  = $(OUT_DIR_AARCH64)/libsimdjson.dylib
 SO_ARM = $(OUT_DIR_AARCH64)/libsimdjson.so
 SO_X64 = $(OUT_DIR_AMD64)/libsimdjson.so
 
-# --- macOS SDK fetch (cached in build volume) ---
-
-.PHONY: all clean local install ensure-macos-sdk local-sdk-stub verify-linux-abi
-
-ensure-macos-sdk: $(MACOS_SDK_OK)
-
-$(MACOS_SDK_OK):
-	@echo "Fetching macOS SDK via xmac..."
-	@mkdir -p $(MACOS_SDK_DIR)
-	@curl -fsSL $(XMAC_URL) -o $(MACOS_SDK_DIR)/xmac
-	@chmod +x $(MACOS_SDK_DIR)/xmac
-	$(MACOS_SDK_DIR)/xmac splat --accept-license --sdk 14 --sdk-only \
-	    --output $(MACOS_SDK_DIR) --cache-dir build/.xmac-cache
-	@touch $@
+.PHONY: all clean local install verify-linux-abi
 
 # --- local: build for the current platform using the native compiler ---
 
@@ -113,9 +103,7 @@ ifeq ($(shell uname -s),Darwin)
   local: CLANG_LINK = clang++
   local: DARWIN_STRIP = strip -x
   local: DARWIN_DSYMUTIL = dsymutil
-  local: local-sdk-stub $(DYLIB)
-  local-sdk-stub:
-	@mkdir -p $(MACOS_SDK_DIR) && touch $(MACOS_SDK_OK)
+  local: $(DYLIB)
 else ifeq ($(shell uname -m),aarch64)
   LOCAL_PLATFORM = linux-aarch64
   LOCAL_OUTPUT   = $(SO_ARM)
@@ -144,10 +132,10 @@ all: $(DYLIB) $(SO_ARM) $(SO_X64)
 
 # --- darwin-aarch64 ---
 
-$(OBJ_DARWIN)/es_simdjson.o: src/es_simdjson.cpp src/simdjson.h | $(OBJ_DARWIN) $(MACOS_SDK_OK)
+$(OBJ_DARWIN)/es_simdjson.o: src/es_simdjson.cpp src/simdjson.h | $(OBJ_DARWIN)
 	$(CLANG) $(CXXFLAGS) -c $< -o $@
 
-$(OBJ_DARWIN)/simdjson.o: src/simdjson.cpp src/simdjson.h | $(OBJ_DARWIN) $(MACOS_SDK_OK)
+$(OBJ_DARWIN)/simdjson.o: src/simdjson.cpp src/simdjson.h | $(OBJ_DARWIN)
 	$(CLANG) $(CXXFLAGS) -c $< -o $@
 
 $(DYLIB): $(OBJ_DARWIN)/es_simdjson.o $(OBJ_DARWIN)/simdjson.o | $(OUT_DIR_AARCH64)

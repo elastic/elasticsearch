@@ -166,6 +166,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         indexShard = newStartedShard(
             p -> newShard(
                 routing,
+                null,
                 shardPath,
                 indexMetadata,
                 null,
@@ -540,6 +541,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
         return newShard(
             shardRouting,
+            null,
             shardPath,
             metadata,
             storeProvider,

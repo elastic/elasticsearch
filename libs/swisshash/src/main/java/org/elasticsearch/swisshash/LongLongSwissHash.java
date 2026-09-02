@@ -865,9 +865,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
                 indexInPage += KEY_SIZE;
                 final long hash64 = hash(key1, key2);
                 final int p = partition(hash64);
-                int c = partitionCounts[p]++;
-                if (c == PARTITION_WRITE_BATCH) {
-                    --partitionCounts[p];
+                if (partitionCounts[p] == PARTITION_WRITE_BATCH) {
                     partitionedKeys.splitKeys(breaker, keyPages, batchStart, shiftedIds, partitionCounts);
                     partitionSplitter.split(batchStart, shiftedIds, id - batchStart, partitionCounts, partitionOffsets);
                     for (int i = 0; i < NUM_PARTITIONS; i++) {
@@ -875,9 +873,8 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
                     }
                     batchStart = id;
                     Arrays.fill(partitionCounts, 0);
-                    partitionCounts[p] = 1;
-                    c = 0;
                 }
+                int c = partitionCounts[p]++;
                 assert id - batchStart <= Short.MAX_VALUE : id - batchStart;
                 shiftedIds[p * PARTITION_WRITE_BATCH + c] = (short) (id - batchStart);
             }

@@ -60,8 +60,8 @@ public class RatioValue implements Writeable {
      * format (eg. 0.735)
      *
      * @throws ElasticsearchParseException if the provided string represents a value outside
-     *                                  [{@code lowerBoundInclusive},{@code upperBoundInclusive}],
-     *                                  or if the provided string cannot be parsed as a double
+     *                                     [{@code lowerBoundInclusive},{@code upperBoundInclusive}],
+     *                                     or if the provided string cannot be parsed as a double
      */
     public static RatioValue parseRatioValue(String sValue, RatioValue lowerBoundInclusive, RatioValue upperBoundInclusive) {
         if (sValue.endsWith("%")) {

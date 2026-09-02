@@ -11,6 +11,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 
+import java.util.List;
+
 /**
  * Indexed view over a resolved set of files from an external data source.
  * Implementations are package-private within the {@code datasources.glob} package;
@@ -165,5 +167,22 @@ public interface FileList {
     @Nullable
     default FileSetFingerprint fileSetFingerprint() {
         return null;
+    }
+
+    /**
+     * {@code file_exclusions} warnings produced while this listing was built. Empty when nothing was
+     * dropped. Cached listings carry these so a cache hit can emit the same headers as a cold expand.
+     */
+    default List<String> exclusionWarnings() {
+        return List.of();
+    }
+
+    default long exclusionWarningBytes() {
+        List<String> warnings = exclusionWarnings();
+        long bytes = 0;
+        for (int i = 0; i < warnings.size(); i++) {
+            bytes += 40 + warnings.get(i).length() * (long) Character.BYTES;
+        }
+        return bytes;
     }
 }

@@ -748,30 +748,13 @@ public class ExternalSourceResolver {
             FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
             boolean cacheable = isCacheable(provider);
 
-            if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-                int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
-                int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
-                long discoveryStartNanos = System.nanoTime();
-                FileList raw = GlobExpander.expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
-                recordDiscovery(raw, discoveryStartNanos, storagePath.scheme());
-                if (raw.fileCount() == 0) {
-                    throw new IllegalArgumentException("Glob pattern matched no files: " + path);
-                }
-                resolveMultiFileWithReconciliation(raw, config, schemaResolution, cacheable, listener);
-                return;
-            }
-
-            FileList listing;
-            long discoveryStartNanos = System.nanoTime();
-            if (cacheable) {
-                listing = cachedListing(path, storagePath, provider, hints, config);
-            } else {
-                listing = expandAndCompact(path, provider, hints, config, storagePath);
-            }
-            recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
-
+            FileList listing = listAndRecord(path, storagePath, provider, hints, config, cacheable);
             if (listing.fileCount() == 0) {
                 throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+            }
+            if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
+                resolveMultiFileWithReconciliation(listing, config, schemaResolution, cacheable, listener);
+                return;
             }
 
             int anchor = 0;
@@ -1021,6 +1004,28 @@ public class ExternalSourceResolver {
             m[i] = i;
         }
         return m;
+    }
+
+    /**
+     * Lists (and, when cacheable, caches) the inferred multi-file glob. FIRST_FILE_WINS, UNION_BY_NAME,
+     * and inferred STRICT share this so a cacheable provider hits {@link #cachedListing} regardless of
+     * merge strategy. Declared-schema resolution stays in {@link #resolveStrictMultiFile}.
+     */
+    private FileList listAndRecord(
+        String path,
+        StoragePath storagePath,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        boolean cacheable
+    ) throws Exception {
+        long discoveryStartNanos = System.nanoTime();
+        FileList listing = cacheable
+            ? cachedListing(path, storagePath, provider, hints, config)
+            : expandAndCompact(path, provider, hints, config, storagePath);
+        GlobExpander.replayExclusionWarnings(listing);
+        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
+        return listing;
     }
 
     private FileList expandAndCompact(
@@ -2696,8 +2701,10 @@ public class ExternalSourceResolver {
             listing = GlobExpander.expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
         } else if (isCacheable(provider)) {
             listing = cachedListing(path, storagePath, provider, hints, config);
+            GlobExpander.replayExclusionWarnings(listing);
         } else {
             listing = expandAndCompact(path, provider, hints, config, storagePath);
+            GlobExpander.replayExclusionWarnings(listing);
         }
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
         if (listing.fileCount() == 0) {

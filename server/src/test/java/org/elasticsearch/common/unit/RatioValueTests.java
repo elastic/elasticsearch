@@ -66,10 +66,10 @@ public class RatioValueTests extends ESTestCase {
     public void testParseRatioValueWithBoundsPercentFormatOutsideBounds() {
         RatioValue lower = new RatioValue(20);
         RatioValue upper = new RatioValue(80);
-        expectThrows(IllegalArgumentException.class, () -> RatioValue.parseRatioValue("19%", lower, upper));
-        expectThrows(IllegalArgumentException.class, () -> RatioValue.parseRatioValue("81%", lower, upper));
-        expectThrows(IllegalArgumentException.class, () -> RatioValue.parseRatioValue("0%", lower, upper));
-        expectThrows(IllegalArgumentException.class, () -> RatioValue.parseRatioValue("100%", lower, upper));
+        expectThrows(ElasticsearchParseException.class, () -> RatioValue.parseRatioValue("19%", lower, upper));
+        expectThrows(ElasticsearchParseException.class, () -> RatioValue.parseRatioValue("81%", lower, upper));
+        expectThrows(ElasticsearchParseException.class, () -> RatioValue.parseRatioValue("0%", lower, upper));
+        expectThrows(ElasticsearchParseException.class, () -> RatioValue.parseRatioValue("100%", lower, upper));
     }
 
     public void testParseRatioValueWithBoundsRatioFormatValidValues() {
@@ -83,17 +83,17 @@ public class RatioValueTests extends ESTestCase {
     public void testParseRatioValueWithBoundsRatioFormatOutsideBounds() {
         RatioValue lower = new RatioValue(20);
         RatioValue upper = new RatioValue(80);
-        expectThrows(IllegalArgumentException.class, () -> RatioValue.parseRatioValue("0.19", lower, upper));
-        expectThrows(IllegalArgumentException.class, () -> RatioValue.parseRatioValue("0.81", lower, upper));
-        expectThrows(IllegalArgumentException.class, () -> RatioValue.parseRatioValue("0.0", lower, upper));
-        expectThrows(IllegalArgumentException.class, () -> RatioValue.parseRatioValue("1.0", lower, upper));
+        expectThrows(ElasticsearchParseException.class, () -> RatioValue.parseRatioValue("0.19", lower, upper));
+        expectThrows(ElasticsearchParseException.class, () -> RatioValue.parseRatioValue("0.81", lower, upper));
+        expectThrows(ElasticsearchParseException.class, () -> RatioValue.parseRatioValue("0.0", lower, upper));
+        expectThrows(ElasticsearchParseException.class, () -> RatioValue.parseRatioValue("1.0", lower, upper));
     }
 
     public void testInvalidRatio(String r) {
         try {
             RatioValue.parseRatioValue(r);
             fail("Value: [" + r + "] should be an invalid ratio");
-        } catch (IllegalArgumentException | ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException e) {
             // success
         }
     }

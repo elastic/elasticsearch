@@ -47,8 +47,8 @@ public class RatioValue implements Writeable {
      * either be in percentage format (eg. 73.5%), or a floating-point ratio
      * format (eg. 0.735)
      *
-     * @throws IllegalArgumentException if the provided string represents a percentage outside [0,100] or ratio outside [0,1]
-     * @throws ElasticsearchParseException if the provided string cannot be parsed as a double
+     * @throws ElasticsearchParseException if the provided string represents a percentage outside [0,100] or ratio outside [0,1],
+     *                                     or if the provided string cannot be parsed as a double
      */
     public static RatioValue parseRatioValue(String sValue) {
         return parseRatioValue(sValue, RatioValue.ZERO_PERCENT, RatioValue.ONE_HUNDRED_PERCENT);
@@ -59,9 +59,9 @@ public class RatioValue implements Writeable {
      * either be in percentage format (eg. 73.5%), or a floating-point ratio
      * format (eg. 0.735)
      *
-     * @throws IllegalArgumentException if the provided string represents a value outside
-     *                                  [{@code lowerBoundInclusive},{@code upperBoundInclusive}]
-     * @throws ElasticsearchParseException if the provided string cannot be parsed as a double
+     * @throws ElasticsearchParseException if the provided string represents a value outside
+     *                                  [{@code lowerBoundInclusive},{@code upperBoundInclusive}],
+     *                                  or if the provided string cannot be parsed as a double
      */
     public static RatioValue parseRatioValue(String sValue, RatioValue lowerBoundInclusive, RatioValue upperBoundInclusive) {
         if (sValue.endsWith("%")) {
@@ -69,14 +69,11 @@ public class RatioValue implements Writeable {
             try {
                 final double percent = Double.parseDouble(percentAsString);
                 if (percent < lowerBoundInclusive.getAsPercent() || percent > upperBoundInclusive.getAsPercent()) {
-                    throw new IllegalArgumentException(
-                        "Percentage should be in ["
-                            + lowerBoundInclusive.getAsPercent()
-                            + "-"
-                            + upperBoundInclusive.getAsPercent()
-                            + "], got ["
-                            + percentAsString
-                            + "]"
+                    throw new ElasticsearchParseException(
+                        "Percentage should be in [{}-{}], got [{}]",
+                        lowerBoundInclusive.getAsPercent(),
+                        upperBoundInclusive.getAsPercent(),
+                        percentAsString
                     );
                 }
                 return new RatioValue(Math.abs(percent));
@@ -87,14 +84,11 @@ public class RatioValue implements Writeable {
             try {
                 double ratio = Double.parseDouble(sValue);
                 if (ratio < lowerBoundInclusive.getAsRatio() || ratio > upperBoundInclusive.getAsRatio()) {
-                    throw new IllegalArgumentException(
-                        "Ratio should be in ["
-                            + lowerBoundInclusive.getAsRatio()
-                            + "-"
-                            + upperBoundInclusive.getAsRatio()
-                            + "], got ["
-                            + ratio
-                            + "]"
+                    throw new ElasticsearchParseException(
+                        "Ratio should be in [{}-{}], got [{}]",
+                        lowerBoundInclusive.getAsRatio(),
+                        upperBoundInclusive.getAsRatio(),
+                        ratio
                     );
                 }
                 return new RatioValue(100.0 * Math.abs(ratio));

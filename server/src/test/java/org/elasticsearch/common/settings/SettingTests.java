@@ -10,6 +10,7 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
@@ -1692,7 +1693,7 @@ public class SettingTests extends ESTestCase {
 
     public void testBoundedRatioSettingRejectsOutOfBoundsDefault() {
         expectThrows(
-            IllegalArgumentException.class,
+            ElasticsearchParseException.class,
             () -> Setting.ratioSetting(
                 "test.ratio",
                 parseRatioValue("5%"),

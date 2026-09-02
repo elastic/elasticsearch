@@ -205,19 +205,18 @@ public class LuceneSourceOperator extends LuceneOperator {
          * SEGMENT, cheap ({@code cost < minCostForDoc}) → SEGMENT, else DOC.
          * <p>
          * A query with a {@code limit} keeps {@link PartitioningStrategy#SHARD} for costly-to-build clauses (point ranges,
-         * multi-term) because: (a) a single shard-level BKD walk is more efficient than one scorer rebuild per segment when
-         * the limit fires early, and (b) the costly-clause concern in {@link #autoPartitioning} is specifically about
-         * DOC sub-segment slices rebuilding scorers, which does not apply to SHARD. For non-costly queries the same
-         * cost-aware rule as the no-limit branch applies with {@link PartitioningStrategy#SHARD} as the {@code cheap}
-         * outcome: a scan-heavy query (e.g. a doc-values-only filter with no BKD index, or {@link
-         * org.apache.lucene.search.MatchAllDocsQuery}) has cost {@code ≥ minCostForDoc} and is promoted to
-         * {@link PartitioningStrategy#DOC} because those scans visit {@code ~maxDoc} regardless of match density and the
-         * limit is never reached early.
+         * multi-term) because a single shard-level BKD walk is more efficient than rebuilding scorers per segment when
+         * the limit fires early. For non-costly queries, {@link #autoPartitioning} is used with {@link
+         * PartitioningStrategy#SHARD} as both the {@code matchAll} and {@code cheap} outcomes: {@code MatchAll} with a
+         * limit (e.g. {@code FROM idx | LIMIT 1000}) keeps {@code SHARD} because it trivially early-terminates; a
+         * cheap low-cost filter keeps {@code SHARD} for the same reason; only a scan-heavy query (e.g. a doc-values-only
+         * filter with no BKD index, cost {@code ≥ minCostForDoc}) is promoted to {@link PartitioningStrategy#DOC}
+         * because those scans visit {@code ~maxDoc} regardless of match density and the limit is never reached early.
          */
         public static DataPartitioning.AutoStrategy autoStrategy(long minCostForDoc) {
             return limit -> limit == NO_LIMIT
                 ? (ctx, query) -> autoPartitioning(ctx, query, DOC, minCostForDoc, SEGMENT)
-                : (ctx, query) -> containsCostlyClause(query) ? SHARD : autoPartitioning(ctx, query, DOC, minCostForDoc, SHARD);
+                : (ctx, query) -> containsCostlyClause(query) ? SHARD : autoPartitioning(ctx, query, SHARD, minCostForDoc, SHARD);
         }
 
         /**

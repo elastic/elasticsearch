@@ -44,12 +44,10 @@ import static org.hamcrest.Matchers.equalTo;
  * lookup, an empty result, or the low-cost side of the threshold → {@link LuceneSliceQueue.PartitioningStrategy#SEGMENT};
  * a costly point/multi-term clause → SEGMENT; {@code MatchAll} → DOC.
  *
- * <p>A <b>limited</b> scan (implicit {@code LIMIT}) has three outcomes: (1) a costly-to-build clause (BKD point range,
- * multi-term) keeps {@link LuceneSliceQueue.PartitioningStrategy#SHARD} — a single shard-level walk beats rebuilding
- * per-segment scorers when the limit fires early; (2) a non-costly cheap query (cost below threshold) keeps
- * {@code SHARD}; (3) a non-costly scan-heavy query (doc-values-only filter or {@code MatchAll}, cost ≈ maxDoc) is
- * promoted to {@link LuceneSliceQueue.PartitioningStrategy#DOC} because those scans visit ~maxDoc and the limit
- * rarely fires early.
+ * <p>A <b>limited</b> scan (implicit {@code LIMIT}) keeps {@link LuceneSliceQueue.PartitioningStrategy#SHARD} for
+ * costly-to-build clauses (BKD point ranges, multi-term) and for cheap / {@code MatchAll} queries that trivially
+ * early-terminate. Only a scan-heavy non-costly filter (doc-values-only, cost ≥ threshold) is promoted to
+ * {@link LuceneSliceQueue.PartitioningStrategy#DOC} because it visits ~maxDoc regardless of match density.
  */
 public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
 
@@ -111,9 +109,9 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
         assertThat(pick(SortedNumericDocValuesField.newSlowRangeQuery("dv", 0, NUM_DOCS / 2), between(1, 1000)), equalTo(DOC));
     }
 
-    public void testLimitedMatchAllPicksDoc() throws IOException {
-        // FROM foo | LIMIT N: cost = maxDoc, not a costly clause — parallelize with DOC.
-        assertThat(pick(Queries.ALL_DOCS_INSTANCE, between(1, 1000)), equalTo(DOC));
+    public void testLimitedMatchAllPicksShard() throws IOException {
+        // FROM foo | LIMIT N: MatchAll early-terminates immediately, keep low-overhead SHARD.
+        assertThat(pick(Queries.ALL_DOCS_INSTANCE, between(1, 1000)), equalTo(SHARD));
     }
 
     public void testLimitedCheapTermPicksShard() throws IOException {

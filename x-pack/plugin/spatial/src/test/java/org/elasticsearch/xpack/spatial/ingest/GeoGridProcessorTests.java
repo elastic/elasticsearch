@@ -15,6 +15,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestIngestDocument;
@@ -23,6 +24,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.spatial.common.H3CartesianUtil;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -130,6 +132,39 @@ public class GeoGridProcessorTests extends ESTestCase {
         HashMap<String, Object> map = new HashMap<>();
         map.put("field", "811fbffffffffff");
         Geometry expectedPoly = new GeoGridProcessor.GeohexHandler("811fbffffffffff").makeGeometry();
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(map);
+        GeoGridProcessor processor = makeGridProcessor(false, GeometryParserFormat.WKT, GEOHEX);
+        processor.execute(ingestDocument);
+        String polyString = ingestDocument.getFieldValue("field", String.class);
+        assertThat(polyString, equalTo(WellKnownText.toWKT(expectedPoly)));
+    }
+
+    public void testGeohexFromLatLng() {
+        HashMap<String, Object> map = new HashMap<>();
+        map.put("field", "H3.geoToH3( 0, 0, 0)");
+        Geometry expectedPoly = H3CartesianUtil.getNormalizeGeometry(H3.geoToH3(0, 0, 0));
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(map);
+        GeoGridProcessor processor = makeGridProcessor(false, GeometryParserFormat.WKT, GEOHEX);
+        processor.execute(ingestDocument);
+        String polyString = ingestDocument.getFieldValue("field", String.class);
+        assertThat(polyString, equalTo(WellKnownText.toWKT(expectedPoly)));
+    }
+
+    public void testGeohexFromLatLng_NorthPole() {
+        HashMap<String, Object> map = new HashMap<>();
+        map.put("field", "H3.geoToH3( 90, 0, 0)");
+        Geometry expectedPoly = H3CartesianUtil.getNormalizeGeometry(H3.geoToH3(90, 0, 0));
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(map);
+        GeoGridProcessor processor = makeGridProcessor(false, GeometryParserFormat.WKT, GEOHEX);
+        processor.execute(ingestDocument);
+        String polyString = ingestDocument.getFieldValue("field", String.class);
+        assertThat(polyString, equalTo(WellKnownText.toWKT(expectedPoly)));
+    }
+
+    public void testGeohexFromLatLng_SouthPole() {
+        HashMap<String, Object> map = new HashMap<>();
+        map.put("field", "H3.geoToH3( -90 , 10.01 , 5 )");
+        Geometry expectedPoly = H3CartesianUtil.getNormalizeGeometry(H3.geoToH3(-90, -55.72, 5));
         IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(map);
         GeoGridProcessor processor = makeGridProcessor(false, GeometryParserFormat.WKT, GEOHEX);
         processor.execute(ingestDocument);

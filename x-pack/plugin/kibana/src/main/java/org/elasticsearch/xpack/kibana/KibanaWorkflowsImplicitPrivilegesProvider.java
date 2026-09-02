@@ -48,7 +48,10 @@ public class KibanaWorkflowsImplicitPrivilegesProvider implements ImplicitPrivil
     static final String SPACE_ID_FIELD = "spaceId";
     static final String MANAGED_FIELD = "managed";
 
-    // Keep in sync with the workflow and step execution mappings in Kibana.
+    // Keep in sync with these Kibana mappings:
+    // https://github.com/elastic/kibana/tree/a65daaa/src/platform/plugins/shared/workflows_execution_engine
+    // server/repositories/data_access_layer/mappings/workflow_executions_mappings.ts
+    // server/repositories/data_access_layer/mappings/step_executions_mappings.ts
     static final String[] GRANTED_FIELDS = {
         "spaceId",
         "id",
@@ -117,7 +120,7 @@ public class KibanaWorkflowsImplicitPrivilegesProvider implements ImplicitPrivil
         final boolean managedAllSpaces = managedResources.contains(ALL_RESOURCES);
         final Set<String> managedSpaceIds = extractSpaceIds(managedResources);
         if (managedAllSpaces || managedSpaceIds.isEmpty() == false) {
-            result.add(buildGrant2(managedAllSpaces, managedSpaceIds));
+            result.add(buildManagedExecutionGrant(managedAllSpaces, managedSpaceIds));
         }
 
         return result;
@@ -141,11 +144,11 @@ public class KibanaWorkflowsImplicitPrivilegesProvider implements ImplicitPrivil
             .build();
     }
 
-    private static RoleDescriptor.IndicesPrivileges buildGrant2(boolean allSpaces, Set<String> spaceIds) {
+    private static RoleDescriptor.IndicesPrivileges buildManagedExecutionGrant(boolean allSpaces, Set<String> spaceIds) {
         return RoleDescriptor.IndicesPrivileges.builder()
             .indices(ALL_EXECUTION_INDICES)
             .privileges(INDEX_READ_PRIVILEGE)
-            .query(buildGrant2DlsQuery(allSpaces, spaceIds))
+            .query(buildManagedExecutionDlsQuery(allSpaces, spaceIds))
             .grantedFields(GRANTED_FIELDS)
             .build();
     }
@@ -157,18 +160,18 @@ public class KibanaWorkflowsImplicitPrivilegesProvider implements ImplicitPrivil
             .collect(Collectors.toSet());
     }
 
-    private static Set<String> intersection(Set<String> a, Set<String> b) {
-        if (a.contains(ALL_RESOURCES) && b.contains(ALL_RESOURCES)) {
+    private static Set<String> intersection(Set<String> firstResources, Set<String> secondResources) {
+        if (firstResources.contains(ALL_RESOURCES) && secondResources.contains(ALL_RESOURCES)) {
             return Set.of(ALL_RESOURCES);
         }
-        if (a.contains(ALL_RESOURCES)) {
-            return new HashSet<>(b);
+        if (firstResources.contains(ALL_RESOURCES)) {
+            return new HashSet<>(secondResources);
         }
-        if (b.contains(ALL_RESOURCES)) {
-            return new HashSet<>(a);
+        if (secondResources.contains(ALL_RESOURCES)) {
+            return new HashSet<>(firstResources);
         }
-        final Set<String> result = new HashSet<>(a);
-        result.retainAll(b);
+        final Set<String> result = new HashSet<>(firstResources);
+        result.retainAll(secondResources);
         return result;
     }
 
@@ -229,7 +232,7 @@ public class KibanaWorkflowsImplicitPrivilegesProvider implements ImplicitPrivil
         }
     }
 
-    static String buildGrant2DlsQuery(boolean allSpaces, Set<String> spaceIds) {
+    static String buildManagedExecutionDlsQuery(boolean allSpaces, Set<String> spaceIds) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             if (allSpaces) {
                 builder.startObject();
@@ -249,12 +252,6 @@ public class KibanaWorkflowsImplicitPrivilegesProvider implements ImplicitPrivil
         }
     }
 
-    /**
-     * Whether a resolved privilege's application targets the Kibana application. Resolution
-     * expands wildcard application names against the stored privileges, so the value is normally
-     * concrete and settled by equality; a residual wildcard (e.g. {@code "kibana-*"} or
-     * {@code "*"} with no matching stored descriptor) is matched with an automaton.
-     */
     private static boolean applicationMatchesKibana(String application) {
         return application.contains("*")
             ? Automatons.predicate(application).test(KIBANA_APPLICATION)

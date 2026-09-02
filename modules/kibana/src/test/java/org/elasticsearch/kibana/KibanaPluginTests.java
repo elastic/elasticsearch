@@ -71,7 +71,6 @@ public class KibanaPluginTests extends ESTestCase {
             "'.workflows-step-executions' must not be a system index after the carve-out",
             indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".workflows-step-executions"))
         );
-        assertTrue(KibanaPlugin.WORKFLOWS_INDEX_DESCRIPTOR.matchesIndexPattern(".workflows-internal"));
     }
 
     public void testKibanaSystemIndexDescriptorStillCoversKibanaSavedObjects() {

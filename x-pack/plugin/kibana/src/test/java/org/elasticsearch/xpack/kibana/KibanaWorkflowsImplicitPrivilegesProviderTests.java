@@ -37,18 +37,12 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
 
     private final KibanaWorkflowsImplicitPrivilegesProvider provider = new KibanaWorkflowsImplicitPrivilegesProvider();
 
-    // ---- Action string contract ----
-
     public void testActionStringsMatchKibanaDefinitions() {
-        // These constants are constructed by Kibana's ApiActions and must stay in sync
-        // with kbn-workflows/common/privileges.ts + feature_privilege_builder/api.ts.
         assertEquals("api:workflowsManagement:readExecution", READ_EXECUTION_ACTION);
         assertEquals("api:workflowsManagement:managed:readExecution", READ_MANAGED_EXECUTION_ACTION);
     }
 
-    // ---- Base action only (no managed action) ----
-
-    public void testBaseActionOnlyYieldsGrant1WithMustNotManaged() {
+    public void testBaseActionOnlyYieldsWorkflowAndStepGrants() {
         Collection<ApplicationPrivilegeDescriptor> stored = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "wf_exec_read", Set.of(READ_EXECUTION_ACTION), Map.of())
         );
@@ -63,27 +57,25 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(grant.getQuery(), is(notNullValue()));
 
         String query = grant.getQuery().utf8ToString();
-        assertTrue("grant 1 must include spaceId filter", query.contains("spaceId"));
-        assertTrue("grant 1 must include default space", query.contains("default"));
-        assertTrue("grant 1 must carry must_not managed:true", query.contains("must_not"));
-        assertTrue("grant 1 must carry must_not managed:true", query.contains("managed"));
-        assertFalse("grant 1 must not boost", query.contains("boost"));
+        assertTrue("workflow grant must include spaceId filter", query.contains("spaceId"));
+        assertTrue("workflow grant must include default space", query.contains("default"));
+        assertTrue("workflow grant must carry must_not managed:true", query.contains("must_not"));
+        assertTrue("workflow grant must carry must_not managed:true", query.contains("\"managed\":true"));
+        assertFalse("workflow grant must not boost", query.contains("boost"));
 
         String stepQuery = grantForSingleIndex(result, STEP_EXECUTION_INDEX).getQuery().utf8ToString();
         assertTrue("step grant must require explicit managed:false", stepQuery.contains("\"managed\":false"));
         assertFalse("legacy steps with no managed field must fail closed", stepQuery.contains("must_not"));
     }
 
-    public void testBaseActionOnlyYieldsNoGrant2() {
+    public void testBaseActionOnlyYieldsNoManagedGrant() {
         Collection<ApplicationPrivilegeDescriptor> stored = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "wf_exec_read", Set.of(READ_EXECUTION_ACTION), Map.of())
         );
         assertThat(provider.getImplicitIndicesPrivileges(resolve(role("wf_exec_read", "space:marketing"), stored)), hasSize(2));
     }
 
-    // ---- Both actions, same space ----
-
-    public void testBothActionsYieldTwoGrants() {
+    public void testBothActionsYieldManagedGrant() {
         Collection<ApplicationPrivilegeDescriptor> stored = List.of(
             new ApplicationPrivilegeDescriptor(
                 KIBANA_APPLICATION,
@@ -97,28 +89,24 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
         );
 
         assertThat(result, hasSize(3));
-        boolean sawGrant1 = false;
-        boolean sawGrant2 = false;
-        for (RoleDescriptor.IndicesPrivileges g : result) {
-            String query = g.getQuery().utf8ToString();
-            if (Arrays.asList(g.getIndices()).contains(WORKFLOW_EXECUTION_INDEX)
-                && Arrays.asList(g.getIndices()).contains(STEP_EXECUTION_INDEX)) {
-                sawGrant2 = true;
+        boolean sawWorkflowGrant = false;
+        boolean sawManagedGrant = false;
+        for (RoleDescriptor.IndicesPrivileges grant : result) {
+            String query = grant.getQuery().utf8ToString();
+            if (Arrays.asList(grant.getIndices()).contains(WORKFLOW_EXECUTION_INDEX)
+                && Arrays.asList(grant.getIndices()).contains(STEP_EXECUTION_INDEX)) {
+                sawManagedGrant = true;
                 assertTrue(query.contains("default"));
             } else if (query.contains("must_not")) {
-                sawGrant1 = true;
+                sawWorkflowGrant = true;
                 assertTrue(query.contains("spaceId"));
             }
         }
-        assertTrue("grant 1 (must_not) expected", sawGrant1);
-        assertTrue("grant 2 (no must_not) expected", sawGrant2);
+        assertTrue("workflow grant expected", sawWorkflowGrant);
+        assertTrue("managed grant expected", sawManagedGrant);
     }
 
-    // ---- Asymmetric spaces: readExecution on marketing, readManaged on finance ----
-
-    public void testAsymmetricSpacesYieldGrant1OnlyBecauseIntersectionIsEmpty() {
-        // readExecution → marketing; readManagedExecution → finance
-        // Intersection is empty → no grant 2.
+    public void testAsymmetricSpacesYieldNoManagedGrant() {
         RoleDescriptor rd = new RoleDescriptor(
             "test_role",
             null,
@@ -145,12 +133,10 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
         String query = grantForSingleIndex(result, WORKFLOW_EXECUTION_INDEX).getQuery().utf8ToString();
         assertTrue(query.contains("must_not"));
         assertTrue(query.contains("marketing"));
-        assertFalse("finance must not appear — intersection is empty", query.contains("finance"));
+        assertFalse("finance must not appear when the intersection is empty", query.contains("finance"));
     }
 
-    // ---- Wildcard resource ----
-
-    public void testWildcardResourceGrant1HasNoSpaceIdFilter() {
+    public void testWildcardBaseGrantHasNoSpaceIdFilter() {
         Collection<ApplicationPrivilegeDescriptor> stored = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "wf_exec_read", Set.of(READ_EXECUTION_ACTION), Map.of())
         );
@@ -161,10 +147,10 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(result, hasSize(2));
         String query = grantForSingleIndex(result, WORKFLOW_EXECUTION_INDEX).getQuery().utf8ToString();
         assertTrue(query.contains("must_not"));
-        assertFalse("wildcard resource → no spaceId filter", query.contains("spaceId"));
+        assertFalse("wildcard resource must not add a spaceId filter", query.contains("spaceId"));
     }
 
-    public void testWildcardResourceBothActionsGrant2IsMatchAll() {
+    public void testWildcardResourceManagedGrantIsMatchAll() {
         Collection<ApplicationPrivilegeDescriptor> stored = List.of(
             new ApplicationPrivilegeDescriptor(
                 KIBANA_APPLICATION,
@@ -178,27 +164,22 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
         );
 
         assertThat(result, hasSize(3));
-        for (RoleDescriptor.IndicesPrivileges g : result) {
-            String query = g.getQuery().utf8ToString();
-            if (Arrays.asList(g.getIndices()).contains(WORKFLOW_EXECUTION_INDEX)
-                && Arrays.asList(g.getIndices()).contains(STEP_EXECUTION_INDEX)) {
-                assertTrue("wildcard grant 2 should be match_all", query.contains("match_all"));
+        for (RoleDescriptor.IndicesPrivileges grant : result) {
+            String query = grant.getQuery().utf8ToString();
+            if (Arrays.asList(grant.getIndices()).contains(WORKFLOW_EXECUTION_INDEX)
+                && Arrays.asList(grant.getIndices()).contains(STEP_EXECUTION_INDEX)) {
+                assertTrue("wildcard managed grant should be match_all", query.contains("match_all"));
                 assertFalse(query.contains("spaceId"));
             }
         }
     }
 
-    // ---- Managed action alone yields no grant ----
-
     public void testManagedActionAloneYieldsNoGrant() {
-        // Without the base action there is nothing to grant.
         Collection<ApplicationPrivilegeDescriptor> stored = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "wf_managed_only", Set.of(READ_MANAGED_EXECUTION_ACTION), Map.of())
         );
         assertThat(provider.getImplicitIndicesPrivileges(resolve(role("wf_managed_only", "space:default"), stored)), is(empty()));
     }
-
-    // ---- Non-Kibana application ----
 
     public void testNonKibanaApplicationReturnsEmpty() {
         Collection<ApplicationPrivilegeDescriptor> stored = List.of(
@@ -208,16 +189,12 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(provider.getImplicitIndicesPrivileges(resolve(rd, stored)), is(empty()));
     }
 
-    // ---- Unrelated action ----
-
     public void testUnrelatedActionReturnsEmpty() {
         Collection<ApplicationPrivilegeDescriptor> stored = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "cases_read", Set.of("cases:cases/getCase"), Map.of())
         );
         assertThat(provider.getImplicitIndicesPrivileges(resolve(role("cases_read", "space:default"), stored)), is(empty()));
     }
-
-    // ---- Empty inputs ----
 
     public void testEmptyPrivilegesReturnsEmpty() {
         assertThat(provider.getImplicitIndicesPrivileges(List.of()), is(empty()));
@@ -229,8 +206,6 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
         );
         assertThat(provider.getImplicitIndicesPrivileges(resolve(role("wf_exec_read", "not-a-space"), stored)), is(empty()));
     }
-
-    // ---- FLS: both grants carry identical grantedFields ----
 
     public void testAllGrantsHaveIdenticalGrantedFields() {
         Collection<ApplicationPrivilegeDescriptor> stored = List.of(
@@ -246,21 +221,21 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
         );
         assertThat(result, hasSize(3));
 
-        String[] fields0 = result.get(0).getGrantedFields();
-        String[] fields1 = result.get(1).getGrantedFields();
-        String[] fields2 = result.get(2).getGrantedFields();
-        assertNotNull("grant 0 must have grantedFields", fields0);
-        assertNotNull("grant 1 must have grantedFields", fields1);
-        assertNotNull("grant 2 must have grantedFields", fields2);
+        String[] workflowFields = result.get(0).getGrantedFields();
+        String[] stepFields = result.get(1).getGrantedFields();
+        String[] managedFields = result.get(2).getGrantedFields();
+        assertNotNull("workflow grant must have grantedFields", workflowFields);
+        assertNotNull("step grant must have grantedFields", stepFields);
+        assertNotNull("managed grant must have grantedFields", managedFields);
         assertArrayEquals(
-            "both grants must carry the same grantedFields so FLS is uniform",
-            Arrays.stream(fields0).sorted().toArray(),
-            Arrays.stream(fields1).sorted().toArray()
+            "workflow and step grants must carry the same grantedFields",
+            Arrays.stream(workflowFields).sorted().toArray(),
+            Arrays.stream(stepFields).sorted().toArray()
         );
         assertArrayEquals(
-            "all grants must carry the same grantedFields so FLS is uniform",
-            Arrays.stream(fields0).sorted().toArray(),
-            Arrays.stream(fields2).sorted().toArray()
+            "managed grant must carry the same grantedFields",
+            Arrays.stream(workflowFields).sorted().toArray(),
+            Arrays.stream(managedFields).sorted().toArray()
         );
     }
 
@@ -277,11 +252,9 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
         assertTrue("usage.* must be in grantedFields", fields.contains("usage.*"));
         assertTrue("stepUsage.* must be in grantedFields", fields.contains("stepUsage.*"));
         assertTrue("hitl.* must be in grantedFields", fields.contains("hitl.*"));
-        assertFalse("bare 'usage' must not be in grantedFields — use usage.*", fields.contains("usage"));
+        assertFalse("bare 'usage' must not be in grantedFields; use usage.*", fields.contains("usage"));
         assertFalse("workflowDefinition must not be granted (enabled:false)", fields.contains("workflowDefinition"));
     }
-
-    // ---- Raw action pattern (no stored descriptors) ----
 
     public void testRawActionPatternNoStoredDescriptors() {
         RoleDescriptor rd = role(READ_EXECUTION_ACTION, "space:default");
@@ -289,8 +262,6 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(result, hasSize(2));
         assertTrue(grantForSingleIndex(result, WORKFLOW_EXECUTION_INDEX).getQuery().utf8ToString().contains("default"));
     }
-
-    // ---- Wildcard application name ----
 
     public void testWildcardApplicationName() {
         Collection<ApplicationPrivilegeDescriptor> stored = List.of(
@@ -305,9 +276,7 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(provider.getImplicitIndicesPrivileges(resolve(rd, List.of())), is(empty()));
     }
 
-    // ---- No boost in DLS queries ----
-
-    public void testGrant1DlsQueryContainsNoBoost() {
+    public void testWorkflowExecutionDlsQueryContainsNoBoost() {
         String query = KibanaWorkflowsImplicitPrivilegesProvider.buildWorkflowExecutionDlsQuery(false, Set.of("marketing"));
         assertFalse("DLS query must not contain boost", query.contains("boost"));
     }
@@ -317,12 +286,10 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
         assertFalse("DLS query must not contain boost", query.contains("boost"));
     }
 
-    public void testGrant2DlsQueryContainsNoBoost() {
-        String query = KibanaWorkflowsImplicitPrivilegesProvider.buildGrant2DlsQuery(false, Set.of("marketing"));
+    public void testManagedExecutionDlsQueryContainsNoBoost() {
+        String query = KibanaWorkflowsImplicitPrivilegesProvider.buildManagedExecutionDlsQuery(false, Set.of("marketing"));
         assertFalse("DLS query must not contain boost", query.contains("boost"));
     }
-
-    // ---- Helpers (copied from KibanaCasesImplicitPrivilegesProviderTests) ----
 
     private static Collection<ResolvedApplicationPrivilege> resolve(
         RoleDescriptor roleDescriptor,

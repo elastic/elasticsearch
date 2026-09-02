@@ -25,26 +25,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-/**
- * End-to-end coverage for {@code KibanaWorkflowsImplicitPrivilegesProvider} against a real
- * default-distribution node.
- *
- * <h2>What this test proves</h2>
- * <ol>
- *   <li>The implicit grant surfaces through {@code GET _security/role/<n>?include_implicit=true},
- *       confirming the provider is auto-discovered via the {@code SecurityExtension} SPI.
- *   <li>A user holding <em>only</em> the Kibana application privilege (no explicit index
- *       privileges) can search {@code .workflows-executions*}.
- *   <li>DLS restricts results: the base-read role sees only non-managed executions in the granted
- *       space; the managed role also sees managed executions.
- *   <li>A document with the {@code managed} field absent is treated as non-managed (the
- *       {@code must_not managed:true} semantic is correct for fieldless documents).
- *   <li>FLS restricts fields: {@code usage.totalTokens} is present, {@code workflowDefinition}
- *       is absent.
- * </ol>
- */
 public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
 
     private static final String ADMIN_USER = "test-admin";
@@ -91,9 +74,9 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
         putUser(BASE_USER, BASE_USER_PASSWORD, "wf_base_role");
         createExecutionsIndexWithDocs();
 
-        assertImplicitGrantSurfaced("wf_base_role", "marketing", /* hasMustNot= */true);
-        assertUserSeesDocuments(BASE_USER, BASE_USER_PASSWORD, 2 /* non-managed marketing docs */);
-        assertUserSeesStepDocuments(BASE_USER, BASE_USER_PASSWORD, 1 /* explicit non-managed step */);
+        assertImplicitGrantSurfaced("wf_base_role", "marketing");
+        assertUserSeesDocuments(BASE_USER, BASE_USER_PASSWORD, 2);
+        assertUserSeesStepDocuments(BASE_USER, BASE_USER_PASSWORD, 1);
     }
 
     public void testManagedRoleSeesAllDocsInGrantedSpace() throws Exception {
@@ -103,11 +86,9 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
         putUser(MANAGED_USER, MANAGED_USER_PASSWORD, "wf_managed_role");
         createExecutionsIndexWithDocs();
 
-        assertUserSeesDocuments(MANAGED_USER, MANAGED_USER_PASSWORD, 3 /* all marketing docs */);
-        assertUserSeesStepDocuments(MANAGED_USER, MANAGED_USER_PASSWORD, 3 /* all marketing steps */);
+        assertUserSeesDocuments(MANAGED_USER, MANAGED_USER_PASSWORD, 3);
+        assertUserSeesStepDocuments(MANAGED_USER, MANAGED_USER_PASSWORD, 3);
     }
-
-    // ---- Setup helpers ----
 
     private void putPrivilege(String name, String action) throws Exception {
         final Request request = new Request("PUT", "/_security/privilege");
@@ -168,11 +149,6 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
     }
 
-    /**
-     * Seed documents covering every (spaceId, managed) combination relevant to the grant.
-     * The {@code managed} field is intentionally absent on one doc to pin the
-     * {@code must_not managed:true} semantics (fieldless == non-managed).
-     */
     private void createExecutionsIndexWithDocs() throws Exception {
         final Request create = new Request("PUT", "/" + EXECUTIONS_INDEX);
         create.setJsonEntity("""
@@ -209,13 +185,9 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
         createSteps.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         assertOK(client().performRequest(createSteps));
 
-        // marketing, non-managed — visible to base role
         indexDoc("marketing-non-managed", "marketing", false, 10L, "secret-yaml");
-        // marketing, non-managed, NO managed field — visible to base role (fieldless == non-managed)
         indexDocNoManagedField("marketing-non-managed-fieldless", "marketing", 20L, "secret-yaml2");
-        // marketing, managed — hidden from base role, visible to managed role
         indexDoc("marketing-managed", "marketing", true, 30L, "secret-yaml3");
-        // finance, non-managed — outside granted space for both roles (space:marketing only)
         indexDoc("finance-non-managed", "finance", false, 40L, "secret-yaml4");
 
         indexStepDoc("marketing-non-managed", "marketing", false);
@@ -278,10 +250,8 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
     }
 
-    // ---- Assertion helpers ----
-
     @SuppressWarnings("unchecked")
-    private void assertImplicitGrantSurfaced(String roleName, String expectedSpace, boolean hasMustNot) throws Exception {
+    private void assertImplicitGrantSurfaced(String roleName, String expectedSpace) throws Exception {
         final Request request = new Request("GET", "/_security/role/" + roleName);
         request.addParameter("include_implicit", "true");
         final Response response = client().performRequest(request);
@@ -304,10 +274,8 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
         final String query = (String) implicitEntries.get(0).get("query");
         assertThat(query, containsString("spaceId"));
         assertThat(query, containsString(expectedSpace));
-        if (hasMustNot) {
-            assertThat(query, containsString("must_not"));
-            assertThat(query, containsString("managed"));
-        }
+        assertThat(query, containsString("must_not"));
+        assertThat(query, containsString("\"managed\":true"));
     }
 
     @SuppressWarnings("unchecked")
@@ -321,8 +289,8 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
         final Map<String, Object> hits = (Map<String, Object>) body.get("hits");
         final List<Map<String, Object>> hitList = (List<Map<String, Object>>) hits.get("hits");
         assertThat("unexpected doc count for " + username, hitList, hasSize(expectedCount));
+        assertEsqlSeesSameDocuments(username, password, EXECUTIONS_INDEX, hitList);
 
-        // FLS checks on the first hit: usage.totalTokens present, workflowDefinition absent
         final Map<String, Object> source = (Map<String, Object>) hitList.get(0).get("_source");
         assertNotNull("usage must be present (FLS object-pattern check)", source.get("usage"));
         @SuppressWarnings("unchecked")
@@ -339,7 +307,28 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
         assertOK(response);
         final Map<String, Object> body = entityAsMap(response);
         final Map<String, Object> hits = (Map<String, Object>) body.get("hits");
-        assertThat((List<Map<String, Object>>) hits.get("hits"), hasSize(expectedCount));
+        final List<Map<String, Object>> hitList = (List<Map<String, Object>>) hits.get("hits");
+        assertThat(hitList, hasSize(expectedCount));
+        assertEsqlSeesSameDocuments(username, password, STEP_EXECUTIONS_INDEX, hitList);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertEsqlSeesSameDocuments(String username, String password, String index, List<Map<String, Object>> searchHits)
+        throws Exception {
+        final Request request = new Request("POST", "/_query");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuth(username, password)));
+        request.setJsonEntity(Strings.format("""
+            {
+              "query": "FROM %s METADATA _id | KEEP _id, spaceId, managed, status | LIMIT 100"
+            }
+            """, index));
+        final Response response = client().performRequest(request);
+        assertOK(response);
+
+        final List<List<Object>> rows = (List<List<Object>>) entityAsMap(response).get("values");
+        final List<String> searchIds = searchHits.stream().map(hit -> (String) hit.get("_id")).sorted().toList();
+        final List<String> esqlIds = rows.stream().map(row -> (String) row.get(0)).sorted().toList();
+        assertThat("ES|QL and _search must return the same documents", esqlIds, equalTo(searchIds));
     }
 
     private static String basicAuth(String username, String password) {

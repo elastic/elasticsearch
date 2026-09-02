@@ -229,12 +229,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
   method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
   issue: https://github.com/elastic/elasticsearch/issues/151402
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test {feature:SUBQUERIES}
-  issue: https://github.com/elastic/elasticsearch/issues/149681
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test {feature:SUBQUERIES}
-  issue: https://github.com/elastic/elasticsearch/issues/149681
 - class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
   method: testExplainFailuresLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/151602
@@ -819,3 +813,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testFetchTooManyBigFields
   issue: https://github.com/elastic/elasticsearch/issues/158349
+- class: org.elasticsearch.xpack.esql.index.IndexPropertiesTests
+  method: testDeserializationFromPreShardCountsVersionDefaultsToZero
+  issue: https://github.com/elastic/elasticsearch/issues/158380

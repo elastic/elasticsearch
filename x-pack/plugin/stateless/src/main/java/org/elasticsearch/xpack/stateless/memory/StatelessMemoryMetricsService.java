@@ -80,10 +80,9 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         Setting.Property.Dynamic
     );
     // For the adaptive method, default to add an additional overhead of 50% of the estimate
-    public static final Setting<RatioValue> ADAPTIVE_EXTRA_OVERHEAD_SETTING = new Setting<>(
+    public static final Setting<RatioValue> ADAPTIVE_EXTRA_OVERHEAD_SETTING = Setting.ratioSetting(
         "memory_metrics.adaptive_extra_overhead",
         "50%",
-        RatioValue::parseRatioValue,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

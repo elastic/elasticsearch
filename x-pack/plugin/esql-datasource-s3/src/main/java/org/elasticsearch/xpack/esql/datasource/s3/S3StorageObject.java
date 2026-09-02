@@ -20,6 +20,8 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
@@ -417,25 +419,40 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (s3AsyncClient == null) {
+            // Must call super.readBytesAsync (the StorageObject default via AbstractMeteredStorageObject),
+            // not super.startReadBytesAsync: this class's readBytesAsync delegates here, so the default
+            // start would recurse until the stack overflows. StorageObject.super is illegal here because
+            // this class does not implement StorageObject directly.
             super.readBytesAsync(position, length, factory, executor, listener);
-            return;
+            return () -> {};
         }
 
         if (position < 0) {
             listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
-            return;
+            return () -> {};
         }
         if (length <= 0) {
             listener.onFailure(new IllegalArgumentException("length must be positive, got: " + length));
-            return;
+            return () -> {};
         }
         if (length > Integer.MAX_VALUE) {
             // The async path materializes the response into a single ByteBuffer; ranges larger than 2 GiB
             // are not supportable here. Callers needing larger reads must split the range or fall
             // back to the streaming sync path via newStream(position, length).
             listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
-            return;
+            return () -> {};
         }
 
         long endPosition = position + length - 1;
@@ -452,7 +469,8 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             (int) length,
             factory
         );
-        onReadComplete(s3AsyncClient.getObject(request, transformer), (buffer, throwable) -> {
+        var sdkFuture = s3AsyncClient.getObject(request, transformer);
+        onReadComplete(sdkFuture, (buffer, throwable) -> {
             if (throwable != null) {
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
                 Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
@@ -475,6 +493,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
             deliverRead(listener, buffer, startNanos);
         });
+        return () -> FutureUtils.cancel(sdkFuture);
     }
 
     @Override

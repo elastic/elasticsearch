@@ -460,11 +460,12 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             } else {
                 Stream<Object> nonMalformed = values.stream().filter(v -> v.v2() instanceof Number).map(t -> round.apply((Number) t.v2()));
                 List<Object> outList = (isColumnar ? nonMalformed : nonMalformed.sorted()).collect(Collectors.toCollection(ArrayList::new));
-                List<Object> malformed = values.stream()
-                    .filter(v -> false == v.v2() instanceof Number)
-                    .map(Tuple::v2)
-                    .sorted(SyntheticSourceMalformedValueSorter.comparator())
-                    .toList();
+                // Columnar indices route malformed values to the UNSORTED ._on_failure column (encounter order);
+                // non-columnar indices use the SORTED ._ignore_malformed column.
+                Stream<Object> malformedStream = values.stream().filter(v -> false == v.v2() instanceof Number).map(Tuple::v2);
+                List<Object> malformed = (isColumnar
+                    ? malformedStream
+                    : malformedStream.sorted(SyntheticSourceMalformedValueSorter.comparator())).toList();
                 malformed.forEach(outList::add);
                 var out = outList.size() == 1 ? outList.get(0) : outList;
 
@@ -607,6 +608,25 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             e.getCause().getMessage(),
             containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
+    }
+
+    /**
+     * In strict-columnar mode, {@code ignore_malformed} values land in the shared {@code ._on_failure} column instead of the
+     * dedicated {@code ._ignore_malformed} column, and must still round-trip correctly through synthetic source.
+     * This test covers all {@link NumberFieldMapper.NumberType}s via their concrete subclass test suites.
+     */
+    public void testIgnoreMalformedInColumnarModeUsesOnFailureColumn() throws IOException {
+        assumeTrue("requires ignore_malformed support", supportsIgnoreMalformed());
+        MapperService mapperService = createSytheticSourceMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("ignore_malformed", true);
+        }), true);
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-number")));
+
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectOnFailure().verify();
+        assertEquals("{\"field\":\"not-a-number\"}", syntheticSource(mapper, b -> b.field("field", "not-a-number")));
     }
 
     public void testColumnarModeSkippers() throws IOException {

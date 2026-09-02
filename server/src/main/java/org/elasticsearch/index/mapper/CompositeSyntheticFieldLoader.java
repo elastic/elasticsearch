@@ -222,6 +222,55 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
     }
 
     /**
+     * Appends the appropriate fallback layers to {@code layers} for a field that supports {@code ignore_malformed} and/or
+     * {@code doc_values.on_failure=ignore}.
+     *
+     * <p>In strict-columnar index modes created on or after {@link IndexVersions#MALFORMED_VALUES_IN_ON_FAILURE_COLUMN},
+     * {@link FallbackPostMapper#route} sends {@link FallbackPostMapper.Reason#MALFORMED} values to the shared per-field
+     * {@code ._on_failure} sidecar column, so only the on-failure layer is added — adding both would double-emit every value
+     * when both constraints are active on the same field. Older strict-columnar indices (created before the version gate) keep
+     * using {@code ._ignore_malformed}; the version check here must match the write-path check in
+     * {@link FallbackPostMapper#malformedUsesOnFailureColumn}. Outside strict-columnar, the two columns are always independent.
+     *
+     * <p>The on-failure layer is always appended <em>last</em> so encounter order is preserved.
+     *
+     * @param layers          the list to append to
+     * @param fieldName       full field path
+     * @param indexVersion    index version, forwarded to the layer constructors and the version gate
+     * @param ignoreMalformed whether this field has {@code ignore_malformed=true}
+     * @param onFailureEnabled {@link FieldMapper#onFailureColumnEnabled()} — true when {@code doc_values.on_failure=ignore}
+     * @param strictColumnar  whether the index is in a strict-columnar mode
+     */
+    public static void addFallbackLayers(
+        List<Layer> layers,
+        String fieldName,
+        IndexVersion indexVersion,
+        boolean ignoreMalformed,
+        boolean onFailureEnabled,
+        boolean strictColumnar
+    ) {
+        boolean malformedInOnFailure = FallbackPostMapper.malformedUsesOnFailureColumn(indexVersion, strictColumnar);
+        if (ignoreMalformed && malformedInOnFailure == false) {
+            layers.add(malformedValuesLayer(fieldName, indexVersion));
+        }
+        if (onFailureEnabled || (ignoreMalformed && malformedInOnFailure)) {
+            layers.add(onFailureValuesLayer(fieldName, indexVersion));
+        }
+    }
+
+    /**
+     * Returns the synthetic-source layer that reconstructs {@code ignore_malformed} values: the {@code ._on_failure} sidecar
+     * column when {@link FallbackPostMapper#malformedUsesOnFailureColumn} applies (strict-columnar index created on or after
+     * {@link IndexVersions#MALFORMED_VALUES_IN_ON_FAILURE_COLUMN}), otherwise the {@code ._ignore_malformed} column.
+     * Use this for mappers that construct the layer directly rather than through {@link #addFallbackLayers}.
+     */
+    public static Layer malformedFallbackLayer(String fieldName, IndexVersion indexVersion, boolean strictColumnar) {
+        return FallbackPostMapper.malformedUsesOnFailureColumn(indexVersion, strictColumnar)
+            ? onFailureValuesLayer(fieldName, indexVersion)
+            : malformedValuesLayer(fieldName, indexVersion);
+    }
+
+    /**
      * Returns the layer that reconstructs values from the {@code ._on_failure} sidecar column for synthetic source.
      * Append it <em>last</em> in the composite so values 2..N trail the primary column and encounter order is preserved.
      */

@@ -17,13 +17,21 @@ import static org.hamcrest.Matchers.is;
 
 public class FallbackPostMapperTests extends ESTestCase {
 
-    public void testMalformedRoutesToIgnoreMalformed() {
-        assertThat(FallbackPostMapper.route(FallbackPostMapper.Reason.MALFORMED), is(FallbackPostMapper.Destination.IGNORE_MALFORMED));
+    public void testMalformedRoutesToIgnoreMalformedInNonColumnarMode() {
+        assertThat(
+            FallbackPostMapper.route(FallbackPostMapper.Reason.MALFORMED, false),
+            is(FallbackPostMapper.Destination.IGNORE_MALFORMED)
+        );
+    }
+
+    /** In strict-columnar mode, malformed values share the ._on_failure column with multi-value violations. */
+    public void testMalformedRoutesToOnFailureInStrictColumnarMode() {
+        assertThat(FallbackPostMapper.route(FallbackPostMapper.Reason.MALFORMED, true), is(FallbackPostMapper.Destination.ON_FAILURE));
     }
 
     public void testMultiValueViolationRoutesToOnFailure() {
         assertThat(
-            FallbackPostMapper.route(FallbackPostMapper.Reason.MULTI_VALUE_VIOLATION),
+            FallbackPostMapper.route(FallbackPostMapper.Reason.MULTI_VALUE_VIOLATION, randomBoolean()),
             is(FallbackPostMapper.Destination.ON_FAILURE)
         );
     }
@@ -32,10 +40,11 @@ public class FallbackPostMapperTests extends ESTestCase {
         EnumSet<FallbackPostMapper.Reason> ignoredSourceReasons = EnumSet.complementOf(
             EnumSet.of(FallbackPostMapper.Reason.MALFORMED, FallbackPostMapper.Reason.MULTI_VALUE_VIOLATION)
         );
+        boolean strictColumnar = randomBoolean();
         for (FallbackPostMapper.Reason reason : ignoredSourceReasons) {
             assertThat(
                 "Expected IGNORED_SOURCE for reason " + reason,
-                FallbackPostMapper.route(reason),
+                FallbackPostMapper.route(reason, strictColumnar),
                 is(FallbackPostMapper.Destination.IGNORED_SOURCE)
             );
         }

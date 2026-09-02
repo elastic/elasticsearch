@@ -682,13 +682,14 @@ public class DateFieldMapperTests extends MapperTestCase {
                 }
                 List<String> outputFromDocValues = nonMalformed.map(Value::output).toList();
 
-                List<Object> malformedOutput = values.stream()
-                    .filter(v -> v.malformedOutput != null)
-                    .map(Value::malformedOutput)
-                    .sorted(SyntheticSourceMalformedValueSorter.comparator())
-                    .toList();
+                // Columnar indices route malformed values to the UNSORTED ._on_failure column (encounter order);
+                // non-columnar indices use the SORTED ._ignore_malformed column.
+                Stream<Object> malformedStream = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+                List<Object> malformedOutput = (isColumnar
+                    ? malformedStream
+                    : malformedStream.sorted(SyntheticSourceMalformedValueSorter.comparator())).toList();
 
-                // Malformed values are always last in the implementation (sorted by encoded BytesRef).
+                // Malformed values are always last in the implementation.
                 List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput.stream()).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 

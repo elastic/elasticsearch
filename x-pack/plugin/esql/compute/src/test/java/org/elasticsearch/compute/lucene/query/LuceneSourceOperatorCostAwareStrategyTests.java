@@ -44,8 +44,10 @@ import static org.hamcrest.Matchers.equalTo;
  * lookup, an empty result, or the low-cost side of the threshold → {@link LuceneSliceQueue.PartitioningStrategy#SEGMENT};
  * a costly point/multi-term clause → SEGMENT; {@code MatchAll} → DOC.
  *
- * <p>A <b>limited</b> scan (implicit {@code LIMIT}) early-terminates after matching N docs, so it is deferred and keeps
- * the low-overhead {@link LuceneSliceQueue.PartitioningStrategy#SHARD} regardless of the query.
+ * <p>A <b>limited</b> scan (implicit {@code LIMIT}) uses the same cost-aware rule with
+ * {@link LuceneSliceQueue.PartitioningStrategy#SHARD} as only the cheap outcome: a cheap indexed lookup (cost below
+ * threshold) keeps {@code SHARD}, while scan-heavy queries — doc-values-only filters or {@code MatchAll} (both cost
+ * ≈ maxDoc) — are promoted to {@link LuceneSliceQueue.PartitioningStrategy#DOC} because the limit rarely fires early.
  */
 public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
 
@@ -99,11 +101,22 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
         assertThat(pick(LongPoint.newRangeQuery("pt", 0, NUM_DOCS / 2), NO_LIMIT), equalTo(SEGMENT));
     }
 
-    // --- implicit limit: deferred, always SHARD ---
+    // --- implicit limit: cost-aware, not always SHARD ---
 
-    public void testLimitedScanPicksShard() throws IOException {
-        assertThat(pick(SortedNumericDocValuesField.newSlowRangeQuery("dv", 0, NUM_DOCS / 2), between(1, 1000)), equalTo(SHARD));
-        assertThat(pick(Queries.ALL_DOCS_INSTANCE, between(1, 1000)), equalTo(SHARD));
+    public void testLimitedDocValuesScanPicksDoc() throws IOException {
+        // Doc-values-only filter (no BKD): cost ≈ maxDoc, so SHARD would scan ~maxDoc single-threaded.
+        // The limit is unlikely to fire (very few matches), so parallelise with DOC instead.
+        assertThat(pick(SortedNumericDocValuesField.newSlowRangeQuery("dv", 0, NUM_DOCS / 2), between(1, 1000)), equalTo(DOC));
+    }
+
+    public void testLimitedMatchAllPicksDoc() throws IOException {
+        // FROM foo | LIMIT N: cost = maxDoc, so parallelize with DOC even though the limit might fire early.
+        assertThat(pick(Queries.ALL_DOCS_INSTANCE, between(1, 1000)), equalTo(DOC));
+    }
+
+    public void testLimitedCheapTermPicksShard() throws IOException {
+        // Term query: cost = one matching doc, well below MIN_COST_FOR_DOC threshold, keep SHARD.
+        assertThat(pick(new TermQuery(new Term("kw", "v7")), between(1, 1000)), equalTo(SHARD));
     }
 
     private static final int NO_LIMIT = LuceneOperator.NO_LIMIT;

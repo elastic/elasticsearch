@@ -202,14 +202,20 @@ public class LuceneSourceOperator extends LuceneOperator {
         /**
          * Cost-aware {@link DataPartitioning#AUTO} strategy for the unsorted source. A no-limit scan (e.g. {@code STATS})
          * visits every matching doc, so it shares the {@link #autoPartitioning} rule with count and TopN: costly →
-         * SEGMENT, cheap ({@code cost < minCostForDoc}) → SEGMENT, else DOC. A query with a {@code limit} early-terminates
-         * after matching {@code N} docs — whether DOC pays off then depends on match density, which the cost can't see —
-         * so that case is deferred and keeps the low-overhead {@link PartitioningStrategy#SHARD}.
+         * SEGMENT, cheap ({@code cost < minCostForDoc}) → SEGMENT, else DOC.
+         * <p>
+         * A query with a {@code limit} uses the same cost-aware rule but with {@link PartitioningStrategy#SHARD} as the
+         * {@code cheap} outcome. This keeps low-overhead {@code SHARD} for cases where the limit genuinely helps — a cheap
+         * indexed (BKD) lookup skips to its matches and early-terminates cheaply — but promotes scan-heavy queries
+         * ({@code cost ≥ minCostForDoc}, e.g. a doc-values-only filter with no BKD index) to
+         * {@link PartitioningStrategy#DOC}, because those scans visit {@code ~maxDoc} regardless of match density and the
+         * limit is never reached early. {@link org.apache.lucene.search.MatchAllDocsQuery} also gets
+         * {@link PartitioningStrategy#DOC} because its cost is {@code maxDoc}.
          */
         public static DataPartitioning.AutoStrategy autoStrategy(long minCostForDoc) {
             return limit -> limit == NO_LIMIT
                 ? (ctx, query) -> autoPartitioning(ctx, query, DOC, minCostForDoc, SEGMENT)
-                : Factory::lowOverheadAutoStrategy;
+                : (ctx, query) -> autoPartitioning(ctx, query, DOC, minCostForDoc, SHARD);
         }
 
         /**

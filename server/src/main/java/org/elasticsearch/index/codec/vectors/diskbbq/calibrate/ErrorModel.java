@@ -546,8 +546,8 @@ public final class ErrorModel {
      * not recomputed per encoding.
      * <p>
      * Measures OSQ error once at {@link #REAL_RESIDUAL_SAMPLE} and anchors the intercept at that sample
-     * size. The manifold slope {@code invDim} is used as the scaling exponent, so evaluating at the real corpus size {@code N}
-     * extrapolates as {@code errorStd = measuredStd × (REAL_RESIDUAL_SAMPLE / N)^invDim}.
+     * size. The manifold slope is used as the scaling exponent, sign-corrected for dot-like similarities, so evaluating at the
+     * real corpus size {@code N} extrapolates as {@code errorStd = measuredStd × (REAL_RESIDUAL_SAMPLE / N)^invDimEffective}.
      */
     public static QuantizationErrorStdModel estimateMagnitudeFromRealResiduals(
         double invDim,
@@ -577,10 +577,9 @@ public final class ErrorModel {
         }
         // 1/d is negative for similarities like cosine, so use -invDim
         double invDimEffective = ManifoldModel.isDotLike(source.similarityFunction()) ? -invDim : invDim;
-        // single measurement anchored at state.nDocs (not numVectors),
-        // so evaluating at N gives measuredStd × (state.nDocs / N)^invDim
+        // single measurement anchored at state.nDocs, so evaluating at N gives measuredStd × (state.nDocs / N)^invDimEffective
         double beta0 = Math.log(Math.max(r.std(), 1e-38)) - invDimEffective * (Math.log(nDocsPerCluster) - Math.log(state.nDocs));
-        return new QuantizationErrorStdModel(new Regression.OLSResult(beta0, invDim, 0, 0, 0, 0));
+        return new QuantizationErrorStdModel(new Regression.OLSResult(beta0, invDimEffective, 0, 0, 0, 0));
     }
 
     /**

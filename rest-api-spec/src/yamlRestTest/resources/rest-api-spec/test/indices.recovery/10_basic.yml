@@ -193,8 +193,8 @@
 ---
 "Indices recovery test for failure count":
   - requires:
-      cluster_features: ["indices.recovery.recovery_failure_count"]
-      reason: asserts that response includes recovery failure count
+      cluster_features: ["indices.recovery.recovery_local_retry_count"]
+      reason: asserts that response includes recovery local retry count
 
   - do:
       indices.create:
@@ -214,6 +214,6 @@
         human: true
         detailed: true
 
-  - match: { test_5.shards.0.id:       0    }
-  - match: { test_5.shards.0.primary:  true }
-  - match: { test_5.shards.0.failures: 0    }
+  - match: { test_5.shards.0.id:            0    }
+  - match: { test_5.shards.0.primary:       true }
+  - match: { test_5.shards.0.local_retries: 0    }

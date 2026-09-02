@@ -128,7 +128,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             "time",
             "type",
             "stage",
-            "failures",
+            "local_retries",
             "priority",
             "source_host",
             "source_node",

@@ -91,7 +91,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     private Stage stage;
-    private int recoveryFailures;
+    private int localRetries;
 
     private final Index index;
     private final Translog translog;
@@ -147,7 +147,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         stage = Stage.INIT;
-        recoveryFailures = 0;
+        localRetries = 0;
         this.index = index;
         translog = new Translog();
         verifyIndex = new VerifyIndex();
@@ -158,17 +158,17 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         "recovery_priority_in_recovery_state"
     );
 
-    private static final TransportVersion RECOVERY_FAILURE_COUNT_TRANSPORT_VERSION = TransportVersion.fromName(
-        "recovery_failure_count_in_recovery_state"
+    private static final TransportVersion RECOVERY_LOCAL_RETRY_COUNT_TRANSPORT_VERSION = TransportVersion.fromName(
+        "recovery_local_retry_count_in_recovery_state"
     );
 
     private RecoveryState(StreamInput in) throws IOException {
         timer = new Timer(in);
         stage = Stage.fromId(in.readByte());
-        if (in.getTransportVersion().supports(RECOVERY_FAILURE_COUNT_TRANSPORT_VERSION)) {
-            recoveryFailures = in.readInt();
+        if (in.getTransportVersion().supports(RECOVERY_LOCAL_RETRY_COUNT_TRANSPORT_VERSION)) {
+            localRetries = in.readInt();
         } else {
-            recoveryFailures = 0; // serializing node is too old to have this field, so it is also too old to do local retries
+            localRetries = 0; // serializing node is too old to have this field, so it is also too old to do local retries
         }
         shardId = new ShardId(in);
         recoverySource = RecoverySource.readFrom(in);
@@ -189,10 +189,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         timer.writeTo(out);
         out.writeByte(stage.id());
-        // Only send recoveryFailures to nodes which are new enough to know about it.
+        // Only send localRetries to nodes which are new enough to know about it.
         // This is fine as the only time this is serialized is when returning in the response to the recovery API.
-        if (out.getTransportVersion().supports(RECOVERY_FAILURE_COUNT_TRANSPORT_VERSION)) {
-            out.writeInt(recoveryFailures);
+        if (out.getTransportVersion().supports(RECOVERY_LOCAL_RETRY_COUNT_TRANSPORT_VERSION)) {
+            out.writeInt(localRetries);
         }
         shardId.writeTo(out);
         recoverySource.writeTo(out);
@@ -274,7 +274,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
     /**
      * Resets the stage to the initial state and clears all index, verify index and translog information keeping the original timing
-     * information and the failure count.
+     * information and the local retry count.
      */
     public RecoveryState reset() {
         RecoveryState resetState = new RecoveryState(
@@ -287,7 +287,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             new Index(),
             timer
         );
-        resetState.recoveryFailures = this.recoveryFailures;
+        resetState.localRetries = this.localRetries;
         return resetState;
     }
 
@@ -299,11 +299,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return setStage(Stage.TRANSLOG);
     }
 
-    /// Returns the number of failures trying to perform this recovery. Note that this applies to local retries attempted on the data node.
-    /// Only a permanent failure will go back to the cluster state and increment the [org.elasticsearch.cluster.routing.UnassignedInfo]'s
-    /// `failedAllocations` value (after which a new recovery should be started with this field starting again from zero).
-    public synchronized int getRecoveryFailures() {
-        return this.recoveryFailures;
+    /// Returns the number of times this recovery has failed in a way which is retried locally (i.e. on the data node). A
+    /// non-locally-retryable failure will not be counted here, it will go back to the cluster state and increment the
+    /// [org.elasticsearch.cluster.routing.UnassignedInfo]'s `failedAllocations` value (after which a new recovery should be started with
+    /// this field starting again from zero).
+    public synchronized int getLocalRetries() {
+        return this.localRetries;
     }
 
     public Index getIndex() {
@@ -370,7 +371,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         builder.field(Fields.ID, shardId.id());
         builder.field(Fields.TYPE, recoverySource.getType());
         builder.field(Fields.STAGE, stage.toString());
-        builder.field(Fields.FAILURES, recoveryFailures);
+        builder.field(Fields.LOCAL_RETRIES, localRetries);
         builder.field(Fields.PRIMARY, primary);
         builder.field(Fields.PRIORITY, recoveryPriority);
         builder.timestampFieldsFromUnixEpochMillis(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
@@ -419,7 +420,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         static final String TYPE = "type";
         static final String PRIORITY = "priority";
         static final String STAGE = "stage";
-        static final String FAILURES = "failures";
+        static final String LOCAL_RETRIES = "local_retries";
         static final String PRIMARY = "primary";
         static final String START_TIME = "start_time";
         static final String START_TIME_IN_MILLIS = "start_time_in_millis";

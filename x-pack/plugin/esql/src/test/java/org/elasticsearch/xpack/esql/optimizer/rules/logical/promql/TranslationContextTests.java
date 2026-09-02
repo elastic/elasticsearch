@@ -13,186 +13,89 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.Column;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.Header;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.NamedColumn;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.TimeSeriesColumn;
 
-import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.newFinite;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.newOpen;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class TranslationContextTests extends ESTestCase {
 
-    private static final Attribute CLUSTER = attr("cluster");
-    private static final Attribute POD = attr("pod");
-    private static final Attribute REGION = attr("region");
+    public void testUnionMergesLabelsAndSkipSets() {
+        Header header = newFinite(List.of("cluster")).union(newOpen(Set.of("pod")))
+            .union(newOpen(Set.of("pod")))
+            .union(newFinite(List.of("cluster", "region")));
 
-    public void testTimeSeriesRequirementsAreAdditive() {
-        Header requirement = Header.undefined()
-            .including(TimeSeriesColumn.of(List.of(REGION)))
-            .including(TimeSeriesColumn.of(List.of(REGION)))
-            .including(TimeSeriesColumn.of(List.of(POD, REGION)));
-        TimeSeriesColumn identity = TimeSeriesColumn.of(List.of());
-        TimeSeriesColumn withoutRegion = TimeSeriesColumn.of(List.of(REGION));
-        TimeSeriesColumn withoutPodRegion = TimeSeriesColumn.of(List.of(POD, REGION));
-
-        assertTrue(requirement.success(new Header(List.of(identity), List.of(identity, withoutRegion, withoutPodRegion))));
-        assertFalse(requirement.success(new Header(List.of(identity), List.of(identity, withoutRegion))));
+        assertThat(header.labels(), contains("cluster", "region"));
+        assertThat(header.skips(), contains(Set.of("pod")));
+        assertThat(header.union(Header.EMPTY), equalTo(header));
     }
 
-    public void testRequirementChecksTimeSeriesColumnsButAllowsConcreteIdentity() {
-        Header requirement = Header.undefined().including(TimeSeriesColumn.of(List.of(REGION))).including(List.of(CLUSTER));
-        TimeSeriesColumn identity = new TimeSeriesColumn(attr(MetadataAttribute.TIMESERIES), List.of());
-        TimeSeriesColumn withoutRegion = new TimeSeriesColumn(attr(MetadataAttribute.TIMESERIES), List.of(REGION));
+    public void testDifferenceDropsLabelsAndWidensSkipSets() {
+        Header above = newFinite(List.of("cluster", "pod")).union(newOpen(Set.of("region")));
 
-        assertTrue(requirement.success(new Header(List.of(identity), List.of(identity, withoutRegion, new NamedColumn(CLUSTER)))));
-        assertFalse(requirement.success(new Header(List.of(identity), List.of(identity, new NamedColumn(CLUSTER)))));
-        assertTrue(Header.undefined().success(concreteHeader(CLUSTER)));
+        Header below = above.difference(List.of("pod"));
+        assertThat(below.labels(), contains("cluster"));
+        assertThat(below.skips(), contains(Set.of("region", "pod")));
+
+        // the regroup's own column composes as a second, finer skip set
+        Header child = below.union(newOpen(Set.of("pod")));
+        assertThat(child.skips(), containsInAnyOrder(Set.of("region", "pod"), Set.of("pod")));
+        assertThat(child.finestSkip(), equalTo(Set.of("pod")));
     }
 
-    public void testConcreteLabelWideningPreservesTimeSeriesRequirements() {
-        Header requirement = Header.undefined().including(TimeSeriesColumn.of(List.of(POD, REGION))).including(List.of(CLUSTER));
-        TimeSeriesColumn identity = TimeSeriesColumn.of(List.of());
-        TimeSeriesColumn required = TimeSeriesColumn.of(List.of(POD, REGION));
+    public void testSurvivingIsTheUpwardCounterpartOfDifference() {
+        Header required = newFinite(List.of("cluster", "pod")).union(newOpen(Set.of("region")));
+        Header child = required.difference(List.of("pod")).union(newOpen(Set.of("pod")));
 
-        assertThat(requirement.labels(), equalTo(List.of(CLUSTER)));
-        assertTrue(requirement.success(new Header(List.of(identity), List.of(identity, required))));
+        Header lifted = child.surviving(List.of("pod"));
+
+        // every column the parent required, apart from the dropped label, comes back
+        assertThat(lifted.labels(), contains("cluster"));
+        assertThat(lifted.skips(), contains(Set.of("region", "pod")));
+        // the regroup's own full label space does not survive dropping a label it still carries
+        assertFalse(newOpen().surviving(List.of("pod")).hasPacked());
+        // without () keeps everything
+        assertThat(child.surviving(List.of()), equalTo(child));
     }
 
-    public void testIdentityGroupingDefaultsOnlyUndemandedGrouping() {
-        Header surface = Header.undefined().including(List.of(CLUSTER)).withIdentityGrouping();
+    public void testRetainLabelsKeepsSkipSets() {
+        Header header = newFinite(List.of("cluster", "pod", "region")).union(newOpen(Set.of("pod")));
 
-        assertTrue(surface.hasTimeSeriesGrouping());
-        assertTrue(Header.undefined().including(TimeSeriesColumn.of(List.of())).success(surface));
-        assertThat(surface.labels(), equalTo(List.of(CLUSTER)));
+        Header retained = header.retainLabels(List.of("cluster", "missing"));
 
-        Header concrete = concreteHeader(CLUSTER);
-        assertThat(concrete.withIdentityGrouping(), sameInstance(concrete));
+        assertThat(retained.labels(), contains("cluster"));
+        assertThat(retained.skips(), contains(Set.of("pod")));
     }
 
-    public void testRequiringPinsLeafIdentityWhenGroupByEmpty() {
-        Header leaf = new Header(List.of(TimeSeriesColumn.of(List.of())), List.of(TimeSeriesColumn.of(List.of())));
-        Header withoutPod = leaf.groupedWithout(List.of(POD));
-        Header demand = Header.undefined().requiring(withoutPod).including(List.of(CLUSTER));
-
-        assertTrue(demand.hasTimeSeriesGrouping());
-        assertThat(demand.withIdentityGrouping(), sameInstance(demand));
-        assertThat(demand.groupingExpressions(), hasSize(1));
-        assertThat(demand.labels(), equalTo(List.of(CLUSTER)));
-        demand.transformExpressions((column, grouping) -> {
-            if (grouping) {
-                assertThat(((TimeSeriesColumn) column).exclusions(), equalTo(List.of(POD)));
-            }
-            return column;
-        });
-        // a second requiring with an already-pinned TA group key only carries the wider identity
-        Header nested = demand.requiring(withoutPod.groupedWithout(List.of(REGION)));
-        assertThat(nested.groupingExpressions(), hasSize(1));
-        assertTrue(
-            nested.success(
-                new Header(
-                    List.of(TimeSeriesColumn.of(List.of(POD))),
-                    List.of(TimeSeriesColumn.of(List.of(POD)), TimeSeriesColumn.of(List.of(POD, REGION)))
-                )
-            )
-        );
+    public void testPackedNameDerivesFromTheSkipSet() {
+        assertThat(TranslationContext.packedName(Set.of()), equalTo(MetadataAttribute.TIMESERIES));
+        assertThat(TranslationContext.packedName(Set.of("region", "pod")), equalTo(MetadataAttribute.TIMESERIES + "$pod$region"));
+        assertThat(TranslationContext.packedName(Set.of("pod", "region")), equalTo(TranslationContext.packedName(Set.of("region", "pod"))));
     }
 
-    public void testNestedWithoutSelectsExactCarriedIdentity() {
-        Attribute regionIdentity = attr(MetadataAttribute.TIMESERIES);
-        Attribute podRegionIdentity = attr(MetadataAttribute.TIMESERIES);
+    public void testFindByNameMatchesCanonicalNamesAndPrefersPassthroughFields() {
+        Attribute bare = attr("cluster");
+        Attribute prefixed = new ReferenceAttribute(Source.EMPTY, "labels.cluster", DataType.KEYWORD);
+        Attribute packed = attr(TranslationContext.packedName(Set.of("pod")));
 
-        TimeSeriesColumn region = new TimeSeriesColumn(regionIdentity, List.of(REGION));
-        TimeSeriesColumn podRegion = new TimeSeriesColumn(podRegionIdentity, List.of(POD, REGION));
-        Header inner = new Header(List.of(region), List.of(region, podRegion));
-        Header outer = inner.groupedWithout(List.of(POD));
-
+        assertThat(TranslationContext.findByName(List.of(bare, prefixed), "cluster"), sameInstance(prefixed));
+        assertThat(TranslationContext.findByName(List.of(bare), "cluster"), sameInstance(bare));
         assertThat(
-            outer.transformExpressions(
-                (column, grouping) -> TranslationContext.resolveColumn(column, List.of(regionIdentity, podRegionIdentity))
-            ).groupingExpressions().stream().map(expression -> expression.toAttribute()).toList(),
-            equalTo(List.of(podRegionIdentity))
+            TranslationContext.findByName(List.of(bare, packed), TranslationContext.packedName(Set.of("pod"))),
+            sameInstance(packed)
         );
-    }
-
-    public void testByKeepsConcreteKeysAndReportsMissingLabels() {
-        Header by = concreteHeader(CLUSTER).groupedBy(List.of(CLUSTER, REGION));
-
-        Header bound = by.transformExpressions((column, grouping) -> TranslationContext.resolveColumn(column, List.of(CLUSTER)));
-        assertThat(
-            bound.groupingExpressions().stream().map(expression -> expression.toAttribute()).toList(),
-            equalTo(List.of(CLUSTER, REGION))
-        );
-    }
-
-    public void testDuplicateConcreteLabelsCollapseByName() {
-        Attribute duplicate = attr("cluster");
-        Header by = concreteHeader(CLUSTER, duplicate).groupedBy(List.of(CLUSTER, duplicate));
-
-        assertThat(by.labels(), hasSize(1));
-        assertThat(
-            by.transformExpressions((column, grouping) -> TranslationContext.resolveColumn(column, List.of(CLUSTER, duplicate)))
-                .groupingExpressions(),
-            hasSize(1)
-        );
-    }
-
-    public void testTransformRunsOnceAndPreservesMembership() {
-        NamedColumn proxy = new NamedColumn(CLUSTER);
-        Header header = new Header(List.of(proxy), List.of(proxy));
-        Attribute transformed = attr("transformed");
-        int[] calls = new int[1];
-
-        Header result = header.transformExpressions((column, grouping) -> switch (column) {
-            case NamedColumn ignored -> {
-                calls[0]++;
-                assertTrue(grouping);
-                yield new NamedColumn(transformed);
-            }
-            case TimeSeriesColumn ignored -> throw new AssertionError();
-        });
-
-        assertThat(calls[0], equalTo(1));
-        assertThat(result.groupingExpressions().getFirst(), sameInstance(result.exposedExpressions().getFirst()));
-        assertThat(result.groupingExpressions().getFirst(), sameInstance(transformed));
-    }
-
-    public void testResolveLinksProxiesToPlanOutput() {
-        Attribute identity = attr(MetadataAttribute.TIMESERIES);
-        Header bound = new Header(
-            List.of(new TimeSeriesColumn(identity, List.of(REGION))),
-            List.of(new TimeSeriesColumn(identity, List.of(REGION)), new NamedColumn(CLUSTER))
-        ).transformExpressions((column, grouping) -> TranslationContext.resolveColumn(column, List.of(identity, CLUSTER)));
-        int[] resolvedKinds = new int[2];
-
-        bound.transformExpressions((column, grouping) -> switch (column) {
-            case NamedColumn named -> {
-                resolvedKinds[0]++;
-                assertThat(named.attribute(), sameInstance(CLUSTER));
-                yield named;
-            }
-            case TimeSeriesColumn timeSeries -> {
-                resolvedKinds[1]++;
-                assertTrue(grouping);
-                assertThat(timeSeries.attribute(), sameInstance(identity));
-                assertThat(timeSeries.exclusions(), equalTo(List.of(REGION)));
-                yield timeSeries;
-            }
-        });
-
-        assertThat(resolvedKinds, equalTo(new int[] { 1, 1 }));
+        assertNull(TranslationContext.findByName(List.of(bare), "pod"));
+        assertThat(TranslationContext.mapToNames(List.of(bare, prefixed, attr("pod"))), contains("cluster", "pod"));
     }
 
     private static Attribute attr(String name) {
         return new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD);
-    }
-
-    private static Header concreteHeader(Attribute... attributes) {
-        List<Column> columns = Arrays.stream(attributes).map(NamedColumn::new).map(Column.class::cast).toList();
-        return new Header(columns, columns);
     }
 }

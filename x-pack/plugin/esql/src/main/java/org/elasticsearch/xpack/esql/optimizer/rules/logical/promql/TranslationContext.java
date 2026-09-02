@@ -9,407 +9,132 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROMETHEUS_LABELS_PREFIX;
 
 /**
- * The required and actual header of a PromQL translation attempt.
+ * The tabular surface of a PromQL translation: the label columns a table has, as names. The same {@link Header} flows
+ * down as the columns a subtree must expose and up as the columns it exposes. The plan carries the columns; a label is
+ * found in a plan output by canonical name ({@link #findByName}) and a packing by its derived name ({@link #packedName}).
  */
 public final class TranslationContext {
 
     private TranslationContext() {}
 
-    /**
-     * A column exposed by a translated subtree. A column carries the expression currently denoting it; whether that
-     * expression is linked to a given plan is a derived property, re-established at plan boundaries via
-     * {@link #resolveColumn}.
-     */
-    public sealed interface Column permits NamedColumn, TimeSeriesColumn {
-        NamedExpression expression();
+    // -- core --
 
-        default Attribute attribute() {
-            return expression().toAttribute();
-        }
-    }
+    public record Header(Set<String> labels, Set<Set<String>> skips) {
+        /** No columns: a scalar's header, and the identity of {@link #union}. */
+        public static final Header EMPTY = new Header(Set.of(), Set.of());
 
-    /** A named column. */
-    public record NamedColumn(NamedExpression expression) implements Column {}
-
-    /** A time-series metadata block-loader column with its exclusion set (skip-set). */
-    public record TimeSeriesColumn(NamedExpression expression, List<Attribute> exclusions) implements Column {
-        public TimeSeriesColumn {
-            exclusions = distinctByCanonicalName(exclusions);
+        public Header {
+            labels = Collections.unmodifiableSet(new LinkedHashSet<>(labels));
+            var copy = new LinkedHashSet<Set<String>>();
+            for (Set<String> skip : skips) {
+                copy.add(Collections.unmodifiableSet(new LinkedHashSet<>(skip)));
+            }
+            skips = Collections.unmodifiableSet(copy);
         }
 
-        public static TimeSeriesColumn of(List<Attribute> exclusions) {
-            return new TimeSeriesColumn(FieldAttribute.timeSeriesAttribute(Source.EMPTY), exclusions);
-        }
-    }
-
-    @FunctionalInterface
-    public interface Fn {
-        Column transform(Column column, boolean grouping);
-    }
-
-    /**
-     * The symbolic columns exposed by a translated subtree. The same type flows in both directions of the
-     * negotiation: upward as the surface a subtree produced, and downward as the demand a parent pushes to a
-     * child - the columns the child must expose ({@link #success}) and, when non-empty, the concrete grouping the
-     * demand pins ({@code groupBy}). Translation may widen a demand and retry a child.
-     */
-    public static final class Header {
-        private final List<Column> groupBy;
-        private final List<Column> columns;
-
-        public Header(List<? extends Column> groupBy, List<? extends Column> columns) {
-            this.groupBy = distinct(groupBy);
-            this.columns = distinct(columns);
-        }
-
-        /** No series identity; as a demand, no requirement. */
-        public static Header undefined() {
-            return new Header(List.of(), List.of());
-        }
-
-        /** Add named column requirements without changing the primary grouping. */
-        public Header including(List<Attribute> labels) {
-            var exposed = new ArrayList<>(columns);
-            distinctByCanonicalName(labels).stream().map(NamedColumn::new).forEach(exposed::add);
-            return new Header(groupBy, exposed);
+        public Header union(Header other) {
+            var mergedLabels = new LinkedHashSet<>(labels);
+            mergedLabels.addAll(other.labels);
+            var mergedSkips = new LinkedHashSet<>(skips);
+            mergedSkips.addAll(other.skips);
+            return new Header(mergedLabels, mergedSkips);
         }
 
         /**
-         * Add named columns that shadow any exposed column of the same canonical name. A derived label (e.g. a
-         * {@code label_replace} destination) thus takes precedence over a stored label of the same name, so downstream
-         * name lookups and nested derivations observe the derived value rather than the stored one.
+         * This header transposed below a node that drops {@code keys}: the dropped labels are no longer available as
+         * columns, and every packed column must already exclude them to survive the regroup.
          */
-        public Header shadowing(List<Attribute> labels) {
-            Set<String> shadowed = toCanonicalNames(labels);
-            var exposed = new ArrayList<Column>();
-            for (Column column : columns) {
-                if (column instanceof NamedColumn && shadowed.contains(toCanonicalName(column.attribute()))) {
-                    continue;
-                }
-                exposed.add(column);
+        public Header difference(Collection<String> keys) {
+            var remaining = new LinkedHashSet<>(labels);
+            remaining.removeAll(keys);
+            var widened = new LinkedHashSet<Set<String>>();
+            for (Set<String> skip : skips) {
+                var wider = new LinkedHashSet<>(skip);
+                wider.addAll(keys);
+                widened.add(wider);
             }
-            distinctByCanonicalName(labels).stream().map(NamedColumn::new).forEach(exposed::add);
-            return new Header(groupBy, exposed);
-        }
-
-        /** Add a time-series identity requirement without changing the primary grouping. */
-        public Header including(TimeSeriesColumn required) {
-            var exposed = new ArrayList<>(columns);
-            exposed.add(required);
-            return new Header(groupBy, exposed);
+            return new Header(remaining, widened);
         }
 
         /**
-         * Transposes this demand across an aggregate: the demand the aggregate's child sees. A {@code by} fixes
-         * identity to finite keys, so upstream demands stop at the aggregate; a {@code without} forwards them.
+         * The columns of this header that survive a node dropping {@code keys}: labels outside the set and packed
+         * columns already excluding all of it. The upward counterpart of {@link #difference}.
          */
-        public Header withAcrossSeriesAgg(AcrossSeriesAggregate.Grouping grouping, List<Attribute> labels) {
-            return switch (grouping) {
-                case BY -> undefined().including(labels);
-                case WITHOUT -> labels.isEmpty() && labels().isEmpty() == false ? groupedBy(labels()) : this;
-                case NONE -> undefined();
-            };
-        }
-
-        /**
-         * Widen this demand with the identity requirement implied by a grouping header.
-         * <p>
-         * When this demand has no grouping yet, the required TA <em>is</em> the leaf identity (e.g. single
-         * {@code without(pod)} → {@code ta·skip{pod}}). Pinning it into {@code groupBy} stops
-         * {@link #withIdentityGrouping} from also inventing a full {@code ta·skip{}} and emitting two
-         * {@code _timeseries} columns. When a TA group key already exists, the required identity is only
-         * carried as an extra column (nested {@code without}).
-         */
-        public Header requiring(Header grouping) {
-            TimeSeriesColumn tc = grouping.groupByTimeSeries();
-            if (tc == null) {
-                return this;
-            }
-            TimeSeriesColumn required = TimeSeriesColumn.of(tc.exclusions());
-            if (groupByTimeSeries() != null) {
-                return including(required);
-            }
-            if (groupBy.isEmpty()) {
-                var exposed = new ArrayList<Column>(columns.size() + 1);
-                exposed.add(required);
-                for (Column column : columns) {
-                    if (eq(column, required) == false) {
-                        exposed.add(column);
-                    }
-                }
-                return new Header(List.of(required), exposed);
-            }
-            return including(required);
-        }
-
-        /** Whether a returned header exposes every time-series identity this demand requires. */
-        public boolean success(Header header) {
-            for (Column column : columns) {
-                if (column instanceof TimeSeriesColumn tc && header.timeSeries(tc.exclusions()) == null) {
-                    return false;
+        public Header surviving(Collection<String> keys) {
+            var remaining = new LinkedHashSet<>(labels);
+            remaining.removeAll(keys);
+            var covering = new LinkedHashSet<Set<String>>();
+            for (Set<String> skip : skips) {
+                if (skip.containsAll(keys)) {
+                    covering.add(skip);
                 }
             }
-            return true;
+            return new Header(remaining, covering);
         }
 
-        /** The named columns of this header; on a demand, the labels a parent requires. */
-        public List<Attribute> labels() {
-            return columns.stream().filter(NamedColumn.class::isInstance).map(Column::attribute).toList();
+        /** Only the labels among {@code names}; packed columns unchanged. Trims what a child exposes to what is required. */
+        public Header retainLabels(Collection<String> names) {
+            var retained = new LinkedHashSet<>(labels);
+            retained.retainAll(names);
+            return new Header(retained, skips);
         }
 
-        /**
-         * The leaf surface implied by this demand: keeps the concrete grouping when the demand pins one, otherwise
-         * groups by the full series identity.
-         */
-        public Header withIdentityGrouping() {
-            if (groupBy.isEmpty() == false) {
-                return this;
-            }
-            TimeSeriesColumn identity = TimeSeriesColumn.of(List.of());
-            var exposed = new ArrayList<Column>(columns.size() + 1);
-            exposed.add(identity);
-            exposed.addAll(columns);
-            return new Header(List.of(identity), exposed);
+        /** The smallest skip set: the packed column fixing this table's grain; null when the table is unpacked. */
+        public Set<String> finestSkip() {
+            return skips.stream().min(Comparator.comparingInt(Set::size)).orElse(null);
         }
 
-        /** Grouping produced by applying an across-series aggregation to this child header. */
-        public Header withAcrossSeriesAgg(AcrossSeriesAggregate.Grouping grouping, List<Attribute> labels, List<Attribute> output) {
-            return switch (grouping) {
-                case BY -> groupedBy(output);
-                case WITHOUT -> groupedWithout(labels);
-                case NONE -> undefined();
-            };
-        }
-
-        /** Header produced by {@code BY(labels)}. Missing labels remain proxies and are null-filled during emission. */
-        public Header groupedBy(List<Attribute> labels) {
-            List<Column> ephemeral = distinctByCanonicalName(labels).stream().map(NamedColumn::new).map(Column.class::cast).toList();
-            return new Header(ephemeral, ephemeral);
-        }
-
-        /** Header produced by {@code WITHOUT(labels)}. */
-        public Header groupedWithout(List<Attribute> labels) {
-            List<Attribute> removed = distinctByCanonicalName(labels);
-            TimeSeriesColumn timeSeries = groupByTimeSeries();
-            if (timeSeries != null) {
-                TimeSeriesColumn desired = TimeSeriesColumn.of(TranslationContext.union(timeSeries.exclusions(), removed));
-                TimeSeriesColumn exposed = timeSeries(desired.exclusions());
-                desired = exposed == null ? desired : exposed;
-                return new Header(List.of(desired), List.of(desired));
-            }
-            Set<String> removedNames = toCanonicalNames(removed);
-            List<Column> concrete = groupBy.stream()
-                .filter(NamedColumn.class::isInstance)
-                .filter(column -> removedNames.contains(toCanonicalName(column.attribute())) == false)
-                .toList();
-            return new Header(concrete, concrete);
-        }
-
-        /** Regroup this child and preserve non-grouping columns that an ancestor requires and this child exposes. */
-        public Header regrouped(Header grouping, Header required) {
-            var exposed = new ArrayList<>(grouping.columns);
-            for (Column demand : required.columns) {
-                if (contains(required.groupBy, demand)) {
-                    continue;
-                }
-                Column actual = columns.stream().filter(column -> eq(column, demand)).findFirst().orElse(null);
-                if (actual != null && grouping.canCarry(actual) && contains(exposed, actual) == false) {
-                    exposed.add(actual);
-                }
-            }
-            return new Header(grouping.groupBy, exposed);
-        }
-
-        private boolean canCarry(Column column) {
-            TimeSeriesColumn identity = groupByTimeSeries();
-            if (column instanceof NamedColumn) {
-                return identity != null
-                    ? toCanonicalNames(identity.exclusions()).contains(toCanonicalName(column.attribute())) == false
-                    : contains(groupBy, column);
-            }
-            if (column instanceof TimeSeriesColumn timeSeries) {
-                return identity != null && toCanonicalNames(timeSeries.exclusions()).containsAll(toCanonicalNames(identity.exclusions()));
-            }
-            return false;
-        }
-
-        public boolean hasTimeSeriesGrouping() {
-            return groupByTimeSeries() != null;
-        }
-
-        private TimeSeriesColumn groupByTimeSeries() {
-            return groupBy.size() == 1 && groupBy.getFirst() instanceof TimeSeriesColumn timeSeries ? timeSeries : null;
-        }
-
-        private TimeSeriesColumn timeSeries(List<Attribute> exclusions) {
-            for (Column column : columns) {
-                if (column instanceof TimeSeriesColumn timeSeries) {
-                    List<Attribute> left = timeSeries.exclusions();
-                    if (toCanonicalNames(left).equals(toCanonicalNames(exclusions))) {
-                        return timeSeries;
-                    }
-                }
-            }
-            return null;
-        }
-
-        public Header transformExpressions(Fn transformer) {
-            var originals = new ArrayList<Column>();
-            var transformed = new ArrayList<Column>();
-            for (Column column : groupBy) {
-                if (contains(originals, column) == false) {
-                    originals.add(column);
-                    transformed.add(transformer.transform(column, true));
-                }
-            }
-            for (Column column : columns) {
-                if (contains(originals, column) == false) {
-                    originals.add(column);
-                    transformed.add(transformer.transform(column, false));
-                }
-            }
-            return new Header(transform(groupBy, originals, transformed), transform(columns, originals, transformed));
-        }
-
-        public List<NamedExpression> groupingExpressions() {
-            return groupBy.stream().map(Column::expression).toList();
-        }
-
-        public List<NamedExpression> exposedExpressions() {
-            return columns.stream().map(Column::attribute).map(NamedExpression.class::cast).toList();
-        }
-
-        /** Physical definitions for exposed columns that are computed inline by the consuming plan node. */
-        public List<NamedExpression> expressions() {
-            return columns.stream().map(Column::expression).toList();
-        }
-
-        public Attribute column(String name) {
-            for (Column column : columns) {
-                if (toCanonicalName(column.attribute()).equals(name)) {
-                    return column.attribute();
-                }
-            }
-            return null;
-        }
-
-        /**
-         * The exposed column matching {@code name}, ignoring the attribute {@code excluded}. Reading a label's stored value
-         * during a relabel must skip the derived destination's own proxy: an enclosing {@code by(dst)} pushes that proxy
-         * down as a demand column of the same name, so an unqualified lookup would otherwise resolve the destination to
-         * itself.
-         */
-        public Attribute column(String name, Attribute excluded) {
-            for (Column column : columns) {
-                Attribute attribute = column.attribute();
-                if (attribute.id().equals(excluded.id()) == false && toCanonicalName(attribute).equals(name)) {
-                    return attribute;
-                }
-            }
-            return null;
-        }
-
-        public boolean isDefined() {
-            return columns.isEmpty() == false;
-        }
-
-        public boolean hasTimeSeriesColumns() {
-            return columns.stream().anyMatch(TimeSeriesColumn.class::isInstance);
-        }
-
-        private static List<Column> transform(List<Column> source, List<Column> originals, List<Column> transformed) {
-            var result = new ArrayList<Column>(source.size());
-            for (Column column : source) {
-                for (int i = 0; i < originals.size(); i++) {
-                    if (eq(column, originals.get(i))) {
-                        Column replacement = transformed.get(i);
-                        if (replacement != null) {
-                            result.add(replacement);
-                        }
-                        break;
-                    }
-                }
-            }
-            return result;
+        public boolean hasPacked() {
+            return skips.isEmpty() == false;
         }
     }
 
-    /** Links a column to the matching attribute of a plan output; keeps the column unchanged when there is none. */
-    static Column resolveColumn(Column column, List<Attribute> available) {
-        if (column instanceof TimeSeriesColumn tc) {
-            var m = findById(tc.attribute(), available);
-            return m != null ? new TimeSeriesColumn(m, tc.exclusions()) : column;
+    /** Exactly these labels, each as its own column. */
+    public static Header newFinite(Collection<String> names) {
+        return new Header(new LinkedHashSet<>(names), Set.of());
+    }
+
+    /** Every runtime label except {@code skip}, as one packed column; an empty skip set is the full label space. */
+    public static Header newOpen(Collection<String> skip) {
+        return new Header(Set.of(), Set.of(new LinkedHashSet<>(skip)));
+    }
+
+    public static Header newOpen() {
+        return newOpen(Set.of());
+    }
+
+    // -- helpers --
+
+    static String packedName(Set<String> skip) {
+        if (skip.isEmpty()) {
+            return MetadataAttribute.TIMESERIES;
         }
-        var m = findByIdOrName(column.attribute(), available);
-        return m != null ? new NamedColumn(m) : column;
+        return MetadataAttribute.TIMESERIES + "$" + skip.stream().sorted().collect(Collectors.joining("$"));
     }
 
-    static Attribute findById(Attribute attribute, List<Attribute> available) {
-        return available.stream().filter(candidate -> candidate.id().equals(attribute.id())).findFirst().orElse(null);
+    static List<String> mapToNames(Collection<? extends Attribute> attributes) {
+        return attributes.stream().map(TranslationContext::toCanonicalName).distinct().toList();
     }
 
-    static Attribute findByIdOrName(Attribute attribute, List<Attribute> available) {
-        Attribute byId = findById(attribute, available);
-        return byId != null ? byId : findByName(available, toCanonicalName(attribute));
-    }
-
-    private static boolean contains(List<? extends Column> columns, Column candidate) {
-        return columns.stream().anyMatch(column -> eq(column, candidate));
-    }
-
-    private static boolean eq(Column left, Column right) {
-        if (left instanceof TimeSeriesColumn l && right instanceof TimeSeriesColumn r) {
-            return toCanonicalNames(l.exclusions()).equals(toCanonicalNames(r.exclusions()));
-        }
-        return left instanceof NamedColumn
-            && right instanceof NamedColumn
-            && toCanonicalName(left.attribute()).equals(toCanonicalName(right.attribute()));
-    }
-
-    private static List<Column> distinct(List<? extends Column> columns) {
-        var result = new ArrayList<Column>();
-        for (Column column : columns) {
-            if (contains(result, column) == false) {
-                result.add(column);
-            }
-        }
-        return List.copyOf(result);
-    }
-
-    private static List<Attribute> distinctByCanonicalName(List<Attribute> labels) {
-        var result = new ArrayList<Attribute>();
-        var seen = new LinkedHashSet<String>();
-        for (Attribute attribute : labels) {
-            if (seen.add(toCanonicalName(attribute))) {
-                result.add(attribute);
-            }
-        }
-        return List.copyOf(result);
-    }
-
-    private static List<Attribute> union(List<Attribute> left, List<Attribute> right) {
-        var result = new ArrayList<Attribute>(left.size() + right.size());
-        result.addAll(left);
-        result.addAll(right);
-        return distinctByCanonicalName(result);
-    }
-
-    private static Set<String> toCanonicalNames(List<Attribute> attributes) {
-        var names = new LinkedHashSet<String>();
-        attributes.forEach(attribute -> names.add(toCanonicalName(attribute)));
-        return names;
+    static Attribute reference(String name) {
+        return new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD);
     }
 
     static String toCanonicalName(Attribute attribute) {
@@ -424,7 +149,7 @@ public final class TranslationContext {
      * (a bare destination would otherwise collide with the stored label's bare passthrough alias).
      */
     public static List<Attribute> shadowedResolutionScope(List<Attribute> childrenOutput, List<Attribute> destinations) {
-        Set<String> shadowed = toCanonicalNames(destinations);
+        Set<String> shadowed = new LinkedHashSet<>(mapToNames(destinations));
         List<Attribute> scope = new ArrayList<>(childrenOutput.size() + destinations.size());
         for (Attribute attribute : childrenOutput) {
             if (shadowed.contains(toCanonicalName(attribute)) == false) {

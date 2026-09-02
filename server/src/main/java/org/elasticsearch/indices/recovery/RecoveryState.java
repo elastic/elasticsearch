@@ -326,10 +326,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return setStage(Stage.TRANSLOG);
     }
 
-    /// Returns the number of times this recovery has failed in a way which is retried locally (i.e. on the data node). A
-    /// non-locally-retryable failure will not be counted here, it will go back to the cluster state and increment the
-    /// [org.elasticsearch.cluster.routing.UnassignedInfo]'s `failedAllocations` value (after which a new recovery should be started with
-    /// this field starting again from zero).
+    /// Returns the number of times this recovery has failed in a way which is retried locally (i.e. on the data node).
+    ///
+    /// Non-locally-retryable failures will not be counted here. They will be sent back to the master, which update the cluster state to
+    /// increment the [org.elasticsearch.cluster.routing.UnassignedInfo]'s `failedAllocations` value instead. Then the master should trigger
+    /// a new recovery, with this field starting again from zero.
     public synchronized int getLocalRetries() {
         return this.localRetries;
     }

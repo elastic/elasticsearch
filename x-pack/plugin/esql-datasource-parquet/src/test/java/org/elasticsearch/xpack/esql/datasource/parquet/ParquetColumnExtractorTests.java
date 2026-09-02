@@ -61,6 +61,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -416,7 +417,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     /**
      * List columns (Parquet {@code maxRepetitionLevel > 0}, ESQL multi-value blocks) take the
      * repetition-aware sparse path. The extractor must (a) skip all rows preceding each survivor
-     * via {@link ParquetColumnDecoding#skipListValues}, (b) materialize the surviving rows via
+     * via its repetition-aware sparse skip, (b) materialize the surviving rows via
      * {@link ParquetColumnDecoding#readListColumn}, and (c) preserve list values, including
      * empty and null lists, exactly as written.
      */
@@ -453,6 +454,61 @@ public class ParquetColumnExtractorTests extends ESTestCase {
                     }
                 }
             }
+        }
+    }
+
+    public void testExtractMalformedListRecoversBeforeSparseSkip() throws IOException {
+        byte[] data = ParquetFormatReaderTests.ARROW_GH_45185;
+        StorageObject storageObject = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<String> warnings = new ArrayList<>();
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(
+                storageObject,
+                reader,
+                loadFooter(storageObject),
+                ErrorPolicy.PERMISSIVE,
+                warnings::add
+            );
+            Block block = extractor.extract("x", new long[] { 1, 4 }, blockFactory)
+        ) {
+            IntBlock ints = (IntBlock) block;
+            assertEquals(2, ints.getPositionCount());
+            int first = ints.getFirstValueIndex(0);
+            assertEquals(2, ints.getValueCount(0));
+            assertEquals(3, ints.getInt(first));
+            assertEquals(4, ints.getInt(first + 1));
+            assertEquals(1, ints.getValueCount(1));
+            assertEquals(9, ints.getInt(ints.getFirstValueIndex(1)));
+        }
+        assertThat(warnings, hasItem(containsString("discarded [1] orphan values")));
+    }
+
+    public void testExtractMalformedListDoesNotRechargeRecoveryAcrossCalls() throws IOException {
+        byte[] data = ParquetFormatReaderTests.ARROW_GH_45185;
+        StorageObject storageObject = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ErrorPolicy oneError = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 1, 0.0, false);
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, loadFooter(storageObject), oneError);
+            Block first = extractor.extract("x", new long[] { 1 }, blockFactory);
+            Block second = extractor.extract("x", new long[] { 4 }, blockFactory)
+        ) {
+            assertEquals(2, ((IntBlock) first).getValueCount(0));
+            assertEquals(1, ((IntBlock) second).getValueCount(0));
+        }
+    }
+
+    public void testExtractMalformedListFailsStrictlyDuringSparseSkip() throws IOException {
+        byte[] data = ParquetFormatReaderTests.ARROW_GH_45185;
+        StorageObject storageObject = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        try (ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, loadFooter(storageObject), ErrorPolicy.STRICT)) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> extractor.extract("x", new long[] { 1 }, blockFactory)
+            );
+            assertThat(e.getMessage(), allOf(containsString("column [x]"), containsString("row group [1]")));
         }
     }
 

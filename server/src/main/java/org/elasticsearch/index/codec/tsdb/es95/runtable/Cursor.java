@@ -47,12 +47,4 @@ interface Cursor {
      * covered by exactly one run.
      */
     void seekDoc(int target);
-
-    /**
-     * An estimate of the work required to iterate over all runs in this cursor. For a run-table
-     * cursor this equals the number of runs; for a per-document cursor it equals the document
-     * count. Callers such as {@link org.apache.lucene.index.NumericDocValues#cost()} can delegate
-     * here to surface the performance difference to the query planner.
-     */
-    long cost();
 }

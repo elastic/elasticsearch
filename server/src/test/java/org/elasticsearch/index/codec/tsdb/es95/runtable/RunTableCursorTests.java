@@ -136,13 +136,6 @@ public class RunTableCursorTests extends ESTestCase {
         assertEquals(1, cursor.run());
     }
 
-    public void testCostEqualsNumRuns() {
-        final int runLength = randomIntBetween(1, 20);
-        final int numRuns = randomIntBetween(1, 200);
-        final RunTableCursor cursor = uniformCursor(runLength, numRuns);
-        assertEquals(numRuns, cursor.cost());
-    }
-
     public void testImplementsCursor() {
         final RunTableCursor cursor = uniformCursor(1, 1);
         assertTrue(cursor instanceof Cursor);

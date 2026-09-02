@@ -105,12 +105,6 @@ public class OrdinalCursorTests extends ESTestCase {
         expectThrows(AssertionError.class, () -> cursor.seekDoc(6));
     }
 
-    public void testCostEqualsMaxDoc() {
-        final int maxDoc = randomIntBetween(1, 10_000);
-        final OrdinalCursor cursor = new OrdinalCursor(maxDoc);
-        assertEquals(maxDoc, cursor.cost());
-    }
-
     public void testImplementsCursor() {
         final OrdinalCursor cursor = new OrdinalCursor(1);
         assertTrue(cursor instanceof Cursor);

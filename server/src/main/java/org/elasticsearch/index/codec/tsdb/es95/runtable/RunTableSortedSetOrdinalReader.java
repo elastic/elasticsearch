@@ -162,7 +162,7 @@ public final class RunTableSortedSetOrdinalReader {
 
         @Override
         public long cost() {
-            return cursor.cost();
+            return maxDoc;
         }
     }
 }

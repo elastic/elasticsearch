@@ -70,28 +70,41 @@ public class RestFleetSearchAction extends BaseRestHandler {
         }
 
         IntConsumer setSize = size -> searchRequest.source().size(size);
-        request.withContentOrSourceParamParserOrNull(parser -> {
-            RestSearchAction.parseSearchRequest(searchRequest, request, parser, clusterSupportsFeature, setSize, searchUsageHolder);
-            String[] stringWaitForCheckpoints = request.paramAsStringArray("wait_for_checkpoints", Strings.EMPTY_ARRAY);
-            final long[] waitForCheckpoints = new long[stringWaitForCheckpoints.length];
-            for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {
-                waitForCheckpoints[i] = Long.parseLong(stringWaitForCheckpoints[i]);
-            }
-            String[] indices1 = Strings.splitStringByCommaToArray(request.param("index"));
-            if (indices1.length > 1) {
-                throw new IllegalArgumentException(
-                    "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices1) + "]."
+        // parseSearchRequest closes source on throw; the fleet-specific code below can also throw, so guard separately.
+        boolean parsedOk = false;
+        try {
+            request.withContentOrSourceParamParserOrNull(parser -> {
+                RestSearchAction.parseSearchRequest(searchRequest, request, parser, clusterSupportsFeature, setSize, searchUsageHolder);
+                String[] stringWaitForCheckpoints = request.paramAsStringArray("wait_for_checkpoints", Strings.EMPTY_ARRAY);
+                final long[] waitForCheckpoints = new long[stringWaitForCheckpoints.length];
+                for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {
+                    waitForCheckpoints[i] = Long.parseLong(stringWaitForCheckpoints[i]);
+                }
+                String[] indices1 = Strings.splitStringByCommaToArray(request.param("index"));
+                if (indices1.length > 1) {
+                    throw new IllegalArgumentException(
+                        "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices1) + "]."
+                    );
+                }
+                if (RemoteClusterService.isRemoteIndexName(indices1[0])) {
+                    throw new IllegalArgumentException("Fleet search API does not support remote indices. Found: [" + indices1[0] + "].");
+                }
+                if (waitForCheckpoints.length != 0) {
+                    searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices1[0], waitForCheckpoints));
+                }
+                final TimeValue waitForCheckpointsTimeout = request.paramAsTime(
+                    "wait_for_checkpoints_timeout",
+                    TimeValue.timeValueSeconds(30)
                 );
+                searchRequest.setWaitForCheckpointsTimeout(waitForCheckpointsTimeout);
+            });
+            parsedOk = true;
+        } finally {
+            if (parsedOk == false && searchRequest.source() != null) {
+                searchRequest.source().close();
             }
-            if (RemoteClusterService.isRemoteIndexName(indices1[0])) {
-                throw new IllegalArgumentException("Fleet search API does not support remote indices. Found: [" + indices1[0] + "].");
-            }
-            if (waitForCheckpoints.length != 0) {
-                searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices1[0], waitForCheckpoints));
-            }
-            final TimeValue waitForCheckpointsTimeout = request.paramAsTime("wait_for_checkpoints_timeout", TimeValue.timeValueSeconds(30));
-            searchRequest.setWaitForCheckpointsTimeout(waitForCheckpointsTimeout);
-        });
+        }
+        // Note: close() is idempotent; if parseSearchRequest already closed source, this is a no-op.
 
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());

@@ -232,72 +232,83 @@ public class RestSearchAction extends BaseRestHandler {
          * expected and valid.
          */
         SearchRequest searchRequestForParsing = crossProjectEnabled.orElse(false) ? searchRequest : null;
-        if (requestContentParser != null) {
-            if (searchUsageHolder == null) {
-                searchRequest.source().parseXContent(searchRequestForParsing, requestContentParser, true, clusterSupportsFeature);
-            } else {
-                searchRequest.source()
-                    .parseXContent(searchRequestForParsing, requestContentParser, true, searchUsageHolder, clusterSupportsFeature);
+        // Close source on any failure: parseXContent may commit partial breaker charges, and validateSearchRequest
+        // may throw after charges are fully committed. Both must be covered.
+        boolean committed = false;
+        try {
+            if (requestContentParser != null) {
+                if (searchUsageHolder == null) {
+                    searchRequest.source().parseXContent(searchRequestForParsing, requestContentParser, true, clusterSupportsFeature);
+                } else {
+                    searchRequest.source()
+                        .parseXContent(searchRequestForParsing, requestContentParser, true, searchUsageHolder, clusterSupportsFeature);
+                }
             }
-        }
+            final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());
+            searchRequest.setBatchedReduceSize(batchedReduceSize);
+            if (request.hasParam("pre_filter_shard_size")) {
+                searchRequest.setPreFilterShardSize(
+                    request.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE)
+                );
+            }
+            if (request.hasParam("enable_fields_emulation")) {
+                // this flag is a no-op from 8.0 on, we only want to consume it so its presence doesn't cause errors
+                request.paramAsBoolean("enable_fields_emulation", false);
+            }
+            if (request.hasParam("max_concurrent_shard_requests")) {
+                // only set if we have the parameter since we auto adjust the max concurrency on the coordinator
+                // based on the number of nodes in the cluster
+                final int maxConcurrentShardRequests = request.paramAsInt(
+                    "max_concurrent_shard_requests",
+                    searchRequest.getMaxConcurrentShardRequests()
+                );
+                searchRequest.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+            }
 
-        final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());
-        searchRequest.setBatchedReduceSize(batchedReduceSize);
-        if (request.hasParam("pre_filter_shard_size")) {
-            searchRequest.setPreFilterShardSize(request.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE));
-        }
-        if (request.hasParam("enable_fields_emulation")) {
-            // this flag is a no-op from 8.0 on, we only want to consume it so its presence doesn't cause errors
-            request.paramAsBoolean("enable_fields_emulation", false);
-        }
-        if (request.hasParam("max_concurrent_shard_requests")) {
-            // only set if we have the parameter since we auto adjust the max concurrency on the coordinator
-            // based on the number of nodes in the cluster
-            final int maxConcurrentShardRequests = request.paramAsInt(
-                "max_concurrent_shard_requests",
-                searchRequest.getMaxConcurrentShardRequests()
+            if (request.hasParam("allow_partial_search_results")) {
+                // only set if we have the parameter passed to override the cluster-level default
+                searchRequest.allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results", null));
+            }
+
+            searchRequest.searchType(request.param("search_type"));
+            parseSearchSource(searchRequest.source(), request, setSize);
+            searchRequest.requestCache(request.paramAsBoolean("request_cache", searchRequest.requestCache()));
+
+            String scroll = request.param("scroll");
+            if (scroll != null) {
+                searchRequest.scroll(parseTimeValue(scroll, null, "scroll"));
+            }
+            final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
+            searchRequest.routing(parsedRouting.routing());
+            searchRequest.searchSlice(
+                parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
             );
-            searchRequest.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
-        }
+            searchRequest.preference(request.param("preference"));
+            IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, searchRequest.indicesOptions());
+            if (crossProjectEnabled.orElse(false) && searchRequest.allowsCrossProject()) {
+                indicesOptions = IndicesOptions.builder(indicesOptions)
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build();
+            }
+            searchRequest.indicesOptions(indicesOptions);
 
-        if (request.hasParam("allow_partial_search_results")) {
-            // only set if we have the parameter passed to override the cluster-level default
-            searchRequest.allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results", null));
-        }
+            validateSearchRequest(request, searchRequest);
 
-        searchRequest.searchType(request.param("search_type"));
-        parseSearchSource(searchRequest.source(), request, setSize);
-        searchRequest.requestCache(request.paramAsBoolean("request_cache", searchRequest.requestCache()));
-
-        String scroll = request.param("scroll");
-        if (scroll != null) {
-            searchRequest.scroll(parseTimeValue(scroll, null, "scroll"));
-        }
-        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
-        searchRequest.routing(parsedRouting.routing());
-        searchRequest.searchSlice(
-            parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
-        );
-        searchRequest.preference(request.param("preference"));
-        IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, searchRequest.indicesOptions());
-        if (crossProjectEnabled.orElse(false) && searchRequest.allowsCrossProject()) {
-            indicesOptions = IndicesOptions.builder(indicesOptions)
-                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                .build();
-        }
-        searchRequest.indicesOptions(indicesOptions);
-
-        validateSearchRequest(request, searchRequest);
-
-        if (searchRequest.pointInTimeBuilder() != null) {
-            preparePointInTime(searchRequest, request);
-        } else {
-            searchRequest.setCcsMinimizeRoundtrips(
-                SearchParamsParser.parseCcsMinimizeRoundtrips(crossProjectEnabled, request, searchRequest.isCcsMinimizeRoundtrips())
-            );
-        }
-        if (request.paramAsBoolean("force_synthetic_source", false)) {
-            searchRequest.setForceSyntheticSource(true);
+            if (searchRequest.pointInTimeBuilder() != null) {
+                preparePointInTime(searchRequest, request);
+            } else {
+                searchRequest.setCcsMinimizeRoundtrips(
+                    SearchParamsParser.parseCcsMinimizeRoundtrips(crossProjectEnabled, request, searchRequest.isCcsMinimizeRoundtrips())
+                );
+            }
+            if (request.paramAsBoolean("force_synthetic_source", false)) {
+                searchRequest.setForceSyntheticSource(true);
+            }
+            committed = true;
+        } finally {
+            if (committed == false && searchRequest.source() != null) {
+                searchRequest.source().close();
+            }
         }
     }
 

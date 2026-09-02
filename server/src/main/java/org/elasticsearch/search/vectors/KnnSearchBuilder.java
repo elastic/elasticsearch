@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -59,17 +60,20 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     public static final ParseField RESCORE_VECTOR_FIELD = new ParseField("rescore_vector");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<KnnSearchBuilder.Builder, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
-        // TODO optimize parsing for when BYTE values are provided
-        return new Builder().field((String) args[0])
-            .queryVector((VectorData) args[1])
-            .queryVectorBuilder((QueryVectorBuilder) args[5])
-            .k((Integer) args[2])
-            .numCandidates((Integer) args[3])
-            .visitPercentage((Float) args[4])
-            .similarity((Float) args[6])
-            .rescoreVectorBuilder((RescoreVectorBuilder) args[7]);
-    });
+    private static final ConstructingObjectParser<KnnSearchBuilder.Builder, List<Releasable>> PARSER = new ConstructingObjectParser<>(
+        "knn",
+        args -> {
+            // TODO optimize parsing for when BYTE values are provided
+            return new Builder().field((String) args[0])
+                .queryVector((VectorData) args[1])
+                .queryVectorBuilder((QueryVectorBuilder) args[5])
+                .k((Integer) args[2])
+                .numCandidates((Integer) args[3])
+                .visitPercentage((Float) args[4])
+                .similarity((Float) args[6])
+                .rescoreVectorBuilder((RescoreVectorBuilder) args[7]);
+        }
+    );
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
@@ -84,7 +88,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
         PARSER.declareNamedObject(
             optionalConstructorArg(),
-            (p, c, n) -> p.namedObject(QueryVectorBuilder.class, n, c),
+            (p, c, n) -> p.namedObject(QueryVectorBuilder.class, n, null),
             QUERY_VECTOR_BUILDER_FIELD
         );
         PARSER.declareFloat(optionalConstructorArg(), VECTOR_SIMILARITY);
@@ -96,7 +100,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         );
         PARSER.declareFieldArray(
             KnnSearchBuilder.Builder::addFilterQueries,
-            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
+            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p, q -> {}, c),
             FILTER_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY
         );
@@ -104,14 +108,18 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         PARSER.declareFloat(KnnSearchBuilder.Builder::boost, BOOST_FIELD);
         PARSER.declareField(
             KnnSearchBuilder.Builder::innerHit,
-            (p, c) -> InnerHitBuilder.fromXContent(p),
+            (p, c) -> InnerHitBuilder.fromXContent(p, c),
             INNER_HITS_FIELD,
             ObjectParser.ValueType.OBJECT
         );
     }
 
     public static KnnSearchBuilder.Builder fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        return fromXContent(parser, null);
+    }
+
+    public static KnnSearchBuilder.Builder fromXContent(XContentParser parser, List<Releasable> releasables) throws IOException {
+        return PARSER.parse(parser, releasables);
     }
 
     private static final TransportVersion VISIT_PERCENTAGE = TransportVersion.fromName("visit_percentage");

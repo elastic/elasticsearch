@@ -18,8 +18,13 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -859,6 +864,44 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             expectedPrefilters.addAll(query.mustNot().stream().map(q -> boolQuery().mustNot(q)).collect(Collectors.toList()));
         }
         return expectedPrefilters;
+    }
+
+    public void testTooManyClausesRejectedAtParseTime() throws IOException {
+        int max = 5;
+        LimitedBreaker limitedBreaker = new LimitedBreaker(
+            CircuitBreaker.REQUEST,
+            ByteSizeValue.ofBytes((long) max * AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES)
+        );
+        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
+        try {
+            // bool with max inner clauses: circuit breaker charges exactly at the limit — must succeed
+            BoolQueryBuilder okQuery = boolQuery();
+            for (int i = 0; i < max; i++) {
+                okQuery.should(termQuery(TEXT_FIELD_NAME, "v"));
+            }
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(okQuery, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+            }
+
+            // bool with max+1 inner clauses: circuit breaker trips — must be rejected at parse time
+            BoolQueryBuilder bigQuery = boolQuery();
+            for (int i = 0; i < max + 1; i++) {
+                bigQuery.should(termQuery(TEXT_FIELD_NAME, "v"));
+            }
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(bigQuery, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    // ObjectParser wraps the CircuitBreakingException in an XContentParseException
+                    XContentParseException ex = expectThrows(XContentParseException.class, () -> parseQuery(parser));
+                    assertThat(ex.getCause(), instanceOf(CircuitBreakingException.class));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 
     private static final class TestAutoPrefilteringQueryBuilder extends LeafQueryBuilder<TestAutoPrefilteringQueryBuilder> {

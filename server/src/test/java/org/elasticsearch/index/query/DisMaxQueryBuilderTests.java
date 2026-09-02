@@ -15,8 +15,16 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -129,6 +137,44 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         assertEquals(json, 1.2, parsed.boost(), 0.0001);
         assertEquals(json, 0.7, parsed.tieBreaker(), 0.0001);
         assertEquals(json, 2, parsed.innerQueries().size());
+    }
+
+    public void testTooManyClausesRejectedAtParseTime() throws IOException {
+        int max = 5;
+        LimitedBreaker limitedBreaker = new LimitedBreaker(
+            CircuitBreaker.REQUEST,
+            ByteSizeValue.ofBytes((long) max * AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES)
+        );
+        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
+        try {
+            // dis_max with max inner clauses: circuit breaker charges exactly at the limit — must succeed
+            DisMaxQueryBuilder okQuery = new DisMaxQueryBuilder();
+            for (int i = 0; i < max; i++) {
+                okQuery.add(new MatchAllQueryBuilder());
+            }
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(okQuery, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+            }
+
+            // dis_max with max+1 inner clauses: circuit breaker trips — must be rejected at parse time
+            DisMaxQueryBuilder bigQuery = new DisMaxQueryBuilder();
+            for (int i = 0; i < max + 1; i++) {
+                bigQuery.add(new MatchAllQueryBuilder());
+            }
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(bigQuery, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    // DisMax uses a manual parsing loop so namedObject() throws CircuitBreakingException directly (no ObjectParser
+                    // wrapping)
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 
     public void testRewriteMultipleTimes() throws IOException {

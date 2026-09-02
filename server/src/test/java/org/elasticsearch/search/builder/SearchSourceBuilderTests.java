@@ -15,12 +15,17 @@ import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageLongCount
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -1301,6 +1306,114 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 () -> new SearchSourceBuilder().parseXContent(parser, true, new UsageService().getSearchUsageHolder(), nf -> false)
             );
             assertEquals(expectedErrorMessage, e.getMessage());
+        }
+    }
+
+    public void testQueryParsingBreakerHeldAfterParseReleasedOnClose() throws IOException {
+        int clauses = 3;
+        long perClause = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(clauses * perClause));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            BoolQueryBuilder query = new BoolQueryBuilder();
+            for (int i = 0; i < clauses; i++) {
+                query.should(new MatchAllQueryBuilder());
+            }
+            SearchSourceBuilder source = new SearchSourceBuilder().query(query);
+            BytesReference bytes = XContentHelper.toXContent(source, XContentType.JSON, false);
+            try (SearchSourceBuilder parsed = new SearchSourceBuilder()) {
+                try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
+                    parsed.parseXContent(parser, true, new UsageService().getSearchUsageHolder(), nf -> false);
+                }
+                // charge is held after parsing completes — breaker pool is full
+                assertEquals(clauses * perClause, breaker.getUsed());
+            }
+            // charge is released after close()
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
+    public void testQueryAndPostFilterBreakerChargesAreCumulative() throws IOException {
+        int queryClauses = 2;
+        int postFilterClauses = 3;
+        long perClause = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        long total = (queryClauses + postFilterClauses) * perClause;
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(total));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            BoolQueryBuilder query = new BoolQueryBuilder();
+            for (int i = 0; i < queryClauses; i++) {
+                query.should(new MatchAllQueryBuilder());
+            }
+            BoolQueryBuilder postFilter = new BoolQueryBuilder();
+            for (int i = 0; i < postFilterClauses; i++) {
+                postFilter.must(new MatchAllQueryBuilder());
+            }
+            SearchSourceBuilder source = new SearchSourceBuilder().query(query).postFilter(postFilter);
+            BytesReference bytes = XContentHelper.toXContent(source, XContentType.JSON, false);
+            try (SearchSourceBuilder parsed = new SearchSourceBuilder()) {
+                try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
+                    parsed.parseXContent(parser, true, new UsageService().getSearchUsageHolder(), nf -> false);
+                }
+                // both query and post_filter charges are held
+                assertEquals(total, breaker.getUsed());
+            }
+            // both released together on close()
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
+    public void testPartialBreakerChargeReleasedOnParseFailure() throws IOException {
+        int clauses = 3;
+        long perClause = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        // limit allows only 1 non-root clause — parsing a 3-clause bool will trip the breaker
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(perClause));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            BoolQueryBuilder query = new BoolQueryBuilder();
+            for (int i = 0; i < clauses; i++) {
+                query.should(new MatchAllQueryBuilder());
+            }
+            SearchSourceBuilder source = new SearchSourceBuilder().query(query);
+            BytesReference bytes = XContentHelper.toXContent(source, XContentType.JSON, false);
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
+                // ObjectParser wraps the CircuitBreakingException in an XContentParseException
+                XContentParseException ex = expectThrows(XContentParseException.class, () -> {
+                    try (SearchSourceBuilder parsed = new SearchSourceBuilder()) {
+                        parsed.parseXContent(parser, true, new UsageService().getSearchUsageHolder(), nf -> false);
+                    }
+                });
+                assertThat(ex.getCause(), instanceOf(CircuitBreakingException.class));
+            }
+            // partial charges must be released — breaker returns to zero after failed parse
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
+    public void testBreakerReleasedWhenSubsequentFieldFailsAfterSuccessfulQuery() throws IOException {
+        long perClause = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        // 2 non-root clauses (bool is root/depth-1, 2 match_all are depth-2 and charged): 2 * 256 = 512 bytes
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(perClause * 10));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            String json = "{\"query\":{\"bool\":{\"should\":[{\"match_all\":{}},{\"match_all\":{}}]}},\"not_a_field\":42}";
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), new BytesArray(json))) {
+                expectThrows(ParsingException.class, () -> {
+                    try (SearchSourceBuilder parsed = new SearchSourceBuilder()) {
+                        parsed.parseXContent(parser, true, new UsageService().getSearchUsageHolder(), nf -> false);
+                    }
+                });
+            }
+            // Query charges committed during parse, released by close() when the subsequent ParsingException propagated
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
         }
     }
 

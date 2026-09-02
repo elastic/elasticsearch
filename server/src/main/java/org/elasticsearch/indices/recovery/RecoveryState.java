@@ -334,6 +334,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return this.localRetries;
     }
 
+    public synchronized RecoveryState setLocalRetries(int localRetries) {
+        this.localRetries = localRetries;
+        return this;
+    }
+
     public Index getIndex() {
         return index;
     }

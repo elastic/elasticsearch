@@ -46,25 +46,26 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
     private static final ValueLayout.OfLong LAYOUT_LE_LONG = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
     private static final ValueLayout.OfInt LAYOUT_LE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
-    public static boolean supports(int docBits, int queryBits, int planeBytes) {
+    public static boolean supports(IndexInput in, int docBits, int queryBits, int planeBytes) {
         return PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS
             && PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 128
             && planeBytes >= MIN_PLANE_BYTES
             && (queryBits == 1 || queryBits == 4)
             && docBits >= 1
-            && docBits <= MAX_BITS;
+            && docBits <= MAX_BITS
+            && IndexInputUtils.canUseSegmentSlices(in);
     }
 
     /**
      * Factory method for a Panama dot-product implementation where possible.
      *
-     * @param in         input positioned at the first document code to score
-     * @param docBits    bits per dimension of the document codes, in {@code [1, MAX_BITS]}
-     * @param queryBits  bits per dimension of the packed query, in {@code [1, MAX_BITS]}
+     * @param in         input positioned at the first data vector to score
+     * @param docBits    bits per dimension of the data vector, in {@code [1, MAX_BITS]}
+     * @param queryBits  bits per dimension of the query vector, in {@code [1, MAX_BITS]}
      * @param planeBytes bytes in a single bit-plane, {@code ceil(dimensions / 8)}
      */
     public static BBQDotProduct create(IndexInput in, int docBits, int queryBits, int planeBytes) {
-        if (!supports(docBits, queryBits, planeBytes)) {
+        if (!supports(in, docBits, queryBits, planeBytes)) {
             return BBQDotProduct.create(in, docBits, queryBits, planeBytes);
         }
         return switch (queryBits) {
@@ -79,7 +80,7 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
     }
 
     /**
-     * Scores the document code at {@code offset} in {@code segment}
+     * Scores the data vector at {@code offset} in {@code segment}
      */
     abstract long dotProductAt(byte[] query, MemorySegment segment, long offset);
 
@@ -102,7 +103,7 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
     @Override
     public final void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
         assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
-        // A single slice covers the whole block, so skipped vectors cost only the scores they don't write
+        // one slice covers the whole block, so skipped vectors are simply not scored
         IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
             int next = 0;
             for (int i = 0; i < count; i++) {

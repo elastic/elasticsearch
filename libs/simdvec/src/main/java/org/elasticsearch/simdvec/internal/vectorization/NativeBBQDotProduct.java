@@ -42,9 +42,8 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
     }
 
     /**
-     * Returns {@code true} if this tier has a kernel for the given configuration and input. The
-     * input type is part of the answer: the kernels take memory segments, and the query and score
-     * arrays are wrapped as heap segments, which native calls only accept from JDK 22 onwards.
+     * The query and score arrays are wrapped as heap segments, which native calls only accept
+     * from JDK 22 onwards.
      */
     public static boolean supports(IndexInput in, int docBits, int queryBits) {
         return DISTANCE_FUNCS != null
@@ -56,9 +55,9 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
     /**
      * Factory method for a native-code dot-product implementation where possible.
      *
-     * @param in         input positioned at the first document code to score
-     * @param docBits    bits per dimension of the document codes, in {@code [1, MAX_BITS]}
-     * @param queryBits  bits per dimension of the packed query, in {@code [1, MAX_BITS]}
+     * @param in         input positioned at the first data vector to score
+     * @param docBits    bits per dimension of the data vector, in {@code [1, MAX_BITS]}
+     * @param queryBits  bits per dimension of the query vector, in {@code [1, MAX_BITS]}
      * @param planeBytes bytes in a single bit-plane, {@code ceil(dimensions / 8)}
      */
     public static BBQDotProduct create(IndexInput in, int docBits, int queryBits, int planeBytes) {

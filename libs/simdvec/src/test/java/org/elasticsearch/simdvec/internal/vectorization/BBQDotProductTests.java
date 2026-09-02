@@ -212,7 +212,7 @@ public class BBQDotProductTests extends BaseVectorizationTests {
             try (IndexInput in = dir.openInput("vecs.bin", IOContext.DEFAULT)) {
                 IndexInput panamaIn = in.clone();
                 BBQDotProduct panama = PanamaBBQDotProduct.create(panamaIn, docBits, queryBits, planeBytes);
-                if (PanamaBBQDotProduct.supports(docBits, queryBits, planeBytes)) {
+                if (PanamaBBQDotProduct.supports(panamaIn, docBits, queryBits, planeBytes)) {
                     assertThat(describe("Panama"), panama, instanceOf(PanamaBBQDotProduct.class));
                 } else {
                     assertThat(describe("Panama"), panama, not(instanceOf(PanamaBBQDotProduct.class)));
@@ -281,8 +281,8 @@ public class BBQDotProductTests extends BaseVectorizationTests {
 
     private static void write(Directory dir, byte[][] bytes) throws IOException {
         try (IndexOutput out = dir.createOutput("vecs.bin", IOContext.DEFAULT)) {
-            for (byte[] code : bytes) {
-                out.writeBytes(code, 0, code.length);
+            for (byte[] vector : bytes) {
+                out.writeBytes(vector, 0, vector.length);
             }
             CodecUtil.writeFooter(out);
         }

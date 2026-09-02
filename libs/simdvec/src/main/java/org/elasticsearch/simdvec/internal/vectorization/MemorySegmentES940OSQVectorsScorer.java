@@ -94,11 +94,14 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
 
     private static MemorySegmentScorer createNativeScorer(QuantEncoding enc, IndexInput in, int dimensions, int dataLength, int bulkSize) {
         return switch (enc) {
-            case D1Q1 -> new NativeD1Q1Scorer(in, dimensions, dataLength, bulkSize);
-            case D1Q4 -> new NativeD1Q4Scorer(in, dimensions, dataLength, bulkSize);
-            case D2Q4_STRIPED -> new NativeD2Q4Scorer(in, dimensions, dataLength, bulkSize);
+            case D1Q1, D1Q4, D2Q4_STRIPED, D4Q4_STRIPED -> StripedES940OSQVectorsScorer.usingNative(
+                in,
+                enc,
+                dimensions,
+                dataLength,
+                bulkSize
+            );
             case D2Q4_PACKED -> new NativeD2Q4PackedScorer(in, dimensions, dataLength, bulkSize);
-            case D4Q4_STRIPED -> new NativeD4Q4Scorer(in, dimensions, dataLength, bulkSize);
             case D4Q4_PACKED -> new NativeD4Q4PackedScorer(in, dimensions, dataLength, bulkSize);
             case D7Q7 -> new NativeD7Q7Scorer(in, dimensions, dataLength, bulkSize);
         };
@@ -106,11 +109,14 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
 
     private static MemorySegmentScorer createPanamaScorer(QuantEncoding enc, IndexInput in, int dimensions, int dataLength, int bulkSize) {
         return switch (enc) {
-            case D1Q1 -> new MSBitToBitES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
-            case D1Q4 -> new MSBitToInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
-            case D2Q4_STRIPED -> new MSDibitToInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+            case D1Q1, D1Q4, D2Q4_STRIPED, D4Q4_STRIPED -> StripedES940OSQVectorsScorer.usingPanama(
+                in,
+                enc,
+                dimensions,
+                dataLength,
+                bulkSize
+            );
             case D2Q4_PACKED -> new MemorySegmentScorer(in, dimensions, dataLength, bulkSize);  // no special implementation yet
-            case D4Q4_STRIPED -> new MSInt4SymmetricES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D4Q4_PACKED -> new MemorySegmentScorer(in, dimensions, dataLength, bulkSize);  // no special implementation yet
             case D7Q7 -> new MSD7Q7ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
         };
@@ -261,18 +267,14 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         );
     }
 
-    static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, MSBitToBitES940OSQVectorsScorer,
-        MSBitToInt4ES940OSQVectorsScorer, MSDibitToInt4ES940OSQVectorsScorer, MSInt4SymmetricES940OSQVectorsScorer,
-        MSD7Q7ES940OSQVectorsScorer {
+    static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, StripedES940OSQVectorsScorer, MSD7Q7ES940OSQVectorsScorer {
 
-        static final float ONE_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[0];
         static final float TWO_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[1];
         static final float FOUR_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[3];
         static final float SEVEN_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[6];
 
         static final VectorSpecies<Integer> INT_SPECIES = IntVector.SPECIES_PREFERRED;
         static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
-        static final VectorSpecies<Integer> INT_SPECIES_256 = IntVector.SPECIES_256;
 
         static final VectorSpecies<Long> LONG_SPECIES_128 = LongVector.SPECIES_128;
         static final VectorSpecies<Long> LONG_SPECIES_256 = LongVector.SPECIES_256;
@@ -281,12 +283,15 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         static final VectorSpecies<Byte> BYTE_SPECIES_256 = ByteVector.SPECIES_256;
 
         static final VectorSpecies<Float> FLOAT_SPECIES = FloatVector.SPECIES_PREFERRED;
-        static final VectorSpecies<Float> FLOAT_SPECIES_128 = FloatVector.SPECIES_128;
-        static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
 
         static final ValueLayout.OfLong LAYOUT_LE_LONG = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
         static final ValueLayout.OfInt LAYOUT_LE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
         static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
+
+        /** Scale for a quantization of the given bit width, for scorers that are not fixed to one encoding */
+        static float bitScale(int bits) {
+            return ES940OSQVectorsScorer.BIT_SCALES[bits - 1];
+        }
 
         protected final IndexInput in;
         protected final int length;

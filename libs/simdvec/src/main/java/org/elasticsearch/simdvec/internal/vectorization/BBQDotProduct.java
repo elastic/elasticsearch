@@ -21,8 +21,8 @@ import java.io.IOException;
  * {@code p} holds bit {@code p} of every dimension, one bit per dimension, most significant bit
  * first within each byte; plane 0 holds the least significant bit. A plane occupies
  * {@code planeBytes = ceil(dimensions / 8)} bytes, and the planes of one vector are contiguous,
- * lowest first. A document vector is therefore {@code docBits * planeBytes} bytes and a packed query
- * is {@code queryBits * planeBytes} bytes.
+ * lowest first. A data vector is therefore {@code docBits * planeBytes} bytes and a query
+ * vector is {@code queryBits * planeBytes} bytes.
  * <p>
  * These methods return the raw ANDed popcounts between the query and data bit-planes.
  * Corrections or other modifications should be applied afterwards.
@@ -51,9 +51,9 @@ public class BBQDotProduct {
     /**
      * Factory method for a scalar dot-product implementation.
      *
-     * @param in         input positioned at the first document code to score
-     * @param docBits    bits per dimension of the document codes, in {@code [1, MAX_BITS]}
-     * @param queryBits  bits per dimension of the packed query, in {@code [1, MAX_BITS]}
+     * @param in         input positioned at the first data vector to score
+     * @param docBits    bits per dimension of the data vector, in {@code [1, MAX_BITS]}
+     * @param queryBits  bits per dimension of the query vector, in {@code [1, MAX_BITS]}
      * @param planeBytes bytes in a single bit-plane, {@code ceil(dimensions / 8)}
      */
     public static BBQDotProduct create(IndexInput in, int docBits, int queryBits, int planeBytes) {
@@ -95,7 +95,7 @@ public class BBQDotProduct {
     }
 
     /**
-     * Scores the next {@code count} document codes into {@code scores[0..count)} and advances the
+     * Scores the next {@code count} data vectors into {@code scores[0..count)} and advances the
      * input past all of them.
      */
     public void dotProductBulk(byte[] query, int count, float[] scores) throws IOException {
@@ -105,8 +105,9 @@ public class BBQDotProduct {
     }
 
     /**
-     * Scores a subset of the next {@code count} document codes and advances the input past all of
-     * them, so that a block can be consumed whole even when most of it is filtered out.
+     * Scores a subset of the next {@code count} data vectors, advancing the input past all of them
+     * so a block can be consumed whole even when most of it is filtered out.
+     * Positions not listed in {@code offsets} are left untouched.
      *
      * @param offsets      positions within the block to score, strictly ascending and all less than {@code count}
      * @param offsetsCount number of valid entries in {@code offsets}

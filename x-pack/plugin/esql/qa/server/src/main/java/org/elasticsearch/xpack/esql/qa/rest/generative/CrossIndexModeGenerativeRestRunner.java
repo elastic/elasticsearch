@@ -94,17 +94,6 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
      * Datasets excluded from cross-mode testing because they create successfully in columnar mode
      * but produce legitimately different results, or are too heavy for the generative suite.
      *
-     * <ul>
-     *   <li>{@code employees_incompatible}: deliberate type clash with {@code employees}; CSV also
-     *       carries boolean MV duplicates that standard collapses to a scalar while columnar keeps
-     *       as a list ({@code false} vs {@code [false]}).</li>
-     *   <li>{@code many_numbers}: 245k+ docs; loading ref+cand copies makes wide {@code FROM ref_*}
-     *       wildcards large enough to drop the REST connection / kill the test cluster.</li>
-     *   <li>{@code cartesian_multipolygons}: cartesian_shape cannot be stored via doc values for
-     *       synthetic source, so the cand index ends up with 0 documents while ref has the full
-     *       dataset — any query then diverges in row count / values.</li>
-     * </ul>
-     *
      * <p>Other historically excluded datasets (geo precision, text→keyword / short→long wildcard
      * conflicts, COUNT-on-MV bugs, etc.) are covered by value-skipping, the determinism gate, or
      * automatic skip-on-cand-creation-failure — verified empirically with {@code -Dtests.iters=20+}

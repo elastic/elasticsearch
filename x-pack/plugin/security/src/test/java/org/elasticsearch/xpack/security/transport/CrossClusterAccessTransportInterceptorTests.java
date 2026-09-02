@@ -42,6 +42,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
@@ -73,6 +74,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
@@ -584,6 +586,203 @@ public class CrossClusterAccessTransportInterceptorTests extends AbstractServerT
         );
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
+    }
+
+    public void testSendForUserManagedServiceAccountSucceedsWhenRemoteClusterSupportsThem() throws Exception {
+        doTestSendWithCrossClusterAccessHeaders(
+            false,
+            randomAlphaOfLengthBetween(5, 30),
+            mock(TransportRequest.class),
+            AuthenticationTestHelper.builder().userManagedServiceAccount("foo/bar", "role1").build()
+        );
+    }
+
+    public void testSendForUserManagedServiceAccountFailsWhenApiKeySecuredRemoteClusterDoesNotSupportThem() throws Exception {
+        final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
+        final SendOutcome outcome = sendToRemoteCluster(
+            AuthenticationTestHelper.builder().userManagedServiceAccount("foo/bar", randomRoles()).build(),
+            mockRemoteClusterCredentialsResolver(remoteClusterAlias),
+            versionBeforeUserManagedServiceAccounts(),
+            "indices:data/read/search"
+        );
+
+        assertUnsupportedServiceAccount(outcome, remoteClusterAlias);
+        // The gate runs before the remote cluster's role descriptors are resolved
+        verifyNoInteractions(outcome.authzService());
+        assertThat(threadContext.getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
+        assertThat(threadContext.getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
+    }
+
+    /**
+     * The API key based model sends a cluster state request as the system user, so the account's own identity never reaches
+     * the fulfilling cluster and refusing to send would reject a request that succeeds today.
+     */
+    public void testSendForUserManagedServiceAccountIsNotGatedForClusterStateRequestsUnderApiKeySecurity() throws Exception {
+        final SendOutcome outcome = sendToRemoteCluster(
+            AuthenticationTestHelper.builder().userManagedServiceAccount("foo/bar", randomRoles()).build(),
+            mockRemoteClusterCredentialsResolver(randomAlphaOfLengthBetween(5, 10)),
+            versionBeforeUserManagedServiceAccounts(),
+            ClusterStateAction.NAME
+        );
+
+        assertThat(outcome.senderCalled(), is(true));
+        assertThat(outcome.exception(), nullValue());
+    }
+
+    public void testSendForUserManagedServiceAccountFailsWhenCertificateSecuredRemoteClusterDoesNotSupportThem() throws Exception {
+        final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
+        final SendOutcome outcome = sendToRemoteCluster(
+            AuthenticationTestHelper.builder().userManagedServiceAccount("foo/bar", randomRoles()).build(),
+            mockRemoteClusterWithoutCredentialsResolver(remoteClusterAlias),
+            versionBeforeUserManagedServiceAccounts(),
+            // Certificate based security forwards the authentication for every action, cluster state requests included
+            randomFrom("indices:data/read/search", ClusterStateAction.NAME)
+        );
+
+        assertUnsupportedServiceAccount(outcome, remoteClusterAlias);
+    }
+
+    public void testSendForUserManagedServiceAccountSucceedsWhenCertificateSecuredRemoteClusterSupportsThem() throws Exception {
+        final SendOutcome outcome = sendToRemoteCluster(
+            AuthenticationTestHelper.builder().userManagedServiceAccount("foo/bar", randomRoles()).build(),
+            mockRemoteClusterWithoutCredentialsResolver(randomAlphaOfLengthBetween(5, 10)),
+            TransportVersion.current(),
+            "indices:data/read/search"
+        );
+
+        assertThat(outcome.senderCalled(), is(true));
+        assertThat(outcome.exception(), nullValue());
+    }
+
+    /**
+     * Nodes of the local cluster are governed by the node feature, which does not admit a user-managed account until every
+     * node publishes support for one, so an older node here cannot be holding an identity it fails to understand.
+     */
+    public void testSendForUserManagedServiceAccountIsNotGatedOnLocalConnections() throws Exception {
+        final SendOutcome outcome = sendToRemoteCluster(
+            AuthenticationTestHelper.builder().userManagedServiceAccount("foo/bar", randomRoles()).build(),
+            connection -> Optional.empty(),
+            versionBeforeUserManagedServiceAccounts(),
+            "indices:data/read/search"
+        );
+
+        assertThat(outcome.senderCalled(), is(true));
+        assertThat(outcome.exception(), nullValue());
+    }
+
+    public void testSendForBuiltInServiceAccountIsNotGated() throws Exception {
+        final SendOutcome outcome = sendToRemoteCluster(
+            AuthenticationTestHelper.builder().serviceAccount().build(),
+            mockRemoteClusterWithoutCredentialsResolver(randomAlphaOfLengthBetween(5, 10)),
+            versionBeforeUserManagedServiceAccounts(),
+            "indices:data/read/search"
+        );
+
+        assertThat(outcome.senderCalled(), is(true));
+        assertThat(outcome.exception(), nullValue());
+    }
+
+    private void assertUnsupportedServiceAccount(SendOutcome outcome, String remoteClusterAlias) {
+        assertThat(outcome.senderCalled(), is(false));
+        assertThat(outcome.exception(), instanceOf(SendRequestTransportException.class));
+        assertThat(outcome.exception().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(
+            outcome.exception().getCause().getMessage(),
+            equalTo(
+                "remote cluster ["
+                    + remoteClusterAlias
+                    + "] does not support user-managed service accounts, so it cannot serve a request"
+                    + " authenticated by service account [foo/bar]"
+            )
+        );
+    }
+
+    private static TransportVersion versionBeforeUserManagedServiceAccounts() {
+        return TransportVersionUtils.getPreviousVersion(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO);
+    }
+
+    /**
+     * Resolves to a remote cluster for which no credentials are configured, which is how certificate based remote cluster
+     * security presents itself to the interceptor.
+     */
+    private static
+        Function<Transport.Connection, Optional<RemoteConnectionManager.RemoteClusterAliasWithCredentials>>
+        mockRemoteClusterWithoutCredentialsResolver(String remoteClusterAlias) {
+        return connection -> Optional.of(new RemoteConnectionManager.RemoteClusterAliasWithCredentials(remoteClusterAlias, null));
+    }
+
+    private record SendOutcome(boolean senderCalled, TransportException exception, AuthorizationService authzService) {}
+
+    private SendOutcome sendToRemoteCluster(
+        Authentication authentication,
+        Function<Transport.Connection, Optional<RemoteConnectionManager.RemoteClusterAliasWithCredentials>> credentialsResolver,
+        TransportVersion connectionTransportVersion,
+        String action
+    ) throws Exception {
+        authentication.writeToContext(threadContext);
+        final AuthorizationService authzService = mock(AuthorizationService.class);
+        final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
+            settings,
+            threadPool,
+            mock(AuthenticationService.class),
+            authzService,
+            mockSslService(),
+            securityContext,
+            destructiveOperations,
+            new CrossClusterAccessTransportInterceptor(
+                settings,
+                threadPool,
+                mock(AuthenticationService.class),
+                authzService,
+                securityContext,
+                mock(CrossClusterAccessAuthenticationService.class),
+                crossClusterApiKeySignatureManager,
+                mockLicenseState,
+                credentialsResolver
+            )
+        );
+
+        final AtomicBoolean senderCalled = new AtomicBoolean(false);
+        final TransportInterceptor.AsyncSender sender = interceptor.interceptSender(new TransportInterceptor.AsyncSender() {
+            @Override
+            public <T extends TransportResponse> void sendRequest(
+                Transport.Connection connection,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options,
+                TransportResponseHandler<T> handler
+            ) {
+                assertTrue("sender called more than once", senderCalled.compareAndSet(false, true));
+            }
+        });
+
+        final Transport.Connection connection = mock(Transport.Connection.class);
+        when(connection.getTransportVersion()).thenReturn(connectionTransportVersion);
+        final AtomicReference<TransportException> exception = new AtomicReference<>();
+        sender.sendRequest(connection, action, mock(TransportRequest.class), null, new TransportResponseHandler<>() {
+            @Override
+            public Executor executor() {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
+            @Override
+            public void handleResponse(TransportResponse response) {
+                fail("should not receive a response");
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                assertTrue("handle exception called more than once", exception.compareAndSet(null, exp));
+            }
+
+            @Override
+            public TransportResponse read(StreamInput in) {
+                fail("should not receive a response");
+                return null;
+            }
+        });
+
+        return new SendOutcome(senderCalled.get(), exception.get(), authzService);
     }
 
     public void testProfileFiltersCreatedDifferentlyForDifferentTransportAndRemoteClusterSslSettings() {

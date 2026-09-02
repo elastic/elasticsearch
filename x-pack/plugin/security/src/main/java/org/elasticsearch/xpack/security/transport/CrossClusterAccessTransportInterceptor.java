@@ -34,6 +34,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
@@ -146,12 +147,16 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
-                final Optional<RemoteClusterCredentials> remoteClusterCredentials = getRemoteClusterCredentials(connection);
+                final Optional<RemoteClusterAliasWithCredentials> remoteCluster = remoteClusterCredentialsResolver.apply(connection);
+                final Optional<RemoteClusterCredentials> remoteClusterCredentials = getRemoteClusterCredentials(remoteCluster);
                 if (remoteClusterCredentials.isPresent()) {
                     sendWithCrossClusterAccessHeaders(remoteClusterCredentials.get(), connection, action, request, options, handler);
                 } else {
                     // Send regular request, without cross cluster access headers
                     try {
+                        remoteCluster.ifPresent(
+                            remote -> ensureRemoteClusterUnderstandsForwardedAuthentication(remote.clusterAlias(), connection)
+                        );
                         sender.sendRequest(connection, action, request, options, handler);
                     } catch (Exception e) {
                         handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
@@ -160,11 +165,49 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
             }
 
             /**
+             * Checks the authentication that the certificate based path forwards unchanged, leaving the fulfilling cluster
+             * to interpret it.
+             */
+            private void ensureRemoteClusterUnderstandsForwardedAuthentication(String remoteClusterAlias, Transport.Connection connection) {
+                final Authentication authentication = securityContext.getAuthentication();
+                if (authentication == null) {
+                    // Reported for every action alike by the interceptor that wraps this one
+                    return;
+                }
+                ensureRemoteClusterUnderstandsAuthentication(remoteClusterAlias, connection, authentication);
+            }
+
+            /**
+             * Refuses to send an authentication that the fulfilling cluster cannot make sense of, so the caller is told what
+             * is wrong rather than left with whatever the remote makes of an identity it does not recognize.
+             */
+            private void ensureRemoteClusterUnderstandsAuthentication(
+                String remoteClusterAlias,
+                Transport.Connection connection,
+                Authentication authentication
+            ) {
+                if (connection.getTransportVersion().supports(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO)) {
+                    return;
+                }
+                if (false == authentication.isUserManagedServiceAccount()) {
+                    return;
+                }
+                throw illegalArgumentExceptionWithDebugLog(
+                    "remote cluster ["
+                        + remoteClusterAlias
+                        + "] does not support user-managed service accounts, so it cannot serve a request"
+                        + " authenticated by service account ["
+                        + authentication.getEffectiveSubject().getUser().principal()
+                        + "]"
+                );
+            }
+
+            /**
              * Returns cluster credentials if the connection is remote, and cluster credentials are set up for the target cluster.
              */
-            private Optional<RemoteClusterCredentials> getRemoteClusterCredentials(Transport.Connection connection) {
-                final Optional<RemoteClusterAliasWithCredentials> remoteClusterAliasWithCredentials = remoteClusterCredentialsResolver
-                    .apply(connection);
+            private Optional<RemoteClusterCredentials> getRemoteClusterCredentials(
+                Optional<RemoteClusterAliasWithCredentials> remoteClusterAliasWithCredentials
+            ) {
                 if (remoteClusterAliasWithCredentials.isEmpty()) {
                     logger.trace("Connection is not remote");
                     return Optional.empty();
@@ -257,6 +300,7 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
                     );
                 } else {
                     assert false == action.startsWith("internal:") : "internal action must be sent with system user";
+                    ensureRemoteClusterUnderstandsAuthentication(remoteClusterAlias, connection, authentication);
                     authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                         remoteClusterAlias,
                         connection.getTransportVersion(),

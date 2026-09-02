@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCre
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -223,6 +224,31 @@ public class ServiceAccountService {
     }
 
     /**
+     * Reports the stored accounts, narrowed to a namespace and a service name when they are given. A node that cannot
+     * hold user-managed accounts has none to report, so it answers with an empty list rather than failing: this feeds
+     * a read that also covers built-in accounts, and that read must keep working.
+     */
+    public void getUserManagedAccountInfos(
+        @Nullable String namespace,
+        @Nullable String serviceName,
+        ActionListener<List<ServiceAccountInfo>> listener
+    ) {
+        if (userManagedServiceAccountStore == null) {
+            listener.onResponse(List.of());
+            return;
+        }
+        userManagedServiceAccountStore.listAccounts(
+            namespace,
+            serviceName,
+            listener.map(accounts -> accounts.stream().map(ServiceAccountService::toServiceAccountInfo).toList())
+        );
+    }
+
+    private static ServiceAccountInfo toServiceAccountInfo(UserManagedServiceAccount account) {
+        return new ServiceAccountInfo.UserManaged(account.id().asPrincipal(), account.roles(), account.enabled());
+    }
+
+    /**
      * A surviving token cannot authenticate once its account is gone, but recreating an account of the same name would
      * bring it back to life, which is what the token check refuses rather than any live credential. It is not atomic
      * with the delete: a token created in between survives, leaving the state {@code force} produces deliberately.
@@ -257,7 +283,11 @@ public class ServiceAccountService {
         }));
     }
 
-    public void createIndexToken(
+    /**
+     * Creates a token for the built-in service account the request names, failing if no built-in account carries that
+     * principal. The namespace is not consulted: this operates on built-in accounts whatever it is handed.
+     */
+    public void createBuiltInToken(
         Authentication authentication,
         CreateServiceAccountTokenRequest request,
         ActionListener<CreateServiceAccountTokenResponse> listener
@@ -265,9 +295,20 @@ public class ServiceAccountService {
         if (indexServiceAccountTokenStore == null) {
             throw new IllegalStateException("Can't create token because index service account token store not configured");
         }
-        if (isBuiltInNamespace(request.getNamespace())) {
-            indexServiceAccountTokenStore.createBuiltInToken(authentication, request, listener);
-            return;
+        indexServiceAccountTokenStore.createBuiltInToken(authentication, request, listener);
+    }
+
+    /**
+     * Creates a token for the user-managed service account the request names. The account is resolved first and must
+     * exist, though it need not be enabled; a principal in the reserved namespace is refused.
+     */
+    public void createUserManagedToken(
+        Authentication authentication,
+        CreateServiceAccountTokenRequest request,
+        ActionListener<CreateServiceAccountTokenResponse> listener
+    ) {
+        if (indexServiceAccountTokenStore == null) {
+            throw new IllegalStateException("Can't create token because index service account token store not configured");
         }
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
         resolveUserManagedAccount(
@@ -279,19 +320,25 @@ public class ServiceAccountService {
     }
 
     /**
-     * Deletes a service account token. Unlike creating one, this does not resolve the account first: a token can
-     * outlive a force-deleted account, and those leftovers must remain removable — the credentials API lists them, so
-     * refusing to delete them would leave an operator able to see a token they cannot clean up.
+     * Deletes a token belonging to a built-in service account, answering {@code false} when no built-in account
+     * carries the requested principal, since no such token can exist.
      */
-    public void deleteIndexToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
+    public void deleteBuiltInToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
         if (indexServiceAccountTokenStore == null) {
             throw new IllegalStateException("Can't delete token because index service account token store not configured");
         }
-        if (isBuiltInNamespace(request.getNamespace())) {
-            indexServiceAccountTokenStore.deleteBuiltInToken(request, listener);
-        } else {
-            indexServiceAccountTokenStore.deleteUserManagedToken(request, listener);
+        indexServiceAccountTokenStore.deleteBuiltInToken(request, listener);
+    }
+
+    /**
+     * Deletes a token belonging to a user-managed service account. The account is not resolved and need not exist,
+     * since a token can outlive a force-deleted account and those leftovers must stay removable.
+     */
+    public void deleteUserManagedToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
+        if (indexServiceAccountTokenStore == null) {
+            throw new IllegalStateException("Can't delete token because index service account token store not configured");
         }
+        indexServiceAccountTokenStore.deleteUserManagedToken(request, listener);
     }
 
     public void findTokensFor(GetServiceAccountCredentialsRequest request, ActionListener<GetServiceAccountCredentialsResponse> listener) {

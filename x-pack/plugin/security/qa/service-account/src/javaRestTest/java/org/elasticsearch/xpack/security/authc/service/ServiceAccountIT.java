@@ -933,7 +933,12 @@ public class ServiceAccountIT extends ESRestTestCase {
             responseMap,
             hasEntry(
                 serviceAccountPrincipal,
-                Map.of("role_descriptor", XContentHelper.convertToMap(new BytesArray(roleDescriptorString), false, XContentType.JSON).v2())
+                Map.of(
+                    "managed_by",
+                    "elastic",
+                    "role_descriptor",
+                    XContentHelper.convertToMap(new BytesArray(roleDescriptorString), false, XContentType.JSON).v2()
+                )
             )
         );
     }

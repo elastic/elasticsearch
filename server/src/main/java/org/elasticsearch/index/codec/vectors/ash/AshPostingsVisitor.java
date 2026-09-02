@@ -90,7 +90,9 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * @return the quantized query and correction parameters
      */
     private static QuantizedQuery quantizeQuery(float[] queryTransformed, int nDims, int queryBitsPerDim, int bitsPerDim) {
+        // TODO: combine with ESVectorUtil.ashPack & panamize somehow
         int planeBytes = (nDims + 7) >>> 3;
+        int numQueryLevels = 1 << queryBitsPerDim;
 
         float qMin = Float.MAX_VALUE, qMax = -Float.MAX_VALUE;
         for (int j = 0; j < nDims; j++) {
@@ -98,23 +100,35 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
             qMax = Math.max(qMax, queryTransformed[j]);
         }
         float range = qMax - qMin;
-        int numQueryLevels = 1 << queryBitsPerDim;
         float qScale = range > 0 ? (numQueryLevels - 1) / range : 1.0f;
         float invQScale = range > 0 ? range / (numQueryLevels - 1) : 0f;
 
-        byte[] queryQuantized = new byte[queryBitsPerDim * planeBytes];
+        int[] rounded = new int[nDims];
         int unsignedSum = 0;
         for (int j = 0; j < nDims; j++) {
-            int level = Math.clamp(Math.round((queryTransformed[j] - qMin) * qScale), 0, numQueryLevels - 1);
-            unsignedSum += level;
-            int byteIdx = j >>> 3;
-            int bitIdx = 7 - (j & 7);
-            for (int p = 0; p < queryBitsPerDim; p++) {
-                if (((level >> p) & 1) != 0) {
-                    queryQuantized[p * planeBytes + byteIdx] |= (byte) (1 << bitIdx);
+            rounded[j] = Math.clamp(Math.round((queryTransformed[j] - qMin) * qScale), 0, numQueryLevels - 1);
+            unsignedSum += rounded[j];
+        }
+
+        byte[] queryQuantized = new byte[queryBitsPerDim * planeBytes];
+        switch (queryBitsPerDim) {
+            case 1 -> ESVectorUtil.pack1BitValues(rounded, queryQuantized);
+            case 2 -> ESVectorUtil.stride2BitValues(rounded, queryQuantized);
+            case 4 -> ESVectorUtil.stride4BitValues(rounded, queryQuantized);
+            case 3, 8 -> {
+                for (int j = 0; j < nDims; j++) {
+                    int byteIdx = j >>> 3;
+                    int bitIdx = 7 - (j & 7);
+                    for (int p = 0; p < bitsPerDim; p++) {
+                        if ((rounded[j] & (1 << p)) != 0) {
+                            queryQuantized[p * planeBytes + byteIdx] |= (byte) (1 << bitIdx);
+                        }
+                    }
                 }
             }
+            default -> throw new IllegalArgumentException("Unsupported bitsPerDim: " + bitsPerDim);
         }
+
         float centerOffset = ((1 << bitsPerDim) - 1) / 2.0f;
         float constantCorrection = centerOffset * (unsignedSum * invQScale + qMin * nDims);
         return new QuantizedQuery(queryQuantized, invQScale, qMin, constantCorrection);
@@ -150,10 +164,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         int nDims = wT.length / originalDim;
 
         // Precompute query projection: queryTransformed[j] = dot(query, wT[j*originalDim .. (j+1)*originalDim))
-        float[] queryTransformed = new float[nDims];
-        for (int j = 0; j < nDims; j++) {
-            queryTransformed[j] = ESVectorUtil.dotProduct(query, 0, wT, j * originalDim, originalDim);
-        }
+        float[] queryTransformed = SvdUtil.matrixVectorMultiply(wT, nDims, originalDim, query);
 
         if (queryBitsPerDim > 0) {
             QuantizedQuery qq = quantizeQuery(queryTransformed, nDims, queryBitsPerDim, bitsPerDim);
@@ -244,7 +255,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * @param quantizedQuery quantized query parameters (null for float path)
      * @param centroidReader function mapping centroid ordinal to float[] centroid vector
      */
-    public AshPostingsVisitor(
+    private AshPostingsVisitor(
         float[] wT,
         int originalDim,
         float[] query,

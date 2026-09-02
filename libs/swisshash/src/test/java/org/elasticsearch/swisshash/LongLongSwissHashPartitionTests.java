@@ -108,14 +108,13 @@ public class LongLongSwissHashPartitionTests extends PartitionedHashTestCase {
             for (var gen : gens) {
                 totalKeys += gen.keys().keysInPartition(partition);
             }
-            hash.ensureCapacity(totalKeys);
             agg.ensureCapacity(totalKeys);
             for (var gen : gens) {
                 int numKeys = gen.keys().keysInPartition(partition);
                 if (mergedIds == null || mergedIds.length < numKeys) {
                     mergedIds = new int[ArrayUtil.oversize(numKeys, Integer.BYTES)];
                 }
-                boolean appendOnly = hash.combinePartition(gen.keys(), partition, totalKeys, mergedIds);
+                boolean appendOnly = hash.combinePartition(gen.keys(), partition, mergedIds);
                 gen.keys().releasePartition(breaker, partition);
                 agg.combinePartition(gen.aggs(), partition, mergedIds, numKeys, appendOnly);
                 gen.aggs().releasePartition(breaker, partition);

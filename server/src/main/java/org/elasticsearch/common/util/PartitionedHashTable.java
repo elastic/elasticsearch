@@ -110,12 +110,11 @@ public interface PartitionedHashTable {
      * Combines one partition of keys into this hash table, writing the id assigned to each key to {@code resultIds} so the
      * caller can merge the associated per-key state. This table must only contain keys of the same partition.
      *
-     * @param totalKeysInAllGenerations the total number of keys across all generations of this partition, used to size this table
      * @param resultIds                 the combined ids will be written to this array - must be at least the size of the
      *                                  {@link PartitionedHashKeys#keysInPartition(int)} for the partition index
      * @return {@code true} if every key in the partition was new to this table. In that case the assigned ids are consecutive
      *                      and in input order, starting at the size of this table before the call, so callers can bulk-copy the
      *                      associated per-key state instead of scattering it by id.
      */
-    boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int totalKeysInAllGenerations, int[] resultIds);
+    boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int[] resultIds);
 }

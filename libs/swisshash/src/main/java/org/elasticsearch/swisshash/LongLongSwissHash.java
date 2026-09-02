@@ -899,13 +899,13 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
     }
 
     @Override
-    public boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int totalKeysInAllGenerations, int[] resultIds) {
+    public boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
         Objects.requireNonNull(resultIds);
         final LongLongPartitionedHashKeys subKeys = (LongLongPartitionedHashKeys) keys;
         assert subKeys.subs[partitionIndex] != null : "partition [" + partitionIndex + "] was already released";
         final int keysInPartition = subKeys.keysInPartition(partitionIndex);
         assert keysInPartition <= resultIds.length : keysInPartition + " > " + resultIds.length;
-        final int needed = Math.max(totalKeysInAllGenerations, Math.addExact(size, keysInPartition));
+        final int needed = Math.addExact(size, keysInPartition);
         ensureCapacity(needed);
         if (smallCore != null) {
             return smallCore.mergeKeys(subKeys.subs[partitionIndex], resultIds, keysInPartition);

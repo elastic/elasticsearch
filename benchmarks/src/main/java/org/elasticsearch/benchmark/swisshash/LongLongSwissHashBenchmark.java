@@ -203,17 +203,13 @@ public class LongLongSwissHashBenchmark {
                     if (p >= LongLongSwissHash.NUM_PARTITIONS) {
                         break;
                     }
-                    int totalKeys = 0;
-                    for (var gen : partitionedHashKeys) {
-                        totalKeys += gen.keysInPartition(p);
-                    }
                     partition.clear();
                     for (var gen : partitionedHashKeys) {
                         int keysInThisPartition = gen.keysInPartition(p);
                         if (mergedKeys == null || mergedKeys.length < keysInThisPartition) {
                             mergedKeys = new int[ArrayUtil.oversize(keysInThisPartition, Integer.BYTES)];
                         }
-                        partition.combinePartition(gen, p, totalKeys, mergedKeys);
+                        partition.combinePartition(gen, p, mergedKeys);
                         gen.releasePartition(breaker, p);
                     }
                 }

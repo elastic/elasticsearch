@@ -813,3 +813,6 @@ tests:
 - class: org.elasticsearch.script.mustache.MultiSearchTemplateIT
   method: testLargeMsearchTemplateDoesNotOom
   issue: https://github.com/elastic/elasticsearch/issues/158428
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:SUBQUERIES}
+  issue: https://github.com/elastic/elasticsearch/issues/149681

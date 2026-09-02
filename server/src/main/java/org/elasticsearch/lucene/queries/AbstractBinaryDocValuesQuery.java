@@ -28,7 +28,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
-import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueArrayOrderInlineNullBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueColumnarPayloadBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
@@ -99,12 +98,9 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
             return null;
         }
         return switch (binaryFormat) {
-            case COLUMNAR_PAYLOAD -> {
-                assert assertColumnarPayload(context, fieldName);
-                // The payload carries its own count and writes no .counts companion, so the binary column drives iteration on its own
-                // and there is nothing to look up.
-                yield columnarPayloadIterator(values, matcher, matchCost);
-            }
+            // The payload carries its own count and writes no .counts companion, so the binary column drives iteration on its own and
+            // there is nothing to look up.
+            case COLUMNAR_PAYLOAD -> columnarPayloadIterator(values, matcher, matchCost);
             case ARRAY_ORDER_INLINE_NULL -> {
                 // ArrayOrderInlineNull always writes the .counts field (even for an all-null or empty array, which writes no blob), so
                 // the counts column drives iteration and count==1 is handled inside the inline-null reader as the raw case.
@@ -119,20 +115,6 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
                     : singleValuedIterator(values, matcher, matchCost);
             }
         };
-    }
-
-    /**
-     * Cross-checks the mapping's claim that this field is written as a columnar payload against what the segment actually holds, which
-     * the codec records on the field itself. The two are settled independently — the mapping decides what to write, the
-     * {@code FieldInfo} attribute records what was written — so they can only disagree if a segment predates the mapping, and decoding
-     * a bare value as a payload would silently return wrong hits rather than fail.
-     *
-     * <p>Always returns {@code true}, so every caller in this package invokes it as {@code assert assertColumnarPayload(...)}.
-     */
-    static boolean assertColumnarPayload(LeafReaderContext context, String fieldName) {
-        assert ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)
-            : "field [" + fieldName + "] is mapped as a columnar payload but this segment does not carry one";
-        return true;
     }
 
     protected abstract float matchCost();

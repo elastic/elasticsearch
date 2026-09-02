@@ -24,7 +24,6 @@ import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
@@ -1847,8 +1846,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             ctx.addColumn(LuceneBinaryColumn.of(terms.finish(docCount), fieldType().name(), fieldType));
         }
         if (binaryDvs != null && binaryDvs.isEmpty() == false) {
-            final IndexableFieldType dvType = columnar ? ColumnarBinaryDocValuesField.TYPE : CustomDocValuesField.TYPE;
-            ctx.addColumn(LuceneBinaryColumn.of(binaryDvs.finish(docCount), fieldType().name(), dvType));
+            ctx.addColumn(LuceneBinaryColumn.of(binaryDvs.finish(docCount), fieldType().name(), CustomDocValuesField.TYPE));
         }
         // A columnar field's payload carries its own count, so it emits no companion column at all.
         if (columnar == false && dvCounts != null && dvCounts.isEmpty() == false) {
@@ -1960,9 +1958,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             }
             // A columnar field's doc values are framed, so they are a column of their own rather than a second wrapper
-            // over the terms serialization.
+            // over the terms serialization. The type is the one ColumnarBinaryDocValuesField carries on the row path.
             if (payloadDvs != null) {
-                ctx.addColumn(LuceneBinaryColumn.of(payloadDvs.finish(docCount), fieldType().name(), ColumnarBinaryDocValuesField.TYPE));
+                ctx.addColumn(LuceneBinaryColumn.of(payloadDvs.finish(docCount), fieldType().name(), CustomDocValuesField.TYPE));
             }
         }
         // Synthetic-source fallback for ignore_above values: single BinaryDocValuesField (no counts),

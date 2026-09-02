@@ -11,8 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.columnar.ColumNARDocValuesFormat;
-import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.test.ESTestCase;
 
@@ -119,10 +117,13 @@ public class ColumnarBinaryDocValuesFieldTests extends ESTestCase {
         assertSlots(doc, List.of(new BytesRef("a"), new BytesRef("b"), new BytesRef("c")));
     }
 
-    /** The codec reads its column type off the field's attributes, and readers dispatch on the same one. */
-    public void testFieldTypeCarriesTheCodecAttribute() {
+    /**
+     * The field type is the ordinary binary doc-values one, carrying no marker of the codec: which fields ColumNAR stores is decided
+     * in the codec wiring, and readers dispatch on the format from the mapping.
+     */
+    public void testFieldTypeIsTheOrdinaryBinaryDocValuesType() {
         final var field = new ColumnarBinaryDocValuesField(FIELD, MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED);
-        assertEquals(ColumnarFieldType.STRING.name(), field.fieldType().getAttributes().get(ColumNARDocValuesFormat.TYPE_ATTRIBUTE));
+        assertSame(CustomDocValuesField.TYPE, field.fieldType());
     }
 
     /** The blob decodes back to exactly the slots that went in, in order. */

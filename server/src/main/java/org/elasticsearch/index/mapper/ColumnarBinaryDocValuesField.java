@@ -9,14 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.IndexableFieldType;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.columnar.ColumNARDocValuesFormat;
-import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 
 import java.util.ArrayList;
@@ -44,44 +37,13 @@ import java.util.Comparator;
  * <p>{@link org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues#binaryValue} rebuilds exactly this
  * format from the stored slots, so every reader of these fields decodes the one format on both sides of the
  * codec.
+ *
+ * <p>Nothing here marks the field as the codec's: which fields the ColumNAR codec stores, and as what column
+ * type, is settled entirely in the codec wiring by {@code PerFieldFormatSupplier}, and readers dispatch on the
+ * {@link BinaryDocValuesFormat} the mapping gives them. So this field's type is the ordinary binary doc-values
+ * type its siblings use, and the mapper carries no codec convention.
  */
 public class ColumnarBinaryDocValuesField extends MultiValuedBinaryDocValuesField {
-
-    /**
-     * Declares the codec's field type on the field, which is what {@link #isColumnarStringPayload} reads back to
-     * recognise a payload in a segment. {@code PerFieldFormatSupplier} builds the codec with a constant type
-     * selector, so {@code ColumnarFieldType.fromField} never consults this — it is purely the reader-side marker,
-     * and readers cross-check it as an assert rather than dispatching on it.
-     *
-     * <p>Frozen but deliberately not run through {@link Mapper#freezeAndDeduplicateFieldType}, which declines to
-     * deduplicate a type carrying attributes: Lucene's {@code FieldType#equals} ignores them, so a shared pool
-     * would collapse this into the attribute-less binary type and lose the marker.
-     */
-    public static final FieldType TYPE;
-    static {
-        FieldType type = new FieldType();
-        type.setDocValuesType(DocValuesType.BINARY);
-        type.setOmitNorms(true);
-        type.putAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, ColumnarFieldType.STRING.name());
-        type.freeze();
-        TYPE = type;
-    }
-
-    /**
-     * Whether {@code fieldName}'s binary doc values in this segment are payloads of this format. Read off the
-     * field's own attributes rather than passed down from the mapping, so a reader decodes what the segment
-     * actually holds — which is also what keeps a reader honest across segments written under different
-     * settings.
-     *
-     * <p>The column type is checked, not merely the presence of the attribute: the codec also stores
-     * {@link ColumnarFieldType#LONG} and {@link ColumnarFieldType#DOUBLE} columns, whose blobs are a numeric
-     * payload with no slot count in front of them. Reading one of those as a string payload would decode
-     * something rather than fail.
-     */
-    public static boolean isColumnarStringPayload(LeafReader leafReader, String fieldName) {
-        final FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(fieldName);
-        return fieldInfo != null && ColumnarFieldType.STRING.name().equals(fieldInfo.getAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE));
-    }
 
     /**
      * Encodes this document's payload. Held on the field rather than made per call, so a document is encoded through the buffer this
@@ -91,11 +53,6 @@ public class ColumnarBinaryDocValuesField extends MultiValuedBinaryDocValuesFiel
 
     public ColumnarBinaryDocValuesField(String name, ValueOrdering ordering) {
         super(name, ordering);
-    }
-
-    @Override
-    public IndexableFieldType fieldType() {
-        return TYPE;
     }
 
     /**

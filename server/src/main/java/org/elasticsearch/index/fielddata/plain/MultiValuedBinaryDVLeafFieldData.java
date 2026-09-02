@@ -18,7 +18,6 @@ import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingArrayOrderBinaryDocValues;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
-import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
@@ -73,12 +72,8 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
             // Need to return a new instance each time this gets invoked,
             // otherwise a positioned or exhausted instance can be returned:
             return switch (binaryFormat) {
-                case COLUMNAR_PAYLOAD -> {
-                    // The ColumNAR codec's fields carry their slot count in the blob and write no companion field.
-                    assert ColumnarBinaryDocValuesField.isColumnarStringPayload(leafReader, fieldName)
-                        : "field [" + fieldName + "] is mapped as a columnar payload but this segment does not carry one";
-                    yield ColumnarPayloadSortedBinaryDocValues.from(leafReader, fieldName);
-                }
+                // The ColumNAR codec's fields carry their slot count in the blob and write no companion field.
+                case COLUMNAR_PAYLOAD -> ColumnarPayloadSortedBinaryDocValues.from(leafReader, fieldName);
                 // High-cardinality columnar fields store values in document order with inline nulls (ArrayOrderInlineNull).
                 case ARRAY_ORDER_INLINE_NULL -> SortingArrayOrderBinaryDocValues.from(leafReader, fieldName);
                 // Pre-DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES indices may use the deprecated IntegratedCounts format, which

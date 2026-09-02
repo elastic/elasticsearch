@@ -83,11 +83,12 @@ final class BinaryDocValuesLengthQuery extends Query {
                         Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
                         String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
                         return switch (binaryFormat) {
-                            case COLUMNAR_PAYLOAD -> {
-                                assert AbstractBinaryDocValuesQuery.assertColumnarPayload(context, fieldName);
-                                // The payload carries its own count; its blob is never a bare value, so no fast path applies.
-                                yield AbstractBinaryDocValuesQuery.columnarPayloadIterator(values, lengthPredicate, matchCost);
-                            }
+                            // The payload carries its own count; its blob is never a bare value, so no fast path applies.
+                            case COLUMNAR_PAYLOAD -> AbstractBinaryDocValuesQuery.columnarPayloadIterator(
+                                values,
+                                lengthPredicate,
+                                matchCost
+                            );
                             case ARRAY_ORDER_INLINE_NULL, SEPARATE_COUNT -> {
                                 final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
                                 DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);

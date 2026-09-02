@@ -25,7 +25,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
-import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 
 import java.io.IOException;
@@ -76,12 +75,8 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
     protected BinaryDocValues getSortKeyDocValues(LeafReader reader) throws IOException {
         BinaryDocValues values = DocValues.getBinary(reader, getField());
         return switch (binaryFormat) {
-            case COLUMNAR_PAYLOAD -> {
-                // The payload carries its own count, so there is nothing to advance alongside it.
-                assert ColumnarBinaryDocValuesField.isColumnarStringPayload(reader, getField())
-                    : "field [" + getField() + "] is sorted as a columnar payload but this segment does not carry one";
-                yield new ColumnarPayloadMinMaxBinaryDocValues(values, maxMode);
-            }
+            // The payload carries its own count, so there is nothing to advance alongside it.
+            case COLUMNAR_PAYLOAD -> new ColumnarPayloadMinMaxBinaryDocValues(values, maxMode);
             case ARRAY_ORDER_INLINE_NULL, SEPARATE_COUNT -> {
                 String countsFieldName = getField() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
                 NumericDocValues counts = reader.getNumericDocValues(countsFieldName);

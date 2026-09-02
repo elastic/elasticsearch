@@ -24,6 +24,7 @@
 set -euo pipefail
 
 VERSION="0.1.0"
+ARTIFACT_ID="libsimdjson"
 VEC_NATIVE_DIR="$(cd "$(dirname "$0")/../../simdvec/native" && pwd)"
 LOCAL_TOOLCHAIN_IMAGE="es-native-cross-toolchain:local"
 REMOTE_TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:4"
@@ -87,7 +88,7 @@ ARTIFACTORY_REPOSITORY="${ARTIFACTORY_REPOSITORY:-https://artifactory.elastic.de
 TEMP=$(mktemp -d)
 
 if [ "$UPLOAD" = true ]; then
-  if curl -sS -I --fail --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/simdjson/${VERSION}/simdjson-${VERSION}.zip" > /dev/null 2>&1; then
+  if curl -sS -I --fail --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/${ARTIFACT_ID}/${VERSION}/${ARTIFACT_ID}-${VERSION}.zip" > /dev/null 2>&1; then
     echo "Error: Artifacts already exist for version '${VERSION}'. Bump version before republishing."
     exit 1;
   fi
@@ -113,12 +114,12 @@ cp    build/libs/simdjson/shared/amd64/libsimdjson.so.debug     "$TEMP_DBG/linux
 
 if [ "$UPLOAD" = true ]; then
   echo 'Uploading to Artifactory...'
-  (cd "$TEMP" && zip -rq - .) | curl -sSf -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary @- --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/simdjson/${VERSION}/simdjson-${VERSION}.zip"
-  (cd "$TEMP_DBG" && zip -rq - .) | curl -sSf -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary @- --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/simdjson/${VERSION}/simdjson-${VERSION}-debuginfo.zip"
+  (cd "$TEMP" && zip -rq - .) | curl -sSf -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary @- --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/${ARTIFACT_ID}/${VERSION}/${ARTIFACT_ID}-${VERSION}.zip"
+  (cd "$TEMP_DBG" && zip -rq - .) | curl -sSf -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary @- --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/${ARTIFACT_ID}/${VERSION}/${ARTIFACT_ID}-${VERSION}-debuginfo.zip"
   rm -rf "$TEMP" "$TEMP_DBG"
 else
-  ZIP="$(pwd)/simdjson-${VERSION}-local.zip"
-  DBG_ZIP="$(pwd)/simdjson-${VERSION}-debuginfo-local.zip"
+  ZIP="$(pwd)/${ARTIFACT_ID}-${VERSION}-local.zip"
+  DBG_ZIP="$(pwd)/${ARTIFACT_ID}-${VERSION}-debuginfo-local.zip"
   (cd "$TEMP" && zip -rq "$ZIP" .)
   (cd "$TEMP_DBG" && zip -rq "$DBG_ZIP" .)
   rm -rf "$TEMP" "$TEMP_DBG"

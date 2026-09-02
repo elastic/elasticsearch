@@ -45,7 +45,7 @@ libs/simdjson/
   - `org.elasticsearch.escf.SimdJsonPool` — feature flag, document size limits, pool wiring
   - `org.elasticsearch.escf.EscfDocumentHandler` — `JsonDocumentHandler` implementation
   - `org.elasticsearch.escf.EscfEncoder` — simdjson vs Jackson encode path
-- **`libs/native/libraries`** — downloads `org.elasticsearch:simdjson` native zips at build time
+- **`libs/native/libraries`** — downloads `org.elasticsearch:libsimdjson` native zips at build time (artifact id is distinct from the Java module `org.elasticsearch:simdjson` so composite builds do not substitute the zip for the jar project)
 - **`benchmarks`** — `SimdJsonParserBenchmark` JMH harness
 
 ## Parsing pipeline

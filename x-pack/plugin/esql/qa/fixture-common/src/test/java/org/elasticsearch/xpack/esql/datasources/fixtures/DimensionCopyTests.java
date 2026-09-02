@@ -26,6 +26,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Fails when our own code re-lists a dimension's values instead of reading them from the contract.
@@ -58,7 +61,8 @@ public class DimensionCopyTests extends ESTestCase {
     );
 
     public void testNoComponentKeepsItsOwnCopyOfADimensionsValues() throws IOException {
-        Path qaRoot = locateQaRoot();
+        List<Path> guardedRoots = locateGuardedRoots();
+        assertThat("the per-format qa modules must be covered too", guardedRoots.size(), greaterThan(1));
         Map<String, Set<String>> dimensions = interestingDimensions();
         assertFalse("no dimensions parsed -- the gate would pass vacuously", dimensions.isEmpty());
 
@@ -68,26 +72,28 @@ public class DimensionCopyTests extends ESTestCase {
         // and deletes temp files under build/ while this walks, so a post-hoc filter still descends into a
         // tree that is moving and Files.walk throws NoSuchFileException. A gate that fails on its own
         // scratch directory teaches nothing.
-        Files.walkFileTree(qaRoot, new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-                return dir.getFileName().toString().equals("build") ? FileVisitResult.SKIP_SUBTREE : FileVisitResult.CONTINUE;
-            }
-
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                String name = file.getFileName().toString();
-                if (name.endsWith(".java") && CONTRACT_OWNERS.contains(name) == false) {
-                    sources.add(file);
+        for (Path guardedRoot : guardedRoots) {
+            Files.walkFileTree(guardedRoot, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                    return dir.getFileName().toString().equals("build") ? FileVisitResult.SKIP_SUBTREE : FileVisitResult.CONTINUE;
                 }
-                return FileVisitResult.CONTINUE;
-            }
 
-            @Override
-            public FileVisitResult visitFileFailed(Path file, IOException exc) {
-                return FileVisitResult.CONTINUE;
-            }
-        });
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    String name = file.getFileName().toString();
+                    if (name.endsWith(".java") && CONTRACT_OWNERS.contains(name) == false) {
+                        sources.add(file);
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        }
         assertFalse("walked no sources -- the gate would pass vacuously", sources.isEmpty());
 
         for (Path source : sources) {
@@ -114,7 +120,7 @@ public class DimensionCopyTests extends ESTestCase {
                                 Locale.ROOT,
                                 "%s:%d re-lists %d of %d [%s] values %s -- read them from the contract, "
                                     + "or mark the line '%s' with a reason",
-                                qaRoot.relativize(source),
+                                source.getFileName(),
                                 i + 1,
                                 shared.size(),
                                 dimension.getValue().size(),
@@ -147,16 +153,32 @@ public class DimensionCopyTests extends ESTestCase {
         return out;
     }
 
-    /** The qa tree this gate covers, found by walking up rather than guessed from a working directory. */
-    private static Path locateQaRoot() {
-        Path candidate = PathUtils.get("").toAbsolutePath();
-        while (candidate != null) {
-            Path qa = candidate.resolve("x-pack/plugin/esql/qa");
-            if (Files.isDirectory(qa)) {
-                return qa;
-            }
-            candidate = candidate.getParent();
+    /**
+     * Every tree this gate covers, found by walking up rather than guessed from a working directory.
+     *
+     * <p>It covered only esql/qa at first, which left the per-format modules unguarded -- and a live copy
+     * was sitting in one of them, three of the four distribution modes, the same defect already fixed
+     * twice elsewhere. A gate that inspects some of the code is a gate that reports clean while the
+     * defect it exists for is still there.
+     */
+    private static List<Path> locateGuardedRoots() {
+        Path repo = PathUtils.get("").toAbsolutePath();
+        while (repo != null && Files.isDirectory(repo.resolve("x-pack/plugin/esql/qa")) == false) {
+            repo = repo.getParent();
         }
-        throw new AssertionError("could not locate x-pack/plugin/esql/qa; the gate must not pass by not looking");
+        if (repo == null) {
+            throw new AssertionError("could not locate the repository; the gate must not pass by not looking");
+        }
+        List<Path> roots = new ArrayList<>();
+        roots.add(repo.resolve("x-pack/plugin/esql/qa"));
+        try (Stream<Path> plugins = Files.list(repo.resolve("x-pack/plugin"))) {
+            plugins.filter(p -> p.getFileName().toString().startsWith("esql-datasource-"))
+                .map(p -> p.resolve("qa"))
+                .filter(Files::isDirectory)
+                .forEach(roots::add);
+        } catch (IOException e) {
+            throw new AssertionError("could not enumerate the per-format qa modules", e);
+        }
+        return roots;
     }
 }

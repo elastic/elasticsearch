@@ -265,11 +265,7 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
             .filter(entry -> Boolean.TRUE.equals(entry.get("implicitly_granted")))
             .filter(entry -> ((List<String>) entry.get("names")).contains(".workflows-executions*"))
             .toList();
-        assertThat(
-            "expected at least one implicit .workflows-executions* grant, got " + indices,
-            implicitEntries.size(),
-            org.hamcrest.Matchers.greaterThanOrEqualTo(1)
-        );
+        assertThat("expected one implicit .workflows-executions* grant, got " + indices, implicitEntries, hasSize(1));
 
         final String query = (String) implicitEntries.get(0).get("query");
         assertThat(query, containsString("spaceId"));

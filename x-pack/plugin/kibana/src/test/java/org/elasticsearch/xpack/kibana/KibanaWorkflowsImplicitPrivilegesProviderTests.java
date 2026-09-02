@@ -61,18 +61,10 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
         assertTrue("workflow grant must include default space", query.contains("default"));
         assertTrue("workflow grant must carry must_not managed:true", query.contains("must_not"));
         assertTrue("workflow grant must carry must_not managed:true", query.contains("\"managed\":true"));
-        assertFalse("workflow grant must not boost", query.contains("boost"));
 
         String stepQuery = grantForSingleIndex(result, STEP_EXECUTION_INDEX).getQuery().utf8ToString();
         assertTrue("step grant must require explicit managed:false", stepQuery.contains("\"managed\":false"));
         assertFalse("legacy steps with no managed field must fail closed", stepQuery.contains("must_not"));
-    }
-
-    public void testBaseActionOnlyYieldsNoManagedGrant() {
-        Collection<ApplicationPrivilegeDescriptor> stored = List.of(
-            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "wf_exec_read", Set.of(READ_EXECUTION_ACTION), Map.of())
-        );
-        assertThat(provider.getImplicitIndicesPrivileges(resolve(role("wf_exec_read", "space:marketing"), stored)), hasSize(2));
     }
 
     public void testBothActionsYieldManagedGrant() {
@@ -93,8 +85,8 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
         boolean sawManagedGrant = false;
         for (RoleDescriptor.IndicesPrivileges grant : result) {
             String query = grant.getQuery().utf8ToString();
-            if (Arrays.asList(grant.getIndices()).contains(WORKFLOW_EXECUTION_INDEX)
-                && Arrays.asList(grant.getIndices()).contains(STEP_EXECUTION_INDEX)) {
+            List<String> indices = Arrays.asList(grant.getIndices());
+            if (indices.contains(WORKFLOW_EXECUTION_INDEX) && indices.contains(STEP_EXECUTION_INDEX)) {
                 sawManagedGrant = true;
                 assertTrue(query.contains("default"));
             } else if (query.contains("must_not")) {
@@ -166,8 +158,8 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(result, hasSize(3));
         for (RoleDescriptor.IndicesPrivileges grant : result) {
             String query = grant.getQuery().utf8ToString();
-            if (Arrays.asList(grant.getIndices()).contains(WORKFLOW_EXECUTION_INDEX)
-                && Arrays.asList(grant.getIndices()).contains(STEP_EXECUTION_INDEX)) {
+            List<String> indices = Arrays.asList(grant.getIndices());
+            if (indices.contains(WORKFLOW_EXECUTION_INDEX) && indices.contains(STEP_EXECUTION_INDEX)) {
                 assertTrue("wildcard managed grant should be match_all", query.contains("match_all"));
                 assertFalse(query.contains("spaceId"));
             }

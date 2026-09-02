@@ -459,10 +459,15 @@ public final class DatasetRewriter {
      * embedding config in plan nodes (avoiding serialization of credential objects). A secret forwards
      * its raw value — an encrypted secret carries an {@code EncryptedData} the data-node decryption step
      * recognizes by type.
+     * <p>
+     * {@link RemovedParquetDatasetSettings} keys are dropped from the dataset map so a stored
+     * document from before those kill-switches were removed still plans; PUT and WITH reject them.
+     * The parent {@code _datasource} map is left untouched.
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();
         merged.putAll(dataset.settings());
+        merged.keySet().removeAll(RemovedParquetDatasetSettings.KEYS);
         if (parent.settings().isEmpty() == false) {
             Map<String, Object> dsSettings = new HashMap<>();
             for (Map.Entry<String, DataSourceSetting> e : parent.settings()) {

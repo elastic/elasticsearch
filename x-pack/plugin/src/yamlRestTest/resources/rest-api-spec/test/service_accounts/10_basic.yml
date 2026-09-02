@@ -146,4 +146,16 @@ teardown:
 
   - match: { _nodes.failed: 0 }
 
+---
+"Test create service token for an unknown service account":
+  - do:
+      catch: bad_request
+      security.create_service_token:
+        namespace: foo
+        service: bar
+        name: api-token-foo
+
+  - match: { "error.type": "illegal_argument_exception" }
+  - match: { "error.reason": "service account [foo/bar] does not exist" }
+
 

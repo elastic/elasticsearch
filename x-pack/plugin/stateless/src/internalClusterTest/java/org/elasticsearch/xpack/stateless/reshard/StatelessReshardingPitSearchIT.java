@@ -42,7 +42,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
-import static org.elasticsearch.search.SearchService.PIT_RELOCATION_FEATURE_FLAG;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.indexMetadata;
 import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.makeIdThatRoutesToShard;
@@ -220,7 +219,6 @@ public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginInteg
     }
 
     public void testPitRelocationDuringReshard() {
-        assumeTrue("pit relocation must be enabled", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         var masterNode = startMasterOnlyNode();
         String indexNode = startIndexNode();
         startSearchNode();
@@ -300,7 +298,6 @@ public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginInteg
     }
 
     public void testLongLivedPitRelocation() {
-        assumeTrue("pit relocation must be enabled", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         var masterNode = startMasterOnlyNode();
         startIndexNode();
         startSearchNode();
@@ -351,7 +348,6 @@ public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginInteg
     }
 
     public void testReshardedLongLivedPitRelocation() {
-        assumeTrue("pit relocation must be enabled", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         var masterNode = startMasterOnlyNode();
         String indexNode = startIndexNode();
         startSearchNode();

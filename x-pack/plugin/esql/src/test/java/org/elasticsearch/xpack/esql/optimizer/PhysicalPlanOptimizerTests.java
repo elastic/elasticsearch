@@ -9984,7 +9984,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | limit %d by languages
             """, limit));
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        var reductionPlan = ((PlannerUtils.ReducedPlan) PlannerUtils.reductionPlan(plans.v2())).plan();
+        var reductionPlan = ((PlannerUtils.TopNByReduction) PlannerUtils.reductionPlan(plans.v2())).plan();
         var topNBy = as(reductionPlan, TopNByExec.class);
         assertThat(as(topNBy.limitPerGroup(), Literal.class).value(), equalTo(limit));
         assertThat(topNBy.outputOrdering(), equalTo(GroupedTopNOperator.OutputOrdering.NOT_SORTED));

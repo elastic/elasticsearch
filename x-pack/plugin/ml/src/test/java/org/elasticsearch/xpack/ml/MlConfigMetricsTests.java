@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
-import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -309,9 +309,9 @@ public class MlConfigMetricsTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private static Supplier<LongWithAttributes> captureLongGauge(MeterRegistry meterRegistry, String metricName) {
         AtomicReference<Supplier<LongWithAttributes>> observer = new AtomicReference<>();
-        when(meterRegistry.registerLongGauge(eq(metricName), anyString(), anyString(), any())).thenAnswer(invocation -> {
+        when(meterRegistry.registerLongAsyncGauge(eq(metricName), anyString(), anyString(), any())).thenAnswer(invocation -> {
             observer.set(invocation.getArgument(3));
-            return mock(LongGauge.class);
+            return mock(LongAsyncGauge.class);
         });
         return () -> observer.get().get();
     }
@@ -319,9 +319,9 @@ public class MlConfigMetricsTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private static Supplier<Collection<LongWithAttributes>> captureLongsGauge(MeterRegistry meterRegistry, String metricName) {
         AtomicReference<Supplier<Collection<LongWithAttributes>>> observer = new AtomicReference<>();
-        when(meterRegistry.registerLongsGauge(eq(metricName), anyString(), anyString(), any())).thenAnswer(invocation -> {
+        when(meterRegistry.registerLongsAsyncGauge(eq(metricName), anyString(), anyString(), any())).thenAnswer(invocation -> {
             observer.set(invocation.getArgument(3));
-            return mock(LongGauge.class);
+            return mock(LongAsyncGauge.class);
         });
         return () -> observer.get().get();
     }

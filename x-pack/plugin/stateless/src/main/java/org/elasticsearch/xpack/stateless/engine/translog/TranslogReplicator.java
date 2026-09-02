@@ -43,6 +43,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.OperationListener;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
@@ -291,11 +292,24 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     }
 
     public void add(final ShardId shardId, final Translog.Serialized operation, final long seqNo, final Translog.Location location) {
+        addRecord(shardId, operation, new long[] { seqNo }, location);
+    }
+
+    /**
+     * Adds a record carrying one or more operations ({@code seqNos} has one entry per operation).
+     * Calls {@link NodeTranslogBuffer#writeToBuffer}.
+     */
+    public void addRecord(
+        final ShardId shardId,
+        final Translog.Serialized operation,
+        final long[] seqNos,
+        final Translog.Location location
+    ) {
         try {
             ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
             while (true) {
                 NodeTranslogBuffer nodeTranslogBuffer = getNodeTranslogBuffer();
-                if (nodeTranslogBuffer.writeToBuffer(shardSyncState, operation, seqNo, location)) {
+                if (nodeTranslogBuffer.writeToBuffer(shardSyncState, operation, seqNos, location)) {
                     if (nodeTranslogBuffer.shouldFlushBufferDueToSize()) {
                         executor.execute(new FlushTask(nodeTranslogBuffer));
                     }
@@ -311,7 +325,15 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             assert false;
             throw new UncheckedIOException(e);
         }
+    }
 
+    /**
+     * Returns an {@link OperationListener}, bound to the given shard, that forwards translog writes to this replicator. The
+     * {@code shardId} is captured because a single {@link TranslogReplicator} is shared by every shard on the node and must be told
+     * which shard each write belongs to.
+     */
+    public OperationListener listenerFor(ShardId shardId) {
+        return (operation, seqNos, location) -> addRecord(shardId, operation, seqNos, location);
     }
 
     private NodeTranslogBuffer getNodeTranslogBuffer() {

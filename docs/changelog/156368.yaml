@@ -1,5 +1,0 @@
-area: Security
-issues: []
-pr: 156368
-summary: Upgrade Jackson to 2.21.5 for ES|QL and Arrow
-type: upgrade

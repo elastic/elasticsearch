@@ -43,11 +43,11 @@ final class MSBitToBitES940OSQVectorsScorer extends MemorySegmentES940OSQVectors
     }
 
     private long quantizeScore256(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, length, scratch::get, segment -> bitDotProduct256(q, segment, length));
+        return IndexInputUtils.withSlice(in, length, scratch, segment -> bitDotProduct256(q, segment, length));
     }
 
     private long quantizeScore128(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, length, scratch::get, segment -> bitDotProduct128(q, segment, length));
+        return IndexInputUtils.withSlice(in, length, scratch, segment -> bitDotProduct128(q, segment, length));
     }
 
     private static long bitDotProduct256(byte[] q, MemorySegment d, int length) {
@@ -128,10 +128,12 @@ final class MSBitToBitES940OSQVectorsScorer extends MemorySegmentES940OSQVectors
 
     private void quantizeScore128Bulk(byte[] q, int count, float[] scores) throws IOException {
         long datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch::get, segment -> {
-            quantizeScore128BulkImpl(q, segment, length, count, scores);
-            return null;
-        });
+        IndexInputUtils.withVoidSlice(
+            in,
+            datasetLengthInBytes,
+            scratch,
+            segment -> { quantizeScore128BulkImpl(q, segment, length, count, scores); }
+        );
     }
 
     private static void quantizeScore128BulkImpl(byte[] q, MemorySegment d, int length, int count, float[] scores) {
@@ -144,10 +146,12 @@ final class MSBitToBitES940OSQVectorsScorer extends MemorySegmentES940OSQVectors
 
     private void quantizeScore256Bulk(byte[] q, int count, float[] scores) throws IOException {
         long datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch::get, segment -> {
-            quantizeScore256BulkImpl(q, segment, length, count, scores);
-            return null;
-        });
+        IndexInputUtils.withVoidSlice(
+            in,
+            datasetLengthInBytes,
+            scratch,
+            segment -> { quantizeScore256BulkImpl(q, segment, length, count, scores); }
+        );
     }
 
     private static void quantizeScore256BulkImpl(byte[] q, MemorySegment d, int length, int count, float[] scores) {
@@ -196,7 +200,7 @@ final class MSBitToBitES940OSQVectorsScorer extends MemorySegmentES940OSQVectors
         if (length >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                 quantizeScore256Bulk(q, bulkSize, scores);
-                return applyCorrections256Bulk(
+                return applyCorrectionsBulk(
                     queryLowerInterval,
                     queryUpperInterval,
                     queryComponentSum,
@@ -210,7 +214,7 @@ final class MSBitToBitES940OSQVectorsScorer extends MemorySegmentES940OSQVectors
                 );
             } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
                 quantizeScore128Bulk(q, bulkSize, scores);
-                return applyCorrections128Bulk(
+                return applyCorrectionsBulk(
                     queryLowerInterval,
                     queryUpperInterval,
                     queryComponentSum,

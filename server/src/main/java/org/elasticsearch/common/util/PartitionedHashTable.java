@@ -30,11 +30,12 @@ public interface PartitionedHashTable {
     int PARTITION_MASK = NUM_PARTITIONS - 1;
 
     /**
-     * The number of entries buffered per partition before flushing. Entries are staged in a buffer of
-     * {@code NUM_PARTITIONS * PARTITION_WRITE_BATCH} entries and flushed one partition at a time, rather than
-     * scattering individual writes across all partitions.
-     * This batch size must be small enough that {@code NUM_PARTITIONS * PARTITION_WRITE_BATCH} fits in a {@code short},
-     * since {@link #splitPartition(CircuitBreaker, PartitionSplitter)} passes ids to the callback as shorts.
+     * The maximum number of entries buffered in any partition before flushing. When any partition is about to exceed
+     * this limit, all buffered entries are flushed regardless of the sizes of the other partitions. Since entries are
+     * partitioned from a hash table with a good hash function, the other partitions will likely be similarly full.
+     * <p>
+     * Entries are accumulated in a buffer of {@code NUM_PARTITIONS * PARTITION_WRITE_BATCH} entries. This value must fit in
+     * a {@code short}, since {@link #splitPartition(CircuitBreaker, PartitionSplitter)} passes ids to the callback as shorts.
      */
     int PARTITION_WRITE_BATCH = 64;
 

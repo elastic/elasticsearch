@@ -160,6 +160,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return switch (indexMode) {
             case STANDARD, LOOKUP -> createDocumentMapper(mappings);
             case VECTORDB_DOCUMENT -> createVectordbDocumentModeDocumentMapper(mappings);
+            case VECTORDB_COLUMNAR -> createVectordbColumnarModeDocumentMapper(mappings);
             case TIME_SERIES -> createTimeSeriesModeDocumentMapper(mappings);
             case LOGSDB -> createLogsModeDocumentMapper(mappings);
             case COLUMNAR -> createColumnarModeDocumentMapper(mappings);
@@ -197,6 +198,14 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     protected final DocumentMapper createVectordbDocumentModeDocumentMapper(XContentBuilder mappings) throws IOException {
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_DOCUMENT.getName())
+            .put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true)
+            .build();
+        return createMapperService(settings, mappings).documentMapper();
+    }
+
+    protected final DocumentMapper createVectordbColumnarModeDocumentMapper(XContentBuilder mappings) throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true)
             .build();
         return createMapperService(settings, mappings).documentMapper();

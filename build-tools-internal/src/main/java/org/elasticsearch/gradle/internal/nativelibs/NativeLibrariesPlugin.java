@@ -15,6 +15,7 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 
 import java.util.Map;
@@ -45,32 +46,34 @@ public class NativeLibrariesPlugin implements Plugin<Project> {
         ProviderFactory providers = project.getProviders();
         DependencyHandler dependencyHandler = project.getDependencies();
 
-        // Deferred to resolution, by which point every declared library is fully configured.
-        Configuration sources = project.getConfigurations()
-            .dependencyScope(
-                SOURCES_CONFIGURATION,
-                configuration -> configuration.defaultDependencies(
-                    dependencies -> libraries.forEach(library -> dependencies.add(dependencyFor(providers, dependencyHandler, library)))
-                )
-            )
-            .get();
+        // Gradle 9 rejects a configuration that both declares dependencies and is resolved, so two
+        // configurations are needed: libraries are declared in the first, consumers resolve the second.
+        Configuration sources = project.getConfigurations().dependencyScope(SOURCES_CONFIGURATION).get();
 
         project.getConfigurations().resolvable(LIBRARIES_CONFIGURATION, configuration -> {
             configuration.extendsFrom(sources);
             configuration.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
         });
+
+        libraries.all(
+            library -> dependencyHandler.addProvider(SOURCES_CONFIGURATION, dependencyFor(providers, dependencyHandler, library))
+        );
     }
 
-    private static Dependency dependencyFor(ProviderFactory providers, DependencyHandler dependencies, NativeLibrarySpec library) {
-        String mode = library.getModeEnvironmentVariable()
+    private static Provider<Dependency> dependencyFor(
+        ProviderFactory providers,
+        DependencyHandler dependencies,
+        NativeLibrarySpec library
+    ) {
+        return library.getModeEnvironmentVariable()
             .flatMap(providers::environmentVariable)
-            .getOrElse(BuildNativeLibraryTask.PUBLISHED_MODE);
-
-        if (BuildNativeLibraryTask.PUBLISHED_MODE.equals(mode)) {
-            return dependencies.create(library.getPublishedModule().get());
-        }
-        return dependencies.project(
-            Map.of("path", library.getBuiltBy().get(), "configuration", NativeLibraryBuildPlugin.ELEMENTS_CONFIGURATION)
-        );
+            .orElse(BuildNativeLibraryTask.PUBLISHED_MODE)
+            .map(
+                mode -> BuildNativeLibraryTask.PUBLISHED_MODE.equals(mode)
+                    ? dependencies.create(library.getPublishedModule().get())
+                    : dependencies.project(
+                        Map.of("path", library.getBuiltBy().get(), "configuration", NativeLibraryBuildPlugin.ELEMENTS_CONFIGURATION)
+                    )
+            );
     }
 }

@@ -421,7 +421,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         }
 
         private SyntheticIdTokenStreamColumn(BytesRef[] uids, int from, int count, FixedBitSet filter) {
-            super(SyntheticIdField.NAME, SyntheticIdField.COLUMNAR_INDEXED_TYPE, filter != null ? Density.SPARSE : Density.DENSE);
+            super(SyntheticIdField.NAME, SyntheticIdField.COLUMNAR_INDEXED_TYPE, Density.DENSE);
             this.uids = uids;
             this.from = from;
             this.count = count;

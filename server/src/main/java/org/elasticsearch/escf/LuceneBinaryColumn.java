@@ -42,7 +42,7 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
     private final FixedBitSet filter;
 
     private LuceneBinaryColumn(EscfColumn data, String name, IndexableFieldType fieldType, Density density, FixedBitSet filter) {
-        super(name, fieldType, filter != null ? Density.SPARSE : density);
+        super(name, fieldType, density);
         this.data = data;
         this.filter = filter;
     }

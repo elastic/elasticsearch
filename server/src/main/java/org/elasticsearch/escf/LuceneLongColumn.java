@@ -51,7 +51,7 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
         LongColumn.NumericKind kind,
         FixedBitSet filter
     ) {
-        super(name, fieldType, filter != null ? Density.SPARSE : density, kind);
+        super(name, fieldType, density, kind);
         this.data = data;
         this.filter = filter;
     }

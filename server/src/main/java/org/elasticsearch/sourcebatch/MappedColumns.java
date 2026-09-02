@@ -228,7 +228,7 @@ public final class MappedColumns {
             boolean noOpRowPath,
             FixedBitSet filter
         ) {
-            super(name, fieldType, filter != null ? Density.SPARSE : (allPresent(values, from, count) ? Density.DENSE : Density.SPARSE));
+            super(name, fieldType, allPresent(values, from, count) ? Density.DENSE : Density.SPARSE);
             this.values = values;
             this.from = from;
             this.count = count;

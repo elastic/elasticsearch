@@ -71,8 +71,8 @@ public class RatioValue implements Writeable {
                 if (percent < lowerBoundInclusive.getAsPercent() || percent > upperBoundInclusive.getAsPercent()) {
                     throw new ElasticsearchParseException(
                         "Percentage should be in [{}-{}], got [{}]",
-                        lowerBoundInclusive.getAsPercent(),
-                        upperBoundInclusive.getAsPercent(),
+                        formatNoTrailingZeros(lowerBoundInclusive.getAsPercent()),
+                        formatNoTrailingZeros(upperBoundInclusive.getAsPercent()),
                         percentAsString
                     );
                 }
@@ -86,9 +86,9 @@ public class RatioValue implements Writeable {
                 if (ratio < lowerBoundInclusive.getAsRatio() || ratio > upperBoundInclusive.getAsRatio()) {
                     throw new ElasticsearchParseException(
                         "Ratio should be in [{}-{}], got [{}]",
-                        lowerBoundInclusive.getAsRatio(),
-                        upperBoundInclusive.getAsRatio(),
-                        ratio
+                        formatNoTrailingZeros(lowerBoundInclusive.getAsRatio()),
+                        formatNoTrailingZeros(upperBoundInclusive.getAsRatio()),
+                        formatNoTrailingZeros(ratio)
                     );
                 }
                 return new RatioValue(100.0 * Math.abs(ratio));
@@ -102,17 +102,21 @@ public class RatioValue implements Writeable {
      * Returns the percent as a string with no trailing zeros and the '%' suffix.
      */
     public String formatNoTrailingZerosPercent() {
-        String value = String.valueOf(getAsPercent());
+        return formatNoTrailingZeros(getAsPercent()) + "%";
+    }
+
+    private static String formatNoTrailingZeros(double doubleValue) {
+        String value = String.valueOf(doubleValue);
         int i = value.length() - 1;
         while (i >= 0 && value.charAt(i) == '0') {
             i--;
         }
         if (i < 0) {
-            return "0%";
+            return "0";
         } else if (value.charAt(i) == '.') {
-            return value.substring(0, i) + "%";
+            return value.substring(0, i);
         } else {
-            return value.substring(0, Math.min(i + 1, value.length())) + "%";
+            return value.substring(0, Math.min(i + 1, value.length()));
         }
     }
 

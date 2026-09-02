@@ -1658,14 +1658,14 @@ public class SettingTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> pctSetting.get(Settings.builder().put("test.ratio", "5%").build())
         );
-        assertThat(ePctLow.getMessage(), equalTo("Percentage should be in [10.0-90.0], got [5]"));
+        assertThat(ePctLow.getMessage(), equalTo("Percentage should be in [10-90], got [5]"));
 
         // percentage above max
         var ePctHigh = expectThrows(
             IllegalArgumentException.class,
             () -> pctSetting.get(Settings.builder().put("test.ratio", "95%").build())
         );
-        assertThat(ePctHigh.getMessage(), equalTo("Percentage should be in [10.0-90.0], got [95]"));
+        assertThat(ePctHigh.getMessage(), equalTo("Percentage should be in [10-90], got [95]"));
 
         // ratio form
         Setting<RatioValue> ratioSetting = Setting.ratioSetting(

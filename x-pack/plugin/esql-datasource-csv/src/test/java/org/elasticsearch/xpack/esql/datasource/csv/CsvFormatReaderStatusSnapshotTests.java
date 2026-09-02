@@ -26,6 +26,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+
 /**
  * Verifies that {@link CsvFormatReader#statusSnapshot()} reports populated counters after a real
  * read drains a CSV file. Complements {@link CsvReaderCountersTests} (which exercises the counter
@@ -76,6 +78,14 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
         assertEquals("no malformed rows in this fixture", 0L, after.parseErrors());
         assertEquals("header row detected", true, after.headerDetected());
         assertTrue("read_nanos should be > 0 after at least one batch", after.readNanos() > 0);
+        assertTrue("read_cpu_nanos should be > 0 after at least one batch", after.readCpuNanos() > 0);
+        assertTrue("read_cpu_nanos must not exceed read_nanos", after.readCpuNanos() <= after.readNanos());
+
+        // Test manual addition to read_cpu_nanos
+        long readNanosBeforeAccept = after.readCpuNanos();
+        reader.acceptReadCpuNanos(99_999L);
+        assertThat(reader.statusSnapshot().readCpuNanos(), equalTo(readNanosBeforeAccept + 99_999L));
+
     }
 
     public void testSiblingQueryReadersDoNotShareCounters() throws IOException {

@@ -69,7 +69,7 @@ The direction, the decisions that constrain it, and the build order. Update as d
   block rather than per value because a per-value table costs a fraction of the column *per value* and
   still leaves the cursor doing a seek and a read each time; a block amortises both across `blockSize`
   values. A value's position inside its block comes from decoding the block, which a read does anyway.
-  Dense and sparse; single-valued only (see Next). The POC's dictionary path is deliberately not carried over —
+  Dense and sparse; single- or multi-valued. The POC's dictionary path is deliberately not carried over —
   the layout is decided from statistics at merge rather than from a per-segment probe, so ordinals arrive
   as a later layout id (see Next).
 - Per-field pipeline selection: `NumericPipelineSelector` (`@FunctionalInterface`
@@ -80,6 +80,15 @@ The direction, the decisions that constrain it, and the build order. Update as d
   `monotonicLongPipeline`, `doubleGaugePipeline`, `doubleCounterPipeline`) are usable as method
   references: `(f, t) -> NumericPipeline::defaultPipeline`. Server-side wiring into
   `PerFieldFormatSupplier` is a follow-up (see Next).
+- Multi-valued string columns, which real keyword fields need. A *slot* is a value or a null, and the two
+  questions the column answers about them — where a document's slots begin, and which of them are null —
+  are kept outside `StringColumnLayout` in `StringColumnMetadata.Addressing`, as two `DirectMonotonic`
+  tables written by one `AddressingWriter` that both layouts share. Finding a document's slots is the same
+  question whichever layout names the values, and a null under a dictionary is named like anything else:
+  its bytes are empty, so it takes the empty term's ordinal or escapes as a zero-length value, and the
+  null-slot table is what tells it from an empty string either way. The cursor exposes `isNull()` rather
+  than returning null from `value()`, so a caller that only moves bytes needs no null branch and a merge
+  carrying ordinals over never resolves the bytes at all.
 
 ## Next
 
@@ -132,15 +141,11 @@ The direction, the decisions that constrain it, and the build order. Update as d
   walks any multiple of it. Blocks and chunks address **values**, not documents, so sparsity is absorbed
   a level up in docId → rank.
 
-- **Multi-valued string columns** — required for real keyword fields, which are commonly arrays. The
-  column is single-valued today: `ColumNARDocValuesConsumer.writeStringColumn` rejects a document
-  carrying more than one value, and `StringColumnReader` asserts the same. The substrate already supplies
-  presence and a value-address table, so this mirrors what `NumericColumnWriter` does — the string
-  metadata already carries `numValues` separately from `numDocsWithField` for exactly this. One thing to
-  carry over rather than rediscover: `ColumnarStringBinaryDocValues.binaryValue` relies on the reader
-  handing back one reused `BytesRef` per call, so collecting several values before encoding would alias
-  them onto the last one; either copy each value out or encode into the payload while walking the value
-  addresses. An assert marks the spot.
+- **Drop the ordinals column's own value addresses** — `writeDictionary` hands its ordinals to
+  `NumericColumnWriter`, which writes a doc-to-value-address table of its own whenever the column is
+  multi-valued. On a dictionary column that duplicates the string column's table and nothing reads it:
+  `ordinalAt` addresses ordinals by value address directly. Correct, but paid for on every multi-valued
+  dictionary column.
 
 - **Skip index and a string range query** — the string column writes no skip index, so there is no
   `ColumnarStringRangeQuery` counterpart to `ColumnarNumericRangeQuery`. These are two paths, not one
@@ -185,6 +190,13 @@ The direction, the decisions that constrain it, and the build order. Update as d
   (`FIELD_TYPE_PACKED_LONGS_MV`) is implemented in the consumer but has no JMH coverage. A realistic
   multi-value workload (histogram bucket counts, multiple readings per TSDB series) should be designed
   and added before GA.
+- **Numeric merge totals** — the string column no longer counts what it is about to write when the cursor
+  already knows: a merge whose inputs are all ColumNAR columns, none of them dropping a deleted document,
+  sums the totals each segment recorded rather than walking every input's iterator and addressing tables to
+  re-derive per-document counts and add them straight back up. `writeNumericColumn` still counts
+  unconditionally. The same shape applies — a `totals()` opt-in on `NumericColumnValues` defaulting to null,
+  filled in by `numericMergeCursor` under the same `mergeState.liveDocs[i] == null` gate, since a segment
+  with deletions gives up fewer documents than it recorded.
 - Multi-segment merge efficiency (sequential merge reads).
 - Block-loader binding to ES|QL (server-side adapter).
 - **Decompose the write loop**: the single pass in `NumericColumnWriter.write` drives three orthogonal

@@ -26,6 +26,7 @@ import java.util.Locale;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -124,6 +125,34 @@ public class ViewRestTests extends AbstractViewTestCase {
         // SystemViewsCreator runs as a master-only cluster-state listener, so the built-in view materializes shortly
         // after the node forms its (single-node) cluster. Wait for it rather than assuming it is instantly present.
         awaitSystemView(systemViewName());
+    }
+
+    public void testSystemViewIsHiddenFromWildcardButResolvableExplicitly() throws Exception {
+        final String systemView = systemViewName();
+        awaitSystemView(systemView);
+        // Create an ordinary (non-dot) view that must always show up in a "*" listing.
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View("user-view", "FROM a"))
+            )
+        );
+
+        // A bare "*" (the REST list-all pattern) must not expand to the hidden system view, but must still return
+        // ordinary (non-dot) views. Other test methods share this single node, so assert membership rather than equality.
+        List<String> wildcardNames = namesForPattern("*");
+        assertThat(wildcardNames, hasItem("user-view"));
+        assertThat(wildcardNames, not(hasItem(systemView)));
+        // But it remains resolvable by exact name and by a dot-prefixed pattern, like hidden/dot indices.
+        assertThat(namesForPattern(systemView), equalTo(List.of(systemView)));
+        assertThat(namesForPattern(".ml-*"), equalTo(List.of(systemView)));
+    }
+
+    private List<String> namesForPattern(String pattern) {
+        GetViewAction.Request request = new GetViewAction.Request(TEST_REQUEST_TIMEOUT);
+        request.indices(pattern);
+        GetViewAction.Response response = client().execute(GetViewAction.INSTANCE, request).actionGet(TEST_REQUEST_TIMEOUT);
+        return response.getViews().stream().map(View::name).sorted().toList();
     }
 
     public void testSystemViewCannotBeUpdated() {

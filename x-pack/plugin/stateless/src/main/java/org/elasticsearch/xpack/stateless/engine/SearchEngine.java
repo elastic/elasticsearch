@@ -1703,7 +1703,7 @@ public class SearchEngine extends Engine {
     private class RelocatedPITReaderTracker implements Closeable {
 
         private final Set<RelocatedPITReader> trackedReaders = new HashSet<>();
-        private boolean closed = false;
+        private boolean trackerClosed = false;
 
         RelocatedPITReaderTracker() {}
 
@@ -1716,17 +1716,30 @@ public class SearchEngine extends Engine {
                 // waiting for the shard to transition to STARTED. If the shard is never started
                 // (e.g. recovery fails), no searcher is ever acquired.
                 private SearcherSupplier delegate = null;
-                private boolean closed = false;
+                private boolean supplierClosed = false;
 
                 @Override
                 protected synchronized void doClose() {
-                    closed = true;
-                    IOUtils.closeWhileHandlingException(delegate);
+                    supplierClosed = true;
+                    if (delegate != null) {
+                        IOUtils.closeWhileHandlingException(delegate);
+                    } else {
+                        // The lazy delegate (the real searcher) was never acquired.
+                        // Its storeRef and PITCommitHandle are still owned by the RelocatedPITReader
+                        // in trackedReaders — remove and close it now so those resources are not
+                        // held until engine close.
+                        synchronized (RelocatedPITReaderTracker.this) {
+                            if (trackerClosed == false) {
+                                trackedReaders.remove(relocatedPITReader);
+                                IOUtils.closeWhileHandlingException(relocatedPITReader);
+                            }
+                        }
+                    }
                 }
 
                 @Override
                 protected synchronized Searcher acquireSearcherInternal(String source) {
-                    if (closed) {
+                    if (supplierClosed) {
                         throw new AlreadyClosedException("SearcherSupplier was closed");
                     }
 
@@ -1784,17 +1797,17 @@ public class SearchEngine extends Engine {
 
         private void ensureOpen() {
             assert Thread.holdsLock(this);
-            if (closed) {
+            if (trackerClosed) {
                 throw new AlreadyClosedException("RelocatedPITReaderTracker is closed");
             }
         }
 
         @Override
         public synchronized void close() {
-            if (closed) {
+            if (trackerClosed) {
                 return;
             }
-            closed = true;
+            trackerClosed = true;
             IOUtils.closeWhileHandlingException(trackedReaders);
         }
     }

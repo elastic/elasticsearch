@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark.swisshash;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
@@ -50,7 +50,7 @@ import java.util.function.Consumer;
 public class BytesRefSwissHashBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     @Param({ "1000", "10000", "100000", "1000000", "10000000" })

@@ -29,6 +29,8 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
@@ -43,10 +45,12 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * StorageObject implementation for S3 using AWS SDK v2.
@@ -457,25 +461,40 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (s3AsyncClient == null) {
+            // Must call super.readBytesAsync (the StorageObject default via AbstractMeteredStorageObject),
+            // not super.startReadBytesAsync: this class's readBytesAsync delegates here, so the default
+            // start would recurse until the stack overflows. StorageObject.super is illegal here because
+            // this class does not implement StorageObject directly.
             super.readBytesAsync(position, length, factory, executor, listener);
-            return;
+            return () -> {};
         }
 
         if (position < 0) {
             listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
-            return;
+            return () -> {};
         }
         if (length <= 0) {
             listener.onFailure(new IllegalArgumentException("length must be positive, got: " + length));
-            return;
+            return () -> {};
         }
         if (length > Integer.MAX_VALUE) {
             // The async path materializes the response into a single ByteBuffer; ranges larger than 2 GiB
             // are not supportable here. Callers needing larger reads must split the range or fall
             // back to the streaming sync path via newStream(position, length).
             listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
-            return;
+            return () -> {};
         }
 
         long endPosition = position + length - 1;
@@ -493,9 +512,39 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         } catch (Exception e) {
             counters.addRequest(System.nanoTime() - startNanos, 0L);
             listener.onFailure(mapReadFailure("Failed to read object from", e));
-            return;
+            return () -> {};
         }
-        scheduleReadAttempt(initialDelay, request, (int) length, factory, executor, listener, initialToken, startNanos);
+        AsyncReadHandle handle = new AsyncReadHandle();
+        scheduleReadAttempt(initialDelay, request, (int) length, factory, executor, listener, initialToken, startNanos, handle);
+        return handle::cancel;
+    }
+
+    /**
+     * Cancellation handle for one logical async read spanning retry attempts: the {@link Releasable}
+     * returned by {@link #startReadBytesAsync} aborts the in-flight SDK future, and an attempt that
+     * would start after cancellation (a retry waiting out its backoff) completes the listener
+     * without issuing another request or consuming retry budget.
+     */
+    private static final class AsyncReadHandle {
+        private volatile boolean cancelled;
+        private final AtomicReference<CompletableFuture<DirectReadBuffer>> inFlight = new AtomicReference<>();
+
+        void register(CompletableFuture<DirectReadBuffer> future) {
+            inFlight.set(future);
+            if (cancelled) {
+                // cancel() may have run between getObject returning and this registration.
+                FutureUtils.cancel(future);
+            }
+        }
+
+        void cancel() {
+            cancelled = true;
+            FutureUtils.cancel(inFlight.get());
+        }
+
+        boolean isCancelled() {
+            return cancelled;
+        }
     }
 
     /**
@@ -517,8 +566,16 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener,
         RetryToken retryToken,
-        long startNanos
+        long startNanos,
+        AsyncReadHandle handle
     ) {
+        if (handle.isCancelled()) {
+            // The caller released the read (e.g. an aborted prefetch) while a retry was waiting out
+            // its backoff; complete the listener without issuing another request.
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
+            listener.onFailure(mapReadFailure("Failed to read object from", new CancellationException("read cancelled")));
+            return;
+        }
         // Use a custom transformer instead of AsyncResponseTransformer.toBytes() so each chunk is
         // copied straight into a pre-sized destination ByteBuffer (single chunk-to-destination copy),
         // rather than the SDK's default BAOS-based pipeline which materializes the body 3+ times.
@@ -530,12 +587,13 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         } catch (Exception e) {
             // A synchronous throw (e.g. request signing/validation) is an attempt failure like any other:
             // route it through the shared retry decision instead of letting it escape the retry loop.
-            onReadAttemptFailure(e, request, length, factory, executor, listener, retryToken, startNanos);
+            onReadAttemptFailure(e, request, length, factory, executor, listener, retryToken, startNanos, handle);
             return;
         }
+        handle.register(readFuture);
         onReadComplete(readFuture, (buffer, throwable) -> {
             if (throwable != null) {
-                onReadAttemptFailure(throwable, request, length, factory, executor, listener, retryToken, startNanos);
+                onReadAttemptFailure(throwable, request, length, factory, executor, listener, retryToken, startNanos, handle);
                 return;
             }
 
@@ -572,8 +630,17 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener,
         RetryToken retryToken,
-        long startNanos
+        long startNanos,
+        AsyncReadHandle handle
     ) {
+        if (handle.isCancelled()) {
+            // Deliberate cancellation (the in-flight SDK future was aborted): terminal — do not
+            // consume retry budget or schedule another attempt.
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
+            Throwable cancelCause = throwable.getCause() != null ? throwable.getCause() : throwable;
+            listener.onFailure(mapReadFailure("Failed to read object from", cancelCause));
+            return;
+        }
         RefreshRetryTokenResponse refresh;
         try {
             refresh = asyncRetryStrategy.refreshRetryToken(
@@ -597,7 +664,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             return;
         }
         logger.debug("retrying async read for [{}] after [{}]ms: [{}]", path, refresh.delay().toMillis(), throwable.getMessage());
-        scheduleReadAttempt(refresh.delay(), request, length, factory, executor, listener, refresh.token(), startNanos);
+        scheduleReadAttempt(refresh.delay(), request, length, factory, executor, listener, refresh.token(), startNanos, handle);
     }
 
     /**
@@ -614,10 +681,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener,
         RetryToken retryToken,
-        long startNanos
+        long startNanos,
+        AsyncReadHandle handle
     ) {
         if (delay.isZero()) {
-            readAttempt(request, length, factory, executor, listener, retryToken, startNanos);
+            readAttempt(request, length, factory, executor, listener, retryToken, startNanos, handle);
             return;
         }
         // Guard the executor hand-off: CompletableFuture's delayed executor swallows a rejection thrown
@@ -632,7 +700,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             }
         };
         CompletableFuture.delayedExecutor(delay.toMillis(), TimeUnit.MILLISECONDS, rejectionSafeExecutor)
-            .execute(() -> readAttempt(request, length, factory, executor, listener, retryToken, startNanos));
+            .execute(() -> readAttempt(request, length, factory, executor, listener, retryToken, startNanos, handle));
     }
 
     /**

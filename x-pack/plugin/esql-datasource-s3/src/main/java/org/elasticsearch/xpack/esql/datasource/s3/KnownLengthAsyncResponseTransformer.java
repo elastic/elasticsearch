@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * An {@link AsyncResponseTransformer} that accumulates the response body into a single, pre-sized
@@ -46,9 +45,9 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <p>This transformer takes the expected payload length up front (which we always know for
  * range-read requests, and which the S3 service confirms in {@code Content-Length}), allocates
- * one destination buffer of exactly that size, and copies each {@code onNext(ByteBuffer)} chunk
- * into the destination at the running offset. That collapses three SDK-internal copies into a
- * single chunk-to-destination copy.
+ * one destination buffer with at least that capacity for its single subscription, and copies each
+ * {@code onNext(ByteBuffer)} chunk into the destination at the running offset. That
+ * collapses three SDK-internal copies into a single chunk-to-destination copy.
  *
  * <p><b>Single execution — no SDK retries:</b> a transformer instance serves exactly one request
  * attempt. {@link #prepare()} throws if invoked twice, which is how the SDK signals a retry of the
@@ -63,15 +62,13 @@ import java.util.concurrent.atomic.AtomicReference;
  * ignored the call — hang a genuine pre-stream failure, because the future returned by
  * {@code prepare()} is the only thing that completes an attempt in the SDK's async pipeline. With
  * one instance per attempt every callback on this object belongs to its one execution and late
- * duplicates are no-ops via the {@code isDone()} guard.
+ * duplicates are no-ops.
  *
- * <p><b>Synchronization:</b> with retries disabled and no {@code apiCallAttemptTimeout}, the SDK
- * serializes {@link #exceptionOccurred} with the subscriber's signals on the channel event loop.
- * The locking below ({@link ChunkCopyingSubscriber#onNext} and
- * {@link ChunkCopyingSubscriber#releaseOnFailure} are {@code synchronized} on the subscriber, and
- * the shared buffer handle is an {@link AtomicReference}) is defense-in-depth so that enabling
- * either of the two SDK features that break that serialization (attempt timeouts, external future
- * cancellation) degrades to a spuriously failed request instead of a write into freed memory.
+ * <p><b>Synchronization:</b> Reactive Streams serializes the {@link Subscriber}'s own signals, but
+ * {@link #exceptionOccurred} is a transformer-level callback outside that ordering and can race the
+ * terminal subscriber signal (e.g. the SDK drops the publisher on a transport error). The
+ * subscriber therefore serializes destination-buffer copies and ownership transitions under a
+ * private lock.
  *
  * @param <R> the unmarshalled SDK response type (e.g. {@code GetObjectResponse}).
  */
@@ -84,6 +81,8 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
     private final AtomicBoolean prepared = new AtomicBoolean();
 
     private volatile R response;
+    // Kept so exceptionOccurred() can release the buffer even if the subscriber's onError
+    // is never delivered (e.g. SDK abandons the publisher after a transport error).
     private volatile ChunkCopyingSubscriber subscriber;
 
     /**
@@ -151,24 +150,15 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
         if (resultFuture.isDone()) {
             return;
         }
-        // Release the buffer if it was allocated in onSubscribe but onError was never delivered
-        // (e.g. SDK abandons the publisher after a transport error). releaseOnFailure() is
-        // idempotent and synchronized on the subscriber, so it safely races with an in-flight
-        // onNext: the copy will complete before the buffer is freed, or the copy will find
-        // destination == null and return early if releaseOnFailure wins the lock.
         ChunkCopyingSubscriber sub = subscriber;
         if (sub != null) {
-            // Set failed before releasing so any onNext that is in-flight and hasn't yet
-            // acquired the subscriber lock will short-circuit at its fast-path check.
-            // This is critical for the onSubscribe window: between destinationBuf.set(drb)
-            // and destination = drb.buffer(), releaseOnFailure nulls destination (a no-op
-            // since it is not yet assigned). If isDone() then returns false, s.request()
-            // fires; without failed=true, onNext would enter the lock and write into the
-            // freed buffer that destination now points to.
-            sub.failed = true;
-            sub.releaseOnFailure();
+            // The subscriber arbitrates this callback with its own terminal signals and closes
+            // any published owner before delivering failure.
+            sub.fail(error);
+        } else {
+            // No subscriber was wired yet (pre-stream failure); this is the only completer.
+            resultFuture.completeExceptionally(error);
         }
-        resultFuture.completeExceptionally(error);
     }
 
     /**
@@ -176,29 +166,23 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
      * tracking the running offset. Fails fast if the cumulative size of received chunks would
      * exceed the expected length (a mismatch between the requested range and the server's
      * response body) or falls short of it on completion.
-     *
-     * <p>The {@link #onNext} copy and the {@link #releaseOnFailure} buffer release are
-     * {@code synchronized} on {@code this} to prevent a concurrent
-     * {@link KnownLengthAsyncResponseTransformer#exceptionOccurred} from freeing the buffer
-     * while a chunk copy is in progress (a use-after-free write). Within the lock,
-     * {@code onNext} checks {@code destination == null} as the authoritative signal that the buffer
-     * has already been released, making an early return safe.
      */
     private static final class ChunkCopyingSubscriber implements Subscriber<ByteBuffer> {
         private final CompletableFuture<DirectReadBuffer> resultFuture;
         private final int expectedLength;
         private final DirectBufferFactory factory;
-        // Cross-callback fields are volatile as defense-in-depth. The Reactive Streams contract
-        // guarantees serial signals with happens-before, but making the visibility explicit avoids
-        // depending on each publisher implementation honoring that subtlety correctly.
-        // destinationBuf uses AtomicReference so releaseOnFailure() is safe when called
-        // concurrently from exceptionOccurred() on the transformer and onError() on the subscriber.
-        private final AtomicReference<DirectReadBuffer> destinationBuf = new AtomicReference<>();
-        // Nulled inside the releaseOnFailure() lock so onNext can detect a freed buffer.
-        private volatile ByteBuffer destination;
+        private final Object destinationLock = new Object();
+        // All four fields below are guarded by destinationLock, with no unsynchronized reads. A
+        // published owner may leave destinationBuf only through a claim under that lock. Failure
+        // claimants close before unlocking and completing failure; a successful claimant either
+        // transfers ownership or closes if completion loses. An unpublished owner belongs to
+        // onSubscribe, and a successfully transferred owner belongs to the consumer.
+        private DirectReadBuffer destinationBuf;
         private int offset;
+        private boolean failed;
+        private boolean successClaimed;
+
         private volatile Subscription subscription;
-        private volatile boolean failed;
 
         ChunkCopyingSubscriber(CompletableFuture<DirectReadBuffer> resultFuture, int expectedLength, DirectBufferFactory factory) {
             this.resultFuture = resultFuture;
@@ -214,131 +198,147 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 return;
             }
             this.subscription = s;
-            // Allocate here (rather than the constructor) so an allocator OOM/breaker trip is
-            // routed through the result future instead of escaping publisher.subscribe(...) as
-            // an Error.
+            // Allocate outside destinationLock, and here rather than in the constructor, so an
+            // allocator OOM/breaker trip is routed through the result future instead of escaping
+            // publisher.subscribe(...) as an Error.
+            final DirectReadBuffer allocated;
             try {
-                DirectReadBuffer drb = factory.allocate(expectedLength);
-                this.destinationBuf.set(drb);
-                this.destination = drb.buffer();
-                // Guard against exceptionOccurred racing the window between allocate() and set()
-                // above: if it fired first it saw null in destinationBuf and could not release,
-                // so we must release now if the future was already completed exceptionally.
-                if (resultFuture.isDone()) {
-                    failed = true;
-                    s.cancel();
-                    releaseOnFailure();
-                    return;
-                }
+                allocated = factory.allocateWritableWindow(expectedLength);
             } catch (Exception e) {
-                failed = true;
-                releaseOnFailure();
                 s.cancel();
-                resultFuture.completeExceptionally(e);
+                fail(e);
+                return;
+            }
+            if (publishDestination(allocated) == false) {
+                // This owner was never visible to another thread, so closing it here cannot race
+                // a terminal callback. The claimant that beat us owns the failure completion.
+                allocated.close();
+                s.cancel();
+                return;
+            }
+            if (destinationAbandoned()) {
+                // Something terminated between publication and demand. fail() is a no-op when a
+                // terminal callback already claimed the owner; otherwise it releases the owner
+                // that nobody else will.
+                fail(new IOException("S3 destination was abandoned before demand was requested"));
+                s.cancel();
                 return;
             }
             try {
                 s.request(Long.MAX_VALUE);
             } catch (RuntimeException e) {
-                failed = true;
-                s.cancel();
-                releaseOnFailure();
-                resultFuture.completeExceptionally(e);
+                fail(e);
             }
+        }
+
+        private boolean publishDestination(DirectReadBuffer allocated) {
+            synchronized (destinationLock) {
+                if (destinationUnavailable()) {
+                    return false;
+                }
+                destinationBuf = allocated;
+                return true;
+            }
+        }
+
+        private boolean destinationAbandoned() {
+            synchronized (destinationLock) {
+                return destinationUnavailable();
+            }
+        }
+
+        private boolean destinationUnavailable() {
+            assert Thread.holdsLock(destinationLock);
+            return failed || successClaimed || resultFuture.isDone();
         }
 
         @Override
         public void onNext(ByteBuffer chunk) {
-            if (failed) {
-                return;
-            }
-            // The copy and the release are mutually exclusive via the subscriber lock.
-            // A concurrent exceptionOccurred -> releaseOnFailure waits for the copy to finish
-            // (or the copy finds destination == null and returns early if release won the lock).
             int remaining = chunk.remaining();
-            IOException overflowError = null;
-            synchronized (this) {
-                ByteBuffer dst = destination;
-                if (dst == null) {
-                    // Buffer was freed by a concurrent exceptionOccurred; skip this chunk.
+            IOException overflow = null;
+            synchronized (destinationLock) {
+                DirectReadBuffer drb = destinationBuf;
+                if (drb == null || failed || successClaimed) {
                     return;
                 }
-                // Overflow-safe form of `offset + remaining > dst.capacity()`. `offset` is always
-                // in [0, dst.capacity()] thanks to this same guard on prior iterations, so the
-                // subtraction never underflows.
-                if (remaining > dst.capacity() - offset) {
+                // Overflow-safe because offset remains in [0, expectedLength].
+                if (remaining > expectedLength - offset) {
                     failed = true;
-                    subscription.cancel();
-                    releaseOnFailure();
-                    overflowError = new IOException(
+                    overflow = new IOException(
                         "S3 response body exceeded expected length: cumulative="
                             + ((long) offset + remaining)
                             + ", expected="
-                            + dst.capacity()
+                            + expectedLength
                     );
+                    destinationBuf = null;
+                    drb.close();
                 } else {
-                    DirectByteBufferCopies.copyChunkIntoDestination(dst, offset, chunk);
+                    DirectByteBufferCopies.copyChunkIntoDestination(drb.buffer(), offset, chunk);
                     offset += remaining;
                 }
             }
-            if (overflowError != null) {
-                resultFuture.completeExceptionally(overflowError);
+            if (overflow != null) {
+                subscription.cancel();
+                resultFuture.completeExceptionally(overflow);
             }
         }
 
         @Override
         public void onError(Throwable error) {
-            if (failed) {
-                return;
-            }
-            failed = true;
-            releaseOnFailure();
-            resultFuture.completeExceptionally(error);
+            fail(error);
         }
 
         @Override
         public void onComplete() {
-            if (failed) {
+            DirectReadBuffer transferred;
+            IOException shortRead = null;
+            synchronized (destinationLock) {
+                if (failed || successClaimed) {
+                    return;
+                }
+                transferred = destinationBuf;
+                if (transferred == null) {
+                    return;
+                }
+                destinationBuf = null;
+                if (offset != expectedLength) {
+                    failed = true;
+                    shortRead = new IOException(
+                        "S3 response body shorter than expected: received=" + offset + ", expected=" + expectedLength
+                    );
+                    transferred.close();
+                } else {
+                    successClaimed = true;
+                }
+            }
+            if (shortRead != null) {
+                resultFuture.completeExceptionally(shortRead);
                 return;
             }
-            // Capture the volatile once; if releaseOnFailure nulled it concurrently, dst is null
-            // and we bail out — destinationBuf.getAndSet(null) below will return null, and the
-            // future was already completed exceptionally by exceptionOccurred.
-            ByteBuffer dst = destination;
-            if (dst == null) {
-                return;
-            }
-            if (offset != dst.capacity()) {
-                int capacity = dst.capacity();
-                failed = true;
-                releaseOnFailure();
-                resultFuture.completeExceptionally(
-                    new IOException("S3 response body shorter than expected: received=" + offset + ", expected=" + capacity)
-                );
-                return;
-            }
-            dst.position(0).limit(offset);
-            // Transfer ownership of the buffer to the caller; getAndSet(null) ensures any
-            // concurrent releaseOnFailure (e.g. exceptionOccurred) sees null and does not
-            // double-close. The destination ByteBuffer's position/limit set above is observable
-            // through drb.buffer() since they share the same NIO view.
-            DirectReadBuffer transferred = destinationBuf.getAndSet(null);
-            // If exceptionOccurred raced ahead and already failed the future, complete() returns false and we
-            // hold the buffer's only reference — release it rather than orphan its memory. A null transferred
-            // means releaseOnFailure won that race and already failed the future, so there is nothing to do.
-            if (transferred != null && resultFuture.complete(transferred) == false) {
+            transferred.buffer().position(0).limit(offset);
+            // Completion can run downstream listeners, so keep it outside destinationLock. If the
+            // future was independently completed or cancelled, retain ownership and close here.
+            if (resultFuture.complete(transferred) == false) {
                 transferred.close();
             }
         }
 
-        synchronized void releaseOnFailure() {
-            DirectReadBuffer drb = destinationBuf.getAndSet(null);
-            if (drb != null) {
-                // Null out before closing so any onNext that subsequently acquires this lock
-                // finds destination == null and returns early instead of writing into freed memory.
-                destination = null;
-                drb.close();
+        boolean fail(Throwable error) {
+            synchronized (destinationLock) {
+                if (failed || successClaimed) {
+                    return false;
+                }
+                failed = true;
+                DirectReadBuffer drb = destinationBuf;
+                if (drb != null) {
+                    // Close while holding the lock so another terminal callback cannot return
+                    // before the published owner has been released.
+                    destinationBuf = null;
+                    drb.close();
+                }
             }
+            resultFuture.completeExceptionally(error);
+            return true;
         }
     }
 

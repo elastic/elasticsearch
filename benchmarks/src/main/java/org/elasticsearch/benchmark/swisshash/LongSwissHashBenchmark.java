@@ -9,7 +9,7 @@
 
 package org.elasticsearch.benchmark.swisshash;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
@@ -53,7 +53,7 @@ import java.util.function.LongConsumer;
 public class LongSwissHashBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     @Param({ "1000", "10000", "100000", "1000000", "10000000", "17600000" })

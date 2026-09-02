@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -949,7 +948,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
             }
 
-            return new AsyncExternalSourceOperator(buffer, externalSourceMetrics, path.scheme());
+            return new AsyncExternalSourceOperator(buffer, driverContext, externalSourceMetrics, path.scheme());
         } catch (Exception e) {
             releaseOperator();
             throw e;
@@ -1027,7 +1026,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * {@link Builder#build} time.
      */
     private int registerExtractorFromProducer(ColumnExtractorProducer producer, DriverContext driverContext) throws IOException {
-        ColumnExtractor extractor = producer.createColumnExtractor(driverThreadInformationalWarningSink());
+        ColumnExtractor extractor = producer.createColumnExtractor(driverThreadInformationalWarningSink(driverContext));
         return sourceExtractorsFor(driverContext).register(extractor);
     }
 
@@ -1048,17 +1047,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * Budget-gated informational-warning sink for the deferred (TopN) extractor, which runs on the
-     * driver thread and therefore emits directly to {@link HeaderWarning}. It must not route through
-     * the source buffer: {@code Driver} closes the source operator (draining the buffer's pending
-     * warnings) as soon as it finishes, which can happen before the paired extract operator runs, so
-     * a buffered extractor warning would never be drained.
+     * Budget-gated informational-warning sink for the deferred (TopN) extractor, which runs on the driver thread and
+     * therefore deposits straight into that driver's {@link DriverContext} sink — the channel
+     * {@code DriverCompletionInfo} carries back from whatever node ran the scan, so the warning reaches the client
+     * whether or not that node is the coordinator. It must not route through the source buffer: {@code Driver} closes
+     * the source operator (draining the buffer's pending warnings) as soon as it finishes, which can happen before the
+     * paired extract operator runs, so a buffered extractor warning would never be drained.
      */
-    private Consumer<String> driverThreadInformationalWarningSink() {
+    private Consumer<String> driverThreadInformationalWarningSink(DriverContext driverContext) {
         return warning -> {
             String toRecord = informationalWarningBudget.accept(warning);
             if (toRecord != null) {
-                HeaderWarning.addWarning(toRecord);
+                driverContext.addWarning(toRecord);
             }
         };
     }
@@ -2914,7 +2914,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     return StreamingParallelParsingCoordinator.parallelRead(
                         seg,
                         stream,
-                        obj,
+                        decompressing,
                         cols,
                         batchSize,
                         parsingParallelism,

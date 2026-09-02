@@ -204,4 +204,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         }
         return PromqlDataType.INSTANT_VECTOR;
     }
+
+    @Override
+    public boolean isIdentityTransparent() {
+        // Matches and merges two operands' series identities: a relabel below either operand feeds this boundary.
+        return false;
+    }
 }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.FieldMapper;
 
@@ -39,6 +40,11 @@ public class CreateIndexCapabilities {
      * Support vectordb_document index mode
      */
     private static final String VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY = "vectordb_document_index_mode";
+
+    /**
+     * Support vectordb_columnar index mode
+     */
+    private static final String VECTORDB_COLUMNAR_INDEX_MODE_CAPABILITY = "vectordb_columnar_index_mode";
 
     private static final String NESTED_DENSE_VECTOR_SYNTHETIC_TEST = "nested_dense_vector_synthetic_test";
 
@@ -77,6 +83,9 @@ public class CreateIndexCapabilities {
         );
         caps.add(COLUMNAR_INDEX_MODES_CAPABILITY);
         caps.add(VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY);
+        if (IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            caps.add(VECTORDB_COLUMNAR_INDEX_MODE_CAPABILITY);
+        }
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             caps.add(SLICE_INDEXING_CAPABILITY);
         }

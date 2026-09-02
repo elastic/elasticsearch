@@ -106,7 +106,8 @@ public class NdJsonSchemaInferrer {
                     // it contributes no columns to the sample, and the slice read is where it either
                     // fails the query or drops with a warning.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
-                    inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
+                    boolean alreadyCrossedLine = parser.getCurrentLocation().getLineNr() > parser.getTokenLocation().getLineNr();
+                    inputStream = NdJsonUtils.moveToNextLine(parser, inputStream, alreadyCrossedLine);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                     continue;
                 }
@@ -116,8 +117,13 @@ public class NdJsonSchemaInferrer {
                     lineCount++;
                 } catch (JsonParseException | StreamConstraintsException e) {
                     // See comment above: deferred to the slice read for policy-driven handling.
+                    // A bare number (e.g. `42\n`) causes nextToken() to consume the line terminator
+                    // as lookahead, so getCurrentLocation() is already past the '\n' by the time
+                    // inferObjectSchema throws. Detect the line-crossing and skip the scan in
+                    // moveToNextLine to avoid dropping the following record (esql-planning#1731).
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
-                    inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
+                    boolean alreadyCrossedLine = parser.getCurrentLocation().getLineNr() > parser.getTokenLocation().getLineNr();
+                    inputStream = NdJsonUtils.moveToNextLine(parser, inputStream, alreadyCrossedLine);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                 }
 

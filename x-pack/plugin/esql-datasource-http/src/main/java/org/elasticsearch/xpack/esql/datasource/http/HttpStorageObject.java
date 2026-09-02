@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpStatus;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.CheckedFunction;
@@ -303,13 +302,11 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     // The destination buffer is allocated inside the HttpClient body handler, so a
                     // circuit-breaker refusal of that charge arrives wrapped (CompletionException
-                    // and friends). Surface it as itself so it keeps its 429 status instead of
-                    // being buried under a status-neutral IOException that the read boundary
-                    // classifies as a client error.
-                    if (ExceptionsHelper.unwrap(
-                        throwable,
-                        CircuitBreakingException.class
-                    ) instanceof CircuitBreakingException breakerTrip) {
+                    // and friends). Surface it as a breaker trip naming the URL so it keeps its 429
+                    // status instead of being buried under a status-neutral IOException that the
+                    // read boundary classifies as a client error.
+                    CircuitBreakingException breakerTrip = unwrapBreakerTrip(throwable, "HTTP read failed for", path);
+                    if (breakerTrip != null) {
                         listener.onFailure(breakerTrip);
                         return;
                     }

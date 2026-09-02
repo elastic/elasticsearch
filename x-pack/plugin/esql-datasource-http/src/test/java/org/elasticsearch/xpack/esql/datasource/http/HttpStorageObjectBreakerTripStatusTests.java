@@ -28,7 +28,9 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -96,6 +98,9 @@ public class HttpStorageObjectBreakerTripStatusTests extends ESTestCase {
             ExceptionsHelper.status(error.get()),
             equalTo(RestStatus.TOO_MANY_REQUESTS)
         );
+        // ... and still name the object that tripped it, like every other mapped read failure.
+        assertThat(error.get(), instanceOf(CircuitBreakingException.class));
+        assertThat(error.get().getMessage(), containsString(path.toString()));
     }
 
     /**

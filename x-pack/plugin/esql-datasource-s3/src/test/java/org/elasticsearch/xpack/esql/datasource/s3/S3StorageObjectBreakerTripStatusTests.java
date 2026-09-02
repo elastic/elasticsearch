@@ -35,7 +35,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -99,23 +101,22 @@ public class S3StorageObjectBreakerTripStatusTests extends ESTestCase {
         assertTrue(latch.await(5, TimeUnit.SECONDS));
 
         // The rejection must still be in the cause chain, whatever the wrapping did.
-        Throwable breaker = null;
-        for (Throwable t = error.get(); t != null; t = t.getCause()) {
-            if (t instanceof CircuitBreakingException) {
-                breaker = t;
-                break;
-            }
-        }
-        assertNotNull("the CircuitBreakingException must survive in the cause chain", breaker);
+        assertNotNull(
+            "the CircuitBreakingException must survive in the cause chain",
+            ExceptionsHelper.unwrap(error.get(), CircuitBreakingException.class)
+        );
 
-        // THE defect: the mapped failure must carry the breaker's status. Today mapReadFailure
-        // returns a plain IOException (status 500 here, and classified 400 by the external read
-        // boundary), burying the 429.
+        // The mapped failure must carry the breaker's status, not be buried under a
+        // status-neutral IOException (status 500 here, and classified 400 by the external
+        // read boundary).
         assertThat(
             "a breaker rejection must surface with breaker status, not as an I/O failure",
             ExceptionsHelper.status(error.get()),
             equalTo(RestStatus.TOO_MANY_REQUESTS)
         );
+        // ... and still name the object that tripped it, like every other mapped read failure.
+        assertThat(error.get(), instanceOf(CircuitBreakingException.class));
+        assertThat(error.get().getMessage(), containsString(PATH.toString()));
     }
 
     /**

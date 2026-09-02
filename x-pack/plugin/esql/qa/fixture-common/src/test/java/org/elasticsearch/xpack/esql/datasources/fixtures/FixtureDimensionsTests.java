@@ -435,7 +435,7 @@ public class FixtureDimensionsTests extends ESTestCase {
         assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(1661));
         assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(1538));
         assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(316));
-        assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(197));
+        assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(230));
     }
 
     /**
@@ -507,7 +507,7 @@ public class FixtureDimensionsTests extends ESTestCase {
     public void testTheVectorUniverseSizeIsPinned() {
         int[] seen = { 0 };
         FixtureDimensions.get().forEachVector(v -> seen[0]++);
-        assertThat(seen[0], equalTo(33383));
+        assertThat(seen[0], equalTo(33464));
     }
 
     private static Properties realDeclaration() {
@@ -554,7 +554,7 @@ public class FixtureDimensionsTests extends ESTestCase {
         assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(1661));
         assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(1538));
         assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(316));
-        assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(197));
+        assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(230));
     }
 
     /** A hole nobody explained is indistinguishable from a forgotten line. */
@@ -733,7 +733,7 @@ public class FixtureDimensionsTests extends ESTestCase {
         assertThat(
             "the parquet codec trees make the fixture seam load-bearing there",
             d.expressibleVectors("parquet", both).size() - d.expressibleVectors("parquet", directiveOnly).size(),
-            equalTo(132)
+            equalTo(165)
         );
     }
 

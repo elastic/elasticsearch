@@ -100,6 +100,11 @@ dependencies {
   parquetFixtureGenerator("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}") { exclude group: 'org.apache.logging.log4j' }
   parquetFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
   parquetFixtureGenerator "org.slf4j:slf4j-nop:${versions.slf4j}"
+  // Legacy Hadoop-framed LZ4 (CompressionCodecName.LZ4). parquet-hadoop reaches for lz4-java's
+  // LZ4Factory to write it and fails with NoClassDefFoundError without this. ES|QL reads that codec
+  // (PlainCompressionCodecFactory registers Lz4HadoopFramedBytesDecompressor for it) but refuses to
+  // write it, so stock parquet-java is the only thing that can produce the fixture.
+  parquetFixtureGenerator "at.yawk.lz4:lz4-java:1.11.1"
   parquetFixtureGenerator "org.xerial.snappy:snappy-java:${versions.snappyJava}"
   parquetFixtureGenerator "com.github.luben:zstd-jni:${versions.zstdJni}"
   parquetFixtureGenerator "io.airlift:aircompressor:${versions.aircompressor}"

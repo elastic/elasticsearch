@@ -95,7 +95,8 @@ public final class FixtureCapabilities {
         "parquet_codec=snappy@parquet",
         "parquet_codec=gzip@parquet",
         "parquet_codec=zstd@parquet",
-        "parquet_codec=lz4_raw@parquet"
+        "parquet_codec=lz4_raw@parquet",
+        "parquet_codec=lz4_legacy@parquet"
     );
 
     /**

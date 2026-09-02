@@ -18,6 +18,11 @@ def compressedCodecs = [
   [name: 'gzip',    codec: 'GZIP'],
   [name: 'zstd',    codec: 'ZSTD'],
   [name: 'lz4_raw', codec: 'LZ4_RAW'],
+  // Legacy Hadoop-framed LZ4. ES|QL READS it -- PlainCompressionCodecFactory registers
+  // Lz4HadoopFramedBytesDecompressor for CompressionCodecName.LZ4 -- but deliberately refuses to WRITE
+  // it (getCompressor(LZ4) throws), so no ES|QL-side writer could ever produce this fixture. Stock
+  // parquet-java still can, which is what makes the read path testable at all.
+  [name: 'lz4_legacy', codec: 'LZ4'],
 ]
 
 def serverProj = ext.serverProject

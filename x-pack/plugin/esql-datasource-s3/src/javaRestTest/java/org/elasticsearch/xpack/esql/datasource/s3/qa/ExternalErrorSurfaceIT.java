@@ -35,6 +35,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -42,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
@@ -204,15 +206,89 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * new behaviour.
      */
     private static final Map<String, String> KNOWN_OPEN = Map.of(
+        "bucket does not exist",
+        "reports \"Object not found\", the same as a genuinely absent key. The direct-object path asks HeadObject, "
+            + "and an HTTP HEAD response carries no body -- so S3's NoSuchBucket error code never reaches the SDK, "
+            + "which falls back to NoSuchKeyException. No fixture can change that; distinguishing it needs a second "
+            + "call (HeadBucket) on the not-found path. The listing path, which is a GET, already names it correctly",
         "key is a prefix, not an object",
         "reports \"Object not found\", the same as a genuinely absent key. The store can tell the two apart -- a "
             + "prefix has children a listing would return -- so this is a defect to improve, not one condition "
-            + "wearing two names. Recorded here rather than in SHARED_CONDITIONS so the gate can hold an improvement",
-        "no extension and no explicit format",
-        "reports the Iceberg catalog's own failure rather than \"the format cannot be inferred; set [format]\". "
-            + "IcebergTableCatalog#canHandle claims every s3:// path, so it claims an extensionless object, fails "
-            + "for its own reasons, and its failure is the one surfaced -- the no-reader message never fires because "
-            + "a factory did claim. Narrowing that claim is a behaviour change, not a message fix"
+            + "wearing two names. Recorded here rather than in SHARED_CONDITIONS so the gate can hold an improvement"
+    );
+
+    /**
+     * The status every probe is expected to return. This is the contract: a change here is a change to what
+     * clients see, and it has to be made deliberately in the same diff as the code that causes it. Regenerate
+     * from the report after an intentional change; never edit an entry to make a build pass.
+     *
+     * <p>A 200 entry records a misconfiguration the engine currently accepts. Those are pinned like any other
+     * outcome so that fixing one — turning it into a 400 — fails here and forces the expectation to be updated.
+     */
+    private static final Map<String, Integer> EXPECTED_STATUS = Map.ofEntries(
+        entry("tsv object does not exist", 400),
+        entry("tsv object is empty", 400),
+        entry("tsv declared as parquet", 400),
+        entry("tsv under a data source with the wrong credentials", 400),
+        entry("object key does not exist", 400),
+        entry("bucket does not exist", 400),
+        entry("key is a prefix, not an object", 400),
+        entry("unsupported URI scheme", 400),
+        entry("scheme with no host or key", 400),
+        entry("URI with no scheme at all", 400),
+        entry("endpoint refuses connections", 400),
+        entry("wrong access key", 400),
+        entry("anonymous access against an authenticated endpoint", 400),
+        entry("no extension and no explicit format", 400),
+        entry("unknown extension and no explicit format", 400),
+        entry("explicit format contradicts the bytes (parquet declared, CSV content)", 400),
+        entry("unknown explicit format name", 400),
+        entry("parquet extension over non-parquet bytes", 400),
+        entry("parquet with correct magic but truncated body", 400),
+        entry("zero-byte object", 400),
+        entry("unknown setting key on the dataset", 400),
+        entry("multi-character delimiter", 200),
+        entry("invalid encoding name", 400),
+        entry("invalid datetime format pattern", 400),
+        entry("non-boolean header_row", 400),
+        entry("negative schema_sample_size", 400),
+        entry("multi-character quote character", 200),
+        entry("unknown error_mode value", 400),
+        entry("row with more fields than the header", 400),
+        entry("declared column of an undeclarable type", 400),
+        entry("unknown key inside the mappings block", 400),
+        entry("_id.path points at a column that is not declared", 400),
+        entry("two declared columns resolving to one physical column", 400),
+        entry("date format declared on a non-date column", 400),
+        entry("strict declaration with no columns", 400),
+        entry("declared type not coercible from the bytes", 400),
+        entry("glob matches nothing", 400),
+        entry("glob over incompatible schemas", 200),
+        entry("glob over a bucket that does not exist", 400),
+        entry("put dataset referencing an unknown data source", 404),
+        entry("put dataset with no resource", 400),
+        entry("put dataset with an empty resource", 400),
+        entry("put dataset with an unknown top-level field", 400),
+        entry("put dataset with malformed JSON", 400),
+        entry("put dataset whose name contains a comma", 400),
+        entry("put dataset whose name is uppercase", 400),
+        entry("put dataset whose name starts with an underscore", 400),
+        entry("put dataset colliding with an existing index name", 400),
+        entry("put dataset shadowing a secret parent setting", 400),
+        entry("get an unknown dataset", 404),
+        entry("delete an unknown dataset", 404),
+        entry("query an unknown dataset", 400),
+        entry("put data source with an unknown type", 400),
+        entry("put data source with no type", 400),
+        entry("put s3 data source with an unknown setting", 400),
+        entry("put s3 data source with anonymous auth plus credentials", 400),
+        entry("put s3 data source with an access key and no secret key", 400),
+        entry("put s3 data source with a malformed endpoint", 200),
+        entry("get an unknown data source", 404),
+        entry("delete an unknown data source", 404),
+        entry("delete a data source that still has datasets", 409),
+        entry("delete a data source after its datasets are gone", 200),
+        entry("query a dataset that was deleted", 400)
     );
 
     // ---------------------------------------------------------------------------------------------
@@ -612,7 +688,9 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
                 "good_ds",
                 s3(GOOD_CSV),
                 null,
-                Map.of("properties", Map.of("id", Map.of("type", "long"), "ident", Map.of("type", "long", "path", "id")))
+                // LinkedHashMap, not Map.of: the collision message names the two columns in iteration order,
+                // and Map.of would vary it per JVM run, making this probe's own reason unpinnable.
+                Map.of("properties", collidingColumns())
             )
         );
         crudProbe(
@@ -1098,6 +1176,19 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         return SHARED_CONDITIONS.stream().anyMatch(group -> collidingNames.stream().allMatch(group::contains));
     }
 
+    /** The two colliding columns in a fixed order, so the reason they produce is stable across runs. */
+    private static Map<String, Object> collidingColumns() {
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("id", Map.of("type", "long"));
+        properties.put("ident", Map.of("type", "long", "path", "id"));
+        return properties;
+    }
+
+    /** A message built from a Throwable#toString rather than written for a reader. */
+    private static boolean leaksJvmType(String text) {
+        return text.contains("java.") || text.contains("org.elasticsearch.");
+    }
+
     private void assertMatrixInvariants() {
         List<String> violations = new ArrayList<>();
 
@@ -1121,8 +1212,36 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         // wrapper's message was built from a Throwable#toString rather than from a message someone wrote —
         // the signature of a cause chain that was flattened instead of read.
         for (Probe p : probes) {
-            if (p.reason().contains("java.") || p.reason().contains("org.elasticsearch.")) {
+            if (leaksJvmType(p.reason())) {
                 violations.add("JVM type name in reason [" + p.group() + "/" + p.name() + "]: " + p.reason());
+            }
+            // The cause chain is user-visible too: it is rendered into every error response under caused_by.
+            for (String cause : p.causeChain()) {
+                if (leaksJvmType(cause)) {
+                    violations.add("JVM type name in caused_by [" + p.group() + "/" + p.name() + "]: " + cause);
+                }
+            }
+        }
+
+        // 3. Every probe returns the status recorded in EXPECTED_STATUS. A probe with no entry is a new
+        // condition whose contract nobody has decided yet, which is also a failure.
+        for (Probe p : probes) {
+            Integer expected = EXPECTED_STATUS.get(p.name());
+            if (expected == null) {
+                violations.add("no expected status recorded for [" + p.group() + "/" + p.name() + "]");
+            } else if (expected != p.status()) {
+                violations.add("status changed for [" + p.group() + "/" + p.name() + "]: expected " + expected + ", got " + p.status());
+            }
+        }
+
+        // 4. A KNOWN_OPEN entry is a defect on record. When the defect is fixed the probe stops colliding,
+        // and the entry has to go in the same diff — otherwise it silently exempts a condition that no longer
+        // needs exempting, and the next regression hides behind it.
+        Set<String> stillColliding = new HashSet<>();
+        byReason.values().stream().filter(cases -> cases.size() > 1).forEach(stillColliding::addAll);
+        for (String open : KNOWN_OPEN.keySet()) {
+            if (stillColliding.contains(open) == false) {
+                violations.add("KNOWN_OPEN entry [" + open + "] no longer collides with anything -- remove it");
             }
         }
 

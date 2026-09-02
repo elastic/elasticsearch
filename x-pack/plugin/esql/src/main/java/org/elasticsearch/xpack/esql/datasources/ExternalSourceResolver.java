@@ -602,7 +602,9 @@ public class ExternalSourceResolver {
             recordDiscoveryFailure();
             String detail = ExternalFailures.rootDetail(e);
             LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
-            return new ExternalClientException(e, "{}", ExternalFailures.locate("Failed to resolve external source", path, detail));
+            // Chain ioError, not e: e is the cache's ExecutionException whose own message is the cause's
+            // toString(), so chaining it renders "java.io.IOException: ..." into the user's caused_by.
+            return new ExternalClientException(ioError, "{}", ExternalFailures.locate("Failed to resolve external source", path, detail));
         }
         recordDiscoveryFailure();
         // rootDetail, not getMessage: the file-metadata rail raises a plain IOException that arrives inside the

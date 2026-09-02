@@ -12,12 +12,16 @@ import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
 
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.function.BiPredicate;
 
 import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
@@ -59,6 +63,10 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
         return exchange -> {
             try {
                 if (checkAuthorization(authorizationPredicate, exchange)) {
+                    if (addressesAnotherBucket(exchange.getRequestURI().getPath())) {
+                        respondNoSuchBucket(exchange);
+                        return;
+                    }
                     handler.handle(exchange);
                 }
             } catch (Error e) {
@@ -78,6 +86,31 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
             throw new IllegalStateException("S3 fixture has not been started yet; call seedBlob from @BeforeClass");
         }
         handler.blobs().put("/" + bucket + "/" + key, new BlobEntry(new BytesArray(content), "STANDARD"));
+    }
+
+    /**
+     * True when the request addresses a bucket this fixture does not serve. The shared {@link S3HttpHandler}
+     * answers those with a 500, which is not what S3 does — it returns 404 NoSuchBucket — so a probe pointed at
+     * a missing bucket would otherwise be measuring the fixture rather than the product.
+     */
+    private boolean addressesAnotherBucket(String requestPath) {
+        return requestPath.startsWith("/" + bucket + "/") == false && requestPath.equals("/" + bucket) == false;
+    }
+
+    /**
+     * The error code matters as much as the status: the SDK selects NoSuchBucketException on the Code element,
+     * and without it a 404 is mapped to NoSuchKeyException and collapses into the missing-object case.
+     */
+    @SuppressForbidden(reason = "uses the JDK HttpServer exchange, as the surrounding fixture does")
+    private static void respondNoSuchBucket(HttpExchange exchange) throws IOException {
+        byte[] body = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+            + "<Error><Code>NoSuchBucket</Code><Message>The specified bucket does not exist</Message></Error>").getBytes(
+                StandardCharsets.UTF_8
+            );
+        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), body.length);
+        exchange.getResponseBody().write(body);
+        exchange.close();
     }
 
 }

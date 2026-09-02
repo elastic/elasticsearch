@@ -243,40 +243,45 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
         @Override
         protected AsyncShardFetch.FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
-            // explicitly type lister, some IDEs (Eclipse) are not able to correctly infer the function type
-            AsyncShardFetch<NodeGatewayStartedShards> fetch = asyncFetchStarted.computeIfAbsent(
-                shard.shardId(),
-                shardId -> new InternalAsyncFetch<>(
-                    logger,
-                    "shard_started",
+            final ShardId shardId = shard.shardId();
+            final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(
+                allocation.metadata().indexMetadata(shard.index()).getSettings()
+            );
+            final int expectedSize = allocation.routingNodes().size();
+            while (true) {
+                // explicitly type lister, some IDEs (Eclipse) are not able to correctly infer the function type
+                AsyncShardFetch<NodeGatewayStartedShards> fetch = asyncFetchStarted.computeIfAbsent(
                     shardId,
-                    IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().indexMetadata(shard.index()).getSettings()),
-                    allocation.routingNodes().size()
-                ) {
-                    @Override
-                    protected void list(
-                        ShardId shardId,
-                        String customDataPath,
-                        DiscoveryNode[] nodes,
-                        ActionListener<BaseNodesResponse<NodeGatewayStartedShards>> listener
-                    ) {
-                        client.executeLocally(
-                            TransportNodesListGatewayStartedShards.TYPE,
-                            new TransportNodesListGatewayStartedShards.Request(shardId, customDataPath, nodes),
-                            listener.safeMap(r -> r) // weaken type
-                        );
+                    id -> new InternalAsyncFetch<>(logger, "shard_started", id, customDataPath, expectedSize) {
+                        @Override
+                        protected void list(
+                            ShardId shardId,
+                            String customDataPath,
+                            DiscoveryNode[] nodes,
+                            ActionListener<BaseNodesResponse<NodeGatewayStartedShards>> listener
+                        ) {
+                            client.executeLocally(
+                                TransportNodesListGatewayStartedShards.TYPE,
+                                new TransportNodesListGatewayStartedShards.Request(shardId, customDataPath, nodes),
+                                listener.safeMap(r -> r) // weaken type
+                            );
+                        }
                     }
+                );
+                final AsyncShardFetch.FetchResult<NodeGatewayStartedShards> shardState;
+                synchronized (fetch) {
+                    if (fetch.isClosed()) {
+                        // Lost a race with applyStartedShards/applyFailedShards/cleanCaches. Retry with a fresh fetch.
+                        asyncFetchStarted.remove(shardId, fetch);
+                        continue;
+                    }
+                    shardState = fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shardId));
                 }
-            );
-            AsyncShardFetch.FetchResult<NodeGatewayStartedShards> shardState = fetch.fetchData(
-                allocation.nodes(),
-                allocation.getIgnoreNodes(shard.shardId())
-            );
-
-            if (shardState.hasData()) {
-                shardState.processAllocation(allocation);
+                if (shardState.hasData()) {
+                    shardState.processAllocation(allocation);
+                }
+                return shardState;
             }
-            return shardState;
         }
 
     }
@@ -291,38 +296,44 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
         @Override
         protected AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation) {
-            AsyncShardFetch<NodeStoreFilesMetadata> fetch = asyncFetchStore.computeIfAbsent(
-                shard.shardId(),
-                shardId -> new InternalAsyncFetch<>(
-                    logger,
-                    "shard_store",
-                    shard.shardId(),
-                    IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().indexMetadata(shard.index()).getSettings()),
-                    allocation.routingNodes().size()
-                ) {
-                    @Override
-                    protected void list(
-                        ShardId shardId,
-                        String customDataPath,
-                        DiscoveryNode[] nodes,
-                        ActionListener<BaseNodesResponse<NodeStoreFilesMetadata>> listener
-                    ) {
-                        client.executeLocally(
-                            TransportNodesListShardStoreMetadata.TYPE,
-                            new TransportNodesListShardStoreMetadata.Request(shardId, customDataPath, nodes),
-                            listener.safeMap(r -> r) // weaken type
-                        );
+            final ShardId shardId = shard.shardId();
+            final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(
+                allocation.metadata().indexMetadata(shard.index()).getSettings()
+            );
+            final int expectedSize = allocation.routingNodes().size();
+            while (true) {
+                AsyncShardFetch<NodeStoreFilesMetadata> fetch = asyncFetchStore.computeIfAbsent(
+                    shardId,
+                    id -> new InternalAsyncFetch<>(logger, "shard_store", id, customDataPath, expectedSize) {
+                        @Override
+                        protected void list(
+                            ShardId shardId,
+                            String customDataPath,
+                            DiscoveryNode[] nodes,
+                            ActionListener<BaseNodesResponse<NodeStoreFilesMetadata>> listener
+                        ) {
+                            client.executeLocally(
+                                TransportNodesListShardStoreMetadata.TYPE,
+                                new TransportNodesListShardStoreMetadata.Request(shardId, customDataPath, nodes),
+                                listener.safeMap(r -> r) // weaken type
+                            );
+                        }
                     }
+                );
+                final AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores;
+                synchronized (fetch) {
+                    if (fetch.isClosed()) {
+                        // Lost a race with applyStartedShards/applyFailedShards/cleanCaches; retry with a fresh fetch.
+                        asyncFetchStore.remove(shardId, fetch);
+                        continue;
+                    }
+                    shardStores = fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shardId));
                 }
-            );
-            AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores = fetch.fetchData(
-                allocation.nodes(),
-                allocation.getIgnoreNodes(shard.shardId())
-            );
-            if (shardStores.hasData()) {
-                shardStores.processAllocation(allocation);
+                if (shardStores.hasData()) {
+                    shardStores.processAllocation(allocation);
+                }
+                return shardStores;
             }
-            return shardStores;
         }
 
         @Override

@@ -76,12 +76,9 @@ public class AsyncShardFetchTests extends ESTestCase {
         // verify we get back the data node
         assertThat(test.reroute.get(), equalTo(1));
         test.close();
-        try {
-            test.fetchData(nodes, emptySet());
-            fail("fetch data should fail when closed");
-        } catch (IllegalStateException e) {
-            // all is well
-        }
+        fetchData = test.fetchData(nodes, emptySet());
+        assertThat(fetchData.hasData(), equalTo(false));
+        assertThat(test.reroute.get(), equalTo(1));
     }
 
     public void testFullCircleSingleNodeSuccess() throws Exception {

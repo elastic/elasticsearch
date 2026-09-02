@@ -77,6 +77,13 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     }
 
     /**
+     * Whether this fetch has been closed and must not be used for further {@link #fetchData} work.
+     */
+    public synchronized boolean isClosed() {
+        return closed;
+    }
+
+    /**
      * Returns the number of async fetches that are currently ongoing.
      */
     public int getNumberOfInFlightFetches() {
@@ -89,10 +96,14 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * <p>
      * The ignoreNodes are nodes that are supposed to be ignored for this round, since fetching is async, we need
      * to keep them around and make sure we add them back when all the responses are fetched and returned.
+     * <p>
+     * If this fetch has already been {@link #close() closed}, returns a result with no data.
      */
     public synchronized FetchResult<T> fetchData(DiscoveryNodes nodes, Set<String> ignoreNodes) {
         if (closed) {
-            throw new IllegalStateException(shardId + ": can't fetch data on closed async fetch");
+            // Closed fetches are discarded rather than failing the caller.
+            logger.trace("{} can't fetch data on closed async fetch", shardId);
+            return new FetchResult<>(shardId, null, emptySet());
         }
         nodesToIgnore.addAll(ignoreNodes);
         fillShardCacheWithDataNodes(cache, nodes);

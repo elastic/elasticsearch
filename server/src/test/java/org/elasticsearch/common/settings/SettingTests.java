@@ -10,12 +10,14 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
@@ -1620,5 +1622,67 @@ public class SettingTests extends ESTestCase {
             e2.getMessage(),
             equalTo("Failed to parse value [-9223372036854775809] for setting [long.setting] must be >= -9223372036854775808")
         );
+    }
+
+    public void testRatioSetting() {
+        Setting<RatioValue> setting = Setting.ratioSetting("test.ratio", "0.5", Property.NodeScope);
+        // default value
+        assertThat(setting.get(Settings.EMPTY).getAsRatio(), equalTo(0.5));
+        // percentage override
+        assertThat(setting.get(Settings.builder().put("test.ratio", "75%").build()).getAsPercent(), equalTo(75.0));
+        // ratio override
+        assertThat(setting.get(Settings.builder().put("test.ratio", "0.25").build()).getAsRatio(), equalTo(0.25));
+        // invalid value rejected
+        expectThrows(IllegalArgumentException.class, () -> setting.get(Settings.builder().put("test.ratio", "not-a-ratio").build()));
+    }
+
+    public void testBoundedRatioSetting() {
+        Setting<RatioValue> pctSetting = Setting.ratioSetting("test.ratio", "50%", "10%", "90%", Property.NodeScope);
+        // default
+        assertThat(pctSetting.get(Settings.EMPTY).getAsPercent(), equalTo(50.0));
+        // in range
+        assertThat(pctSetting.get(Settings.builder().put("test.ratio", "75%").build()).getAsPercent(), equalTo(75.0));
+        // boundaries are inclusive
+        assertThat(pctSetting.get(Settings.builder().put("test.ratio", "10%").build()).getAsPercent(), equalTo(10.0));
+        assertThat(pctSetting.get(Settings.builder().put("test.ratio", "90%").build()).getAsPercent(), equalTo(90.0));
+
+        // percentage below min
+        var ePctLow = expectThrows(
+            IllegalArgumentException.class,
+            () -> pctSetting.get(Settings.builder().put("test.ratio", "5%").build())
+        );
+        assertThat(ePctLow.getCause(), instanceOf(ElasticsearchParseException.class));
+        assertThat(ePctLow.getMessage(), equalTo("Percentage should be in [10.0-90.0], got [5%]"));
+
+        // percentage above max
+        var ePctHigh = expectThrows(
+            IllegalArgumentException.class,
+            () -> pctSetting.get(Settings.builder().put("test.ratio", "95%").build())
+        );
+        assertThat(ePctHigh.getCause(), instanceOf(ElasticsearchParseException.class));
+        assertThat(ePctHigh.getMessage(), equalTo("Percentage should be in [10.0-90.0], got [95%]"));
+
+        // ratio form
+        Setting<RatioValue> ratioSetting = Setting.ratioSetting("test.ratio", "0.5", "0.1", "0.9", Property.NodeScope);
+
+        // ratio below min
+        var eRatioLow = expectThrows(
+            IllegalArgumentException.class,
+            () -> ratioSetting.get(Settings.builder().put("test.ratio", "0.05").build())
+        );
+        assertThat(eRatioLow.getCause(), instanceOf(ElasticsearchParseException.class));
+        assertThat(eRatioLow.getMessage(), equalTo("Ratio should be in [0.1-0.9], got [0.05]"));
+
+        // ratio above max
+        var eRatioHigh = expectThrows(
+            IllegalArgumentException.class,
+            () -> ratioSetting.get(Settings.builder().put("test.ratio", "0.95").build())
+        );
+        assertThat(eRatioHigh.getCause(), instanceOf(ElasticsearchParseException.class));
+        assertThat(eRatioHigh.getMessage(), equalTo("Ratio should be in [0.1-0.9], got [0.95]"));
+    }
+
+    public void testBoundedRatioSettingRejectsOutOfBoundsDefault() {
+        expectThrows(ElasticsearchParseException.class, () -> Setting.ratioSetting("test.ratio", "5%", "10%", "90%", Property.NodeScope));
     }
 }

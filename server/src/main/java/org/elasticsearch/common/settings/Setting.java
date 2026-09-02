@@ -19,6 +19,7 @@ import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
@@ -1515,6 +1516,50 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<String> simpleString(String key, Setting<String> fallback, Property... properties) {
         return new Setting<>(key, fallback, Function.identity(), properties);
+    }
+
+    /**
+     * Creates a new setting instance for a {@link RatioValue}
+     */
+    public static Setting<RatioValue> ratioSetting(String key, String defaultValue, Property... properties) {
+        return new Setting<>(key, defaultValue, RatioValue::parseRatioValue, properties);
+    }
+
+    /**
+     * Creates a new setting instance for a {@link RatioValue} with inclusive minimum and maximum values
+     */
+    public static Setting<RatioValue> ratioSetting(
+        String key,
+        String defaultValue,
+        String minValueInclusive,
+        String maxValueInclusive,
+        Property... properties
+    ) {
+        final var parsedMinimumValue = RatioValue.parseRatioValue(minValueInclusive);
+        final var parsedMaximumValue = RatioValue.parseRatioValue(maxValueInclusive);
+        return new Setting<>(key, defaultValue, sValue -> {
+            final var parsedValue = RatioValue.parseRatioValue(sValue);
+            if (parsedValue.getAsPercent() >= parsedMinimumValue.getAsPercent()
+                && parsedValue.getAsPercent() <= parsedMaximumValue.getAsPercent()) {
+                return parsedValue;
+            } else {
+                if (sValue.endsWith("%")) {
+                    throw new ElasticsearchParseException(
+                        "Percentage should be in [{}-{}], got [{}]",
+                        parsedMinimumValue.getAsPercent(),
+                        parsedMaximumValue.getAsPercent(),
+                        sValue
+                    );
+                } else {
+                    throw new ElasticsearchParseException(
+                        "Ratio should be in [{}-{}], got [{}]",
+                        parsedMinimumValue.getAsRatio(),
+                        parsedMaximumValue.getAsRatio(),
+                        sValue
+                    );
+                }
+            }
+        }, properties);
     }
 
     /**

@@ -67,7 +67,7 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
     public static BBQDotProduct create(IndexInput in, int nDims, int docBits, int queryBits) {
         int planeBytes = planeBytes(nDims);
         if (!supports(in, docBits, queryBits, planeBytes)) {
-            return BBQDotProduct.create(in, docBits, queryBits, planeBytes);
+            return BBQDotProduct.create(in, nDims, docBits, queryBits);
         }
         return switch (queryBits) {
             case 1 -> new Q1DxImpl(in, docBits, planeBytes);

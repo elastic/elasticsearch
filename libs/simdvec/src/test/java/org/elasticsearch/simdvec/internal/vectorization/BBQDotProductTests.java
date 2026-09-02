@@ -230,11 +230,11 @@ public class BBQDotProductTests extends BaseVectorizationTests {
     }
 
     public void testRejectsOutOfRangeConfiguration() {
-        expectThrows(IllegalArgumentException.class, () -> BBQDotProduct.create(null, 0, queryBits, 16));
-        expectThrows(IllegalArgumentException.class, () -> BBQDotProduct.create(null, BBQDotProduct.MAX_BITS + 1, queryBits, 16));
-        expectThrows(IllegalArgumentException.class, () -> BBQDotProduct.create(null, docBits, 0, 16));
-        expectThrows(IllegalArgumentException.class, () -> BBQDotProduct.create(null, docBits, BBQDotProduct.MAX_BITS + 1, 16));
-        expectThrows(IllegalArgumentException.class, () -> BBQDotProduct.create(null, docBits, queryBits, 0));
+        expectThrows(IllegalArgumentException.class, () -> BBQDotProduct.create(null, 128, 0, queryBits));
+        expectThrows(IllegalArgumentException.class, () -> BBQDotProduct.create(null, 128, BBQDotProduct.MAX_BITS + 1, queryBits));
+        expectThrows(IllegalArgumentException.class, () -> BBQDotProduct.create(null, 128, docBits, 0));
+        expectThrows(IllegalArgumentException.class, () -> BBQDotProduct.create(null, 128, docBits, BBQDotProduct.MAX_BITS + 1));
+        expectThrows(IllegalArgumentException.class, () -> BBQDotProduct.create(null, 0, docBits, queryBits));
     }
 
     private long basicBitImplementation(byte[] query, byte[] data, int planeBytes, int nDims) {

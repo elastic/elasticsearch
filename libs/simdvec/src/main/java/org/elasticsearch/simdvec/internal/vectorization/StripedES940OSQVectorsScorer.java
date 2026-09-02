@@ -161,12 +161,7 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
                 dimensions,
                 dataLength,
                 bulkSize,
-                PanamaBBQDotProduct.create(
-                    in,
-                    encoding.indexBits(),
-                    encoding.queryBits(),
-                    BBQDotProduct.planeBytes(encoding.indexBits(), dataLength)
-                )
+                PanamaBBQDotProduct.create(in, dimensions, encoding.indexBits(), encoding.queryBits())
             );
         }
 
@@ -208,7 +203,7 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
                 dimensions,
                 dataLength,
                 bulkSize,
-                NativeBBQDotProduct.create(in, encoding.indexBits(), encoding.queryBits(), dimensions)
+                NativeBBQDotProduct.create(in, dimensions, encoding.indexBits(), encoding.queryBits())
             );
         }
 

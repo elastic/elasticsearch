@@ -61,11 +61,10 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
      * @param queryBits  bits per dimension of the query vector, in {@code [1, MAX_BITS]}
      */
     public static BBQDotProduct create(IndexInput in, int nDims, int docBits, int queryBits) {
-        int planeBytes = planeBytes(nDims);
         if (!supports(in, docBits, queryBits)) {
-            return PanamaBBQDotProduct.create(in, docBits, queryBits, planeBytes);
+            return PanamaBBQDotProduct.create(in, nDims, docBits, queryBits);
         }
-        return new NativeBBQDotProduct(in, docBits, queryBits, planeBytes);
+        return new NativeBBQDotProduct(in, docBits, queryBits, planeBytes(nDims));
     }
 
     private final NativeMethod nativeMethod;

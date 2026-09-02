@@ -824,6 +824,13 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertEquals(";", result.get("delimiter"));
     }
 
+    public void testFormatAwareValidatorInfersFormatThroughQuestionMarkGlobCompoundExtension() {
+        // '?' glob + compound extension (.csv.gz): outer ext .gz triggers compression fallback,
+        // inner ext .csv resolves the format. A naive strip at '?' would yield "day" (no extension).
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/logs/day?.csv.gz", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
     public void testFormatAwareValidatorInfersFormatThroughStarGlob() {
         // '*' glob: same extension guarantee, same fix must not regress it.
         var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/logs/day*.csv", Map.of("delimiter", ";"));

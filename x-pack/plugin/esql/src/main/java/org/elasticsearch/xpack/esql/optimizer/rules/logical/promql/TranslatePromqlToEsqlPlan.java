@@ -475,9 +475,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             var groupings = new ArrayList<Expression>();
             groupings.add(stepAttr());
             if (plan.grouping() == AcrossSeriesAggregate.Grouping.BY) {
-                header = header.transformExpressions((column, grouping) -> resolveColumn(column, aggregated.plan().output()));
+                var resolvedHeader = header.transformExpressions((column, grouping) -> resolveColumn(column, aggregated.plan().output()));
                 for (var label : plan.groupings()) {
-                    Attribute resolved = header.column(toCanonicalName(label));
+                    Attribute resolved = resolvedHeader.column(toCanonicalName(label));
                     assert resolved != null : "invariant: [" + plan.functionName() + "] requires partition label [" + label + "]";
                     groupings.add(resolved);
                 }

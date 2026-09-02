@@ -174,23 +174,39 @@ public final class FormatNameResolver {
         return registry.byExtension(objectName);
     }
 
-    private static String formatFromExtension(String sourcePath) {
-        if (sourcePath == null) {
+    /**
+     * Extracts the file extension from an object name or path, stripping any trailing query
+     * string ({@code ?}) or fragment ({@code #}) from within the extension substring.
+     * Returns the clean extension without a leading dot and lowercased (e.g. {@code "csv"}),
+     * or {@code null} when no usable extension is present.
+     *
+     * <p>Only the substring after the last dot is examined, so a {@code ?} or {@code #}
+     * that precedes the last dot (e.g. a glob pattern like {@code day?.csv}) does not affect
+     * the result. A special character that follows the last dot (e.g. {@code file.csv?versionId=abc})
+     * is stripped, recovering the clean extension.
+     *
+     * <p>This is the single source of truth for extension extraction, shared by
+     * {@link #formatFromExtension} and {@code FileDataSourceValidator} so the two paths
+     * cannot diverge on extension handling.
+     */
+    @Nullable
+    public static String extractCleanExtension(String objectName) {
+        if (objectName == null) {
             return null;
         }
-        int lastDot = sourcePath.lastIndexOf('.');
-        if (lastDot < 0 || lastDot >= sourcePath.length() - 1) {
+        int lastDot = objectName.lastIndexOf('.');
+        if (lastDot < 0 || lastDot >= objectName.length() - 1) {
             return null;
         }
-        String ext = sourcePath.substring(lastDot + 1);
-        int queryStart = ext.indexOf('?');
-        if (queryStart >= 0) {
-            ext = ext.substring(0, queryStart);
-        }
-        int fragmentStart = ext.indexOf('#');
-        if (fragmentStart >= 0) {
-            ext = ext.substring(0, fragmentStart);
-        }
+        String ext = objectName.substring(lastDot + 1);
+        int q = ext.indexOf('?');
+        if (q >= 0) ext = ext.substring(0, q);
+        int h = ext.indexOf('#');
+        if (h >= 0) ext = ext.substring(0, h);
         return ext.isEmpty() ? null : ext.toLowerCase(Locale.ROOT);
+    }
+
+    private static String formatFromExtension(String sourcePath) {
+        return extractCleanExtension(sourcePath);
     }
 }

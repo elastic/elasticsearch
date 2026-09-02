@@ -99,25 +99,19 @@ public class HttpDataSourcePluginTests extends ESTestCase {
         assertTrue("file scheme should be registered", plugin.supportedSchemes().contains("file"));
     }
 
-    // Format-aware HTTP(S): pins that query-string stripping is preserved for http/https schemes.
+    // Format-aware HTTP(S): pins that '#'-stripping is preserved for http/https schemes.
+    // '#' is not a glob metacharacter (StoragePath.GLOB_METACHARACTERS), so URLs with fragments
+    // are queryable — unlike '?', which routes any HTTP URL through the glob/listing path.
     private static final FileDataSourceValidator.FormatConfigKeyResolver CSV_RESOLVER =
         FileDataSourceValidator.FormatConfigKeyResolver.of(Map.of("csv", Set.of("delimiter")), Map.of(".csv", "csv"));
 
-    private static final DataSourceValidator FORMAT_AWARE_HTTP = new FileDataSourceValidator(
-        "http",
-        NoAuthDataSourceConfiguration::fromMap,
-        Set.of("http", "https")
-    ).withFormatConfigKeyResolver(CSV_RESOLVER, Set.of(".gz"));
-
-    public void testFormatAwareHttpPresignedUrlStripsQueryAndInfersExtension() {
-        // Row 1 of the naïve-fix breaks table: ?v=1.2 — naive fix gives ".2"; scheme-aware fix gives ".csv".
-        var result = FORMAT_AWARE_HTTP.validateDataset(Map.of(), "https://host/data.csv?v=1.2", Map.of("delimiter", ";"));
-        assertEquals(";", result.get("delimiter"));
-    }
-
-    public void testFormatAwareHttpPresignedUrlWithDottedQueryString() {
-        // Row 2: GCS V4 signed URLs have dots in the query (?sig=a.b) — naive fix gives ".b", scheme-aware gives ".gz".
-        var result = FORMAT_AWARE_HTTP.validateDataset(Map.of(), "https://host/data.csv.gz?sig=a.b", Map.of("delimiter", ";"));
+    public void testFormatAwareHttpFragmentWithDottedSuffixDoesNotConfuseExtension() {
+        // '#' is stripped from the object name before the extension lookup (HTTP branch). A dot inside
+        // the fragment ('#frag.xyz') must not win the last-dot scan — the correct result is '.csv'.
+        assumeTrue("requires http datasource feature flag", httpEnabled());
+        FileDataSourceValidator httpBase = (FileDataSourceValidator) plugin.datasourceValidators(Settings.EMPTY).get("http");
+        var formatAwareHttp = httpBase.withFormatConfigKeyResolver(CSV_RESOLVER, Set.of(".gz"));
+        var result = formatAwareHttp.validateDataset(Map.of(), "https://host/data.csv#frag.xyz", Map.of("delimiter", ";"));
         assertEquals(";", result.get("delimiter"));
     }
 }

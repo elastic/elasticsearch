@@ -836,11 +836,17 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertEquals(";", result.get("delimiter"));
     }
 
+    public void testFormatAwareValidatorVersionIdQueryStringInfersFormat() {
+        // '?' after the extension (e.g. S3 versionId URLs) must not break format inference.
+        // FormatNameResolverTests pins this shape as supported at query time; CRUD must agree.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/file.csv?versionId=abc", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
     public void testFormatAwareValidatorFormatFlipEdgeCaseDocumented() {
-        // An S3 key literally named "data.parquet?x=.csv" (no strip for object stores) has last extension
-        // ".csv", so the validator resolves format=csv and accepts CSV settings. This differs from the
-        // pre-fix behavior (which truncated at '?' and resolved "parquet"), but the input is contrived:
-        // real S3 presigned URLs use https://, never s3://, so no realistic key looks like this.
+        // An S3 key literally named "data.parquet?x=.csv": last extension is ".csv", so the validator
+        // resolves format=csv and accepts CSV settings. Pre-fix this was rejected (ext ".parquet" maps
+        // to no format in this test resolver); after fix it is accepted because the last dot wins.
         var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data.parquet?x=.csv", Map.of("delimiter", ";"));
         assertEquals(";", result.get("delimiter"));
     }

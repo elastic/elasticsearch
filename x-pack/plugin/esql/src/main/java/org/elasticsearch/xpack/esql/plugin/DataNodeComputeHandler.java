@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -208,7 +209,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             boolean enableReduceNodeLateMaterialization = EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION
                                 .isEnabled();
                             if (retainSearchContexts
-                                && connection.getTransportVersion().supports(DataNodeRequest.ESQL_REMOTE_FETCH_TOPN_REDUCTION) == false) {
+                                && connection.getTransportVersion()
+                                    .supports(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION) == false) {
                                 /*
                                  * The coordinator only plans remote-fetch TopN when the cluster-wide minimum transport version supports
                                  * it. Reaching this branch means the connection view changed after planning, or otherwise disagrees with
@@ -218,7 +220,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 l.onFailure(
                                     new IllegalStateException(
                                         "remote fetch TopN requires transport version ["
-                                            + DataNodeRequest.ESQL_REMOTE_FETCH_TOPN_REDUCTION
+                                            + RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION
                                             + "] but node ["
                                             + connection.getNode().getName()
                                             + "] has ["
@@ -843,20 +845,37 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         final String sessionId = request.sessionId();
         final String nodeReduceSessionId = nodeReduceSessionId(sessionId);
         if (request.plan() instanceof ExchangeSinkExec plan) {
-            var remoteFetchContext = request.retainSearchContexts()
-                ? new RemoteFetchReductionPlanner.RemoteFetchContext(clusterService.localNode().getId(), nodeReduceSessionId)
-                : null;
-            reductionPlan = ReductionPlanner.plan(
-                computeService.plannerSettings().get(),
-                computeService.createFlags(),
-                configuration,
-                configuration.newFoldContext(),
-                plan,
-                request.runNodeLevelReduction(),
-                request.reductionLateMaterialization(),
-                remoteFetchContext,
-                planTimeProfile
-            );
+            try {
+                validateRemoteFetchRequest(plan, request.retainSearchContexts(), channel.getVersion());
+                if (plan.anyMatch(RemoteFetchBoundaryExec.class::isInstance)) {
+                    reductionPlan = ComputeService.reductionPlan(
+                        computeService.plannerSettings().get(),
+                        computeService.createFlags(),
+                        configuration,
+                        configuration.newFoldContext(),
+                        plan,
+                        request.runNodeLevelReduction(),
+                        request.reductionLateMaterialization(),
+                        clusterService.localNode().getId(),
+                        nodeReduceSessionId,
+                        planTimeProfile
+                    );
+                } else {
+                    reductionPlan = ComputeService.reductionPlan(
+                        computeService.plannerSettings().get(),
+                        computeService.createFlags(),
+                        configuration,
+                        configuration.newFoldContext(),
+                        plan,
+                        request.runNodeLevelReduction(),
+                        request.reductionLateMaterialization(),
+                        planTimeProfile
+                    );
+                }
+            } catch (Exception e) {
+                failWithoutStarting(request, listener, e);
+                return;
+            }
         } else {
             listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));
             return;
@@ -942,6 +961,24 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     private static String nodeReduceSessionId(String sessionId) {
         return sessionId + "[n]";
+    }
+
+    static void validateRemoteFetchRequest(PhysicalPlan plan, boolean retainSearchContexts, TransportVersion transportVersion) {
+        if (plan.anyMatch(RemoteFetchBoundaryExec.class::isInstance) == false) {
+            return;
+        }
+        if (retainSearchContexts == false) {
+            throw new IllegalStateException("remote-fetch boundary requires retained search contexts");
+        }
+        if (transportVersion.supports(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION) == false) {
+            throw new IllegalStateException(
+                "remote-fetch boundary requires transport version ["
+                    + RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION
+                    + "] but request uses ["
+                    + transportVersion
+                    + "]"
+            );
+        }
     }
 
     /**

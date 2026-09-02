@@ -1,0 +1,6 @@
+ExchangeSinkExec[[$$remote_fetch_handle{r$}#0, hire_date{f}#1],false]
+\_ProjectExec[[$$remote_fetch_handle{r$}#0, hire_date{f}#1]]
+  \_EvalExec[[REMOTEFETCHHANDLEFUNCTION(_doc{f}#2) AS $$remote_fetch_handle#0]]
+    \_ProjectExec[[_doc{f}#2, hire_date{f}#1]]
+      \_TopNExec[[Order[hire_date{f}#1,ASC,LAST]],20[INTEGER],78]
+        \_ExchangeSourceExec[[_doc{f}#2, hire_date{f}#1],false]

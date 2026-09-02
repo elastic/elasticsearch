@@ -278,7 +278,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         );
         exchangeSink.addCompletionListener(ActionListener.running(() -> exchangeService.finishSinkHandler(globalSessionId, null)));
         final String localSessionId = clusterAlias + ":" + globalSessionId;
-        ReductionPlan reductionPlan = ReductionPlanner.plan(
+        ReductionPlan reductionPlan = ComputeService.reductionPlan(
             computeService.plannerSettings().get(),
             computeService.createFlags(),
             configuration,

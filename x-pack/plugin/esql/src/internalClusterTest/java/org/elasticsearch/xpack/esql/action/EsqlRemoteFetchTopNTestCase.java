@@ -100,12 +100,8 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
     }
 
     public void testBasicRemoteFetchTopN() {
-        try (
-            EsqlQueryResponse response = runQuery(
-                "FROM " + indexName + " | SORT unique_sort + 1 DESC | LIMIT 5 | KEEP unique_sort, payload, category",
-                true
-            )
-        ) {
+        String query = "FROM " + indexName + " | SORT unique_sort + 1 DESC | LIMIT 5 | KEEP unique_sort, payload, category";
+        try (EsqlQueryResponse response = runQuery(query, true)) {
             assertThat(
                 EsqlTestUtils.getValuesList(response),
                 equalTo(
@@ -122,6 +118,7 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
             assertFieldLoadedBeforeFetch(response, "unique_sort");
             assertFieldNotLoadedBeforeFetch(response, "payload");
             assertFieldNotLoadedBeforeFetch(response, "category");
+            assertSameResultsWithRemoteFetchDisabled(query, response);
         }
     }
 
@@ -270,19 +267,15 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
         }
     }
 
-    public void testMultipleTopNsRunSingleRemoteFetchAtFirstExchangeTopN() {
-        try (
-            EsqlQueryResponse response = runQuery(
-                "FROM "
-                    + indexName
-                    + " | SORT unique_sort + 1 DESC"
-                    + " | LIMIT 20"
-                    + " | SORT tie_breaker + 1 ASC, unique_sort + 1 DESC"
-                    + " | LIMIT 5"
-                    + " | KEEP unique_sort, tie_breaker, payload",
-                true
-            )
-        ) {
+    public void testMultipleTopNsUseConservativeEagerFallback() {
+        String query = "FROM "
+            + indexName
+            + " | SORT unique_sort + 1 DESC"
+            + " | LIMIT 20"
+            + " | SORT tie_breaker + 1 ASC, unique_sort + 1 DESC"
+            + " | LIMIT 5"
+            + " | KEEP unique_sort, tie_breaker, payload";
+        try (EsqlQueryResponse response = runQuery(query, true)) {
             assertThat(
                 EsqlTestUtils.getValuesList(response),
                 equalTo(
@@ -295,11 +288,11 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
                     )
                 )
             );
-            assertThat(remoteFetchStatuses(response), hasSize(1));
-            assertThat(remoteFetchRowsEmitted(response), equalTo(20L));
+            assertThat(remoteFetchStatuses(response), empty());
             assertFieldLoadedBeforeFetch(response, "unique_sort");
-            assertFieldNotLoadedBeforeFetch(response, "tie_breaker");
-            assertFieldNotLoadedBeforeFetch(response, "payload");
+            assertFieldLoadedBeforeFetch(response, "tie_breaker");
+            assertFieldLoadedBeforeFetch(response, "payload");
+            assertSameResultsWithRemoteFetchDisabled(query, response);
         }
     }
 
@@ -356,17 +349,13 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
     }
 
     public void testExpressionBeforeTopNIsNotRemoteFetched() {
-        try (
-            EsqlQueryResponse response = runQuery(
-                "FROM "
-                    + indexName
-                    + " | EVAL derived = CONCAT(payload, \"-derived\")"
-                    + " | SORT unique_sort + 1 DESC"
-                    + " | LIMIT 3"
-                    + " | KEEP unique_sort, derived",
-                true
-            )
-        ) {
+        String query = "FROM "
+            + indexName
+            + " | EVAL derived = CONCAT(payload, \"-derived\")"
+            + " | SORT unique_sort + 1 DESC"
+            + " | LIMIT 3"
+            + " | KEEP unique_sort, derived";
+        try (EsqlQueryResponse response = runQuery(query, true)) {
             assertThat(
                 EsqlTestUtils.getValuesList(response),
                 equalTo(List.of(List.of(63L, "payload-63-derived"), List.of(62L, "payload-62-derived"), List.of(61L, "payload-61-derived")))
@@ -374,6 +363,7 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
             assertThat(remoteFetchStatuses(response), empty());
             assertFieldLoadedBeforeFetch(response, "unique_sort");
             assertFieldLoadedBeforeFetch(response, "payload");
+            assertSameResultsWithRemoteFetchDisabled(query, response);
         }
     }
 
@@ -584,6 +574,16 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
             EsqlQueryAction.INSTANCE,
             syncEsqlQueryRequest(query).acceptedPragmaRisks(true).pragmas(new QueryPragmas(pragmas.build())).profile(true)
         ).actionGet(1, TimeUnit.MINUTES);
+    }
+
+    private void assertSameResultsWithRemoteFetchDisabled(String query, EsqlQueryResponse enabledResponse) {
+        try (EsqlQueryResponse disabledResponse = runQuery(query, false)) {
+            assertThat(
+                enabledResponse.columns().stream().map(column -> column.name()).toList(),
+                equalTo(disabledResponse.columns().stream().map(column -> column.name()).toList())
+            );
+            assertThat(EsqlTestUtils.getValuesList(enabledResponse), equalTo(EsqlTestUtils.getValuesList(disabledResponse)));
+        }
     }
 
     private static void assertRemoteFetchRows(EsqlQueryResponse response, int rowsEmitted) {

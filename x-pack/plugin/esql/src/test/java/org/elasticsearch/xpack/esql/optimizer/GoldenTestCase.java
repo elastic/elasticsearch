@@ -63,10 +63,10 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.ComputeServiceTestUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
-import org.elasticsearch.xpack.esql.plugin.ReductionPlanner;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Versioned;
@@ -210,6 +210,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private ProjectMetadata datasetMetadata;
         private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
         private Map<String, String> views = Map.of();
+        private boolean remoteFetchTopN;
 
         private TestBuilder(
             String esqlQuery,
@@ -359,6 +360,11 @@ public abstract class GoldenTestCase extends ESTestCase {
             return this;
         }
 
+        public TestBuilder remoteFetchTopN() {
+            this.remoteFetchTopN = true;
+            return this;
+        }
+
         public void run() {
             String testName = RANDOMIZED_RUNNER_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
             if (explicitTransportVersion && (since != null || labels.isEmpty() == false)) {
@@ -500,7 +506,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                 aliasFilter,
                 datasetMetadata,
                 externalSourceResolution,
-                views
+                views,
+                remoteFetchTopN
             );
         }
 
@@ -641,7 +648,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         AliasFilter aliasFilter,
         ProjectMetadata datasetMetadata,
         ExternalSourceResolution externalSourceResolution,
-        Map<String, String> views
+        Map<String, String> views,
+        boolean remoteFetchTopN
     ) {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
@@ -694,7 +702,10 @@ public abstract class GoldenTestCase extends ESTestCase {
             if (stages.equals(EnumSet.of(Stage.ANALYSIS))) {
                 return result;
             }
-            var configuration = EsqlTestUtils.configuration(new QueryPragmas(Settings.EMPTY), esqlQuery, statement);
+            Settings pragmaSettings = remoteFetchTopN
+                ? Settings.builder().put(QueryPragmas.REMOTE_FETCH_TOPN.getKey(), true).build()
+                : Settings.EMPTY;
+            var configuration = EsqlTestUtils.configuration(new QueryPragmas(pragmaSettings), esqlQuery, statement);
             var optimizerContext = new LogicalOptimizerContext(configuration, FoldContext.small(), transportVersion);
             var optimizer = optimizerFactory != null
                 ? optimizerFactory.apply(optimizerContext)
@@ -763,7 +774,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     if (exchanges.isEmpty() == false) {
                         ExchangeExec exec = EsqlTestUtils.singleValue(exchanges);
                         var sink = new ExchangeSinkExec(exec.source(), exec.output(), false, exec.child());
-                        var reductionPlan = ReductionPlanner.plan(
+                        var reductionPlan = ComputeServiceTestUtils.reductionPlan(
                             PlannerSettings.DEFAULTS,
                             new EsqlFlags(false),
                             configuration,
@@ -1099,7 +1110,8 @@ public abstract class GoldenTestCase extends ESTestCase {
          */
         LOOKUP_PHYSICAL_OPTIMIZATION(new SingleFileOutput("lookup_physical_optimization")),
         /**
-         * See {@link ReductionPlanner}. Actually results in <b>two</b> plans: one for the node reduce driver and one for the data nodes.
+         * See {@link ComputeServiceTestUtils#reductionPlan}. Actually results in <b>two</b> plans: one for the node reduce driver and one
+         * for the data nodes.
          */
         NODE_REDUCE(new DualFileOutput("local_reduce_planned_reduce_driver", "local_reduce_planned_data_driver")),
 

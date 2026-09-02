@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_fix_unmapped_object_value ]
       reason: "Loading an unmapped object field as a keyword from synthetic source must return null, not fail (issues #156381, #156433)"
       #
       # Synthetic source with dynamic:false stores unmapped fields in _ignored_source. "unmapped" is entirely unmapped, so its whole

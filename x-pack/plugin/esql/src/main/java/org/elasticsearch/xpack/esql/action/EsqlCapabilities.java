@@ -3407,6 +3407,20 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_V2(Build.current().isSnapshot()),
 
         /**
+         * Read an unmapped field straight from {@code _source}, so an object value reads as {@code null} rather than as Java's
+         * {@code Map.toString()}. Applies to both source modes and to {@code LOAD} as well as {@code LOAD_ALL}.
+         * <p>
+         * Snapshot-gated because changing it for the released {@code LOAD} is a minor breaking change pending
+         * https://github.com/elastic/elasticsearch/issues/158306. To lift the gate, drop the constructor argument; that also makes
+         * {@code DefaultShardContextForUnmappedField#fieldType} and its helpers dead code, so see the TODO on that override in
+         * {@code EsPhysicalOperationProviders} for the clean-up that has to follow.
+         * <p>
+         * Note this must be lifted no later than {@link #OPTIONAL_FIELDS_LOAD_ALL_V2}: both share the block loader this gates, so
+         * graduating {@code LOAD_ALL} while this stays gated would reintroduce #156381 and #156433.
+         */
+        OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,

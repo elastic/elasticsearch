@@ -52,6 +52,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
@@ -71,6 +72,7 @@ import java.util.function.BiFunction;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
 
@@ -234,6 +236,12 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             ByteSizeValue.ofKb(100),
             ByteSizeValue.ofKb(300)
         );
+        // Gated on OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE: a release build must still dispatch KeywordFieldType's own loaders, so
+        // there is no source-path spec to assert there. Without this branch the test fails under -Dbuild.snapshot=false.
+        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE.isEnabled() == false) {
+            assertThat(blockLoader, not(instanceOf(UnmappedKeywordBlockLoader.class)));
+            return;
+        }
         assertThat(blockLoader, instanceOf(UnmappedKeywordBlockLoader.class));
         assertThat(
             "unmapped keyword loader must filter _source to its own path rather than request the whole document",

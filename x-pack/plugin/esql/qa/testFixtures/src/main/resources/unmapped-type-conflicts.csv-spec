@@ -1409,7 +1409,7 @@ heights        | null
 
 typeConflictScalarUnmappedCoexistsWithConflictedLeaf
 required_capability: optional_fields_v5
-required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_fix_unmapped_object_value
 
 SET unmapped_fields="load"\;
 FROM unmapped_multi_*

@@ -76,6 +76,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -480,18 +481,22 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         /**
-         * Whether this context fabricates a keyword type for {@code name}: only for {@link #fullFieldName}, and only where
+         * Whether this context creates a keyword type for {@code name}: only for {@link #fullFieldName}, and only where
          * {@code resolvedType} - what the real mapping resolves for it - is null. Callers pass that in so the mapping is walked once;
          * {@link #fieldType} is unusable here because it returns the fabricated type.
          */
-        private boolean fabricatesKeywordType(String name, @Nullable MappedFieldType resolvedType) {
+        private boolean createsKeywordType(String name, @Nullable MappedFieldType resolvedType) {
             return resolvedType == null && name.equals(fullFieldName);
         }
 
+        // TODO: remove this override, createUnmappedFieldType and UNMAPPED_FIELD_TYPE once
+        // OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE is ungated. While that capability is enabled, blockLoader below returns before
+        // super.blockLoader can consult this, so nothing reads the created type; with the capability disabled this is what keeps a
+        // release build dispatching KeywordFieldType's loaders exactly as it did before the fix, so it cannot go until the gate does.
         @Override
         public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
-            return fabricatesKeywordType(name, superResult) ? createUnmappedFieldType(name, this) : superResult;
+            return createsKeywordType(name, superResult) ? createUnmappedFieldType(name, this) : superResult;
         }
 
         @Override
@@ -508,7 +513,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // read _source directly - see UnmappedKeywordBlockLoader for the two broken paths and the issues (#156381, #156433).
             // TODO: consider fixing FallbackSyntheticSourceBlockLoader instead of working around it here. Rejected for now because it
             // only covers the synthetic-source half, and its constructor rejects the NO_IGNORED_SOURCE format stored source reports.
-            if (asUnsupportedSource == false && fabricatesKeywordType(name, super.fieldType(name))) {
+            if (asUnsupportedSource == false
+                && EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE.isEnabled()
+                && createsKeywordType(name, super.fieldType(name))) {
                 // Neither LOAD nor LOAD_ALL fuses a function into loading an unmapped field, and unmappedKeywordBlockLoader has
                 // nowhere to put one - so catch it here rather than let it be dropped and surface as a wrong value much later.
                 assert blockLoaderFunctionConfig == null

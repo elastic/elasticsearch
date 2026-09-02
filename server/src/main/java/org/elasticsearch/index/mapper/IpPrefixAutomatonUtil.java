@@ -106,7 +106,9 @@ public class IpPrefixAutomatonUtil {
                     // full block
                     if (group.length() > 1) {
                         group = group.substring(0, group.length() - 1);
-                        ipv6Automaton = concatenate(List.of(ipv6Automaton, automatonFromIPv6Group(padWithZeros(group, 4 - group.length()))));
+                        ipv6Automaton = concatenate(
+                            List.of(ipv6Automaton, automatonFromIPv6Group(padWithZeros(group, 4 - group.length())))
+                        );
                     } else {
                         // single colon denotes left out zeros
                         ipv6Automaton = concatenate(List.of(ipv6Automaton, Operations.repeat(Automata.makeChar(0))));

@@ -10,9 +10,9 @@
 package org.elasticsearch.search.dfs;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.FieldStats;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
+import org.apache.lucene.search.FieldStats;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;

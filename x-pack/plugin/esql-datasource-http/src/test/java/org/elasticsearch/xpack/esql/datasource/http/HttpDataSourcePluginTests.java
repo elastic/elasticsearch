@@ -102,8 +102,10 @@ public class HttpDataSourcePluginTests extends ESTestCase {
     // Format-aware HTTP(S): pins that '#'-stripping is preserved for http/https schemes.
     // '#' is not a glob metacharacter (StoragePath.GLOB_METACHARACTERS), so URLs with fragments
     // are queryable — unlike '?', which routes any HTTP URL through the glob/listing path.
-    private static final FileDataSourceValidator.FormatConfigKeyResolver CSV_RESOLVER =
-        FileDataSourceValidator.FormatConfigKeyResolver.of(Map.of("csv", Set.of("delimiter")), Map.of(".csv", "csv"));
+    private static final FileDataSourceValidator.FormatConfigKeyResolver CSV_RESOLVER = FileDataSourceValidator.FormatConfigKeyResolver.of(
+        Map.of("csv", Set.of("delimiter")),
+        Map.of(".csv", "csv")
+    );
 
     public void testFormatAwareHttpFragmentWithDottedSuffixDoesNotConfuseExtension() {
         // '#' is stripped from the object name before the extension lookup (HTTP branch). A dot inside

@@ -470,7 +470,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             @Override
             public void onFailure(Exception e) {
                 // CCR uses this path if users index into a follower index
-                assert e instanceof ElasticsearchStatusException ex && ex.status() == RestStatus.FORBIDDEN : "do not expect failures when passing a listener";
+                assert e instanceof ElasticsearchStatusException ex && ex.status() == RestStatus.FORBIDDEN
+                    : "do not expect failures when passing a listener";
                 assert context.stillOnFirstItem() : "even ccr should not progress beyond first item and fail";
                 super.onFailure(e);
             }

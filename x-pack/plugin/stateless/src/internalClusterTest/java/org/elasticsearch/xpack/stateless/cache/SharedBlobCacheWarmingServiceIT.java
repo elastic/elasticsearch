@@ -77,7 +77,6 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -1646,6 +1645,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                         TimeValue.timeValueMinutes(1),
                         "test: awaiting warming",
                         indexShard,
+                        directory,
+                        totalBytesToWarm(endTargetsToWarm),
                         resumeRecoveryListener
                     )
                 );

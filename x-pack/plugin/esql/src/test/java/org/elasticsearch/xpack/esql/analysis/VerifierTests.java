@@ -2150,6 +2150,29 @@ public class VerifierTests extends ESTestCase {
         supportsHighlight(fullText()).query("from test | highlight \"data\" on title | where " + functionInvocation);
     }
 
+    public void testFullTextFunctionsAfterInlineStats() {
+        assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        // unlike STATS, INLINE STATS keeps every input row, so the function can still be pushed down to Lucene
+        fullText().query("from test | inline stats m = max(id) by category | where match(title, \"Meditation\")");
+        fullText().query("from test | inline stats m = max(id) by category | where match_phrase(title, \"Meditation\")");
+        fullText().query("from test | inline stats m = max(id) by category | where title : \"Meditation\"");
+        fullText().query("from test | inline stats m = max(id) | where match(title, \"Meditation\")");
+        // only the INLINE STATS aggregate is exempt; a preceding STATS still collapses the rows
+        fullText().error(
+            "from test | stats c = count(id) by title | inline stats m = max(c) by title | where match(title, \"Meditation\")",
+            containsString("[MATCH] function cannot be used after STATS")
+        );
+        // KQL/QSTR are unaffected: their own stricter allow-list rejects INLINE STATS regardless
+        fullText().error(
+            "from test | inline stats m = max(id) by category | where kql(\"title: Meditation\")",
+            containsString("[KQL] function cannot be used after INLINE")
+        );
+        fullText().error(
+            "from test | inline stats m = max(id) by category | where qstr(\"title: Meditation\")",
+            containsString("[QSTR] function cannot be used after INLINE")
+        );
+    }
+
     public void testFullTextFunctionsAfterFork() {
         fullText().error(
             "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where title : \"data\"",

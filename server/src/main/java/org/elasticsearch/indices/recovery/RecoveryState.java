@@ -22,7 +22,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -175,7 +174,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         timer = new Timer(in);
         stage = Stage.fromId(in.readByte());
         if (in.getTransportVersion().supports(RECOVERY_LOCAL_RETRY_COUNT_TRANSPORT_VERSION)) {
-            localRetries = in.readInt();
+            localRetries = in.readVInt();
         } else {
             localRetries = 0; // serializing node is too old to have this field, so it is also too old to do local retries
         }
@@ -206,8 +205,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         // Only send localRetries to nodes which are new enough to know about it.
         // This is fine as the only time this is serialized is when returning in the response to the recovery API.
         if (out.getTransportVersion().supports(RECOVERY_LOCAL_RETRY_COUNT_TRANSPORT_VERSION)) {
-            out.writeInt(localRetries);
-	}
+            out.writeVInt(localRetries);
+        }
         shardId.writeTo(out);
         recoverySource.writeTo(out);
         // Only send recoveryPriority to nodes which are new enough to know about it.
@@ -381,10 +380,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     @Override
     public String toString() {
         return Strings.format(
-            "RecoveryState{shardId=%s, recoverySource=%s, stage=%s, primary=%s, recoveryPriority=%s, sourceNode=%s, targetNode=%s}",
+            "RecoveryState{shardId=%s, recoverySource=%s, stage=%s, localRetries=%d, primary=%s, recoveryPriority=%s, "
+                + "sourceNode=%s, targetNode=%s}",
             shardId,
             recoverySource.getType(),
             stage,
+            localRetries,
             primary,
             recoveryPriority,
             sourceNode != null ? sourceNode.getId() : "null",

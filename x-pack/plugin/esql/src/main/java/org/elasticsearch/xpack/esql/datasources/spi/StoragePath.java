@@ -165,6 +165,23 @@ public final class StoragePath {
             }
         }
 
+        // For HTTP/HTTPS, '?' and '#' are structural URL delimiters — they begin the query string and
+        // fragment, which are not part of the resource path. Strip them so that isPattern(), objectName(),
+        // and all derived operations see only the pure path. Object-store and file schemes are unchanged:
+        // there '?' is a legal key character that also doubles as a glob metacharacter (see #1841).
+        // toString(), equals(), and hashCode() remain on `location` so HTTP clients and URL-keyed caches
+        // continue to use the full URL verbatim.
+        if (scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https")) {
+            int q = path.indexOf('?');
+            if (q >= 0) {
+                path = path.substring(0, q);
+            }
+            int h = path.indexOf('#');
+            if (h >= 0) {
+                path = path.substring(0, h);
+            }
+        }
+
         return new StoragePath(location, scheme, userInfo, host, port, path);
     }
 

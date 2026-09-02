@@ -94,6 +94,17 @@ public class GlobExpanderTests extends ESTestCase {
         assertTrue(GlobExpander.isMultiFile("http://[::1]/logs/2026-*/data.parquet"));
     }
 
+    /**
+     * Presigned URLs carry a query string whose '?' is a URL structural delimiter, not a glob
+     * metacharacter. An HTTP(S) URL must never be reclassified as a multi-file glob because of it.
+     */
+    public void testHttpQueryStringIsNotAGlob() {
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?v=1.2"));
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?X-Goog-Signature=abc"));
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv#frag"));
+        assertFalse(GlobExpander.isMultiFile("http://host/data.parquet?X-Amz-Signature=xyz"));
+    }
+
     // -- expandGlob --
 
     public void testExpandGlobLiteralReturnsUnresolved() throws IOException {

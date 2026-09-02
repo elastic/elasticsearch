@@ -107,6 +107,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -1741,6 +1742,33 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             true,
             between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY * 2)
         );
+    }
+
+    /** Reuses a source loader when a run spans multiple segments of one shard. */
+    public void testSourceLoaderIsBuiltOncePerRun() throws IOException {
+        initMapping();
+        var runner = new TestDriverRunner().numThreads(1).builder(driverContext());
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(runner.context(), 100, 10, 10));
+        assertThat(input, hasSize(greaterThan(1)));
+
+        AtomicInteger sourceLoadersBuilt = new AtomicInteger();
+        runner.input(input)
+            .run(
+                new ValuesSourceReaderOperator.Factory(
+                    ByteSizeValue.ofGb(1),
+                    List.of(fieldInfo(mapperService.fieldType("source_text"), ElementType.BYTES_REF)),
+                    new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, sourcePaths -> {
+                        sourceLoadersBuilt.incrementAndGet();
+                        return SourceLoader.FROM_STORED_SOURCE;
+                    }, STORED_FIELDS_SEQUENTIAL_PROPORTIONS)),
+                    randomBoolean(),
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true),
+                    docSequenceBytesRefFieldThreshold(),
+                    () -> 0L
+                )
+            );
+        assertThat(sourceLoadersBuilt.get(), equalTo(1));
     }
 
     public void testSourceLoadProfileCounters() throws IOException {

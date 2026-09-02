@@ -1053,7 +1053,8 @@ public class ObjectMapper extends Mapper {
     }
 
     private static SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(Mapper mapper, SourceFilter sourceFilter) {
-        if (sourceFilter != null && sourceFilter.isPathFiltered(mapper.fullPath(), false)) {
+        // Match mapping paths without compiling the source filter.
+        if (sourceFilter != null && sourceFilter.isPathFilteredWithoutCompiling(mapper.fullPath())) {
             return null;
         }
         if (mapper instanceof ObjectMapper objMapper) {

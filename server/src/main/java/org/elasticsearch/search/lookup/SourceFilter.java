@@ -14,6 +14,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -118,6 +119,32 @@ public final class SourceFilter {
         }
 
         return included == false;
+    }
+
+    /** Matches {@link #isExplicitlyIncluded(String)} without compiling the includes automaton. */
+    public boolean isExplicitlyIncludedWithoutCompiling(String fullPath) {
+        return includes.length != 0 && matchesWithoutCompiling(includes, fullPath);
+    }
+
+    /** Matches {@link #isPathFiltered(String, boolean)} for non-object paths without compiling the automata. */
+    public boolean isPathFilteredWithoutCompiling(String fullPath) {
+        if (excludes.length > 0 && matchesWithoutCompiling(excludes, fullPath)) {
+            return true;
+        }
+        return includes.length > 0 && matchesWithoutCompiling(includes, fullPath) == false;
+    }
+
+    /** Matches a path or one of its ancestors, as {@link XContentMapValues#compileAutomaton} does. */
+    private static boolean matchesWithoutCompiling(String[] patterns, String fullPath) {
+        if (Regex.simpleMatch(patterns, fullPath)) {
+            return true;
+        }
+        for (int dot = fullPath.indexOf('.'); dot >= 0; dot = fullPath.indexOf('.', dot + 1)) {
+            if (Regex.simpleMatch(patterns, fullPath.substring(0, dot))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static int step(CharacterRunAutomaton automaton, String key, int state) {

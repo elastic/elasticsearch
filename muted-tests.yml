@@ -785,9 +785,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexTests
   method: testEvaluateBlockWithoutNulls {TestCase=geo_shape with literal precision and bounds}
   issue: https://github.com/elastic/elasticsearch/issues/158128
-- class: org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReaderTests
-  method: testSyntheticSourceWithCopyToKeywordDestinationAndFLSDocValues
-  issue: https://github.com/elastic/elasticsearch/issues/158222
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   issue: https://github.com/elastic/elasticsearch/issues/158224
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetNullListElementWarningIT
@@ -808,5 +805,11 @@ tests:
   method: testDeserializationFromPreShardCountsVersionDefaultsToZero
   issue: https://github.com/elastic/elasticsearch/issues/158380
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:SUBQUERIES}
+  issue: https://github.com/elastic/elasticsearch/issues/149681
+- class: org.elasticsearch.script.mustache.MultiSearchTemplateIT
+  method: testLargeMsearchTemplateDoesNotOom
+  issue: https://github.com/elastic/elasticsearch/issues/158428
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681

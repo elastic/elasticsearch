@@ -3778,7 +3778,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testPreRecoveryThrowsIndexShardClosedException() throws IOException {
-        IndexShard shard = newShard(randomBoolean());
+        IndexShard shard = newShard(true);
         DiscoveryNode target = getFakeDiscoNode("target");
         shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), target, null));
         closeShards(shard);
@@ -3786,7 +3786,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testPrepareForIndexRecoveryThrowsIndexShardClosedException() throws IOException {
-        IndexShard shard = newShard(randomBoolean());
+        IndexShard shard = newShard(true);
         DiscoveryNode target = getFakeDiscoNode("target");
         shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), target, null));
         closeShards(shard);
@@ -3794,10 +3794,9 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testRecoverLocallyUpToGlobalCheckpointFailsWithIndexShardClosedException() throws IOException {
-        IndexShard shard = newShard(randomBoolean());
-        DiscoveryNode source = getFakeDiscoNode("source");
+        IndexShard shard = newShard(true);
         DiscoveryNode target = getFakeDiscoNode("target");
-        shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), target, source));
+        shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), target, null));
         closeShards(shard);
         PlainActionFuture<Long> future = new PlainActionFuture<>();
         shard.recoverLocallyUpToGlobalCheckpoint(future);

@@ -1920,3 +1920,68 @@ ROW title = to_text("The Lord of the Rings")
 highlight_title:keyword
 The Lord of the <em>Rings</em>
 ;
+
+
+explicitQueryNoOnFallsBackToAllFields
+skip_flattened_rewrite: highlight_implicit_fields_exclude_flattened
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| HIGHLIGHT "Tolkien"
+| WHERE book_no == "8875"
+| DROP author, `author.keyword`, book_no, collection, description, publisher, ratings, title, year
+;
+
+highlight_author:keyword           | highlight_author.keyword:keyword   | highlight_book_no:keyword | highlight_collection:keyword | highlight_description:keyword | highlight_publisher:keyword | highlight_title:keyword
+John Ronald Reuel <em>Tolkien</em> | John Ronald Reuel <em>Tolkien</em> | null                      | null                         | null                          | null                        | null
+;
+
+
+# KEEP of a generated highlight_* column after a no-ON HIGHLIGHT must still load every text/keyword
+# field. Unlike explicitQueryNoOnFallsBackToAllFields, KEEP does not name the source columns, so
+# field-caps has to request * rather than the KEEP list. Pin the same book so highlight_author matches.
+explicitQueryNoOnKeepGeneratedColumn
+skip_flattened_rewrite: highlight_implicit_fields_exclude_flattened
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| HIGHLIGHT "Tolkien"
+| WHERE book_no == "8875"
+| KEEP highlight_author
+;
+
+highlight_author:keyword
+John Ronald Reuel <em>Tolkien</em>
+;
+
+
+# KEEP names book_no but not author; author still has to come from the no-ON fallback.
+explicitQueryNoOnKeepMappedAndGenerated
+skip_flattened_rewrite: highlight_implicit_fields_exclude_flattened
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| HIGHLIGHT "Tolkien"
+| KEEP book_no, highlight_author
+| WHERE book_no == "8875"
+;
+
+book_no:keyword | highlight_author:keyword
+8875            | John Ronald Reuel <em>Tolkien</em>
+;
+
+
+# KEEP highlight_* is a name pattern, not a bare *, so it does not itself trigger ALL_FIELDS.
+explicitQueryNoOnKeepHighlightWildcard
+skip_flattened_rewrite: highlight_implicit_fields_exclude_flattened
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| HIGHLIGHT "Tolkien"
+| WHERE book_no == "8875"
+| KEEP highlight_*
+;
+
+highlight_author:keyword           | highlight_author.keyword:keyword   | highlight_book_no:keyword | highlight_collection:keyword | highlight_description:keyword | highlight_publisher:keyword | highlight_title:keyword
+John Ronald Reuel <em>Tolkien</em> | John Ronald Reuel <em>Tolkien</em> | null                      | null                         | null                          | null                        | null
+;

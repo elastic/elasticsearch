@@ -66,12 +66,15 @@ public class FileDataSourceValidatorSampleSizeBoundTests extends ESTestCase {
 
     // ---- Format-scoped rejection / acceptance (resolver-aware tests) ----
 
-    /** Resolver: parquet has no schema_sample_size; csv and ndjson do. */
+    /**
+     * Resolver: parquet has no schema_sample_size; csv and ndjson do. Parquet claims no dataset keys at
+     * all, matching the real {@code FormatSpec} (its former tuning keys were removed).
+     */
     private static FileDataSourceValidator.FormatConfigKeyResolver formatResolver() {
         return FileDataSourceValidator.FormatConfigKeyResolver.of(
             Map.of(
                 "parquet",
-                Set.of("optimized_reader", "late_materialization"),
+                Set.of(),
                 "csv",
                 Set.of("schema_sample_size", "delimiter"),
                 "ndjson",

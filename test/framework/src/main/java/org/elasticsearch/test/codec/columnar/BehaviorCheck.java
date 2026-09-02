@@ -29,5 +29,5 @@ public interface BehaviorCheck {
      *
      * @param context the baseline, contender, field, scenario, write plan, and corpus oracles
      */
-    void check(final DuelContext context);
+    void check(DuelContext context);
 }

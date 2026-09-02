@@ -205,7 +205,7 @@ StorageProvider provider = storageProviderRegistry.getProvider(path);
 FormatReader reader = formatReaderRegistry.getByExtension(path.objectName());
 
 // Create operator factory
-ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
+AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
     provider,
     reader,
     path,
@@ -223,7 +223,7 @@ StoragePath path = StoragePath.of("s3://my-bucket/data/sales.parquet");
 StorageProvider provider = storageProviderRegistry.getProvider(path);  // S3StorageProvider
 FormatReader reader = formatReaderRegistry.getByExtension(".parquet"); // ParquetFormatReader
 
-ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
+AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
     provider,
     reader,
     path,
@@ -414,7 +414,6 @@ The abstraction includes comprehensive tests:
 - `HttpStorageProviderTests` - Tests for HTTP/HTTPS access
 - `CsvFormatReaderTests` - Tests for CSV parsing
 - `DataSourceModuleTests` - Integration tests for plugin discovery
-- `ExternalSourceOperatorFactoryTests` - Integration tests
 
 Run tests:
 

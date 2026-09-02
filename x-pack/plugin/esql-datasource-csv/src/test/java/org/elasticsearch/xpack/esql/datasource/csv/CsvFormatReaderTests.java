@@ -49,7 +49,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -923,7 +923,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String csv = "id:integer,addrs:ip\n1,\"[1.1.1.1,8.8.8.8]\"\n";
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = noMvcReader(blockFactory);
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
                 while (iterator.hasNext()) {
                     iterator.next();
@@ -957,7 +957,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String csv = "id:integer,ts:date_nanos\n1,\"[2024-01-15T12:34:56.123456789Z,2024-01-15T12:35:00.000000000Z]\"\n";
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = noMvcReader(blockFactory);
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
                 while (iterator.hasNext()) {
                     iterator.next();
@@ -1347,7 +1347,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
 
-        ParsingException e = expectThrows(ParsingException.class, () -> reader.schema(object));
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> reader.schema(object));
         assertTrue(e.getMessage().contains("illegal data type"));
     }
 
@@ -1368,7 +1368,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
 
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (
                 CloseableIterator<Page> iterator = reader.read(
                     object,
@@ -1428,7 +1428,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         ErrorPolicy limited = new ErrorPolicy(2, false);
 
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (
                 CloseableIterator<Page> iterator = reader.read(
                     object,
@@ -1528,7 +1528,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         ErrorPolicy ratioPolicy = new ErrorPolicy(Long.MAX_VALUE, 0.3, true);
 
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (
                 CloseableIterator<Page> iterator = reader.read(
                     object,
@@ -1980,7 +1980,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String csv = "id:integer\n\" 5x \"\n";
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (
                 CloseableIterator<Page> iterator = reader.read(
                     object,
@@ -2757,7 +2757,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 1, 0.0, false);
 
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (
                 CloseableIterator<Page> iterator = reader.read(
                     object,
@@ -3089,7 +3089,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader baseReader = new CsvFormatReader(blockFactory);
         FormatReader configured = baseReader.withConfig(Map.of("multi_value_syntax", "none"));
 
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (CloseableIterator<Page> iterator = configured.read(object, null, 10)) {
                 while (iterator.hasNext()) {
                     iterator.next();
@@ -3468,7 +3468,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
 
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
                 while (iterator.hasNext()) {
                     iterator.next();
@@ -4864,7 +4864,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             // fail_fast: the read aborts, naming the offending token and the target type.
             StorageObject strictObject = createStorageObject(csv);
             CsvFormatReader strictReader = new CsvFormatReader(blockFactory);
-            ParsingException e = expectThrows(ParsingException.class, () -> {
+            ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
                 try (
                     CloseableIterator<Page> iterator = strictReader.read(
                         strictObject,
@@ -4921,7 +4921,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String csv = "n:long\n99999999999999999999\n"; // > Long.MAX_VALUE
 
         StorageObject strict = createStorageObject(csv);
-        expectThrows(ParsingException.class, () -> {
+        expectThrows(ExternalClientException.class, () -> {
             try (
                 CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(
                     strict,
@@ -4953,7 +4953,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String tsv = "active:boolean\tname:keyword\nyes\tAlice\n";
         StorageObject object = createStorageObject(tsv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (
                 CloseableIterator<Page> iterator = reader.read(
                     object,
@@ -5673,19 +5673,19 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     // --- Duplicate-name guard (header_row=true) ---
 
-    public void testDuplicateInferredHeaderNamesThrowParsingException() {
+    public void testDuplicateInferredHeaderNamesThrowExternalClientException() {
         // Two columns both literally named "x" in the header row — would otherwise produce duplicate
         // ReferenceAttributes that the post-optimizer verifier rejects with a 500.
         String csv = "x,x,y\n1,2,3\n";
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
 
-        ParsingException ex = expectThrows(ParsingException.class, () -> reader.schema(object));
+        ExternalClientException ex = expectThrows(ExternalClientException.class, () -> reader.schema(object));
         assertThat(ex.getMessage(), Matchers.containsString("duplicate column names"));
         assertThat(ex.getMessage(), Matchers.containsString("header_row"));
     }
 
-    public void testBlankHeaderNamesThrowParsingException() {
+    public void testBlankHeaderNamesThrowExternalClientException() {
         // Two adjacent commas at the start of the header line produce two empty-string column names
         // — the most common real-world trigger of the duplicate-name path. (A trailing-comma case
         // like ",a," would be String.split-stripped and not hit this guard.)
@@ -5693,17 +5693,17 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
 
-        ParsingException ex = expectThrows(ParsingException.class, () -> reader.schema(object));
+        ExternalClientException ex = expectThrows(ExternalClientException.class, () -> reader.schema(object));
         assertThat(ex.getMessage(), Matchers.containsString("duplicate column names"));
         assertThat(ex.getMessage(), Matchers.containsString("['']"));
     }
 
-    public void testDuplicateTypedHeaderNamesThrowParsingException() {
+    public void testDuplicateTypedHeaderNamesThrowExternalClientException() {
         String csv = "id:long,id:long\n1,2\n";
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
 
-        ParsingException ex = expectThrows(ParsingException.class, () -> reader.schema(object));
+        ExternalClientException ex = expectThrows(ExternalClientException.class, () -> reader.schema(object));
         assertThat(ex.getMessage(), Matchers.containsString("duplicate column names"));
     }
 
@@ -5796,7 +5796,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         Map<String, Object> config = Map.of("multi_value_syntax", "NONE");
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
 
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (
                 CloseableIterator<Page> iterator = reader.read(
                     object,
@@ -5852,7 +5852,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
         ErrorPolicy budgetOf2 = new ErrorPolicy(2, false);
 
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (
                 CloseableIterator<Page> iterator = reader.read(
                     object,
@@ -6267,7 +6267,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject(csv.toString());
         FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false, "multi_value_syntax", "NONE"));
 
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
                 while (iterator.hasNext()) {
                     iterator.next().releaseBlocks();
@@ -6297,7 +6297,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             Map.of("header_row", false, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 5)
         );
 
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
                 while (iterator.hasNext()) {
                     iterator.next().releaseBlocks();
@@ -6323,7 +6323,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             Map.of("header_row", false, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", Long.MAX_VALUE)
         );
 
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
                 while (iterator.hasNext()) {
                     iterator.next().releaseBlocks();
@@ -6348,7 +6348,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
 
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (
                 CloseableIterator<Page> iterator = reader.read(
                     object,
@@ -6378,7 +6378,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Bracket parsing disabled so the Jackson tokeniser fires the structural error.
         FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "NONE"));
 
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (
                 CloseableIterator<Page> iterator = reader.read(
                     object,
@@ -6611,7 +6611,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = mvcReader(blockFactory);
 
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (
                 CloseableIterator<Page> iterator = reader.read(
                     object,
@@ -8512,7 +8512,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
 
-        ParsingException ex = expectThrows(ParsingException.class, () -> {
+        ExternalClientException ex = expectThrows(ExternalClientException.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(object, List.of("id", "name"), 10)) {
                 while (iterator.hasNext()) {
                     iterator.next();

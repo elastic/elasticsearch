@@ -230,7 +230,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         // Internal refresh RTG
         engine.index(randomDoc(String.valueOf(2)));
         assertTrue(engine.refreshNeeded());
-        refreshResult = engine.refreshInternalSearcher(Engine.OperationPurpose.GET_FROM_TRANSLOG, randomAlphanumericOfLength(10), true);
+        refreshResult = engine.refreshInternalSearcher(Engine.OperationPurpose.GET_FROM_TRANSLOG, "unsafe_version_map", true);
         verify(statelessCommitService, never()).addListenerForUploadedGeneration(any(), anyLong(), anyActionListener());
     }
 

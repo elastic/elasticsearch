@@ -704,7 +704,7 @@ public class IndexEngine extends InternalEngine {
         /// 2. Translog locations are not being tracked
         /// We don't need to flush in the second case since `lastUnsafeSegmentGenerationForGets` is not bumped
         /// and the read is performed on the index shard.
-        if (purpose == OperationPurpose.GET_FROM_TRANSLOG && source.equals(REAL_TIME_GET_REFRESH_SOURCE)) {
+        if (purpose == OperationPurpose.GET_FROM_TRANSLOG && source.equals(UNSAFE_VERSION_MAP_REFRESH_SOURCE)) {
             try {
                 IS_FLUSH_BY_REFRESH.set(true);
                 // TODO: Eventually the Refresh API will also need to transition (maybe) to an async API here.

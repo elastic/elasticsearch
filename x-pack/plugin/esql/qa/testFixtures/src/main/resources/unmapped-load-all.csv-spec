@@ -1961,6 +1961,37 @@ FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
+loadAllSubqueryStatsInOneBranchNullFillsExtras
+required_capability: optional_fields_load_all_subqueries
+required_capability: optional_fields_load_all_stats
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | STATS c = COUNT(*)),
+     (FROM partial_mapping_sample_data | WHERE message == "42")
+| SORT c NULLS LAST
+;
+
+c:long | @timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+7      | null                     | null         | null                | null            | null                  | null                    | null                            | null
+null   | 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | 2                     | e                       | 1232383                         | 43
+;
+
+loadAllSubqueryKeepWildcardInOneBranchNullFillsNonMatchingExtras
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!" | KEEP messag*),
+     (FROM partial_mapping_sample_data | WHERE message == "42")
+| SORT message
+;
+
+message:keyword        | @timestamp:datetime      | client_ip:ip | event_duration:long | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+42                     | 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 2                     | e                       | 1232383                         | 43
+Connected to 10.1.0.1! | null                     | null         | null                | null                  | null                    | null                            | null
+;
+
 ###########################################################
 # Object and array expansion: flatten to leaf columns     #
 ###########################################################

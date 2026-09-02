@@ -396,6 +396,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     public void testSubqueryNoKeepAnnotatesBothRelations() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM (FROM test), (FROM test)"));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
         List<EsRelation> relations = plan.collect(EsRelation.class);
         assertThat(relations, hasSize(2));
         for (EsRelation relation : relations) {
@@ -410,6 +411,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     public void testSubqueryKeepStarAnnotatesBothRelations() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM (FROM test), (FROM test) | KEEP *"));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
         List<EsRelation> relations = plan.collect(EsRelation.class);
         assertThat(relations, hasSize(2));
         for (EsRelation relation : relations) {
@@ -426,6 +428,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         LogicalPlan plan = test().addLanguages().statement(setUnmappedLoadAll("""
             FROM (FROM test | KEEP emp_no), (FROM languages)
             """));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
         for (EsRelation relation : plan.collect(EsRelation.class)) {
             List<UnmappedFieldsAttribute> attrs = CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class);
             if (relation.indexPattern().equals("test")) {
@@ -442,6 +445,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         LogicalPlan plan = test().statement(setUnmappedLoadAll("""
             FROM (FROM test), (FROM test | STATS c = COUNT(*))
             """));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
         int withAttribute = 0;
         int withoutAttribute = 0;
         for (EsRelation relation : plan.collect(EsRelation.class)) {
@@ -453,6 +457,29 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         }
         assertThat(withAttribute, is(1));
         assertThat(withoutAttribute, is(1));
+    }
+
+    public void testSubqueryKeepWildcardInOneBranchStampsBothBranchesWithDifferentPatterns() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
+            FROM (FROM test | KEEP first_name*), (FROM test | WHERE emp_no > 0)
+            """));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        int keptExtra = 0;
+        int droppedExtra = 0;
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
+                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
+            ).pattern();
+            assertKept(pattern, "first_name_suffix");
+            if (pattern.matches("unmapped_extra")) {
+                keptExtra++;
+            } else {
+                droppedExtra++;
+            }
+        }
+        assertThat(keptExtra, is(1));
+        assertThat(droppedExtra, is(1));
     }
 
     public void testRenameUnmappedFieldsIsAnOrdinarySourceField() {
@@ -742,6 +769,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     private static void assertNoUnmappedFieldsAttribute(String query) {
         LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), empty());
         for (EsRelation relation : plan.collect(EsRelation.class)) {
             assertThat("expected no UnmappedFieldsAttribute on " + relation, unmappedFieldsAttributes(relation), empty());
         }

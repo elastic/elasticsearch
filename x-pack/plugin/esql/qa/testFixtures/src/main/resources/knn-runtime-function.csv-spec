@@ -150,7 +150,8 @@ pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors METADATA _score
 | EVAL dv = to_dense_vector(emb_hex)
-| WHERE knn(dv, [64, 0, 0], {"boost": 2.0}) and match(label, "xyz")
+| EVAL runtime_label = to_text(CONCAT(label, " some suffix"))
+| WHERE knn(dv, [64, 0, 0], {"boost": 2.0}) and match(runtime_label, "xyz")
 | SORT id ASC
 | KEEP id, _score
 | LIMIT 10

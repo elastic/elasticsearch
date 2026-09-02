@@ -819,8 +819,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                     .iterablePainlessMethod();
                 irForEachSubIterableNode.attachDecoration(new IRDIterableType(Iterator.class));
                 irForEachSubIterableNode.attachDecoration(new IRDMethod(iterablePainlessMethod));
-                // for-each calls iterator() straight from the loop's codegen rather than through an InvokeCallNode, so the
-                // charge cannot ride visitInvokeCall the way an explicit coll.iterator() call does.
+                // for-each invokes iterator() from the loop's own codegen, so the charge cannot ride visitInvokeCall.
                 attachAllocationEstimator(irForEachSubIterableNode, scriptScope, iterablePainlessMethod);
 
                 if (painlessCast != null) {

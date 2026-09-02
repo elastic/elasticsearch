@@ -44,8 +44,7 @@ public class AllocationPreCheckTests extends AllocationTestCase {
     }
 
     public void testForEachOverIterableChargesIterator() {
-        // A typed for-each calls Iterable.iterator() from the loop's own codegen, not through an InvokeCallNode, so this
-        // is the regression guard for that emission path specifically.
+        // Guards the loop's own codegen path, which does not go through visitInvokeCall.
         long iterator = AllocationEstimators.iteratorBytes(List.of());
         long list = allocatedBytes("List l = new ArrayList(); return \"x\";");
         long listAndLoop = allocatedBytes("long n = 0; List l = new ArrayList(); for (def e : l) { n++; } return \"x\";");
@@ -65,8 +64,7 @@ public class AllocationPreCheckTests extends AllocationTestCase {
     }
 
     public void testForEachOverDefIterableChargesIterator() {
-        // A def iterable goes through DefBootstrap.ITERATOR, which has no allocation metadata, so the charge is emitted
-        // inline as a constant rather than replayed through an estimator.
+        // Charged as an inline constant, since DefBootstrap.ITERATOR has no annotation to read.
         long list = allocatedBytes("def l = new ArrayList(); return \"x\";");
         long listAndLoop = allocatedBytes("long n = 0; def l = new ArrayList(); for (def e : l) { n++; } return \"x\";");
 
@@ -74,7 +72,7 @@ public class AllocationPreCheckTests extends AllocationTestCase {
     }
 
     public void testForEachOverDefArrayChargesIterator() {
-        // Iterating an array through a def reference builds a ValueIterator wrapper, which is charged the same constant.
+        // A def array builds a ValueIterator wrapper, charged the same constant.
         long array = allocatedBytes("def a = new int[] {1, 2, 3}; return \"x\";");
         long arrayAndLoop = allocatedBytes("long n = 0; def a = new int[] {1, 2, 3}; for (def e : a) { n++; } return \"x\";");
 
@@ -82,7 +80,7 @@ public class AllocationPreCheckTests extends AllocationTestCase {
     }
 
     public void testForEachOverArrayChargesNoIterator() {
-        // Arrays use an index loop (ForEachSubArrayNode), so there is no iterator to charge.
+        // Arrays use an index loop, so there is no iterator.
         long array = allocatedBytes("int[] a = new int[] {1, 2, 3}; return \"x\";");
         long arrayAndLoop = allocatedBytes("long n = 0; int[] a = new int[] {1, 2, 3}; for (int e : a) { n++; } return \"x\";");
 

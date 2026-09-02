@@ -94,17 +94,11 @@ public class PainlessAllocationTrackingBenchmark {
      *       {@code String+int} concat, entrySet iterator, and {@code String+String} concat</li>
      *   <li>{@code def_alloc} – def-typed string concat (PR 7.5 MIC path) and def method
      *       dispatch to annotated targets (PR 7 PIC path)</li>
-     *   <li>{@code foreach_typed} – one typed {@code for-each}; isolates the iterator charge replayed
-     *       through the {@code Iterable.iterator()} estimator</li>
-     *   <li>{@code foreach_def} – the same loop through a {@code def} reference, where the charge is a
-     *       constant emitted inline because {@code DefBootstrap.ITERATOR} carries no metadata</li>
-     *   <li>{@code foreach_many} – ten typed {@code for-each} loops; the charge is once per loop, so
-     *       this shows whether that cost scales linearly</li>
-     *   <li>{@code foreach_array} – control: a typed array {@code for-each} is an index loop with no
-     *       iterator. The array comes from params, so nothing in this script is charged and all three
-     *       modes should agree</li>
-     *   <li>{@code indexed_typed} – paired control for {@code foreach_typed}: same list, indexed access
-     *       instead of {@code for-each}. The gap between the two within one mode is the iterator charge</li>
+     *   <li>{@code foreach_typed} – one typed {@code for-each}; the iterator charge on the typed path</li>
+     *   <li>{@code foreach_def} – the same loop through {@code def}, where the charge is inline</li>
+     *   <li>{@code foreach_many} – ten loops; shows whether the per-loop cost scales</li>
+     *   <li>{@code foreach_array} – control: an array loop has no iterator, so all modes should agree</li>
+     *   <li>{@code indexed_typed} – control: same list without a {@code for-each}</li>
      * </ul>
      */
     @Param(
@@ -192,9 +186,7 @@ public class PainlessAllocationTrackingBenchmark {
                         joined = joined + item;
                     }
                     return joined.length() > 0""";
-                // One typed for-each over a params-supplied List: isolates the iterator charge on the typed path, where the
-                // estimator is replayed through Iterable.iterator(). Body is a counter bump so nothing else allocates, and
-                // an empty body would be rejected as an extraneous loop.
+                // The typed path. The body only bumps a counter; an empty one is rejected as an extraneous loop.
                 case "foreach_typed" -> """
                     long n = 0;
                     List items = params.items;
@@ -202,8 +194,7 @@ public class PainlessAllocationTrackingBenchmark {
                         n++;
                     }
                     return n > 0""";
-                // The same loop through a def reference: isolates the def path, where DefBootstrap.ITERATOR carries no
-                // metadata so the charge is a constant emitted inline instead.
+                // The def path, where the charge is an inline constant.
                 case "foreach_def" -> """
                     long n = 0;
                     def items = params.items;
@@ -211,8 +202,7 @@ public class PainlessAllocationTrackingBenchmark {
                         n++;
                     }
                     return n > 0""";
-                // Ten typed for-each loops over the same list. The charge is once per loop, so this is the workload that
-                // shows whether that per-loop cost scales linearly and lifts it above run-to-run noise.
+                // Ten loops, to lift the per-loop cost above run-to-run noise.
                 case "foreach_many" -> """
                     long n = 0;
                     List items = params.items;
@@ -222,8 +212,7 @@ public class PainlessAllocationTrackingBenchmark {
                         }
                     }
                     return n > 0""";
-                // Control: a typed array for-each compiles to an index loop with no iterator, so this must show no added
-                // cost in any tracking mode. If it ever does, the array path has started charging something it should not.
+                // Control: an array loop has no iterator, so no mode should cost more.
                 case "foreach_array" -> """
                     long n = 0;
                     int[] a = (int[])params.numbers;
@@ -231,8 +220,7 @@ public class PainlessAllocationTrackingBenchmark {
                         n++;
                     }
                     return n > 0""";
-                // Paired control for foreach_typed: same list, same element count, indexed access instead of for-each, so
-                // no iterator is allocated. The gap between this and foreach_typed within one mode is the iterator charge.
+                // Control: same list, no for-each, so no iterator.
                 case "indexed_typed" -> """
                     long n = 0;
                     List items = params.items;
@@ -259,11 +247,9 @@ public class PainlessAllocationTrackingBenchmark {
         public void setup(PainlessAllocationTrackingBenchmark benchmark) {
             Map<String, Object> params = new HashMap<>();
             params.put("word", "echo");
-            // Pre-built so the for-each workloads allocate nothing except the iterator under measurement. Eight elements
-            // keeps per-element iteration cost small relative to the once-per-loop charge being isolated.
+            // Pre-built so the loop workloads allocate nothing but the iterator being measured.
             params.put("items", List.of("alfa", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel"));
-            // Also pre-built: an array allocated inside the script would itself be charged, which would confound the
-            // foreach_array control with the array's own pre-check rather than isolating the absent iterator charge.
+            // Also pre-built: an array built in the script would be charged, breaking the control.
             params.put("numbers", new int[] { 1, 2, 3, 4, 5, 6, 7, 8 });
             Map<String, Object> context = new HashMap<>();
             context.put("message", "test");

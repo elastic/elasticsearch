@@ -93,6 +93,7 @@ public class Knn extends SingleFieldFullTextFunction
     // Expressions to be used as prefilters in knn query
     private final List<Expression> filterExpressions;
     private final Configuration configuration;
+    private float[] cachedQuery;
 
     public static final String MIN_CANDIDATES_OPTION = "min_candidates";
 
@@ -329,10 +330,10 @@ public class Knn extends SingleFieldFullTextFunction
         float squaredMagnitude = VectorUtil.dotProduct(vector, vector);
         if (Float.isNaN(squaredMagnitude) || Float.isInfinite(squaredMagnitude)) {
             failures.add(
-                Failure.fail(query(), "[KNN] cannot operate on [{}]; query vector values are two large or too small.", query().sourceText())
+                Failure.fail(query(), "[KNN] cannot operate on [{}]; query vector values are too large or too small.", query().sourceText())
             );
         }
-        if (Math.sqrt(squaredMagnitude) == 0.0f) {
+        if (squaredMagnitude == 0.0f) {
             failures.add(
                 Failure.fail(
                     query(),
@@ -437,12 +438,14 @@ public class Knn extends SingleFieldFullTextFunction
     }
 
     private float[] queryAsFloats() {
-        List<Number> queryFolded = queryAsObject();
-        float[] queryAsFloats = new float[queryFolded.size()];
-        for (int i = 0; i < queryFolded.size(); i++) {
-            queryAsFloats[i] = queryFolded.get(i).floatValue();
+        if (cachedQuery == null) {
+            List<Number> queryFolded = queryAsObject();
+            cachedQuery = new float[queryFolded.size()];
+            for (int i = 0; i < queryFolded.size(); i++) {
+                cachedQuery[i] = queryFolded.get(i).floatValue();
+            }
         }
-        return queryAsFloats;
+        return cachedQuery;
     }
 
     public Expression withFilters(List<Expression> filterExpressions) {

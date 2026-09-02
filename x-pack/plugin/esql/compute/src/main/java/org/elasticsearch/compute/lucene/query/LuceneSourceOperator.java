@@ -200,37 +200,38 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
 
         /**
-         * Cost-aware {@link DataPartitioning#AUTO} strategy for the unsorted source. A no-limit scan (e.g. {@code STATS})
-         * visits every matching doc, so it shares the {@link #autoPartitioning} rule with count and TopN: costly →
-         * SEGMENT, cheap ({@code cost < minCostForDoc}) → SEGMENT, else DOC.
+         * Cost-aware {@link DataPartitioning#AUTO} strategy for the unsorted source.
          * <p>
-         * A query with a {@code limit} keeps {@link PartitioningStrategy#SHARD} unless it is a guaranteed full scan:
-         * costly-to-build clauses (BKD point ranges, multi-term) keep {@code SHARD} because a single shard-level walk
-         * beats rebuilding scorers per segment when the limit fires early; {@link org.apache.lucene.search.MatchAllDocsQuery}
-         * and {@link org.apache.lucene.search.MatchNoDocsQuery} keep {@code SHARD}; cheap filters (cost below
-         * {@code minCostForDoc}) keep {@code SHARD}. Only a scan-heavy filter with {@code cost ≥ minCostForDoc} (e.g. a
-         * doc-values-only field with no BKD index) is promoted to {@link PartitioningStrategy#DOC}, because those scans
-         * visit {@code ~maxDoc} regardless of match density and the limit is never reached early.
+         * Decision table (both branches share the same cost signal):
+         * <ul>
+         *     <li>{@link org.apache.lucene.search.MatchAllDocsQuery}: no-limit → DOC; limited → SHARD.</li>
+         *     <li>{@link org.apache.lucene.search.MatchNoDocsQuery} or costly clause (BKD / multi-term): no-limit → SEGMENT; limited → SHARD.</li>
+         *     <li>cheap filter ({@code cost < minCostForDoc}): no-limit → SEGMENT; limited → SHARD.</li>
+         *     <li>scan-heavy filter ({@code cost ≥ minCostForDoc}, e.g. doc-values-only with no BKD): → DOC in both cases,
+         *         because the scan visits {@code ~maxDoc} regardless of match density and the limit is never reached early.</li>
+         * </ul>
          */
         public static DataPartitioning.AutoStrategy autoStrategy(long minCostForDoc) {
-            return limit -> limit == NO_LIMIT
-                ? (ctx, query) -> autoPartitioning(ctx, query, DOC, minCostForDoc, SEGMENT)
-                : (ctx, query) -> limitedScanAutoStrategy(ctx, query, minCostForDoc);
-        }
-
-        private static PartitioningStrategy limitedScanAutoStrategy(ShardContext ctx, Query query, long minCostForDoc) {
-            if (containsCostlyClause(query)) {
-                return SHARD;
-            }
-            Query unwrapped = unwrapQuery(query);
-            if (unwrapped instanceof MatchAllDocsQuery || unwrapped instanceof MatchNoDocsQuery) {
-                return SHARD;
-            }
-            try {
-                return queryCost(ctx, query, minCostForDoc) < minCostForDoc ? SHARD : DOC;
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            return limit -> (ctx, query) -> {
+                Query unwrapped = unwrapQuery(query);
+                if (limit != NO_LIMIT) {
+                    if (containsCostlyClause(query) || unwrapped instanceof MatchAllDocsQuery || unwrapped instanceof MatchNoDocsQuery) {
+                        return SHARD;
+                    }
+                    try {
+                        return queryCost(ctx, query, minCostForDoc) < minCostForDoc ? SHARD : DOC;
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+                if (unwrapped instanceof MatchAllDocsQuery) return DOC;
+                if (unwrapped instanceof MatchNoDocsQuery || containsCostlyClause(query)) return SEGMENT;
+                try {
+                    return queryCost(ctx, query, minCostForDoc) < minCostForDoc ? SEGMENT : DOC;
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            };
         }
 
         /**

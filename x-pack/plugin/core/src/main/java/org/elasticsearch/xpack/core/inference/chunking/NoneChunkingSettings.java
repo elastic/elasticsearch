@@ -79,9 +79,7 @@ public class NoneChunkingSettings implements ChunkingSettings {
             );
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return NoneChunkingSettings.INSTANCE;
     }

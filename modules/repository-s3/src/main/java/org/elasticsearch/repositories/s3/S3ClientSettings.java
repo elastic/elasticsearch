@@ -52,6 +52,11 @@ final class S3ClientSettings {
 
     /** Placeholder client name for normalizing client settings in the repository settings. */
     private static final String PLACEHOLDER_CLIENT = "placeholder";
+    static final String REPOSITORY_CLIENT_SETTINGS_PREFIX = PREFIX + PLACEHOLDER_CLIENT + '.';
+
+    static Settings normalizeRepositorySettings(Settings repositorySettings) {
+        return Settings.builder().put(repositorySettings).normalizePrefix(REPOSITORY_CLIENT_SETTINGS_PREFIX).build();
+    }
 
     /** The access key (ie login id) for connecting to s3. */
     static final Setting.AffixSetting<SecureString> ACCESS_KEY_SETTING = Setting.affixKeySetting(
@@ -217,6 +222,20 @@ final class S3ClientSettings {
         key -> Setting.byteSizeSetting(key, MAX_FILE_SIZE, MIN_PART_SIZE_USING_MULTIPART, MAX_FILE_SIZE, Property.NodeScope)
     );
 
+    /** Tenacious retries for transient blob store errors. */
+    static final Setting.AffixSetting<Boolean> S3_TENACIOUS_RETRIES_ENABLED_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "tenacious_retries.enabled",
+        key -> Setting.boolSetting(key, true, Property.NodeScope)
+    );
+
+    /** Whether to include the request body in the V4 signature even when unnecessary because HTTPS is in use. */
+    static final Setting.AffixSetting<Boolean> ALWAYS_SIGN_REQUESTS = Setting.affixKeySetting(
+        PREFIX,
+        "always_sign_requests",
+        key -> Setting.boolSetting(key, false, Property.NodeScope)
+    );
+
     /** Credentials to authenticate with s3. */
     final AwsCredentials credentials;
 
@@ -277,6 +296,12 @@ final class S3ClientSettings {
     /** Maximum size allowed for copy without multipart */
     final ByteSizeValue maxCopySizeBeforeMultipart;
 
+    /** Tenacious retries for transient blob store errors. */
+    final boolean tenaciousRetriesEnabled;
+
+    /** Whether to include the request body in the V4 signature even when unnecessary because HTTPS is in use. */
+    final boolean alwaysSignRequests;
+
     private S3ClientSettings(
         AwsCredentials credentials,
         HttpScheme protocol,
@@ -295,7 +320,9 @@ final class S3ClientSettings {
         boolean disableChunkedEncoding,
         boolean addPurposeCustomQueryParameter,
         String region,
-        ByteSizeValue maxCopySizeBeforeMultipart
+        ByteSizeValue maxCopySizeBeforeMultipart,
+        boolean tenaciousRetriesEnabled,
+        boolean alwaysSignRequests
     ) {
         this.credentials = credentials;
         this.protocol = protocol;
@@ -315,6 +342,8 @@ final class S3ClientSettings {
         this.addPurposeCustomQueryParameter = addPurposeCustomQueryParameter;
         this.region = region;
         this.maxCopySizeBeforeMultipart = maxCopySizeBeforeMultipart;
+        this.tenaciousRetriesEnabled = tenaciousRetriesEnabled;
+        this.alwaysSignRequests = alwaysSignRequests;
     }
 
     /**
@@ -325,10 +354,7 @@ final class S3ClientSettings {
      */
     S3ClientSettings refine(Settings repositorySettings) {
         // Normalize settings to placeholder client settings prefix so that we can use the affix settings directly
-        final Settings normalizedSettings = Settings.builder()
-            .put(repositorySettings)
-            .normalizePrefix(PREFIX + PLACEHOLDER_CLIENT + '.')
-            .build();
+        final Settings normalizedSettings = normalizeRepositorySettings(repositorySettings);
         final HttpScheme newProtocol = getRepoSettingOrDefault(PROTOCOL_SETTING, normalizedSettings, protocol);
         final String newEndpoint = getRepoSettingOrDefault(ENDPOINT_SETTING, normalizedSettings, endpoint);
 
@@ -369,6 +395,17 @@ final class S3ClientSettings {
             normalizedSettings,
             maxCopySizeBeforeMultipart
         );
+        final boolean newTenaciousRetriesEnabled = getRepoSettingOrDefault(
+            S3_TENACIOUS_RETRIES_ENABLED_SETTING,
+            normalizedSettings,
+            tenaciousRetriesEnabled
+        );
+        final boolean newAlwaysSignRequests = getRepoSettingOrDefault(ALWAYS_SIGN_REQUESTS, normalizedSettings, alwaysSignRequests);
+
+        // Read unused settings too so repository registration emits deprecation warnings for explicit values.
+        getRepoSettingOrDefault(UNUSED_USE_THROTTLE_RETRIES_SETTING, normalizedSettings, true);
+        getRepoSettingOrDefault(UNUSED_SIGNER_OVERRIDE, normalizedSettings, "");
+
         if (Objects.equals(protocol, newProtocol)
             && Objects.equals(endpoint, newEndpoint)
             && Objects.equals(proxyHost, newProxyHost)
@@ -384,7 +421,9 @@ final class S3ClientSettings {
             && newDisableChunkedEncoding == disableChunkedEncoding
             && newAddPurposeCustomQueryParameter == addPurposeCustomQueryParameter
             && Objects.equals(region, newRegion)
-            && Objects.equals(maxCopySizeBeforeMultipart, newMaxCopySizeBeforeMultipart)) {
+            && Objects.equals(maxCopySizeBeforeMultipart, newMaxCopySizeBeforeMultipart)
+            && tenaciousRetriesEnabled == newTenaciousRetriesEnabled
+            && newAlwaysSignRequests == alwaysSignRequests) {
             return this;
         }
         return new S3ClientSettings(
@@ -405,7 +444,9 @@ final class S3ClientSettings {
             newDisableChunkedEncoding,
             newAddPurposeCustomQueryParameter,
             newRegion,
-            newMaxCopySizeBeforeMultipart
+            newMaxCopySizeBeforeMultipart,
+            newTenaciousRetriesEnabled,
+            newAlwaysSignRequests
         );
     }
 
@@ -516,7 +557,9 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
                 getConfigValue(settings, clientName, ADD_PURPOSE_CUSTOM_QUERY_PARAMETER),
                 getConfigValue(settings, clientName, REGION),
-                getConfigValue(settings, clientName, MAX_COPY_SIZE_BEFORE_MULTIPART)
+                getConfigValue(settings, clientName, MAX_COPY_SIZE_BEFORE_MULTIPART),
+                getConfigValue(settings, clientName, S3_TENACIOUS_RETRIES_ENABLED_SETTING),
+                getConfigValue(settings, clientName, ALWAYS_SIGN_REQUESTS)
             );
         }
     }
@@ -546,7 +589,9 @@ final class S3ClientSettings {
             && Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding)
             && Objects.equals(addPurposeCustomQueryParameter, that.addPurposeCustomQueryParameter)
             && Objects.equals(region, that.region)
-            && Objects.equals(maxCopySizeBeforeMultipart, that.maxCopySizeBeforeMultipart);
+            && Objects.equals(maxCopySizeBeforeMultipart, that.maxCopySizeBeforeMultipart)
+            && tenaciousRetriesEnabled == that.tenaciousRetriesEnabled
+            && alwaysSignRequests == that.alwaysSignRequests;
     }
 
     @Override
@@ -568,7 +613,9 @@ final class S3ClientSettings {
             disableChunkedEncoding,
             addPurposeCustomQueryParameter,
             region,
-            maxCopySizeBeforeMultipart
+            maxCopySizeBeforeMultipart,
+            tenaciousRetriesEnabled,
+            alwaysSignRequests
         );
     }
 
@@ -591,4 +638,5 @@ final class S3ClientSettings {
         static final int RETRY_COUNT = 3;
         static final TimeValue API_CALL_TIMEOUT = TimeValue.MINUS_ONE; // default to no API call timeout
     }
+
 }

@@ -52,6 +52,25 @@ public final class FloatBigArrayVector extends AbstractVector implements FloatVe
     }
 
     @Override
+    public FloatVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (FloatVector.FixedBuilder builder = blockFactory().newFloatVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendFloat(getFloat(i));
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return Float.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.FLOAT;
     }
@@ -67,13 +86,13 @@ public final class FloatBigArrayVector extends AbstractVector implements FloatVe
     }
 
     @Override
-    public FloatVector filter(boolean mayContainDuplicates, int... positions) {
+    public FloatVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         var blockFactory = blockFactory();
-        final FloatArray filtered = blockFactory.bigArrays().newFloatArray(positions.length);
-        for (int i = 0; i < positions.length; i++) {
-            filtered.set(i, values.get(positions[i]));
+        final FloatArray filtered = blockFactory.bigArrays().newFloatArray(length);
+        for (int i = 0; i < length; i++) {
+            filtered.set(i, values.get(positions[offset + i]));
         }
-        return new FloatBigArrayVector(filtered, positions.length, blockFactory);
+        return new FloatBigArrayVector(filtered, length, blockFactory);
     }
 
     @Override

@@ -1,6 +1,0 @@
-area: Search
-issues:
-  - 143732
-pr: 143733
-summary: Fix nested object float arrays being mapped to dense vectors when they are mapped in dynamic template mappings
-type: enhancement

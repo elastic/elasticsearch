@@ -121,6 +121,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     ) {
         this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
         this.taskType = Objects.requireNonNull(taskType);
+        assert taskType != TaskType.ANY : "Model task type cannot be ANY";
         this.service = Objects.requireNonNull(service);
         this.serviceSettings = Objects.requireNonNull(serviceSettings);
         this.taskSettings = Objects.requireNonNull(taskSettings);
@@ -200,6 +201,11 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
 
     private XContentBuilder toXContent(XContentBuilder builder, Params params, boolean includeFilteredFields) throws IOException {
         builder.startObject();
+
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+            builder.field(InferenceIndexDocTypeField.DOC_TYPE_FIELD, InferenceIndexDocTypeField.ENDPOINT_CONFIG_TYPE);
+        }
+
         if (params.paramAsBoolean(USE_ID_FOR_INDEX, false)) {
             builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
         } else {

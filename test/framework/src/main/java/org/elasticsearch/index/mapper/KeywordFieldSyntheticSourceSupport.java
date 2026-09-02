@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,13 +27,15 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     private final FieldMapper.DocValuesParameter.Values docValues;
     private final String nullValue;
     private final boolean allowIgnoredSource;
+    private final boolean isColumnar;
 
     KeywordFieldSyntheticSourceSupport(
         Integer ignoreAbove,
         boolean store,
         String nullValue,
         boolean allowIgnoredSource,
-        FieldMapper.DocValuesParameter.Values docValues
+        FieldMapper.DocValuesParameter.Values docValues,
+        boolean isColumnar
     ) {
         this.ignoreAbove = ignoreAbove;
         this.allIgnored = ignoreAbove != null && LuceneTestCase.rarely();
@@ -42,34 +43,42 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         this.nullValue = nullValue;
         this.allowIgnoredSource = allowIgnoredSource;
         this.docValues = docValues;
+        this.isColumnar = isColumnar;
     }
 
-    public static FieldMapper.DocValuesParameter.Values randomDocValuesParams(boolean allowIgnoredSource) {
-        // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
-        if (Build.current().isSnapshot() == false) {
-            if (allowIgnoredSource && ESTestCase.randomBoolean()) {
-                return FieldMapper.DocValuesParameter.Values.DISABLED;
-            } else {
-                return new FieldMapper.DocValuesParameter.Values(
-                    true,
-                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
-                );
-            }
-        }
+    @Override
+    public boolean isColumnar() {
+        return isColumnar;
+    }
 
+    public static FieldMapper.DocValuesParameter.Values randomDocValuesParams(boolean allowIgnoredSource, boolean isColumnar) {
+        // multi_value=false is only valid in strict-columnar index modes.
+        boolean multiValue = isColumnar == false || ESTestCase.randomBoolean();
+        // on_failure=ignore is rejected at parse time while the feature flag is off; keep release builds on FAIL only.
+        FieldMapper.DocValuesParameter.Values.OnFailure onFailure = FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled()
+            ? ESTestCase.randomFrom(
+                FieldMapper.DocValuesParameter.Values.OnFailure.FAIL,
+                FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE
+            )
+            : FieldMapper.DocValuesParameter.Values.OnFailure.FAIL;
+
+        // Generate nullability=true only: nullability=false has no synthetic-source roundtrip behavior to fuzz.
         return switch (ESTestCase.randomInt(allowIgnoredSource ? 2 : 1)) {
             case 0 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
+                multiValue,
+                true,
+                onFailure
             );
             case 1 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-                FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
+                multiValue,
+                true,
+                onFailure
             );
-            case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
+            case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED_LOW_CARDINALITY;
             default -> throw new IllegalStateException();
         };
     }
@@ -77,6 +86,21 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     @Override
     public boolean ignoreAbove() {
         return ignoreAbove != null;
+    }
+
+    @Override
+    public boolean enforcesSingleValue() {
+        // on_failure=FAIL: extra values throw → single-valued examples only.
+        // on_failure=IGNORE: extra values redirect to ._on_failure → multi-valued examples are valid.
+        return docValues.multiValue() == false && docValues.onFailure() == FieldMapper.DocValuesParameter.Values.OnFailure.FAIL;
+    }
+
+    /**
+     * {@code true} when {@code multi_value=false, on_failure=ignore}: extra values go to {@code ._on_failure} instead of failing.
+     * Used by the example generator to produce multi-valued inputs whose reconstruction preserves encounter order.
+     */
+    public boolean redirectsMultipleValues() {
+        return docValues.multiValue() == false && docValues.onFailure() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE;
     }
 
     @Override
@@ -88,7 +112,8 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
 
     @Override
     public MapperTestCase.SyntheticSourceExample example(int maxValues) {
-        return example(maxValues, false, false);
+        // in columnar mode, ignored values (exceeding ignore_above) are stored in sorted binary doc values
+        return example(maxValues, false, false, isColumnar);
     }
 
     public MapperTestCase.SyntheticSourceExample example(int maxValues, boolean loadBlockFromSource, boolean flipOrder) {
@@ -101,10 +126,22 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         boolean flipOrder,
         boolean ignoredValuesSorted
     ) {
-        if (ESTestCase.randomBoolean()) {
+        // Produce a single-value example when enforced (FAIL), maxValues < 2, or randomly when not in redirect mode.
+        if (enforcesSingleValue() || maxValues < 2 || (redirectsMultipleValues() == false && ESTestCase.randomBoolean())) {
             Tuple<String, String> v = generateValue();
             Object sourceValue = preservesExactSource() ? v.v1() : v.v2();
             return new MapperTestCase.SyntheticSourceExample(v.v1(), sourceValue, this::mapping);
+        }
+
+        if (redirectsMultipleValues()) {
+            // Position 0 → primary column: null_value substitution applies, so expected output is v2 (transformed).
+            // Positions 1+ → ._on_failure: raw bytes stored without substitution, so expected output is v1 (raw input).
+            List<Tuple<String, String>> values = ESTestCase.randomList(2, maxValues, this::generateValue);
+            List<String> expected = new ArrayList<>();
+            for (int i = 0; i < values.size(); i++) {
+                expected.add(i == 0 ? values.get(i).v2() : values.get(i).v1());
+            }
+            return new MapperTestCase.SyntheticSourceExample(values.stream().map(Tuple::v1).toList(), expected, this::mapping);
         }
         List<Tuple<String, String>> values = ESTestCase.randomList(1, maxValues, this::generateValue);
         List<String> in = values.stream().map(Tuple::v1).toList();
@@ -118,7 +155,8 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
                 validValues.add(v);
             }
         });
-        List<String> outputFromDocValues = new HashSet<>(validValues).stream().sorted().toList();
+        // columnar mode preserves insertion order and duplicates; non-columnar deduplicates and sorts
+        List<String> outputFromDocValues = isColumnar ? validValues : new HashSet<>(validValues).stream().sorted().toList();
 
         Object out;
         if (preservesExactSource()) {
@@ -167,15 +205,15 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
 
         if (docValues.enabled() == false) {
             b.field("doc_values", false);
-        } else {
-            // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
-            if (Build.current().isSnapshot() == false) {
-                b.field("doc_values", true);
-            } else {
-                b.startObject("doc_values");
-                b.field("cardinality", docValues.cardinality().toString());
-                b.endObject();
+        } else if (docValues.multiValue() == false) {
+            b.startObject("doc_values");
+            b.field("multi_value", false);
+            if (docValues.onFailure() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
+                b.field("on_failure", "ignore");
             }
+            b.endObject();
+        } else {
+            b.field("doc_values", true);
         }
     }
 

@@ -48,6 +48,18 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final Setting<Boolean> CLUSTER_LOGSDB_COLUMNAR_ENABLED = Setting.boolSetting(
+        "cluster.logsdb_columnar.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<Boolean> CLUSTER_COLUMNAR_ENABLED = Setting.boolSetting(
+        "cluster.columnar.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     static final Setting<Boolean> LOGSDB_DEFAULT_SORT_ON_MESSAGE_TEMPLATE = Setting.boolSetting(
         "index.logsdb.default_sort_on_message_template",
         false,
@@ -78,6 +90,11 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
             CLUSTER_LOGSDB_ENABLED,
             logsdbIndexModeSettingsProvider::updateClusterIndexModeLogsdbEnabled
         );
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_LOGSDB_COLUMNAR_ENABLED,
+            logsdbIndexModeSettingsProvider::updateClusterIndexModeLogsdbColumnarEnabled
+        );
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_COLUMNAR_ENABLED, logsdbIndexModeSettingsProvider::updateColumnarEnabled);
         // Nothing to share here:
         return super.createComponents(services);
     }
@@ -104,7 +121,9 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
             CLUSTER_LOGSDB_ENABLED,
             LOGSDB_PRIOR_LOGS_USAGE,
             PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING,
-            LOGSDB_DEFAULT_SORT_ON_MESSAGE_TEMPLATE
+            LOGSDB_DEFAULT_SORT_ON_MESSAGE_TEMPLATE,
+            CLUSTER_LOGSDB_COLUMNAR_ENABLED,
+            CLUSTER_COLUMNAR_ENABLED
         );
     }
 

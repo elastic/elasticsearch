@@ -17,7 +17,11 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -30,20 +34,43 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class PartitionedRoutingIT extends ESIntegTestCase {
 
+    private boolean routingDocValues;
+
+    @Before
+    public void randomizeRoutingStorage() {
+        routingDocValues = randomBoolean();
+        logger.info("--> using routing doc_values [{}]", routingDocValues);
+    }
+
+    /**
+     * Builds a {@code _routing} mapping that sets {@code required: true} and randomly enables
+     * {@code doc_values} based on {@link #routingDocValues}.
+     */
+    private XContentBuilder routingMapping() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("_routing")
+            .field("required", true);
+        if (routingDocValues) {
+            mapping.field("doc_values", true);
+        }
+        return mapping.endObject().endObject().endObject();
+    }
+
     public void testVariousPartitionSizes() throws Exception {
         for (int shards = 1; shards <= 4; shards++) {
             for (int partitionSize = 1; partitionSize < shards; partitionSize++) {
                 String index = "index_" + shards + "_" + partitionSize;
 
-                indicesAdmin().prepareCreate(index)
-                    .setSettings(
-                        Settings.builder()
-                            .put("index.number_of_shards", shards)
-                            .put("index.number_of_routing_shards", shards)
-                            .put("index.routing_partition_size", partitionSize)
-                    )
-                    .setMapping("{\"_routing\":{\"required\":true}}")
-                    .get();
+                prepareCreate(
+                    index,
+                    -1,
+                    Settings.builder()
+                        .put("index.number_of_shards", shards)
+                        .put("index.number_of_routing_shards", shards)
+                        .put("index.routing_partition_size", partitionSize)
+                ).setMapping(routingMapping()).get();
                 ensureGreen();
 
                 Map<String, Set<String>> routingToDocumentIds = generateRoutedDocumentIds(index);
@@ -65,13 +92,12 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
         int currentShards = originalShards;
         String index = "index_" + currentShards;
 
-        indicesAdmin().prepareCreate(index)
-            .setSettings(
-                indexSettings(currentShards, numberOfReplicas()).put("index.number_of_routing_shards", currentShards)
-                    .put("index.routing_partition_size", partitionSize)
-            )
-            .setMapping("{\"_routing\":{\"required\":true}}")
-            .get();
+        prepareCreate(
+            index,
+            -1,
+            indexSettings(currentShards, numberOfReplicas()).put("index.number_of_routing_shards", currentShards)
+                .put("index.routing_partition_size", partitionSize)
+        ).setMapping(routingMapping()).get();
         ensureGreen();
 
         Map<String, Set<String>> routingToDocumentIds = generateRoutedDocumentIds(index);

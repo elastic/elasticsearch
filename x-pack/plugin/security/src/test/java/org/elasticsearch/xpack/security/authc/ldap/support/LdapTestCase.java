@@ -51,11 +51,7 @@ import org.junit.Rule;
 import org.junit.rules.TestRule;
 
 import java.net.InetAddress;
-import java.security.AccessController;
 import java.security.KeyStore;
-import java.security.PrivilegedAction;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -133,11 +129,7 @@ public abstract class LdapTestCase extends ESTestCase {
                 false,
                 getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/seven-seas.ldif").toString()
             );
-            // Must have privileged access because underlying server will accept socket connections
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                ldapServer.startListening();
-                return null;
-            });
+            ldapServer.startListening();
             String listenerConfig = listeners.stream()
                 .map(
                     l -> String.format(
@@ -158,17 +150,10 @@ public abstract class LdapTestCase extends ESTestCase {
     }
 
     void tryConnect(InMemoryDirectoryServer ds) {
-        try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                try (var c = ds.getConnection()) {
-                    assertThat("Failed to connect to " + ds + " - ", c.isConnected(), is(true));
-                    logger.info("Test connection to [{}](port {}) was successful ({})", ds, ds.getListenPort(), c);
-                } catch (LDAPException e) {
-                    throw new AssertionError("Failed to connect to " + ds, e);
-                }
-                return null;
-            });
-        } catch (PrivilegedActionException e) {
+        try (var c = ds.getConnection()) {
+            assertThat("Failed to connect to " + ds + " - ", c.isConnected(), is(true));
+            logger.info("Test connection to [{}](port {}) was successful ({})", ds, ds.getListenPort(), c);
+        } catch (LDAPException e) {
             throw new AssertionError("Failed to connect to " + ds, e);
         }
     }
@@ -311,33 +296,24 @@ public abstract class LdapTestCase extends ESTestCase {
     }
 
     protected static void assertConnectionValid(LDAPInterface conn, SimpleBindRequest bindRequest) {
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                try {
-                    if (conn instanceof LDAPConnection) {
-                        assertTrue(((LDAPConnection) conn).isConnected());
-                        assertEquals(
-                            bindRequest.getBindDN(),
-                            ((SimpleBindRequest) ((LDAPConnection) conn).getLastBindRequest()).getBindDN()
-                        );
-                        ((LDAPConnection) conn).reconnect();
-                    } else if (conn instanceof LDAPConnectionPool) {
-                        try (LDAPConnection c = ((LDAPConnectionPool) conn).getConnection()) {
-                            assertTrue(c.isConnected());
-                            assertEquals(bindRequest.getBindDN(), ((SimpleBindRequest) c.getLastBindRequest()).getBindDN());
-                            c.reconnect();
-                        }
-                    }
-                } catch (LDAPException e) {
-                    fail(
-                        "Connection is not valid. It will not work on follow referral flow."
-                            + System.lineSeparator()
-                            + ExceptionsHelper.stackTrace(e)
-                    );
+        try {
+            if (conn instanceof LDAPConnection) {
+                assertTrue(((LDAPConnection) conn).isConnected());
+                assertEquals(bindRequest.getBindDN(), ((SimpleBindRequest) ((LDAPConnection) conn).getLastBindRequest()).getBindDN());
+                ((LDAPConnection) conn).reconnect();
+            } else if (conn instanceof LDAPConnectionPool) {
+                try (LDAPConnection c = ((LDAPConnectionPool) conn).getConnection()) {
+                    assertTrue(c.isConnected());
+                    assertEquals(bindRequest.getBindDN(), ((SimpleBindRequest) c.getLastBindRequest()).getBindDN());
+                    c.reconnect();
                 }
-                return null;
             }
-        });
+        } catch (LDAPException e) {
+            fail(
+                "Connection is not valid. It will not work on follow referral flow."
+                    + System.lineSeparator()
+                    + ExceptionsHelper.stackTrace(e)
+            );
+        }
     }
 }

@@ -39,6 +39,7 @@ import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -511,7 +512,10 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     .mode(AggregatorMode.INITIAL)
                     .aggregators(
                         List.of(
-                            new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
+                            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                                AggregatorMode.INITIAL,
+                                List.of(1)
+                            ),
                             new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
                         )
                     )
@@ -533,7 +537,10 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     .mode(AggregatorMode.INITIAL)
                     .aggregators(
                         List.of(
-                            new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
+                            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                                AggregatorMode.INITIAL,
+                                List.of(1)
+                            ),
                             new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
                         )
                     )
@@ -557,8 +564,11 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     .mode(AggregatorMode.FINAL)
                     .aggregators(
                         List.of(
-                            new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(1, 2)),
-                            new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(3, 4))
+                            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                                AggregatorMode.FINAL,
+                                List.of(1, 2, 3)
+                            ),
+                            new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(4, 5))
                         )
                     )
                     .partialEmit(randomIntBetween(1, 1000), randomDoubleBetween(0.1, 1.0, true))

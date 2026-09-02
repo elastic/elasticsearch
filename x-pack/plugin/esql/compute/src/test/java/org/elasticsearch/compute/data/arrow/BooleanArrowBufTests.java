@@ -28,6 +28,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import static org.elasticsearch.compute.data.BasicBlockTests.assertDeepCopy;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertFilter;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertKeepMask;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertSlice;
+
 /**
  * Tests for {@link BooleanArrowBufVector} and {@link BooleanArrowBufBlock}. Booleans are bit-packed in Arrow,
  * so these tests verify the specialized bit-level implementations.
@@ -69,6 +74,10 @@ public class BooleanArrowBufTests extends ESTestCase {
                 assertTrue(vector.getBoolean(2));
                 assertTrue(vector.getBoolean(3));
                 assertFalse(vector.getBoolean(4));
+
+                // assertKeepMask(vector); TODO doesn't return "this"
+                assertFilter(vector);
+                assertSlice(vector);
             }
         }
     }
@@ -120,6 +129,11 @@ public class BooleanArrowBufTests extends ESTestCase {
                 assertTrue(block.getBoolean(2));
                 assertFalse(block.mayHaveNulls());
                 assertFalse(block.mayHaveMultivaluedFields());
+
+                assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
+                assertDeepCopy(block);
             }
         }
     }

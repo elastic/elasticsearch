@@ -18,6 +18,7 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -134,7 +135,12 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
                 for (Long value : dataset) {
-                    document.add(new BinaryFieldMapper.CustomBinaryDocValuesField(BINARY_FIELD, Numbers.longToBytes(value)));
+                    var binaryField = new MultiValuedBinaryDocValuesField.IntegratedCount(
+                        BINARY_FIELD,
+                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                    );
+                    binaryField.add(new BytesRef(Numbers.longToBytes(value)));
+                    document.add(binaryField);
                     indexWriter.addDocument(document);
                     document.clear();
                 }

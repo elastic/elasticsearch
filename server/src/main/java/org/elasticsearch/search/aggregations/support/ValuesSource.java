@@ -93,6 +93,14 @@ public abstract class ValuesSource {
     protected abstract Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException;
 
     /**
+     * Like {@link #roundingPreparer(AggregationContext)} but for use under a {@code global} agg,
+     * which ignores the top-level query.
+     */
+    protected Function<Rounding, Rounding.Prepared> roundingPreparerForGlobal(AggregationContext context) throws IOException {
+        return roundingPreparer(context);
+    }
+
+    /**
      * Check if this values source supports using global and segment ordinals.
      * <p>
      * If this returns {@code true} then it is safe to cast it to {@link ValuesSource.Bytes.WithOrdinals}.
@@ -388,12 +396,20 @@ public abstract class ValuesSource {
                         count = bytesValues.docValueCount();
                         grow();
                         script.setDocument(doc);
+                        int j = 0;
                         for (int i = 0; i < count; ++i) {
                             final BytesRef value = bytesValues.nextValue();
                             script.setNextAggregationValue(value.utf8ToString());
                             Object run = script.execute();
-                            CollectionUtils.ensureNoSelfReferences(run, "ValuesSource.BytesValues script");
-                            values[i].copyChars(run.toString());
+                            if (run != null) {
+                                CollectionUtils.ensureNoSelfReferences(run, "ValuesSource.BytesValues script");
+                                values[j].copyChars(run.toString());
+                                j++;
+                            }
+                        }
+                        count = j;
+                        if (count == 0) {
+                            return false;
                         }
                         sort();
                         return true;

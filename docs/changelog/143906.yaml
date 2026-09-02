@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 143906
-summary: Register TSV as a separate format with tab delimiter
-type: enhancement

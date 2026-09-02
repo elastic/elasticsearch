@@ -56,6 +56,7 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -83,14 +84,18 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBuilder> {
+public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilder> {
     private static final Logger LOGGER = LogManager.getLogger(PercolateQueryBuilder.class);
 
     public static final String NAME = "percolate";
@@ -577,8 +582,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         return percolateShardContext.parseDocument(sourceToParse).rootDoc().getBinaryValue(queryBuilderFieldType.name());
                     });
 
-                    queryBuilder = Rewriteable.rewrite(queryBuilder, percolateShardContext);
-                    return queryBuilder.toQuery(percolateShardContext);
+                    try {
+                        queryBuilder = Rewriteable.rewrite(queryBuilder, percolateShardContext);
+                        return queryBuilder.toQuery(percolateShardContext);
+                    } finally {
+                        percolateShardContext.releaseQueryConstructionMemory();
+                    }
                 } else {
                     return null;
                 }
@@ -641,6 +650,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             : "source must not be an anonymous class as overridden methods will be lost when a new SearchExecutionContext is created";
         var wrapped = new SearchExecutionContext(source) {
 
+            private final ConcurrentMap<String, AtomicLong> perIterationCharges = new ConcurrentHashMap<>();
+
             @Override
             public IndexReader getIndexReader() {
                 // The reader that matters in this context is not the reader of the shard but
@@ -677,6 +688,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         source.getIndexSettings(),
                         source::lookup,
                         this::sourcePath,
+                        () -> false,
                         fielddataOperation
                     )
                 );
@@ -697,6 +709,35 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             @Override
             public void addNamedQuery(String name, Query query) {
                 source.addNamedQuery(name, query);
+            }
+
+            @Override
+            public void addCircuitBreakerMemory(long bytes, String label) {
+                source.addCircuitBreakerMemory(bytes, label);
+                perIterationCharges.computeIfAbsent(label, k -> new AtomicLong()).addAndGet(bytes);
+            }
+
+            @Override
+            public void addCircuitBreakerMemory(long bytes, long heldBreakerBytes, String label) {
+                source.addCircuitBreakerMemory(bytes, heldBreakerBytes, label);
+                perIterationCharges.computeIfAbsent(label, k -> new AtomicLong()).addAndGet(bytes - heldBreakerBytes);
+            }
+
+            @Override
+            public long getQueryConstructionMemoryUsed() {
+                return source.getQueryConstructionMemoryUsed();
+            }
+
+            @Override
+            public void releaseQueryConstructionMemory() {
+                for (Map.Entry<String, AtomicLong> entry : perIterationCharges.entrySet()) {
+                    long bytes = entry.getValue().getAndSet(0);
+                    if (bytes > 0) {
+                        source.releaseQueryConstructionMemory(bytes, entry.getKey());
+                    }
+                }
+                perIterationCharges.clear();
+                clearPreChargedQueries();
             }
         };
 

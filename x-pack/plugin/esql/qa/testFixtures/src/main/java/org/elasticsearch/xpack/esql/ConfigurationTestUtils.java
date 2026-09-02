@@ -22,9 +22,12 @@ import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.action.ParseTables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -74,7 +77,6 @@ public class ConfigurationTestUtils {
         boolean profile = randomBoolean();
 
         return new Configuration(
-            zoneId,
             now,
             locale,
             username,
@@ -89,8 +91,8 @@ public class ConfigurationTestUtils {
             false,
             tsTruncation,
             defaultTsTruncation,
-            null,
-            null,
+            // No manual normalize — TIME_ZONE.canonicalize(ZoneId::normalized) runs inside withOverride.
+            ResolvedSettings.EMPTY.withOverride(QuerySettings.TIME_ZONE, zoneId),
             Map.of()
         );
     }

@@ -12,11 +12,12 @@ body:
       description: A link to a Gradle buildscan (preferred) or Jenkins job with the failure
     validations:
       required: true
-  - type: input
+  - type: textarea
     id: repro_line
     attributes:
       label: Repro line
       description: The reproduce line from the build output
+      render: text
     validations:
       required: true
   - type: dropdown

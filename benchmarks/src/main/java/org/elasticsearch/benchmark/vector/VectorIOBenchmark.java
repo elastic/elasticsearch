@@ -24,8 +24,9 @@ import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MMapDirectory;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.logging.LogManager;
@@ -66,7 +67,7 @@ import java.util.concurrent.TimeUnit;
 public class VectorIOBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final String TEST_DIR = "/home/esbench/.rally/benchmarks/races/index";
@@ -143,7 +144,9 @@ public class VectorIOBenchmark {
                         System.out.println(new Date() + " Indexing " + docID + "/" + numVectors);
                     }
                     doc.clear();
-                    doc.add(new KnnFloatVectorField("vector", randomVector(random, dims), VectorSimilarityFunction.COSINE));
+                    doc.add(
+                        new KnnFloatVectorField("vector", VectorTestUtils.randomFloatVector(random, dims), VectorSimilarityFunction.COSINE)
+                    );
                     writer.addDocument(doc);
                 }
             }
@@ -152,7 +155,7 @@ public class VectorIOBenchmark {
         this.reader = DirectoryReader.open(dir);
 
         this.executor = Executors.newFixedThreadPool(readThreads);
-        this.queryVector = randomVector(random, dims);
+        this.queryVector = VectorTestUtils.randomFloatVector(random, dims);
     }
 
     @TearDown
@@ -160,14 +163,6 @@ public class VectorIOBenchmark {
         reader.close();
         dir.close();
         executor.shutdown();
-    }
-
-    private static float[] randomVector(Random random, int dims) {
-        float[] vec = new float[dims];
-        for (int i = 0; i < vec.length; i++) {
-            vec[i] = random.nextFloat();
-        }
-        return vec;
     }
 
     private int randomDoc() {

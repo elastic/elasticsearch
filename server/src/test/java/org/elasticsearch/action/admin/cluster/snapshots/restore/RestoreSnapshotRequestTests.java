@@ -83,7 +83,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
                     .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(randomBoolean()))
                     .wildcardOptions(new IndicesOptions.WildcardOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))
                     .indexAbstractionOptions(
-                        new IndicesOptions.IndexAbstractionOptions(instance.indicesOptions().ignoreAliases() == false, false)
+                        new IndicesOptions.IndexAbstractionOptions(instance.indicesOptions().ignoreAliases() == false, false, false)
                     )
                     .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(false).includeFailureIndices(true).build())
                     .build()

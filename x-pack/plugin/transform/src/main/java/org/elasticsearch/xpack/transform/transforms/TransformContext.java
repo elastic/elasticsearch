@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.Transform;
 
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,6 +52,16 @@ public class TransformContext {
     private volatile boolean shouldRecreateDestinationIndex = false;
     private volatile AuthorizationState authState;
     private volatile int pageSize = 0;
+    // Atomic so the indexer's onStart credential-swap (replacePersistedCredential) cannot tear
+    // against a concurrent reader using getPersistedCloudCredential to wrap an outbound client.
+    private final AtomicReference<PersistedCloudCredential> persistedCloudCredential = new AtomicReference<>();
+
+    /**
+     * Set to {@code true} once the transform has processed its first source document, i.e. it has moved past its initial
+     * catch-up phase. Only ever transitions from {@code false} to {@code true}. A {@code _start}-time {@code initial_delay}
+     * override is applied by the checkpoint provider only while this is {@code false}.
+     */
+    private final AtomicBoolean hasProcessedData = new AtomicBoolean(false);
 
     /**
      * If the destination index is blocked (e.g. during a reindex), the Transform will fail to write to it.
@@ -57,6 +70,12 @@ public class TransformContext {
      * Users can override this via the `_schedule_now` API.
      */
     private volatile boolean isWaitingForIndexToUnblock = false;
+
+    // Facts from this transform's most recent completed search, recorded by the indexer and read
+    // by the per-node APM gauges via the TransformNode task registry. Null until the first search
+    // completes; the gauges skip transforms with unknown status.
+    private volatile Boolean uiamAuth = null;
+    private volatile Boolean lastSearchCrossProject = null;
 
     // the checkpoint of this transform, storing the checkpoint until data indexing from source to dest is _complete_
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
@@ -138,6 +157,17 @@ public class TransformContext {
         return from;
     }
 
+    public boolean hasProcessedData() {
+        return hasProcessedData.get();
+    }
+
+    /**
+     * Marks that the transform has processed at least one source document. Monotonic: once set it never reverts.
+     */
+    public void setHasProcessedData() {
+        hasProcessedData.set(true);
+    }
+
     ProjectId projectId() {
         return projectId;
     }
@@ -217,6 +247,22 @@ public class TransformContext {
         this.isWaitingForIndexToUnblock = isWaitingForIndexToUnblock;
     }
 
+    /** {@code true} when the config carries a UIAM cloud credential (migrated), or {@code null} if no search has completed yet. */
+    public Boolean getUiamAuth() {
+        return uiamAuth;
+    }
+
+    /** {@code true} when the last search touched at least one linked project, or {@code null} if no search has completed yet. */
+    public Boolean getLastSearchCrossProject() {
+        return lastSearchCrossProject;
+    }
+
+    /** Records the per-search facts. Called once per completed search so values stay current after {@code _update}. */
+    public void recordSearchMetrics(boolean uiamAuth, boolean crossProject) {
+        this.uiamAuth = uiamAuth;
+        this.lastSearchCrossProject = crossProject;
+    }
+
     public AuthorizationState getAuthState() {
         return authState;
     }
@@ -291,7 +337,40 @@ public class TransformContext {
         return getFailureCount() == 0 && getStatePersistenceFailureCount() == 0 && getStartUpFailureCount() == 0;
     }
 
+    @Nullable
+    PersistedCloudCredential getPersistedCloudCredential() {
+        return persistedCloudCredential.get();
+    }
+
+    void setPersistedCloudCredential(@Nullable PersistedCloudCredential persistedCloudCredential) {
+        this.persistedCloudCredential.set(persistedCloudCredential);
+    }
+
+    /**
+     * Atomically replaces the held active credential with {@code next} and returns the
+     * previously-held credential for the caller to revoke + close. Returns {@code null} if there
+     * was no prior credential.
+     */
+    @Nullable
+    PersistedCloudCredential replacePersistedCredential(@Nullable PersistedCloudCredential next) {
+        return persistedCloudCredential.getAndSet(next);
+    }
+
+    /**
+     * Releases the held active cloud credential. Idempotent. Does NOT revoke with UIAM — shutdown
+     * may be transient (node restart) and the credential may still be valid; revocation happens
+     * at delete time and after a successful rotation swap (see
+     * {@code ClientTransformIndexer.doMaybeRefreshCloudToken}).
+     */
+    void close() {
+        PersistedCloudCredential prevActive = replacePersistedCredential(null);
+        if (prevActive != null) {
+            prevActive.close();
+        }
+    }
+
     void shutdown() {
+        close();
         taskListener.shutdown();
     }
 

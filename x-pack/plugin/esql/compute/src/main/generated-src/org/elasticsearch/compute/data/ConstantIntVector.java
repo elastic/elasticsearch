@@ -13,13 +13,15 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
 // end generated imports
 
 /**
  * Vector implementation that stores a constant int value.
  * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-final class ConstantIntVector extends AbstractVector implements IntVector {
+public final class ConstantIntVector extends AbstractVector implements IntVector {
 
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantIntVector.class);
 
@@ -36,13 +38,23 @@ final class ConstantIntVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, int[] dst, int dstPosition, int length) {
+        Arrays.fill(dst, dstPosition, dstPosition + length, value);
+    }
+
+    @Override
     public IntBlock asBlock() {
         return new IntVectorBlock(this);
     }
 
     @Override
-    public IntVector filter(boolean mayContainDuplicates, int... positions) {
-        return blockFactory().newConstantIntVector(value, positions.length);
+    public int valueMaxByteSize() {
+        return Integer.BYTES;
+    }
+
+    @Override
+    public IntVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return blockFactory().newConstantIntVector(value, length);
     }
 
     @Override
@@ -107,6 +119,15 @@ final class ConstantIntVector extends AbstractVector implements IntVector {
     @Override
     public int max() {
         return value;
+    }
+
+    @Override
+    public IntVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantIntVector(value, endExclusive - beginInclusive);
     }
 
     @Override

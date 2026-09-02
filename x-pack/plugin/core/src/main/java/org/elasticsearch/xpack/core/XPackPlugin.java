@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -87,6 +86,7 @@ import org.elasticsearch.xpack.core.action.DataStreamUsageTransportAction;
 import org.elasticsearch.xpack.core.action.TimeSeriesUsageTransportAction;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
+import org.elasticsearch.xpack.core.action.VectorDBDocumentUsageTransportAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.datatiers.DataTiersInfoTransportAction;
 import org.elasticsearch.xpack.core.datatiers.DataTiersUsageTransportAction;
 import org.elasticsearch.xpack.core.datatiers.NodesDataTiersUsageTransportAction;
+import org.elasticsearch.xpack.core.logging.LoggingUsageTransportAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
@@ -112,8 +113,6 @@ import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -142,32 +141,15 @@ public class XPackPlugin extends XPackClientPlugin
 
     // TODO: clean up this library to not ask for write access to all system properties!
     static {
-        // invoke this clinit in unbound with permissions to access all system properties
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
+        // TODO: fix gradle to add all security resources (plugin metadata) to test classpath
+        // of watcher plugin, which depends on it directly. This prevents these plugins
+        // from being initialized correctly by the test framework, and means we have to
+        // have this leniency.
         try {
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                @Override
-                public Void run() {
-                    try {
-                        Class.forName("com.unboundid.util.Debug");
-                        Class.forName("com.unboundid.ldap.sdk.LDAPConnectionOptions");
-                    } catch (ClassNotFoundException e) {
-                        throw new RuntimeException(e);
-                    }
-                    return null;
-                }
-            });
-            // TODO: fix gradle to add all security resources (plugin metadata) to test classpath
-            // of watcher plugin, which depends on it directly. This prevents these plugins
-            // from being initialized correctly by the test framework, and means we have to
-            // have this leniency.
-        } catch (ExceptionInInitializerError bogus) {
-            if (bogus.getCause() instanceof SecurityException == false) {
-                throw bogus; // some other bug
-            }
+            Class.forName("com.unboundid.util.Debug");
+            Class.forName("com.unboundid.ldap.sdk.LDAPConnectionOptions");
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -372,6 +354,8 @@ public class XPackPlugin extends XPackClientPlugin
         actions.add(new ActionHandler(XPackUsageFeatureAction.REMOTE_CLUSTERS, RemoteClusterUsageTransportAction.class));
         actions.add(new ActionHandler(NodesDataTiersUsageTransportAction.TYPE, NodesDataTiersUsageTransportAction.class));
         actions.add(new ActionHandler(XPackUsageFeatureAction.TIME_SERIES_DATA_STREAMS, TimeSeriesUsageTransportAction.class));
+        actions.add(new ActionHandler(XPackUsageFeatureAction.LOGGING, LoggingUsageTransportAction.class));
+        actions.add(new ActionHandler(XPackUsageFeatureAction.VECTORDB_DOCUMENT, VectorDBDocumentUsageTransportAction.class));
         return actions;
     }
 
@@ -393,8 +377,8 @@ public class XPackPlugin extends XPackClientPlugin
     ) {
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestXPackInfoAction());
-        handlers.add(new RestXPackUsageAction());
-        handlers.add(new RestTermsEnumAction());
+        handlers.add(new RestXPackUsageAction(DiscoveryNode.isStateless(settings)));
+        handlers.add(new RestTermsEnumAction(restHandlersServices.crossProjectModeDecider()));
         handlers.add(new RestGetLicenseAction());
         handlers.add(new RestPutLicenseAction());
         handlers.add(new RestDeleteLicenseAction());

@@ -9,18 +9,17 @@ package org.elasticsearch.xpack.inference.services.openai;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMapRemoveNulls;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapStringValues;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.HEADERS;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
 
@@ -50,13 +49,11 @@ public abstract class OpenAiTaskSettings<T extends OpenAiTaskSettings<T>> implem
 
         ValidationException validationException = new ValidationException();
 
-        String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
+        String user = extractOptionalString(map, USER, TASK_SETTINGS, validationException);
         Map<String, Object> headers = extractOptionalMapRemoveNulls(map, HEADERS, validationException);
         var stringHeaders = validateMapStringValues(headers, HEADERS, validationException, false, null);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return createSettings(user, stringHeaders);
     }
@@ -114,7 +111,7 @@ public abstract class OpenAiTaskSettings<T extends OpenAiTaskSettings<T>> implem
 
     @Override
     public T updatedTaskSettings(Map<String, Object> newSettings) {
-        Settings updatedSettings = fromMap(new HashMap<>(newSettings));
+        Settings updatedSettings = fromMap(newSettings);
 
         var userToUse = updatedSettings.user() == null ? taskSettings.user() : updatedSettings.user();
         var headersToUse = updatedSettings.headers() == null ? taskSettings.headers() : updatedSettings.headers();

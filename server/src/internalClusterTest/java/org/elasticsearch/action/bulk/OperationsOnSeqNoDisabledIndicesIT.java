@@ -52,8 +52,6 @@ public class OperationsOnSeqNoDisabledIndicesIT extends ESIntegTestCase {
     }
 
     public void testBulkWithMixedOperationsAcrossSeqNoDisabledAndEnabledIndices() {
-        assumeTrue("Test requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         final var numSeqNoDisabled = randomIntBetween(1, 3);
         final var numSeqNoEnabled = randomIntBetween(1, 3);
         final var seqNoDisabledIndices = new HashSet<String>(numSeqNoDisabled);
@@ -232,8 +230,6 @@ public class OperationsOnSeqNoDisabledIndicesIT extends ESIntegTestCase {
     }
 
     public void testBulkIndexToDataStreamBackingIndexBypassesCreateRestriction() throws Exception {
-        assumeTrue("Test requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         String dataStreamName = "test-ds-overwrite";
         createDataStreamWithTemplate(dataStreamName, disableSeqNoTemplateSettings(true));
 
@@ -283,7 +279,6 @@ public class OperationsOnSeqNoDisabledIndicesIT extends ESIntegTestCase {
     }
 
     public void testSingleUpdateOnSeqNoDisabledIndexIsRejected() {
-        assumeTrue("Test requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         createIndex(
             "test",
             indexSettings(1, 0).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)

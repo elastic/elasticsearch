@@ -17,7 +17,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
-final class ExchangeBuffer {
+public final class ExchangeBuffer {
     private final Queue<Page> queue = new ConcurrentLinkedQueue<>();
     // uses a separate counter for size for CAS; and ConcurrentLinkedQueue#size is not a constant time operation.
     private final AtomicInteger queueSize = new AtomicInteger();
@@ -33,14 +33,14 @@ final class ExchangeBuffer {
 
     private volatile boolean noMoreInputs = false;
 
-    ExchangeBuffer(int maxSize) {
+    public ExchangeBuffer(int maxSize) {
         if (maxSize < 1) {
             throw new IllegalArgumentException("max_buffer_size must be at least one; got=" + maxSize);
         }
         this.maxSize = maxSize;
     }
 
-    void addPage(Page page) {
+    public void addPage(Page page) {
         queue.add(page);
         if (queueSize.incrementAndGet() == 1) {
             notifyNotEmpty();
@@ -62,7 +62,7 @@ final class ExchangeBuffer {
         }
     }
 
-    Page pollPage() {
+    public Page pollPage() {
         final var page = queue.poll();
         if (page != null && queueSize.decrementAndGet() == maxSize - 1) {
             notifyNotFull();
@@ -95,7 +95,7 @@ final class ExchangeBuffer {
         }
     }
 
-    IsBlockedResult waitForWriting() {
+    public IsBlockedResult waitForWriting() {
         // maxBufferSize check is not water-tight as more than one sink can pass this check at the same time.
         if (queueSize.get() < maxSize || noMoreInputs) {
             return Operator.NOT_BLOCKED;
@@ -111,7 +111,7 @@ final class ExchangeBuffer {
         }
     }
 
-    IsBlockedResult waitForReading() {
+    public IsBlockedResult waitForReading() {
         if (size() > 0 || noMoreInputs) {
             return Operator.NOT_BLOCKED;
         }
@@ -133,7 +133,7 @@ final class ExchangeBuffer {
         }
     }
 
-    void finish(boolean drainingPages) {
+    public void finish(boolean drainingPages) {
         noMoreInputs = true;
         if (drainingPages) {
             discardPages();
@@ -144,11 +144,11 @@ final class ExchangeBuffer {
         }
     }
 
-    boolean isFinished() {
+    public boolean isFinished() {
         return completionFuture.isDone();
     }
 
-    boolean noMoreInputs() {
+    public boolean noMoreInputs() {
         return noMoreInputs;
     }
 

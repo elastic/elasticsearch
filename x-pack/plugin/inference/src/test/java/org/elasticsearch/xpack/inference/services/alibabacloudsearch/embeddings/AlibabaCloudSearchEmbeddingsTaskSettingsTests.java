@@ -15,7 +15,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -46,7 +45,7 @@ public class AlibabaCloudSearchEmbeddingsTaskSettingsTests extends AbstractWireS
             newSettingsMap.put(INPUT_TYPE, newSettings.getInputType().toString());
         }
         AlibabaCloudSearchEmbeddingsTaskSettings updatedSettings = (AlibabaCloudSearchEmbeddingsTaskSettings) initialSettings
-            .updatedTaskSettings(Collections.unmodifiableMap(newSettingsMap));
+            .updatedTaskSettings(newSettingsMap);
         if (newSettings.getInputType() == null) {
             assertEquals(initialSettings.getInputType(), updatedSettings.getInputType());
         } else {
@@ -57,7 +56,7 @@ public class AlibabaCloudSearchEmbeddingsTaskSettingsTests extends AbstractWireS
     public void testFromMap_WhenInputTypeIsNull() {
         InputType inputType = null;
         MatcherAssert.assertThat(
-            AlibabaCloudSearchEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of())),
+            AlibabaCloudSearchEmbeddingsTaskSettings.fromMap(new HashMap<>()),
             is(new AlibabaCloudSearchEmbeddingsTaskSettings(inputType))
         );
     }

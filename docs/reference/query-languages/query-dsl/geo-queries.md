@@ -27,7 +27,7 @@ The queries in this group are:
 :   Find documents with geoshapes or geopoints which intersect the specified polygon.
 
 [`geo_shape`](/reference/query-languages/query-dsl/query-dsl-geo-shape-query.md) query
-:   Finds documents with geoshapes or geopoints which are related to the specified geoshape. Possible spatial relationships to specify are: intersects, contained, within and disjoint.
+:   Finds documents with geoshapes or geopoints which are related to the specified geoshape. Possible spatial relationships to specify are: intersects, contains, within, and disjoint.
 
 
 

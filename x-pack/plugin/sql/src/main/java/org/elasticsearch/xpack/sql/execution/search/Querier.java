@@ -400,23 +400,29 @@ public class Querier {
             sendResponse();
         }
 
-        private boolean consumeRowSet(RowSet rowSet) {
+        boolean consumeRowSet(RowSet rowSet) {
             ResultRowSet<?> rrs = (ResultRowSet<?>) rowSet;
-            for (boolean hasRows = rrs.hasCurrentRow(); hasRows; hasRows = rrs.advanceRow()) {
-                List<Object> row = new ArrayList<>(rrs.columnCount());
-                rrs.forEachResultColumn(row::add);
-                // if the queue overflows and no limit was specified, throw an error
-                if (data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement())) != null && noLimit) {
-                    onFailure(
-                        new SqlIllegalArgumentException(
-                            "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT",
-                            MAXIMUM_SIZE
-                        )
-                    );
-                    return false;
+            try {
+                for (boolean hasRows = rrs.hasCurrentRow(); hasRows; hasRows = rrs.advanceRow()) {
+                    List<Object> row = new ArrayList<>(rrs.columnCount());
+                    rrs.forEachResultColumn(row::add);
+                    // if the queue overflows and no limit was specified, throw an error
+                    if (data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement())) != null && noLimit) {
+                        onFailure(
+                            new SqlIllegalArgumentException(
+                                "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT",
+                                MAXIMUM_SIZE
+                            )
+                        );
+                        return false;
+                    }
+                }
+                return true;
+            } finally {
+                if (rrs instanceof SearchHitRowSet shr) {
+                    shr.releaseSearchHits();
                 }
             }
-            return true;
         }
 
         private void sendResponse() {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
@@ -203,15 +204,14 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
                 10,
                 groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
                 blockFactory
-            )
-        ) {
+            );
             Page p = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 2L, 3L)));
-            op.addInput(p);
-            Page output = op.getOutput();
-            try {
-                assertThat(output, sameInstance(p));
-            } finally {
-                output.releaseBlocks();
+        ) {
+            op.addInput(p.shallowCopy());
+            try (Page output = op.getOutput()) {
+                for (int b = 0; b < output.getBlockCount(); b++) {
+                    assertThat(output.getBlock(b), sameInstance(p.getBlock(b)));
+                }
             }
         }
     }
@@ -408,7 +408,11 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
     }
 
     private static GroupKeyEncoder groupKeyEncoder(BlockFactory blockFactory, int[] groupChannels, List<ElementType> elementTypes) {
-        return new GroupKeyEncoder(groupChannels, elementTypes, new BreakingBytesRefBuilder(blockFactory.breaker(), "group-key-encoder"));
+        return new GroupKeyEncoder(
+            groupChannels,
+            elementTypes,
+            new PagedBytesBuilder(blockFactory.bigArrays().recycler(), blockFactory.breaker(), "group-key-encoder", 64)
+        );
     }
 
     @Override

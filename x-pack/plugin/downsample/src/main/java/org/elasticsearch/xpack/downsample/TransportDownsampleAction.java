@@ -282,7 +282,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }
 
         // Assert source index is a time_series index
-        if (IndexSettings.MODE.get(sourceIndexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
+        if (IndexSettings.MODE.get(sourceIndexMetadata.getSettings()).isTsdb() == false) {
             recordInvalidConfigurationMetrics(startTime);
             listener.onFailure(
                 new ElasticsearchException(
@@ -1017,8 +1017,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     createIndexClusterStateUpdateRequest,
                     true,
                     // Copy index metadata from source index to downsample index
-                    RerouteBehavior.PERFORM_REROUTE,
                     (builder, indexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, indexMetadata, indexScopedSettings)),
+                    RerouteBehavior.PERFORM_REROUTE,
                     delegate.reroute()
                 );
             }

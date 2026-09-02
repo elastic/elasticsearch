@@ -12,16 +12,15 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
@@ -29,30 +28,24 @@ import static org.mockito.Mockito.mock;
 public class InMemoryViewResolver extends ViewResolver {
     protected Supplier<ViewMetadata> metadata;
     protected IndexNameExpressionResolver indexNameExpressionResolver;
-    protected ClusterService clusterService;
-    protected ProjectResolver projectResolver;
 
-    public InMemoryViewResolver(ClusterService clusterService, Supplier<ViewMetadata> metadata) {
-        super(clusterService, null, null);
-        this.projectResolver = DefaultProjectResolver.INSTANCE;
+    public InMemoryViewResolver(
+        ClusterService clusterService,
+        Supplier<ViewMetadata> metadata,
+        CrossProjectModeDecider crossProjectModeDecider
+    ) {
+        super(null, clusterService, DefaultProjectResolver.INSTANCE, null, crossProjectModeDecider);
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(
             new ThreadContext(Settings.EMPTY),
             EmptySystemIndices.INSTANCE,
             projectResolver
         );
         this.metadata = metadata;
-        this.clusterService = clusterService;
-
     }
 
     @Override
     protected ViewMetadata getMetadata() {
         return metadata.get();
-    }
-
-    protected boolean viewsFeatureEnabled() {
-        // This is a test implementation, so we assume the feature is always enabled
-        return true;
     }
 
     @Override
@@ -62,7 +55,7 @@ public class InMemoryViewResolver extends ViewResolver {
     ) {
         var action = new EsqlResolveViewAction(
             mock(TransportService.class),
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             indexNameExpressionResolver,
             clusterService,
             projectResolver

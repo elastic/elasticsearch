@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -329,8 +330,16 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
      */
     private static void validateSettings(final Settings leaderIndexSettings, final Settings followerIndexSettings) {
         // make a copy, remove settings that are allowed to be different, and then compare if the settings are equal
-        final Settings leaderSettings = filter(leaderIndexSettings);
-        final Settings followerSettings = filter(followerIndexSettings);
+        final Settings leaderSettings = Settings.builder()
+            .put(filter(leaderIndexSettings))
+            // index.lifecycle.indexing_complete can legitimately differ at follow startup: the leader's ILM may
+            // set it during the restore window, before the shard follow task starts syncing settings.
+            .remove(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE)
+            .build();
+        final Settings followerSettings = Settings.builder()
+            .put(filter(followerIndexSettings))
+            .remove(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE)
+            .build();
         if (leaderSettings.equals(followerSettings) == false) {
             final String message = String.format(
                 Locale.ROOT,
@@ -480,6 +489,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         IndexSettings.MAX_REGEX_LENGTH_SETTING,
         IndexSettings.MAX_TERMS_COUNT_SETTING,
         IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
+        IndexSettings.MAX_NUMBER_OF_FRAGMENTS_SETTING,
         IndexSettings.WEIGHT_MATCHES_MODE_ENABLED_SETTING,
         IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING,
         IndexSettings.MAX_TOKEN_COUNT_SETTING,
@@ -533,6 +543,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING,
         DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
         DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
+        DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD,
         IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING
     );
 

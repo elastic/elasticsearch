@@ -49,7 +49,7 @@ import java.util.stream.IntStream;
 /**
  * A filter for a field based on several terms matching on any of them.
  */
-public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
+public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
 
     private final String fieldName;
@@ -298,9 +298,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             );
         }
 
-        TermsQueryBuilder builder = new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName);
-
-        return builder;
+        return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName);
     }
 
     static List<Object> parseValues(XContentParser parser) throws IOException {

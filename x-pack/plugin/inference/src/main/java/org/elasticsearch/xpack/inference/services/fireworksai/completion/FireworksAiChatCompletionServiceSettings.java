@@ -12,7 +12,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -28,6 +27,8 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
+
 public class FireworksAiChatCompletionServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
@@ -40,27 +41,13 @@ public class FireworksAiChatCompletionServiceSettings extends FilteredXContentOb
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(6_000);
 
     public static FireworksAiChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        String modelId = ServiceUtils.extractRequiredString(
-            map,
-            ServiceFields.MODEL_ID,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-        String url = ServiceUtils.extractOptionalString(map, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        URI uri = ServiceUtils.convertToUri(url, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            FireworksAiService.NAME,
-            context
-        );
+        var modelId = ServiceUtils.extractRequiredString(map, ServiceFields.MODEL_ID, SERVICE_SETTINGS, validationException);
+        var uri = ServiceUtils.extractOptionalUri(map, ServiceFields.URL, validationException);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new FireworksAiChatCompletionServiceSettings(modelId, uri, rateLimitSettings);
     }
@@ -80,6 +67,19 @@ public class FireworksAiChatCompletionServiceSettings extends FilteredXContentOb
         this.modelId = in.readString();
         this.uri = ServiceUtils.createOptionalUri(in.readOptionalString());
         this.rateLimitSettings = new RateLimitSettings(in);
+    }
+
+    @Override
+    public FireworksAiChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            ConfigurationParseContext.REQUEST
+        );
+        validationException.throwIfValidationErrorsExist();
+        return new FireworksAiChatCompletionServiceSettings(this.modelId, this.uri, extractedRateLimitSettings);
     }
 
     @Override

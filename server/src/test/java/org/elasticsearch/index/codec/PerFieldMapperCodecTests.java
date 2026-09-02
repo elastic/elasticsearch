@@ -9,26 +9,40 @@
 
 package org.elasticsearch.index.codec;
 
+import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
+import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
+import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
+import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineConfigResolver;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -36,7 +50,7 @@ import static org.hamcrest.Matchers.is;
 
 public class PerFieldMapperCodecTests extends ESTestCase {
 
-    private static final String MAPPING_1 = """
+    private static final String METRIC_MAPPING = """
         {
             "_data_stream_timestamp": {
                 "enabled": true
@@ -52,7 +66,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         }
         """;
 
-    private static final String MAPPING_2 = """
+    private static final String MULTI_METRIC_MAPPING = """
         {
             "_data_stream_timestamp": {
                 "enabled": true
@@ -71,7 +85,32 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         }
         """;
 
-    private static final String MAPPING_3 = """
+    private static final String OTEL_COUNTER_LONG_MAPPING = """
+        {
+            "_data_stream_timestamp": {
+                "enabled": true
+            },
+            "properties": {
+                "@timestamp": {
+                    "type": "date"
+                },
+                "field": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                },
+                "packets": {
+                    "type": "long",
+                    "time_series_metric": "counter"
+                },
+                "temperature": {
+                    "type": "long",
+                    "time_series_metric": "gauge"
+                }
+            }
+        }
+        """;
+
+    private static final String LOGS_MAPPING = """
         {
             "_data_stream_timestamp": {
                 "enabled": true
@@ -88,6 +127,25 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 },
                 "message": {
                     "type": "text"
+                }
+            }
+        }
+        """;
+
+    private static final String COLUMNAR_MAPPING = """
+        {
+            "properties": {
+                "@timestamp": {
+                    "type": "date"
+                },
+                "category": {
+                    "type": "keyword"
+                },
+                "size": {
+                    "type": "long"
+                },
+                "score": {
+                    "type": "double"
                 }
             }
         }
@@ -123,7 +181,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, false, false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES812PostingsFormat.class));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(Lucene104PostingsFormat.class));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter() throws IOException {
@@ -144,38 +202,61 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         PerFieldFormatSupplier perFieldMapperCodec;
 
         // standard index mode
-        perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.STANDARD, MAPPING_1);
+        perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.STANDARD, METRIC_MAPPING);
         assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(Lucene104PostingsFormat.class));
 
-        perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.STANDARD, MAPPING_1);
+        perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.STANDARD, METRIC_MAPPING);
         assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(ES812PostingsFormat.class));
 
         // LogsDB index mode
         // by default, logsdb uses the ES 8.12 postings format
-        perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.LOGSDB, MAPPING_3);
+        perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.LOGSDB, LOGS_MAPPING);
         assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
 
-        perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.LOGSDB, MAPPING_3);
+        perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.LOGSDB, LOGS_MAPPING);
         assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
 
         // time series index mode
-        // by default, logsdb uses the ES 8.12 postings format
-        perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.TIME_SERIES, MAPPING_1);
+        // by default, time_series uses the ES 8.12 postings format
+        perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.TIME_SERIES, METRIC_MAPPING);
         assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(ES812PostingsFormat.class));
 
-        perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.TIME_SERIES, MAPPING_1);
+        perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.TIME_SERIES, METRIC_MAPPING);
         assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(ES812PostingsFormat.class));
+
+        // Columnar index mode
+        // by default, columnar uses the ES 8.12 postings format
+        perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.COLUMNAR, LOGS_MAPPING);
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
+
+        perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.COLUMNAR, LOGS_MAPPING);
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
+
+        // Columnar LogsDB index mode
+        // by default, logsdb_columnar uses the ES 8.12 postings format
+        perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.LOGSDB_COLUMNAR, LOGS_MAPPING);
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
+
+        perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.LOGSDB_COLUMNAR, LOGS_MAPPING);
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
     }
 
-    public void testUseEs812PostingsFormatForIdField() throws IOException {
+    public void testUseEs812PostingsFormatForIdFieldBeforeLucene105() throws IOException {
         int numIterations = randomIntBetween(2, 64);
         for (int i = 0; i < numIterations; i++) {
             var indexMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.TIME_SERIES);
-            String mapping = randomFrom(MAPPING_1, MAPPING_2, MAPPING_3);
-            final boolean randomSyntheticId = syntheticId(indexMode.equals(IndexMode.TIME_SERIES));
+            String mapping = randomFrom(METRIC_MAPPING, MULTI_METRIC_MAPPING, LOGS_MAPPING);
+            IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+                IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT)
+            );
+            final boolean randomSyntheticId = syntheticId(indexMode.equals(IndexMode.TIME_SERIES))
+                && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
             PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
+                null,
                 randomBoolean(),
                 randomBoolean(),
+                indexVersion,
                 indexMode,
                 mapping,
                 randomSyntheticId
@@ -189,6 +270,21 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         }
     }
 
+    public void testUseDefaultPostingsFormatForIdFieldAfterLucene105() throws IOException {
+        String mapping = randomFrom(METRIC_MAPPING, MULTI_METRIC_MAPPING, LOGS_MAPPING);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
+            null,
+            randomBoolean(),
+            false,
+            IndexVersion.current(),
+            IndexMode.STANDARD,
+            mapping,
+            false
+        );
+        var result = perFieldMapperCodec.getPostingsFormatForField("_id");
+        assertThat(result, (instanceOf(Lucene104PostingsFormat.class)));
+    }
+
     public void testUseES87TSDBEncodingForTimestampField() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, true, true, syntheticId(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
@@ -200,13 +296,13 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testEnableES87TSDBCodec() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, IndexMode.TIME_SERIES, MAPPING_1);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, IndexMode.TIME_SERIES, METRIC_MAPPING);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
     }
 
     public void testDisableES87TSDBCodec() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.TIME_SERIES, MAPPING_1);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.TIME_SERIES, METRIC_MAPPING);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(false));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(false));
     }
@@ -221,8 +317,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         if (timeSeries) {
             settings.put(IndexSettings.MODE.getKey(), "time_series");
             settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
-        }
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
             settings.put(IndexSettings.SYNTHETIC_ID.getKey(), syntheticId);
         }
         if (disableBloomFilter) {
@@ -248,42 +342,64 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testUseES87TSDBEncodingSettingDisabled() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.TIME_SERIES, MAPPING_2);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.TIME_SERIES, MULTI_METRIC_MAPPING);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(false));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(false));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(false));
     }
 
     public void testUseTimeSeriesModeDisabledCodecDisabled() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.STANDARD, MAPPING_2);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.STANDARD, MULTI_METRIC_MAPPING);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(false));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(false));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(false));
     }
 
     public void testUseTimeSeriesDocValuesCodecSetting() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, null, false, IndexMode.STANDARD, MAPPING_2, false);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
+            true,
+            null,
+            false,
+            null,
+            IndexMode.STANDARD,
+            MULTI_METRIC_MAPPING,
+            false
+        );
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(true));
     }
 
     public void testUseTimeSeriesModeAndCodecEnabled() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, IndexMode.TIME_SERIES, MAPPING_2);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, IndexMode.TIME_SERIES, MULTI_METRIC_MAPPING);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(true));
     }
 
     public void testLogsIndexMode() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.LOGSDB, MAPPING_3);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.LOGSDB, LOGS_MAPPING);
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("hostname")), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("response_size")), is(true));
+    }
+
+    public void testColumnarIndexMode() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.COLUMNAR, LOGS_MAPPING);
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("hostname")), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("response_size")), is(true));
+    }
+
+    public void testColumnarLogsdbIndexMode() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.LOGSDB_COLUMNAR, LOGS_MAPPING);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("hostname")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("response_size")), is(true));
     }
 
     public void testMetaFields() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.LOGSDB, MAPPING_3);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.LOGSDB, LOGS_MAPPING);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(TimeSeriesIdFieldMapper.NAME)), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(TimeSeriesRoutingHashFieldMapper.NAME)), is(true));
         // See: PerFieldFormatSupplier why these fields shouldn't use tsdb codec
@@ -292,8 +408,16 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testSeqnoField() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.LOGSDB, MAPPING_3);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.LOGSDB, LOGS_MAPPING);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SeqNoFieldMapper.NAME)), is(true));
+    }
+
+    public void testIdField() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
+            randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.LOGSDB),
+            LOGS_MAPPING
+        );
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(IdFieldMapper.NAME)), is(true));
     }
 
     private PerFieldFormatSupplier createFormatSupplier(IndexMode mode, String mapping) throws IOException {
@@ -306,7 +430,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         IndexMode mode,
         String mapping
     ) throws IOException {
-        return createFormatSupplier(null, enableES87TSDBCodec, useEs812PostingsFormat, mode, mapping, null);
+        return createFormatSupplier(null, enableES87TSDBCodec, useEs812PostingsFormat, null, mode, mapping, null);
     }
 
     private PerFieldFormatSupplier createFormatSupplier(
@@ -316,13 +440,14 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         String mapping,
         boolean syntheticId
     ) throws IOException {
-        return createFormatSupplier(null, enableES87TSDBCodec, useEs812PostingsFormat, mode, mapping, syntheticId);
+        return createFormatSupplier(null, enableES87TSDBCodec, useEs812PostingsFormat, null, mode, mapping, syntheticId);
     }
 
     private PerFieldFormatSupplier createFormatSupplier(
         Boolean useTimeSeriesDocValuesFormatSetting,
         Boolean enableES87TSDBCodec,
         Boolean useEs812PostingsFormat,
+        IndexVersion indexVersion,
         IndexMode mode,
         String mapping,
         Boolean syntheticId
@@ -332,7 +457,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         if (mode == IndexMode.TIME_SERIES) {
             settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
         }
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && syntheticId != null) {
+        if (syntheticId != null) {
             settings.put(IndexSettings.SYNTHETIC_ID.getKey(), syntheticId);
         }
         if (enableES87TSDBCodec != null) {
@@ -344,12 +469,291 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         if (useEs812PostingsFormat) {
             settings.put(IndexSettings.USE_ES_812_POSTINGS_FORMAT.getKey(), true);
         }
+        if (indexVersion != null) {
+            settings.put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion);
+        }
         MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 
+    private static final List<IndexMode> INDEX_MODES_UNDER_TEST = List.of(IndexMode.TIME_SERIES, IndexMode.STANDARD, IndexMode.LOGSDB);
+
+    private static String mappingFor(final IndexMode mode) {
+        return mode == IndexMode.LOGSDB ? LOGS_MAPPING : METRIC_MAPPING;
+    }
+
+    private static String fieldFor(final IndexMode mode) {
+        return mode == IndexMode.LOGSDB ? "hostname" : "gauge";
+    }
+
+    public void testES95OnlyUsedForTimeSeriesWhenSettingEnabled() throws IOException {
+        for (IndexMode mode : INDEX_MODES_UNDER_TEST) {
+            final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(mode, mappingFor(mode), IndexVersion.current());
+            final DocValuesFormat format = supplier.getDocValuesFormatForField(fieldFor(mode));
+            if (mode == IndexMode.TIME_SERIES) {
+                assertThat("mode=" + mode, format, instanceOf(ES95TSDBDocValuesFormat.class));
+            } else {
+                assertFalse("mode=" + mode + " expected non-ES95", format instanceof ES95TSDBDocValuesFormat);
+            }
+        }
+    }
+
+    public void testES95DocValuesFormatUsedForTimestampField() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(
+            IndexMode.TIME_SERIES,
+            METRIC_MAPPING,
+            IndexVersion.current()
+        );
+        final DocValuesFormat format = supplier.getDocValuesFormatForField("@timestamp");
+        assertThat(format, instanceOf(ES95TSDBDocValuesFormat.class));
+    }
+
+    public void testES819UsedAcrossModesWhenSettingDisabled() throws IOException {
+        for (IndexMode mode : INDEX_MODES_UNDER_TEST) {
+            final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(
+                mode,
+                mappingFor(mode),
+                IndexVersion.current(),
+                false,
+                true
+            );
+            final DocValuesFormat format = supplier.getDocValuesFormatForField(fieldFor(mode));
+            assertFalse("mode=" + mode + " expected non-ES95", format instanceof ES95TSDBDocValuesFormat);
+        }
+    }
+
+    public void testES819UsedAcrossModesWithOldIndexVersion() throws IOException {
+        final IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG);
+        for (IndexMode mode : INDEX_MODES_UNDER_TEST) {
+            final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(mode, mappingFor(mode), oldVersion);
+            assertThat("mode=" + mode, supplier.useTSDBDocValuesFormat(fieldFor(mode)), is(true));
+            final DocValuesFormat format = supplier.getDocValuesFormatForField(fieldFor(mode));
+            assertFalse("mode=" + mode + " expected non-ES95", format instanceof ES95TSDBDocValuesFormat);
+        }
+    }
+
+    public void testES95NotUsedForStandardWithDefaultDocValuesFormat() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(
+            IndexMode.STANDARD,
+            METRIC_MAPPING,
+            IndexVersion.current(),
+            true,
+            false
+        );
+        final DocValuesFormat format = supplier.getDocValuesFormatForField("gauge");
+        assertFalse("Expected non-ES95 format", format instanceof ES95TSDBDocValuesFormat);
+    }
+
+    public void testColumnarUsedForKeywordInColumnarModeWhenEnabled() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(mode, randomColumnarEligibleIndexVersion(), true);
+            assertThat("mode=" + mode, supplier.getDocValuesFormatForField("category"), instanceOf(ColumNARDocValuesFormat.class));
+        }
+    }
+
+    public void testColumnarNotUsedForNonKeywordField() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            randomColumnarMode(),
+            randomColumnarEligibleIndexVersion(),
+            true
+        );
+        assertFalse(
+            "long companion field must not be routed to ColumNAR",
+            supplier.getDocValuesFormatForField("size") instanceof ColumNARDocValuesFormat
+        );
+        assertFalse(
+            "double companion field must not be routed to ColumNAR",
+            supplier.getDocValuesFormatForField("score") instanceof ColumNARDocValuesFormat
+        );
+    }
+
+    public void testColumnarNotUsedWhenSettingDisabled() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            randomColumnarMode(),
+            randomColumnarEligibleIndexVersion(),
+            false
+        );
+        assertFalse(supplier.getDocValuesFormatForField("category") instanceof ColumNARDocValuesFormat);
+    }
+
+    public void testColumnarNotUsedInNonColumnarMode() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        final IndexMode nonColumnarMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB);
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(nonColumnarMode, randomColumnarEligibleIndexVersion(), true);
+        assertFalse("mode=" + nonColumnarMode, supplier.getDocValuesFormatForField("category") instanceof ColumNARDocValuesFormat);
+    }
+
+    public void testColumnarNotUsedForOldIndexVersion() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        final IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG);
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), oldVersion, true);
+        assertFalse(supplier.getDocValuesFormatForField("category") instanceof ColumNARDocValuesFormat);
+    }
+
+    public void testColumnarNotSelectedWhenFlagDisabled() throws IOException {
+        assumeFalse("columnar_codec feature flag must be disabled", columnarFeatureFlagEnabled());
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            randomColumnarMode(),
+            randomColumnarEligibleIndexVersion(),
+            true
+        );
+        assertFalse(supplier.getDocValuesFormatForField("category") instanceof ColumNARDocValuesFormat);
+    }
+
+    private static boolean columnarFeatureFlagEnabled() {
+        return ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled();
+    }
+
+    private static IndexMode randomColumnarMode() {
+        return randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+    }
+
+    private static IndexVersion randomColumnarEligibleIndexVersion() {
+        return IndexVersionUtils.randomVersionBetween(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG, IndexVersion.current());
+    }
+
+    private PerFieldFormatSupplier createColumnarFormatSupplier(
+        final IndexMode mode,
+        final IndexVersion indexVersion,
+        boolean columnarEnabled
+    ) throws IOException {
+        final Settings.Builder settings = Settings.builder();
+        settings.put(IndexSettings.MODE.getKey(), mode);
+        settings.put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion);
+        settings.put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), columnarEnabled);
+        final MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
+        mapperService.merge("type", new CompressedXContent(COLUMNAR_MAPPING), MapperService.MergeReason.MAPPING_UPDATE);
+        return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+    }
+
+    private PerFieldFormatSupplier createFormatSupplierWithVersion(
+        final IndexMode mode,
+        final String mapping,
+        final IndexVersion indexVersion
+    ) throws IOException {
+        return createFormatSupplierWithVersion(mode, mapping, indexVersion, true, true);
+    }
+
+    private PerFieldFormatSupplier createFormatSupplierWithVersion(
+        final IndexMode mode,
+        final String mapping,
+        final IndexVersion indexVersion,
+        final boolean es95Enabled,
+        final boolean useTimeSeriesDocValuesFormat
+    ) throws IOException {
+        final Settings.Builder settings = Settings.builder();
+        settings.put(IndexSettings.MODE.getKey(), mode);
+        settings.put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion);
+        if (mode == IndexMode.TIME_SERIES) {
+            settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
+        }
+        if (useTimeSeriesDocValuesFormat) {
+            settings.put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true);
+        }
+        settings.put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), es95Enabled);
+        final MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
+        mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+    }
+
     private static boolean syntheticId(boolean timeSeries) {
-        return IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && timeSeries && randomBoolean();
+        return timeSeries && randomBoolean();
+    }
+
+    public void testResolveFieldContextForOTelLongCounter() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_COUNTER_LONG_MAPPING);
+        final FieldContext context = supplier.resolveFieldContext("packets", 512);
+        assertEquals("packets", context.fieldName());
+        assertEquals(512, context.blockSize());
+        assertEquals(PipelineDescriptor.DataType.LONG, context.dataType());
+        assertEquals(MetricRole.COUNTER, context.metricRole());
+    }
+
+    public void testResolveFieldContextForOTelLongGauge() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_COUNTER_LONG_MAPPING);
+        final FieldContext context = supplier.resolveFieldContext("temperature", 512);
+        assertEquals(PipelineDescriptor.DataType.LONG, context.dataType());
+        assertEquals(MetricRole.GAUGE, context.metricRole());
+    }
+
+    private static final String OTEL_DOUBLE_GAUGE_MAPPING = """
+        {
+            "_data_stream_timestamp": {
+                "enabled": true
+            },
+            "properties": {
+                "@timestamp": {
+                    "type": "date"
+                },
+                "field": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                },
+                "cpu_usage": {
+                    "type": "double",
+                    "time_series_metric": "gauge"
+                }
+            }
+        }
+        """;
+
+    public void testResolveFieldContextForOTelDoubleGauge() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_DOUBLE_GAUGE_MAPPING);
+        final FieldContext context = supplier.resolveFieldContext("cpu_usage", 512);
+        assertEquals(PipelineDescriptor.DataType.DOUBLE, context.dataType());
+        assertEquals(MetricRole.GAUGE, context.metricRole());
+    }
+
+    public void testResolveFieldContextForTimestampDateField() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_COUNTER_LONG_MAPPING);
+        final FieldContext context = supplier.resolveFieldContext("@timestamp", 512);
+        assertEquals(PipelineDescriptor.DataType.LONG, context.dataType());
+        assertNull(context.metricRole());
+    }
+
+    public void testResolveFieldContextForUnknownFieldLeavesMetadataNull() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_COUNTER_LONG_MAPPING);
+        final FieldContext context = supplier.resolveFieldContext("absent_field", 512);
+        assertNull(context.dataType());
+        assertNull(context.metricRole());
+    }
+
+    public void testCounterFieldGetsES95FormatThroughSupplier() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(
+            IndexMode.TIME_SERIES,
+            OTEL_COUNTER_LONG_MAPPING,
+            IndexVersion.current()
+        );
+        final DocValuesFormat format = supplier.getDocValuesFormatForField("packets");
+        assertThat(format, instanceOf(ES95TSDBDocValuesFormat.class));
+    }
+
+    public void testDoubleGaugeFieldGetsES95FormatAndAlpRouting() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(
+            IndexMode.TIME_SERIES,
+            OTEL_DOUBLE_GAUGE_MAPPING,
+            IndexVersion.current()
+        );
+        final DocValuesFormat format = supplier.getDocValuesFormatForField("cpu_usage");
+        assertThat(format, instanceOf(ES95TSDBDocValuesFormat.class));
+
+        final FieldContext context = supplier.resolveFieldContext("cpu_usage", 512);
+        final PipelineConfig config = StaticPipelineConfigResolver.INSTANCE.resolve(context);
+        assertEquals("alpDouble>delta>offset>gcd>bitPack", config.describeStages());
+    }
+
+    public void testGetDocValuesFormatForFieldReturnsSameInstanceAcrossCalls() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(
+            IndexMode.TIME_SERIES,
+            OTEL_COUNTER_LONG_MAPPING,
+            IndexVersion.current()
+        );
+        final DocValuesFormat a = supplier.getDocValuesFormatForField("packets");
+        final DocValuesFormat b = supplier.getDocValuesFormatForField("temperature");
+        assertSame(a, b);
     }
 }

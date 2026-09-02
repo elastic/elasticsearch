@@ -84,10 +84,12 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
         assertAllPreviousForecastsAreClearedAfterRollover(dataStream, metadata);
 
         setHasValidLicense(false);
-        writeLoadForecaster.refreshLicense();
 
-        final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
-        assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(equalTo(false)));
+        assertBusy(() -> {
+            writeLoadForecaster.refreshLicense();
+            final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
+            assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(equalTo(false)));
+        });
     }
 
     public void testWriteLoadForecastDoesNotGetPopulatedWithInvalidLicense() throws Exception {
@@ -132,10 +134,12 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
         assertAllPreviousForecastsAreClearedAfterRollover(dataStream, metadata);
 
         setHasValidLicense(false);
-        writeLoadForecaster.refreshLicense();
 
-        final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
-        assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(equalTo(false)));
+        assertBusy(() -> {
+            writeLoadForecaster.refreshLicense();
+            final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
+            assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(equalTo(false)));
+        });
     }
 
     private void setUpDataStreamWriteDocsAndRollover(String dataStreamName) throws Exception {

@@ -116,6 +116,16 @@ import static org.mockito.Mockito.mock;
     reason = "troubleshooting streaming lookup"
 )
 public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
+    /**
+     * These functional/concurrency tests feed multi-value join keys, so the operator legitimately drains
+     * "LOOKUP JOIN encountered multi-value" warnings from the remote lookup driver into the per-driver sink. That
+     * warning content is not what these tests assert, so exempt them from the per-driver warnings leak-check.
+     */
+    @Override
+    protected boolean assertNoLeakedWarnings() {
+        return false;
+    }
+
     private static final String MULTI_NODE = "multiNode";
     private static final String SINGLE_NODE = "singleNode";
     private final ThreadPool threadPool = threadPool();
@@ -199,7 +209,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
             matchFields.add(new MatchConfig(matchField, i, inputDataType));
         }
         Expression joinOnExpression = null;
-        FragmentExec rightPlanWithOptionalPreJoinFilter = LookupFromIndexOperatorTests.buildLessThanFilter(LESS_THAN_VALUE);
+        FragmentExec rightPlanWithOptionalPreJoinFilter = LookupFromIndexOperatorTests.buildLessThanFilter(LESS_THAN_VALUE, loadFields);
         if (operation != null) {
             List<Expression> conditions = new ArrayList<>();
             for (int i = 0; i < numberOfJoinColumns; i++) {
@@ -515,7 +525,8 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
             true, // primary
             org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         ).initialize(serverNodes.get(0).getId(), null, 0).moveToStarted(0);
         shardRoutingBuilder.addShard(primaryRouting);
 
@@ -526,7 +537,8 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
                 false, // replica
                 org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-                ShardRouting.Role.DEFAULT
+                ShardRouting.Role.DEFAULT,
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
             ).initialize(serverNodes.get(i).getId(), null, 0).moveToStarted(0);
             shardRoutingBuilder.addShard(replicaRouting);
         }
@@ -581,7 +593,8 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
             true, // primary
             org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         ).initialize(localNode.getId(), null, 0).moveToStarted(0);
         shardRoutingBuilder.addShard(primaryRouting);
 

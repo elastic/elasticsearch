@@ -16,8 +16,10 @@ import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModelCreator;
+import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService;
 
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Creates {@link ElasticInferenceServiceCompletionModel} instances from config maps
@@ -25,26 +27,40 @@ import java.util.Map;
  */
 public class ElasticInferenceServiceCompletionModelCreator extends ElasticInferenceServiceModelCreator<
     ElasticInferenceServiceCompletionModel> {
-    public ElasticInferenceServiceCompletionModelCreator(ElasticInferenceServiceComponents elasticInferenceServiceComponents) {
+
+    private final CompletionCompatibilityService completionCompatibilityService;
+
+    public ElasticInferenceServiceCompletionModelCreator(
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        CompletionCompatibilityService completionCompatibilityService
+    ) {
         super(elasticInferenceServiceComponents);
+        this.completionCompatibilityService = Objects.requireNonNull(completionCompatibilityService);
     }
 
     @Override
     public ElasticInferenceServiceCompletionModel createFromMaps(
         String inferenceId,
         TaskType taskType,
+        String service,
         Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
         @Nullable ChunkingSettings chunkingSettings,
+        @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context,
         @Nullable EndpointMetadata endpointMetadata
     ) {
+        var effectiveTaskSettings = completionCompatibilityService.getTaskSettingsStrategy(taskType)
+            .createTaskSettings(taskSettings, context);
+
         return new ElasticInferenceServiceCompletionModel(
             inferenceId,
             taskType,
             serviceSettings,
             elasticInferenceServiceComponents,
             context,
-            endpointMetadata
+            endpointMetadata,
+            effectiveTaskSettings
         );
     }
 

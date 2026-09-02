@@ -12,23 +12,23 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.anthropic.action.AnthropicActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class AnthropicModel extends Model {
+public abstract class AnthropicModel extends RateLimitGroupingModel {
 
     private final AnthropicRateLimitServiceSettings rateLimitServiceSettings;
     private final SecureString apiKey;
@@ -65,14 +65,6 @@ public abstract class AnthropicModel extends Model {
         uri = model.getUri();
     }
 
-    protected AnthropicModel(AnthropicModel model, ServiceSettings serviceSettings) {
-        super(model, serviceSettings);
-
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
-        apiKey = model.apiKey();
-        uri = model.getUri();
-    }
-
     public URI getUri() {
         return uri;
     }
@@ -83,6 +75,16 @@ public abstract class AnthropicModel extends Model {
 
     public AnthropicRateLimitServiceSettings rateLimitServiceSettings() {
         return rateLimitServiceSettings;
+    }
+
+    @Override
+    public int rateLimitGroupingHash() {
+        return Objects.hash(AnthropicAccount.of(this).hashCode(), rateLimitServiceSettings().modelId().hashCode());
+    }
+
+    @Override
+    public RateLimitSettings rateLimitSettings() {
+        return rateLimitServiceSettings.rateLimitSettings();
     }
 
     public abstract ExecutableAction accept(AnthropicActionVisitor creator, Map<String, Object> taskSettings);

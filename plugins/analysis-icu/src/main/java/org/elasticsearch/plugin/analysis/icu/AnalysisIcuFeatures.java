@@ -17,9 +17,10 @@ import java.util.Set;
 public class AnalysisIcuFeatures implements FeatureSpecification {
 
     public static final NodeFeature ICU_TRANSFORM_CUSTOM_RULESET = new NodeFeature("analysis.icu_transform.custom_ruleset");
+    public static final NodeFeature ICU_COLLATION_KEYWORD_BINARY_DV = new NodeFeature("mapper.icu_collation_keyword.supports_binary_dv");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(ICU_TRANSFORM_CUSTOM_RULESET);
+        return Set.of(ICU_TRANSFORM_CUSTOM_RULESET, ICU_COLLATION_KEYWORD_BINARY_DV);
     }
 }

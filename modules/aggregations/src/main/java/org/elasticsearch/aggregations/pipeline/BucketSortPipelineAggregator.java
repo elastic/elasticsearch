@@ -103,8 +103,13 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
                 if ("_key".equals(sortField)) {
                     resolved.put(sort, (Comparable<Object>) internalBucket.getKey());
                 } else {
+                    // BucketHelpers.resolveBucketValue returns null when the path cannot be resolved for this bucket
+                    // (e.g. it contains a bucket-key lookup like inner_agg['some_key'] that does not exist in this
+                    // bucket's data). Treat that the same as a missing value and let the gap policy decide, which is
+                    // how sibling pipeline aggregators (BucketScript, BucketMetrics, etc.) handle it. Previously the
+                    // null was unboxed by Double.isNaN and threw NPE.
                     Double bucketValue = BucketHelpers.resolveBucketValue(parentAgg, internalBucket, sortField, gapPolicy);
-                    if (gapPolicy.isSkippable && Double.isNaN(bucketValue)) {
+                    if (gapPolicy.isSkippable && (bucketValue == null || Double.isNaN(bucketValue))) {
                         continue;
                     }
                     resolved.put(sort, (Comparable<Object>) (Object) bucketValue);

@@ -16,6 +16,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.lucene.search.BitsIterator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -23,12 +24,11 @@ import java.io.IOException;
 public class ESAcceptDocsTests extends ESTestCase {
 
     public void testAcceptAllDocs() throws IOException {
-        ESAcceptDocs acceptDocs = ESAcceptDocs.ESAcceptDocsAll.INSTANCE;
+        ESAcceptDocs acceptDocs = new ESAcceptDocs.ESAcceptDocsAll();
         assertEquals(0L, acceptDocs.approximateCost());
         assertEquals(0L, acceptDocs.cost());
         assertNull(acceptDocs.iterator());
         assertNull(acceptDocs.bits());
-        assertNull(acceptDocs.getBitSet());
     }
 
     public void testFromScorerSupplier() throws IOException {
@@ -39,7 +39,13 @@ public class ESAcceptDocsTests extends ESTestCase {
         }
         {
             DocIdSetIterator iterator = new BitSetIterator(bitSet, bitSet.cardinality());
-            ESAcceptDocs acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(new TestScorerSupplier(iterator), null, 10);
+            TestScorerSupplier scorerSupplier = new TestScorerSupplier(iterator);
+            ESAcceptDocs acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(
+                () -> scorerSupplier.get(Long.MAX_VALUE).iterator(),
+                scorerSupplier::cost,
+                null,
+                10
+            );
             assertEquals(iterator.cost(), acceptDocs.approximateCost());
             assertEquals(iterator.cost(), acceptDocs.cost());
             // iterate the docs ensuring they match
@@ -50,7 +56,13 @@ public class ESAcceptDocsTests extends ESTestCase {
         }
         {
             DocIdSetIterator iterator = new BitSetIterator(bitSet, bitSet.cardinality());
-            ESAcceptDocs acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(new TestScorerSupplier(iterator), null, 10);
+            TestScorerSupplier scorerSupplier = new TestScorerSupplier(iterator);
+            ESAcceptDocs acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(
+                () -> scorerSupplier.get(Long.MAX_VALUE).iterator(),
+                scorerSupplier::cost,
+                null,
+                10
+            );
             Bits acceptDocsBits = acceptDocs.bits();
             for (int i = 0; i < 10; i++) {
                 assertEquals(bitSet.get(i), acceptDocsBits.get(i));
@@ -64,7 +76,13 @@ public class ESAcceptDocsTests extends ESTestCase {
             liveDocs.clear(1);
             liveDocs.clear(3);
             liveDocs.clear(9);
-            ESAcceptDocs acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(new TestScorerSupplier(iterator), liveDocs, 10);
+            TestScorerSupplier scorerSupplier = new TestScorerSupplier(iterator);
+            ESAcceptDocs acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(
+                () -> scorerSupplier.get(Long.MAX_VALUE).iterator(),
+                scorerSupplier::cost,
+                liveDocs,
+                10
+            );
             // verify approximate cost doesn't count deleted docs
             assertEquals(5L, acceptDocs.approximateCost());
             // actual cost should count only live docs
@@ -96,6 +114,115 @@ public class ESAcceptDocsTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             assertEquals(acceptedDocs.get(i), acceptDocsBits.get(i));
         }
+    }
+
+    public void testFromScorerSupplierWithSlice() throws IOException {
+        int[] docIds = new int[] { 1, 3, 5, 7, 9 };
+        BitSet bitSet = new FixedBitSet(10);
+        for (int docId : docIds) {
+            bitSet.set(docId);
+        }
+        DocIdSetIterator iterator = random().nextBoolean() ? new BitSetIterator(bitSet, bitSet.cardinality()) : new BitsIterator(bitSet);
+        TestScorerSupplier scorerSupplier = new TestScorerSupplier(iterator);
+        ESAcceptDocs acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(
+            () -> scorerSupplier.get(Long.MAX_VALUE).iterator(),
+            scorerSupplier::cost,
+            null,
+            10,
+            0,
+            () -> new ESAcceptDocs.SliceAcceptDocs(3, 8)
+        );
+        assertEquals(5L, acceptDocs.approximateCost());
+        assertEquals(3L, acceptDocs.cost());
+        DocIdSetIterator acceptDocsIterator = acceptDocs.iterator();
+        assertEquals(3, acceptDocsIterator.nextDoc());
+        assertEquals(5, acceptDocsIterator.nextDoc());
+        assertEquals(7, acceptDocsIterator.nextDoc());
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, acceptDocsIterator.nextDoc());
+        Bits acceptDocsBits = acceptDocs.bits();
+        for (int i = 3; i < 8; i++) {
+            assertEquals(bitSet.get(i), acceptDocsBits.get(i));
+        }
+    }
+
+    public void testCreateSliceBitSet() throws IOException {
+        int maxDoc = 10;
+        int[] docIds = { 1, 3, 5, 7, 9 };
+        ESAcceptDocs.SliceAcceptDocs slice = new ESAcceptDocs.SliceAcceptDocs(3, 8);
+        {
+            FixedBitSet accepted = toBitSet(maxDoc, docIds);
+            DocIdSetIterator iterator = new BitSetIterator(accepted, accepted.cardinality());
+            BitSet result = ESAcceptDocs.createSliceBitSet(iterator, null, slice);
+            assertTrue(result instanceof FixedBitSet);
+            assertSliceBitSetEquals(result, new int[] { 3, 5, 7 }, slice);
+        }
+        {
+            FixedBitSet accepted = toBitSet(maxDoc, docIds);
+            FixedBitSet liveDocs = new FixedBitSet(maxDoc);
+            liveDocs.set(0, maxDoc);
+            liveDocs.clear(3);
+            liveDocs.clear(7);
+            DocIdSetIterator iterator = new BitSetIterator(accepted, accepted.cardinality());
+            BitSet result = ESAcceptDocs.createSliceBitSet(iterator, liveDocs, slice);
+            assertTrue(result instanceof FixedBitSet);
+            assertSliceBitSetEquals(result, new int[] { 5 }, slice);
+        }
+        {
+            FixedBitSet accepted = toBitSet(maxDoc, docIds);
+            DocIdSetIterator iterator = new BitsIterator(accepted);
+            BitSet result = ESAcceptDocs.createSliceBitSet(iterator, null, slice);
+            assertTrue(result instanceof FixedBitSet);
+            assertSliceBitSetEquals(result, new int[] { 3, 5, 7 }, slice);
+        }
+        {
+            FixedBitSet accepted = toBitSet(maxDoc, docIds);
+            DocIdSetIterator iterator = new BitSetIterator(accepted, accepted.cardinality());
+            assertEquals(-1, iterator.docID());
+            BitSet result = ESAcceptDocs.createSliceBitSet(iterator, null, slice);
+            assertSliceBitSetEquals(result, new int[] { 3, 5, 7 }, slice);
+        }
+    }
+
+    public void testFromBitsWithSlice() throws IOException {
+        FixedBitSet acceptedDocs = new FixedBitSet(10);
+        acceptedDocs.set(1);
+        acceptedDocs.set(3);
+        acceptedDocs.set(5);
+        acceptedDocs.set(7);
+        acceptedDocs.set(9);
+        ESAcceptDocs acceptDocs = new ESAcceptDocs.BitsAcceptDocs(acceptedDocs, 10, 0, () -> new ESAcceptDocs.SliceAcceptDocs(3, 8));
+        assertEquals(3L, acceptDocs.approximateCost());
+        assertEquals(3L, acceptDocs.cost());
+        DocIdSetIterator acceptDocsIterator = acceptDocs.iterator();
+        assertEquals(3, acceptDocsIterator.nextDoc());
+        assertEquals(5, acceptDocsIterator.nextDoc());
+        assertEquals(7, acceptDocsIterator.nextDoc());
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, acceptDocsIterator.nextDoc());
+        Bits acceptDocsBits = acceptDocs.bits();
+        for (int i = 0; i < 10; i++) {
+            // no special handling for slice
+            boolean expected = acceptedDocs.get(i);
+            assertEquals(expected, acceptDocsBits.get(i));
+        }
+    }
+
+    private static FixedBitSet toBitSet(int maxDoc, int... docIds) {
+        FixedBitSet bitSet = new FixedBitSet(maxDoc);
+        for (int docId : docIds) {
+            bitSet.set(docId);
+        }
+        return bitSet;
+    }
+
+    private static void assertSliceBitSetEquals(BitSet sliceBitset, int[] expected, ESAcceptDocs.SliceAcceptDocs slice) throws IOException {
+        assertEquals(slice.length(), sliceBitset.length());
+        assertEquals(expected.length, sliceBitset.cardinality());
+        DocIdSetIterator iterator = new ESAcceptDocs.SliceBitSetIterator(sliceBitset, sliceBitset.cardinality(), slice);
+        assertEquals(-1, iterator.docID());
+        for (int docID : expected) {
+            assertEquals(docID, iterator.nextDoc());
+        }
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, iterator.nextDoc());
     }
 
     private static class TestScorerSupplier extends ScorerSupplier {

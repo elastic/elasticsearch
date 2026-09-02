@@ -12,10 +12,12 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -29,10 +31,8 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * This class is responsible for creating a request to the Llama embeddings model.
  * It constructs an HTTP POST request with the necessary headers and body content.
  */
-public class LlamaEmbeddingsRequest implements Request {
-    private final URI uri;
+public class LlamaEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
     private final LlamaEmbeddingsModel model;
-    private final String inferenceEntityId;
     private final Truncator.TruncationResult truncationResult;
     private final Truncator truncator;
 
@@ -44,16 +44,14 @@ public class LlamaEmbeddingsRequest implements Request {
      * @param model the Llama embeddings model to be used for the request
      */
     public LlamaEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, LlamaEmbeddingsModel model) {
-        this.uri = model.uri();
         this.model = model;
-        this.inferenceEntityId = model.getInferenceEntityId();
         this.truncator = truncator;
         this.truncationResult = input;
     }
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(this.uri);
+        HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(new LlamaEmbeddingsRequestEntity(model.getServiceSettings().modelId(), truncationResult.input()))
@@ -71,11 +69,11 @@ public class LlamaEmbeddingsRequest implements Request {
 
     @Override
     public URI getURI() {
-        return uri;
+        return model.getServiceSettings().uri();
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
         return new LlamaEmbeddingsRequest(truncator, truncatedInput, model);
     }
@@ -87,6 +85,11 @@ public class LlamaEmbeddingsRequest implements Request {
 
     @Override
     public String getInferenceEntityId() {
-        return inferenceEntityId;
+        return model.getInferenceEntityId();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

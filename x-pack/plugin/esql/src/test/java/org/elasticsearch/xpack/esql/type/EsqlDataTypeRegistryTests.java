@@ -31,12 +31,60 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
         resolve("double", TimeSeriesParams.MetricType.COUNTER, DataType.COUNTER_DOUBLE);
     }
 
+    public void testInvalidCounter() {
+        // unsigned_long mappers accept time_series_metric: counter, but ESQL has no counter variant for it.
+        // It should resolve to UNSUPPORTED rather than NPE'ing during field resolution.
+        // See https://github.com/elastic/elasticsearch/issues/148032
+        resolve("unsigned_long", TimeSeriesParams.MetricType.COUNTER, DataType.UNSUPPORTED);
+    }
+
     public void testGauge() {
         resolve("long", TimeSeriesParams.MetricType.GAUGE, DataType.LONG);
     }
 
     public void testLong() {
         resolve("long", null, DataType.LONG);
+    }
+
+    /**
+     * When the {@code esql.query.flattened.enabled} kill switch is off ({@code FieldsInfo.flattenedDataTypeEnabled() == false}),
+     * a {@code flattened} field must resolve as {@link DataType#UNSUPPORTED} instead of {@link DataType#FLATTENED}. Asserting
+     * both states proves it is the kill switch, not the transport version, that drives the {@code unsupported} result.
+     */
+    public void testFlattenedResolvesAsUnsupportedWhenKillSwitchDisabled() {
+        assertThat(resolveType("flattened", true), equalTo(DataType.FLATTENED));
+        assertThat(resolveType("flattened", false), equalTo(DataType.UNSUPPORTED));
+    }
+
+    /**
+     * The flattened kill switch must only affect {@code flattened}: other types resolve normally even when the flag is off.
+     */
+    public void testFlattenedKillSwitchDoesNotAffectOtherTypes() {
+        assertThat(resolveType("keyword", false), equalTo(DataType.KEYWORD));
+        assertThat(resolveType("long", false), equalTo(DataType.LONG));
+    }
+
+    private DataType resolveType(String esTypeName, boolean flattenedDataTypeEnabled) {
+        String idx = "idx-" + randomAlphaOfLength(5);
+        String field = "f" + randomAlphaOfLength(3);
+        List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
+            new FieldCapabilitiesIndexResponse(
+                idx,
+                idx,
+                Map.of(field, new IndexFieldCapabilitiesBuilder(field, esTypeName).build()),
+                true,
+                IndexMode.STANDARD
+            )
+        );
+        FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder().withIndexResponses(idxResponses).build();
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "idx-*",
+            false,
+            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, flattenedDataTypeEnabled),
+            false,
+            IndexResolver.DO_NOT_GROUP
+        );
+        return resolution.get().mapping().get(field).getDataType();
     }
 
     private void resolve(String esTypeName, TimeSeriesParams.MetricType metricType, DataType expected) {
@@ -57,7 +105,8 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
             false,
-            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false),
+            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, true),
+            false,
             IndexResolver.DO_NOT_GROUP
         );
         EsField f = resolution.get().mapping().get(field);

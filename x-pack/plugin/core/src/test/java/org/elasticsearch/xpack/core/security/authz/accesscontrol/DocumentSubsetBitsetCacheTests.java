@@ -638,7 +638,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             types.add(new MockFieldMapper(new KeywordFieldMapper.KeywordFieldType("dne-" + i)));
         }
 
-        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, types, List.of(), randomFrom(IndexMode.values()));
+        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, types, List.of(), randomFrom(IndexMode.availableModes()));
 
         final Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);

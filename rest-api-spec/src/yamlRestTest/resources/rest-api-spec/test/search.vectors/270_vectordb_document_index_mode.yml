@@ -1,0 +1,44 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ vectordb_document_index_mode ]
+      reason: "Support for 'vectordb_document' index mode capability required"
+
+---
+"Create vectordb_document index":
+  - do:
+      indices.create:
+        index: test_vectordb_document
+        body:
+          settings:
+            index.mode: vectordb_document
+          mappings:
+            properties:
+              embedding:
+                type: dense_vector
+                dims: 8
+
+  - do:
+      indices.get_settings:
+        index: test_vectordb_document
+  - match: { test_vectordb_document.settings.index.mode: "vectordb_document" }
+
+  - do:
+      indices.get_mapping:
+        index: test_vectordb_document
+  - match: { test_vectordb_document.mappings.properties.embedding.type: "dense_vector" }
+  - match: { test_vectordb_document.mappings.properties.embedding.element_type: "bfloat16" }
+
+---
+"Vectordb_document index mode forbids disabling exclude_source_vectors":
+  - do:
+      catch: /illegal_argument_exception/
+      indices.create:
+        index: test_vectordb_document_bad
+        body:
+          settings:
+            index.mode: vectordb_document
+            index.mapping.exclude_source_vectors: false

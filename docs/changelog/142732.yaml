@@ -1,5 +1,0 @@
-area: Search
-issues: []
-pr: 142732
-summary: Ref-counting `SearchHits` from `InternalTopHits` to `SearchResponse`
-type: enhancement

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_APPEND` function [esql-mv_append]
 
-:::{include} ../../_snippets/functions/layout/mv_append.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_append.md
 :::

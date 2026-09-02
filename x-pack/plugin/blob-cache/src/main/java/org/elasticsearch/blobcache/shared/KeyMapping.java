@@ -11,6 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * A 2 layer key mapping for the shared cache.
@@ -74,5 +75,18 @@ class KeyMapping<Key1, Key2, Value> {
         for (ConcurrentHashMap<Key2, Value> map : mapping.values()) {
             map.forEach(consumer);
         }
+    }
+
+    // used by tests
+    long countMatchingKey2s(Predicate<Key2> predicate) {
+        long count = 0;
+        for (ConcurrentHashMap<Key2, Value> map : mapping.values()) {
+            for (Key2 key : map.keySet()) {
+                if (predicate.test(key)) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 }

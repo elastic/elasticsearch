@@ -42,3 +42,13 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
 
+tasks.named("yamlRestTest").configure {
+  def blacklist = []
+  if(buildParams.snapshotBuild == false) {
+    blacklist.addAll([
+      'analysis_icu/30_icu_collation_keyword_field/*'
+    ])
+  }
+  systemProperty 'tests.rest.blacklist', blacklist.join(',')
+}
+

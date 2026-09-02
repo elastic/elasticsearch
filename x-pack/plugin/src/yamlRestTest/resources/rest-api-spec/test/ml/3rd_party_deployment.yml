@@ -416,6 +416,11 @@ setup:
       ml.update_trained_model_deployment:
         model_id: test_model_deployment
         number_of_allocations: -1
+
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model_deployment
+  - match: { stopped: true }
 ---
 "Test clear deployment cache":
   - skip:
@@ -493,7 +498,7 @@ setup:
 
   - do:
       ml.stop_trained_model_deployment:
-        model_id: test_model
+        model_id: test_model_deployment_cache_test
   - match: { stopped: true }
 ---
 "Test update deployment with low priority to multiple allocations":
@@ -543,6 +548,11 @@ setup:
         body:
           adaptive_allocations:
             max_number_of_allocations: 2
+
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model
+  - match: { stopped: true }
 ---
 "Test put model alias on pytorch model":
   - do:
@@ -604,6 +614,11 @@ setup:
         model_alias: "pytorch"
         model_id: "another_test_model"
         reassign: true
+
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model
+  - match: { stopped: true }
 
 ---
 "Test include model definition status":
@@ -715,6 +730,11 @@ setup:
         deployment_id: test_model_deployment
         wait_for: started
 
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model_deployment
+  - match: { stopped: true }
+
 ---
 "Test cannot start when deployment Id matches a different model":
   - do:
@@ -732,6 +752,11 @@ setup:
   - match: { assignment.assignment_state: started }
   - match: { assignment.task_parameters.model_id: test_model }
   - match: { assignment.task_parameters.deployment_id: test_model }
+
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model
+  - match: { stopped: true }
 
 ---
 "Test cannot create model with a deployment Id":
@@ -753,6 +778,11 @@ setup:
               "ner": { }
             }
           }
+
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model_deployment
+  - match: { stopped: true }
 
 ---
 "Test put model config with Japanese tokenizer":

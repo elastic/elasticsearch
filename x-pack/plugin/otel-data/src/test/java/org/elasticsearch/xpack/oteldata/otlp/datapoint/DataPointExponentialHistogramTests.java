@@ -36,7 +36,8 @@ public class DataPointExponentialHistogramTests extends ESTestCase {
                 .build()
         );
         assertThat(histogram.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("histogram"));
-        assertThat(histogram.isValid(validationErrors), equalTo(true));
+        assertThat(histogram.getTemporality(), equalTo(AGGREGATION_TEMPORALITY_DELTA));
+        assertThat(histogram.isValid(validationErrors, MappingHints.DEFAULT_TDIGEST), equalTo(true));
         assertThat(validationErrors, empty());
     }
 
@@ -48,7 +49,7 @@ public class DataPointExponentialHistogramTests extends ESTestCase {
                 .build()
         );
         assertThat(histogram.getDynamicTemplate(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM), equalTo("exponential_histogram"));
-        assertThat(histogram.isValid(validationErrors), equalTo(true));
+        assertThat(histogram.isValid(validationErrors, MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM), equalTo(true));
         assertThat(validationErrors, empty());
     }
 
@@ -65,11 +66,26 @@ public class DataPointExponentialHistogramTests extends ESTestCase {
             ),
             equalTo("summary")
         );
-        assertThat(histogram.isValid(validationErrors), equalTo(true));
+        assertThat(histogram.isValid(validationErrors, MappingHints.DEFAULT_TDIGEST), equalTo(true));
         assertThat(validationErrors, empty());
     }
 
-    public void testExponentialHistogramUnsupportedTemporality() {
+    public void testCumulativeExponentialHistogramAsExponentialHistogram() {
+        DataPoint.ExponentialHistogram histogram = new DataPoint.ExponentialHistogram(
+            ExponentialHistogramDataPoint.newBuilder().build(),
+            Metric.newBuilder()
+                .setExponentialHistogram(
+                    ExponentialHistogram.newBuilder().setAggregationTemporality(AGGREGATION_TEMPORALITY_CUMULATIVE).build()
+                )
+                .build()
+        );
+        assertThat(histogram.getDynamicTemplate(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM), equalTo("exponential_histogram"));
+        assertThat(histogram.getTemporality(), equalTo(AGGREGATION_TEMPORALITY_CUMULATIVE));
+        assertThat(histogram.isValid(validationErrors, MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM), equalTo(true));
+        assertThat(validationErrors, empty());
+    }
+
+    public void testCumulativeExponentialHistogramAsTDigest() {
         DataPoint.ExponentialHistogram histogram = new DataPoint.ExponentialHistogram(
             ExponentialHistogramDataPoint.newBuilder().build(),
             Metric.newBuilder()
@@ -79,7 +95,11 @@ public class DataPointExponentialHistogramTests extends ESTestCase {
                 .build()
         );
         assertThat(histogram.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("histogram"));
-        assertThat(histogram.isValid(validationErrors), equalTo(false));
-        assertThat(validationErrors, contains(containsString("cumulative exponential histogram metrics are not supported")));
+        assertThat(histogram.isValid(validationErrors, MappingHints.DEFAULT_TDIGEST), equalTo(false));
+        assertThat(
+            validationErrors,
+            contains(containsString("cumulative exponential histogram metrics are only supported when stored as exponential_histogram"))
+        );
     }
+
 }

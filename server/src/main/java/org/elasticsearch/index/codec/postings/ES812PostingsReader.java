@@ -177,8 +177,8 @@ final class ES812PostingsReader extends PostingsReaderBase {
     @Override
     public void decodeTerm(DataInput in, FieldInfo fieldInfo, BlockTermState _termState, boolean absolute) throws IOException {
         final IntBlockTermState termState = (IntBlockTermState) _termState;
-        final boolean fieldHasPositions = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
-        final boolean fieldHasOffsets = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) >= 0;
+        final boolean fieldHasPositions = fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+        final boolean fieldHasOffsets = fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         final boolean fieldHasPayloads = fieldInfo.hasPayloads();
 
         if (absolute) {
@@ -223,7 +223,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
     @Override
     public PostingsEnum postings(FieldInfo fieldInfo, BlockTermState termState, PostingsEnum reuse, int flags) throws IOException {
 
-        boolean indexHasPositions = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
+        boolean indexHasPositions = fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
 
         if (indexHasPositions == false || PostingsEnum.featureRequested(flags, PostingsEnum.POSITIONS) == false) {
             BlockDocsEnum docsEnum;
@@ -257,8 +257,8 @@ final class ES812PostingsReader extends PostingsReaderBase {
             return new SlowImpactsEnum(postings(fieldInfo, state, null, flags));
         }
 
-        final boolean indexHasPositions = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
-        final boolean indexHasOffsets = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) >= 0;
+        final boolean indexHasPositions = fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+        final boolean indexHasOffsets = fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         final boolean indexHasPayloads = fieldInfo.hasPayloads();
 
         if (indexHasPositions == false || PostingsEnum.featureRequested(flags, PostingsEnum.POSITIONS) == false) {
@@ -318,9 +318,9 @@ final class ES812PostingsReader extends PostingsReaderBase {
 
         BlockDocsEnum(FieldInfo fieldInfo) {
             this.docIn = null;
-            indexHasFreq = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) >= 0;
-            indexHasPos = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
-            indexHasOffsets = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) >= 0;
+            indexHasFreq = fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS);
+            indexHasPos = fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+            indexHasOffsets = fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
             indexHasPayloads = fieldInfo.hasPayloads();
             // We set the last element of docBuffer to NO_MORE_DOCS, it helps save conditionals in
             // advance()
@@ -329,8 +329,8 @@ final class ES812PostingsReader extends PostingsReaderBase {
 
         public boolean canReuse(IndexInput docIn, FieldInfo fieldInfo) {
             return docIn == ES812PostingsReader.this.docIn
-                && indexHasFreq == (fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) >= 0)
-                && indexHasPos == (fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0)
+                && indexHasFreq == fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS)
+                && indexHasPos == fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS)
                 && indexHasPayloads == fieldInfo.hasPayloads();
         }
 
@@ -600,7 +600,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
         private int singletonDocID; // docid when there is a single pulsed posting, otherwise -1
 
         EverythingEnum(FieldInfo fieldInfo) {
-            indexHasOffsets = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) >= 0;
+            indexHasOffsets = fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
             indexHasPayloads = fieldInfo.hasPayloads();
 
             this.startDocIn = ES812PostingsReader.this.docIn;
@@ -638,7 +638,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
 
         public boolean canReuse(IndexInput docIn, FieldInfo fieldInfo) {
             return docIn == startDocIn
-                && indexHasOffsets == (fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) >= 0)
+                && indexHasOffsets == fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS)
                 && indexHasPayloads == fieldInfo.hasPayloads();
         }
 
@@ -1013,10 +1013,9 @@ final class ES812PostingsReader extends PostingsReaderBase {
         private boolean isFreqsRead;
 
         BlockImpactsDocsEnum(FieldInfo fieldInfo, IntBlockTermState termState) throws IOException {
-            indexHasFreqs = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) >= 0;
-            final boolean indexHasPositions = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
-            final boolean indexHasOffsets = fieldInfo.getIndexOptions()
-                .compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) >= 0;
+            indexHasFreqs = fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS);
+            final boolean indexHasPositions = fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+            final boolean indexHasOffsets = fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
             final boolean indexHasPayloads = fieldInfo.hasPayloads();
 
             this.docIn = ES812PostingsReader.this.docIn.clone();
@@ -1225,7 +1224,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
         private long seekTo = -1;
 
         BlockImpactsPostingsEnum(FieldInfo fieldInfo, IntBlockTermState termState) throws IOException {
-            indexHasOffsets = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) >= 0;
+            indexHasOffsets = fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
             indexHasPayloads = fieldInfo.hasPayloads();
 
             this.docIn = ES812PostingsReader.this.docIn.clone();
@@ -1525,9 +1524,9 @@ final class ES812PostingsReader extends PostingsReaderBase {
         private long seekTo = -1;
 
         BlockImpactsEverythingEnum(FieldInfo fieldInfo, IntBlockTermState termState, int flags) throws IOException {
-            indexHasFreq = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) >= 0;
-            indexHasPos = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
-            indexHasOffsets = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) >= 0;
+            indexHasFreq = fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS);
+            indexHasPos = fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+            indexHasOffsets = fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
             indexHasPayloads = fieldInfo.hasPayloads();
 
             needsPositions = PostingsEnum.featureRequested(flags, PostingsEnum.POSITIONS);

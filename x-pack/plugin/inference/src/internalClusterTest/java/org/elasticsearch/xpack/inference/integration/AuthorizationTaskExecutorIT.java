@@ -7,19 +7,23 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.completion.UnifiedCompletionUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.tasks.TaskInfo;
@@ -46,11 +50,14 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.inference.completion.Reasoning.ReasoningEffort;
+import static org.elasticsearch.inference.completion.Reasoning.ReasoningSummary;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_EMPTY_RESPONSE;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.ELSER_V2_ENDPOINT_ID;
@@ -58,8 +65,11 @@ import static org.elasticsearch.xpack.inference.services.elastic.response.Elasti
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RAINBOW_SPRINKLES_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RERANK_V1_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createAuthorizedEndpoint;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisChatCompletionWithReasoningAuthorizationResponse;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -79,6 +89,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     private static final MockWebServer webServer = new MockWebServer();
     private static String gatewayUrl;
     private static String chatCompletionResponseBody;
+    private static String chatCompletionReasoningResponseBody;
 
     private ModelRegistry modelRegistry;
     private AuthorizationTaskExecutor authorizationTaskExecutor;
@@ -88,6 +99,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         webServer.start();
         gatewayUrl = getUrl(webServer);
         chatCompletionResponseBody = getEisRainbowSprinklesAuthorizationResponse(gatewayUrl).responseJson();
+        chatCompletionReasoningResponseBody = getEisChatCompletionWithReasoningAuthorizationResponse(gatewayUrl).responseJson();
     }
 
     @Before
@@ -116,7 +128,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         try {
             listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         } catch (Exception e) {
-            logger.atWarn().withThrowable(e).log("Failed to delete eis endpoints: " + idsToDelete);
+            logger.warn(() -> "Failed to delete eis endpoints: " + idsToDelete, e);
         }
     }
 
@@ -168,6 +180,18 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         assertWebServerReceivedRequest();
 
         assertChatCompletionEndpointExists();
+    }
+
+    public void testCreatesEisChatCompletionEndpoint_WithReasoning() throws Exception {
+        assertNoAuthorizedEisEndpoints();
+
+        resetWebServerQueues();
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionReasoningResponseBody));
+        restartPollingTaskAndWaitForAuthResponse();
+
+        assertWebServerReceivedRequest();
+
+        assertChatCompletionEndpointWithReasoningExists();
     }
 
     private void assertNoAuthorizedEisEndpoints() throws Exception {
@@ -228,8 +252,15 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         var listener = new PlainActionFuture<List<UnparsedModel>>();
         modelRegistry.getAllModels(true, listener);
 
-        var endpoints = listener.actionGet(TimeValue.THIRTY_SECONDS);
-        return endpoints.stream().filter(m -> m.service().equals(ElasticInferenceService.NAME)).toList();
+        try {
+            var endpoints = listener.actionGet(TimeValue.THIRTY_SECONDS);
+            return endpoints.stream().filter(m -> m.service().equals(ElasticInferenceService.NAME)).toList();
+        } catch (SearchPhaseExecutionException e) {
+            // This can happen if the internal inference indices shards have not been initialized yet.
+            // We fail so that when this is called in assertBusy we can retry.
+            fail();
+            return List.of();
+        }
     }
 
     private void restartPollingTaskAndWaitForAuthResponse() throws Exception {
@@ -324,6 +355,24 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         assertThat(rainbowSprinklesModel.taskType(), is(TaskType.CHAT_COMPLETION));
         assertThat(rainbowSprinklesModel.service(), is(ElasticInferenceService.NAME));
         assertThat(rainbowSprinklesModel.inferenceEntityId(), is(RAINBOW_SPRINKLES_ENDPOINT_ID));
+    }
+
+    private void assertChatCompletionEndpointWithReasoningExists() throws Exception {
+        assertBusy(() -> {
+            var eisEndpoints = getEisEndpoints(modelRegistry);
+            assertThat(eisEndpoints.size(), is(1));
+
+            var rainbowSprinklesModel = eisEndpoints.get(0);
+            assertChatCompletionUnparsedModel(rainbowSprinklesModel);
+            assertTrue(modelRegistry.containsPreconfiguredInferenceEndpointId(RAINBOW_SPRINKLES_ENDPOINT_ID));
+
+            @SuppressWarnings("unchecked")
+            var taskSettings = (Map<String, Object>) rainbowSprinklesModel.settings().get(ModelConfigurations.TASK_SETTINGS);
+            @SuppressWarnings("unchecked")
+            var reasoning = (Map<String, Object>) taskSettings.get(UnifiedCompletionUtils.REASONING_FIELD);
+            assertThat(reasoning.get(UnifiedCompletionUtils.EFFORT_FIELD), is(ReasoningEffort.MEDIUM.toString()));
+            assertThat(reasoning.get(UnifiedCompletionUtils.SUMMARY_FIELD), is(ReasoningSummary.DETAILED.toString()));
+        });
     }
 
     public void testCreatesChatCompletion_AndThenCreatesTextEmbedding() throws Exception {
@@ -435,6 +484,67 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         // Abort the task and ensure it is restarted
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();
+    }
+
+    public void testDeletesRemovedEndpoints_GivenMultipleEndpointsAreRemoved() throws Exception {
+        testDeletesRemovedEndpoints(Set.of(RAINBOW_SPRINKLES_ENDPOINT_ID, JINA_EMBED_V3_ENDPOINT_ID), 2);
+    }
+
+    public void testDeletesRemovedEndpoints_GivenSingleEndpointIsRemoved() throws Exception {
+        testDeletesRemovedEndpoints(Set.of(JINA_EMBED_V3_ENDPOINT_ID), 1);
+    }
+
+    public void testDeletesRemovedEndpoints_GivenNoEndpointIsRemoved() throws Exception {
+        testDeletesRemovedEndpoints(Set.of(), 0);
+    }
+
+    public void testDeletesRemovedEndpoints_IgnoresRemovedEndpointsNotPresent() throws Exception {
+        testDeletesRemovedEndpoints(Set.of(RAINBOW_SPRINKLES_ENDPOINT_ID, "random-endpoint-id-1", "random-endpoint-id-2"), 1);
+    }
+
+    private void testDeletesRemovedEndpoints(Set<String> removedEndpoints, int expectedDeletions) throws Exception {
+        assertNoAuthorizedEisEndpoints();
+
+        resetWebServerQueues();
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionResponseBody));
+
+        restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
+        resetWebServerQueues();
+
+        var jinaEmbedResponseBody = ElasticInferenceServiceAuthorizationResponseEntityTests.getEisJinaTextEmbedAuthorizationResponse(
+            gatewayUrl
+        ).responseJson();
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(jinaEmbedResponseBody));
+
+        restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
+        resetWebServerQueues();
+
+        // Wait for both endpoints to be created
+        assertBusy(() -> assertThat(getEisEndpoints(), hasSize(2)));
+
+        var eisEndpoints = getEisEndpoints().stream().map(UnparsedModel::inferenceEntityId).collect(Collectors.toSet());
+        assertThat(eisEndpoints, containsInAnyOrder(RAINBOW_SPRINKLES_ENDPOINT_ID, JINA_EMBED_V3_ENDPOINT_ID));
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(Strings.format("""
+            {
+              "inference_endpoints": [],
+              "removed_endpoints": [%s]
+            }
+            """, removedEndpoints.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(",")))));
+
+        restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
+
+        assertBusy(() -> assertThat(getEisEndpoints(), hasSize(2 - expectedDeletions)));
+
+        Set<String> remainingEndpoints = getEisEndpoints().stream().map(UnparsedModel::inferenceEntityId).collect(Collectors.toSet());
+        assertThat(
+            remainingEndpoints,
+            equalTo(Sets.difference(Set.of(RAINBOW_SPRINKLES_ENDPOINT_ID, JINA_EMBED_V3_ENDPOINT_ID), removedEndpoints))
+        );
     }
 
     private static String createJsonResponseForSemiRandomEndpoint(String endpointId, @Nullable String fingerprint) {

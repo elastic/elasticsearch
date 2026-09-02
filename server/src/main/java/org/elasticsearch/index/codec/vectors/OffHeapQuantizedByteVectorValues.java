@@ -24,13 +24,12 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 
 import java.io.IOException;
@@ -41,7 +40,7 @@ import java.nio.ByteBuffer;
  * Read the quantized vector values and their score correction values from the index input. This
  * supports both iterated and random access.
  */
-public abstract class OffHeapQuantizedByteVectorValues extends QuantizedByteVectorValues {
+public abstract class OffHeapQuantizedByteVectorValues extends LegacyQuantizedByteVectorValues {
 
     final int dimension;
     final int size;
@@ -248,17 +247,7 @@ public abstract class OffHeapQuantizedByteVectorValues extends QuantizedByteVect
             DenseOffHeapVectorValues copy = copy();
             DocIndexIterator iterator = copy.iterator();
             RandomVectorScorer vectorScorer = vectorsScorer.getRandomVectorScorer(similarityFunction, copy, target);
-            return new VectorScorer() {
-                @Override
-                public float score() throws IOException {
-                    return vectorScorer.score(iterator.index());
-                }
-
-                @Override
-                public DocIdSetIterator iterator() {
-                    return iterator;
-                }
-            };
+            return VectorScoringUtils.denseVectorScorer(vectorScorer, iterator);
         }
 
         @Override
@@ -340,17 +329,7 @@ public abstract class OffHeapQuantizedByteVectorValues extends QuantizedByteVect
             SparseOffHeapVectorValues copy = copy();
             DocIndexIterator iterator = copy.iterator();
             RandomVectorScorer vectorScorer = vectorsScorer.getRandomVectorScorer(similarityFunction, copy, target);
-            return new VectorScorer() {
-                @Override
-                public float score() throws IOException {
-                    return vectorScorer.score(iterator.index());
-                }
-
-                @Override
-                public DocIdSetIterator iterator() {
-                    return iterator;
-                }
-            };
+            return VectorScoringUtils.sparseVectorScorer(vectorScorer, iterator);
         }
     }
 

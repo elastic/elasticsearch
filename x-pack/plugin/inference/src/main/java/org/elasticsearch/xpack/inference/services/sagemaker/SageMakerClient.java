@@ -21,11 +21,8 @@ import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWith
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWithResponseStreamResponseHandler;
 import software.amazon.awssdk.services.sagemakerruntime.model.ResponseStream;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ListenerTimeouts;
@@ -35,6 +32,8 @@ import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
@@ -42,8 +41,6 @@ import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.reactivestreams.FlowAdapters;
 
 import java.io.Closeable;
-import java.security.AccessController;
-import java.security.PrivilegedExceptionAction;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -52,6 +49,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.inference.external.http.sender.TimedListener.timeoutException;
 
 public class SageMakerClient implements Closeable {
     private static final Logger log = LogManager.getLogger(SageMakerClient.class);
@@ -74,6 +72,7 @@ public class SageMakerClient implements Closeable {
         RegionAndSecrets regionAndSecrets,
         InvokeEndpointRequest request,
         TimeValue timeout,
+        String inferenceId,
         ActionListener<InvokeEndpointResponse> listener
     ) {
         SageMakerRuntimeAsyncClient asyncClient;
@@ -97,9 +96,7 @@ public class SageMakerClient implements Closeable {
             contextPreservingListener,
             ignored -> {
                 FutureUtils.cancel(awsFuture);
-                contextPreservingListener.onFailure(
-                    new ElasticsearchStatusException("Request timed out after [{}]", RestStatus.REQUEST_TIMEOUT, timeout)
-                );
+                contextPreservingListener.onFailure(timeoutException(timeout, inferenceId));
             }
         );
         awsFuture.thenAcceptAsync(timeoutListener::onResponse, threadPool.executor(UTILITY_THREAD_POOL_NAME))
@@ -123,7 +120,7 @@ public class SageMakerClient implements Closeable {
             listener.onFailure(e);
         } else {
             ExceptionsHelper.maybeError(t).ifPresent(ExceptionsHelper::maybeDieOnAnotherThread);
-            log.atWarn().withThrowable(t).log("Unknown failure calling SageMaker.");
+            log.warn("Unknown failure calling SageMaker.", t);
             listener.onFailure(new RuntimeException("Unknown failure calling SageMaker.", t));
         }
         return null; // Void
@@ -133,6 +130,7 @@ public class SageMakerClient implements Closeable {
         RegionAndSecrets regionAndSecrets,
         InvokeEndpointWithResponseStreamRequest request,
         TimeValue timeout,
+        String inferenceId,
         ActionListener<SageMakerStream> listener
     ) {
         SageMakerRuntimeAsyncClient asyncClient;
@@ -157,9 +155,7 @@ public class SageMakerClient implements Closeable {
             contextPreservingListener,
             ignored -> {
                 FutureUtils.cancel(cancelAwsRequestListener.get());
-                contextPreservingListener.onFailure(
-                    new ElasticsearchStatusException("Request timed out after [{}]", RestStatus.REQUEST_TIMEOUT, timeout)
-                );
+                contextPreservingListener.onFailure(timeoutException(timeout, inferenceId));
             }
         );
         // To stay consistent with HTTP providers, we cancel the TimeoutListener onResponse because we are measuring the time it takes to
@@ -189,29 +185,25 @@ public class SageMakerClient implements Closeable {
 
         @Override
         public SageMakerRuntimeAsyncClient load(RegionAndSecrets key) throws Exception {
-            SpecialPermission.check();
-            // TODO migrate to entitlements
-            return AccessController.doPrivileged((PrivilegedExceptionAction<SageMakerRuntimeAsyncClient>) () -> {
-                var credentials = AwsBasicCredentials.create(
-                    key.secretSettings().accessKey().toString(),
-                    key.secretSettings().secretKey().toString()
-                );
-                var credentialsProvider = StaticCredentialsProvider.create(credentials);
-                var clientConfig = NettyNioAsyncHttpClient.builder().connectionTimeout(httpSettings.connectionTimeoutDuration());
-                var override = ClientOverrideConfiguration.builder()
-                    // disable profileFile, user credentials will always come from the configured Model Secrets
-                    .defaultProfileFileSupplier(ProfileFile.aggregator()::build)
-                    .defaultProfileFile(ProfileFile.aggregator().build())
-                    .retryPolicy(retryPolicy -> retryPolicy.numRetries(3))
-                    .retryStrategy(retryStrategy -> retryStrategy.maxAttempts(3))
-                    .build();
-                return SageMakerRuntimeAsyncClient.builder()
-                    .credentialsProvider(credentialsProvider)
-                    .region(Region.of(key.region()))
-                    .httpClientBuilder(clientConfig)
-                    .overrideConfiguration(override)
-                    .build();
-            });
+            var credentials = AwsBasicCredentials.create(
+                key.secretSettings().accessKey().toString(),
+                key.secretSettings().secretKey().toString()
+            );
+            var credentialsProvider = StaticCredentialsProvider.create(credentials);
+            var clientConfig = NettyNioAsyncHttpClient.builder().connectionTimeout(httpSettings.connectionTimeoutDuration());
+            var override = ClientOverrideConfiguration.builder()
+                // disable profileFile, user credentials will always come from the configured Model Secrets
+                .defaultProfileFileSupplier(ProfileFile.aggregator()::build)
+                .defaultProfileFile(ProfileFile.aggregator().build())
+                .retryPolicy(retryPolicy -> retryPolicy.numRetries(3))
+                .retryStrategy(retryStrategy -> retryStrategy.maxAttempts(3))
+                .build();
+            return SageMakerRuntimeAsyncClient.builder()
+                .credentialsProvider(credentialsProvider)
+                .region(Region.of(key.region()))
+                .httpClientBuilder(clientConfig)
+                .overrideConfiguration(override)
+                .build();
         }
     }
 

@@ -12,28 +12,40 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * Immutable specification for a field's encoding pipeline.
  *
- * <p>Captures the data type, block size, and ordered stage specifications for
- * deferred codec construction. Use {@link #forLongs} to start building a
- * configuration via the fluent builder API.
+ * <p>Captures the data type, block size, ordered transform stages, and terminal
+ * payload stage. The builder separates transforms from the payload at
+ * construction time, making illegal states (e.g. two payloads, payload in the
+ * middle) unrepresentable.
  *
- * @param dataType  the numeric data type
- * @param blockSize the number of values per block (must be a positive power of 2)
- * @param specs     the ordered stage specifications
+ * <p>Use {@link #forLongs} to start building a configuration via the fluent
+ * builder API.
+ *
+ * @param dataType   the numeric data type
+ * @param blockSize  the number of values per block (must be a positive power of 2)
+ * @param transforms the ordered transform stage specifications
+ * @param payload    the terminal payload stage specification
  */
-public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize, List<StageSpec> specs) {
+public record PipelineConfig(
+    PipelineDescriptor.DataType dataType,
+    int blockSize,
+    List<StageSpec.TransformSpec> transforms,
+    StageSpec.PayloadSpec payload
+) {
 
-    /** Validates invariants and creates a defensive copy of the specs list. */
+    /** Validates invariants and creates a defensive copy of the transforms list. */
     public PipelineConfig {
         Objects.requireNonNull(dataType, "dataType must not be null");
         if (blockSize <= 0 || (blockSize & (blockSize - 1)) != 0) {
             throw new IllegalArgumentException("blockSize must be a positive power of 2, got: " + blockSize);
         }
-        Objects.requireNonNull(specs, "specs must not be null");
-        specs = List.copyOf(specs);
+        Objects.requireNonNull(transforms, "transforms must not be null");
+        Objects.requireNonNull(payload, "payload must not be null");
+        transforms = List.copyOf(transforms);
     }
 
     /**
@@ -47,15 +59,22 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
     }
 
     /**
-     * Creates a pipeline configuration directly from components.
+     * Starts building a double (floating-point) pipeline configuration.
      *
-     * @param dataType  the numeric data type
      * @param blockSize the number of values per block
-     * @param specs     the ordered stage specifications
-     * @return the pipeline configuration
+     * @return a new builder for double pipelines
      */
-    public static PipelineConfig of(final PipelineDescriptor.DataType dataType, int blockSize, final List<StageSpec> specs) {
-        return new PipelineConfig(dataType, blockSize, specs);
+    public static DoubleBuilder forDoubles(int blockSize) {
+        return new DoubleBuilder(blockSize);
+    }
+
+    /**
+     * Returns all stage specifications in order (transforms followed by payload).
+     *
+     * @return unmodifiable list of all specs
+     */
+    public List<StageSpec> specs() {
+        return Stream.concat(transforms.stream().map(s -> (StageSpec) s), Stream.of(payload)).toList();
     }
 
     /**
@@ -64,15 +83,16 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
      * @return the stage names joined by {@code >} delimiters
      */
     public String describeStages() {
-        if (specs.isEmpty()) {
+        final List<StageSpec> allSpecs = specs();
+        if (allSpecs.isEmpty()) {
             return "empty";
         }
         final StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < specs.size(); i++) {
+        for (int i = 0; i < allSpecs.size(); i++) {
             if (i > 0) {
                 sb.append('>');
             }
-            sb.append(specs.get(i).stageId().displayName);
+            sb.append(allSpecs.get(i).stageId().displayName);
         }
         return sb.toString();
     }
@@ -83,7 +103,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
      */
     public static final class LongBuilder {
         private final int blockSize;
-        private final List<StageSpec> specs = new ArrayList<>();
+        private final List<StageSpec.TransformSpec> transforms = new ArrayList<>();
 
         private LongBuilder(int blockSize) {
             this.blockSize = blockSize;
@@ -95,7 +115,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
          * @return this builder
          */
         public LongBuilder delta() {
-            specs.add(new StageSpec.DeltaStage());
+            transforms.add(new StageSpec.DeltaStage());
             return this;
         }
 
@@ -105,7 +125,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
          * @return this builder
          */
         public LongBuilder offset() {
-            specs.add(new StageSpec.OffsetStage());
+            transforms.add(new StageSpec.OffsetStage());
             return this;
         }
 
@@ -115,7 +135,30 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
          * @return this builder
          */
         public LongBuilder gcd() {
-            specs.add(new StageSpec.GcdStage());
+            transforms.add(new StageSpec.GcdStage());
+            return this;
+        }
+
+        /**
+         * Adds a split delta encoding stage using the default flip cap
+         * ({@link StageSpec.SplitDeltaStage#DEFAULT_K_MAX}).
+         *
+         * @return this builder
+         */
+        public LongBuilder splitDelta() {
+            transforms.add(new StageSpec.SplitDeltaStage(StageSpec.SplitDeltaStage.DEFAULT_K_MAX));
+            return this;
+        }
+
+        /**
+         * Adds a split delta encoding stage that accepts up to {@code kMax} direction
+         * flips per block. Blocks with more flips fall through to the rest of the pipeline.
+         *
+         * @param kMax the maximum number of flips accepted per block; must be at least one
+         * @return this builder
+         */
+        public LongBuilder splitDelta(int kMax) {
+            transforms.add(new StageSpec.SplitDeltaStage(kMax));
             return this;
         }
 
@@ -125,8 +168,93 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
          * @return the pipeline configuration
          */
         public PipelineConfig bitPack() {
-            specs.add(new StageSpec.BitPackPayload());
-            return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, transforms, new StageSpec.BitPackPayload());
+        }
+    }
+
+    /**
+     * Builder for double (floating-point) pipelines. Starts with an ALP transform that
+     * converts sortable-long-encoded doubles into integer mantissas, then composes the
+     * standard integer transforms ahead of the terminal payload.
+     */
+    public static final class DoubleBuilder {
+        private final int blockSize;
+        private final List<StageSpec.TransformSpec> transforms = new ArrayList<>();
+
+        private DoubleBuilder(int blockSize) {
+            this.blockSize = blockSize;
+        }
+
+        /**
+         * Adds the ALP double-to-integer transform stage.
+         *
+         * @return this builder
+         */
+        public DoubleBuilder alpDoubleStage() {
+            transforms.add(new StageSpec.AlpDoubleStage());
+            return this;
+        }
+
+        /**
+         * Adds a delta encoding stage.
+         *
+         * @return this builder
+         */
+        public DoubleBuilder delta() {
+            transforms.add(new StageSpec.DeltaStage());
+            return this;
+        }
+
+        /**
+         * Adds a split delta encoding stage using the default flip cap
+         * ({@link StageSpec.SplitDeltaStage#DEFAULT_K_MAX}).
+         *
+         * @return this builder
+         */
+        public DoubleBuilder splitDelta() {
+            transforms.add(new StageSpec.SplitDeltaStage(StageSpec.SplitDeltaStage.DEFAULT_K_MAX));
+            return this;
+        }
+
+        /**
+         * Adds a split delta encoding stage that accepts up to {@code kMax} direction
+         * flips per block. Blocks with more flips fall through to the rest of the pipeline.
+         *
+         * @param kMax the maximum number of flips accepted per block; must be at least one
+         * @return this builder
+         */
+        public DoubleBuilder splitDelta(int kMax) {
+            transforms.add(new StageSpec.SplitDeltaStage(kMax));
+            return this;
+        }
+
+        /**
+         * Adds an offset removal stage.
+         *
+         * @return this builder
+         */
+        public DoubleBuilder offset() {
+            transforms.add(new StageSpec.OffsetStage());
+            return this;
+        }
+
+        /**
+         * Adds a GCD factoring stage.
+         *
+         * @return this builder
+         */
+        public DoubleBuilder gcd() {
+            transforms.add(new StageSpec.GcdStage());
+            return this;
+        }
+
+        /**
+         * Adds a bit-packing payload and builds the configuration.
+         *
+         * @return the pipeline configuration
+         */
+        public PipelineConfig bitPack() {
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, transforms, new StageSpec.BitPackPayload());
         }
     }
 }

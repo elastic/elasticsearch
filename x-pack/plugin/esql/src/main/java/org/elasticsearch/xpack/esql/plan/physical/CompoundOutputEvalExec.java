@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -26,10 +25,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 /**
  * Abstract base class for physical plans that produce compound outputs from a single input.
  */
-public abstract class CompoundOutputEvalExec extends UnaryExec
-    implements
-        EstimatesRowSize,
-        CompoundOutputEvaluator.OutputFieldsCollectorProvider {
+public abstract class CompoundOutputEvalExec extends UnaryExec implements EstimatesRowSize {
 
     /**
      * The input by which the evaluation is performed.

@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
-import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.convertToString;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.convertInputTypeToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -53,7 +53,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
+            var convertedInputType = convertInputTypeToString(inputType);
             MatcherAssert.assertThat(
                 requestMap,
                 is(Map.of("input", List.of("abc"), "model", "model", "output_dtype", "float", "input_type", convertedInputType))
@@ -86,7 +86,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
+            var convertedInputType = convertInputTypeToString(inputType);
             MatcherAssert.assertThat(
                 requestMap,
                 is(Map.of("input", List.of("abc"), "model", "model", "input_type", convertedInputType, "output_dtype", "float"))
@@ -127,7 +127,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
+            var convertedInputType = convertInputTypeToString(inputType);
             MatcherAssert.assertThat(
                 requestMap,
                 is(
@@ -197,7 +197,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
+            var convertedInputType = convertInputTypeToString(inputType);
             MatcherAssert.assertThat(
                 requestMap,
                 is(
@@ -266,7 +266,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
+            var convertedInputType = convertInputTypeToString(inputType);
             MatcherAssert.assertThat(
                 requestMap,
                 is(Map.of("input", List.of("abc"), "model", "model", "input_type", convertedInputType, "output_dtype", "float"))
@@ -307,13 +307,13 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         if (InputType.isSpecified(requestInputType)) {
-            var convertedInputType = convertToString(requestInputType);
+            var convertedInputType = convertInputTypeToString(requestInputType);
             MatcherAssert.assertThat(
                 requestMap,
                 is(Map.of("input", List.of("abc"), "model", "model", "input_type", convertedInputType, "output_dtype", "float"))
             );
         } else if (InputType.isSpecified(taskSettingsInputType)) {
-            var convertedInputType = convertToString(taskSettingsInputType);
+            var convertedInputType = convertInputTypeToString(taskSettingsInputType);
             MatcherAssert.assertThat(
                 requestMap,
                 is(Map.of("input", List.of("abc"), "model", "model", "input_type", convertedInputType, "output_dtype", "float"))

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -52,31 +51,25 @@ abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetri
         }
 
         @Override
-        public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId) == false) {
-                    continue;
-                }
-                isEmpty = false;
-                int docValuesCount = docValues.docValueCount();
-                for (int j = 0; j < docValuesCount; j++) {
-                    double value = docValues.nextValue();
-                    switch (metric) {
-                        case min -> min = Math.min(value, min);
-                        case max -> max = Math.max(value, max);
-                        case sum -> sum.add(value);
-                        // For downsampled indices aggregate metric double's value count field needs to be summed.
-                        // (Note: not using CompensatedSum here should be ok given that value_count is mapped as long)
-                        case value_count -> count += Math.round(value);
-                    }
+        public void collectCurrentValues(SortedNumericDoubleValues docValues) throws IOException {
+            int docValuesCount = docValues.docValueCount();
+            for (int j = 0; j < docValuesCount; j++) {
+                double value = docValues.nextValue();
+                switch (metric) {
+                    case min -> min = Math.min(value, min);
+                    case max -> max = Math.max(value, max);
+                    case sum -> sum.add(value);
+                    // For downsampled indices aggregate metric double's value count field needs to be summed.
+                    // (Note: not using CompensatedSum here should be ok given that value_count is mapped as long)
+                    case value_count -> count += Math.round(value);
                 }
             }
+            state = State.IN_PROGRESS;
         }
 
         @Override
         public void reset() {
-            isEmpty = true;
+            state = State.EMPTY;
             max = MAX_NO_VALUE;
             min = MIN_NO_VALUE;
             sum.reset(0, 0);
@@ -110,35 +103,24 @@ abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetri
         }
 
         @Override
-        public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
-            if (isEmpty() == false) {
-                return;
-            }
-
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId) == false) {
-                    continue;
+        public void collectCurrentValues(SortedNumericDoubleValues docValues) throws IOException {
+            int docValuesCount = docValues.docValueCount();
+            assert docValuesCount > 0;
+            if (docValuesCount == 1 || supportsMultiValue == false) {
+                lastValue = docValues.nextValue();
+            } else {
+                var values = new Object[docValuesCount];
+                for (int j = 0; j < docValuesCount; j++) {
+                    values[j] = docValues.nextValue();
                 }
-                int docValuesCount = docValues.docValueCount();
-                assert docValuesCount > 0;
-                isEmpty = false;
-                if (docValuesCount == 1 || supportsMultiValue == false) {
-                    lastValue = docValues.nextValue();
-                } else {
-                    var values = new Object[docValuesCount];
-                    for (int j = 0; j < docValuesCount; j++) {
-                        values[j] = docValues.nextValue();
-                    }
-                    lastValue = values;
-                }
-                return;
+                lastValue = values;
             }
+            state = State.BUCKET_COMPLETED;
         }
 
         @Override
         public void reset() {
-            isEmpty = true;
+            state = State.EMPTY;
             lastValue = null;
         }
 

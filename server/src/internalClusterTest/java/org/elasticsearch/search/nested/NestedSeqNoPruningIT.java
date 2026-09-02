@@ -47,8 +47,6 @@ public class NestedSeqNoPruningIT extends ESIntegTestCase {
     }
 
     public void testNestedQueriesAfterSeqNoPruningMerge() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
@@ -143,8 +141,6 @@ public class NestedSeqNoPruningIT extends ESIntegTestCase {
     }
 
     public void testMultiLevelNestedAfterSeqNoPruningMerge() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         ensureStableCluster(2);

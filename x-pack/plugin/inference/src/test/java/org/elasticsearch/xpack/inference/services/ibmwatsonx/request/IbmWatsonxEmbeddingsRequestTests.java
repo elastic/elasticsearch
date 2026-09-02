@@ -15,9 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
-import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
-import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModelTests;
 
 import java.io.IOException;
@@ -86,6 +84,7 @@ public class IbmWatsonxEmbeddingsRequestTests extends ESTestCase {
 
         assertThat(httpPost.getURI().toString(), endsWith(Strings.format("%s=%s", "version", apiVersion)));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(3));
@@ -127,33 +126,23 @@ public class IbmWatsonxEmbeddingsRequestTests extends ESTestCase {
         @Nullable Integer maxTokens,
         @Nullable Integer dimensions
     ) {
-        var embeddingsModel = IbmWatsonxEmbeddingsModelTests.createModel(model, projectId, uri, apiVersion, apiKey, maxTokens, dimensions);
+        var embeddingsModel = IbmWatsonxEmbeddingsModelTests.createModel(
+            model,
+            projectId,
+            uri,
+            apiVersion,
+            apiKey,
+            maxTokens,
+            dimensions,
+            null,
+            null,
+            AUTH_HEADER_VALUE
+        );
 
-        return new IbmWatsonxEmbeddingsWithoutAuthRequest(
+        return new IbmWatsonxEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
             embeddingsModel
         );
-    }
-
-    private static class IbmWatsonxEmbeddingsWithoutAuthRequest extends IbmWatsonxEmbeddingsRequest {
-        IbmWatsonxEmbeddingsWithoutAuthRequest(Truncator truncator, Truncator.TruncationResult input, IbmWatsonxEmbeddingsModel model) {
-            super(truncator, input, model);
-        }
-
-        @Override
-        public void decorateWithAuth(HttpPost httpPost) {
-            httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE);
-        }
-
-        @Override
-        public Request truncate() {
-            IbmWatsonxEmbeddingsRequest embeddingsRequest = (IbmWatsonxEmbeddingsRequest) super.truncate();
-            return new IbmWatsonxEmbeddingsWithoutAuthRequest(
-                embeddingsRequest.truncator(),
-                embeddingsRequest.truncationResult(),
-                embeddingsRequest.model()
-            );
-        }
     }
 }

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `REPEAT` function [esql-repeat]
 
-:::{include} ../../_snippets/functions/layout/repeat.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/repeat.md
 :::

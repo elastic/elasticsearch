@@ -11,7 +11,6 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -23,6 +22,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.HexLiteralContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.IntegerLiteralContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelListContext;
+import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelListItemContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelNameContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.StringContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.AtContext;
@@ -66,6 +67,10 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         this.params = params;
     }
 
+    protected QueryParams params() {
+        return params;
+    }
+
     protected Expression expression(ParseTree ctx) {
         return typedParsing(this, ctx, Expression.class);
     }
@@ -91,7 +96,36 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
     @Override
     public List<String> visitLabelList(LabelListContext ctx) {
-        return ctx != null ? visitList(this, ctx.labelName(), String.class) : emptyList();
+        return ctx != null ? visitList(this, ctx.labelListItem(), String.class) : emptyList();
+    }
+
+    @Override
+    public String visitLabelListItem(LabelListItemContext ctx) {
+        if (ctx.labelName() != null) {
+            return visitLabelName(ctx.labelName());
+        }
+
+        TerminalNode paramNode = ctx.NAMED_OR_POSITIONAL_DOUBLE_PARAMS();
+        Source paramSource = source(paramNode);
+        QueryParam param = ExpressionBuilder.paramByNameOrPosition(paramNode, paramSource, params);
+        if (param == null) {
+            throw new ParsingException(paramSource, "Parameter [{}] value not found", paramNode.getText());
+        }
+        if (param.classification() == PATTERN) {
+            throw new ParsingException(
+                paramSource,
+                "Query parameter [{}]{}, cannot be used as an identifier",
+                paramNode.getText(),
+                "[" + param.name() + "] declared as a pattern"
+            );
+        }
+        if (param.value() == null) {
+            throw new ParsingException(paramSource, "Query parameter [{}] is null", paramNode.getText());
+        }
+        if (param.value() instanceof List<?>) {
+            throw new ParsingException(paramSource, "Query parameter [{}] is a list; expected a single label name", paramNode.getText());
+        }
+        return String.valueOf(param.value());
     }
 
     @Override
@@ -116,7 +150,6 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         }
 
         Literal offset = Literal.NULL;
-        boolean negativeOffset = false;
         Literal at = Literal.NULL;
 
         AtContext atCtx = ctx.at();
@@ -151,9 +184,13 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         OffsetContext offsetContext = ctx.offset();
         if (offsetContext != null) {
             offset = visitDuration(offsetContext.duration());
-            negativeOffset = offsetContext.MINUS() != null;
+            // PromQL durations are unsigned magnitudes; the optional leading `-` (look ahead) is a separate token.
+            // Fold the sign into a single signed duration literal, mirroring how the `@` modifier is handled above.
+            if (offsetContext.MINUS() != null && offset.value() instanceof Duration d) {
+                offset = Literal.timeDuration(source(offsetContext), d.negated());
+            }
         }
-        return new Evaluation(offset, negativeOffset, at);
+        return new Evaluation(offset, at);
     }
 
     @Override
@@ -309,7 +346,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
             try {
                 // use DataTypes.DOUBLE for precise type
                 return Literal.fromDouble(source, StringUtils.parseDouble(text));
-            } catch (QlIllegalArgumentException ignored) {}
+            } catch (InvalidArgumentException ignored) {}
 
             throw new ParsingException(source, siae.getMessage());
         }

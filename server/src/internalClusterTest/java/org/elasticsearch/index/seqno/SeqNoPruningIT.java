@@ -17,9 +17,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -56,24 +58,34 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         return List.of(InternalSettingsPlugin.class, MockTransportService.TestPlugin.class);
     }
 
-    public void testSeqNoPrunedAfterMerge() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+    private static Settings.Builder seqNoPruningIndexSettings(Settings.Builder builder, boolean highMergeSegmentThreshold) {
+        builder.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE);
+        if (highMergeSegmentThreshold) {
+            builder.put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), 100.0);
+        }
+        return builder;
+    }
 
+    private static int randomBatchCount(boolean highMergeSegmentThreshold) {
+        return highMergeSegmentThreshold
+            ? randomIntBetween(10, 20)
+            : randomIntBetween(3, (int) MergePolicyConfig.DEFAULT_SEGMENTS_PER_TIER - 1);
+    }
+
+    public void testSeqNoPrunedAfterMerge() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         ensureStableCluster(3);
 
         final var indexName = randomIdentifier();
-        createIndex(
-            indexName,
-            indexSettings(1, 0).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
-                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
-                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
-                .build()
-        );
+        final boolean highMergeSegmentThreshold = rarely();
+        createIndex(indexName, seqNoPruningIndexSettings(indexSettings(1, 0), highMergeSegmentThreshold).build());
         ensureGreen(indexName);
 
-        final int nbBatches = randomIntBetween(5, 10);
+        final int nbBatches = randomBatchCount(highMergeSegmentThreshold);
         final int docsPerBatch = randomIntBetween(20, 50);
         final long totalDocs = (long) nbBatches * docsPerBatch;
 
@@ -140,23 +152,16 @@ public class SeqNoPruningIT extends ESIntegTestCase {
     }
 
     public void testSeqNoPartiallyPrunedWithRetentionLease() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         ensureStableCluster(3);
 
         final var indexName = randomIdentifier();
-        createIndex(
-            indexName,
-            indexSettings(1, 0).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
-                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
-                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
-                .build()
-        );
+        final boolean highMergeSegmentThreshold = rarely();
+        createIndex(indexName, seqNoPruningIndexSettings(indexSettings(1, 0), highMergeSegmentThreshold).build());
         ensureGreen(indexName);
 
-        final int nbBatches = randomIntBetween(5, 10);
+        final int nbBatches = randomBatchCount(highMergeSegmentThreshold);
         final int docsPerBatch = randomIntBetween(20, 50);
         final long totalDocs = (long) nbBatches * docsPerBatch;
 
@@ -189,27 +194,19 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         ).actionGet();
 
         // wait for peer recovery retention leases to advance past all docs; the custom lease stays
-        assertBusy(() -> {
-            for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
-                for (var indexService : indicesServices) {
-                    if (indexService.index().getName().equals(indexName)) {
-                        for (var indexShard : indexService) {
-                            for (RetentionLease lease : indexShard.getRetentionLeases().leases()) {
-                                if (lease.id().equals(retentionLeaseId)) {
-                                    assertThat(lease.retainingSequenceNumber(), equalTo(retentionLeaseSeqNo));
-                                } else {
-                                    assertThat(
-                                        "retention lease [" + lease.id() + "] should have advanced",
-                                        lease.retainingSequenceNumber(),
-                                        equalTo(maxSeqNo + 1)
-                                    );
-                                }
-                            }
-                        }
-                    }
+        assertBusy(() -> internalCluster().forEveryIndexShard(shardId.getIndex(), indexShard -> {
+            for (RetentionLease lease : indexShard.getRetentionLeases().leases()) {
+                if (lease.id().equals(retentionLeaseId)) {
+                    assertThat(lease.retainingSequenceNumber(), equalTo(retentionLeaseSeqNo));
+                } else {
+                    assertThat(
+                        "retention lease [" + lease.id() + "] should have advanced",
+                        lease.retainingSequenceNumber(),
+                        equalTo(maxSeqNo + 1)
+                    );
                 }
             }
-        });
+        }));
 
         var forceMerge = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
         assertThat(forceMerge.getFailedShards(), equalTo(0));
@@ -228,43 +225,37 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         // verify only docs with seq_no >= retentionLeaseSeqNo retained their doc values
         final long expectedRetainedDocs = maxSeqNo + 1 - retentionLeaseSeqNo;
 
-        int checkedShards = 0;
-        for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            for (var indexService : indicesServices) {
-                if (indexService.index().getName().equals(indexName)) {
-                    for (var indexShard : indexService) {
-                        Long docsWithSeqNoOnShard = indexShard.withEngineOrNull(engine -> {
-                            if (engine == null) {
-                                return null;
+        final var checkedShards = new AtomicInteger();
+        internalCluster().forEveryIndexShard(shardId.getIndex(), indexShard -> {
+            Long docsWithSeqNoOnShard = indexShard.withEngineOrNull(engine -> {
+                if (engine == null) {
+                    return null;
+                }
+                try (var searcher = engine.acquireSearcher("assert_seq_no_count")) {
+                    long nbDocsWithSeqNo = 0;
+                    for (var leaf : searcher.getLeafContexts()) {
+                        NumericDocValues seqNoDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                        if (seqNoDV != null) {
+                            while (seqNoDV.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                                nbDocsWithSeqNo++;
                             }
-                            try (var searcher = engine.acquireSearcher("assert_seq_no_count")) {
-                                long nbDocsWithSeqNo = 0;
-                                for (var leaf : searcher.getLeafContexts()) {
-                                    NumericDocValues seqNoDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
-                                    if (seqNoDV != null) {
-                                        while (seqNoDV.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                                            nbDocsWithSeqNo++;
-                                        }
-                                    }
-                                }
-                                return nbDocsWithSeqNo;
-                            } catch (IOException e) {
-                                throw new AssertionError(e);
-                            }
-                        });
-                        if (docsWithSeqNoOnShard != null) {
-                            assertThat(
-                                "docs with seq_no >= " + retentionLeaseSeqNo + " should retain doc values",
-                                docsWithSeqNoOnShard,
-                                equalTo(expectedRetainedDocs)
-                            );
-                            checkedShards++;
                         }
                     }
+                    return nbDocsWithSeqNo;
+                } catch (IOException e) {
+                    throw new AssertionError(e);
                 }
+            });
+            if (docsWithSeqNoOnShard != null) {
+                assertThat(
+                    "docs with seq_no >= " + retentionLeaseSeqNo + " should retain doc values",
+                    docsWithSeqNoOnShard,
+                    equalTo(expectedRetainedDocs)
+                );
+                checkedShards.incrementAndGet();
             }
-        }
-        assertThat("expected to verify at least one shard", checkedShards, equalTo(1));
+        });
+        assertThat("expected to verify at least one shard", checkedShards.get(), equalTo(1));
 
         // remove the custom retention lease, index more data and force merge again to verify full pruning
         client().execute(RetentionLeaseActions.REMOVE, new RetentionLeaseActions.RemoveRequest(shardId, retentionLeaseId)).actionGet();
@@ -302,8 +293,6 @@ public class SeqNoPruningIT extends ESIntegTestCase {
      * that still need to be replayed to the replica.
      */
     public void testSeqNoRetainedDuringInProgressRecovery() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         ensureStableCluster(3);
@@ -311,10 +300,7 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         final var indexName = randomIdentifier();
         createIndex(
             indexName,
-            indexSettings(1, 1).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
-                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
-                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
-                .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0)
+            seqNoPruningIndexSettings(indexSettings(1, 1), false).put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0)
                 .build()
         );
         ensureGreen(indexName);
@@ -424,8 +410,6 @@ public class SeqNoPruningIT extends ESIntegTestCase {
     }
 
     public void testSeqNoPrunedAfterMergeWithTsdbCodec() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
@@ -441,6 +425,7 @@ public class SeqNoPruningIT extends ESIntegTestCase {
                     .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
                     .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
                     .build()
             ).setMapping("@timestamp", "type=date", "hostname", "type=keyword,time_series_dimension=true", "field", "type=keyword")
         );
@@ -492,23 +477,16 @@ public class SeqNoPruningIT extends ESIntegTestCase {
      * by a force merge.
      */
     public void testWritesSucceedOnReplicaAfterSeqNoPruning() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         ensureStableCluster(3);
 
         final var indexName = randomIdentifier();
-        createIndex(
-            indexName,
-            indexSettings(1, 1).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
-                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
-                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
-                .build()
-        );
+        final boolean highMergeSegmentThreshold = rarely();
+        createIndex(indexName, seqNoPruningIndexSettings(indexSettings(1, 1), highMergeSegmentThreshold).build());
         ensureGreen(indexName);
 
-        final int nbBatches = randomIntBetween(5, 10);
+        final int nbBatches = randomBatchCount(highMergeSegmentThreshold);
         final int docsPerBatch = randomIntBetween(20, 50);
         final int totalDocs = nbBatches * docsPerBatch;
 

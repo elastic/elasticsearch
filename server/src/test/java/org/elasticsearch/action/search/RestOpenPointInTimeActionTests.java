@@ -33,7 +33,7 @@ public class RestOpenPointInTimeActionTests extends RestActionTestCase {
         verifyingClient.setExecuteVerifier(((actionType, transportRequest) -> {
             assertThat(transportRequest, instanceOf(OpenPointInTimeRequest.class));
             transportRequests.add((OpenPointInTimeRequest) transportRequest);
-            return new OpenPointInTimeResponse(new BytesArray("n/a"), 1, 1, 0, 0);
+            return new OpenPointInTimeResponse(new BytesArray("n/a"), 1, 1, 0, 0, SearchResponse.Clusters.EMPTY);
         }));
         {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)

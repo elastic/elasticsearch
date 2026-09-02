@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -17,7 +17,7 @@ import java.util.Objects;
 /**
  * Request for TransportEsqlAsyncStopAction action.
  */
-public class AsyncStopRequest extends LegacyActionRequest {
+public class AsyncStopRequest extends UntypedActionRequest {
     private final String id;
 
     /**

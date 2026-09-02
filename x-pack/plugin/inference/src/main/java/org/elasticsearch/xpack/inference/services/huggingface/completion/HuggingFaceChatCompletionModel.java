@@ -61,7 +61,7 @@ public class HuggingFaceChatCompletionModel extends HuggingFaceModel {
             taskType,
             service,
             HuggingFaceChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

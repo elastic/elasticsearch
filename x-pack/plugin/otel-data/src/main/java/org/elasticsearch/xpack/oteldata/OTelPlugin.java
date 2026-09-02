@@ -21,9 +21,14 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.oteldata.otlp.OTLPLogsRestAction;
+import org.elasticsearch.xpack.oteldata.otlp.OTLPLogsTransportAction;
 import org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsRestAction;
 import org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsTransportAction;
+import org.elasticsearch.xpack.oteldata.otlp.OTLPTracesRestAction;
+import org.elasticsearch.xpack.oteldata.otlp.OTLPTracesTransportAction;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
@@ -46,10 +51,10 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
         EXPONENTIAL_HISTOGRAM
     };
 
-    public static final Setting<HistogramMappingSettingValues> USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE = Setting.enumSetting(
+    public static final Setting<HistogramMappingSettingValues> HISTOGRAM_FIELD_TYPE_SETTING = Setting.enumSetting(
         HistogramMappingSettingValues.class,
         "xpack.otel_data.histogram_field_type",
-        HistogramMappingSettingValues.HISTOGRAM,
+        HistogramMappingSettingValues.EXPONENTIAL_HISTOGRAM,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -72,8 +77,15 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        assert indexingPressure.get() != null : "indexing pressure must be set";
-        return List.of(new OTLPMetricsRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
+        if (enabled) {
+            assert indexingPressure.get() != null : "indexing pressure must be set";
+            List<RestHandler> handlers = new ArrayList<>(3);
+            handlers.add(new OTLPMetricsRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
+            handlers.add(new OTLPTracesRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
+            handlers.add(new OTLPLogsRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
+            return handlers;
+        }
+        return List.of();
     }
 
     @Override
@@ -83,7 +95,14 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
         ClusterService clusterService = services.clusterService();
         indexingPressure.set(services.indexingPressure());
         registry.set(
-            new OTelIndexTemplateRegistry(settings, clusterService, services.threadPool(), services.client(), services.xContentRegistry())
+            new OTelIndexTemplateRegistry(
+                settings,
+                clusterService,
+                services.threadPool(),
+                services.client(),
+                services.xContentRegistry(),
+                services.featureService()
+            )
         );
         if (enabled) {
             OTelIndexTemplateRegistry registryInstance = registry.get();
@@ -100,11 +119,15 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(OTEL_DATA_REGISTRY_ENABLED, USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE);
+        return List.of(OTEL_DATA_REGISTRY_ENABLED, HISTOGRAM_FIELD_TYPE_SETTING);
     }
 
     @Override
     public Collection<ActionHandler> getActions() {
-        return List.of(new ActionHandler(OTLPMetricsTransportAction.TYPE, OTLPMetricsTransportAction.class));
+        List<ActionHandler> handlers = new ArrayList<>(3);
+        handlers.add(new ActionHandler(OTLPMetricsTransportAction.TYPE, OTLPMetricsTransportAction.class));
+        handlers.add(new ActionHandler(OTLPTracesTransportAction.TYPE, OTLPTracesTransportAction.class));
+        handlers.add(new ActionHandler(OTLPLogsTransportAction.TYPE, OTLPLogsTransportAction.class));
+        return handlers;
     }
 }

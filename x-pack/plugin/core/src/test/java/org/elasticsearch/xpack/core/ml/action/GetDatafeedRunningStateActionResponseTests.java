@@ -10,9 +10,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction.Response;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction.Response.RunningState;
+import org.elasticsearch.xpack.core.ml.datafeed.CrossClusterSearchStatsSnapshot;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchIntervalTests;
 
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -20,7 +23,26 @@ import java.util.stream.Stream;
 public class GetDatafeedRunningStateActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     static Response.RunningState randomRunningState() {
-        return new Response.RunningState(randomBoolean(), randomBoolean(), randomBoolean() ? null : SearchIntervalTests.createRandom());
+        return new Response.RunningState(
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean() ? null : SearchIntervalTests.createRandom(),
+            randomBoolean() ? null : randomCrossClusterStats()
+        );
+    }
+
+    static CrossClusterSearchStatsSnapshot randomCrossClusterStats() {
+        int total = randomIntBetween(1, 10);
+        int available = randomIntBetween(0, total);
+        int skipped = total - available;
+        return new CrossClusterSearchStatsSnapshot(
+            total,
+            available,
+            skipped,
+            total > 0 ? (double) available / total : 0.0,
+            Set.copyOf(randomList(1, total, () -> randomAlphaOfLength(5))),
+            skipped > 0 ? Map.of(randomAlphaOfLength(5), randomIntBetween(1, 20)) : Map.of()
+        );
     }
 
     @Override

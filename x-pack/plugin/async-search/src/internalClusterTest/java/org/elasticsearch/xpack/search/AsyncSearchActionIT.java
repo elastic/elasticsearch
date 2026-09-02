@@ -149,6 +149,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                 }
                 deleteAsyncSearch(response.getId());
                 ensureTaskRemoval(response.getId());
+                ensureTaskCompletion(response.getId());
             } finally {
                 response.decRef();
             }
@@ -200,6 +201,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                 }
                 deleteAsyncSearch(response.getId());
                 ensureTaskRemoval(response.getId());
+                ensureTaskCompletion(response.getId());
             } finally {
                 response.decRef();
             }
@@ -304,10 +306,12 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
     }
 
     public void testInvalidId() throws Exception {
+        final String searchId;
         try (
             SearchResponseIterator it = assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)
         ) {
             AsyncSearchResponse response = it.next();
+            searchId = response.getId();
             try {
                 ExecutionException exc = expectThrows(ExecutionException.class, () -> getAsyncSearch("invalid"));
                 assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
@@ -321,6 +325,8 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                 response.decRef();
             }
         }
+        deleteAsyncSearch(searchId);
+        ensureTaskCompletion(searchId);
 
         ExecutionException exc = expectThrows(ExecutionException.class, () -> getAsyncStatus("invalid"));
         assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
@@ -395,6 +401,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
 
                 deleteAsyncSearch(response.getId());
                 ensureTaskRemoval(response.getId());
+                ensureTaskCompletion(response.getId());
             } finally {
                 response.decRef();
             }
@@ -471,6 +478,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                     assertThat(response2.getExpirationTime(), lessThan(expirationTime));
                     ensureTaskNotRunning(response2.getId());
                     ensureTaskRemoval(response2.getId());
+                    ensureTaskCompletion(response2.getId());
                 } finally {
                     response2.decRef();
                 }
@@ -492,6 +500,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         } finally {
             ensureTaskNotRunning(response.getId());
             ensureTaskRemoval(response.getId());
+            ensureTaskCompletion(response.getId());
         }
     }
 
@@ -622,6 +631,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             // check garbage collection
             ensureTaskNotRunning(newResp.getId());
             ensureTaskRemoval(newResp.getId());
+            ensureTaskCompletion(newResp.getId());
         } finally {
             newResp.decRef();
         }
@@ -641,6 +651,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             assertThat(response.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
             assertNotNull(response.getFailure());
             ensureTaskNotRunning(response.getId());
+            ensureTaskCompletion(response.getId());
         } finally {
             response.decRef();
         }
@@ -666,6 +677,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             assertThat(response.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
             assertNotNull(response.getFailure());
             ensureTaskNotRunning(response.getId());
+            ensureTaskCompletion(response.getId());
         } finally {
             response.decRef();
         }

@@ -7,9 +7,11 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.BytesRefHashTable;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.common.util.LongLongHash;
@@ -27,9 +29,8 @@ import org.elasticsearch.swisshash.SwissHashFactory;
  */
 public class HashImplFactory {
 
-    public static final FeatureFlag SWISS_TABLES_HASHING = new FeatureFlag("swiss_table_hashing");
-
-    private static final SwissHashFactory SWISS_HASH_FACTORY = SWISS_TABLES_HASHING.isEnabled() ? SwissHashFactory.getInstance() : null;
+    private static final SwissHashFactory SWISS_HASH_FACTORY = SwissHashFactory.getInstance();
+    public static final boolean SWISS_HASH_AVAILABLE = SWISS_HASH_FACTORY != null;
 
     private HashImplFactory() {}
 
@@ -39,6 +40,21 @@ public class HashImplFactory {
             return SWISS_HASH_FACTORY.newLongSwissHash(bf.bigArrays().recycler(), bf.breaker());
         } else {
             return new LongHash(1, bf.bigArrays());
+        }
+    }
+
+    /**
+     * Creates a new {@link LongHashTable} using only a {@link BigArrays} for memory accounting.
+     * Used by aggregator state classes that don't have a {@link BlockFactory} in scope.
+     */
+    public static LongHashTable newLongHash(BigArrays bigArrays) {
+        if (SWISS_HASH_FACTORY != null) {
+            CircuitBreaker breaker = bigArrays.breakerService() != null
+                ? bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST)
+                : new NoopCircuitBreaker(CircuitBreaker.REQUEST);
+            return SWISS_HASH_FACTORY.newLongSwissHash(bigArrays.recycler(), breaker);
+        } else {
+            return new LongHash(1, bigArrays);
         }
     }
 

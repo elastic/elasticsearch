@@ -32,12 +32,15 @@ import static org.hamcrest.Matchers.is;
 public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<EndpointMetadata> {
 
     private static final EndpointMetadata NON_EMPTY_ENDPOINT_METADATA = new EndpointMetadata(
+        new EndpointMetadata.ModelIdentity("elastic", "elser", null, "v2"),
         new EndpointMetadata.Heuristics(List.of("heuristic1", "heuristic2"), StatusHeuristic.BETA, "2025-01-01", "2025-12-31"),
         new EndpointMetadata.Internal("fingerprint", 1L),
-        new EndpointMetadata.Display("name", "some_creator")
+        new EndpointMetadata.Display("name", "some_creator"),
+        List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us", "US East (N. Virginia)")),
+        true
     );
 
-    private static final String NON_EMPTY_ENDPOINT_METADATA_JSON = """
+    static final String NON_EMPTY_ENDPOINT_METADATA_JSON = """
         {
           "heuristics": {
             "properties": ["heuristic1", "heuristic2"],
@@ -52,7 +55,14 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
           "display": {
             "name": "name",
             "model_creator": "some_creator"
-          }
+          },
+          "model_identity": {
+            "creator": "elastic",
+            "family": "elser",
+            "version": "v2"
+          },
+          "regions": [{"csp": "aws", "region": "us-east-1", "geo": "us", "region_display_name": "US East (N. Virginia)"}],
+          "denied_by_region_policy": true
         }
         """;
 
@@ -67,7 +77,14 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
           "display": {
             "name": "name",
             "model_creator": "some_creator"
-          }
+          },
+          "model_identity": {
+            "creator": "elastic",
+            "family": "elser",
+            "version": "v2"
+          },
+          "regions": [{"csp": "aws", "region": "us-east-1", "geo": "us", "region_display_name": "US East (N. Virginia)"}],
+          "denied_by_region_policy": true
         }
         """;
 
@@ -79,11 +96,12 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         var heuristics = randomHeuristics();
         var internal = randomInternal();
         var display = randomDisplay();
+        var modelIdentity = randomModelIdentity();
+        var regions = randomRegions();
+        var deniedByRegionPolicy = randomBoolean();
 
-        if (InferenceFieldUtils.isNull(heuristics, internal, display)) {
-            return EndpointMetadata.EMPTY_INSTANCE;
-        }
-        return new EndpointMetadata(heuristics, internal, display);
+        var instance = new EndpointMetadata(modelIdentity, heuristics, internal, display, regions, deniedByRegionPolicy);
+        return EndpointMetadata.EMPTY_INSTANCE.equals(instance) ? EndpointMetadata.EMPTY_INSTANCE : instance;
     }
 
     public static EndpointMetadata randomNonEmptyInstance() {
@@ -100,14 +118,45 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         var internal = new EndpointMetadata.Internal(fingerprint, version);
 
         var display = new EndpointMetadata.Display(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLength(10));
+        var modelIdentity = randomModelIdentity();
+        var regions = IntStream.range(0, randomIntBetween(1, 3)).mapToObj(i -> randomEndpointRegion()).collect(Collectors.toList());
+        return new EndpointMetadata(modelIdentity, heuristics, internal, display, regions, randomBoolean());
+    }
 
-        return new EndpointMetadata(heuristics, internal, display);
+    public static EndpointMetadata.EndpointRegion randomEndpointRegion() {
+        return new EndpointMetadata.EndpointRegion(
+            randomBoolean() ? null : randomAlphaOfLengthBetween(2, 10),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(3, 15),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(2, 5),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(5, 30)
+        );
+    }
+
+    public static List<EndpointMetadata.EndpointRegion> randomRegions() {
+        if (randomBoolean()) {
+            return List.of();
+        }
+        return IntStream.range(0, randomIntBetween(1, 3)).mapToObj(i -> randomEndpointRegion()).collect(Collectors.toList());
     }
 
     public static EndpointMetadata.Display randomDisplay() {
         return randomBoolean()
             ? EndpointMetadata.Display.EMPTY_INSTANCE
             : new EndpointMetadata.Display(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLength(10));
+    }
+
+    public static EndpointMetadata.ModelIdentity randomModelIdentity() {
+        if (randomBoolean()) {
+            return EndpointMetadata.ModelIdentity.EMPTY_INSTANCE;
+        }
+
+        var creator = randomBoolean() ? null : randomAlphaOfLengthBetween(2, 15);
+        var family = randomBoolean() ? null : randomAlphaOfLengthBetween(2, 15);
+        var tier = randomBoolean() ? null : randomAlphaOfLengthBetween(2, 10);
+        var version = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10);
+
+        var instance = new EndpointMetadata.ModelIdentity(creator, family, tier, version);
+        return EndpointMetadata.ModelIdentity.EMPTY_INSTANCE.equals(instance) ? EndpointMetadata.ModelIdentity.EMPTY_INSTANCE : instance;
     }
 
     public static EndpointMetadata.Heuristics randomHeuristics() {
@@ -122,10 +171,8 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         var releaseDate = randomBoolean() ? null : randomLocalDate();
         var endOfLifeDate = randomBoolean() ? null : randomLocalDate();
 
-        if (InferenceFieldUtils.isNull(properties, status, releaseDate, endOfLifeDate)) {
-            return EndpointMetadata.Heuristics.EMPTY_INSTANCE;
-        }
-        return new EndpointMetadata.Heuristics(properties, status, releaseDate, endOfLifeDate);
+        var instance = new EndpointMetadata.Heuristics(properties, status, releaseDate, endOfLifeDate);
+        return EndpointMetadata.Heuristics.EMPTY_INSTANCE.equals(instance) ? EndpointMetadata.Heuristics.EMPTY_INSTANCE : instance;
     }
 
     private static LocalDate randomLocalDate() {
@@ -142,10 +189,8 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         var fingerprint = randomBoolean() ? null : randomAlphaOfLengthBetween(10, 50);
         var version = randomBoolean() ? null : randomLongBetween(0, Long.MAX_VALUE);
 
-        if (InferenceFieldUtils.isNull(fingerprint, version)) {
-            return EndpointMetadata.Internal.EMPTY_INSTANCE;
-        }
-        return new EndpointMetadata.Internal(fingerprint, version);
+        var instance = new EndpointMetadata.Internal(fingerprint, version);
+        return EndpointMetadata.Internal.EMPTY_INSTANCE.equals(instance) ? EndpointMetadata.Internal.EMPTY_INSTANCE : instance;
     }
 
     public void testToXContentEmptyEndpointMetadata() throws IOException {
@@ -182,80 +227,121 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
 
     public void testFingerprintMatches() {
         EndpointMetadata endpointWithNullFingerprint1 = new EndpointMetadata(
+            randomModelIdentity(),
             randomHeuristics(),
             new EndpointMetadata.Internal(null, null),
-            randomDisplay()
+            randomDisplay(),
+            List.of(),
+            false
         );
         EndpointMetadata endpointWithNullFingerprint2 = new EndpointMetadata(
+            randomModelIdentity(),
             randomHeuristics(),
             new EndpointMetadata.Internal(null, null),
-            randomDisplay()
+            randomDisplay(),
+            List.of(),
+            false
         );
         EndpointMetadata endpointWithFingerprintAbc1 = new EndpointMetadata(
+            randomModelIdentity(),
             randomHeuristics(),
             new EndpointMetadata.Internal("abc", null),
-            randomDisplay()
+            randomDisplay(),
+            List.of(),
+            false
         );
         EndpointMetadata endpointWithFingerprintAbc2 = new EndpointMetadata(
+            randomModelIdentity(),
             randomHeuristics(),
             new EndpointMetadata.Internal("abc", null),
-            randomDisplay()
+            randomDisplay(),
+            List.of(),
+            false
         );
         EndpointMetadata endpointWithFingerprintXyz1 = new EndpointMetadata(
+            randomModelIdentity(),
             randomHeuristics(),
             new EndpointMetadata.Internal("xyz", null),
-            randomDisplay()
+            randomDisplay(),
+            List.of(),
+            false
         );
         EndpointMetadata endpointWithFingerprintXyz2 = new EndpointMetadata(
+            randomModelIdentity(),
             randomHeuristics(),
             new EndpointMetadata.Internal("xyz", null),
-            randomDisplay()
+            randomDisplay(),
+            List.of(),
+            false
         );
 
-        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithNullFingerprint2), is(true));
-        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithFingerprintAbc1), is(false));
-        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithFingerprintXyz1), is(false));
+        assertTrue(fingerprintMatches(endpointWithNullFingerprint1, endpointWithNullFingerprint2));
+        assertFalse(fingerprintMatches(endpointWithNullFingerprint1, endpointWithFingerprintAbc1));
+        assertFalse(fingerprintMatches(endpointWithNullFingerprint1, endpointWithFingerprintXyz1));
 
-        assertThat(endpointWithFingerprintAbc1.fingerprintMatches(endpointWithFingerprintAbc2), is(true));
-        assertThat(endpointWithFingerprintXyz1.fingerprintMatches(endpointWithFingerprintXyz2), is(true));
+        assertTrue(fingerprintMatches(endpointWithFingerprintAbc1, endpointWithFingerprintAbc2));
+        assertTrue(fingerprintMatches(endpointWithFingerprintXyz1, endpointWithFingerprintXyz2));
 
-        assertThat(endpointWithFingerprintXyz1.fingerprintMatches(endpointWithFingerprintAbc1), is(false));
+        assertFalse(fingerprintMatches(endpointWithFingerprintXyz1, endpointWithFingerprintAbc1));
     }
 
-    public void testHasNewerVersionThan() {
+    public void testIsNewerThan() {
         EndpointMetadata endpointWithNullVersion1 = new EndpointMetadata(
+            randomModelIdentity(),
             randomHeuristics(),
             new EndpointMetadata.Internal(null, null),
-            randomDisplay()
+            randomDisplay(),
+            List.of(),
+            false
         );
         EndpointMetadata endpointWithNullVersion2 = new EndpointMetadata(
+            randomModelIdentity(),
             randomHeuristics(),
             new EndpointMetadata.Internal(null, null),
-            randomDisplay()
+            randomDisplay(),
+            List.of(),
+            false
         );
         EndpointMetadata endpointWithVersionFour = new EndpointMetadata(
+            randomModelIdentity(),
             randomHeuristics(),
             new EndpointMetadata.Internal(null, 4L),
-            randomDisplay()
+            randomDisplay(),
+            List.of(),
+            false
         );
         EndpointMetadata anotherEndpointWithVersionFour = new EndpointMetadata(
+            randomModelIdentity(),
             randomHeuristics(),
             new EndpointMetadata.Internal(null, 4L),
-            randomDisplay()
+            randomDisplay(),
+            List.of(),
+            false
         );
         EndpointMetadata endpointWithVersionFive = new EndpointMetadata(
+            randomModelIdentity(),
             randomHeuristics(),
             new EndpointMetadata.Internal(null, 5L),
-            randomDisplay()
+            randomDisplay(),
+            List.of(),
+            false
         );
 
-        assertThat(endpointWithNullVersion1.hasNewerVersionThan(endpointWithNullVersion2), is(false));
-        assertThat(endpointWithNullVersion1.hasNewerVersionThan(endpointWithVersionFour), is(false));
-        assertThat(endpointWithVersionFour.hasNewerVersionThan(endpointWithNullVersion1), is(true));
-        assertThat(endpointWithVersionFour.hasNewerVersionThan(anotherEndpointWithVersionFour), is(false));
-        assertThat(endpointWithVersionFour.hasNewerVersionThan(endpointWithVersionFive), is(false));
-        assertThat(endpointWithVersionFive.hasNewerVersionThan(endpointWithVersionFour), is(true));
-        assertThat(endpointWithVersionFive.hasNewerVersionThan(endpointWithNullVersion2), is(true));
+        assertFalse(isNewerThan(endpointWithNullVersion1, endpointWithNullVersion2));
+        assertFalse(isNewerThan(endpointWithNullVersion1, endpointWithVersionFour));
+        assertTrue(isNewerThan(endpointWithVersionFour, endpointWithNullVersion1));
+        assertFalse(isNewerThan(endpointWithVersionFour, anotherEndpointWithVersionFour));
+        assertFalse(isNewerThan(endpointWithVersionFour, endpointWithVersionFive));
+        assertTrue(isNewerThan(endpointWithVersionFive, endpointWithVersionFour));
+        assertTrue(isNewerThan(endpointWithVersionFive, endpointWithNullVersion2));
+    }
+
+    private static boolean fingerprintMatches(EndpointMetadata first, EndpointMetadata second) {
+        return first.internal().fingerprintMatches(second.internal());
+    }
+
+    private static boolean isNewerThan(EndpointMetadata first, EndpointMetadata second) {
+        return first.internal().isNewerThan(second.internal());
     }
 
     @Override
@@ -283,25 +369,49 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         var heuristics = instance.heuristics();
         var internal = instance.internal();
         var display = instance.display();
+        var modelIdentity = instance.modelIdentity();
+        var regions = instance.regions();
+        var deniedByRegionPolicy = instance.deniedByRegionPolicy();
 
-        switch (randomInt(2)) {
+        switch (randomInt(5)) {
             case 0 -> heuristics = randomValueOtherThan(heuristics, EndpointMetadataTests::randomHeuristics);
             case 1 -> internal = randomValueOtherThan(internal, EndpointMetadataTests::randomInternal);
             case 2 -> display = randomValueOtherThan(display, EndpointMetadataTests::randomDisplay);
+            case 3 -> modelIdentity = randomValueOtherThan(modelIdentity, EndpointMetadataTests::randomModelIdentity);
+            case 4 -> regions = randomValueOtherThan(regions, EndpointMetadataTests::randomRegions);
+            case 5 -> deniedByRegionPolicy = deniedByRegionPolicy == false;
         }
 
-        return new EndpointMetadata(heuristics, internal, display);
+        return new EndpointMetadata(modelIdentity, heuristics, internal, display, regions, deniedByRegionPolicy);
     }
 
     @Override
     protected EndpointMetadata mutateInstanceForVersion(EndpointMetadata instance, TransportVersion version) {
+        return doMutateInstanceForVersion(instance, version);
+    }
+
+    public static EndpointMetadata doMutateInstanceForVersion(EndpointMetadata instance, TransportVersion version) {
+        var heuristics = instance.heuristics();
+        var internal = instance.internal();
+        var display = instance.display();
+        var modelIdentity = instance.modelIdentity();
+        var regions = instance.regions();
+        var deniedByRegionPolicy = instance.deniedByRegionPolicy();
+
         if (version.supports(EndpointMetadata.Display.MODEL_CREATOR_ADDED) == false) {
-            return new EndpointMetadata(
-                instance.heuristics(),
-                instance.internal(),
-                new EndpointMetadata.Display(instance.display().name(), null)
-            );
+            display = new EndpointMetadata.Display(display.name(), null);
         }
-        return instance;
+        if (version.supports(EndpointMetadata.ModelIdentity.MODEL_IDENTITY_ADDED) == false) {
+            modelIdentity = EndpointMetadata.ModelIdentity.EMPTY_INSTANCE;
+        }
+        if (version.supports(EndpointMetadata.REGIONS_ADDED) == false) {
+            regions = List.of();
+            deniedByRegionPolicy = false;
+        } else if (version.supports(EndpointMetadata.EndpointRegion.REGION_DISPLAY_NAME_ADDED) == false) {
+            regions = regions.stream()
+                .map(r -> new EndpointMetadata.EndpointRegion(r.csp(), r.region(), r.geo(), null))
+                .collect(Collectors.toList());
+        }
+        return new EndpointMetadata(modelIdentity, heuristics, internal, display, regions, deniedByRegionPolicy);
     }
 }

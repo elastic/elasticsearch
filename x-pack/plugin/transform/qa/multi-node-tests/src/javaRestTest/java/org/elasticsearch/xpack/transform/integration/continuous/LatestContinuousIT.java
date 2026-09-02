@@ -164,8 +164,7 @@ public class LatestContinuousIT extends ContinuousTestCase {
                 assertThat(XContentMapValues.extractValue(INGEST_RUN_FIELD, source), is(not(equalTo(iteration))));
             }
         }
-        assertFalse(sourceIterator.hasNext());
-        assertFalse(destIterator.hasNext());
+        assertAggregationAndDestinationIteratorsExhausted(sourceIterator, destIterator, iteration);
     }
 
     private String toJson(Map<String, Object> map) throws IOException {

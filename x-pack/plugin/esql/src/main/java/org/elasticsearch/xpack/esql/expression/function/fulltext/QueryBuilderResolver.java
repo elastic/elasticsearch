@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
@@ -43,7 +44,7 @@ public final class QueryBuilderResolver {
         var hasRewriteableAwareFunctions = plan.anyMatch(p -> {
             Holder<Boolean> hasRewriteable = new Holder<>(false);
             p.forEachExpression(expr -> {
-                if (expr instanceof RewriteableAware) {
+                if (expr instanceof RewriteableAware rewriteableAware && rewriteableAware.requiresQueryBuilderRewrite()) {
                     hasRewriteable.set(true);
                 }
             });
@@ -72,8 +73,9 @@ public final class QueryBuilderResolver {
             System.currentTimeMillis()
         );
 
-        // Set the cluster alias to the local cluster and CCS minimize round-trips to false since ES|QL does not perform a remote cluster
-        // coordinator node rewrite
+        // Set the cluster alias to the local cluster. CCS minimize round-trips is left unset rather than false: ES|QL does
+        // not perform a remote cluster coordinator node rewrite, and has no request option to do otherwise, so the setting
+        // does not apply here. Consumers treat unset the same as false, but can tell not to suggest changing it.
         return services.searchService()
             .getRewriteContext(
                 System::currentTimeMillis,
@@ -81,7 +83,7 @@ public final class QueryBuilderResolver {
                 RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                 resolvedIndices,
                 null,
-                false
+                null
             );
     }
 
@@ -96,28 +98,45 @@ public final class QueryBuilderResolver {
         public FunctionsRewriteable rewrite(QueryRewriteContext ctx) throws IOException {
             Holder<IOException> exceptionHolder = new Holder<>();
             Holder<Boolean> updated = new Holder<>(false);
-            LogicalPlan newPlan = plan.transformExpressionsDown(Expression.class, expr -> {
-                Expression finalExpression = expr;
-                if (expr instanceof RewriteableAware rewriteableAware) {
-                    QueryBuilder builder = rewriteableAware.queryBuilder(), initial = builder;
-                    builder = builder == null
-                        ? rewriteableAware.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder()
-                        : builder;
-                    try {
-                        builder = builder.rewrite(ctx);
-                    } catch (IOException e) {
-                        exceptionHolder.setIfAbsent(e);
-                    }
-                    var rewritten = builder != initial;
-                    updated.set(updated.get() || rewritten);
-                    finalExpression = rewritten ? rewriteableAware.replaceQueryBuilder(builder) : finalExpression;
-                }
-                return finalExpression;
-            });
+            LogicalPlan newPlan = plan.transformDown(
+                node -> node.transformExpressionsOnly(
+                    Expression.class,
+                    expr -> rewriteExpression(node, expr, ctx, exceptionHolder, updated)
+                )
+            );
             if (exceptionHolder.get() != null) {
                 throw exceptionHolder.get();
             }
             return updated.get() ? new FunctionsRewriteable(newPlan) : this;
+        }
+
+        private static Expression rewriteExpression(
+            LogicalPlan node,
+            Expression expr,
+            QueryRewriteContext ctx,
+            Holder<IOException> exceptionHolder,
+            Holder<Boolean> updated
+        ) {
+            // HIGHLIGHT queries run against a MemoryIndex and must be rewritten using its search context.
+            if (node instanceof Highlight) {
+                return expr;
+            }
+            if (expr instanceof RewriteableAware rewriteableAware && rewriteableAware.requiresQueryBuilderRewrite()) {
+                QueryBuilder initial = rewriteableAware.queryBuilder();
+                QueryBuilder builder = initial != null
+                    ? initial
+                    : rewriteableAware.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder();
+                try {
+                    builder = builder.rewrite(ctx);
+                } catch (IOException e) {
+                    exceptionHolder.setIfAbsent(e);
+                }
+                if (builder != initial) {
+                    updated.set(true);
+                    return rewriteableAware.replaceQueryBuilder(builder);
+                }
+            }
+            return expr;
         }
     }
 }

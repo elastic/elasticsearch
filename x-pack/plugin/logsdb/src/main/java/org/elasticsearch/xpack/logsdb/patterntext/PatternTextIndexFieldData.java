@@ -83,7 +83,7 @@ public class PatternTextIndexFieldData implements IndexFieldData<LeafFieldData> 
 
             @Override
             public SortedBinaryDocValues getBytesValues() {
-                return new SortedBinaryDocValues() {
+                return new SortedBinaryDocValues(values) {
                     @Override
                     public boolean advanceExact(int doc) throws IOException {
                         return values != null && values.advanceExact(doc);

@@ -124,10 +124,19 @@ public class HistogramUnionState implements Releasable, Accountable {
     }
 
     public static HistogramUnionState createUsingParamsFrom(HistogramUnionState otherState) {
+        return createUsingParamsFrom(otherState, otherState.breaker);
+    }
+
+    /**
+     * Creates an empty {@link HistogramUnionState} with the same parameters as {@code otherState}, charged to {@code breaker}.
+     * Use this when the original breaker is a {@code PreallocatedCircuitBreaker} that closes before the reduction phase runs
+     * on the coordinator. The input state is not modified.
+     */
+    public static HistogramUnionState createUsingParamsFrom(HistogramUnionState otherState, CircuitBreaker breaker) {
         if (otherState.tDigestState != null) {
-            return wrap(otherState.breaker, TDigestState.createUsingParamsFrom(otherState.tDigestState));
+            return wrap(breaker, TDigestState.createUsingParamsFrom(otherState.tDigestState, breaker));
         } else {
-            return createWithEmptyTDigest(otherState.breaker, otherState.tdigestInitParams, null);
+            return createWithEmptyTDigest(breaker, otherState.tdigestInitParams, null);
         }
     }
 
@@ -165,7 +174,7 @@ public class HistogramUnionState implements Releasable, Accountable {
 
     public void add(HistogramUnionState other) {
         if (other.exponentialHistogramState != null) {
-            getOrInitializeExponentialHistogramState().addWithoutUpscaling(other.exponentialHistogramState.histogram());
+            getOrInitializeExponentialHistogramState().add(other.exponentialHistogramState.histogram());
             invalidateCachedCombinedState();
         }
         if (other.tDigestState != null) {
@@ -380,7 +389,7 @@ public class HistogramUnionState implements Releasable, Accountable {
         }
         if (combinedState == null) {
             combinedState = ExponentialHistogramState.create(breaker);
-            combinedState.addWithoutUpscaling(exponentialHistogramState.histogram());
+            combinedState.add(exponentialHistogramState.histogram());
             try (
                 ReleasableExponentialHistogram converted = TDigestToExponentialHistogramConverter.convert(
                     new CentroidIterator(tDigestState.centroids()),

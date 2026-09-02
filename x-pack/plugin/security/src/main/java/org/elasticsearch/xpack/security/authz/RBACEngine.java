@@ -20,7 +20,6 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.bulk.SimulateBulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.TransportMultiGetAction;
@@ -149,7 +148,8 @@ public class RBACEngine implements AuthorizationEngine {
         SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
         TransportClearScrollAction.NAME,
         "indices:data/read/sql/close_cursor",
-        SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME
+        SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
+        SearchTransportService.MARK_CONTEXT_RELOCATING_ACTION_NAME
     );
 
     private final Settings settings;
@@ -284,7 +284,6 @@ public class RBACEngine implements AuthorizationEngine {
     private static boolean shouldAuthorizeIndexActionNameOnly(String action, TransportRequest request) {
         switch (action) {
             case TransportBulkAction.NAME:
-            case SimulateBulkAction.NAME:
             case TransportIndexAction.NAME:
             case TransportDeleteAction.NAME:
             case INDEX_SUB_REQUEST_PRIMARY:
@@ -298,7 +297,10 @@ public class RBACEngine implements AuthorizationEngine {
             case "indices:data/read/msearch/template":
             case "indices:data/read/search/template":
             case "indices:data/write/reindex":
+            case "indices:data/write/reindex/resume":
             case "indices:data/write/otlp/metrics":
+            case "indices:data/write/otlp/traces":
+            case "indices:data/write/otlp/logs":
             case "indices:data/write/prometheus/remote_write":
             case "indices:data/read/sql":
             case "indices:data/read/sql/translate":
@@ -754,8 +756,8 @@ public class RBACEngine implements AuthorizationEngine {
             } catch (UnsupportedOperationException e) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        "Cannot retrieve privileges for API keys with assigned role descriptors. "
-                            + "Please use the Get API key information API https://ela.st/es-api-get-api-key",
+                        "Cannot retrieve privileges for a subject whose effective privileges are constrained by limited-by roles. "
+                            + "For API keys, use the Get API key information API https://ela.st/es-api-get-api-key",
                         e
                     )
                 );

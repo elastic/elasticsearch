@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor;
 
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -16,11 +19,13 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 
 import java.util.ArrayList;
@@ -46,11 +51,17 @@ public final class DataExtractorUtils {
     }
 
     public static SearchRequestBuilder getSearchRequestBuilderForSummary(Client client, DataExtractorQueryContext context) {
-        return new SearchRequestBuilder(client).setIndices(context.indices)
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client).setIndices(context.indices)
             .setIndicesOptions(context.indicesOptions)
             .setSource(getSearchSourceBuilderForSummary(context))
             .setAllowPartialSearchResults(false)
             .setTrackTotalHits(true);
+
+        if (context.projectRouting != null) {
+            searchRequestBuilder.request().setProjectRouting(context.projectRouting);
+        }
+
+        return searchRequestBuilder;
     }
 
     public static SearchSourceBuilder getSearchSourceBuilderForSummary(DataExtractorQueryContext context) {
@@ -118,6 +129,59 @@ public final class DataExtractorUtils {
         return List.copyOf(result);
     }
 
+    /**
+     * Picks the better of two linked-cluster snapshots for CCS-aware datafeeds.
+     * <p>
+     * A single realtime extraction run can issue many searches (scroll pages, composite pages,
+     * chunked windows). Later responses sometimes attach slimmer {@link SearchResponse#getClusters()}
+     * metadata than earlier ones even though the coordinating view still spans more remotes.
+     * Preferring the snapshot with more <em>distinct</em> cluster aliases (and, on ties, more
+     * {@link LinkedClusterState.Status#AVAILABLE} entries) prevents {@code remote_cluster_stats}
+     * from losing a newly linked remote until the datafeed is restarted.
+     */
+    public static List<LinkedClusterState> preferRicherLinkedClusterStates(
+        List<LinkedClusterState> bestSoFar,
+        List<LinkedClusterState> candidate
+    ) {
+        if (candidate == null || candidate.isEmpty()) {
+            return bestSoFar == null || bestSoFar.isEmpty() ? List.of() : bestSoFar;
+        }
+        if (bestSoFar == null || bestSoFar.isEmpty()) {
+            return List.copyOf(candidate);
+        }
+        int candidateDistinct = distinctAliasCount(candidate);
+        int bestDistinct = distinctAliasCount(bestSoFar);
+        if (candidateDistinct > bestDistinct) {
+            return List.copyOf(candidate);
+        }
+        if (candidateDistinct < bestDistinct) {
+            return bestSoFar;
+        }
+        int candidateAvailable = countAvailable(candidate);
+        int bestAvailable = countAvailable(bestSoFar);
+        if (candidateAvailable > bestAvailable) {
+            return List.copyOf(candidate);
+        }
+        if (candidateAvailable < bestAvailable) {
+            return bestSoFar;
+        }
+        return bestSoFar;
+    }
+
+    private static int distinctAliasCount(List<LinkedClusterState> states) {
+        return (int) states.stream().map(LinkedClusterState::alias).distinct().count();
+    }
+
+    private static int countAvailable(List<LinkedClusterState> states) {
+        int n = 0;
+        for (LinkedClusterState s : states) {
+            if (s.status() == LinkedClusterState.Status.AVAILABLE) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     private static LinkedClusterState.Status mapStatus(SearchResponse.Cluster.Status clusterStatus) {
         return switch (clusterStatus) {
             case SUCCESSFUL, RUNNING, PARTIAL -> LinkedClusterState.Status.AVAILABLE;
@@ -150,5 +214,92 @@ public final class DataExtractorUtils {
                 clusterResponse.getTotal()
             );
         }
+    }
+
+    public enum CloudCredentialFailureKind {
+        NONE,
+        AUTHENTICATION,
+        AUTHORIZATION
+    }
+
+    /**
+     * Classifies whether a CPS datafeed search failure is auth-shaped and, if so, whether it is
+     * authentication (401) or authorization (403). No-op when no cloud credential is configured.
+     */
+    public static CloudCredentialFailureKind classifyCloudCredentialSearchFailure(Throwable failure, @Nullable String cloudCredentialId) {
+        if (cloudCredentialId == null) {
+            return CloudCredentialFailureKind.NONE;
+        }
+        CloudCredentialFailureKind kind = CloudCredentialFailureKind.NONE;
+        // ExceptionsHelper.unwrapCause only unwraps ElasticsearchWrapperException, so walk getCause()
+        // explicitly to classify security failures wrapped in ordinary exceptions.
+        Throwable current = failure;
+        while (current != null) {
+            kind = strongerCredentialFailureKind(kind, failureKindAtThrowable(current));
+            if (kind == CloudCredentialFailureKind.AUTHENTICATION) {
+                return CloudCredentialFailureKind.AUTHENTICATION;
+            }
+            current = current.getCause();
+        }
+        return kind;
+    }
+
+    private static CloudCredentialFailureKind strongerCredentialFailureKind(
+        CloudCredentialFailureKind current,
+        CloudCredentialFailureKind candidate
+    ) {
+        if (current == CloudCredentialFailureKind.AUTHENTICATION || candidate == CloudCredentialFailureKind.AUTHENTICATION) {
+            return CloudCredentialFailureKind.AUTHENTICATION;
+        }
+        if (current == CloudCredentialFailureKind.AUTHORIZATION || candidate == CloudCredentialFailureKind.AUTHORIZATION) {
+            return CloudCredentialFailureKind.AUTHORIZATION;
+        }
+        return CloudCredentialFailureKind.NONE;
+    }
+
+    private static CloudCredentialFailureKind failureKindAtThrowable(Throwable failure) {
+        if (failure instanceof SearchPhaseExecutionException searchPhaseExecutionException) {
+            Throwable rootCause = ExceptionsHelper.findSearchExceptionRootCause(searchPhaseExecutionException);
+            if (rootCause == searchPhaseExecutionException) {
+                // findSearchExceptionRootCause() returns the exception unchanged when no shard
+                // failure unwraps to an ElasticsearchException; recursing on it again would loop forever.
+                return failureKindFromShardFailures(searchPhaseExecutionException.shardFailures());
+            }
+            return failureKindAtThrowable(rootCause);
+        }
+        if (failure instanceof ElasticsearchSecurityException securityException) {
+            return failureKindForStatus(securityException.status());
+        }
+        if (failure instanceof ElasticsearchStatusException statusException) {
+            return failureKindForStatus(statusException.status());
+        }
+        if (failure instanceof ShardSearchFailure shardSearchFailure) {
+            if (shardSearchFailure.getCause() instanceof ElasticsearchSecurityException securityException) {
+                return failureKindForStatus(securityException.status());
+            }
+            return failureKindForStatus(shardSearchFailure.status());
+        }
+        return CloudCredentialFailureKind.NONE;
+    }
+
+    private static CloudCredentialFailureKind failureKindFromShardFailures(ShardSearchFailure[] shardFailures) {
+        CloudCredentialFailureKind kind = CloudCredentialFailureKind.NONE;
+        for (ShardSearchFailure shardFailure : shardFailures) {
+            kind = strongerCredentialFailureKind(kind, failureKindAtThrowable(shardFailure));
+            if (kind == CloudCredentialFailureKind.AUTHENTICATION) {
+                return kind;
+            }
+        }
+        return kind;
+    }
+
+    private static CloudCredentialFailureKind failureKindForStatus(RestStatus status) {
+        if (status == RestStatus.UNAUTHORIZED) {
+            return CloudCredentialFailureKind.AUTHENTICATION;
+        }
+        if (status == RestStatus.FORBIDDEN) {
+            return CloudCredentialFailureKind.AUTHORIZATION;
+        }
+        return CloudCredentialFailureKind.NONE;
     }
 }

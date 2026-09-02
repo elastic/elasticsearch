@@ -24,10 +24,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.index.codec.vectors.BaseBFloat16KnnVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.BaseQuantizedBFloat16KnnVectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
-import org.junit.Before;
 
 import java.io.IOException;
 
@@ -38,25 +37,20 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 
-public class ES94ScalarQuantizedBFloat16VectorsFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {
+public class ES94ScalarQuantizedBFloat16VectorsFormatTests extends BaseQuantizedBFloat16KnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
     private KnnVectorsFormat format;
 
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        int bits = randomFrom(1, 2, 4, 7);
-        format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, bits, false);
-        super.setUp();
-    }
-
     @Override
     protected Codec getCodec() {
+        if (format == null) {
+            int bits = randomFrom(1, 2, 4, 7);
+            format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, bits, false);
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 
@@ -65,7 +59,12 @@ public class ES94ScalarQuantizedBFloat16VectorsFormatTests extends BaseBFloat16K
     }
 
     public void testSimpleOffHeapSize() throws IOException {
-        float[] vector = randomVector(random().nextInt(12, 500));
+        // Int4 (bits=4 / PACKED_NIBBLE) requires even dimensions; getCodec may randomly pick bits=4.
+        int dimension = random().nextInt(12, 500);
+        if (dimension % 2 != 0) {
+            dimension++;
+        }
+        float[] vector = randomVector(dimension);
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
             Document doc = new Document();
             doc.add(new KnnFloatVectorField("f", vector, DOT_PRODUCT));

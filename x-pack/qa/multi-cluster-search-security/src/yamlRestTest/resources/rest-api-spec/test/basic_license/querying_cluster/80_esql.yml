@@ -174,3 +174,35 @@ teardown:
   - do:
       enrich.delete_policy:
         name: suggestions
+
+
+---
+"ES|QL query approximation fails with basic license":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [approximation_v7]
+      reason: "needs query approximation"
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET approximation=true; FROM * | STATS count=COUNT()'
+
+  - match: { error.type: "status_exception" }
+  - match: { error.reason: "A valid Enterprise license is required to use ES|QL query approximation. License found: active basic license" }
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM * | STATS count=COUNT()'
+          approximation:
+            rows: 1234567
+
+  - match: { error.type: "status_exception" }
+  - match: { error.reason: "A valid Enterprise license is required to use ES|QL query approximation. License found: active basic license" }

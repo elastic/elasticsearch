@@ -105,8 +105,8 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     protected abstract ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap);
 
     @Override
-    public void start(Model model, TimeValue timeout, ActionListener<Boolean> listener) {
-        listener.onResponse(true);
+    public void start(Model model, TimeValue timeout, ActionListener<Void> listener) {
+        listener.onResponse(null);
     }
 
     @Override
@@ -116,7 +116,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         ChunkingSettings chunkingSettings = chunkInput.chunkingSettings();
         InferenceString inferenceString = chunkInput.input().value();
         String inferenceStringValue = inferenceString.value();
-        if (chunkingSettings == null || inferenceString.isText() == false) {
+        if (chunkingSettings == null || inferenceString.isNonText()) {
             return List.of(new ChunkedInput(inferenceStringValue, 0, inferenceStringValue.length()));
         }
 
@@ -228,7 +228,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
 
         @Override
         public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-            return fromMap(new HashMap<>(newSettings));
+            return fromMap(newSettings);
         }
     }
 
@@ -249,9 +249,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
                 validationException.addValidationError("missing api_key");
             }
 
-            if (validationException.validationErrors().isEmpty() == false) {
-                throw validationException;
-            }
+            validationException.throwIfValidationErrorsExist();
 
             return new TestSecretSettings(apiKey);
         }
@@ -285,7 +283,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
 
         @Override
         public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-            return TestSecretSettings.fromMap(new HashMap<>(newSecrets));
+            return TestSecretSettings.fromMap(newSecrets);
         }
     }
 }

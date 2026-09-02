@@ -11,6 +11,7 @@ package org.elasticsearch.nativeaccess;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.assumeTrue;
 import static org.junit.Assert.fail;
@@ -21,15 +22,12 @@ public class SystemCallFilterTests extends ESTestCase {
     /** command to try to run in tests */
     static final String EXECUTABLE = Constants.WINDOWS ? "calc" : "ls";
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void installSyscallFilter() throws Exception {
         assumeTrue(
             "requires system call filter installation",
             NativeAccess.instance().getExecSandboxState() != NativeAccess.ExecSandboxState.NONE
         );
-        // otherwise security manager will block the execution, no fun
-        assumeTrue("cannot test with security manager enabled", System.getSecurityManager() == null);
         // otherwise, since we don't have TSYNC support, rules are not applied to the test thread
         // (randomizedrunner class initialization happens in its own thread, after the test thread is created)
         // instead we just forcefully run it for the test thread here.

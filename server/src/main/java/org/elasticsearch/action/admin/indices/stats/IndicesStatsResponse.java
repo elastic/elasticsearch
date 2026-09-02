@@ -268,6 +268,6 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, false);
+        return Strings.toTruncatedString(this, true, false);
     }
 }

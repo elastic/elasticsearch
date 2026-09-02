@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
@@ -73,7 +74,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             .groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
             .aggregators(
                 List.of(
-                    new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumChannels),
+                    new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(mode, sumChannels),
                     new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxChannels)
                 )
             )
@@ -137,12 +138,22 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
         try (
             var operator = randomBuilder().groups(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3)))
+                List.of(
+                    new BlockHash.GroupSpec(
+                        groupChannel,
+                        ElementType.LONG,
+                        null,
+                        new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, ascOrder, false)), 3)
+                    )
+                )
             )
                 .mode(mode)
                 .aggregators(
                     List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
+                        new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                            mode,
+                            aggregatorChannels
+                        ),
                         new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
                     )
                 )
@@ -200,12 +211,22 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
         try (
             var operator = randomBuilder().groups(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, true, 3)))
+                List.of(
+                    new BlockHash.GroupSpec(
+                        groupChannel,
+                        ElementType.LONG,
+                        null,
+                        new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, ascOrder, true)), 3)
+                    )
+                )
             )
                 .mode(mode)
                 .aggregators(
                     List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
+                        new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                            mode,
+                            aggregatorChannels
+                        ),
                         new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
                     )
                 )
@@ -268,16 +289,26 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
         // Supplier of operators to ensure that they're identical, simulating a datanode/coordinator connection
         Function<AggregatorMode, Operator> makeAggWithMode = (mode) -> {
-            var sumAggregatorChannels = mode.isInputPartial() ? List.of(1, 2) : List.of(1);
-            var maxAggregatorChannels = mode.isInputPartial() ? List.of(3, 4) : List.of(1);
+            var sumAggregatorChannels = mode.isInputPartial() ? List.of(1, 2, 3) : List.of(1);
+            var maxAggregatorChannels = mode.isInputPartial() ? List.of(4, 5) : List.of(1);
 
             return randomBuilder().groups(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3)))
+                List.of(
+                    new BlockHash.GroupSpec(
+                        groupChannel,
+                        ElementType.LONG,
+                        null,
+                        new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, ascOrder, false)), 3)
+                    )
+                )
             )
                 .mode(mode)
                 .aggregators(
                     List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumAggregatorChannels),
+                        new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                            mode,
+                            sumAggregatorChannels
+                        ),
                         new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxAggregatorChannels)
                     )
                 )

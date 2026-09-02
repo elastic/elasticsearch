@@ -17,8 +17,7 @@ import spock.lang.Ignore
 class JavaRestTestPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
-        // underlaying TestClusterPlugin and StandaloneRestIntegTestTask are not cc compatible
-        configurationCacheCompatible = false
+        disableConfigurationCache("underlying TestClustersPlugin and StandaloneRestIntegTestTask are not cc compatible")
     }
 
     @Ignore('https://github.com/gradle/gradle/issues/21868')

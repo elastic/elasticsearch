@@ -1186,6 +1186,9 @@
                             "failed": {
                               "type": "long"
                             },
+                            "failure_store": {
+                              "type": "long"
+                            },
                             "toomany": {
                               "type": "long"
                             },
@@ -2739,6 +2742,10 @@
                             "failed": {
                               "type": "alias",
                               "path": "beat.stats.libbeat.output.events.failed"
+                            },
+                            "failure_store": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.output.events.failure_store"
                             },
                             "toomany": {
                               "type": "alias",

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -16,8 +17,8 @@ import java.util.List;
 import java.util.Objects;
 
 public record ElasticInferenceServiceRerankRequestEntity(
-    String query,
-    List<String> documents,
+    InferenceString query,
+    List<InferenceString> documents,
     String modelId,
     @Nullable Integer topNDocumentsOnly
 ) implements ToXContentObject {
@@ -46,7 +47,7 @@ public record ElasticInferenceServiceRerankRequestEntity(
         }
 
         builder.startArray(DOCUMENTS_FIELD);
-        for (String document : documents) {
+        for (InferenceString document : documents) {
             builder.value(document);
         }
 

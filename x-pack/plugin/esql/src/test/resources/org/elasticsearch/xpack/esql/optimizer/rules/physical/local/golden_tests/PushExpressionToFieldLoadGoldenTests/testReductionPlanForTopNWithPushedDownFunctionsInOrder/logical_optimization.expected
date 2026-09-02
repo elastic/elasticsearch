@@ -1,0 +1,4 @@
+Project[[text{f}#0, fieldLength{r}#1]]
+\_TopN[[Order[fieldLength{r}#1,DESC,FIRST]],10[INTEGER],false]
+  \_Eval[[LENGTH(text{f}#0) AS fieldLength#1]]
+    \_EsRelation[all_types][!alias_integer, boolean{f}#2, byte{f}#3, constant_keyword-foo{f}#4, date{f}#5, date_nanos{f}#6, dense_vector{f}#7, double{f}#8, float{f}#9, half_float{f}#10, integer{f}#11, ip{f}#12, keyword{f}#13, long{f}#14, scaled_float{f}#15, semantic_text{f}#16, short{f}#17, text{f}#0, unsigned_long{f}#18, version{f}#19, wildcard{f}#20]

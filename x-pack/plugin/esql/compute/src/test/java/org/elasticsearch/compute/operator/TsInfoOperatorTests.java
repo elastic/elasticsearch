@@ -12,7 +12,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
-import org.elasticsearch.core.Nullable;
 import org.hamcrest.Matcher;
 
 import java.util.HashSet;
@@ -21,8 +20,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class TsInfoOperatorTests extends OperatorTestCase {
 
@@ -106,8 +108,17 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected void assertStatus(@Nullable Map<String, Object> map, List<Page> input, List<Page> output) {
-        assertNull(map);
+    protected void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
+        var totalInputRows = input.stream().mapToInt(Page::getPositionCount).sum();
+        var totalOutputRows = output.stream().mapToInt(Page::getPositionCount).sum();
+        assertMap(
+            map,
+            matchesMap().entry("mode", "INITIAL")
+                .entry("pages_received", input.size())
+                .entry("rows_received", totalInputRows)
+                .entry("rows_emitted", totalOutputRows)
+                .entry("entries_accumulated", greaterThanOrEqualTo(0))
+        );
     }
 
     private Operator createInitialOperator() {

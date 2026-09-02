@@ -49,9 +49,7 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
     public void testTimeSeriesQuerying() throws IOException {
         var settings = Settings.builder()
             .loadFromStream("tsdb-settings.json", CsvTestsDataLoader.getResourceStream("/tsdb-settings.json"), false);
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
-            settings.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
-        }
+        settings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         String mapping = CsvTestsDataLoader.getResourceString("/tsdb-k8s-mapping.json");
         assertTrue("Failed to create index [k8s]", createIndex("k8s", settings.build(), mapping).isAcknowledged());
 

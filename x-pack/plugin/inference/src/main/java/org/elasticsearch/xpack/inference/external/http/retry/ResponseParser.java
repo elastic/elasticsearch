@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.IOException;
 
 @FunctionalInterface
 public interface ResponseParser {
-    InferenceServiceResults apply(Request request, HttpResult result) throws IOException;
+    InferenceServiceResults apply(OutboundRequest outboundRequest, HttpResult result) throws IOException;
 }

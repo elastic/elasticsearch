@@ -231,6 +231,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             .put("node.name", "authc_test")
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
+            .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
             .build();
         MockLicenseState licenseState = mock(MockLicenseState.class);
         for (String realmType : InternalRealms.getConfigurableRealmsTypes()) {
@@ -266,7 +267,6 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThat(realms.getActiveRealms(), contains(firstRealm, secondRealm));
 
         auditTrail = mock(AuditTrail.class);
-        auditTrailService = new AuditTrailService(auditTrail, licenseState);
         client = mock(Client.class);
         threadPool = new ThreadPool(
             settings,
@@ -331,11 +331,12 @@ public class AuthenticationServiceTests extends ESTestCase {
             settings,
             Sets.union(
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
-                Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL)
+                Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL, XPackSettings.AUDIT_ENABLED)
             )
         );
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
+        auditTrailService = new AuditTrailService(auditTrail, licenseState, clusterService);
         apiKeyService = new ApiKeyService(
             settings,
             Clock.systemUTC(),

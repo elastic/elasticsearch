@@ -7,7 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.Nullable;
+
+import java.util.Arrays;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Configures how format readers handle malformed or unparseable rows.
@@ -21,7 +27,8 @@ import java.util.Locale;
  *   <tr><td>{@link Mode#SKIP_ROW SKIP_ROW}</td><td>DROPMALFORMED</td><td>ignore_errors</td>
  *       <td>errors_num&gt;0</td><td>Drop the entire bad row</td></tr>
  *   <tr><td>{@link Mode#NULL_FIELD NULL_FIELD}</td><td>PERMISSIVE</td><td>—</td>
- *       <td>—</td><td>Null-fill unparseable fields, keep the row</td></tr>
+ *       <td>—</td><td>Null-fill unparseable fields, keep the row (per-value failures only; a row whose
+ *       structure cannot be parsed is dropped)</td></tr>
  * </table>
  *
  * <h2>Error budget</h2>
@@ -38,11 +45,17 @@ import java.util.Locale;
  * </table>
  *
  * <h2>Usage</h2>
- * <pre>{@code
- *   FROM s3://bucket/data.csv WITH {"max_errors": 100}
- *   FROM s3://bucket/data.csv WITH {"error_mode": "skip_row", "max_error_ratio": 0.1}
- *   FROM s3://bucket/data.csv WITH {"error_mode": "null_field"}
- * }</pre>
+ * A dataset configures its error policy via the {@code error_mode}, {@code max_errors}, and
+ * {@code max_error_ratio} settings, resolved from the settings described above and applied to
+ * every query that reads the dataset through {@code FROM <dataset>}.
+ *
+ * <h2>Client-visible warnings</h2>
+ * Whenever the non-strict modes ({@link Mode#SKIP_ROW} and {@link Mode#NULL_FIELD}) cause a row to be
+ * dropped or a field to be null-filled, format readers emit response {@code Warning} headers via
+ * {@link SkipWarnings}: a one-time summary identifying the file, plus per-event details capped at
+ * {@link SkipWarnings#MAX_ADDED_WARNINGS} entries (further events collapse into a single
+ * "further warnings suppressed" line). This is independent of {@code logErrors}, which still only
+ * controls server-side WARN logging.
  *
  * @param mode           how to handle rows with parse errors
  * @param maxErrors      maximum number of errors to tolerate before failing
@@ -60,9 +73,22 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     public enum Mode {
         /** Abort immediately — equivalent to Spark {@code FAILFAST}. */
         FAIL_FAST,
-        /** Drop the entire row — equivalent to Spark {@code DROPMALFORMED}, DuckDB {@code ignore_errors}. */
+        /**
+         * Drop the entire row — equivalent to Spark {@code DROPMALFORMED}, DuckDB {@code ignore_errors}.
+         * <p>
+         * Honoured by the row-oriented (text) readers and, via {@code ColumnarRowDropHelper}, by the columnar ones.
+         * One coercion site is exempt and null-fills instead: the cross-file schema-unification cast in
+         * {@code ColumnMapping#mapPage}, which runs above the reader and outside its error budget — see the
+         * "Known gap" note there, tracked as elastic/esql-planning#1824.
+         */
         SKIP_ROW,
-        /** Null-fill unparseable fields, keep the row — equivalent to Spark {@code PERMISSIVE}. */
+        /**
+         * Null-fill unparseable fields, keep the row — equivalent to Spark {@code PERMISSIVE}. The contract is
+         * per value: a failure the reader cannot attribute to one value (a whole-line JSON failure, a structural
+         * CSV row error) has no cell to null, so row-oriented readers drop the row as in {@link #SKIP_ROW}. That
+         * is the one degradation direction that remains; see {@link ErrorPolicy#PERMISSIVE}. {@link #SKIP_ROW}
+         * no longer degrades to this mode on columnar readers — they drop the row for real.
+         */
         NULL_FIELD;
 
         /**
@@ -76,6 +102,11 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
             String normalized = value.toUpperCase(Locale.ROOT).replace(" ", "_");
             return Mode.valueOf(normalized);
         }
+
+        /** The accepted spellings, lower case, for inclusion in a rejection message. */
+        public static String supportedValues() {
+            return Arrays.stream(values()).map(m -> m.name().toLowerCase(Locale.ROOT)).collect(Collectors.joining(", "));
+        }
     }
 
     /** Fail immediately on any malformed row. */
@@ -83,6 +114,28 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
 
     /** Skip all malformed rows without limit, logging each one. */
     public static final ErrorPolicy LENIENT = new ErrorPolicy(Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, true);
+
+    /**
+     * Null-fill unparseable fields without limit, keeping the row for every per-value failure — the opt-in
+     * leniency for a declared-type coercion failure (a bad per-value token nulls the cell and emits a response
+     * {@code Warning} header) via {@code error_mode: null_field}. No format defaults to this: every
+     * reader inherits the base {@link FormatReader#defaultErrorPolicy()} == {@link #STRICT}.
+     * <p>
+     * {@link Mode#NULL_FIELD} degrades to a row drop where a row-oriented reader cannot null-fill a failure
+     * it cannot attribute to one value (a whole-line JSON failure, a structural CSV row error). Columnar
+     * readers null-fill individual cells and keep the row.
+     */
+    public static final ErrorPolicy PERMISSIVE = new ErrorPolicy(Mode.NULL_FIELD, Long.MAX_VALUE, 1.0, false);
+
+    /** Config keys recognised by {@link #fromConfig}. Mirrored as constants so format
+     *  plugins do not have to hard-code the strings. */
+    public static final String CONFIG_MAX_ERRORS = "max_errors";
+
+    public static final String CONFIG_MAX_ERROR_RATIO = "max_error_ratio";
+    public static final String CONFIG_ERROR_MODE = "error_mode";
+
+    /** Keys recognised by {@link #fromConfig}. */
+    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_MAX_ERRORS, CONFIG_MAX_ERROR_RATIO, CONFIG_ERROR_MODE);
 
     public ErrorPolicy {
         if (mode == null) {
@@ -119,6 +172,15 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     }
 
     /**
+     * Lowercase, locale-insensitive name of {@link #mode()}, suitable for user-facing messages
+     * (e.g. {@code "skip_row"}, {@code "null_field"}). Matches the parser input accepted by
+     * {@link Mode#parse(String)}.
+     */
+    public String modeName() {
+        return mode.name().toLowerCase(Locale.ROOT);
+    }
+
+    /**
      * Checks whether the error budget has been exceeded given the current counts.
      * Always returns {@code false} for {@link Mode#FAIL_FAST} (which never reaches
      * this check — it throws immediately in the caller).
@@ -135,5 +197,120 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
             return (double) errorsSoFar > maxErrorRatio * rowsSoFar;
         }
         return false;
+    }
+
+    /**
+     * {@link #fromConfig} against the policy {@code reader} defaults to, or {@link #STRICT} when the reader is
+     * unknown (unregistered format, no registry in the optimizer context).
+     * <p>
+     * Every caller that resolves a policy for a read served by a specific reader must go through here rather than
+     * hard-coding {@link #STRICT} as the fallback. Plan-time rules and the operator factory both decide whether a
+     * read drops rows, and they must reach the same verdict for the same read: a rule that assumed {@link #STRICT}
+     * while the factory honoured a lenient {@link FormatReader#defaultErrorPolicy()} override would plan for one
+     * mode and execute the other.
+     */
+    public static ErrorPolicy forReader(Map<String, Object> config, @Nullable FormatReader reader) {
+        return fromConfig(config, reader != null ? reader.defaultErrorPolicy() : STRICT);
+    }
+
+    /**
+     * Resolves an {@link ErrorPolicy} from the user's {@code WITH} options. Returns
+     * {@code defaultPolicy} when none of {@link #CONFIG_ERROR_MODE},
+     * {@link #CONFIG_MAX_ERRORS}, or {@link #CONFIG_MAX_ERROR_RATIO} are set.
+     *
+     * <p>Validation matches what {@code FileSourceFactory} applied historically: invalid
+     * mode strings, non-numeric budgets, and {@code FAIL_FAST} combined with budget keys
+     * are all rejected with {@link IllegalArgumentException}.
+     *
+     * <p>Prefer {@link #forReader} when the read is served by a known reader, so the fallback is the reader's
+     * own default rather than a hard-coded one.
+     */
+    public static ErrorPolicy fromConfig(Map<String, Object> config, ErrorPolicy defaultPolicy) {
+        if (config == null) {
+            return defaultPolicy;
+        }
+        Object maxErrorsValue = config.get(CONFIG_MAX_ERRORS);
+        Object maxErrorRatioValue = config.get(CONFIG_MAX_ERROR_RATIO);
+        Object errorModeValue = config.get(CONFIG_ERROR_MODE);
+        if (maxErrorsValue == null && maxErrorRatioValue == null && errorModeValue == null) {
+            return defaultPolicy;
+        }
+
+        Mode mode = Mode.SKIP_ROW;
+        if (errorModeValue != null) {
+            String modeStr = errorModeValue.toString();
+            String rejection = "Invalid value for ["
+                + CONFIG_ERROR_MODE
+                + "]: ["
+                + errorModeValue
+                + "]; supported values are ["
+                + Mode.supportedValues()
+                + "]";
+            try {
+                mode = Mode.parse(modeStr);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                    "Invalid value for ["
+                        + CONFIG_ERROR_MODE
+                        + "]: ["
+                        + errorModeValue
+                        + "]; supported values are ["
+                        + Mode.supportedValues()
+                        + "]",
+                    e
+                );
+            }
+            if (mode == null) {
+                throw new IllegalArgumentException(
+                    "Invalid value for ["
+                        + CONFIG_ERROR_MODE
+                        + "]: ["
+                        + errorModeValue
+                        + "]; supported values are ["
+                        + Mode.supportedValues()
+                        + "]"
+                );
+            }
+        }
+
+        if (mode == Mode.FAIL_FAST) {
+            if (maxErrorsValue != null || maxErrorRatioValue != null) {
+                throw new IllegalArgumentException(
+                    "["
+                        + CONFIG_MAX_ERRORS
+                        + "] and ["
+                        + CONFIG_MAX_ERROR_RATIO
+                        + "] cannot be used with ["
+                        + CONFIG_ERROR_MODE
+                        + "="
+                        + mode
+                        + "]; fail_fast always aborts on the first error"
+                );
+            }
+            return STRICT;
+        }
+
+        long maxErrors;
+        if (maxErrorsValue != null) {
+            try {
+                maxErrors = Long.parseLong(maxErrorsValue.toString());
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Invalid value for [" + CONFIG_MAX_ERRORS + "]: [" + maxErrorsValue + "]", e);
+            }
+        } else {
+            maxErrors = Long.MAX_VALUE;
+        }
+
+        double maxErrorRatio = 0.0;
+        if (maxErrorRatioValue != null) {
+            try {
+                maxErrorRatio = Double.parseDouble(maxErrorRatioValue.toString());
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Invalid value for [" + CONFIG_MAX_ERROR_RATIO + "]: [" + maxErrorRatioValue + "]", e);
+            }
+        }
+
+        boolean logErrors = maxErrors < Long.MAX_VALUE || maxErrorRatio > 0.0;
+        return new ErrorPolicy(mode, maxErrors, maxErrorRatio, logErrors);
     }
 }

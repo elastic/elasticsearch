@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -33,15 +32,9 @@ import org.junit.Before;
 import java.util.Collections;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
-import static org.elasticsearch.core.TimeValue.timeValueSeconds;
-import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class HealthNodeTaskExecutorTests extends ESTestCase {
@@ -51,12 +44,10 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         ""
     );
 
-    private PersistentTasksService persistentTasksService;
     private ThreadPool threadPool;
 
     @Before
     public void setup() throws Exception {
-        persistentTasksService = mock(PersistentTasksService.class);
         threadPool = new TestThreadPool(HealthNodeTaskExecutorTests.class.getSimpleName());
     }
 
@@ -65,84 +56,11 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testMasterTaskReconciliation() {
-        final boolean localEnabled = randomBoolean();
-        final var nodeSettings = Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), localEnabled).build();
-        final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final var initialState = initialState(true);
-
-        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool, clusterSettings)) {
-            HealthNodeTaskExecutor.create(clusterService, persistentTasksService, nodeSettings, clusterSettings);
-
-            int expectedStartRequests = 0;
-            int expectedRemoveRequests = 0;
-
-            final int cycles = randomIntBetween(5, 10);
-            for (int i = 0; i < cycles; i++) {
-                final boolean taskExists = randomBoolean();
-                boolean enabled = localEnabled;
-
-                final var baseState = taskExists ? stateWithHealthNodeSelectorTask(initialState) : initialState;
-                if (randomBoolean()) {
-                    enabled = randomBoolean();
-                    setState(clusterService, stateWithEnabledHealthSetting(baseState, enabled));
-                } else {
-                    // Simulates the setting having never been recorded in the cluster state or
-                    // a PUT _cluster/settings {"persistent": {"health.node.enabled": null}} call.
-                    // Falls back to the node-level value (localEnabled).
-                    setState(clusterService, baseState);
-                }
-                if (enabled && taskExists == false) {
-                    expectedStartRequests++;
-                }
-                if (enabled == false && taskExists) {
-                    expectedRemoveRequests++;
-                }
-            }
-            verify(persistentTasksService, times(expectedStartRequests)).sendClusterStartRequest(
-                eq(HealthNode.TASK_NAME),
-                eq(HealthNode.TASK_NAME),
-                eq(new HealthNodeTaskParams()),
-                isNotNull(),
-                any()
-            );
-            verify(persistentTasksService, times(expectedRemoveRequests)).sendClusterRemoveRequest(
-                eq(HealthNode.TASK_NAME),
-                eq(timeValueSeconds(30)),
-                any()
-            );
-        }
-    }
-
-    public void testNonMasterNeverStartsOrStopsTask() {
-        Settings nodeSettings = Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), randomBoolean()).build();
-        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final var initialState = initialState(false);
-        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool, clusterSettings)) {
-            var state = initialState;
-            if (randomBoolean()) {
-                state = stateWithEnabledHealthSetting(state, randomBoolean());
-            }
-            if (randomBoolean()) {
-                state = stateWithHealthNodeSelectorTask(state);
-            }
-            HealthNodeTaskExecutor.create(clusterService, persistentTasksService, nodeSettings, clusterSettings);
-            setState(clusterService, state);
-            verify(persistentTasksService, never()).sendClusterStartRequest(any(), any(), any(), any(), any());
-            verify(persistentTasksService, never()).sendClusterRemoveRequest(any(), any(), any());
-        }
-    }
-
     public void testDoesNothingIfNodeShuttingDownButNotYetReassigned() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final var state = initialState(randomBoolean());
         try (ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool, clusterSettings)) {
-            final HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
-                clusterService,
-                persistentTasksService,
-                Settings.EMPTY,
-                clusterSettings
-            );
+            final HealthNodeTaskExecutor executor = new HealthNodeTaskExecutor(clusterService);
             final HealthNode task = mock(HealthNode.class);
             executor.nodeOperation(task, new HealthNodeTaskParams(), mock(PersistentTaskState.class));
 
@@ -201,10 +119,4 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         return ClusterState.builder(clusterState).metadata(metadata).build();
     }
 
-    private ClusterState stateWithEnabledHealthSetting(ClusterState clusterState, boolean enabled) {
-        final var persistentSettings = Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), enabled).build();
-        return ClusterState.builder(clusterState)
-            .metadata(Metadata.builder(clusterState.metadata()).persistentSettings(persistentSettings))
-            .build();
-    }
 }

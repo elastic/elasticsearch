@@ -62,6 +62,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -74,6 +75,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
@@ -90,8 +93,10 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.SearchPlanningPhaseResolutionResult;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -131,6 +136,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.search.AbstractSearchAsyncAction.ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL;
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
@@ -216,7 +222,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
-        SearchTransportService.registerRequestHandler(transportService, searchService, namedWriteableRegistry);
+        SearchTransportService.registerRequestHandler(
+            transportService,
+            searchService,
+            namedWriteableRegistry,
+            clusterService.getSettings()
+        );
         SearchQueryThenFetchAsyncAction.registerNodeSearchAction(
             searchTransportService,
             searchService,
@@ -240,11 +251,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.usageService = usageService;
         this.forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
         this.crossProjectModeDecider = crossProjectModeDecider;
-        this.activityLogger = new ActivityLogger<>(
+        this.activityLogger = new QueryLogger<>(
             clusterService.getClusterSettings(),
-            new SearchLogProducer(clusterService.getClusterSettings(), indexNameExpressionResolver.getSystemNamePredicate()),
+            new SearchLogProducer(),
             logWriterProvider,
-            fieldProvider
+            fieldProvider,
+            indexNameExpressionResolver.getSystemNamePredicate()
         );
     }
 
@@ -306,6 +318,42 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return aliasFilterMap;
     }
 
+    static String validateAndResolveSearchSliceRouting(
+        SearchRequest searchRequest,
+        Map<Index, IndexMetadata> concreteLocalIndicesMetadata,
+        String[] requestedIndices,
+        boolean hasRemoteIndices
+    ) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            return null;
+        }
+        final boolean fromSlice = searchRequest.isRoutingFromSlice();
+        final String requestedSlice = fromSlice ? searchRequest.searchSlice() : null;
+        final boolean anySliceEnabled = concreteLocalIndicesMetadata.values()
+            .stream()
+            .anyMatch(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()));
+        final String target = requestedIndices.length == 0
+            ? concreteLocalIndicesMetadata.keySet().stream().map(Index::getName).collect(Collectors.joining(","))
+            : Strings.arrayToCommaDelimitedString(requestedIndices);
+        if (searchRequest.pointInTimeBuilder() != null && anySliceEnabled) {
+            throw new IllegalArgumentException(
+                "[point in time] is not supported when [index.slice.enabled] is true for search request targeting [" + target + "]"
+            );
+        }
+        searchRequest.routing(
+            SliceIndexing.validateAndResolveSliceRoutingRequirement(
+                anySliceEnabled,
+                fromSlice,
+                searchRequest.routing(),
+                requestedSlice,
+                "search request",
+                target,
+                hasRemoteIndices
+            )
+        );
+        return requestedSlice;
+    }
+
     private Map<String, Float> resolveIndexBoosts(SearchRequest searchRequest, ClusterState clusterState) {
         if (searchRequest.source() == null) {
             return Collections.emptyMap();
@@ -361,12 +409,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        executeRequest(
-            (SearchTask) task,
-            searchRequest,
-            activityLogger.wrap(listener, new SearchLogContextBuilder(task, namedWriteableRegistry, searchRequest)),
-            AsyncSearchActionProvider::new,
-            true
+        SearchLogContextBuilder searchLogContextBuilder = new SearchLogContextBuilder(task, namedWriteableRegistry, searchRequest);
+        activityLogger.wrapAndRun(
+            listener,
+            searchLogContextBuilder,
+            l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new, true)
         );
     }
 
@@ -522,7 +569,39 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchResponseActionListener = delegate;
             }
 
+            // CPS project routing telemetry — queries counts all searches while the project has links;
+            // queries_project_routing and sub-counters only increment for requests that carry a project_routing expression.
+            // PIT opens (collectSearchTelemetry=false) are excluded — they are resource allocation, not queries.
+            if (collectSearchTelemetry) {
+                TargetProjects targetProjects = rewritten.getResolvedTargetProjects();
+                boolean hasLinkedProjects = targetProjects != null && targetProjects.hasLinkedProjects();
+                if (hasLinkedProjects) {
+                    // Non-null routingInfo signals to the holder that this request carried a project_routing expression,
+                    // triggering queries_project_routing and its sub-counters in addition to queries.
+                    String projectRouting = rewritten.getProjectRouting();
+                    ProjectRoutingRequestInfo routingInfo = Strings.isNullOrEmpty(projectRouting) == false
+                        ? (targetProjects.projectRoutingRequestInfo() != null
+                            ? targetProjects.projectRoutingRequestInfo()
+                            : ProjectRoutingRequestInfo.NONE)
+                        : null;
+                    usageService.getProjectRoutingUsageHolder().recordSearch(routingInfo, hasLinkedProjects);
+                }
+            }
+
             if (resolvedIndices.getRemoteClusterIndices().isEmpty()) {
+                if (resolvesCrossProject && rewritten.getResolvedIndexExpressions() != null) {
+                    ElasticsearchException ex = CrossProjectIndexResolutionValidator.validate(
+                        original.indicesOptions(),
+                        rewritten.getProjectRouting(),
+                        rewritten.getResolvedIndexExpressions(),
+                        Map.of(),
+                        Map.of()
+                    );
+                    if (ex != null) {
+                        searchResponseActionListener.onFailure(ex);
+                        return;
+                    }
+                }
                 executeLocalSearch(
                     task,
                     timeProvider,
@@ -579,7 +658,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                     // Notify the progress listener that a CCS with minimize_roundtrips is happening remote-only (no local
                                     // shards)
                                     task.getProgressListener()
-                                        .notifyListShards(Collections.emptyList(), Collections.emptyList(), clusters, false, timeProvider);
+                                        .notifyListShards(Collections.emptyList(), Collections.emptyMap(), clusters, false, timeProvider);
                                 }
                                 ccsRemoteReduce(
                                     task,
@@ -623,6 +702,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         rewritten.indicesOptions(),
                         rewritten.preference(),
                         rewritten.routing(),
+                        rewritten.searchSlice(),
+                        rewritten.isRoutingFromSlice(),
                         rewritten.source() != null ? rewritten.source().query() : null,
                         Objects.requireNonNullElse(rewritten.allowPartialSearchResults(), searchService.defaultAllowPartialSearchResults()),
                         searchContext,
@@ -645,6 +726,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             );
                             final Map<String, AliasFilter> remoteAliasFilters;
                             final List<SearchShardIterator> remoteShardIterators;
+                            final Map<String, Integer> numSkippedShards = new HashMap<>();
+                            searchShardsResponses.forEach(
+                                (clusterName, response) -> numSkippedShards.put(clusterName, response.getNumSkippedShards())
+                            );
+                            // reconcileProjects may have excluded clusters that had no matching shards (empty groups).
+                            // Remove those clusters from numSkippedShards so that skippedByClusterAlias passed to
+                            // the search phase only covers clusters that are actually in participatingProjects.
+                            // Without this, CCSSingleCoordinatorSearchProgressListener.onListShards would encounter
+                            // cluster aliases absent from the Clusters map, causing a NullPointerException that
+                            // silently aborts the loop and leaves all clusters stuck in RUNNING state.
+                            numSkippedShards.keySet().retainAll(participatingProjects.getClusterAliases());
                             if (searchContext != null) {
                                 remoteAliasFilters = searchContext.aliasFilter();
                                 remoteShardIterators = getRemoteShardsIteratorFromPointInTime(
@@ -670,6 +762,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 rewritten,
                                 resolvedIndices,
                                 remoteShardIterators,
+                                numSkippedShards,
                                 clusterNodeLookup,
                                 projectState,
                                 remoteAliasFilters,
@@ -865,6 +958,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     ) {
         final var remoteClientResponseExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         if (resolvedIndices.getLocalIndices() == null && resolvedIndices.getRemoteClusterIndices().size() == 1) {
+            SearchCoordinatorContext searchCoordinatorContext = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(searchRequest);
             // if we are searching against a single remote cluster, we simply forward the original search request to such cluster
             // and we directly perform final reduction in the remote cluster
             Map.Entry<String, OriginalIndices> entry = resolvedIndices.getRemoteClusterIndices().entrySet().iterator().next();
@@ -887,32 +981,30 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 public void onResponse(SearchResponse searchResponse) {
                     // overwrite the existing cluster entry with the updated one
                     ccsClusterInfoUpdate(searchResponse, clusters, clusterAlias, shouldSkipOnFailure);
-                    Map<String, SearchProfileShardResult> profileResults = searchResponse.getProfileResults();
-                    SearchProfileResults profile = profileResults == null || profileResults.isEmpty()
-                        ? null
-                        : new SearchProfileResults(profileResults);
+                    SearchProfileResults profile = getSearchProfileResults(searchResponse, searchCoordinatorContext);
 
-                    ActionListener.respondAndRelease(
-                        listener,
-                        new SearchResponse(
-                            searchResponse.getHits(),
-                            searchResponse.getAggregations(),
-                            searchResponse.getSuggest(),
-                            searchResponse.isTimedOut(),
-                            searchResponse.isTerminatedEarly(),
-                            profile,
-                            searchResponse.getNumReducePhases(),
-                            searchResponse.getScrollId(),
-                            searchResponse.getTotalShards(),
-                            searchResponse.getSuccessfulShards(),
-                            searchResponse.getSkippedShards(),
-                            timeProvider.buildTookInMillis(),
-                            searchResponse.getShardFailures(),
-                            clusters,
-                            searchResponse.pointInTimeId(),
-                            null
-                        )
+                    SearchResponse mergedResponse = new SearchResponse(
+                        searchResponse.getHits(),
+                        searchResponse.getAggregations(),
+                        searchResponse.getSuggest(),
+                        searchResponse.isTimedOut(),
+                        searchResponse.isTerminatedEarly(),
+                        profile,
+                        searchResponse.getNumReducePhases(),
+                        searchResponse.getScrollId(),
+                        searchResponse.getTotalShards(),
+                        searchResponse.getSuccessfulShards(),
+                        searchResponse.getSkippedShards(),
+                        timeProvider.buildTookInMillis(),
+                        searchResponse.getShardFailures(),
+                        clusters,
+                        searchResponse.pointInTimeId(),
+                        null,
+                        null
                     );
+                    // propagate the directory metrics reported by the remote cluster so the header reflects the remote's bytes read
+                    mergedResponse.setDirectoryMetrics(searchResponse.getDirectoryMetrics());
+                    ActionListener.respondAndRelease(listener, mergedResponse);
                 }
 
                 @Override
@@ -921,7 +1013,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     logCCSError(failure, clusterAlias, shouldSkipOnFailure);
                     ccsClusterInfoUpdate(failure, clusters, clusterAlias, shouldSkipOnFailure);
                     if (shouldSkipOnFailure) {
-                        ActionListener.respondAndRelease(listener, SearchResponse.empty(timeProvider::buildTookInMillis, clusters));
+                        ActionListener.respondAndRelease(
+                            listener,
+                            SearchResponse.emptyResponseBuilder().tookInMillis(timeProvider.buildTookInMillis()).clusters(clusters).build()
+                        );
                     } else {
                         listener.onFailure(wrapRemoteClusterFailure(clusterAlias, e));
                     }
@@ -946,13 +1041,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 connectionListener
             );
         } else {
+            SearchCoordinatorContext searchCoordinatorContext = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(searchRequest);
             SearchResponseMerger searchResponseMerger = createSearchResponseMerger(
                 searchRequest.source(),
                 timeProvider,
-                aggReduceContextBuilder
+                aggReduceContextBuilder,
+                searchCoordinatorContext
             );
             task.setSearchResponseMergerSupplier(
-                () -> createSearchResponseMerger(searchRequest.source(), timeProvider, aggReduceContextBuilder)
+                () -> createSearchResponseMerger(searchRequest.source(), timeProvider, aggReduceContextBuilder, searchCoordinatorContext)
             );
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
             int totalClusters = resolvedIndices.getRemoteClusterIndices().size() + (resolvedIndices.getLocalIndices() == null ? 0 : 1);
@@ -1033,10 +1130,22 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
+    static SearchProfileResults getSearchProfileResults(SearchResponse searchResponse, SearchCoordinatorContext searchCoordinatorContext) {
+        Map<String, SearchProfileShardResult> profileResults = searchResponse.getSearchProfileShardResults();
+        SearchProfileResults profile = profileResults == null || profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
+
+        if (profile != null) {
+            profile.setOriginalSource(searchCoordinatorContext.originalSource());
+            profile.setRequestIndices(searchCoordinatorContext.requestIndices());
+        }
+        return profile;
+    }
+
     static SearchResponseMerger createSearchResponseMerger(
         SearchSourceBuilder source,
         SearchTimeProvider timeProvider,
-        AggregationReduceContext.Builder aggReduceContextBuilder
+        AggregationReduceContext.Builder aggReduceContextBuilder,
+        SearchCoordinatorContext searchCoordinatorContext
     ) {
         final int from;
         final int size;
@@ -1055,7 +1164,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             source.from(0);
             source.size(from + size);
         }
-        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, aggReduceContextBuilder);
+        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, aggReduceContextBuilder, searchCoordinatorContext);
     }
 
     /**
@@ -1328,6 +1437,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         IndicesOptions originalIdxOpts,
         String preference,
         String routing,
+        String searchSlice,
+        boolean routingFromSlice,
         QueryBuilder query,
         boolean allowPartialResults,
         SearchContextId searchContext,
@@ -1361,7 +1472,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 @Override
                 void innerOnResponse(SearchShardsResponse searchShardsResponse) {
                     assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
-                    ccsClusterInfoUpdate(searchShardsResponse, clusters, clusterAlias, timeProvider);
                     searchShardsResponses.put(clusterAlias, searchShardsResponse);
                 }
 
@@ -1421,6 +1531,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchShardsIdxOpts,
                         query,
                         routing,
+                        searchSlice,
+                        routingFromSlice,
                         preference,
                         allowPartialResults,
                         clusterAlias
@@ -1506,6 +1618,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
+     * Creates a new Cluster object using shouldSkipOnFailure flag to set Status then swaps it in the clusters CHM at key clusterAlias but
+     * does <b>not</b> append any exception to the list of shard failures. Used when all shards fail due to an internal cancel, since we
+     * don't want to include exceptions due to the internal cancel in the response.
+     */
+    static void ccsClusterInfoUpdateInternalCancel(SearchResponse.Clusters clusters, String clusterAlias, boolean shouldSkipOnFailure) {
+        clusters.swapCluster(clusterAlias, (k, v) -> {
+            SearchResponse.Cluster.Status status;
+            if (shouldSkipOnFailure) {
+                status = SearchResponse.Cluster.Status.SKIPPED;
+            } else {
+                status = SearchResponse.Cluster.Status.FAILED;
+            }
+            return new SearchResponse.Cluster.Builder(v).setStatus(status).build();
+        });
+    }
+
+    /**
      * Creates a new Cluster object using the {@link ShardSearchFailure} info and shouldSkipOnFailure
      * flag to set Status. Then it swaps it in the clusters CHM at key clusterAlias
      */
@@ -1578,41 +1707,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         });
     }
 
-    /**
-     * Edge case ---
-     * Typically we don't need to update a Cluster object after the SearchShards API call, since the
-     * skipped shards will be passed into SearchProgressListener.onListShards.
-     * However, there is an edge case where the remote SearchShards API call returns no shards at all.
-     * So in that case, nothing for this cluster will be passed to onListShards, so we need to update
-     * the Cluster object to SUCCESSFUL status with shard counts of 0 and a filled in 'took' value.
-     *
-     * @param response from SearchShards API call to remote cluster
-     * @param clusters Clusters that the search was executed on
-     * @param clusterAlias Alias of the cluster to be updated
-     * @param timeProvider search time provider (for setting took value)
-     */
-    private static void ccsClusterInfoUpdate(
-        SearchShardsResponse response,
-        SearchResponse.Clusters clusters,
-        String clusterAlias,
-        SearchTimeProvider timeProvider
-    ) {
-        if (response.getGroups().isEmpty()) {
-            clusters.swapCluster(
-                clusterAlias,
-                (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
-                    .setTotalShards(0)
-                    .setSuccessfulShards(0)
-                    .setSkippedShards(0)
-                    .setFailedShards(0)
-                    .setFailures(Collections.emptyList())
-                    .setTook(new TimeValue(timeProvider.buildTookInMillis()))
-                    .setTimedOut(false)
-                    .build()
-            );
-        }
-    }
-
     void executeLocalSearch(
         Task task,
         SearchTimeProvider timeProvider,
@@ -1628,6 +1722,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             searchRequest,
             resolvedIndices,
             Collections.emptyList(),
+            Collections.emptyMap(),
             (clusterName, nodeId) -> null,
             projectState,
             Collections.emptyMap(),
@@ -1683,9 +1778,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     null,
                     searchShardsGroup.preFiltered(),
                     searchShardsGroup.skipped(),
-                    // This parameter is specific to the resharding feature.
-                    // Resharding is currently not supported with CCS.
-                    SplitShardCountSummary.UNSET
+                    searchShardsGroup.splitShardCountSummary()
                 );
                 remoteShardIterators.add(shardIterator);
             }
@@ -1798,6 +1891,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequest searchRequest,
         ResolvedIndices resolvedIndices,
         List<SearchShardIterator> remoteShardIterators,
+        Map<String, Integer> numSkippedShards,
         BiFunction<String, String, DiscoveryNode> remoteConnections,
         ProjectState projectState,
         Map<String, AliasFilter> remoteAliasMap,
@@ -1808,6 +1902,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             // No user preference defined in search request - apply cluster service default
             searchRequest.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());
         }
+        validateAndResolveSearchSliceRouting(
+            searchRequest,
+            resolvedIndices.getConcreteLocalIndicesMetadata(),
+            searchRequest.indices(),
+            remoteShardIterators.isEmpty() == false
+        );
 
         // TODO: I think startTime() should become part of ActionRequest and that should be used both for index name
         // date math expressions and $now in scripts. This way all apis will deal with now in the same way instead
@@ -1855,12 +1955,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (localShardIterators.isEmpty()
                 && clusters != SearchResponse.Clusters.EMPTY
                 && clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) != null) {
+                var skipped = numSkippedShards.getOrDefault(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, 0);
                 clusters.swapCluster(
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                     (alias, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
-                        .setTotalShards(0)
-                        .setSuccessfulShards(0)
-                        .setSkippedShards(0)
+                        .setTotalShards(skipped)
+                        .setSuccessfulShards(skipped)
+                        .setSkippedShards(skipped)
                         .setFailedShards(0)
                         .setFailures(Collections.emptyList())
                         .setTook(TimeValue.timeValueMillis(0))
@@ -1893,17 +1994,35 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             searchTransportService::getConnection
         );
         final Executor asyncSearchExecutor = asyncSearchExecutor(concreteLocalIndices);
+        final int numShardIterators = localShardIterators.size() + remoteShardIterators.size();
+        final int numSkippedTotal = CollectionUtils.sumIntValues(numSkippedShards);
         final boolean preFilterSearchShards = shouldPreFilterSearchShards(
             projectState,
             searchRequest,
             concreteLocalIndices,
-            localShardIterators.size() + remoteShardIterators.size(),
+            numShardIterators + numSkippedTotal,
             defaultPreFilterShardSize
         );
-
         // CanMatch will sort iterators after coordinator filtering. If filtering isn't done, we need to sort before the next phase
+        final List<SearchShardIterator> iteratorsForSearchPhase;
         if (preFilterSearchShards == false) {
             shardIterators.sort(SearchShardIterator::compareTo);
+            // Remote search_shards can return shards with skip=true (can-match). Exclude them from the query phase
+            // and merge their counts into numSkippedShards so the phase only receives shards that must be queried.
+            iteratorsForSearchPhase = new ArrayList<>(shardIterators.size());
+            for (SearchShardIterator it : shardIterators) {
+                if (it.skip()) {
+                    numSkippedShards.merge(
+                        Objects.requireNonNullElse(it.getClusterAlias(), RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY),
+                        1,
+                        Integer::sum
+                    );
+                } else {
+                    iteratorsForSearchPhase.add(it);
+                }
+            }
+        } else {
+            iteratorsForSearchPhase = shardIterators;
         }
 
         final Map<String, Object> searchRequestAttributes = SearchRequestAttributesExtractor.extractAttributes(
@@ -1914,7 +2033,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             task,
             searchRequest,
             asyncSearchExecutor,
-            shardIterators,
+            iteratorsForSearchPhase,
+            numSkippedShards,
             timeProvider,
             connectionLookup,
             projectState.cluster(),
@@ -2033,6 +2153,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchRequest searchRequest,
             Executor executor,
             List<SearchShardIterator> shardIterators,
+            Map<String, Integer> skippedByClusterAlias,
             SearchTimeProvider timeProvider,
             BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState,
@@ -2058,6 +2179,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchRequest searchRequest,
             Executor executor,
             List<SearchShardIterator> shardIterators,
+            Map<String, Integer> skippedByClusterAlias,
             SearchTimeProvider timeProvider,
             BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState,
@@ -2085,27 +2207,29 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     requireAtLeastOneMatch,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     searchResponseMetrics,
-                    searchRequestAttributes
-                )
-                    .addListener(
-                        listener.delegateFailureAndWrap(
-                            (l, iters) -> runNewSearchPhase(
-                                task,
-                                searchRequest,
-                                executor,
-                                iters,
-                                timeProvider,
-                                connectionLookup,
-                                clusterState,
-                                aliasFilter,
-                                concreteIndexBoosts,
-                                false,
-                                threadPool,
-                                clusters,
-                                searchRequestAttributes
-                            )
-                        )
+                    searchRequestAttributes,
+                    false
+                ).addListener(listener.delegateFailureAndWrap((l, canMatchResult) -> {
+                    skippedByClusterAlias.forEach(
+                        (cluster, count) -> canMatchResult.skippedByClusterAlias().merge(cluster, count, Integer::sum)
                     );
+                    runNewSearchPhase(
+                        task,
+                        searchRequest,
+                        executor,
+                        canMatchResult.iterators(),
+                        canMatchResult.skippedByClusterAlias(),
+                        timeProvider,
+                        connectionLookup,
+                        clusterState,
+                        aliasFilter,
+                        concreteIndexBoosts,
+                        false,
+                        threadPool,
+                        clusters,
+                        searchRequestAttributes
+                    );
+                }));
                 return;
             }
             // for synchronous CCS minimize_roundtrips=false, use the CCSSingleCoordinatorSearchProgressListener
@@ -2142,6 +2266,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchRequest,
                         listener,
                         shardIterators,
+                        skippedByClusterAlias,
                         timeProvider,
                         clusterState,
                         task,
@@ -2166,6 +2291,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchRequest,
                         listener,
                         shardIterators,
+                        skippedByClusterAlias,
                         timeProvider,
                         clusterState,
                         task,
@@ -2322,7 +2448,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             logCCSError(f, clusterAlias, skipOnFailure);
             remoteExceptions.put(clusterAlias, e);
             SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
-            if (skipOnFailure && ExceptionsHelper.isTaskCancelledException(e) == false) {
+            // If all shards failed due the search being cancelled internally, do not include the placeholder exception in the response
+            if (ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL.equals(ExceptionsHelper.unwrapCause(e).getMessage())) {
+                if (cluster != null) {
+                    ccsClusterInfoUpdateInternalCancel(clusters, clusterAlias, skipOnFailure);
+                }
+                maybeFinish();
+                return;
+            }
+            var isTaskCancelled = ExceptionsHelper.isTaskCancelledException(e);
+            if (skipOnFailure && isTaskCancelled == false) {
                 if (cluster != null) {
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, true);
                 }
@@ -2331,10 +2466,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, false);
                 }
                 Exception exception = e;
-                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false
-                    && ExceptionsHelper.isTaskCancelledException(e) == false) {
+                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false && isTaskCancelled == false) {
                     exception = wrapRemoteClusterFailure(clusterAlias, e);
                 }
+
                 if (exceptions.compareAndSet(null, exception) == false) {
                     exceptions.accumulateAndGet(exception, (previous, current) -> {
                         current.addSuppressed(previous);
@@ -2537,7 +2672,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 shardId,
                 shardRouting.getShardRoutings(),
                 finalIndices,
-                shardRouting.reshardSplitShardCountSummary()
+                shardRouting.splitShardCountSummary()
             );
         }
         // the returned list must support in-place sorting, so this is the most memory efficient we can do here

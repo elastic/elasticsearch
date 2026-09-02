@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -31,7 +32,6 @@ public class BasicPageTests extends SerializationTestCase {
 
     static final Class<NullPointerException> NPE = NullPointerException.class;
     static final Class<IllegalArgumentException> IAE = IllegalArgumentException.class;
-    static final Class<AssertionError> AE = AssertionError.class;
 
     public void testExceptions() {
         expectThrows(NPE, () -> new Page((Block[]) null));
@@ -352,6 +352,44 @@ public class BasicPageTests extends SerializationTestCase {
         page.releaseBlocks();
         assertThat(block.isReleased(), is(true));
         page.releaseBlocks();
+        assertThat(block.isReleased(), is(true));
+    }
+
+    public void testSlice() {
+        int positions = randomIntBetween(2, 1024);
+        int begin = randomIntBetween(0, positions - 1);
+        int end = randomIntBetween(begin + 1, positions);
+        var block = blockFactory.newIntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock();
+        try (
+            Page page = new Page(block);
+            Page sliced = page.slice(begin, end);
+            Page expected = new Page(blockFactory.newIntArrayVector(IntStream.range(begin, end).toArray(), end - begin).asBlock())
+        ) {
+            assertThat(block.isReleased(), is(false));
+            assertThat(sliced, equalTo(expected));
+        }
+    }
+
+    public void testFilter() {
+        int positions = randomIntBetween(1, 1024);
+        int[] allPositions = IntStream.range(0, positions).toArray();
+        for (int i = positions - 1; i > 0; i--) {
+            int j = randomIntBetween(0, i);
+            int tmp = allPositions[i];
+            allPositions[i] = allPositions[j];
+            allPositions[j] = tmp;
+        }
+        int[] filterPositions = Arrays.copyOf(allPositions, randomIntBetween(1, positions));
+        Arrays.sort(filterPositions);
+        var block = blockFactory.newIntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock();
+        try (
+            Page page = new Page(block);
+            Page filtered = page.filter(false, filterPositions);
+            Page expected = new Page(blockFactory.newIntArrayVector(filterPositions, filterPositions.length).asBlock())
+        ) {
+            assertThat(block.isReleased(), is(false));
+            assertThat(filtered, equalTo(expected));
+        }
     }
 
     public void testPageWithBatchMetadataSerialization() throws IOException {

@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
@@ -28,10 +29,16 @@ import java.io.IOException;
 public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     private final String fieldName;
     private final Warnings warnings;
+    private final BinaryDocValuesFormat binaryFormat;
 
     public ByteLengthFromBytesRefDocValuesBlockLoader(Warnings warnings, String fieldName) {
+        this(warnings, fieldName, BinaryDocValuesFormat.SEPARATE_COUNT);
+    }
+
+    public ByteLengthFromBytesRefDocValuesBlockLoader(Warnings warnings, String fieldName, BinaryDocValuesFormat binaryFormat) {
         this.warnings = warnings;
         this.fieldName = fieldName;
+        this.binaryFormat = binaryFormat;
     }
 
     @Override
@@ -47,6 +54,9 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         }
         if (bc.counts() == null) {
             return new SingleValued(bc.binary());
+        }
+        if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
+            return new MultiValuedBinaryArrayOrderInlineNull(warnings, bc.counts(), bc.binary());
         }
         return new MultiValuedBinaryWithSeparateCounts(warnings, bc.counts(), bc.binary());
     }
@@ -115,6 +125,23 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         @Override
         public String toString() {
             return "ByteLengthFromBytesRef.MultiValuedBinaryWithSeparateCounts";
+        }
+    }
+
+    private static final class MultiValuedBinaryArrayOrderInlineNull extends MultiValuedBinaryArrayOrderInlineNullLengthReader {
+
+        MultiValuedBinaryArrayOrderInlineNull(Warnings warnings, TrackingNumericDocValues counts, TrackingBinaryDocValues values) {
+            super(warnings, counts, values);
+        }
+
+        @Override
+        int length(BytesRef bytesRef) {
+            return bytesRef.length;
+        }
+
+        @Override
+        public String toString() {
+            return "ByteLengthFromBytesRef.MultiValuedBinaryArrayOrderInlineNull";
         }
     }
 }

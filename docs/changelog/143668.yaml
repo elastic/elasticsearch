@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 143070
-pr: 143668
-summary: ESQL - enable zero_terms_query option in MATCH function
-type: bug

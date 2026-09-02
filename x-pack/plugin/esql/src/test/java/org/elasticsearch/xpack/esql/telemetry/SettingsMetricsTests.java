@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.telemetry;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 
 import java.util.Map;
@@ -74,7 +75,7 @@ public class SettingsMetricsTests extends ESTestCase {
         Counters stats = metrics.stats();
 
         // With all flags enabled, all settings should be registered
-        for (String settingName : QuerySettings.SETTINGS_BY_NAME.keySet()) {
+        for (String settingName : QuerySettings.all().stream().map(QuerySettingDef::name).toList()) {
             assertTrue("Missing metric for setting: " + settingName, hasMetric(stats, SETTINGS_PREFIX + settingName));
             assertThat(stats.get(SETTINGS_PREFIX + settingName), equalTo(0L));
         }
@@ -85,15 +86,15 @@ public class SettingsMetricsTests extends ESTestCase {
         Counters stats = metrics.stats();
 
         // In stateful non-snapshot mode:
-        // - time_zone and unmapped_fields should be registered (not restricted)
-        // - approximation should NOT be registered (snapshot-only)
+        // - time_zone, unmapped_fields, approximation should be registered (not restricted)
         // - project_routing should NOT be registered (serverless-only)
         assertTrue(hasMetric(stats, SETTINGS_PREFIX + "time_zone"));
         assertTrue(hasMetric(stats, SETTINGS_PREFIX + "unmapped_fields"));
+        assertTrue(hasMetric(stats, SETTINGS_PREFIX + "approximation"));
         assertThat(stats.get(SETTINGS_PREFIX + "time_zone"), equalTo(0L));
         assertThat(stats.get(SETTINGS_PREFIX + "unmapped_fields"), equalTo(0L));
+        assertThat(stats.get(SETTINGS_PREFIX + "approximation"), equalTo(0L));
 
-        assertFalse("approximation should not be registered in non-snapshot", hasMetric(stats, SETTINGS_PREFIX + "approximation"));
         assertFalse("project_routing should not be registered in stateful", hasMetric(stats, SETTINGS_PREFIX + "project_routing"));
     }
 
@@ -119,16 +120,16 @@ public class SettingsMetricsTests extends ESTestCase {
         Counters stats = metrics.stats();
 
         // In serverless non-snapshot mode:
-        // - time_zone, unmapped_fields, project_routing should be registered
-        // - approximation should NOT be registered (snapshot-only)
+        // - time_zone, unmapped_fields, project_routing, approximation should be registered
         assertTrue(hasMetric(stats, SETTINGS_PREFIX + "time_zone"));
         assertTrue(hasMetric(stats, SETTINGS_PREFIX + "unmapped_fields"));
         assertTrue(hasMetric(stats, SETTINGS_PREFIX + "project_routing"));
+        assertTrue(hasMetric(stats, SETTINGS_PREFIX + "approximation"));
         assertThat(stats.get(SETTINGS_PREFIX + "time_zone"), equalTo(0L));
         assertThat(stats.get(SETTINGS_PREFIX + "unmapped_fields"), equalTo(0L));
         assertThat(stats.get(SETTINGS_PREFIX + "project_routing"), equalTo(0L));
+        assertThat(stats.get(SETTINGS_PREFIX + "approximation"), equalTo(0L));
 
-        assertFalse("approximation should not be registered in non-snapshot", hasMetric(stats, SETTINGS_PREFIX + "approximation"));
     }
 
     public void testIncSettingByName() {
@@ -168,44 +169,15 @@ public class SettingsMetricsTests extends ESTestCase {
         Metrics metrics = createMetricsWithAllSettings();
 
         // Increment all known settings
-        for (String settingName : QuerySettings.SETTINGS_BY_NAME.keySet()) {
+        for (String settingName : QuerySettings.all().stream().map(QuerySettingDef::name).toList()) {
             metrics.incSetting(settingName);
         }
 
         // Verify all settings are now 1
         Counters stats = metrics.stats();
-        for (String settingName : QuerySettings.SETTINGS_BY_NAME.keySet()) {
+        for (String settingName : QuerySettings.all().stream().map(QuerySettingDef::name).toList()) {
             assertThat("Wrong count for setting: " + settingName, stats.get(SETTINGS_PREFIX + settingName), equalTo(1L));
         }
-    }
-
-    public void testIncApproximationSetting_SnapshotBuild() {
-        Metrics metrics = createMetricsStatefulSnapshot();
-
-        // Initial value should be 0
-        Counters stats = metrics.stats();
-        assertThat(stats.get(SETTINGS_PREFIX + "approximation"), equalTo(0L));
-
-        // Increment approximation
-        metrics.incSetting("approximation");
-        stats = metrics.stats();
-        assertThat(stats.get(SETTINGS_PREFIX + "approximation"), equalTo(1L));
-
-        // Verify approximation is snapshot-only
-        assertTrue("approximation should be a snapshot-only setting", QuerySettings.SETTINGS_BY_NAME.get("approximation").snapshotOnly());
-    }
-
-    public void testIncApproximationSetting_NonSnapshotBuild() {
-        Metrics metrics = createMetricsStatefulNonSnapshot();
-        Counters stats = metrics.stats();
-
-        // approximation metric should not exist in non-snapshot builds
-        assertFalse("approximation should not be registered", hasMetric(stats, SETTINGS_PREFIX + "approximation"));
-
-        // Incrementing should be silently ignored (no counter registered)
-        metrics.incSetting("approximation");
-        stats = metrics.stats();
-        assertFalse("approximation should still not be registered", hasMetric(stats, SETTINGS_PREFIX + "approximation"));
     }
 
     public void testIncProjectRoutingSetting_Serverless() {
@@ -221,10 +193,7 @@ public class SettingsMetricsTests extends ESTestCase {
         assertThat(stats.get(SETTINGS_PREFIX + "project_routing"), equalTo(1L));
 
         // Verify project_routing is serverless-only
-        assertTrue(
-            "project_routing should be a serverless-only setting",
-            QuerySettings.SETTINGS_BY_NAME.get("project_routing").serverlessOnly()
-        );
+        assertTrue("project_routing should be a serverless-only setting", QuerySettings.lookup("project_routing").serverlessOnly());
     }
 
     public void testIncProjectRoutingSetting_Stateful() {

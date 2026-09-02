@@ -629,10 +629,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startTransportService() throws Exception {
         ThreadPool threadPool = new TestThreadPool(getClass().getName());
         this.threadPool = threadPool;
         nodeConnectionBlocks = newConcurrentMap();
@@ -642,13 +640,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         transportService.acceptIncomingRequests();
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void stopTransportService() throws Exception {
         transportService.stop();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
-        super.tearDown();
     }
 
     private static final class TestTransportService extends TransportService {

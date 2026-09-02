@@ -1,4 +1,6 @@
 @timestamp:date,resource.attributes:json,attributes:json
+2020-01-01T00:00:00.000Z,{"host.name": "equal-host"},{"host.name": "equal-host"}
+2020-01-01T00:04:00.000Z,,{"host.name": "null-resource-test"}
 2020-01-01T00:07:43.000Z,{"agent.id": "3ac5081d-9275-4cde-a2a8-a00b794a20f4"\, "agent.type": "filebeat"\, "host.ip": ["10.224.0.170"\, "fe80::4001:aff:fee0:aa"]\, "host.name": "devops-ci-master-blue.c.elastic-ci-prod.internal"},{"event.module": "nginx"\, "nginx.error.connection_id": 184896\, "input.type": "log"}
 2020-01-01T14:37:29.195Z,{"agent.id": "f767fc00-eaae-4717-a33e-19b2bd95df6d"\, "agent.type": "filebeat"\, "host.ip": ["10.224.2.157"\, "fe80::4001:aff:fee0:29d"\, "172.17.0.1"\, "fe80::42:48ff:fe1a:ed7d"\, "fe80::9c8e:44ff:fe9e:da94"]\, "host.name": "elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683"},{"host.os.family": "debian"\, "event.timezone": "+00:00"}
 2020-01-01T00:31:18.303Z,{"agent.id": "8a161b55-80d0-4ba3-afc8-31d5e15fc51c"\, "agent.type": "filebeat"\, "host.ip": ["10.224.0.109"\, "fe80::4001:aff:fee0:6d"\, "172.17.0.1"]\, "host.name": "elasticsearch-ci-immutable-sles-15-1599243844262984968"},{"type": "beats"\, "host.hostname": "packer-5f46fe0f-30b7-3cfd-fb49-92540d440837"}

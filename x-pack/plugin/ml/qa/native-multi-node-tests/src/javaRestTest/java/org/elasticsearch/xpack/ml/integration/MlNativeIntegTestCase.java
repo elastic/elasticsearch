@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -28,7 +30,6 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -58,7 +59,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ExternalTestCluster;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
@@ -98,6 +101,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
+import org.elasticsearch.xpack.encryption.EncryptionPlugin;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.gpu.GPUPlugin;
@@ -113,6 +117,7 @@ import org.elasticsearch.xpack.slm.SnapshotLifecycle;
 import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.transform.Transform;
 import org.junit.After;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.TestRule;
 
@@ -145,7 +150,11 @@ import static org.hamcrest.Matchers.is;
 /**
  * Base class of ML integration tests that use a native autodetect process
  */
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 abstract class MlNativeIntegTestCase extends ESIntegTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster CLUSTER = Clusters.CLUSTER;
 
     @Rule
     public final TestRule templateDecoratorRule = TemplateDecoratorRule.initDefault();
@@ -177,6 +186,10 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             DataStreamsPlugin.class,
             // ESQL and its dependency needed for node features
             EsqlCorePlugin.class,
+            // Encryption plugin needed to deserialize the project encryption key custom in cluster state from DEFAULT distribution
+            // nodes, and must precede EsqlPlugin: EsqlPlugin.createComponents reads EncryptionServiceRegistry, populated by the
+            // encryption plugin's createComponents.
+            EncryptionPlugin.class,
             EsqlPlugin.class,
             // basic multi-project functionality
             TestOnlyMultiProjectPlugin.class,
@@ -241,16 +254,10 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
-        final String clusterAddresses = System.getProperty(TESTS_CLUSTER);
-        assertTrue(TESTS_CLUSTER + " must be set", Strings.hasLength(clusterAddresses));
         if (scope == Scope.TEST) {
-            throw new IllegalArgumentException("Cannot run TEST scope test with " + TESTS_CLUSTER);
+            throw new IllegalArgumentException("Cannot run TEST scope test with an externally started cluster");
         }
-        final String clusterName = System.getProperty(TESTS_CLUSTER_NAME);
-        if (Strings.isNullOrEmpty(clusterName)) {
-            throw new IllegalArgumentException("External test cluster name must be provided");
-        }
-        final String[] stringAddresses = clusterAddresses.split(",");
+        final String[] stringAddresses = CLUSTER.getTransportEndpoints().split(",");
         final TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
         int i = 0;
         for (String stringAddress : stringAddresses) {
@@ -263,7 +270,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             externalClusterClientSettings(),
             nodePlugins(),
             getClientWrapper(),
-            clusterName,
+            Clusters.CLUSTER_NAME,
             transportAddresses
         );
     }
@@ -285,7 +292,12 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME,
                 ".deprecation-indexing-template",
                 ".deprecation-indexing-settings",
-                ".deprecation-indexing-mappings"
+                ".deprecation-indexing-mappings",
+                // AI index components
+                "ai-index-idx",
+                "ai-index-ds",
+                "ai-index@mappings",
+                "ai-index@ds-settings"
             )
         );
     }

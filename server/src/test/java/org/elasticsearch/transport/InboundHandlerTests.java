@@ -63,8 +63,7 @@ public class InboundHandlerTests extends ESTestCase {
     private MockBytesRefRecycler recycler;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initHandler() throws Exception {
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
@@ -102,10 +101,9 @@ public class InboundHandlerTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void cleanup() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         Releasables.closeExpectNoException(recycler);
-        super.tearDown();
     }
 
     public void testPing() throws Exception {
@@ -233,6 +231,49 @@ public class InboundHandlerTests extends ESTestCase {
         }
     }
 
+    public void testResponseReceivedReportsNetworkMessageSize() throws Exception {
+        String action = "test-request";
+        AtomicReference<Integer> capturedNetworkMessageSize = new AtomicReference<>();
+        long requestId = responseHandlers.add(new TransportResponseHandler<TestResponse>() {
+            @Override
+            public Executor executor() {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
+            @Override
+            public void handleResponse(TestResponse response) {}
+
+            @Override
+            public void handleException(TransportException exp) {}
+
+            @Override
+            public TestResponse read(StreamInput in) throws IOException {
+                return new TestResponse("");
+            }
+        }, null, action).requestId();
+
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            @SuppressWarnings("rawtypes")
+            public void onResponseReceived(long id, Transport.ResponseContext context, int networkMessageSize) {
+                assertEquals(requestId, id);
+                capturedNetworkMessageSize.set(networkMessageSize);
+            }
+        });
+
+        int networkMessageSize = between(1, 1000);
+        Header responseHeader = new Header(
+            networkMessageSize,
+            requestId,
+            TransportStatus.setResponse((byte) 0),
+            TransportVersion.current()
+        );
+        responseHeader.headers = Tuple.tuple(Map.of(), Map.of());
+        handler.inboundMessage(channel, new InboundMessage(responseHeader, ReleasableBytesReference.empty(), () -> {}));
+
+        assertEquals(networkMessageSize + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE, capturedNetworkMessageSize.get().intValue());
+    }
+
     public void testClosesChannelOnErrorInHandshake() throws Exception {
         // Nodes use their minimum compatibility version for the TCP handshake, so a node from v(major-1).x will report its version as
         // v(major-2).last in the TCP handshake, with which we are not really compatible. We put extra effort into making sure that if
@@ -333,7 +374,7 @@ public class InboundHandlerTests extends ESTestCase {
             handler.setMessageListener(new TransportMessageListener() {
                 @Override
                 @SuppressWarnings("rawtypes")
-                public void onResponseReceived(long requestId, Transport.ResponseContext context) {
+                public void onResponseReceived(long requestId, Transport.ResponseContext context, int networkMessageSize) {
                     assertEquals(responseId, requestId);
                     safeSleep(TimeValue.timeValueSeconds(1));
                 }

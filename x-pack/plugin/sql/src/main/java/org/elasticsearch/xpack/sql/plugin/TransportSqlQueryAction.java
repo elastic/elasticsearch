@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -119,7 +120,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             threadPool,
             bigArrays
         );
-        this.activityLogger = new ActivityLogger<>(
+        this.activityLogger = new QueryLogger<>(
             clusterService.getClusterSettings(),
             new SqlLogProducer(),
             logWriterProvider,
@@ -130,7 +131,6 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
     @Override
     protected void doExecute(Task task, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
-        listener = activityLogger.wrap(listener, new SqlLogContextBuilder(task, request));
         if (request.waitForCompletionTimeout() != null && request.waitForCompletionTimeout().getMillis() >= 0) {
             asyncTaskManagementService.asyncExecute(
                 request,
@@ -140,7 +140,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
                 listener
             );
         } else {
-            operation(
+            loggedOperation(
                 planExecutor,
                 (SqlQueryTask) task,
                 request,
@@ -148,9 +148,28 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
                 username(securityContext),
                 transportService,
                 clusterService,
-                crossProjectModeDecider
+                crossProjectModeDecider,
+                activityLogger
             );
         }
+    }
+
+    public static void loggedOperation(
+        PlanExecutor planExecutor,
+        SqlQueryTask task,
+        SqlQueryRequest request,
+        ActionListener<SqlQueryResponse> operationListener,
+        String username,
+        TransportService transportService,
+        ClusterService clusterService,
+        CrossProjectModeDecider crossProjectModeDecider,
+        ActivityLogger<SqlLogContext> activityLogger
+    ) {
+        activityLogger.wrapAndRun(
+            operationListener,
+            new SqlLogContextBuilder(task, request),
+            (l) -> operation(planExecutor, task, request, l, username, transportService, clusterService, crossProjectModeDecider)
+        );
     }
 
     /**
@@ -160,7 +179,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         PlanExecutor planExecutor,
         SqlQueryTask task,
         SqlQueryRequest request,
-        ActionListener<SqlQueryResponse> listener,
+        ActionListener<SqlQueryResponse> operationListener,
         String username,
         TransportService transportService,
         ClusterService clusterService,
@@ -193,20 +212,19 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             crossProjectEnabled,
             request.projectRouting()
         );
-
         if (Strings.hasText(request.cursor()) == false) {
             planExecutor.sql(
                 cfg,
                 request.query(),
                 request.params(),
-                wrap(p -> listener.onResponse(createResponseWithSchema(request, p, task)), listener::onFailure)
+                wrap(p -> operationListener.onResponse(createResponseWithSchema(request, p, task)), operationListener::onFailure)
             );
         } else {
             Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor(), planExecutor.writeableRegistry());
             planExecutor.nextPage(
                 cfg,
                 decoded.v1(),
-                listener.delegateFailureAndWrap((l, p) -> l.onResponse(createResponse(request, decoded.v2(), null, p, task)))
+                operationListener.delegateFailureAndWrap((l, p) -> l.onResponse(createResponse(request, decoded.v2(), null, p, task)))
             );
         }
     }
@@ -308,7 +326,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
 
     @Override
     public void execute(SqlQueryRequest request, SqlQueryTask task, ActionListener<SqlQueryResponse> listener) {
-        operation(
+        loggedOperation(
             planExecutor,
             task,
             request,
@@ -316,7 +334,8 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             username(securityContext),
             transportService,
             clusterService,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            activityLogger
         );
     }
 

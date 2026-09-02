@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.generator.function.BooleanExpressionGenerator;
+import org.elasticsearch.xpack.esql.generator.function.CompositeFunctionGenerator;
 import org.elasticsearch.xpack.esql.generator.function.ConditionalFunctionGenerator;
 import org.elasticsearch.xpack.esql.generator.function.DateFunctionGenerator;
 import org.elasticsearch.xpack.esql.generator.function.FullTextFunctionGenerator;
@@ -320,5 +321,21 @@ public class FunctionGenerator {
      */
     public static String typeSafeExpression(List<Column> columns, Set<String> acceptedTypes, boolean allowUnmapped) {
         return TypeSafeExpressionGenerator.typeSafeExpression(columns, acceptedTypes, allowUnmapped);
+    }
+
+    // ========= Composite expressions =========
+
+    /**
+     * Generates a composite function expression with nested function calls whose outermost call
+     * returns {@code targetType}, e.g. {@code to_string(sin(cos(a)))}.
+     *
+     * @param columns       available input columns
+     * @param allowUnmapped if true, may use unmapped field names as leaf arguments
+     * @param targetType    the ES|QL type the outermost expression must return
+     * @param maxDepth      maximum nesting depth (1 = single call, 2 = f(g(...)), etc.)
+     * @return an expression string, or {@code null} if none can be generated
+     */
+    public static String compositeExpression(List<Column> columns, boolean allowUnmapped, String targetType, int maxDepth) {
+        return CompositeFunctionGenerator.compositeExpression(columns, allowUnmapped, targetType, maxDepth);
     }
 }

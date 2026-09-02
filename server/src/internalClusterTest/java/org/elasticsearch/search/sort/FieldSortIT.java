@@ -27,6 +27,8 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
@@ -40,6 +42,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -124,6 +127,11 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     protected boolean addMockHttpTransport() {
+        return false;
+    }
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 
@@ -1605,10 +1613,45 @@ public class FieldSortIT extends ESIntegTestCase {
         }
     }
 
+    public void testSortColumnarId() {
+        if (randomBoolean()) {
+            prepareCreate("test", Settings.builder().put("index.mapping.use_columnar_id_mode_by_default", true)).get();
+        } else {
+            prepareCreate("test").setMapping("""
+                {
+                    "_id": { "mode": "columnar" }
+                }
+                """).get();
+        }
+        ensureGreen();
+        final int numDocs = randomIntBetween(10, 20);
+        IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; ++i) {
+            indexReqs[i] = prepareIndex("test").setId(Integer.toString(i)).setSource();
+        }
+        indexRandom(true, indexReqs);
+
+        SortOrder order = randomFrom(SortOrder.values());
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(matchAllQuery()).setSize(randomIntBetween(1, numDocs + 5)).addSort("_id", order),
+            response -> {
+                SearchHit[] hits = response.getHits().getHits();
+                BytesRef previous = order == SortOrder.ASC ? new BytesRef() : UnicodeUtil.BIG_TERM;
+                for (int i = 0; i < hits.length; ++i) {
+                    String idString = hits[i].getId();
+                    final BytesRef id = new BytesRef(idString);
+                    assertEquals(idString, hits[i].getSortValues()[0]);
+                    assertThat(previous, order == SortOrder.ASC ? lessThan(id) : greaterThan(id));
+                    previous = id;
+                }
+            }
+        );
+    }
+
     /**
      * Test case for issue 6150: https://github.com/elastic/elasticsearch/issues/6150
      */
-    public void testNestedSort() throws IOException, InterruptedException, ExecutionException {
+    public void testNestedSort() throws IOException {
         assertAcked(
             prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
@@ -1747,7 +1790,74 @@ public class FieldSortIT extends ESIntegTestCase {
         assertThat(exc.toString(), containsString("it is mandatory to set the [nested] context"));
     }
 
-    public void testSortDuelBetweenSingleShardAndMultiShardIndex() throws Exception {
+    public void testNestedIntegerSortOnOldIndex() throws Exception {
+        IndexVersion oldVersion = randomBoolean()
+            ? IndexVersionUtils.randomVersionBetween(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19)
+            )
+            : IndexVersionUtils.randomVersionBetween(
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_INT_SORT_INT_TYPE)
+            );
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, oldVersion).build();
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping("""
+            {
+                "properties": {
+                    "obj": {
+                        "type": "nested",
+                        "properties": {
+                            "value": { "type": "integer" }
+                        }
+                    },
+                    "values": { "type": "integer" }
+                }
+            }
+            """));
+        indexRandom(
+            true,
+            prepareIndex("test").setSource(
+                jsonBuilder().startObject().startObject("obj").field("value", 30).endObject().array("values", 1, 100).endObject()
+            ),
+            prepareIndex("test").setSource(
+                jsonBuilder().startObject().startObject("obj").field("value", 10).endObject().array("values", 20, 30).endObject()
+            ),
+            prepareIndex("test").setSource(
+                jsonBuilder().startObject().startObject("obj").field("value", 20).endObject().array("values", 40, 50).endObject()
+            )
+        );
+
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(matchAllQuery())
+                .addSort(SortBuilders.fieldSort("obj.value").setNestedSort(new NestedSortBuilder("obj")).order(SortOrder.ASC)),
+            response -> assertSortValues(response, 10L, 20L, 30L)
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(matchAllQuery())
+                .addSort(SortBuilders.fieldSort("obj.value").setNestedSort(new NestedSortBuilder("obj")).order(SortOrder.DESC)),
+            response -> assertSortValues(response, 30L, 20L, 10L)
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(matchAllQuery())
+                .addSort(SortBuilders.fieldSort("values").sortMode(SortMode.MAX).order(SortOrder.DESC)),
+            response -> assertSortValues(response, 100L, 50L, 30L)
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(matchAllQuery())
+                .addSort(SortBuilders.fieldSort("values").sortMode(SortMode.SUM).order(SortOrder.DESC)),
+            response -> assertSortValues(response, 101L, 90L, 50L)
+        );
+    }
+
+    private static void assertSortValues(SearchResponse response, long... expectedValues) {
+        SearchHit[] hits = response.getHits().getHits();
+        assertThat(hits.length, is(expectedValues.length));
+        for (int i = 0; i < expectedValues.length; i++) {
+            assertThat(((Number) hits[i].getSortValues()[0]).longValue(), equalTo(expectedValues[i]));
+        }
+    }
+
+    public void testSortDuelBetweenSingleShardAndMultiShardIndex() {
         String sortField = "sortField";
         assertAcked(
             prepareCreate("test1").setSettings(
@@ -1793,7 +1903,7 @@ public class FieldSortIT extends ESIntegTestCase {
         );
     }
 
-    public void testCustomFormat() throws Exception {
+    public void testCustomFormat() {
         // Use an ip field, which uses different internal/external
         // representations of values, to make sure values are both correctly
         // rendered and parsed (search_after)
@@ -1895,7 +2005,7 @@ public class FieldSortIT extends ESIntegTestCase {
         );
     }
 
-    public void testFieldAliasesWithMissingValues() throws Exception {
+    public void testFieldAliasesWithMissingValues() {
         // Create two indices and add the field 'route_length_miles' as an alias in
         // one, and a concrete field in the other.
         assertAcked(prepareCreate("old_index").setMapping("distance", "type=double", "route_length_miles", "type=alias,path=distance"));

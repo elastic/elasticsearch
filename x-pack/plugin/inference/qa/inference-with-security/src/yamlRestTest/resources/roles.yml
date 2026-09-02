@@ -6,3 +6,7 @@ monitor_only_user:
     - names: [ 'test-index*' ]
       privileges:
         - all
+
+monitor_inference_only_user:
+  cluster:
+    - monitor_inference

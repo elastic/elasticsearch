@@ -16,6 +16,7 @@ keyword:
           settings:
             index:
               mapping.source.mode: synthetic
+              recovery.use_synthetic_source: true
           mappings:
             properties:
               kwd:
@@ -76,6 +77,7 @@ stored text:
           settings:
             index:
               mapping.source.mode: synthetic
+              recovery.use_synthetic_source: true
           mappings:
             properties:
               text:

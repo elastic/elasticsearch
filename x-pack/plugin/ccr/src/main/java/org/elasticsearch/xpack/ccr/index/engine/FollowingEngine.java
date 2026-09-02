@@ -20,6 +20,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -28,6 +29,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
 
@@ -119,7 +121,7 @@ public class FollowingEngine extends InternalEngine {
     protected long generateSeqNoForOperationOnPrimary(final Operation operation) {
         assert operation.origin() == Operation.Origin.PRIMARY;
         assert operation.seqNo() >= 0 : "ops should have an assigned seq no. but was: " + operation.seqNo();
-        markSeqNoAsSeen(operation.seqNo()); // even though we're not generating a sequence number, we mark it as seen
+        advanceMaxSeqNo(operation.seqNo()); // even though we're not generating a sequence number, we advance max_seq_no
         return operation.seqNo();
     }
 
@@ -174,6 +176,14 @@ public class FollowingEngine extends InternalEngine {
         assert index.version() == 1 && index.versionType() == VersionType.EXTERNAL
             : "version [" + index.version() + "], type [" + index.versionType() + "]";
         return true;
+    }
+
+    @Override
+    public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
+        // CCR following engine has special versioning semantics; delegate to InternalEngine's batch
+        // path which uses planIndexingAsNonPrimary for replica/recovery origins.
+        // TODO: Verify that InternalEngine's planIndexingAsNonPrimary honours CCR versioning.
+        return super.indexBatch(engineBatch);
     }
 
     private OptionalLong lookupPrimaryTerm(final long seqNo) throws IOException {

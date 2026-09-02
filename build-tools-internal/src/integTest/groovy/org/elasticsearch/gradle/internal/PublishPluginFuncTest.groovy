@@ -24,8 +24,6 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
     def setup() {
         // required for JarHell to work
         subProject(":libs:core") << "apply plugin:'java'"
-
-        configurationCacheCompatible = false
     }
 
     def "project with plugin applied is considered for maven central publication"() {
@@ -155,7 +153,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
   <artifactId>some-public-lib</artifactId>
   <version>1.0</version>
   <name>some-public-lib</name>
-  <description/>
+  <description>Elasticsearch subproject :libs:some-public-lib</description>
   <url>unknown</url>
   <scm>
     <url>unknown</url>
@@ -198,7 +196,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
   <artifactId>some-other-lib</artifactId>
   <version>1.0</version>
   <name>some-other-lib</name>
-  <description/>
+  <description>Elasticsearch subproject :libs:some-other-lib</description>
   <url>unknown</url>
   <scm>
     <url>unknown</url>

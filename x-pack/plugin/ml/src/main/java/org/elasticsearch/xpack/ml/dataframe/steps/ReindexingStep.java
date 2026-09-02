@@ -27,8 +27,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.Script;
@@ -39,6 +39,7 @@ import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
@@ -89,7 +90,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
         final ParentTaskAssigningClient parentTaskClient = parentTaskClient();
 
         // Reindexing is complete
-        ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(reindexResponse -> {
+        ActionListener<BulkByPaginatedSearchResponse> reindexCompletedListener = ActionListener.wrap(reindexResponse -> {
 
             // If the reindex task is canceled, this listener is called.
             // Consequently, we should not signal reindex completion.
@@ -147,6 +148,9 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
             reindexRequest.getSearchRequest().allowPartialSearchResults(false);
             reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
             reindexRequest.setDestIndex(config.getDest().getIndex());
+            // Stable source order so ml__incremental_id maps to the same source docs on every reindex; the
+            // train/test splitter consumes Random in incremental-id order (see DataFrameDataExtractor).
+            reindexRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
 
             // We explicitly set slices to 1 as we cannot parallelize in order to have the incremental id
             reindexRequest.setSlices(1);
@@ -231,7 +235,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
         );
     }
 
-    private static Exception getReindexError(String jobId, BulkByScrollResponse reindexResponse) {
+    private static Exception getReindexError(String jobId, BulkByPaginatedSearchResponse reindexResponse) {
         if (reindexResponse.getBulkFailures().isEmpty() == false) {
             LOGGER.error("[{}] reindexing encountered {} failures", jobId, reindexResponse.getBulkFailures().size());
             for (BulkItemResponse.Failure failure : reindexResponse.getBulkFailures()) {
@@ -327,7 +331,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
         getTaskRequest.setTaskId(reindexTaskId);
         client.admin().cluster().getTask(getTaskRequest, ActionListener.wrap(taskResponse -> {
             TaskResult taskResult = taskResponse.getTask();
-            BulkByScrollTask.Status taskStatus = (BulkByScrollTask.Status) taskResult.getTask().status();
+            BulkByPaginatedSearchTask.Status taskStatus = (BulkByPaginatedSearchTask.Status) taskResult.getTask().status();
             int progress = (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal());
             listener.onResponse(progress);
         }, error -> {

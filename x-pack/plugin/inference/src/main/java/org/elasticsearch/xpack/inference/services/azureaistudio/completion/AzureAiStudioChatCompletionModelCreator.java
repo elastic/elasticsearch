@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.inference.services.ModelCreator;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProviderCapabilities.checkProviderAndEndpointTypeForTask;
+
 /**
  * Creates {@link AzureAiStudioChatCompletionModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
@@ -33,11 +35,23 @@ public class AzureAiStudioChatCompletionModelCreator implements ModelCreator<Azu
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return new AzureAiStudioChatCompletionModel(inferenceId, taskType, service, serviceSettings, taskSettings, secretSettings, context);
+        var model = new AzureAiStudioChatCompletionModel(
+            inferenceId,
+            taskType,
+            service,
+            serviceSettings,
+            taskSettings,
+            secretSettings,
+            context
+        );
+        checkProviderAndEndpointTypeForTask(model.getTaskType(), model.provider(), model.endpointType());
+        return model;
     }
 
     @Override
     public AzureAiStudioChatCompletionModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return new AzureAiStudioChatCompletionModel(config, secrets);
+        var model = new AzureAiStudioChatCompletionModel(config, secrets);
+        checkProviderAndEndpointTypeForTask(model.getTaskType(), model.provider(), model.endpointType());
+        return model;
     }
 }

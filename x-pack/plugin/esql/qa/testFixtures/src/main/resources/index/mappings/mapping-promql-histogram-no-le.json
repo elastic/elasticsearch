@@ -1,0 +1,19 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "job": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
+    "instance": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
+    "request_duration_seconds_bucket": {
+      "type": "double",
+      "time_series_metric": "counter"
+    }
+  }
+}

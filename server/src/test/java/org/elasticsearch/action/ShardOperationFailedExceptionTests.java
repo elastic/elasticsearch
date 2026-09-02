@@ -65,6 +65,29 @@ public class ShardOperationFailedExceptionTests extends ESTestCase {
         new Failure(null, randomInt(), randomAlphaOfLengthBetween(5, 10), randomFrom(RestStatus.values()), new IllegalArgumentException());
     }
 
+    public void testGetMessageIncludesIndexAndShard() {
+        Failure failure = new Failure(
+            "books",
+            7,
+            randomAlphaOfLengthBetween(5, 10),
+            randomFrom(RestStatus.values()),
+            new IllegalArgumentException()
+        );
+        assertEquals("shard [books][7]", failure.getMessage());
+        assertEquals("org.elasticsearch.action.ShardOperationFailedExceptionTests$Failure: shard [books][7]", failure.toString());
+    }
+
+    public void testGetMessageWhenIndexIsNull() {
+        Failure failure = new Failure(
+            null,
+            -1,
+            randomAlphaOfLengthBetween(5, 10),
+            randomFrom(RestStatus.values()),
+            new IllegalArgumentException()
+        );
+        assertEquals("shard [_na][-1]", failure.getMessage());
+    }
+
     private static class Failure extends ShardOperationFailedException {
 
         Failure(@Nullable String index, int shardId, String reason, RestStatus status, Throwable cause) {

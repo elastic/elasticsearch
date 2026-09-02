@@ -1,0 +1,3 @@
+TopN[[Order[s{r}#0,DESC,FIRST]],1[INTEGER],false]
+\_Eval[[COSINESIMILARITY(dense_vector{f}#1,[0.78354394, 0.089722395, 0.88437265][DENSE_VECTOR]) AS s#0]]
+  \_EsRelation[all_types][!alias_integer, boolean{f}#2, byte{f}#3, constant_keyword-foo{f}#4, date{f}#5, date_nanos{f}#6, dense_vector{f}#1, double{f}#7, float{f}#8, half_float{f}#9, integer{f}#10, ip{f}#11, keyword{f}#12, long{f}#13, scaled_float{f}#14, semantic_text{f}#15, short{f}#16, text{f}#17, unsigned_long{f}#18, version{f}#19, wildcard{f}#20]

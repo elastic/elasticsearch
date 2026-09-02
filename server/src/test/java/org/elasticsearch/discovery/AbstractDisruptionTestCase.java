@@ -76,10 +76,8 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
     private boolean disableBeforeIndexDeletion;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void configureDisruptionSettings() throws Exception {
         disableBeforeIndexDeletion = false;
     }
 

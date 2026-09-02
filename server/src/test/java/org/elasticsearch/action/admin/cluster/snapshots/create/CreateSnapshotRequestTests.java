@@ -81,7 +81,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
                 IndicesOptions.builder()
                     .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(randomBoolean()))
                     .wildcardOptions(new IndicesOptions.WildcardOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))
-                    .indexAbstractionOptions(new IndicesOptions.IndexAbstractionOptions(defaultResolveAliasForThisRequest, false))
+                    .indexAbstractionOptions(new IndicesOptions.IndexAbstractionOptions(defaultResolveAliasForThisRequest, false, false))
                     .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(false).includeFailureIndices(true).build())
                     .build()
             );

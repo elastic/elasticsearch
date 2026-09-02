@@ -7,22 +7,22 @@
 
 package org.elasticsearch.xpack.inference.services.deepseek;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.BaseRequestManager;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.deepseek.request.DeepSeekChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -52,7 +52,7 @@ public class DeepSeekRequestManager extends BaseRequestManager {
     ) {
         switch (inferenceInputs) {
             case UnifiedChatInput uci -> execute(uci, requestSender, hasRequestCompletedFunction, listener);
-            case ChatCompletionInput cci -> execute(cci, requestSender, hasRequestCompletedFunction, listener);
+            case CompletionInput cci -> execute(cci, requestSender, hasRequestCompletedFunction, listener);
             default -> throw createUnsupportedTypeException(inferenceInputs, UnifiedChatInput.class);
         }
     }
@@ -68,7 +68,7 @@ public class DeepSeekRequestManager extends BaseRequestManager {
     }
 
     private void execute(
-        ChatCompletionInput inferenceInputs,
+        CompletionInput inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
@@ -79,10 +79,10 @@ public class DeepSeekRequestManager extends BaseRequestManager {
     }
 
     private static ResponseHandler createChatCompletionHandler() {
-        return new OpenAiUnifiedChatCompletionResponseHandler("deepseek chat completion", OpenAiChatCompletionResponseEntity::fromResponse);
+        return new OpenAiUnifiedChatCompletionResponseHandler("deepseek chat completion", OpenAiCompletionResponseEntity::fromResponse);
     }
 
     private static ResponseHandler createCompletionHandler() {
-        return new OpenAiChatCompletionResponseHandler("deepseek completion", OpenAiChatCompletionResponseEntity::fromResponse);
+        return new OpenAiCompletionResponseHandler("deepseek completion", OpenAiCompletionResponseEntity::fromResponse);
     }
 }

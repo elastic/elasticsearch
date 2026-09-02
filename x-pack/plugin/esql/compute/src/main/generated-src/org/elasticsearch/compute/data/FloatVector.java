@@ -25,11 +25,25 @@ public sealed interface FloatVector extends Vector permits ConstantFloatVector, 
 
     float getFloat(int position);
 
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, float[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = getFloat(srcPosition + i);
+        }
+    }
+
     @Override
     FloatBlock asBlock();
 
     @Override
-    FloatVector filter(boolean mayContainDuplicates, int... positions);
+    FloatVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default FloatVector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     FloatBlock keepMask(BooleanVector mask);
@@ -49,6 +63,21 @@ public sealed interface FloatVector extends Vector permits ConstantFloatVector, 
 
     @Override
     ReleasableIterator<? extends FloatBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    FloatVector slice(int beginInclusive, int endExclusive);
+
+    /**
+     * The maximum size in bytes of any single value stored in this vector, or {@code 0} if there are no values.
+     * Always {@code Float.BYTES} since all float values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the

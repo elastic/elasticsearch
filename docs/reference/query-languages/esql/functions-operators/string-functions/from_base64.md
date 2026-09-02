@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `FROM_BASE64` function [esql-from_base64]
 
-:::{include} ../../_snippets/functions/layout/from_base64.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/from_base64.md
 :::

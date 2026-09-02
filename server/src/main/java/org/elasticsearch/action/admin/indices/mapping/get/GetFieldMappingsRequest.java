@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,7 +25,7 @@ import java.io.IOException;
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should go to that client class as well.
  */
-public class GetFieldMappingsRequest extends LegacyActionRequest implements IndicesRequest.Replaceable {
+public class GetFieldMappingsRequest extends UntypedActionRequest implements IndicesRequest.Replaceable {
 
     private String[] fields = Strings.EMPTY_ARRAY;
 

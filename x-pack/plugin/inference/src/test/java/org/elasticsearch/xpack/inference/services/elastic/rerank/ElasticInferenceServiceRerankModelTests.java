@@ -18,13 +18,13 @@ public class ElasticInferenceServiceRerankModelTests extends ESTestCase {
     public void testUriCreation() {
         var model = createModel("http://eis-gateway.com", "my-model-id");
 
-        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/rerank/text/text-similarity"));
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/rerank"));
     }
 
     public void testUriCreation_WithTrailingSlash() {
         var model = createModel("http://eis-gateway.com/", "my-model-id");
 
-        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/rerank/text/text-similarity"));
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/rerank"));
     }
 
     public static ElasticInferenceServiceRerankModel createModel(String url, String modelId) {

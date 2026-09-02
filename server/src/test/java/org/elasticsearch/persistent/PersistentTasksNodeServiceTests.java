@@ -65,19 +65,15 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private PersistentTasksExecutor.Scope scope;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startThreadPool() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         scope = randomFrom(PersistentTasksExecutor.Scope.values());
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void terminateThreadPool() throws Exception {
         terminate(threadPool);
-        super.tearDown();
     }
 
     private ClusterState createInitialClusterState(int nonLocalNodesCount, Settings settings) {

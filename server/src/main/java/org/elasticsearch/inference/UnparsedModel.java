@@ -9,10 +9,12 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Semi parsed model where inference entity id, task type and service
@@ -40,13 +42,13 @@ public record UnparsedModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        Map<String, Object> settings,
-        Map<String, Object> secrets,
+        @Nullable Map<String, Object> settings,
+        @Nullable Map<String, Object> secrets,
         EndpointMetadata endpointMetadata
     ) {
-        this.inferenceEntityId = inferenceEntityId;
-        this.taskType = taskType;
-        this.service = service;
+        this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
+        this.taskType = Objects.requireNonNull(taskType);
+        this.service = Objects.requireNonNull(service);
 
         // We ensure that settings and secrets maps are modifiable because during parsing we are removing from them
         this.settings = settings == null ? null : new HashMap<>(settings);
@@ -54,6 +56,6 @@ public record UnparsedModel(
         // which should not be necessary when parsing a persisted model.
         this.secrets = secrets == null || secrets.isEmpty() ? null : new HashMap<>(secrets);
 
-        this.endpointMetadata = endpointMetadata;
+        this.endpointMetadata = Objects.requireNonNull(endpointMetadata);
     }
 }

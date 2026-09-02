@@ -62,7 +62,6 @@ public class MappingParserTests extends MapperServiceTestCase {
             scriptService,
             indexAnalyzers,
             indexSettings,
-            indexSettings.getMode().idFieldMapperWithoutFieldData(),
             bitsetFilterCache::getBitSetProducer,
             null
         );

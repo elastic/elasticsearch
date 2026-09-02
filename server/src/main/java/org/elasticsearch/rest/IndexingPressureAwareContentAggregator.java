@@ -21,11 +21,12 @@ import java.util.ArrayList;
 import java.util.Objects;
 
 /**
- * Accumulates a streamed HTTP request body while tracking memory usage via {@link IndexingPressure}.
+ * Accumulates an HTTP request body while tracking memory usage via {@link IndexingPressure}.
  * <p>
  * This is intended for indexing-related REST endpoints that receive opaque request bodies (e.g. protobuf)
  * which must be fully accumulated before processing. It provides backpressure by reserving memory
  * up front and rejecting oversized requests with a 413 status.
+ * The body may already be fully aggregated by a REST interceptor before it reaches this consumer.
  * <p>
  * When {@link #accept(RestChannel)} is called, the aggregator reserves memory via
  * {@link IndexingPressure#markCoordinatingOperationStarted}. If the reservation fails
@@ -40,7 +41,7 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
 
     /**
      * Transforms the accumulated request body before it is handed to the {@link CompletionHandler}.
-     * Implementations must release the input reference when they produce new output.
+     * Implementations must not release the input reference; the caller retains ownership.
      */
     @FunctionalInterface
     public interface BodyPostProcessor {
@@ -51,10 +52,10 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
          * Post-processes the accumulated request body (e.g. decompression).
          *
          * @param body The accumulated raw body to process.
-         *             Unless the post-processor returns the same reference, it is responsible for closing it.
-         *             The caller must not use this reference after this method returns.
+         *             The caller remains responsible for closing this reference.
          * @param maxSize The maximum permitted size for the result.
-         * @return The post-processed body. Must not exceed {@code maxSize}. The caller is responsible for closing the returned reference.
+         * @return The post-processed body. Must not exceed {@code maxSize}. If it differs from {@code body}, it must remain valid after
+         *         {@code body} is closed. The caller is responsible for closing the returned reference.
          * @throws IOException on processing failure
          */
         ReleasableBytesReference process(ReleasableBytesReference body, long maxSize) throws IOException;
@@ -117,7 +118,12 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
             completionHandler.onFailure(channel, e);
             return;
         }
-        request.contentStream().next();
+        if (request.isFullContent()) {
+            // A REST interceptor can aggregate the body before this consumer handles it.
+            handleChunk(channel, request.content().retain(), true);
+        } else {
+            request.contentStream().next();
+        }
     }
 
     @Override
@@ -149,12 +155,17 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
             }
             chunks = null;
 
+            ReleasableBytesReference processedBody;
             try {
-                fullBody = bodyPostProcessor.process(fullBody, maxRequestSize);
+                processedBody = bodyPostProcessor.process(fullBody, maxRequestSize);
             } catch (Exception e) {
                 closeOnFailure(channel, e, fullBody);
                 return;
             }
+            if (processedBody != fullBody) {
+                fullBody.close();
+            }
+            fullBody = processedBody;
             accumulatedSize = fullBody.length();
             if (failIfAboveLimit(channel, fullBody)) {
                 return;

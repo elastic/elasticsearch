@@ -1,7 +1,5 @@
-import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.doc.DocSnippetTask
-import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
@@ -80,112 +78,47 @@ restResources {
   }
 }
 
-testClusters.matching { it.name == "yamlRestTest"}.configureEach {
-  if (singleNode().testDistribution == DEFAULT) {
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'indices.lifecycle.history_index_enabled', 'false'
-    keystorePassword 'keystore-password'
-  }
+// The cluster definition has moved into DocsClientYamlTestSuiteIT (JUnit-rule based test cluster framework).
+// We only wire up plugin and resource dependencies on the Gradle side.
 
-  // debug ccr test failures:
-  // https://github.com/elastic/elasticsearch/issues/95678
-  // https://github.com/elastic/elasticsearch/issues/94359
-  // https://github.com/elastic/elasticsearch/issues/96561
-  setting 'logger.org.elasticsearch.transport.SniffConnectionStrategy', 'DEBUG'
-  setting 'logger.org.elasticsearch.transport.RemoteClusterService', 'DEBUG'
-
-  // enable regexes in painless so our tests don't complain about example snippets that use them
-  setting 'script.painless.regex.enabled', 'true'
-  setting 'path.repo', "${buildDir}/cluster/shared/repo"
-  Closure configFile = {
-    extraConfigFile it, file("src/test/cluster/config/$it")
-  }
-  configFile 'analysis/example_word_list.txt'
-  configFile 'analysis/hyphenation_patterns.xml'
-  configFile 'analysis/synonym.txt'
-  configFile 'analysis/stemmer_override.txt'
-  configFile 'userdict_ja.txt'
-  configFile 'userdict_ko.txt'
-  configFile 'KeywordTokenizer.rbbi'
-  extraConfigFile 'hunspell/en_US/en_US.aff', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff')
-  extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
-  extraConfigFile 'httpCa.p12', file("./httpCa.p12")
-  extraConfigFile 'transport.p12', file("./transport.p12")
-  // Whitelist reindexing from the local node so we can test it.
-  setting 'reindex.remote.whitelist', '127.0.0.1:*'
-
-  extraConfigFile 'ingest-geoip/GeoLite2-City.mmdb', file("src/yamlRestTest/resources/GeoLite2-City.mmdb")
-  extraConfigFile 'ingest-geoip/GeoLite2-Country.mmdb', file("src/yamlRestTest/resources/GeoLite2-Country.mmdb")
-
-  // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
-  systemProperty 'es.transport.cname_in_publish_address', 'true'
-  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
-
-
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-
-  // TODO Rene: clean up this kind of cross project file references
-  extraConfigFile 'op-jwks.json', project(':x-pack:test:idp-fixture').file("src/main/resources/oidc/op-jwks.json")
-  extraConfigFile 'idp-docs-metadata.xml', project(':x-pack:test:idp-fixture').file("src/main/resources/idp/shibboleth-idp/metadata/idp-docs-metadata.xml")
-  extraConfigFile 'testClient.crt', project(':x-pack:plugin:security').file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt")
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.security.authc.api_key.enabled', 'true'
-  setting 'xpack.security.authc.token.enabled', 'true'
-  // disable the ILM and SLM history for doc tests to avoid potential lingering tasks that'd cause test flakiness
-  setting 'indices.lifecycle.history_index_enabled', 'false'
-  setting 'slm.history_index_enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.authc.realms.file.file.order', '0'
-  setting 'xpack.security.authc.realms.native.native.order', '1'
-  setting 'xpack.security.authc.realms.oidc.oidc1.order', '2'
-  setting 'xpack.security.authc.realms.oidc.oidc1.op.issuer', 'http://127.0.0.1:8080'
-  setting 'xpack.security.authc.realms.oidc.oidc1.op.authorization_endpoint', "http://127.0.0.1:8080/c2id-login"
-  setting 'xpack.security.authc.realms.oidc.oidc1.op.token_endpoint', "http://127.0.0.1:8080/c2id/token"
-  setting 'xpack.security.authc.realms.oidc.oidc1.op.jwkset_path', 'op-jwks.json'
-  setting 'xpack.security.authc.realms.oidc.oidc1.rp.redirect_uri', 'https://my.fantastic.rp/cb'
-  setting 'xpack.security.authc.realms.oidc.oidc1.rp.client_id', 'elasticsearch-rp'
-  keystore 'xpack.security.authc.realms.oidc.oidc1.rp.client_secret', 'b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2'
-  setting 'xpack.security.authc.realms.oidc.oidc1.rp.response_type', 'id_token'
-  setting 'xpack.security.authc.realms.oidc.oidc1.claims.principal', 'sub'
-  setting 'xpack.security.authc.realms.pki.pki1.order', '3'
-  setting 'xpack.security.authc.realms.pki.pki1.certificate_authorities', '[ "testClient.crt" ]'
-  setting 'xpack.security.authc.realms.pki.pki1.delegation.enabled', 'true'
-  setting 'xpack.security.authc.realms.saml.saml1.order', '4'
-  setting 'xpack.security.authc.realms.saml.saml1.sp.logout', 'https://kibana.org/logout'
-  setting 'xpack.security.authc.realms.saml.saml1.idp.entity_id', 'https://my-idp.org'
-  setting 'xpack.security.authc.realms.saml.saml1.idp.metadata.path', 'idp-docs-metadata.xml'
-  setting 'xpack.security.authc.realms.saml.saml1.sp.entity_id', 'https://kibana.org'
-  setting 'xpack.security.authc.realms.saml.saml1.sp.acs', 'https://kibana.org/api/security/saml/callback'
-  setting 'xpack.security.authc.realms.saml.saml1.attributes.principal', 'uid'
-  setting 'xpack.security.authc.realms.saml.saml1.attributes.name', 'urn:oid:2.5.4.3'
-
-  user username: 'test_admin'
-  user username: 'test_user'
-
-  // build the cluster with all plugins
+dependencies {
+  // build the cluster with all non-repository plugins
   project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
-    /* Skip repositories. We just aren't going to be able to test them so it
-     * doesn't make sense to waste time installing them.
-     */
     if (subproj.path.startsWith(':plugins:repository-')) {
       return
     }
-    // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
-    if (subproj.path.startsWith(':modules:ingest-attachment') && buildParams.inFipsJvm) {
-      return
-    }
-    plugin subproj.path
+    clusterPlugins(project(subproj.path))
+  }
+}
+
+// Cross-project resources copied onto the test classpath so the cluster's @ClassRule
+// can pick them up via Resource.fromClasspath(...).
+tasks.named("processYamlRestTestResources").configure {
+  from(project(":server").file("src/test/resources/indices/analyze/conf_dir/hunspell/en_US")) {
+    into "indices/analyze/conf_dir/hunspell/en_US"
+  }
+  from(project(":x-pack:test:idp-fixture").file("src/main/resources/oidc")) {
+    include "op-jwks.json"
+    into "oidc"
+  }
+  from(project(":x-pack:test:idp-fixture").file("src/main/resources/idp/shibboleth-idp/metadata")) {
+    include "idp-docs-metadata.xml"
+    into "idp/shibboleth-idp/metadata"
+  }
+  from(project(":x-pack:plugin:security").file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation")) {
+    include "testClient.crt"
+    into "org/elasticsearch/xpack/security/action/pki_delegation"
   }
 }
 
 tasks.named("yamlRestTest").configure {
-  def repoFolder = "${layout.buildDirectory.asFile.get()}/cluster/shared/repo"
-  doFirst {
-    delete(repoFolder)
-  }
+  // Pass the docs project directory through so the test class can resolve config files
+  // (analysis configs, p12 truststores, etc.) that still live under docs/src/test/cluster/config
+  // and docs/*.p12 by their original paths.
+  systemProperty 'tests.docs.dir', projectDir.absolutePath
 }
 
-tasks.named("forbiddenPatterns").configure {
+tasks.matching { it.name == 'forbiddenPatterns' }.configureEach {
   exclude '**/*.mmdb'
 }
 

@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 141870
-pr: 142300
-summary: Fix incorrect nullify with unmapped fields
-type: bug

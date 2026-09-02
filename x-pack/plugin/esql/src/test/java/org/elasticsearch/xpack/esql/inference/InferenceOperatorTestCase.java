@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -33,14 +34,18 @@ import org.elasticsearch.compute.test.operator.blocksource.AbstractBlockSourceOp
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -100,9 +105,13 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                 Block[] blocks = new Block[inputsCount];
                 try {
                     for (int b = 0; b < inputsCount; b++) {
+                        // A null value produces no inference request, so a block of nothing but nulls reaches the inference
+                        // service as no request at all. One position per block is therefore always non-null, so that every
+                        // non-empty page issues at least one request and failure-injecting tests have something to fail.
+                        int nonNullPosition = length > 0 ? between(0, length - 1) : -1;
                         try (var builder = blockFactory.newBytesRefBlockBuilder(length)) {
                             for (int i = 0; i < length; i++) {
-                                if (randomInt() % 100 == 0) {
+                                if (i != nonNullPosition && randomInt() % 100 == 0) {
                                     builder.appendNull();
                                 } else {
                                     builder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
@@ -137,18 +146,44 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                 Request request,
                 ActionListener<Response> listener
             ) {
-                runWithRandomDelay(() -> {
-                    if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
+                try {
+                    runWithRandomDelay(() -> {
                         if (shouldFail.get()) {
                             listener.onFailure(failureException);
                             return;
                         }
-                        listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(inferenceRequest)));
-                        return;
-                    }
+                        if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
+                            listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(inferenceRequest)));
+                            return;
+                        }
+                        if (action instanceof EmbeddingAction && request instanceof EmbeddingAction.Request embeddingRequest) {
+                            List<String> inputs = embeddingRequest.getEmbeddingRequest()
+                                .inputs()
+                                .stream()
+                                .map(group -> group.value().value())
+                                .toList();
+                            InferenceAction.Request syntheticRequest = InferenceAction.Request.builder(
+                                embeddingRequest.getInferenceEntityId(),
+                                embeddingRequest.getTaskType()
+                            ).setInput(inputs).build();
+                            listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(syntheticRequest)));
+                            return;
+                        }
+                        if (action instanceof RerankAction && request instanceof RerankAction.Request rerankRequest) {
+                            List<String> inputs = rerankRequest.getRerankRequest().inputs().stream().map(InferenceString::value).toList();
+                            InferenceAction.Request syntheticRequest = InferenceAction.Request.builder(
+                                rerankRequest.getInferenceEntityId(),
+                                rerankRequest.getTaskType()
+                            ).setInput(inputs).build();
+                            listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(syntheticRequest)));
+                            return;
+                        }
 
-                    listener.onFailure(new UnsupportedOperationException("Unexpected action: " + action));
-                });
+                        listener.onFailure(new UnsupportedOperationException("Unexpected action: " + action));
+                    });
+                } catch (EsRejectedExecutionException e) {
+                    listener.onFailure(e);
+                }
             }
 
             private void runWithRandomDelay(Runnable runnable) {

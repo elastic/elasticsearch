@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ACOSH` function [esql-acosh]
 
-:::{include} ../../_snippets/functions/layout/acosh.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/acosh.md
 :::

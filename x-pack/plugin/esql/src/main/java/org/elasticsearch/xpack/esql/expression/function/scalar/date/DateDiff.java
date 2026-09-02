@@ -17,16 +17,22 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -40,7 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
+import java.util.function.ToLongBiFunction;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -55,8 +61,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt
  * in multiples of the unit specified in the first argument.
  * If the second argument (start) is greater than the third argument (end), then negative values are returned.
  */
-public class DateDiff extends EsqlConfigurationFunction {
+public class DateDiff extends EsqlConfigurationFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "DateDiff", DateDiff::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(DateDiff.class)
+        .ternaryConfig(DateDiff::new)
+        .name("date_diff");
 
     private final Expression unit;
     private final Expression startTimestamp;
@@ -68,32 +77,32 @@ public class DateDiff extends EsqlConfigurationFunction {
      */
     public enum Part implements DateTimeField {
 
-        YEAR((start, end) -> safeToInt(ChronoUnit.YEARS.between(start, end)), "years", "yyyy", "yy"),
-        QUARTER((start, end) -> safeToInt(IsoFields.QUARTER_YEARS.between(start, end)), "quarters", "qq", "q"),
-        MONTH((start, end) -> safeToInt(ChronoUnit.MONTHS.between(start, end)), "months", "mm", "m"),
-        DAYOFYEAR((start, end) -> safeToInt(ChronoUnit.DAYS.between(start, end)), "dy", "y"),
-        DAY(DAYOFYEAR::diff, "days", "dd", "d"),
-        WEEK((start, end) -> safeToInt(ChronoUnit.WEEKS.between(start, end)), "weeks", "wk", "ww"),
-        WEEKDAY(DAYOFYEAR::diff, "weekdays", "dw"),
-        HOUR((start, end) -> safeToInt(ChronoUnit.HOURS.between(start, end)), "hours", "hh"),
-        MINUTE((start, end) -> safeToInt(ChronoUnit.MINUTES.between(start, end)), "minutes", "mi", "n"),
-        SECOND((start, end) -> safeToInt(ChronoUnit.SECONDS.between(start, end)), "seconds", "ss", "s"),
-        MILLISECOND((start, end) -> safeToInt(ChronoUnit.MILLIS.between(start, end)), "milliseconds", "ms"),
-        MICROSECOND((start, end) -> safeToInt(ChronoUnit.MICROS.between(start, end)), "microseconds", "mcs"),
-        NANOSECOND((start, end) -> safeToInt(ChronoUnit.NANOS.between(start, end)), "nanoseconds", "ns");
+        YEAR(ChronoUnit.YEARS::between, "years", "yyyy", "yy"),
+        QUARTER(IsoFields.QUARTER_YEARS::between, "quarters", "qq", "q"),
+        MONTH(ChronoUnit.MONTHS::between, "months", "mm", "m"),
+        DAYOFYEAR(ChronoUnit.DAYS::between, "dy", "y"),
+        DAY(ChronoUnit.DAYS::between, "days", "dd", "d"),
+        WEEK(ChronoUnit.WEEKS::between, "weeks", "wk", "ww"),
+        WEEKDAY(ChronoUnit.DAYS::between, "weekdays", "dw"),
+        HOUR(ChronoUnit.HOURS::between, "hours", "hh"),
+        MINUTE(ChronoUnit.MINUTES::between, "minutes", "mi", "n"),
+        SECOND(ChronoUnit.SECONDS::between, "seconds", "ss", "s"),
+        MILLISECOND(ChronoUnit.MILLIS::between, "milliseconds", "ms"),
+        MICROSECOND(ChronoUnit.MICROS::between, "microseconds", "mcs"),
+        NANOSECOND(ChronoUnit.NANOS::between, "nanoseconds", "ns");
 
         private static final Map<String, Part> NAME_TO_PART = DateTimeField.initializeResolutionMap(values());
 
-        private final BiFunction<ZonedDateTime, ZonedDateTime, Integer> diffFunction;
+        private final ToLongBiFunction<ZonedDateTime, ZonedDateTime> longDiffFunction;
         private final Set<String> aliases;
 
-        Part(BiFunction<ZonedDateTime, ZonedDateTime, Integer> diffFunction, String... aliases) {
-            this.diffFunction = diffFunction;
+        Part(ToLongBiFunction<ZonedDateTime, ZonedDateTime> longDiffFunction, String... aliases) {
+            this.longDiffFunction = longDiffFunction;
             this.aliases = Set.of(aliases);
         }
 
-        public Integer diff(ZonedDateTime startTimestamp, ZonedDateTime endTimestamp) {
-            return diffFunction.apply(startTimestamp, endTimestamp);
+        public long diff(ZonedDateTime startTimestamp, ZonedDateTime endTimestamp) {
+            return longDiffFunction.applyAsLong(startTimestamp, endTimestamp);
         }
 
         @Override
@@ -129,7 +138,10 @@ public class DateDiff extends EsqlConfigurationFunction {
     }
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "integer",
+        signatures = { @Signature(params = { "STRING", "date|date_nanos", "date|date_nanos" }, returnType = "integer") },
+        briefSummary = "Returns the difference between two timestamps in the specified unit.",
         description = """
             Subtracts the `startTimestamp` from the `endTimestamp` and returns the difference in multiples of `unit`.
             If `startTimestamp` is later than the `endTimestamp`, negative values are returned.""",
@@ -223,7 +235,7 @@ public class DateDiff extends EsqlConfigurationFunction {
         throws IllegalArgumentException {
         ZonedDateTime zdtStart = ZonedDateTime.ofInstant(Instant.ofEpochMilli(startTimestamp), zoneId);
         ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(Instant.ofEpochMilli(endTimestamp), zoneId);
-        return datePartFieldUnit.diff(zdtStart, zdtEnd);
+        return safeToInt(datePartFieldUnit.diff(zdtStart, zdtEnd));
     }
 
     @Evaluator(extraName = "Millis", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
@@ -236,7 +248,7 @@ public class DateDiff extends EsqlConfigurationFunction {
         throws IllegalArgumentException {
         ZonedDateTime zdtStart = ZonedDateTime.ofInstant(DateUtils.toInstant(startTimestamp), zoneId);
         ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(DateUtils.toInstant(endTimestamp), zoneId);
-        return datePartFieldUnit.diff(zdtStart, zdtEnd);
+        return safeToInt(datePartFieldUnit.diff(zdtStart, zdtEnd));
     }
 
     @Evaluator(extraName = "Nanos", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
@@ -249,7 +261,7 @@ public class DateDiff extends EsqlConfigurationFunction {
         throws IllegalArgumentException {
         ZonedDateTime zdtStart = ZonedDateTime.ofInstant(DateUtils.toInstant(startTimestampNanos), zoneId);
         ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(Instant.ofEpochMilli(endTimestampMillis), zoneId);
-        return datePartFieldUnit.diff(zdtStart, zdtEnd);
+        return safeToInt(datePartFieldUnit.diff(zdtStart, zdtEnd));
     }
 
     @Evaluator(extraName = "NanosMillis", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
@@ -263,7 +275,7 @@ public class DateDiff extends EsqlConfigurationFunction {
         throws IllegalArgumentException {
         ZonedDateTime zdtStart = ZonedDateTime.ofInstant(Instant.ofEpochMilli(startTimestampMillis), zoneId);
         ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(DateUtils.toInstant(endTimestampNanos), zoneId);
-        return datePartFieldUnit.diff(zdtStart, zdtEnd);
+        return safeToInt(datePartFieldUnit.diff(zdtStart, zdtEnd));
     }
 
     @Evaluator(extraName = "MillisNanos", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
@@ -296,7 +308,7 @@ public class DateDiff extends EsqlConfigurationFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        ZoneId zoneId = configuration().zoneId();
+        ZoneId zoneId = QuerySettings.TIME_ZONE.get(configuration().resolvedSettings());
         if (startTimestamp.dataType() == DATETIME && endTimestamp.dataType() == DATETIME) {
             return toEvaluator(toEvaluator, DateDiffConstantMillisEvaluator.Factory::new, DateDiffMillisEvaluator.Factory::new, zoneId);
         } else if (startTimestamp.dataType() == DATE_NANOS && endTimestamp.dataType() == DATE_NANOS) {

@@ -54,7 +54,7 @@ public class MistralChatCompletionModel extends MistralModel {
             taskType,
             service,
             MistralChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

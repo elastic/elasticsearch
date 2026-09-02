@@ -27,7 +27,6 @@ import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_MAX_C
 public class ES92GpuHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
@@ -84,6 +83,11 @@ public class ES92GpuHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase 
 
     @Override
     public void testMismatchedFields() throws Exception {
+        // No bytes support
+    }
+
+    @Override
+    public void testWriterByteVectorRamEstimate() throws Exception {
         // No bytes support
     }
 

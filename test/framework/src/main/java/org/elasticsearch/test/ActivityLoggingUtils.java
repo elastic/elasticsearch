@@ -16,10 +16,10 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.search.SearchLogProducer.SEARCH_LOGGER_LOG_SYSTEM;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_DURATION_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
-import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_LOGGER_ENABLED;
+import static org.elasticsearch.common.logging.activity.QueryLogger.QUERY_LOGGER_ENABLED;
+import static org.elasticsearch.common.logging.activity.QueryLogger.QUERY_LOGGER_LOG_SYSTEM;
 import static org.elasticsearch.common.logging.activity.QueryLogging.ES_QUERY_FIELDS_PREFIX;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_QUERY;
 import static org.elasticsearch.test.ESIntegTestCase.updateClusterSettings;
@@ -34,22 +34,22 @@ import static org.junit.Assert.assertNotNull;
 public class ActivityLoggingUtils {
 
     public static void enableLoggers() {
-        updateClusterSettings(Settings.builder().put(ACTIVITY_LOGGER_ENABLED.getKey(), true));
+        updateClusterSettings(Settings.builder().put(QUERY_LOGGER_ENABLED.getKey(), true));
     }
 
     public static void disableLoggers() {
-        updateClusterSettings(Settings.builder().put(ACTIVITY_LOGGER_ENABLED.getKey(), (String) null));
+        updateClusterSettings(Settings.builder().put(QUERY_LOGGER_ENABLED.getKey(), (String) null));
     }
 
     public static void enableLoggingSystem() {
         var builder = Settings.builder();
-        builder.put(SEARCH_LOGGER_LOG_SYSTEM.getKey(), true);
+        builder.put(QUERY_LOGGER_LOG_SYSTEM.getKey(), true);
         updateClusterSettings(builder);
     }
 
     public static void disableLoggingSystem() {
         var builder = Settings.builder();
-        builder.put(SEARCH_LOGGER_LOG_SYSTEM.getKey(), (String) null);
+        builder.put(QUERY_LOGGER_LOG_SYSTEM.getKey(), (String) null);
         updateClusterSettings(builder);
     }
 

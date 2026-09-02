@@ -11,13 +11,15 @@ applies_to:
 
 This page provides reference content for the `semantic_text` field type, including parameter descriptions, {{infer}} endpoint configuration options, chunking behavior, update operations, querying options, and limitations.
 
+The `semantic_text` field type accepts text only. To use images, audio, video, or PDF files, use [`semantic`](./semantic-field.md) with a compatible multimodal embedding endpoint.
+
 ## Parameters for `semantic_text` [semantic-text-params]
 
 The `semantic_text` field type uses default indexing settings based on the [{{infer}} endpoint](#configuring-inference-endpoints) specified, enabling you to get started without providing additional configuration details. You can override these defaults by customizing the parameters described below.
 
 `inference_id`
 :   (Optional, string) {{infer-cap}} endpoint that will be used to generate
-embeddings for the field. If `search_inference_id` is specified, the {{infer}}
+embeddings for the field. For default values, refer to [default endpoints](./semantic-text-setup-configuration.md#default-endpoints). If `search_inference_id` is specified, the {{infer}}
 endpoint will only be used at index time. Learn more about [configuring this parameter](#configuring-inference-endpoints).
 
 **Updating the `inference_id` parameter**
@@ -53,16 +55,16 @@ the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/opera
     Learn how to [use dedicated endpoints for ingestion and search](./semantic-text-setup-configuration.md#dedicated-endpoints-for-ingestion-and-search).
 
 `index_options` {applies_to}`stack: ga 9.1`
-:   (Optional, object) Specifies the index options to override default values
-for the field. Currently, `dense_vector` and `sparse_vector` index options are supported. For text embeddings, `index_options` may match any allowed.
+:   (Optional, object) Specifies the index options to override default values for the field.
+`dense_vector` and `sparse_vector` index options are supported.
 
     :::{note}
     This parameter configures vector indexing structures. It is distinct from the [`index_options`](/reference/elasticsearch/mapping-reference/index-options.md) parameter used by term-based fields to control whether term frequencies, positions, and offsets are stored in the inverted index.
     :::
 
-- [dense_vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options)
+- [dense_vector index options](semantic-text-setup-configuration.md#index-options-dense_vectors)
 
-- [sparse_vector index options](/reference/elasticsearch/mapping-reference/sparse-vector.md#sparse-vectors-params) {applies_to}`stack: ga 9.2`
+- [sparse_vector index options](semantic-text-setup-configuration.md#index-options-sparse_vectors) {applies_to}`stack: ga 9.2`
 
 `chunking_settings` {applies_to}`stack: ga 9.1`
 :   (Optional, object) Settings for chunking text into smaller passages.
@@ -112,9 +114,13 @@ PUT my-index-000004
 3. Disables automatic chunking by setting the chunking strategy to `none`.
 
 ::::{note}
-{applies_to}`stack: ga 9.1`  Newly created indices with `semantic_text` fields using dense embeddings will be
+{applies_to}`serverless: ga` {applies_to}`stack: ga 9.1`  Newly created indices with `semantic_text` fields using dense embeddings will be
 [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
 to `bbq_hnsw` automatically as long as they have a minimum of 64 dimensions.
+
+{applies_to}`serverless: ga` {applies_to}`stack: ga 9.4` Newly created indices with `semantic_text` fields that use dense embeddings with the `float` element type will automatically use the [`bfloat16`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-element-type) element type.
+This halves the storage required per vector dimension (2 bytes instead of 4) with a negligible impact on search relevance for most use cases.
+You can [override this default](./semantic-text-setup-configuration.md#index-options-dense_vectors-element-type-override) by explicitly setting `element_type` in `index_options`.
 ::::
 
 ## {{infer-cap}} endpoints [configuring-inference-endpoints]
@@ -123,13 +129,17 @@ The `semantic_text` field type specifies an {{infer}} endpoint identifier (`infe
 
 The following {{infer}} endpoint configurations are available:
 
-- [Default and preconfigured endpoints](./semantic-text-setup-configuration.md#default-and-preconfigured-endpoints): Use `semantic_text` without creating an {{infer}} endpoint manually.
+- [Default endpoints](./semantic-text-setup-configuration.md#default-endpoints): Use `semantic_text` without specifying an `inference_id`.
 
-- [ELSER on EIS](./semantic-text-setup-configuration.md#using-elser-on-eis): Use the ELSER model through the Elastic {{infer-cap}} Service.
+- [Jina on EIS (recommended)](./semantic-text-setup-configuration.md#using-jina-on-eis): Use Jina embedding models through Elastic {{infer-cap}} Service. 
 
-- [Custom endpoints](./semantic-text-setup-configuration.md#using-custom-endpoint): Create your own {{infer}} endpoint using the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) to use custom models or third-party services.
+- [ELSER on EIS](./semantic-text-setup-configuration.md#using-elser-on-eis): Use the ELSER model through Elastic {{infer-cap}} Service.
 
-If you use a [custom {{infer}} endpoint](./semantic-text-setup-configuration.md#using-custom-endpoint) through your ML node and not through Elastic {{infer-cap}} Service (EIS), the recommended method is to [use dedicated endpoints for ingestion and search](./semantic-text-setup-configuration.md#dedicated-endpoints-for-ingestion-and-search).
+- [Third-party models on EIS](./semantic-text-setup-configuration.md#using-eis-models): Use other embedding models available through Elastic {{infer-cap}} Service.
+
+- [External {{infer}}](./semantic-text-setup-configuration.md#using-external-inference): Create an {{infer}} endpoint for a third-party model provider with the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put).
+
+If you use an {{infer}} endpoint through your ML node and not through Elastic {{infer-cap}} Service (EIS), the recommended method is to [use dedicated endpoints for ingestion and search](./semantic-text-setup-configuration.md#dedicated-endpoints-for-ingestion-and-search).
 
 {applies_to}`stack: ga 9.1.0` If you use EIS, you don't have to set up dedicated endpoints.
 
@@ -228,6 +238,7 @@ POST /_query
 
 `semantic_text` field types have the following limitations:
 
+* `semantic_text` fields accept text only. For images, audio, video, or PDF files, use [`semantic`](./semantic-field.md).
 * `semantic_text` fields are not currently supported as elements
   of [nested fields](/reference/elasticsearch/mapping-reference/nested.md).
 * `semantic_text` fields can't currently be set as part

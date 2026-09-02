@@ -65,7 +65,7 @@ public class ExponentialHistogramBoxplotAggregatorTests extends ExponentialHisto
 
     public void testRandomHistograms() throws IOException {
         List<ExponentialHistogram> histograms = createRandomHistograms(randomIntBetween(1, 100));
-        boolean anyNonEmpty = histograms.stream().anyMatch(histo -> histo.valueCount() > 0);
+        boolean anyNonEmpty = histograms.stream().anyMatch(histo -> histo.isEmpty() == false);
 
         testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)), boxplot -> {
             assertThat(hasValue(boxplot), equalTo(anyNonEmpty));
@@ -83,7 +83,7 @@ public class ExponentialHistogramBoxplotAggregatorTests extends ExponentialHisto
             .map(Map.Entry::getKey)
             .toList();
 
-        boolean anyMatchingNonEmpty = filteredHistograms.stream().anyMatch(histo -> histo.valueCount() > 0);
+        boolean anyMatchingNonEmpty = filteredHistograms.stream().anyMatch(histo -> histo.isEmpty() == false);
 
         testCase(
             new TermQuery(new Term("match", "yes")),
@@ -109,7 +109,7 @@ public class ExponentialHistogramBoxplotAggregatorTests extends ExponentialHisto
             referenceHistograms.iterator()
         );
 
-        if (reference.valueCount() == 0) {
+        if (reference.isEmpty()) {
             // Empty histogram should produce NaN for quartiles
             assertEquals(Double.POSITIVE_INFINITY, boxplot.getMin(), 0);
             assertEquals(Double.NEGATIVE_INFINITY, boxplot.getMax(), 0);

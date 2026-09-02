@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -27,8 +28,9 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StoreDirectoryMetricsIT extends ESIntegTestCase {
+
     public void testDirectoryMetrics() throws IOException {
-        assumeTrue("directry metrics feature flag must be enabled for test", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+        assumeTrue("directory metrics feature flag must be enabled for test", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
 
         final String indexName = randomIndexName();
         createIndex(indexName, 1, 0);
@@ -42,10 +44,12 @@ public class StoreDirectoryMetricsIT extends ESIntegTestCase {
         final ShardId shardId = new ShardId(clusterService().state().metadata().getProject().index(indexName).getIndex(), 0);
 
         IndexShard searchShard = indicesService.getShardOrNull(shardId);
-        Tuple<Long, DirectoryMetrics> tuple = indicesService.withDirectoryMetrics(() -> {
-            try (Engine.Searcher searcher = searchShard.acquireSearcher("test")) {
-                Directory directory = searcher.getDirectoryReader().directory();
-                Collection<String> files = searcher.getDirectoryReader().getIndexCommit().getFileNames();
+
+        try (Engine.IndexCommitRef commitRef = searchShard.acquireLastIndexCommit(true)) {
+            final IndexCommit commit = commitRef.getIndexCommit();
+            Tuple<Long, DirectoryMetrics> tuple = indicesService.withDirectoryMetrics(() -> {
+                Directory directory = commit.getDirectory();
+                Collection<String> files = commit.getFileNames();
                 long reads = 0;
                 for (String file : files) {
                     IndexInput indexInput = directory.openInput(
@@ -60,10 +64,10 @@ public class StoreDirectoryMetricsIT extends ESIntegTestCase {
                     indexInput.close();
                 }
                 return reads;
-            }
-        });
-        DirectoryMetrics metrics = tuple.v2();
-        StoreMetrics storeMetrics = metrics.metrics("store").cast(StoreMetrics.class);
-        assertThat(storeMetrics.getBytesRead(), equalTo(tuple.v1()));
+            });
+            DirectoryMetrics metrics = tuple.v2();
+            StoreMetrics storeMetrics = metrics.metrics("store").cast(StoreMetrics.class);
+            assertThat(storeMetrics.getBytesRead(), equalTo(tuple.v1()));
+        }
     }
 }

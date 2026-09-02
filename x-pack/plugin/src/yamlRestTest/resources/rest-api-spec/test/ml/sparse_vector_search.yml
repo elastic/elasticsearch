@@ -81,6 +81,17 @@ setup:
           {"index": { "_id": 6 }}
           {"source_text": "washing machine smells", "ml.tokens":{"washing":1.0,"machine":1.0,"smells":1.0}}
 
+  # Force merge to a single segment so that term statistics used by token pruning
+  # (averageTokenFreqRatio) are deterministic regardless of how many segments the
+  # bulk index produced. Without this, the per-segment max unique token count varies
+  # and borderline pruning decisions can flip between runs.
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.forcemerge:
+        index: index-with-sparse-vector
+        max_num_segments: 1
+
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser

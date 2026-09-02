@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 143417
-summary: Fix datasource test failures on Windows and FIPS
-type: bug

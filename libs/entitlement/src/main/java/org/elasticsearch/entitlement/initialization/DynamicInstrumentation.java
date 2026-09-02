@@ -13,18 +13,24 @@ import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bridge.InstrumentationRegistry;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.instrument.UnmodifiableClassException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 class DynamicInstrumentation {
+
+    private static final Logger logger = LogManager.getLogger(DynamicInstrumentation.class);
 
     private static final InstrumentationService INSTRUMENTATION_SERVICE = new ProviderLocator<>(
         "entitlement",
@@ -55,14 +61,15 @@ class DynamicInstrumentation {
     static void initialize(Instrumentation inst, boolean verifyBytecode, InternalInstrumentationRegistry registry)
         throws UnmodifiableClassException {
 
-        var checkMethods = registry.getInstrumentedMethods();
-        var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
+        var rulesByClass = registry.getInstrumentedMethods();
 
-        Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(InstrumentationRegistry.class, checkMethods);
-        var transformer = new Transformer(instrumenter, classesToTransform, verifyBytecode);
+        Set<String> classesWithDirectRules = Set.copyOf(rulesByClass.keySet());
+
+        Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(InstrumentationRegistry.class, rulesByClass);
+        var transformer = new Transformer(instrumenter, classesWithDirectRules, verifyBytecode);
         inst.addTransformer(transformer, true);
 
-        var classesToRetransform = findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform);
+        var classesToRetransform = findClassesToRetransform(inst, inst.getAllLoadedClasses(), classesWithDirectRules);
         try {
             inst.retransformClasses(classesToRetransform);
         } catch (VerifyError e) {
@@ -82,13 +89,66 @@ class DynamicInstrumentation {
         }
     }
 
-    private static Class<?>[] findClassesToRetransform(Class<?>[] loadedClasses, Set<String> classesToTransform) {
+    /**
+     * Finds already-loaded classes that need retransformation, including subtypes of classes with rules.
+     * Performs a full BFS traversal of each class's hierarchy to check for inherited rules,
+     * so visitation order does not matter.
+     */
+    private static Class<?>[] findClassesToRetransform(Instrumentation inst, Class<?>[] loadedClasses, Set<String> classesWithDirectRules) {
         List<Class<?>> retransform = new ArrayList<>();
         for (Class<?> loadedClass : loadedClasses) {
-            if (classesToTransform.contains(loadedClass.getName().replace(".", "/"))) {
-                retransform.add(loadedClass);
+            if (loadedClass.isHidden()) {
+                continue;
             }
+            String internalName = loadedClass.getName().replace('.', '/');
+            boolean directMatch = classesWithDirectRules.contains(internalName);
+            if (directMatch == false) {
+                ClassLoader cl = loadedClass.getClassLoader();
+                if (cl != null && cl != ClassLoader.getPlatformClassLoader()) {
+                    continue;
+                }
+                if (hasRuleInHierarchy(loadedClass, classesWithDirectRules) == false) {
+                    continue;
+                }
+            }
+            if (inst.isModifiableClass(loadedClass) == false) {
+                logger.warn(
+                    "Class [{}] matched for instrumentation but is not modifiable (directMatch={}, loader={}, super={}, interfaces={})",
+                    loadedClass.getName(),
+                    directMatch,
+                    loadedClass.getClassLoader(),
+                    loadedClass.getSuperclass(),
+                    List.of(loadedClass.getInterfaces())
+                );
+                continue;
+            }
+            retransform.add(loadedClass);
         }
         return retransform.toArray(new Class<?>[0]);
+    }
+
+    private static boolean hasRuleInHierarchy(Class<?> clazz, Set<String> classesWithDirectRules) {
+        Set<Class<?>> visited = new HashSet<>();
+        Deque<Class<?>> queue = new ArrayDeque<>();
+        Class<?> sup = clazz.getSuperclass();
+        if (sup != null) {
+            queue.add(sup);
+        }
+        Collections.addAll(queue, clazz.getInterfaces());
+        while (queue.isEmpty() == false) {
+            Class<?> current = queue.poll();
+            if (visited.add(current) == false) {
+                continue;
+            }
+            if (classesWithDirectRules.contains(current.getName().replace('.', '/'))) {
+                return true;
+            }
+            sup = current.getSuperclass();
+            if (sup != null) {
+                queue.add(sup);
+            }
+            Collections.addAll(queue, current.getInterfaces());
+        }
+        return false;
     }
 }

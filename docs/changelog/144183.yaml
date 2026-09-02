@@ -1,7 +1,0 @@
-area: ES|QL
-issues:
- - 144179
-pr: 144183
-summary: Fix field caps incorrectly synthesizing object parents under subobjects:false
-  passthrough mappers
-type: bug

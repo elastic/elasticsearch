@@ -132,43 +132,50 @@ public class SuggestionEntryTests extends ESTestCase {
     private void doTestFromXContent(boolean addRandomFields) throws IOException {
         for (Class<? extends Entry<?>> entryType : ENTRY_PARSERS.keySet()) {
             Entry<Option> entry = createTestItem((forciblyCast(entryType)));
-            XContentType xContentType = randomFrom(XContentType.values());
-            boolean humanReadable = randomBoolean();
-            BytesReference originalBytes = toShuffledXContent(entry, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-            BytesReference mutated;
-            if (addRandomFields) {
-                // "contexts" is an object consisting of key/array pairs, we shouldn't add anything random there
-                // also there can be inner search hits fields inside this option, we need to exclude another couple of paths
-                // where we cannot add random stuff
-                // exclude "options" which contain SearchHits,
-                // on root level of SearchHit fields are interpreted as meta-fields and will be kept
-                Predicate<String> excludeFilter = (path -> path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
-                    || path.endsWith("highlight")
-                    || path.contains("fields")
-                    || path.contains("_source")
-                    || path.contains("inner_hits")
-                    || path.contains("options"));
+            Entry<Option> parsed = null;
+            try {
+                XContentType xContentType = randomFrom(XContentType.values());
+                boolean humanReadable = randomBoolean();
+                BytesReference originalBytes = toShuffledXContent(entry, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+                BytesReference mutated;
+                if (addRandomFields) {
+                    // "contexts" is an object consisting of key/array pairs, we shouldn't add anything random there
+                    // also there can be inner search hits fields inside this option, we need to exclude another couple of paths
+                    // where we cannot add random stuff
+                    // exclude "options" which contain SearchHits,
+                    // on root level of SearchHit fields are interpreted as meta-fields and will be kept
+                    Predicate<String> excludeFilter = (path -> path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
+                        || path.endsWith("highlight")
+                        || path.contains("fields")
+                        || path.contains("_source")
+                        || path.contains("inner_hits")
+                        || path.contains("options"));
 
-                mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
-            } else {
-                mutated = originalBytes;
+                    mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
+                } else {
+                    mutated = originalBytes;
+                }
+                try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
+                    ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                    parsed = (Entry<Option>) ENTRY_PARSERS.get(entry.getClass()).apply(parser);
+                    assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                    assertNull(parser.nextToken());
+                }
+                assertEquals(entry.getClass(), parsed.getClass());
+                assertEquals(entry.getText(), parsed.getText());
+                assertEquals(entry.getLength(), parsed.getLength());
+                assertEquals(entry.getOffset(), parsed.getOffset());
+                assertEquals(entry.getOptions().size(), parsed.getOptions().size());
+                for (int i = 0; i < entry.getOptions().size(); i++) {
+                    assertEquals(entry.getOptions().get(i).getClass(), parsed.getOptions().get(i).getClass());
+                }
+                assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+            } finally {
+                SuggestTests.decRefCompletionOptionTestFactoryRefs(entry);
+                if (parsed != null) {
+                    SuggestTests.decRefCompletionOptionTestFactoryRefs(parsed);
+                }
             }
-            Entry<Option> parsed;
-            try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                parsed = (Entry<Option>) ENTRY_PARSERS.get(entry.getClass()).apply(parser);
-                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-                assertNull(parser.nextToken());
-            }
-            assertEquals(entry.getClass(), parsed.getClass());
-            assertEquals(entry.getText(), parsed.getText());
-            assertEquals(entry.getLength(), parsed.getLength());
-            assertEquals(entry.getOffset(), parsed.getOffset());
-            assertEquals(entry.getOptions().size(), parsed.getOptions().size());
-            for (int i = 0; i < entry.getOptions().size(); i++) {
-                assertEquals(entry.getOptions().get(i).getClass(), parsed.getOptions().get(i).getClass());
-            }
-            assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
         }
     }
 

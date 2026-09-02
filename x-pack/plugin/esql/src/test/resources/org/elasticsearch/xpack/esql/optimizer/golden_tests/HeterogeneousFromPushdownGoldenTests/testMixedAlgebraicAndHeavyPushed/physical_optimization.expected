@@ -1,0 +1,13 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[],[SUM($$partial$$c{r$}#0,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS c#1, FROMPARTIAL($$partial$$d{r$}#2,true[BOOLEAN],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#3,true[BOOLEAN],PT0S[TIME_DURATION])) AS d#4],SINGLE,[$$c$sum{r}#5, $$c$seen{r}#6, $$d$partial{r}#7],null]
+  \_MergeExec[[$$partial$$c{r$}#0, $$partial$$d{r$}#2]]
+    |_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$c#0, TOPARTIAL(COUNTDISTINCT(emp_no{r}#8,true[BOOLEAN],PT0S[TIME_DURATION]),true[BOOLEAN],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#8,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$d#2],FINAL,[$$partial$$c$count{r}#9, $$partial$$c$seen{r}#10, $$partial$$d$partial{r}#11],null]
+    | \_ExchangeExec[[$$partial$$c$count{r}#9, $$partial$$c$seen{r}#10, $$partial$$d$partial{r}#11],true]
+    |   \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$c#0, TOPARTIAL(COUNTDISTINCT(emp_no{r}#8,true[BOOLEAN],PT0S[TIME_DURATION]),true[BOOLEAN],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#8,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$d#2]]
+\_ExternalRelation[s3://bucket/heavy_a.parquet][parquet][emp_no{r}#8, salary{r}#12, dept{r}#13]<>]]
+    \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$c#0, TOPARTIAL(COUNTDISTINCT(emp_no{r}#14,true[BOOLEAN],PT0S[TIME_DURATION]),true[BOOLEAN],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#14,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$d#2],FINAL,[$$partial$$c$count{r}#15, $$partial$$c$seen{r}#16, $$partial$$d$partial{r}#17],null]
+      \_ExchangeExec[[$$partial$$c$count{r}#15, $$partial$$c$seen{r}#16, $$partial$$d$partial{r}#17],true]
+        \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$c#0, TOPARTIAL(COUNTDISTINCT(emp_no{r}#14,true[BOOLEAN],PT0S[TIME_DURATION]),true[BOOLEAN],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#14,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$d#2]]
+\_ExternalRelation[s3://bucket/heavy_b.parquet][parquet][emp_no{r}#14, salary{r}#18, dept{r}#19]<>]]

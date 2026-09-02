@@ -249,7 +249,7 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
         var startTransformActionResponse = client().execute(StartTransformAction.INSTANCE, startTransformRequest).actionGet();
         assertTrue(startTransformActionResponse.isAcknowledged());
 
-        assertMaxPageSearchSizeInSettings(transformId, expectedMaxPageSearchSize);
+        assertBusy(() -> assertMaxPageSearchSizeInSettings(transformId, expectedMaxPageSearchSize));
 
         stopTransform(transformId);
         deleteTransform(transformId);

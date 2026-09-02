@@ -9,34 +9,26 @@
 
 package org.elasticsearch.reindex.management;
 
-import org.elasticsearch.index.reindex.ReindexAction;
-import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Map;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class CancelReindexRequestTests extends ESTestCase {
 
-    public void testNotReindexTaskIsNotEligibleForCancellation() {
-        final CancelReindexRequest request = new CancelReindexRequest(randomBoolean());
-        final CancellableTask task = taskWithActionAndParent("indices:data/write/update", null);
-        assertFalse(request.match(task));
+    public void testValidationFailsWithoutTaskId() {
+        final CancelReindexRequest request = new CancelReindexRequest(TaskId.EMPTY_TASK_ID, randomBoolean());
+        final ActionRequestValidationException validation = request.validate();
+        assertThat(validation, notNullValue());
+        assertThat(validation.getMessage(), containsString("task id must be provided"));
     }
 
-    public void testTaskWithParentIsNotEligibleForCancellation() {
-        final CancelReindexRequest request = new CancelReindexRequest(randomBoolean());
-        final CancellableTask task = taskWithActionAndParent(ReindexAction.NAME, new TaskId("node", 0));
-        assertFalse(request.match(task));
-    }
-
-    public void testReindexTaskWithNoParentIsEligibleForCancellation() {
-        final CancelReindexRequest request = new CancelReindexRequest(randomBoolean());
-        final CancellableTask task = taskWithActionAndParent(ReindexAction.NAME, TaskId.EMPTY_TASK_ID);
-        assertTrue(request.match(task));
-    }
-
-    private static CancellableTask taskWithActionAndParent(final String action, final TaskId parent) {
-        return new CancellableTask(1L, "type", action, "desc", parent, Map.of());
+    public void testValidationPassesWithTaskId() {
+        final CancelReindexRequest request = new CancelReindexRequest(new TaskId("node", randomNonNegativeLong()), randomBoolean());
+        assertThat(request.validate(), is(nullValue()));
     }
 }

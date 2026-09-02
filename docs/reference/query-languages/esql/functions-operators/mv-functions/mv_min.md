@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_MIN` function [esql-mv_min]
 
-:::{include} ../../_snippets/functions/layout/mv_min.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_min.md
 :::

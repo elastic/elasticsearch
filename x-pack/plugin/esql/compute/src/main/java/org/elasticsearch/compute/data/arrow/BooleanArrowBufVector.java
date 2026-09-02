@@ -66,6 +66,11 @@ public final class BooleanArrowBufVector extends AbstractArrowBufVector<BooleanV
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Byte.BYTES;
+    }
+
+    @Override
     public boolean allTrue() {
         for (int i = 0; i < positionCount; i++) {
             if (getBoolean(i) == false) {
@@ -86,24 +91,48 @@ public final class BooleanArrowBufVector extends AbstractArrowBufVector<BooleanV
     }
 
     @Override
+    public BooleanVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (BooleanVector.FixedBuilder builder = blockFactory().newBooleanVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendBoolean(getBoolean(i));
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
     public ReleasableIterator<BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return new BooleanLookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override
-    public BooleanVector filter(boolean mayContainDuplicates, int... positions) {
+    public BooleanVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         var allocator = blockFactory.arrowAllocator();
-        int bufLen = ((positions.length + 63) / 64) * Long.BYTES;
-        var buffer = allocator.buffer(Math.max(1, bufLen));
-        buffer.setZero(0, buffer.capacity());
-        for (int i = 0; i < positions.length; i++) {
-            if (getBoolean(positions[i])) {
-                int byteIdx = i / 8;
-                buffer.setByte(byteIdx, buffer.getByte(byteIdx) | (1 << (i % 8)));
+        int bufLen = ((length + 63) / 64) * Long.BYTES;
+        ArrowBuf buffer = null;
+        boolean success = false;
+        try {
+            buffer = allocator.buffer(Math.max(1, bufLen));
+            buffer.setZero(0, buffer.capacity());
+            for (int i = 0; i < length; i++) {
+                if (getBoolean(positions[offset + i])) {
+                    int byteIdx = i / 8;
+                    buffer.setByte(byteIdx, buffer.getByte(byteIdx) | (1 << (i % 8)));
+                }
+            }
+
+            BooleanVector result = vectorConstructor().create(buffer, length, blockFactory);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                ArrowUtils.releaseBuffers(buffer);
             }
         }
-
-        return vectorConstructor().create(buffer, positions.length, blockFactory);
     }
 
     @Override

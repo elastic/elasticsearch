@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_CONTAINS` function [esql-mv_contains]
 
-:::{include} ../../_snippets/functions/layout/mv_contains.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_contains.md
 :::

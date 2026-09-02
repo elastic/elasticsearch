@@ -198,29 +198,33 @@ public class InferenceRunner {
         long processedDocCount = processedTestDocsCount;
 
         try (LimitAwareBulkIndexer bulkIndexer = new LimitAwareBulkIndexer(settings, this::executeBulkRequest)) {
-            while (testDocsIterator.hasNext()) {
-                if (isCancelled) {
-                    break;
+            try {
+                while (testDocsIterator.hasNext()) {
+                    if (isCancelled) {
+                        break;
+                    }
+
+                    Deque<SearchHit> batch = testDocsIterator.next();
+
+                    if (totalDocCount == 0) {
+                        totalDocCount = testDocsIterator.getTotalHits();
+                    }
+
+                    for (SearchHit doc : batch) {
+                        dataCountsTracker.incrementTestDocsCount();
+                        SourceSupplier sourceSupplier = new SourceSupplier(doc);
+                        InferenceResults inferenceResults = model.inferNoStats(featuresFromDoc(doc, sourceSupplier));
+                        bulkIndexer.addAndExecuteIfNeeded(
+                            createIndexRequest(doc, sourceSupplier, inferenceResults, config.getDest().getResultsField())
+                        );
+
+                        processedDocCount++;
+                        int progressPercent = Math.min((int) (processedDocCount * 100.0 / totalDocCount), MAX_PROGRESS_BEFORE_COMPLETION);
+                        progressTracker.updateInferenceProgress(progressPercent);
+                    }
                 }
-
-                Deque<SearchHit> batch = testDocsIterator.next();
-
-                if (totalDocCount == 0) {
-                    totalDocCount = testDocsIterator.getTotalHits();
-                }
-
-                for (SearchHit doc : batch) {
-                    dataCountsTracker.incrementTestDocsCount();
-                    SourceSupplier sourceSupplier = new SourceSupplier(doc);
-                    InferenceResults inferenceResults = model.inferNoStats(featuresFromDoc(doc, sourceSupplier));
-                    bulkIndexer.addAndExecuteIfNeeded(
-                        createIndexRequest(doc, sourceSupplier, inferenceResults, config.getDest().getResultsField())
-                    );
-
-                    processedDocCount++;
-                    int progressPercent = Math.min((int) (processedDocCount * 100.0 / totalDocCount), MAX_PROGRESS_BEFORE_COMPLETION);
-                    progressTracker.updateInferenceProgress(progressPercent);
-                }
+            } finally {
+                testDocsIterator.releaseRetainedSearchHits();
             }
         }
 

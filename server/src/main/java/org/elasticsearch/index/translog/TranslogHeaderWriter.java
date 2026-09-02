@@ -94,7 +94,7 @@ public final class TranslogHeaderWriter {
     private static void writeSlowIndexHeader(RecyclerBytesStreamOutput buffer, Translog.Index index) throws IOException {
         final long start = buffer.position();
         buffer.skip(Integer.BYTES);
-        buffer.writeByte(Translog.Operation.Type.INDEX.id());
+        buffer.writeByte(Translog.Record.Type.INDEX.id());
         index.writeHeader(Translog.Index.SERIALIZATION_FORMAT, buffer);
         final long end = buffer.position();
         // The total operation size is the header size + source size + 4 bytes for checksum
@@ -120,7 +120,7 @@ public final class TranslogHeaderWriter {
 
         int off = page.offset;
         byte[] bytes = page.bytes;
-        bytes[off + OPERATION_TYPE_OFFSET] = Translog.Operation.Type.DELETE.id();
+        bytes[off + OPERATION_TYPE_OFFSET] = Translog.Record.Type.DELETE.id();
         // This is technically a vInt in the serialization, but until we advance past 127 we can just directly serialize as a byte
         bytes[off + SERIALIZATION_FORMAT_OFFSET] = (byte) Translog.Delete.SERIALIZATION_FORMAT;
         ByteUtils.writeLongBE(delete.version(), bytes, off + VERSION_OFFSET);
@@ -136,7 +136,7 @@ public final class TranslogHeaderWriter {
     private static void writeSlowDeleteHeader(RecyclerBytesStreamOutput buffer, Translog.Delete delete) throws IOException {
         final long start = buffer.position();
         buffer.skip(Integer.BYTES);
-        buffer.writeByte(Translog.Operation.Type.DELETE.id());
+        buffer.writeByte(Translog.Record.Type.DELETE.id());
         delete.writeHeader(Translog.Delete.SERIALIZATION_FORMAT, buffer);
         final long end = buffer.position();
         // The total operation size is the header size + 4 bytes for checksum
@@ -151,7 +151,7 @@ public final class TranslogHeaderWriter {
         if (bytesRef != null) {
             int off = bytesRef.offset;
             byte[] bytes = bytesRef.bytes;
-            bytes[off + OPERATION_TYPE_OFFSET] = Translog.Operation.Type.NO_OP.id();
+            bytes[off + OPERATION_TYPE_OFFSET] = Translog.Record.Type.NO_OP.id();
             ByteUtils.writeLongBE(noop.seqNo(), bytes, off + 5);
             ByteUtils.writeLongBE(noop.primaryTerm(), bytes, off + 13);
 
@@ -170,7 +170,7 @@ public final class TranslogHeaderWriter {
     private static void writeSlowNoOpHeader(RecyclerBytesStreamOutput buffer, Translog.NoOp noop) throws IOException {
         final long start = buffer.position();
         buffer.skip(Integer.BYTES);
-        buffer.writeByte(Translog.Operation.Type.NO_OP.id());
+        buffer.writeByte(Translog.Record.Type.NO_OP.id());
         // No versioning for no-op
         noop.writeHeader(-1, buffer);
         final long end = buffer.position();

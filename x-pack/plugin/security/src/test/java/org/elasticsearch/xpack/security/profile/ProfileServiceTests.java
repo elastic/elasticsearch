@@ -565,7 +565,7 @@ public class ProfileServiceTests extends ESTestCase {
             final ActionListener<MultiSearchResponse> listener = (ActionListener<MultiSearchResponse>) invocation.getArguments()[2];
             var resp = new MultiSearchResponse(
                 new MultiSearchResponse.Item[] {
-                    new MultiSearchResponse.Item(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY), null) },
+                    new MultiSearchResponse.Item(SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(), null) },
                 1L
             );
             try {
@@ -1491,6 +1491,7 @@ public class ProfileServiceTests extends ESTestCase {
                 0L,
                 ShardSearchFailure.EMPTY_ARRAY,
                 Clusters.EMPTY,
+                null,
                 null,
                 null
             );

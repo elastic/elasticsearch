@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `V_COSINE` function [esql-v_cosine]
 
-:::{include} ../../_snippets/functions/layout/v_cosine.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/v_cosine.md
 :::

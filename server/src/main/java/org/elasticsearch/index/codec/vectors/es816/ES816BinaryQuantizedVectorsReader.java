@@ -22,6 +22,7 @@ package org.elasticsearch.index.codec.vectors.es816;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
@@ -76,7 +77,6 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
         FlatVectorsReader rawVectorsReader,
         ES816BinaryFlatVectorsScorer vectorsScorer
     ) throws IOException {
-        super(vectorsScorer);
         this.vectorScorer = vectorsScorer;
         this.rawVectorsReader = rawVectorsReader;
         int versionMeta = -1;
@@ -156,6 +156,11 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
     }
 
     @Override
+    public FlatVectorsScorer getFlatVectorScorer(String field) throws IOException {
+        return vectorScorer;
+    }
+
+    @Override
     public RandomVectorScorer getRandomVectorScorer(String field, float[] target) throws IOException {
         FieldEntry fi = fields.get(field);
         if (fi == null || fi.size() == 0) {
@@ -230,7 +235,7 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
 
     @Override
     public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-        scoreAndCollectAll(knnCollector, acceptDocs, getRandomVectorScorer(field, target));
+        scoreAndCollectAll(knnCollector, acceptDocs, getFloatVectorValues(field).scorer(target));
     }
 
     @Override
@@ -363,6 +368,8 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
         final BinarizedByteVectorValues quantizedVectorValues;
 
         BinarizedVectorValues(FloatVectorValues rawVectorValues, BinarizedByteVectorValues quantizedVectorValues) {
+            // Its critical that `rawVectorValues` are the filtered format
+            // this aligns with rescore assumptions with HasSlice
             super(rawVectorValues);
             this.quantizedVectorValues = quantizedVectorValues;
         }

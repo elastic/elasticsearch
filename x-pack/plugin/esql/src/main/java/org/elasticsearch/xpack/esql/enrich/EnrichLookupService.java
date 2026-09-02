@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -16,6 +17,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -23,6 +25,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
@@ -58,6 +61,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -130,16 +134,21 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     @Override
-    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) {
+    protected LookupResponse createLookupResponse(
+        List<Page> pages,
+        BlockFactory blockFactory,
+        long bytesRead,
+        Collection<String> warnings
+    ) {
         if (pages.size() != 1) {
             throw new UnsupportedOperationException("ENRICH always makes a single page of output");
         }
-        return new LookupResponse(pages.getFirst(), blockFactory);
+        return new LookupResponse(pages.getFirst(), blockFactory, bytesRead, List.copyOf(warnings));
     }
 
     @Override
-    protected LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
-        return new LookupResponse(in, blockFactory);
+    protected LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory, ThreadContext threadContext) throws IOException {
+        return new LookupResponse(in, blockFactory, threadContext);
     }
 
     private static void validateTypes(@Nullable DataType inputDataType, MappedFieldType fieldType) {
@@ -265,18 +274,49 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     private static class LookupResponse extends AbstractLookupService.LookupResponse {
-        private Page page;
+        // Gated behind the same transport version as the per-driver warnings feature (DriverCompletionInfo#warnings).
+        private static final TransportVersion ESQL_LOOKUP_RESPONSE_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
 
-        private LookupResponse(Page page, BlockFactory blockFactory) {
+        private Page page;
+        private final long bytesRead;
+        private final List<String> warnings;
+
+        private LookupResponse(Page page, BlockFactory blockFactory, long bytesRead, List<String> warnings) {
             super(blockFactory);
             this.page = page;
+            this.bytesRead = bytesRead;
+            this.warnings = warnings == null ? List.of() : warnings;
         }
 
-        private LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+        private LookupResponse(StreamInput in, BlockFactory blockFactory, ThreadContext threadContext) throws IOException {
             super(blockFactory);
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
                 this.page = new Page(bsi);
             }
+            this.bytesRead = in.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)
+                ? in.readVLong()
+                : 0L;
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_RESPONSE_WARNINGS)) {
+                this.warnings = in.readStringCollectionAsList();
+            } else {
+                // Old nodes send warnings as transport response headers; the transport layer has already
+                // deposited them into the current thread's context before this constructor is called.
+                // Parse the RFC 7234 warning format to extract the plain warning text.
+                this.warnings = threadContext.takeResponseHeaders("Warning")
+                    .stream()
+                    .map(s -> HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(s, false)))
+                    .toList();
+            }
+        }
+
+        @Override
+        public long bytesRead() {
+            return bytesRead;
+        }
+
+        @Override
+        public List<String> warnings() {
+            return warnings;
         }
 
         @Override
@@ -285,6 +325,12 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize enrich lookup response");
             reservedBytes += bytes;
             page.writeTo(out);
+            if (out.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)) {
+                out.writeVLong(bytesRead);
+            }
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_RESPONSE_WARNINGS)) {
+                out.writeStringCollection(warnings);
+            }
         }
 
         @Override

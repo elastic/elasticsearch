@@ -304,7 +304,7 @@ public class IndexMetadataVerifier {
                     similarityService,
                     mapperRegistry,
                     () -> null,
-                    indexSettings.getMode().idFieldMapperWithoutFieldData(),
+                    () -> false,
                     scriptService,
                     query -> {
                         throw new UnsupportedOperationException("IndexMetadataVerifier");

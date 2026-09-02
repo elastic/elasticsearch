@@ -30,10 +30,13 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class FixedCapacityExponentialHistogramTests extends ExponentialHistogramTestCase {
 
@@ -120,6 +123,103 @@ public class FixedCapacityExponentialHistogramTests extends ExponentialHistogram
         assertThat(it.peekCount(), equalTo(10L));
         it.advance();
         assertFalse(it.hasNext());
+    }
+
+    public void testScaleBucketCountsTo() {
+        for (int iter = 0; iter < 100; iter++) {
+            boolean useNegative = randomBoolean();
+            boolean usePositive = randomBoolean();
+            boolean useZero = randomBoolean();
+
+            int numNegBuckets = useNegative ? randomIntBetween(1, 500) : 0;
+            int numPosBuckets = usePositive ? randomIntBetween(1, 500) : 0;
+
+            // Intentionally use very large and very small bucket counts
+            LongSupplier randomCount = () -> randomBoolean() ? randomLongBetween(1, 10) : randomLongBetween(1, 1L << 34);
+
+            FixedCapacityExponentialHistogram original = FixedCapacityExponentialHistogram.create(1000, breaker());
+            FixedCapacityExponentialHistogram scaled = FixedCapacityExponentialHistogram.create(1000, breaker());
+            autoReleaseOnTestEnd(original);
+            autoReleaseOnTestEnd(scaled);
+
+            if (useZero) {
+                ZeroBucket zb = ExponentialHistogramTestUtils.randomHistogram().zeroBucket().withCount(randomCount.getAsLong());
+                original.setZeroBucket(zb);
+                scaled.setZeroBucket(zb);
+            }
+
+            for (int i = 0; i < numNegBuckets; i++) {
+                long cnt = randomCount.getAsLong();
+                original.tryAddBucket(i - 10, cnt, false);
+                scaled.tryAddBucket(i - 10, cnt, false);
+            }
+
+            for (int i = 0; i < numPosBuckets; i++) {
+                long cnt = randomCount.getAsLong();
+                original.tryAddBucket(i - 10, cnt, true);
+                scaled.tryAddBucket(i - 10, cnt, true);
+            }
+
+            long targetCount = Math.round(original.valueCount() * (randomBoolean() ? randomDouble() : randomDouble() * 1_000));
+            double factor = 1.0 * targetCount / original.valueCount();
+            scaled.scaleBucketCountsTo(targetCount);
+
+            assertThat(scaled.valueCount(), equalTo(targetCount));
+
+            // Compare each original bucket against its scaled counterpart.
+            // When scaling up (factor >= 1), every bucket count must not decrease.
+            // When scaling down (factor < 1), every bucket count must not increase (but may be pruned to 0).
+            // In both cases the scaled count must be within a relative error of the expected value.
+            assertBucketBounds(original.negativeBuckets().iterator(), scaled.negativeBuckets().iterator(), factor);
+            assertScaledZeroBucket(original.zeroBucket().count(), scaled.zeroBucket().count(), factor);
+            assertBucketBounds(original.positiveBuckets().iterator(), scaled.positiveBuckets().iterator(), factor);
+        }
+    }
+
+    private void assertScaledZeroBucket(long origCount, long scaledCount, double factor) {
+        double expected = origCount * factor;
+        long minValue = (long) Math.floor(expected * 0.99999);
+        long maxValue = (long) Math.ceil(expected * 1.00001);
+        if (factor > 1.0) {
+            minValue = Math.max(minValue, origCount);
+        }
+        if (factor < 1.0) {
+            maxValue = Math.min(maxValue, origCount);
+        }
+        assertThat(scaledCount, greaterThanOrEqualTo(minValue));
+        assertThat(scaledCount, lessThanOrEqualTo(maxValue));
+    }
+
+    private void assertBucketBounds(BucketIterator origIt, BucketIterator scaledIt, double factor) {
+        while (origIt.hasNext()) {
+            long origCount = origIt.peekCount();
+            double expected = origCount * factor;
+            long minValue = (long) Math.floor(expected * 0.99999);
+            long maxValue = (long) Math.ceil(expected * 1.00001);
+
+            if (factor > 1.0) {
+                // count should never decrease
+                minValue = Math.max(minValue, origCount);
+            }
+            if (factor < 1.0) {
+                // count should never increase
+                maxValue = Math.min(maxValue, origCount);
+            }
+
+            if (minValue == 0 && (scaledIt.hasNext() == false || scaledIt.peekIndex() != origIt.peekIndex())) {
+                origIt.advance();
+                continue; // bucket was pruned because it rounded to 0
+            }
+            assertThat(scaledIt.peekCount(), greaterThan(0L));
+            assertThat("expected bucket at index " + origIt.peekIndex() + " to be present", scaledIt.hasNext(), equalTo(true));
+            assertThat(scaledIt.peekIndex(), equalTo(origIt.peekIndex()));
+            long scaledCount = scaledIt.peekCount();
+            assertThat(scaledCount, greaterThanOrEqualTo(minValue));
+            assertThat(scaledCount, lessThanOrEqualTo(maxValue));
+            origIt.advance();
+            scaledIt.advance();
+        }
+        assertThat("unexpected extra buckets after scaling", scaledIt.hasNext(), equalTo(false));
     }
 
     protected void concurrentTest(Runnable r) throws InterruptedException, ExecutionException {

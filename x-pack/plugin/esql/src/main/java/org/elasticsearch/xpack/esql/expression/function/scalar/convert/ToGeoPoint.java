@@ -16,6 +16,9 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -34,6 +37,7 @@ public class ToGeoPoint extends AbstractConvertFunction {
         "ToGeoPoint",
         ToGeoPoint::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGeoPoint.class).unary(ToGeoPoint::new).name("to_geopoint");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(GEO_POINT, (source, fieldEval) -> fieldEval),
@@ -42,7 +46,9 @@ public class ToGeoPoint extends AbstractConvertFunction {
     );
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "geo_point",
+        briefSummary = "Converts a value to a geo_point.",
         description = """
             Converts an input value to a `geo_point` value.
             A string will only be successfully converted if it respects the
@@ -67,6 +73,11 @@ public class ToGeoPoint extends AbstractConvertFunction {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    @Override
+    public String functionName() {
+        return "TO_GEOPOINT";
     }
 
     @Override

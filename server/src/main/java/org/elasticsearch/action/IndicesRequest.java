@@ -12,6 +12,7 @@ package org.elasticsearch.action;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.crossproject.TargetProjects;
 
 import java.util.Collection;
 
@@ -63,6 +64,18 @@ public interface IndicesRequest {
         default boolean allowsCrossProject() {
             return false;
         }
+
+        @Nullable // if no routing is specified
+        default String getProjectRouting() {
+            return null;
+        }
+
+        default void setResolvedTargetProjects(TargetProjects targetProjects) {}
+
+        @Nullable
+        default TargetProjects getResolvedTargetProjects() {
+            return null;
+        }
     }
 
     interface Replaceable extends IndicesRequest, CrossProjectCandidate {
@@ -101,11 +114,6 @@ public interface IndicesRequest {
          */
         default boolean allowsRemoteIndices() {
             return false;
-        }
-
-        @Nullable // if no routing is specified
-        default String getProjectRouting() {
-            return null;
         }
     }
 

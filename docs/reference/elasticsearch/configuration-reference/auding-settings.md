@@ -18,16 +18,28 @@ You can use [audit logging](docs-content://deploy-manage/security/logging-config
 Audit logs are only available on certain subscription levels. For more information, see [{{stack}} subscriptions](https://www.elastic.co/subscriptions).
 ::::
 
-If configured, auditing settings must be set on every node in the cluster. Static settings, such as `xpack.security.audit.enabled`, must be configured in `elasticsearch.yml` on each node. For dynamic auditing settings, use the [cluster update settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) to ensure the setting is the same on all nodes.
+If configured, auditing settings must be set on every node in the cluster. For dynamic auditing settings, use the [cluster update settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) to ensure the setting is the same on all nodes.
+
+    :::{note}
+    :applies_to: stack: ga 9.0-9.4
+
+    In {{stack}} versions 9.4 and earlier, `xpack.security.audit.enabled` is a static setting, and must be configured in `elasticsearch.yml` on each node.
+    :::
 
 ## General Auditing Settings [general-audit-settings]
 
 $$$xpack-security-audit-enabled$$$
 
 `xpack.security.audit.enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Set to `true` to enable auditing on the node. The default value is `false`. This puts the auditing events in a dedicated file named `<clustername>_audit.json` on each node.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Set to `true` to enable auditing on the node. The default value is `false`. This puts the auditing events in a dedicated file named `<clustername>_audit.json` on each node.
 
-    If enabled, this setting must be configured in `elasticsearch.yml` on all nodes in the cluster.
+    This setting can be changed at runtime using the [cluster update settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) without requiring a node restart.
+    
+    :::{note} 
+    :applies_to: stack: ga 9.0-9.4
+    
+    In {{stack}} versions 9.4 and earlier, this setting was [static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting). Static settings must be configured manually in `elasticsearch.yml` on all nodes in the cluster.
+    :::
 
 
 
@@ -52,11 +64,18 @@ $$$xpack-sa-lf-events-emit-request$$$
 
     The default value is `false`, so request bodies are not printed.
 
+    {applies_to}`stack: ga 9.4` Request bodies are emitted as the `request.body` audit event attribute, except bodies that cannot be represented as JSON (currently requests with a `Content-Type` of `application/x-protobuf`), which are emitted base64-encoded as the `request.raw_body` attribute instead.
+
     ::::{important}
     Be advised that sensitive data may be audited in plain text when including the request body in audit events, even though all the security APIs, such as those that change the user’s password, have the credentials filtered out when audited.
+
+    When `Content-Type` is `application/x-protobuf` (for example OTLP or Prometheus remote-write), the payload is captured verbatim as `request.raw_body`. Base64 encoding is a transport format rather than obfuscation, and such payloads commonly contain tenant identifiers, request headers, or other application-layer data.
     ::::
 
+$$$xpack-sa-lf-events-max-request-body-size$$$
 
+`xpack.security.audit.logfile.events.max_request_body_size` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Maximum rendered body size (in characters) that can be included in audit events when [`xpack.security.audit.logfile.events.emit_request_body`](#xpack-sa-lf-events-emit-request) is `true`. The limit is applied to the representation that is written to the audit log (the JSON representation of the request body for `request.body`, or the base64-encoded form for `request.raw_body`), so it correctly accounts for formats that expand when rendered. Requests whose rendered body exceeds this limit are rejected with HTTP 413 (Request Entity Too Large), ensuring the audit log is always a complete record of accepted requests. The default value is `2147483647b` (`Integer.MAX_VALUE`). A value of `0` removes the limit entirely. Lower this value on nodes with limited available memory as needed.
 
 ## Local Node Info Settings [node-audit-settings]
 

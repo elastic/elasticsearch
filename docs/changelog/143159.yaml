@@ -1,5 +1,0 @@
-area: CCS
-issues: []
-pr: 143159
-summary: "Fix: `_resolve/index API` should be able to accept an empty body"
-type: bug

@@ -35,6 +35,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.TimeValue;
@@ -127,27 +128,19 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     new String[] { "one", "two", "three", "four" },
                     new Integer[] { 1, 2, 3, 4 }, }
             ),
-            buildGreaterThanFilter(1L)
+            1L
         );
     }
 
     public void testLongKey() throws IOException {
-        runLookup(
-            List.of(DataType.LONG),
-            new UsingSingleLookupTable(new Object[][] { new Long[] { 12L, 33L, 1L } }),
-            buildGreaterThanFilter(0L)
-        );
+        runLookup(List.of(DataType.LONG), new UsingSingleLookupTable(new Object[][] { new Long[] { 12L, 33L, 1L } }), 0L);
     }
 
     /**
      * LOOKUP multiple results match.
      */
     public void testLookupIndexMultiResults() throws IOException {
-        runLookup(
-            List.of(DataType.KEYWORD),
-            new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "bb", "dd" } }),
-            buildGreaterThanFilter(-1L)
-        );
+        runLookup(List.of(DataType.KEYWORD), new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "bb", "dd" } }), -1L);
     }
 
     public void testJoinOnTwoKeysMultiResults() throws IOException {
@@ -236,19 +229,28 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private PhysicalPlan buildGreaterThanFilter(long value) {
-        FieldAttribute filterAttribute = new FieldAttribute(
-            Source.EMPTY,
-            "l",
-            new EsField("l", DataType.LONG, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
-        );
+    private static PhysicalPlan buildGreaterThanFilter(long value, FieldAttribute filterAttribute) {
         Expression greaterThan = new GreaterThan(Source.EMPTY, filterAttribute, new Literal(Source.EMPTY, value, DataType.LONG));
-        EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), Map.of(), Map.of(), List.of());
+        EsRelation esRelation = new EsRelation(
+            Source.EMPTY,
+            "test",
+            IndexMode.LOOKUP,
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            List.of(filterAttribute)
+        );
         Filter filter = new Filter(Source.EMPTY, esRelation, greaterThan);
         return new FragmentExec(filter);
     }
 
-    private void runLookup(List<DataType> keyTypes, PopulateIndices populateIndices, PhysicalPlan pushedDownFilter) throws IOException {
+    private void runLookup(List<DataType> keyTypes, PopulateIndices populateIndices, Long filterValue) throws IOException {
+        FieldAttribute lAttribute = new FieldAttribute(
+            Source.EMPTY,
+            "l",
+            new EsField("l", DataType.LONG, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        PhysicalPlan pushedDownFilter = filterValue != null ? buildGreaterThanFilter(filterValue, lAttribute) : null;
         String[] fieldMappers = new String[keyTypes.size() * 2];
         for (int i = 0; i < keyTypes.size(); i++) {
             fieldMappers[2 * i] = "key" + i;
@@ -330,10 +332,14 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
                 DataPartitioning.SEGMENT,
                 DataPartitioning.AutoStrategy.DEFAULT,
+                LuceneOperator.SMALL_INDEX_BOUNDARY,
                 1,
                 10000,
                 LuceneOperator.NO_LIMIT,
-                false // no scoring
+                false, // no scoring
+                () -> 0L,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                QueryWarnings.EMIT
             );
             List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>();
             for (int i = 0; i < keyTypes.size(); i++) {
@@ -359,7 +365,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 ),
                 true,
                 0,
-                PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY)
+                PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY),
+                () -> 0L
             );
             CancellableTask parentTask = new CancellableTask(1, "test", "test", "test", null, Map.of());
             final String finalNodeWithShard = nodeWithShard;
@@ -403,13 +410,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 ctx -> internalCluster().getInstance(TransportEsqlQueryAction.class, finalNodeWithShard).getLookupFromIndexService(),
                 "lookup",
                 "lookup",
-                List.of(
-                    new FieldAttribute(
-                        Source.EMPTY,
-                        "l",
-                        new EsField("l", DataType.LONG, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
-                    )
-                ),
+                List.of(lAttribute),
                 Source.EMPTY,
                 pushedDownFilter,
                 Predicates.combineAnd(joinOnConditions),

@@ -1,0 +1,4 @@
+FROM
+    (FROM sample_data | WHERE client_ip == "172.21.0.5" | KEEP @timestamp, client_ip),
+    (TS k8s | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster | SORT cluster),
+    (ROW cluster = "synthetic", max_bytes = to_long(99999))

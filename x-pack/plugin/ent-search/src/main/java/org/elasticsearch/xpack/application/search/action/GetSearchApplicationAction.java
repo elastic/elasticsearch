@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.application.search.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -34,7 +34,7 @@ public class GetSearchApplicationAction {
 
     private GetSearchApplicationAction() {/* no instances */}
 
-    public static class Request extends LegacyActionRequest implements ToXContentObject {
+    public static class Request extends UntypedActionRequest implements ToXContentObject {
         private final String name;
 
         public static final ParseField NAME_FIELD = new ParseField("name");

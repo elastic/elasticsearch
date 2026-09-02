@@ -12,17 +12,16 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
-import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 
@@ -239,9 +238,28 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         @Nullable InputType taskSettingsInputType,
         @Nullable InputType requestInputType
     ) {
-        var embeddingsModel = GoogleVertexAiEmbeddingsModelTests.createModel(modelId, autoTruncate, taskSettingsInputType);
+        var embeddingsModel = new GoogleVertexAiEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            "https://fake.abc",
+            new GoogleVertexAiEmbeddingsServiceSettings(
+                "location",
+                "projectId",
+                modelId,
+                false,
+                null,
+                null,
+                null,
+                SimilarityMeasure.DOT_PRODUCT,
+                null
+            ),
+            new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, taskSettingsInputType),
+            new GoogleVertexAiSecretSettings(new SecureString("testString".toCharArray())),
+            (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE)
+        );
 
-        return new GoogleVertexAiEmbeddingsWithoutAuthRequest(
+        return new GoogleVertexAiEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
             requestInputType,
@@ -260,6 +278,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
             "id",
             TaskType.TEXT_EMBEDDING,
             "service",
+            "https://fake.abc",
             new GoogleVertexAiEmbeddingsServiceSettings(
                 randomAlphaOfLength(8),
                 randomAlphaOfLength(8),
@@ -272,50 +291,16 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
                 null
             ),
             new GoogleVertexAiEmbeddingsTaskSettings(null, null),
-            null,
-            new GoogleVertexAiSecretSettings(new SecureString(randomAlphaOfLength(8).toCharArray()))
+            new GoogleVertexAiSecretSettings(new SecureString(randomAlphaOfLength(8).toCharArray())),
+            (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE)
         );
 
-        return new GoogleVertexAiEmbeddingsWithoutAuthRequest(
+        return new GoogleVertexAiEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
             requestInputType,
             embeddingsModel
         );
-    }
-
-    /**
-     * We use this class to fake the auth implementation to avoid static mocking of {@link GoogleVertexAiRequest}
-     */
-    private static class GoogleVertexAiEmbeddingsWithoutAuthRequest extends GoogleVertexAiEmbeddingsRequest {
-
-        private final InputType inputType;
-
-        GoogleVertexAiEmbeddingsWithoutAuthRequest(
-            Truncator truncator,
-            Truncator.TruncationResult input,
-            InputType inputType,
-            GoogleVertexAiEmbeddingsModel model
-        ) {
-            super(truncator, input, inputType, model);
-            this.inputType = inputType;
-        }
-
-        @Override
-        public void decorateWithAuth(HttpPost httpPost) {
-            httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE);
-        }
-
-        @Override
-        public Request truncate() {
-            GoogleVertexAiEmbeddingsRequest embeddingsRequest = (GoogleVertexAiEmbeddingsRequest) super.truncate();
-            return new GoogleVertexAiEmbeddingsWithoutAuthRequest(
-                embeddingsRequest.truncator(),
-                embeddingsRequest.truncationResult(),
-                inputType,
-                embeddingsRequest.model()
-            );
-        }
     }
 
 }

@@ -104,6 +104,7 @@ public class AddPurposeCustomQueryParameterTests extends ESSingleNodeTestCase {
     ) throws Throwable {
         final var httpFixture = new S3HttpFixture(
             true,
+            null,
             bucket,
             basePath,
             S3ConsistencyModel::randomConsistencyModel,

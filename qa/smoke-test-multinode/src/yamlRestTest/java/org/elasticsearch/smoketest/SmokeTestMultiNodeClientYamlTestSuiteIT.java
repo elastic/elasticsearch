@@ -20,7 +20,9 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
-@TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // some of the windows test VMs are slow as hell
+// Sized for the encryption-at-rest CI job, which runs this suite on a dm-crypt volume that roughly
+// halves I/O throughput. Same budget as DocsClientYamlTestSuiteIT, for the same reason.
+@TimeoutSuite(millis = 80 * TimeUnits.MINUTE)
 public class SmokeTestMultiNodeClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
@@ -37,8 +39,6 @@ public class SmokeTestMultiNodeClientYamlTestSuiteIT extends ESClientYamlSuiteTe
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
         .feature(FeatureFlag.RANDOM_SAMPLING)
-        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
-        .feature(FeatureFlag.TSDB_SYNTHETIC_ID_FEATURE_FLAG)
         .build();
 
     public SmokeTestMultiNodeClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

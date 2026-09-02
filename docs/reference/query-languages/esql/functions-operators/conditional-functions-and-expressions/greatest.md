@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `GREATEST` function [esql-greatest]
 
-:::{include} ../../_snippets/functions/layout/greatest.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/greatest.md
 :::

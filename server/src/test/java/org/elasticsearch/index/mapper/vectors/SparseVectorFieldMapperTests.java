@@ -38,7 +38,9 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.inference.WeightedToken;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.ESTestCase;
@@ -133,6 +135,16 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "sparse_vector");
+    }
+
+    @Override
+    public void testEmbeddingsFieldAndFormat() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        assertEquals(new FieldAndFormat("field", null), fieldType.embeddingsFieldAndFormat(null));
+        assertEquals(new FieldAndFormat("field", null), fieldType.embeddingsFieldAndFormat(VectorType.SPARSE_VECTOR));
+        assertUnsupportedEmbeddings(fieldType, VectorType.DENSE_VECTOR);
+        assertParseMinimalWarnings();
     }
 
     @Override
@@ -255,7 +267,13 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) throws IOException {}
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("store", b -> b.field("store", false));
+        checker.registerUpdateCheck("index_options", b -> b.startObject("index_options").field("prune", true).endObject(), m -> {
+            SparseVectorFieldMapper.SparseVectorFieldType ft = (SparseVectorFieldMapper.SparseVectorFieldType) m.fieldType();
+            assertNotNull(ft.getIndexOptions());
+        });
+    }
 
     @Override
     protected boolean supportsMeta() {
@@ -489,7 +507,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
                     var valueFetcher = fieldType.valueFetcher(searchContext, null);
                     valueFetcher.setNextReader(leafReader.getContext());
 
-                    var source = Source.fromBytes(sourceToParse.source());
+                    var source = Source.fromBytes(sourceToParse.source().originalBytes());
                     var result = valueFetcher.fetchValues(source, 0, List.of());
                     assertThat(result.size(), equalTo(1));
                     assertThat(result.get(0), instanceOf(Map.class));

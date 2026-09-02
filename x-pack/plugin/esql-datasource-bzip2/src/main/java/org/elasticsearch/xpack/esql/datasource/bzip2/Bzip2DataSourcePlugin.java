@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.esql.datasource.bzip2;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Data source plugin that provides bzip2 decompression for ESQL external data sources.
@@ -24,6 +26,11 @@ public class Bzip2DataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public List<DecompressionCodec> decompressionCodecs(Settings settings) {
-        return List.of(new Bzip2DecompressionCodec());
+        return decompressionCodecs(settings, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+    }
+
+    @Override
+    public List<DecompressionCodec> decompressionCodecs(Settings settings, ExecutorService executor) {
+        return List.of(new Bzip2DecompressionCodec(executor));
     }
 }

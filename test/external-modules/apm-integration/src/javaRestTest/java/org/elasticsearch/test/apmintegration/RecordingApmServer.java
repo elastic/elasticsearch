@@ -9,23 +9,33 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+import io.grpc.Status;
+import io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.NettyServerBuilder;
+import io.grpc.stub.StreamObserver;
+import io.netty.handler.ssl.ClientAuth;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest;
+import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse;
+import io.opentelemetry.proto.collector.logs.v1.LogsServiceGrpc;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
-import io.opentelemetry.proto.common.v1.KeyValue;
-import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
-import io.opentelemetry.proto.metrics.v1.Metric;
-import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
-import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
-import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
+import io.opentelemetry.proto.collector.metrics.v1.MetricsServiceGrpc;
+import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
+import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse;
+import io.opentelemetry.proto.collector.trace.v1.TraceServiceGrpc;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.junit.rules.ExternalResource;
 
 import java.io.BufferedReader;
@@ -35,21 +45,61 @@ import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
-@SuppressForbidden(reason = "Uses an HTTP server for testing")
+@SuppressForbidden(reason = "Uses an HTTP server for testing; creates temp files for TLS certificates")
 public class RecordingApmServer extends ExternalResource {
     private static final Logger logger = LogManager.getLogger(RecordingApmServer.class);
 
-    final ArrayBlockingQueue<String> received = new ArrayBlockingQueue<>(1000);
+    /** Creates a server that requires mTLS on its gRPC endpoint. */
+    public static RecordingApmServer withMtls() {
+        return new RecordingApmServer(true);
+    }
 
-    private static HttpServer server;
+    private final boolean mtlsEnabled;
+    private Path mtlsTempDir;
+    private Path mtlsServerCaCertPath;
+    private Path mtlsClientCertPath;
+    private Path mtlsClientKeyPath;
+
+    public RecordingApmServer() {
+        this(false);
+    }
+
+    private RecordingApmServer(boolean mtlsEnabled) {
+        this.mtlsEnabled = mtlsEnabled;
+    }
+
+    private final BlockingQueue<ReceivedTelemetry> received = new LinkedBlockingQueue<>();
+
+    /**
+     * The "Resource" (telemetry source identity) observed on the metrics, traces and APM intake paths.
+     * Those signals share one Resource per test JVM, so we record the first one and ignore the rest.
+     */
+    private final AtomicReference<ReceivedTelemetry.ReceivedResource> resource = new AtomicReference<>();
+
+    /**
+     * The Resource observed on the OTLP logs path, kept apart from {@link #resource} because log records
+     * carry the deliberately minimal log-delivery Resource rather than the one metrics and spans use.
+     */
+    private final AtomicReference<ReceivedTelemetry.ReceivedResource> logResource = new AtomicReference<>();
+
+    private HttpServer server;
+    private Server grpcServer;
     private final Thread messageConsumerThread = consumerThread();
-    private volatile Consumer<String> consumer;
+    private volatile Consumer<ReceivedTelemetry> consumer;
     private volatile boolean running = true;
+    private volatile int responseCode = 201;
 
     @Override
     protected void before() throws Throwable {
@@ -58,24 +108,62 @@ public class RecordingApmServer extends ExternalResource {
         server.createContext("/", this::handle);
         server.start();
 
+        if (mtlsEnabled) {
+            mtlsTempDir = Files.createTempDirectory("grpc-mtls-");
+            TestTlsCertificate serverCert = TestTlsCertificate.generate("localhost");
+            TestTlsCertificate clientCert = TestTlsCertificate.generate("localhost");
+
+            mtlsServerCaCertPath = mtlsTempDir.resolve("server.crt");
+            Path serverKeyPath = mtlsTempDir.resolve("server.key");
+            mtlsClientCertPath = mtlsTempDir.resolve("client.crt");
+            mtlsClientKeyPath = mtlsTempDir.resolve("client.key");
+
+            Files.copy(serverCert.getPemCertificateStream(), mtlsServerCaCertPath);
+            Files.copy(serverCert.getPemPrivateKeyStream(), serverKeyPath);
+            Files.copy(clientCert.getPemCertificateStream(), mtlsClientCertPath);
+            Files.copy(clientCert.getPemPrivateKeyStream(), mtlsClientKeyPath);
+
+            try (
+                InputStream cert = serverCert.getPemCertificateStream();
+                InputStream key = serverCert.getPemPrivateKeyStream();
+                InputStream clientTrust = clientCert.getPemCertificateStream()
+            ) {
+                SslContext sslContext = GrpcSslContexts.configure(
+                    SslContextBuilder.forServer(cert, key).trustManager(clientTrust).clientAuth(ClientAuth.REQUIRE)
+                ).build();
+                grpcServer = NettyServerBuilder.forAddress(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0))
+                    .sslContext(sslContext)
+                    .addService(new LogsServiceImpl())
+                    .addService(new MetricsServiceImpl())
+                    .addService(new TraceServiceImpl())
+                    .build()
+                    .start();
+            }
+        } else {
+            grpcServer = ServerBuilder.forPort(0)
+                .addService(new LogsServiceImpl())
+                .addService(new MetricsServiceImpl())
+                .addService(new TraceServiceImpl())
+                .build()
+                .start();
+        }
+
         messageConsumerThread.start();
     }
 
     private Thread consumerThread() {
         return new Thread(() -> {
             while (running && Thread.currentThread().isInterrupted() == false) {
-                if (consumer != null) {
-                    try {
-                        String msg = received.poll(1L, TimeUnit.SECONDS);
-                        if (msg != null && msg.isEmpty() == false) {
-                            consumer.accept(msg);
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        return;
-                    } catch (Exception e) {
-                        logger.warn("failed to process message", e);
+                try {
+                    ReceivedTelemetry msg = received.poll(1L, TimeUnit.SECONDS);
+                    if (msg != null) {
+                        consumer.accept(msg);
                     }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                } catch (Exception e) {
+                    logger.warn("failed to process message", e);
                 }
             }
         });
@@ -86,7 +174,15 @@ public class RecordingApmServer extends ExternalResource {
         running = false;
         messageConsumerThread.interrupt();
         if (server != null) {
-            server.stop(1);
+            server.stop(30);
+        }
+        if (grpcServer != null) {
+            grpcServer.shutdown();
+            try {
+                grpcServer.awaitTermination(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
         consumer = null;
         try {
@@ -94,97 +190,90 @@ public class RecordingApmServer extends ExternalResource {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-    }
-
-    private void handle(HttpExchange exchange) throws IOException {
-        try (exchange) {
-            String path = exchange.getRequestURI().getPath();
-            if (running) {
-                try (InputStream requestBody = exchange.getRequestBody()) {
-                    if (requestBody != null) {
-                        if ("/v1/metrics".equals(path)) {
-                            parseOtlpMetrics(requestBody);
-                        } else {
-                            received.addAll(readJsonMessages(requestBody));
-                        }
+        if (mtlsTempDir != null) {
+            try (var paths = Files.walk(mtlsTempDir)) {
+                paths.sorted(Comparator.reverseOrder()).forEach(p -> {
+                    try {
+                        Files.delete(p);
+                    } catch (IOException e) {
+                        logger.warn("failed to delete TLS temp file [{}]", p, e);
                     }
-                } catch (Throwable t) {
-                    // The lifetime of HttpServer makes message handling "brittle": we need to start handling and recording received
-                    // messages before the test starts running. We should also stop handling them before the test ends (and the test
-                    // cluster is torn down), or we may run into IOException as the communication channel is interrupted.
-                    // Coordinating the lifecycle of the mock HttpServer and of the test ES cluster is difficult and error-prone, so
-                    // we just handle Throwable and don't care (log, but don't care): if we have an error in communicating to/from
-                    // the mock server while the test is running, the test would fail anyway as the expected messages will not arrive, and
-                    // if we have an error outside the test scope (before or after) that is OK.
-                    logger.warn("failed to parse request", t);
-                }
+                });
+            } catch (IOException e) {
+                logger.warn("failed to clean up mTLS temp dir [{}]", mtlsTempDir, e);
             }
-            exchange.sendResponseHeaders(201, 0);
         }
     }
 
     /**
-     * Parses OTLP protobuf metrics and normalizes them into the same JSON shape that the APM agent produces.
+     * Override the HTTP response code for all subsequent responses. Codes {@code >= 400}
+     * short-circuit telemetry parsing to simulate APM server failures.
+     * Call {@link #clearResponseCode()} to restore default.
      */
-    private void parseOtlpMetrics(InputStream input) throws IOException {
-        ExportMetricsServiceRequest request = ExportMetricsServiceRequest.parseFrom(input);
-        for (ResourceMetrics resourceMetrics : request.getResourceMetricsList()) {
-            for (ScopeMetrics scopeMetrics : resourceMetrics.getScopeMetricsList()) {
-                String scopeName = scopeMetrics.getScope().getName();
-                for (Metric metric : scopeMetrics.getMetricsList()) {
-                    switch (metric.getDataCase()) {
-                        case SUM, GAUGE -> {
-                            var dataPoints = metric.getDataCase() == Metric.DataCase.SUM
-                                ? metric.getSum().getDataPointsList()
-                                : metric.getGauge().getDataPointsList();
-                            for (NumberDataPoint dp : dataPoints) {
-                                var builder = XContentFactory.jsonBuilder().startObject().startObject("metricset");
-                                writeTags(builder, scopeName, dp.getAttributesList());
-                                builder.startObject("samples").startObject(metric.getName());
-                                switch (dp.getValueCase()) {
-                                    case AS_DOUBLE -> builder.field("value", dp.getAsDouble());
-                                    case AS_INT -> builder.field("value", dp.getAsInt());
+    public void setResponseCode(int code) {
+        this.responseCode = code;
+    }
+
+    /** Restore the default response (201) for subsequent requests. */
+    public void clearResponseCode() {
+        this.responseCode = 201;
+    }
+
+    private void handle(HttpExchange exchange) throws IOException {
+        try (exchange) {
+            int responseCode = this.responseCode;
+            if (responseCode >= 400) {
+                exchange.getRequestBody().readAllBytes();
+                exchange.sendResponseHeaders(responseCode, 0);
+                return;
+            }
+
+            String path = exchange.getRequestURI().getPath();
+            if (running) {
+                try (InputStream requestBody = exchange.getRequestBody()) {
+                    if (requestBody != null) {
+                        // The HTTP server only serves the legacy APM-agent intake; all OTel SDK signals
+                        // (metrics, traces, logs) export over OTLP/gRPC and are handled by the gRPC services below.
+                        switch (path) {
+                            case "/intake/v2/events" -> {
+                                List<String> lines = readJsonMessages(requestBody);
+                                for (String line : lines) {
+                                    ApmIntakeMessageParser.parseLine(line).ifPresent(this::route);
                                 }
-                                builder.endObject().endObject();
-                                received.offer(Strings.toString(builder.endObject().endObject()));
                             }
-                        }
-                        case HISTOGRAM -> {
-                            for (HistogramDataPoint dp : metric.getHistogram().getDataPointsList()) {
-                                var builder = XContentFactory.jsonBuilder().startObject().startObject("metricset");
-                                writeTags(builder, scopeName, dp.getAttributesList());
-                                builder.startObject("samples").startObject(metric.getName());
-                                builder.field("counts", dp.getBucketCountsList());
-                                builder.endObject().endObject();
-                                received.offer(Strings.toString(builder.endObject().endObject()));
-                            }
-                        }
-                        default -> {
-                            var builder = XContentFactory.jsonBuilder().startObject().startObject("metricset");
-                            writeTags(builder, scopeName, List.of());
-                            builder.startObject("samples").startObject(metric.getName()).endObject().endObject();
-                            received.offer(Strings.toString(builder.endObject().endObject()));
+                            default -> logger.debug("ignoring request to unhandled path [{}]", path);
                         }
                     }
                 }
             }
+            exchange.sendResponseHeaders(responseCode, 0);
+        } catch (Throwable t) {
+            logger.error("Unexpected error caught when serving HTTP request", t);
+            throw t;
         }
     }
 
-    private static void writeTags(XContentBuilder builder, String scopeName, List<KeyValue> attributes) throws IOException {
-        builder.startObject("tags");
-        builder.field("otel_instrumentation_scope_name", scopeName);
-        for (KeyValue kv : attributes) {
-            switch (kv.getValue().getValueCase()) {
-                case STRING_VALUE -> builder.field(kv.getKey(), kv.getValue().getStringValue());
-                case INT_VALUE -> builder.field(kv.getKey(), kv.getValue().getIntValue());
-                case DOUBLE_VALUE -> builder.field(kv.getKey(), kv.getValue().getDoubleValue());
-                case BOOL_VALUE -> builder.field(kv.getKey(), kv.getValue().getBoolValue());
-                default -> {
-                }
-            }
+    /** Route an event parsed from the metrics, traces or APM intake path. */
+    private void route(ReceivedTelemetry msg) {
+        route(msg, resource);
+    }
+
+    /** Route an event parsed from the OTLP logs path. */
+    private void routeLog(ReceivedTelemetry msg) {
+        route(msg, logResource);
+    }
+
+    /**
+     * Route a parsed event: {@link ReceivedTelemetry.ReceivedResource} goes to the given reference
+     * (we just need the first one each signal reports); everything else is queued for consumers.
+     */
+    private void route(ReceivedTelemetry msg, AtomicReference<ReceivedTelemetry.ReceivedResource> resourceSlot) {
+        logger.debug("telemetry received: {}", msg);
+        if (msg instanceof ReceivedTelemetry.ReceivedResource r) {
+            resourceSlot.compareAndSet(null, r);
+        } else {
+            received.add(msg);
         }
-        builder.endObject();
     }
 
     private List<String> readJsonMessages(InputStream input) {
@@ -208,7 +297,148 @@ public class RecordingApmServer extends ExternalResource {
         return host + ":" + getPort();
     }
 
-    public void addMessageConsumer(Consumer<String> messageConsumer) {
+    /**
+     * Returns the gRPC endpoint URL the OTLP/gRPC exporter expects: {@code scheme://host:port},
+     * with no path component. For mTLS servers the scheme is {@code https} and the host is
+     * {@code localhost} so OkHttp's hostname verifier matches the {@code DNS:localhost} SAN
+     * in the server certificate.
+     */
+    public String getGrpcEndpoint() {
+        if (mtlsEnabled) {
+            return "https://localhost:" + grpcServer.getPort();
+        }
+        String host = InetAddress.getLoopbackAddress().getHostAddress();
+        if (host.contains(":")) {
+            host = "[" + host + "]";
+        }
+        return "http://" + host + ":" + grpcServer.getPort();
+    }
+
+    /** Path of the server's self-signed CA cert PEM file; the ES node trusts this to verify the server. */
+    public String getMtlsServerCaCertPath() {
+        return mtlsServerCaCertPath.toString();
+    }
+
+    /** Path of the client cert PEM file; the ES node presents this during the mTLS handshake. */
+    public String getMtlsClientCertPath() {
+        return mtlsClientCertPath.toString();
+    }
+
+    /** Path of the client private key PEM file. */
+    public String getMtlsClientKeyPath() {
+        return mtlsClientKeyPath.toString();
+    }
+
+    private final class LogsServiceImpl extends LogsServiceGrpc.LogsServiceImplBase {
+        @Override
+        public void export(ExportLogsServiceRequest request, StreamObserver<ExportLogsServiceResponse> responseObserver) {
+            if (running) {
+                try {
+                    OtlpLogsParser.parse(request).forEach(RecordingApmServer.this::routeLog);
+                } catch (Throwable t) {
+                    logger.warn("failed to handle gRPC ExportLogsServiceRequest", t);
+                }
+            }
+            responseObserver.onNext(ExportLogsServiceResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+        }
+
+    }
+
+    private final class MetricsServiceImpl extends MetricsServiceGrpc.MetricsServiceImplBase {
+        @Override
+        public void export(ExportMetricsServiceRequest request, StreamObserver<ExportMetricsServiceResponse> responseObserver) {
+            if (responseCode >= 400) {
+                responseObserver.onError(Status.UNAVAILABLE.withDescription("injected failure").asRuntimeException());
+                return;
+            }
+            if (running) {
+                try {
+                    OtlpMetricsParser.parse(request).forEach(RecordingApmServer.this::route);
+                } catch (Throwable t) {
+                    logger.warn("failed to handle gRPC ExportMetricsServiceRequest", t);
+                }
+            }
+            responseObserver.onNext(ExportMetricsServiceResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+        }
+    }
+
+    private final class TraceServiceImpl extends TraceServiceGrpc.TraceServiceImplBase {
+        @Override
+        public void export(ExportTraceServiceRequest request, StreamObserver<ExportTraceServiceResponse> responseObserver) {
+            if (responseCode >= 400) {
+                responseObserver.onError(Status.UNAVAILABLE.withDescription("injected failure").asRuntimeException());
+                return;
+            }
+            if (running) {
+                try {
+                    OtlpTracesParser.parse(request).forEach(RecordingApmServer.this::route);
+                } catch (Throwable t) {
+                    logger.warn("failed to handle gRPC ExportTraceServiceRequest", t);
+                }
+            }
+            responseObserver.onNext(ExportTraceServiceResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+        }
+    }
+
+    public void addMessageConsumer(Consumer<ReceivedTelemetry> messageConsumer) {
         this.consumer = messageConsumer;
     }
+
+    public <T extends ReceivedTelemetry> T await(
+        Class<T> type,
+        Predicate<T> predicate,
+        int timeoutSeconds,
+        CheckedRunnable<Exception> action
+    ) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<T> matched = new AtomicReference<>();
+        addMessageConsumer(msg -> {
+            if (type.isInstance(msg) && predicate.test(type.cast(msg)) && matched.compareAndSet(null, type.cast(msg))) {
+                logger.debug("matched {}: {}", type.getSimpleName(), msg);
+                latch.countDown();
+            }
+        });
+        action.run();
+        if (latch.await(timeoutSeconds, TimeUnit.SECONDS) == false) {
+            throw new AssertionError("Timed out after " + timeoutSeconds + "s waiting for a matching " + type.getSimpleName());
+        }
+        return matched.get();
+    }
+
+    /**
+     * Clears any recorded telemetry to leave the server in a clean state.
+     * <p>
+     * This server's lifetime coincides with that of the cluster it's attached to,
+     * but that same cluster (and hence this server) may be used for multiple tests.
+     * This method is intended to be used in a test class's {@code @Before}
+     * and/or {@code @After} methods to prevent tests from interfering with each other.
+     * <p>
+     * Tests are advised to flush their telemetry, or else buffered telemetry from
+     * one test may be exported during a subsequent test.
+     */
+    public void reset() {
+        consumer = null;
+        received.clear();
+        clearResponseCode();
+    }
+
+    /**
+     * @return the first {@link ReceivedTelemetry.ReceivedResource} observed on the metrics, traces or
+     *         APM intake paths in this server's lifetime, or {@code null} if none has arrived yet
+     */
+    public ReceivedTelemetry.ReceivedResource resource() {
+        return resource.get();
+    }
+
+    /**
+     * @return the first {@link ReceivedTelemetry.ReceivedResource} observed on the OTLP logs path in
+     *         this server's lifetime, or {@code null} if no log batch has arrived yet
+     */
+    public ReceivedTelemetry.ReceivedResource logResource() {
+        return logResource.get();
+    }
+
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 
@@ -49,6 +50,28 @@ class InternalTestEngine extends InternalEngine {
             });
         }
         return super.index(index);
+    }
+
+    @Override
+    public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
+        final IndexOperationBatch indexBatch = batch.batch();
+        for (int i = 0; i < indexBatch.docCount(); i++) {
+            // seqNos are pre-assigned for REPLICA ops, UNASSIGNED for PRIMARY (engine assigns them later)
+            final long seqNo = indexBatch.seqNo(i);
+            if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                final String id = indexBatch.id(i);
+                idToMaxSeqNo.compute(id, (docId, existing) -> {
+                    if (existing == null) {
+                        return seqNo;
+                    } else {
+                        long maxSeqNo = Math.max(seqNo, existing);
+                        advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNo);
+                        return maxSeqNo;
+                    }
+                });
+            }
+        }
+        return super.indexBatch(batch);
     }
 
     @Override

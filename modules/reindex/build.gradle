@@ -7,31 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.Architecture
-import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.test.AntFixture
-import org.elasticsearch.gradle.transform.UnzipTransform
-
 apply plugin: 'elasticsearch.test-with-dependencies'
-apply plugin: 'elasticsearch.jdk-download'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description = 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
   classname = 'org.elasticsearch.reindex.ReindexPlugin'
-}
-
-testClusters.configureEach {
-  // Modules who's integration is explicitly tested in integration tests
-  module ':modules:parent-join'
-  module ':modules:lang-painless'
-  module ':modules:rest-root'
-  // Whitelist reindexing from the local node so we can test reindex-from-remote.
-  setting 'reindex.remote.whitelist', '127.0.0.1:*,[::1]:*'
 }
 
 dependencies {
@@ -42,10 +26,18 @@ dependencies {
   testImplementation project(':modules:rest-root')
   // for data stream integration tests
   internalClusterTestImplementation project(':modules:data-streams')
+  // registers reindex relocation and pit search node features
+  internalClusterTestImplementation project(':modules:reindex-management')
 
   clusterModules project(':modules:lang-painless')
   clusterModules project(':modules:parent-join')
   clusterModules project(":modules:rest-root")
+  clusterModules project(':modules:reindex-management')
+
+  // Testcontainers-backed old Elasticsearch fixtures for reindex-from-remote (see javaRestTest)
+  javaRestTestImplementation project(':test:fixtures:old-elasticsearch')
+  javaRestTestImplementation project(':test:fixtures:testcontainer-utils')
+  javaRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
 }
 
 restResources {
@@ -81,102 +73,6 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named("forbiddenPatterns").configure {
   // PKCS#12 file are not UTF-8
   exclude '**/*.p12'
-}
-
-// Support for testing reindex-from-remote against old Elasticsearch versions
-configurations {
-  oldesFixture
-  es2
-  es1
-  es090
-}
-
-dependencies {
-  oldesFixture project(':test:fixtures:old-elasticsearch')
-  /* Right now we just test against the latest version of each major we expect
-   * reindex-from-remote to work against. We could randomize the versions but
-   * that doesn't seem worth it at this point. */
-  es2 'org.elasticsearch.distribution.zip:elasticsearch:2.4.5@zip'
-  es1 'org.elasticsearch:elasticsearch:1.7.6@zip'
-  es090 'org.elasticsearch:elasticsearch:0.90.13@zip'
-}
-
-jdks {
-  legacy {
-    vendor = 'adoptium'
-    version = '8u302+b08'
-    platform = OS.current().name().toLowerCase()
-    architecture = Architecture.current().name().toLowerCase()
-  }
-}
-
-if (OS.current() == OS.MAC && Architecture.current() == Architecture.AARCH64) {
-  jdks.legacy.vendor = 'zulu'
-  jdks.legacy.distributionVersion = '8.56.0.23'
-}
-
-if (OS.current() == OS.WINDOWS) {
-  logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
-  tasks.named("javaRestTest").configure {
-    systemProperty "tests.fromOld", "false"
-  }
-} else if (rootProject.rootDir.toString().contains(" ")) {
-  logger.warn("Disabling reindex-from-old tests because Elasticsearch 1.7 won't start with spaces in the path")
-  tasks.named("javaRestTest").configure {
-    systemProperty "tests.fromOld", "false"
-  }
-} else {
-  /* Register a gradle artifact transformation to unpack resolved elasticsearch distributions. We only resolve
-   * zip files here. Using artifact transforms allow a better caching of the downloaded distros as the
-   * transformed (unpacked) distro will be cached by gradle resulting in less unpacking
-   *
-   * To avoid testing against too many old versions, always pick first and last version per major
-   */
-  project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
-    transformSpec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
-    transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
-  });
-
-  def versions = ['2', '1', '090']
-  if (OS.current() == OS.MAC) {
-    // 0.90 fails sometimes on mac, given that it is so old, let us disable it
-    // see: https://github.com/elastic/elasticsearch/issues/51202
-    versions = ['2', '1']
-  }
-  versions.each { version ->
-    def oldEsDependency = configurations['es' + version]
-    oldEsDependency.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
-    TaskProvider<AntFixture> fixture = tasks.register("oldEs${version}Fixture", AntFixture) {
-      dependsOn project.configurations.oldesFixture, jdks.legacy, oldEsDependency
-      executable = "${buildParams.runtimeJavaHome.get()}/bin/java"
-      def oldesFixtureConfiguration = project.configurations.oldesFixture
-      env 'CLASSPATH', "${-> oldesFixtureConfiguration.asPath}"
-      // old versions of Elasticsearch need JAVA_HOME
-      env 'JAVA_HOME', jdks.legacy.javaHomePath
-      // If we are running on certain arm systems we need to explicitly set the stack size to overcome JDK page size bug
-      if (Architecture.current() == Architecture.AARCH64) {
-        env 'ES_JAVA_OPTS', '-Xss512k'
-      }
-      args 'oldes.OldElasticsearch',
-        baseDir,
-        "${ -> oldEsDependency.singleFile.getPath()}",
-        version == '090'
-      waitCondition = { fixture, ant ->
-        // the fixture writes the ports file when Elasticsearch's HTTP service
-        // is ready, so we can just wait for the file to exist
-        return fixture.portsFile.exists()
-      }
-    }
-
-    tasks.named("javaRestTest").configure {
-      dependsOn fixture
-      systemProperty "tests.fromOld", "true"
-      /* Use a closure on the string to delay evaluation until right before we
-       * run the integration tests so that we can be sure that the file is
-       * ready. */
-      nonInputProperties.systemProperty "es${version}.port", fixture.map(f->f.addressAndPort)
-    }
-  }
 }
 
 tasks.named("yamlRestCompatTestTransform").configure { task ->

@@ -56,7 +56,7 @@ public class ExponentialHistogramParserTests extends ESTestCase {
             assertThat(parsed.positiveBuckets(), equalTo(expectedPositiveBuckets));
             assertThat(parsed.negativeBuckets(), equalTo(expectedNegativeBuckets));
 
-            assertThat(parsed.sum(), equalTo(histogram.valueCount() == 0 ? null : histogram.sum()));
+            assertThat(parsed.sum(), equalTo(histogram.isEmpty() ? null : histogram.sum()));
             assertThat(parsed.min(), equalTo(Double.isNaN(histogram.min()) ? null : histogram.min()));
             assertThat(parsed.max(), equalTo(Double.isNaN(histogram.max()) ? null : histogram.max()));
         }

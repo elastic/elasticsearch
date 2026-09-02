@@ -29,6 +29,11 @@ $$$index-time-series-end-time$$$
 `index.time_series.end_time` {applies_to}`serverless: all`
 :   (Dynamic, string) Latest `@timestamp` value (exclusive) accepted by the index. Only indices with an `index.mode` of `time_series` support this setting. For more information, refer to [Time-bound indices](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-bound-indices).
 
+$$$index-time-series-temporality-field$$$
+
+`index.time_series.temporality_field` {applies_to}`stack: ga 9.5` {applies_to}`serverless: all`
+:   (Static, string) Defines the name of the field used to store metric temporality per document. Only indices with an `index.mode` of `time_series` support this setting. The field must be mapped as `keyword` and must have `time_series_dimension` set to `true`. Based on the value of this field in each document, PromQL or ES|QL `TS` queries interpret metric values differently: `delta` causes metrics to be interpreted with delta temporality semantics, and `cumulative` with cumulative temporality semantics. Any other value, including `null`, causes metrics to be interpreted with the default temporality for their metric type: cumulative for `counter`s and delta for `histogram`s.
+
 $$$index-look-ahead-time$$$
 
 `index.look_ahead_time` {applies_to}`serverless: all`

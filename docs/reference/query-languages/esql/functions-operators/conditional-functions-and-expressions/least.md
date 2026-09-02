@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `LEAST` function [esql-least]
 
-:::{include} ../../_snippets/functions/layout/least.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/least.md
 :::

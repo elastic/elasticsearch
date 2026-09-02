@@ -1,0 +1,10 @@
+ from all_types
+ | eval s1 = v_hamming([0.15351605, 0.47691387, 0.6555141], dense_vector),
+        s2 = v_hamming([0.15351605, 0.47691387, 0.6555141], dense_vector) * 2 / 3
+ | where v_hamming([0.15351605, 0.47691387, 0.6555141], dense_vector) + 5
+        + v_cosine(dense_vector, [0.18848974, 0.56734943, 0.5018673]) > 0
+ | eval r2 = v_cosine([0.18848974, 0.56734943, 0.5018673], dense_vector)
+        + v_cosine([0.19720656, 0.54328305, 0.5056714], dense_vector)
+ | sort s1 desc
+ | limit 10
+ | keep s1, s2, r2

@@ -188,7 +188,8 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
             BytesRefs.toString(Objects.requireNonNull(value)),
             fuzziness.asDistance(BytesRefs.toString(value)),
             prefixLength,
-            transpositions
+            transpositions,
+            context
         );
     }
 
@@ -240,7 +241,8 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
             value,
             syntaxFlags,
             matchFlags,
-            maxDeterminizedStates
+            maxDeterminizedStates,
+            context.getCircuitBreaker()
         );
     }
 

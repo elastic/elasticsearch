@@ -1,6 +1,0 @@
-area: Mapping
-issues:
- - 109539
-pr: 143533
-summary: Date fields with ignore malformed do not ignore object and array values
-type: bug

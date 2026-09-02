@@ -1,0 +1,303 @@
+---
+setup:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex, contains]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_v5, flattened_datatype]
+      reason: "field aliases interacting with unmapped_fields=load/nullify"
+
+  # baseline: aliases over concrete fields
+  - do:
+      indices.create:
+        index: fa-aliased
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              name_alias:
+                type: alias
+                path: name
+              count:
+                type: long
+              count_alias:
+                type: alias
+                path: count
+
+  - do:
+      bulk:
+        index: fa-aliased
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "name": "a", "count": 10 }
+          - { "index": {} }
+          - { "name": "b", "count": 20 }
+
+  # alias name absent entirely
+  - do:
+      indices.create:
+        index: fa-missing
+        body:
+          mappings:
+            properties:
+              other:
+                type: keyword
+
+  - do:
+      bulk:
+        index: fa-missing
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "other": "z" }
+
+  # same name as a concrete field, not an alias
+  - do:
+      indices.create:
+        index: fa-concrete
+        body:
+          mappings:
+            properties:
+              name_alias:
+                type: keyword
+
+  - do:
+      bulk:
+        index: fa-concrete
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "name_alias": "concrete" }
+
+  # same name as a conflicting concrete type (long vs the alias' keyword) - cross-index conflict
+  - do:
+      indices.create:
+        index: fa-conflict
+        body:
+          mappings:
+            properties:
+              name_alias:
+                type: long
+
+  - do:
+      bulk:
+        index: fa-conflict
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "name_alias": 99 }
+
+  # alias pointing at a flattened field
+  - do:
+      indices.create:
+        index: fa-flat
+        body:
+          mappings:
+            properties:
+              attributes:
+                type: flattened
+              attributes_alias:
+                type: alias
+                path: attributes
+
+  - do:
+      bulk:
+        index: fa-flat
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "attributes": { "sub": "v" } }
+
+  # same name as keyword - conflicts with the flattened alias above
+  - do:
+      indices.create:
+        index: fa-flat-kw
+        body:
+          mappings:
+            properties:
+              attributes_alias:
+                type: keyword
+
+  - do:
+      bulk:
+        index: fa-flat-kw
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "attributes_alias": "kw" }
+
+  # field in _source but not in the mapping (dynamic:false) - makes the load _source-read observable
+  - do:
+      indices.create:
+        index: fa-source-only
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              other:
+                type: keyword
+
+  - do:
+      bulk:
+        index: fa-source-only
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "other": "z", "name_alias": "src", "name": "TARGET_MUST_NOT_APPEAR" }
+
+---
+'field alias is inert to unmapped_fields - default, load and nullify resolve identically':
+  # A fully-mapped alias never enters the unmapped machinery, so the setting is inert.
+  # The long count_alias has teeth: a stray load would surface it as keyword.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM fa-aliased | KEEP name_alias, count_alias | SORT name_alias'
+  - match: { columns.0.name: name_alias }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: count_alias }
+  - match: { columns.1.type: long }
+  - match: { values.0: ["a", 10] }
+  - match: { values.1: ["b", 20] }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM fa-aliased | KEEP name_alias, count_alias | SORT name_alias'
+  - match: { columns.1.type: long }
+  - match: { values.0: ["a", 10] }
+  - match: { values.1: ["b", 20] }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="nullify"; FROM fa-aliased | KEEP name_alias, count_alias | SORT name_alias'
+  - match: { columns.1.type: long }
+  - match: { values.0: ["a", 10] }
+  - match: { values.1: ["b", 20] }
+
+---
+'field alias present in one index and absent in another with load':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # keyword + long exercise both partial-unmapped paths (PotentiallyUnmappedKeywordEsField vs
+          # InvalidMappedField.potentiallyUnmapped); KEEP exempts the long from the PUNK guard.
+          query: 'SET unmapped_fields="load"; FROM fa-aliased, fa-missing | KEEP name_alias, count_alias | SORT name_alias'
+  - match: { columns.0.name: name_alias }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: count_alias }
+  - match: { columns.1.type: long }
+  - match: { values.0: ["a", 10] }
+  - match: { values.1: ["b", 20] }
+  - match: { values.2: [null, null] }
+
+---
+'field alias aliased, concrete, and missing across three indices with cast and load':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # the cast is the other PUNK-guard escape: count_alias::keyword exercises the non-keyword
+          # partial-unmapped path through a conversion.
+          query: 'SET unmapped_fields="load"; FROM fa-aliased, fa-concrete, fa-missing | EVAL k = name_alias::keyword, ck = count_alias::keyword | KEEP k, ck | SORT k'
+  - match: { columns.0.name: k }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: ck }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: ["a", "10"] }
+  - match: { values.1: ["b", "20"] }
+  - match: { values.2: ["concrete", null] }
+  - match: { values.3: [null, null] }
+
+---
+'unmapped_fields=load surfaces an unmapped field value from _source by its literal name':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # "src" can only come from the _source read; the decoy under the alias target proves load reads
+          # the literal name, not the resolved alias path (which an aliasless index can't resolve anyway).
+          query: 'SET unmapped_fields="load"; FROM fa-aliased, fa-source-only | KEEP name_alias | SORT name_alias'
+  - match: { columns.0.name: name_alias }
+  - match: { columns.0.type: keyword }
+  - match: { values.0: ["a"] }
+  - match: { values.1: ["b"] }
+  - match: { values.2: ["src"] }
+
+---
+'field alias in a cross-index type conflict resolves via an explicit cast':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # mapped (conflicting) in both indices, never unmapped, so load is inert - the union-type cast
+          # resolves the conflict, not the setting.
+          query: 'SET unmapped_fields="load"; FROM fa-aliased, fa-conflict | EVAL x = name_alias::keyword | KEEP x | SORT x'
+  - match: { columns.0.name: x }
+  - match: { columns.0.type: keyword }
+  - match: { values.0: ["99"] }
+  - match: { values.1: ["a"] }
+  - match: { values.2: ["b"] }
+
+---
+'loading a subfield of a flattened field (direct) fails with load':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM fa-flat | KEEP attributes.sub'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Loading subfield [attributes.sub] when parent [attributes] is of flattened field type is not supported with unmapped_fields="load"' }
+
+---
+'loading a subfield via a flattened field alias fails the same way':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          # the alias is not special-cased: a subfield load through it is rejected like through the field.
+          query: 'SET unmapped_fields="load"; FROM fa-flat | KEEP attributes_alias.sub'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Loading subfield [attributes_alias.sub] when parent [attributes_alias] is of flattened field type is not supported with unmapped_fields="load"' }
+
+---
+'nullify resolves a flattened subfield via an alias to null instead of failing':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # the flattened-subfield guard is load-only, so nullify just nullifies it - the only mode where
+          # this reference resolves (load and default both error).
+          query: 'SET unmapped_fields="nullify"; FROM fa-flat | KEEP attributes_alias.sub'
+  - match: { columns.0.name: attributes_alias.sub }
+  - match: { columns.0.type: "null" }
+  - match: { values.0: [null] }
+
+---
+'loading a subfield via a flattened field alias still fails under a type conflict':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          # the type conflict must not let the subfield load slip through to _source - the guard still fires.
+          query: 'SET unmapped_fields="load"; FROM fa-flat, fa-flat-kw | KEEP attributes_alias.sub'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Loading subfield [attributes_alias.sub] when parent [attributes_alias] is of flattened field type is not supported with unmapped_fields="load"' }

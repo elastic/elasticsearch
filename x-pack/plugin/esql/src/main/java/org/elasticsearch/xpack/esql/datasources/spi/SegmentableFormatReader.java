@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import java.io.IOException;
-import java.io.InputStream;
-
 /**
  * Extension of {@link FormatReader} for line-oriented text formats (CSV, NDJSON)
  * that support intra-file parallel parsing.
@@ -24,35 +21,35 @@ import java.io.InputStream;
 public interface SegmentableFormatReader extends FormatReader {
 
     /**
-     * Scans forward from the current position in the stream to find the start of
-     * the next complete record. Returns the number of bytes consumed (skipped)
-     * to reach that boundary.
-     * <p>
-     * For newline-delimited formats (CSV, NDJSON), this means scanning until
-     * the first {@code \n} or {@code \r\n} and returning the byte count
-     * including the line terminator. The next byte in the stream is the start
-     * of a complete record.
-     * <p>
-     * <b>Note on quoting:</b> Implementations for formats that support quoting
-     * (e.g. CSV with quoted fields containing embedded newlines) should either
-     * track quoting state during the scan or document that parallel parsing is
-     * not safe for files with embedded newlines in quoted fields.
-     * <p>
-     * The stream is positioned at an arbitrary byte offset within the file
-     * (typically a segment boundary). The implementation must consume bytes
-     * until it finds a record boundary, leaving the stream positioned at the
-     * start of the next record.
-     *
-     * @param stream an open stream positioned at an arbitrary offset within the file
-     * @return the number of bytes consumed to reach the next record boundary,
-     *         or {@code -1} if the end of stream is reached without finding a boundary
-     * @throws IOException if an I/O error occurs while scanning
+     * Default cap on the bytes a single record may occupy; the streaming splitter fails the query rather
+     * than buffering past this when a scanner cannot find a boundary. Overridable via the
+     * {@code external_max_record_size} pragma.
      */
-    long findNextRecordBoundary(InputStream stream) throws IOException;
+    int DEFAULT_MAX_RECORD_BYTES = 64 * 1024 * 1024;
+
+    /**
+     * Returns the record-boundary splitter for this reader.
+     */
+    default RecordSplitter recordSplitter() {
+        return recordSplitter(DEFAULT_MAX_RECORD_BYTES);
+    }
+
+    /**
+     * Returns the record-boundary splitter with a caller-supplied record-size cap.
+     * Implementations report {@link RecordSplitter#RECORD_TOO_LARGE} when a record exceeds
+     * {@code maxRecordBytes}.
+     */
+    RecordSplitter recordSplitter(int maxRecordBytes);
 
     /**
      * Returns the minimum segment size in bytes below which splitting is not worthwhile.
-     * Segments smaller than this will be merged with an adjacent segment.
+     * <p>
+     * It is a guarantee about the tail and advice about everything before it. Splitting stops once fewer than
+     * this many bytes are left, so the final segment is never short. Between two segments it only sets the
+     * spacing of the offsets that get probed: a boundary resolves somewhere inside its probe window, so a
+     * segment can come out shorter than this by up to the width of that window, and no pass merges it into its
+     * neighbour. Implementations must therefore read a segment of any size, and should read this as the size
+     * they are asking to be aimed at rather than the size they are promised.
      * <p>
      * Defaults to 1 MiB. ClickHouse benchmarks show 1 MiB chunks are optimal for
      * parallel parsing — 100 KB chunks are ~40% slower due to per-chunk overhead,
@@ -62,4 +59,13 @@ public interface SegmentableFormatReader extends FormatReader {
     default long minimumSegmentSize() {
         return 1024 * 1024;
     }
+
+    /**
+     * Called once by the coordinator at close time to deliver the total CPU nanoseconds spent on
+     * background threads (segmentator + all parser threads) back into this reader's own counters.
+     * <p>
+     * The default no-op is correct for readers that do not track read CPU.
+     */
+    default void acceptReadCpuNanos(long nanos) {}
+
 }

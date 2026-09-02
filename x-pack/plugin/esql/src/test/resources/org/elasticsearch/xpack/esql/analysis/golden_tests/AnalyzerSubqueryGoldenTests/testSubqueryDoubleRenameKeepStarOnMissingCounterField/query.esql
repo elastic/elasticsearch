@@ -1,0 +1,6 @@
+FROM k8s-downsampled, (FROM languages)
+| KEEP network.total_bytes_in
+| RENAME network.total_bytes_in AS x
+| RENAME x as y
+| KEEP *
+| SORT y

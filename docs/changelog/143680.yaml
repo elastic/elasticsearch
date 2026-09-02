@@ -1,5 +1,0 @@
-area: Highlighting
-issues: []
-pr: 143680
-summary: "Fix `UnsupportedOperationException` when using a `plain` highlighter with a query on a field used for index sorting (`index.sort.*`). "
-type: bug

@@ -1,0 +1,1 @@
+FROM heavy_a, heavy_b | STATS c = COUNT(*), d = COUNT_DISTINCT(emp_no) WHERE salary > 0

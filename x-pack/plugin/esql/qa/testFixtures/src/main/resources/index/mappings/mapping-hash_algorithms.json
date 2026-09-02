@@ -1,0 +1,10 @@
+{
+  "properties": {
+    "algorithm": {
+      "type": "keyword"
+    },
+    "input": {
+      "type": "keyword"
+    }
+  }
+}

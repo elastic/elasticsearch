@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
@@ -109,15 +110,24 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
         ActionListener<MultiTermVectorsShardResponse> listener
     ) throws IOException {
         if (stateless) {
-            final String[] realTimeIds = request.requests.stream()
-                .filter(r -> r.realtime())
-                .map(TermVectorsRequest::id)
-                .toArray(String[]::new);
+            // Keep ids and routings parallel by deriving both from the same filtered list of realtime requests.
+            final List<TermVectorsRequest> realTimeRequests = request.requests.stream().filter(TermVectorsRequest::realtime).toList();
+            final String[] realTimeIds = realTimeRequests.stream().map(TermVectorsRequest::id).toArray(String[]::new);
+            final String[] realTimeRoutings = realTimeRequests.stream().map(TermVectorsRequest::routing).toArray(String[]::new);
+
             if (realTimeIds.length > 0) {
+                // The summary is the same for this entire operation, it is passed in the individual request
+                // due to a pre-existing structure of the API that tries to reuse `TermVectorsRequest` both for multi- and regular
+                // term vectors operations (see TermVectorsService.getTermVectors).
+                // All other parameters like `realtime` and `fields` also behave like that.
+                final SplitShardCountSummary splitShardCountSummary = request.requests.get(0).getSplitShardCountSummary();
+
                 final var ensureDocsSearchableRequest = new EnsureDocsSearchableAction.EnsureDocsSearchableRequest(
                     request.index(),
                     shardId.id(),
-                    realTimeIds
+                    realTimeIds,
+                    realTimeRoutings,
+                    splitShardCountSummary
                 );
                 ensureDocsSearchableRequest.setParentTask(clusterService.localNode().getId(), request.getParentTask().getId());
                 client.executeLocally(

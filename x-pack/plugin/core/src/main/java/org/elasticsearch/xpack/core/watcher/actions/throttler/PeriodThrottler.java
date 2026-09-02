@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.core.watcher.actions.throttler;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 
@@ -20,6 +22,8 @@ import static org.elasticsearch.xpack.core.watcher.actions.throttler.Throttler.T
  * the last successful execution is lower than the given period, the action will be throttled.
  */
 public class PeriodThrottler implements Throttler {
+
+    private static final Logger logger = LogManager.getLogger(PeriodThrottler.class);
 
     @Nullable
     private final TimeValue period;
@@ -53,6 +57,12 @@ public class PeriodThrottler implements Throttler {
         long executionTime = status.lastSuccessfulExecution().timestamp().toInstant().toEpochMilli();
         TimeValue timeElapsed = TimeValue.timeValueMillis(now - executionTime);
         if (timeElapsed.getMillis() <= throttlePeriod.getMillis()) {
+            logger.debug(
+                "[{}] throttling action [{}] due to time elapsed since last execution [{}]",
+                ctx.watch().id(),
+                actionId,
+                timeElapsed
+            );
             return Result.throttle(
                 PERIOD,
                 "throttling interval is set to [{}] but time elapsed since last execution is [{}]",

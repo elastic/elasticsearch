@@ -15,6 +15,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
@@ -23,6 +24,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -398,6 +400,89 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         deleteModel(otherEndpointId, "force=true");
     }
 
+    public void testCreateEndpoint_WithInferenceIdReferencedBySemanticText_DimensionsNotSpecified() throws IOException {
+        final String endpointId = "endpoint_referenced_by_semantic_text";
+        final String indexName = randomAlphaOfLength(10).toLowerCase();
+
+        // Create an index using the endpoint ID before creating the endpoint
+        putSemanticText(endpointId, endpointId, indexName);
+
+        // Create a model without dimensions specified
+        putModel(endpointId, mockTextEmbeddingServiceModelConfig_NoDimensions(), TEXT_EMBEDDING);
+
+        // Index a document with the semantic text field into the index
+        var request = new Request("PUT", indexName + "/_create/1");
+        request.setJsonEntity("{\"inference_field\": \"value\"}");
+        assertStatusOkOrCreated(client().performRequest(request));
+
+        assertStatusOkOrCreated(client().performRequest(new Request("GET", "_refresh")));
+
+        deleteModel(endpointId, "force=true");
+
+        // Try to create an inference endpoint with the same ID but different dimensions
+        // from when the document with the semantic text field was indexed
+        var differentDimensions = TestDenseInferenceServiceExtension.DEFAULT_EMBEDDING_DIMENSIONS * 2;
+        ResponseException responseException = assertThrows(
+            ResponseException.class,
+            () -> putModel(endpointId, mockTextEmbeddingServiceModelConfig(differentDimensions), TEXT_EMBEDDING)
+        );
+        var expectedMessage = Strings.format(
+            "Inference endpoint [%s] could not be created because the inference_id is being used in mappings with incompatible settings "
+                + "for indices: [%s]. Please either use a different inference_id or update the index mappings to refer to a different "
+                + "inference_id.",
+            endpointId,
+            indexName
+        );
+        assertThat(responseException.getMessage(), containsString(expectedMessage));
+
+        deleteIndex(indexName);
+    }
+
+    public void testCreateEndpoint_DoesValidationCallBeforeCheckingExistingUses() throws IOException {
+        final String endpointId = "endpoint_referenced_by_semantic_text";
+        final String indexName = randomAlphaOfLength(10).toLowerCase();
+
+        // Create an index using the endpoint ID before creating the endpoint
+        putSemanticText(endpointId, endpointId, indexName);
+
+        // Create a model without dimensions specified
+        String modelConfig = mockTextEmbeddingServiceModelConfig_NoDimensions();
+        putModel(endpointId, modelConfig, TEXT_EMBEDDING);
+
+        // Index a document with the semantic text field into the index
+        var request = new Request("PUT", indexName + "/_create/1");
+        request.setJsonEntity("{\"inference_field\": \"value\"}");
+        assertStatusOkOrCreated(client().performRequest(request));
+
+        assertStatusOkOrCreated(client().performRequest(new Request("GET", "_refresh")));
+
+        deleteModel(endpointId, "force=true");
+
+        // Try to create an inference endpoint with the same ID but different dimensions
+        // from when the document with the semantic text field was indexed, but force the validation to fail
+        var differentDimensions = TestDenseInferenceServiceExtension.DEFAULT_EMBEDDING_DIMENSIONS * 2;
+        var requestBody = Strings.format("""
+            {
+              "task_type": "text_embedding",
+              "service": "text_embedding_test_service",
+              "service_settings": {
+                "model": "my_dense_vector_model",
+                "api_key": "abc64",
+                "dimensions": %s
+              },
+              "task_settings": {
+                "should_fail_validation": true
+              }
+            }
+            """, differentDimensions);
+        var responseException = assertThrows(ResponseException.class, () -> putModel(endpointId, requestBody, TEXT_EMBEDDING));
+
+        // We expect the error message to be from the validation, not the incompatible mappings
+        assertThat(responseException.getMessage(), containsString("validation call intentionally failed based on task settings"));
+
+        deleteIndex(indexName);
+    }
+
     public void testUnsupportedStream() throws Exception {
         String modelId = "streaming";
         putModel(modelId, mockCompletionServiceModelConfig(SPARSE_EMBEDDING, "streaming_completion_test_service"));
@@ -488,8 +573,8 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertThat(singleModel.get("task_type"), is(EMBEDDING.toString()));
         try {
             var input = List.of(
-                new InferenceString(DataType.IMAGE, randomAlphaOfLength(5)),
-                new InferenceString(DataType.TEXT, randomAlphaOfLength(15))
+                new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64," + randomAlphaOfLength(4)),
+                InferenceString.ofText(randomAlphaOfLength(15))
             );
             var resultMap = embedding(modelId, input);
             assertThat(resultMap.values(), hasSize(1));

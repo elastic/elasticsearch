@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioCon
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -41,7 +40,7 @@ public class AzureAiStudioEmbeddingsTaskSettingsTests extends AbstractBWCWireSer
             newSettingsMap.put(AzureAiStudioConstants.USER_FIELD, newSettings.user());
         }
         AzureAiStudioEmbeddingsTaskSettings updatedSettings = (AzureAiStudioEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
-            Collections.unmodifiableMap(newSettingsMap)
+            newSettingsMap
         );
         if (newSettings.user() == null) {
             assertEquals(initialSettings.user(), updatedSettings.user());
@@ -70,7 +69,7 @@ public class AzureAiStudioEmbeddingsTaskSettingsTests extends AbstractBWCWireSer
     }
 
     public void testFromMap_MissingUser_DoesNotThrowException() {
-        var taskSettings = AzureAiStudioEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of()));
+        var taskSettings = AzureAiStudioEmbeddingsTaskSettings.fromMap(new HashMap<>());
         assertNull(taskSettings.user());
     }
 

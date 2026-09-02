@@ -1,0 +1,3 @@
+ExchangeSinkExec[[$$m$min{r}#0, $$m$seen{r}#1],false]
+\_AggregateExec[[],[MIN($$min(network.eth>$MIN$0{r$}#2,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#3],INTERMEDIATE,[$$m$min{r}#4, $$m$seen{r}#5],8]
+  \_ExchangeSourceExec[[$$m$min{r}#0, $$m$seen{r}#1],false]

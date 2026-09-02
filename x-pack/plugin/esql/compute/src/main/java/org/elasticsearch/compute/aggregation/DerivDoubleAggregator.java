@@ -16,7 +16,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
@@ -140,21 +139,21 @@ class DerivDoubleAggregator {
         @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (
-                LongBlock.Builder countBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
-                DoubleBlock.Builder sumValBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
-                DoubleBlock.Builder sumTsBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
-                DoubleBlock.Builder sumTsValBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
-                DoubleBlock.Builder sumTsSqBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
+                var countBuilder = driverContext.blockFactory().newLongVectorFixedBuilder(selected.getPositionCount());
+                var sumValBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());
+                var sumTsBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());
+                var sumTsValBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());
+                var sumTsSqBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());
             ) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
                     SimpleLinearRegressionWithTimeseries slr = get(groupId);
                     if (slr == null) {
-                        countBuilder.appendNull();
-                        sumValBuilder.appendNull();
-                        sumTsBuilder.appendNull();
-                        sumTsValBuilder.appendNull();
-                        sumTsSqBuilder.appendNull();
+                        countBuilder.appendLong(0);
+                        sumValBuilder.appendDouble(0d);
+                        sumTsBuilder.appendDouble(0d);
+                        sumTsValBuilder.appendDouble(0d);
+                        sumTsSqBuilder.appendDouble(0d);
                     } else {
                         countBuilder.appendLong(slr.count);
                         sumValBuilder.appendDouble(slr.sumVal);
@@ -163,11 +162,11 @@ class DerivDoubleAggregator {
                         sumTsSqBuilder.appendDouble(slr.sumTsSq);
                     }
                 }
-                blocks[offset] = countBuilder.build();
-                blocks[offset + 1] = sumValBuilder.build();
-                blocks[offset + 2] = sumTsBuilder.build();
-                blocks[offset + 3] = sumTsValBuilder.build();
-                blocks[offset + 4] = sumTsSqBuilder.build();
+                blocks[offset] = countBuilder.build().asBlock();
+                blocks[offset + 1] = sumValBuilder.build().asBlock();
+                blocks[offset + 2] = sumTsBuilder.build().asBlock();
+                blocks[offset + 3] = sumTsValBuilder.build().asBlock();
+                blocks[offset + 4] = sumTsSqBuilder.build().asBlock();
             }
         }
     }

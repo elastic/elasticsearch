@@ -9,7 +9,11 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -21,6 +25,7 @@ import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -29,6 +34,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class RetryableStorageProviderTests extends ESTestCase {
+
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
 
     public void testNewObjectWrapsWithRetry() throws IOException {
         AtomicInteger streamCalls = new AtomicInteger();
@@ -94,6 +101,58 @@ public class RetryableStorageProviderTests extends ESTestCase {
         assertEquals(2, calls.get());
     }
 
+    public void testLazyListObjectsRetriesPagesWithoutRecreatingOrDuplicatingIterator() throws IOException {
+        StorageEntry first = new StorageEntry(StoragePath.of("s3://bucket/prefix/first.csv"), 10, Instant.EPOCH);
+        StorageEntry second = new StorageEntry(StoragePath.of("s3://bucket/prefix/second.csv"), 20, Instant.EPOCH);
+        AtomicInteger listCalls = new AtomicInteger();
+        AtomicInteger nextCalls = new AtomicInteger();
+        StorageProvider delegate = new StubStorageProvider() {
+            @Override
+            public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+                listCalls.incrementAndGet();
+                return new StorageIterator() {
+                    private int index;
+                    private boolean firstPageFailed;
+                    private boolean secondPageFailed;
+
+                    @Override
+                    public boolean hasNext() {
+                        if (index == 0 && firstPageFailed == false) {
+                            firstPageFailed = true;
+                            throw new ExternalUnavailableException("first page unavailable", (Throwable) null);
+                        }
+                        if (index == 1 && secondPageFailed == false) {
+                            secondPageFailed = true;
+                            throw new ExternalUnavailableException("second page unavailable", (Throwable) null);
+                        }
+                        return index < 2;
+                    }
+
+                    @Override
+                    public StorageEntry next() {
+                        nextCalls.incrementAndGet();
+                        return index++ == 0 ? first : second;
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+            }
+        };
+        RetryableStorageProvider provider = new RetryableStorageProvider(delegate, new RetryPolicy(3, 1, 10));
+
+        List<StorageEntry> entries = new ArrayList<>();
+        try (StorageIterator iterator = provider.listObjects(StoragePath.of("s3://bucket/prefix"), true)) {
+            while (iterator.hasNext()) {
+                entries.add(iterator.next());
+            }
+        }
+
+        assertEquals(List.of(first, second), entries);
+        assertEquals("page retries must preserve the original iterator and continuation state", 1, listCalls.get());
+        assertEquals("each entry must be consumed exactly once", 2, nextCalls.get());
+    }
+
     public void testExistsRetriesOnTransientFailure() throws IOException {
         AtomicInteger calls = new AtomicInteger();
         StorageProvider delegate = new StubStorageProvider() {
@@ -156,11 +215,17 @@ public class RetryableStorageProviderTests extends ESTestCase {
             }
 
             @Override
-            public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
                 if (asyncCalls.incrementAndGet() < 3) {
                     listener.onFailure(new SocketTimeoutException("timeout"));
                 } else {
-                    listener.onResponse(ByteBuffer.wrap("async-data".getBytes(StandardCharsets.UTF_8)));
+                    listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap("async-data".getBytes(StandardCharsets.UTF_8)), () -> {}));
                 }
             }
         };
@@ -170,13 +235,14 @@ public class RetryableStorageProviderTests extends ESTestCase {
         StorageObject obj = provider.newObject(StoragePath.of("s3://bucket/file.csv"));
         ExecutorService exec = Executors.newSingleThreadExecutor();
         try {
-            PlainActionFuture<ByteBuffer> future = new PlainActionFuture<>();
-            obj.readBytesAsync(0, 10, exec, future);
-            ByteBuffer result = future.actionGet();
-            byte[] bytes = new byte[result.remaining()];
-            result.get(bytes);
-            assertEquals("async-data", new String(bytes, StandardCharsets.UTF_8));
-            assertEquals(3, asyncCalls.get());
+            PlainActionFuture<DirectReadBuffer> future = new PlainActionFuture<>();
+            obj.readBytesAsync(0, 10, FACTORY, exec, future);
+            try (DirectReadBuffer result = future.actionGet()) {
+                byte[] bytes = new byte[result.buffer().remaining()];
+                result.buffer().get(bytes);
+                assertEquals("async-data", new String(bytes, StandardCharsets.UTF_8));
+                assertEquals(3, asyncCalls.get());
+            }
         } finally {
             exec.shutdown();
             exec.awaitTermination(10, TimeUnit.SECONDS);

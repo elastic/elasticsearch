@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
@@ -26,11 +25,10 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PlanConcurrencyCalculatorTests extends ESTestCase {
@@ -239,9 +237,13 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
                 query
             );
 
-        Analyzer analyzer = analyzer(analyzerDefaultMapping(), TEST_VERIFIER, configuration);
+        Analyzer analyzer = analyzer().addEmployees("test")
+            .addEnrichPolicy("match", "languages", "language_code", "languages_idx", "mapping-languages.json")
+            .addLanguagesLookup()
+            .configuration(configuration)
+            .buildAnalyzer();
         TransportVersion minimumVersion = analyzer.context().minimumVersion();
-        LogicalPlan logicalPlan = AnalyzerTestUtils.analyze(query, analyzer);
+        LogicalPlan logicalPlan = analyzer.analyze(TEST_PARSER.parseQuery(query));
         logicalPlan = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, FoldContext.small(), minimumVersion)).optimize(
             logicalPlan
         );

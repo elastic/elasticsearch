@@ -1,0 +1,8 @@
+Limit[10000[INTEGER],false,false]
+\_Project[[s1{r}#0, s2{r}#1, r2{r}#2]]
+  \_Limit[10[INTEGER],false,false]
+    \_OrderBy[[Order[s1{r}#0,DESC,FIRST]]]
+      \_Eval[[COSINESIMILARITY(TODENSEVECTOR([0.18848974, 0.56734943, 0.5018673][DOUBLE]),dense_vector{f}#3) + COSINESIMILARITY(TODENSEVECTOR([0.19720656, 0.54328305, 0.5056714][DOUBLE]),dense_vector{f}#3) AS r2#2]]
+        \_Filter[HAMMING(TODENSEVECTOR([0.15351605, 0.47691387, 0.6555141][DOUBLE]),dense_vector{f}#3) + 5[INTEGER] + COSINESIMILARITY(dense_vector{f}#3,TODENSEVECTOR([0.18848974, 0.56734943, 0.5018673][DOUBLE])) > 0[INTEGER]]
+          \_Eval[[HAMMING(TODENSEVECTOR([0.15351605, 0.47691387, 0.6555141][DOUBLE]),dense_vector{f}#3) AS s1#0, HAMMING(TODENSEVECTOR([0.15351605, 0.47691387, 0.6555141][DOUBLE]),dense_vector{f}#3) * 2[INTEGER] / 3[INTEGER] AS s2#1]]
+            \_EsRelation[all_types][!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, date_nanos{f}#8, dense_vector{f}#3, double{f}#9, float{f}#10, half_float{f}#11, integer{f}#12, ip{f}#13, keyword{f}#14, long{f}#15, scaled_float{f}#16, semantic_text{f}#17, short{f}#18, text{f}#19, unsigned_long{f}#20, version{f}#21, wildcard{f}#22]

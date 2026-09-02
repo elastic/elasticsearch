@@ -93,6 +93,7 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
 
         final List<CurrentWork> columnAtATime;
         final List<CurrentWork> rowStride;
+        int sourceBackedRowStrideFields;
         int currentShard = -1;
         BlockLoaderStoredFieldsFromLeafLoader storedFields;
 
@@ -125,6 +126,7 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
                 assert r.columnAtATime == null;
                 r.rowStride.read(doc, storedFields, r.builder);
             }
+            operator.trackSourceFieldReads(sourceBackedRowStrideFields);
             operator.trackSourceBytesAndRelease(storedFields);
         }
 
@@ -153,11 +155,18 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
             for (CurrentWork field : current) {
                 field.columnAtATime = field.field.columnAtATime(ctx);
                 if (field.columnAtATime != null) {
+                    field.rowStride = null;
                     columnAtATime.add(field);
                 } else {
                     field.rowStride = field.field.rowStride(ctx);
                     storedFieldsSpec = storedFieldsSpec.merge(field.field.loader.rowStrideStoredFieldSpec());
                     rowStride.add(field);
+                }
+            }
+            sourceBackedRowStrideFields = 0;
+            for (CurrentWork field : rowStride) {
+                if (field.field.loader.rowStrideStoredFieldSpec().requiresSource()) {
+                    sourceBackedRowStrideFields++;
                 }
             }
             SourceLoader sourceLoader = null;
@@ -167,7 +176,7 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
             }
             storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                 StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
-                sourceLoader != null ? sourceLoader.leaf(ctx.reader(), null) : null
+                sourceLoader != null ? sourceLoader.leaf(ctx, null) : null
             );
             if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
                 operator.trackStoredFields(storedFieldsSpec, false);

@@ -74,6 +74,7 @@ public class CancellationTests extends ESTestCase {
             TransportVersion.current(),
             threadPool
         );
+        // Always return first argument
     }
 
     @After

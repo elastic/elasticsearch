@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_VERSION` function [esql-to_version]
 
-:::{include} ../../_snippets/functions/layout/to_version.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_version.md
 :::

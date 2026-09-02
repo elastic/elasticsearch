@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `QSTR` function [esql-qstr]
 
-:::{include} ../../_snippets/functions/layout/qstr.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/qstr.md
 :::

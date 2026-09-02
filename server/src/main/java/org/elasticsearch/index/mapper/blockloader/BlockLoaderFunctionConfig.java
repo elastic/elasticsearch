@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
 
+import java.util.Arrays;
 import java.util.Set;
 
 /**
@@ -32,10 +33,30 @@ public interface BlockLoaderFunctionConfig {
      * Configuration for loading time-series metadata fields from {@code _source}.
      * Controls which field types to include (dimensions, metrics, or both) and which dimensions to exclude.
      */
-    record TimeSeriesMetadata(boolean loadMetrics, Set<String> withoutFields) implements BlockLoaderFunctionConfig {
+    record TimeSeriesMetadata(boolean loadMetricFields, Set<String> skipFieldNames) implements BlockLoaderFunctionConfig {
         @Override
         public Function function() {
             return Function.TIME_SERIES_METADATA;
+        }
+    }
+
+    /**
+     * Configuration for rounding long values to one of a sorted list of points.
+     */
+    record RoundToLongs(long[] points) implements BlockLoaderFunctionConfig {
+        @Override
+        public Function function() {
+            return Function.ROUND_TO;
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(points);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof RoundToLongs other && Arrays.equals(points, other.points);
         }
     }
 
@@ -49,11 +70,13 @@ public interface BlockLoaderFunctionConfig {
         MV_MAX,
         MV_MIN,
         LENGTH,
+        ROUND_TO,
         V_COSINE,
         V_DOT_PRODUCT,
         V_HAMMING,
         V_L1NORM,
         V_L2NORM,
-        TIME_SERIES_METADATA
+        TIME_SERIES_METADATA,
+        EXTRACT_FLATTENED_SUBFIELD
     }
 }

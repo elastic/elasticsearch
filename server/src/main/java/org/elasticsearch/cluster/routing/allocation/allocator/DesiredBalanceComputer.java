@@ -236,7 +236,17 @@ public class DesiredBalanceComputer {
                         && routingAllocation.deciders()
                             .canAllocate(shardRouting, targetNode, routingAllocation)
                             .type() != Decision.Type.NO) {
-                        final var targetShard = routingNodes.relocateShard(shardRouting, targetNodeId, 0L, "computation", changes).v2();
+                        // Use the unknown recovery priority here: it does not make any difference to the calculation, and this routing will
+                        // not be added to the cluster state:
+                        ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.UNKNOWN;
+                        final var targetShard = routingNodes.relocateShard(
+                            shardRouting,
+                            targetNodeId,
+                            0L,
+                            "computation",
+                            changes,
+                            recoveryPriority
+                        ).v2();
                         clusterInfoSimulator.simulateShardStarted(targetShard);
                         routingNodes.startShard(targetShard, changes, 0L);
                         continue relocateToDesiredLocation;
@@ -347,7 +357,7 @@ public class DesiredBalanceComputer {
 
         int i = 0;
         boolean hasChanges = false;
-        boolean assignedNewlyCreatedPrimaryShards = false;
+        boolean assignedNewlyCreatedPrimaryOrReplicaShards = false;
         while (true) {
             if (hasChanges) {
                 // Not the first iteration, so every remaining unassigned shard has been ignored, perhaps due to throttling. We must bring
@@ -373,14 +383,12 @@ public class DesiredBalanceComputer {
                 for (final var shardRouting : routingNode) {
                     if (shardRouting.initializing()) {
                         hasChanges = true;
-                        if (shardRouting.primary()
-                            && shardRouting.unassignedInfo() != null
+                        if (shardRouting.unassignedInfo() != null
                             && shardRouting.unassignedInfo().reason() == UnassignedInfo.Reason.INDEX_CREATED) {
                             // TODO: we could include more cases that would cause early publishing of desired balance in case of a long
                             // computation. e.g.:
-                            // - unassigned search replicas in case the shard has no assigned shard replicas
                             // - other reasons for an unassigned shard such as NEW_INDEX_RESTORED
-                            assignedNewlyCreatedPrimaryShards = true;
+                            assignedNewlyCreatedPrimaryOrReplicaShards = true;
                         }
                         clusterInfoSimulator.simulateShardStarted(shardRouting);
                         routingNodes.startShard(shardRouting, changes, 0L);
@@ -449,7 +457,7 @@ public class DesiredBalanceComputer {
                 break;
             }
 
-            if (assignedNewlyCreatedPrimaryShards
+            if (assignedNewlyCreatedPrimaryOrReplicaShards
                 && currentTime - computationStartedTime >= maxBalanceComputationTimeDuringIndexCreationMillis) {
                 logger.info(
                     "Desired balance computation for [{}] interrupted after [{}] and [{}] iterations "
@@ -558,11 +566,15 @@ public class DesiredBalanceComputer {
         RoutingNodes routingNodes,
         ClusterInfoSimulator clusterInfoSimulator
     ) {
-        // Find all shards that are started in RoutingNodes but have no data on corresponding node in ClusterInfo
+        // Find all shards that are started/relocating in RoutingNodes but have no data on corresponding node in ClusterInfo
+        //
+        // We include relocating shards because they are effectively started shards. We will subsequently assume these relocations
+        // complete, at which point we'll deduct their heap usage from the source and add it to the target. So we need to add it
+        // to the source first if it's not already accounted for.
         final var startedShards = new ArrayList<ShardRouting>();
         for (var routingNode : routingNodes) {
-            for (var shardRouting : routingNode.started()) {
-                if (clusterInfo.hasShardMoved(shardRouting)) {
+            for (var shardRouting : routingNode) {
+                if ((shardRouting.started() || shardRouting.relocating()) && clusterInfo.hasShardMoved(shardRouting)) {
                     startedShards.add(shardRouting);
                 }
             }
@@ -620,9 +632,9 @@ public class DesiredBalanceComputer {
             for (var indexToCount : nodeToIndexCountMap.getValue().entrySet()) {
                 // Check if the number of shards for an index moved to the particular node, since the ClusterInfo was created, is equal to
                 // the total number of shards for that index on that node, in which case the index is new to the node and any index stats
-                // should be added to the node.
+                // should be added to the node. Count started and relocating shards to be consistent with the logic above.
                 if (indexToCount.getValue() == routingNodes.node(nodeToIndexCountMap.getKey())
-                    .numberOfStartedShardsForIndex(indexToCount.getKey())) {
+                    .numberOfActiveShardsForIndex(indexToCount.getKey())) {
                     clusterInfoSimulator.simulateAddIndexToNode(nodeToIndexCountMap.getKey(), indexToCount.getKey());
                 }
             }
@@ -630,9 +642,10 @@ public class DesiredBalanceComputer {
 
         for (var nodeIdToIndicesWithRemovedShards : mapOfNodeIdsToIndicesWithRemovedShards.entrySet()) {
             // For each index on a node, we need to check whether node no longer holds any shards for that index. If the node no longer
-            // holds the index, then the index stats should be removed from the node.
+            // holds the index, then the index stats should be removed from the node. Count started and relocating shards to be
+            // consistent with the logic above.
             for (var index : nodeIdToIndicesWithRemovedShards.getValue()) {
-                if (routingNodes.node(nodeIdToIndicesWithRemovedShards.getKey()).numberOfStartedShardsForIndex(index) == 0) {
+                if (routingNodes.node(nodeIdToIndicesWithRemovedShards.getKey()).numberOfActiveShardsForIndex(index) == 0) {
                     clusterInfoSimulator.simulateRemoveIndexFromNode(nodeIdToIndicesWithRemovedShards.getKey(), index);
                 }
             }
@@ -685,7 +698,7 @@ public class DesiredBalanceComputer {
                     "computation converged for input index [{}] with unassigned shard [{}] due to allocation decision {}",
                     inputIndex,
                     lastTrackedUnassignedShard,
-                    org.elasticsearch.common.Strings.toString(
+                    org.elasticsearch.common.Strings.toTruncatedString(
                         p -> ChunkedToXContentHelper.object("node_allocation_decision", shardAllocationDecision.toXContentChunked(p))
                     )
                 );

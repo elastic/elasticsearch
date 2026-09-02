@@ -48,7 +48,6 @@ import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -59,7 +58,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -71,7 +69,6 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -84,6 +81,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.persistGlobalCheckpointOnPrimaryShards;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -1106,7 +1104,6 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertEquals(total, shardTotal);
     }
 
-    @TestLogging(value = "org.elasticsearch.cluster.service:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/124447")
     public void testFilterCacheStats() throws Exception {
         Settings settings = Settings.builder()
             .put(indexSettings())
@@ -1120,7 +1117,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             prepareIndex("index").setId("1").setSource("foo", "bar"),
             prepareIndex("index").setId("2").setSource("foo", "baz")
         );
-        persistGlobalCheckpoint("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
+        persistGlobalCheckpointOnPrimaryShards("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
         refresh();
         ensureGreen();
 
@@ -1153,7 +1150,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         // Here we are testing that a fully deleted segment should be dropped and its cached is evicted.
         // In order to instruct the merge policy not to keep a fully deleted segment,
         // we need to flush and make that commit safe so that the SoftDeletesPolicy can drop everything.
-        persistGlobalCheckpoint("index");
+        persistGlobalCheckpointOnPrimaryShards("index");
         assertBusy(() -> {
             for (final ShardStats shardStats : indicesAdmin().prepareStats("index").get().getIndex("index").getShards()) {
                 final long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
@@ -1368,26 +1365,5 @@ public class IndexStatsIT extends ESIntegTestCase {
             assertThat(indexStatsAfterIndexing, is(notNullValue()));
             assertThat(indexStatsAfterIndexing.getPrimaries().getIndexing().getTotal().getWriteLoad(), is(greaterThan(0.0)));
         });
-    }
-
-    /**
-     * Persist the global checkpoint on all shards of the given index into disk.
-     * This makes sure that the persisted global checkpoint on those shards will equal to the in-memory value.
-     */
-    private void persistGlobalCheckpoint(String index) throws Exception {
-        final Set<String> nodes = internalCluster().nodesInclude(index);
-        for (String node : nodes) {
-            final IndicesService indexServices = internalCluster().getInstance(IndicesService.class, node);
-            for (IndexService indexService : indexServices) {
-                for (IndexShard indexShard : indexService) {
-                    indexShard.sync();
-                    assertThat(
-                        "Routing entry for shard " + indexShard.routingEntry().toString(),
-                        indexShard.getLastSyncedGlobalCheckpoint(),
-                        equalTo(indexShard.getLastKnownGlobalCheckpoint())
-                    );
-                }
-            }
-        }
     }
 }

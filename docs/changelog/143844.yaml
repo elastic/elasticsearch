@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 143844
-summary: Fix bzip2 decompressor and NDJSON error recovery
-type: bug

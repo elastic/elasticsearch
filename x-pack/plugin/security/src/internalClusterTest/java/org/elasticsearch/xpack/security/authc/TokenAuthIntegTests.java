@@ -44,7 +44,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -602,10 +601,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(e, throwableWithMessage(containsString("token has already been refreshed more than 30 seconds in the past")));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85697")
     public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
         final Clock clock = Clock.systemUTC();
-        final List<String> tokens = Collections.synchronizedList(new ArrayList<>());
+        final List<OAuth2Token> refreshedTokens = Collections.synchronizedList(new ArrayList<>());
         OAuth2Token createTokenResponse = createToken(TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         assertNotNull(createTokenResponse.getRefreshToken());
         final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
@@ -637,14 +635,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                             result.getRefreshToken()
                         );
                     } else {
-                        tokens.add(result.accessToken() + result.getRefreshToken());
-                        // Assert that all requests from all threads could authenticate at the time they received the access token
-                        // see: https://github.com/elastic/elasticsearch/issues/54289
-                        try {
-                            getSecurityClient(result.accessToken()).authenticate();
-                        } catch (ResponseException esse) {
-                            fail(esse);
-                        }
+                        refreshedTokens.add(result);
                     }
                     logger.info("received access token [{}] and refresh token [{}]", result.accessToken(), result.getRefreshToken());
                 } catch (IOException e) {
@@ -665,12 +656,17 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         }
         completedLatch.await();
         assertThat(failed.get(), equalTo(false));
-        // Assert that we only ever got one token/refresh_token pair
-        synchronized (tokens) {
-            Set<String> uniqueTokens = new HashSet<>(tokens);
-            logger.info("Unique tokens received from refreshToken call [{}]", uniqueTokens);
-            assertThat(uniqueTokens.size(), equalTo(1));
+        final Set<String> uniqueTokens;
+        synchronized (refreshedTokens) {
+            uniqueTokens = refreshedTokens.stream()
+                .map(t -> t.accessToken() + t.getRefreshToken())
+                .collect(java.util.stream.Collectors.toSet());
         }
+        logger.info("Unique tokens received from refreshToken call [{}]", uniqueTokens);
+        assertThat(uniqueTokens.size(), equalTo(1));
+        // The token document may not be replicated to all shards yet (RefreshPolicy.NONE), so retry authentication
+        final String accessToken = refreshedTokens.get(0).accessToken();
+        assertBusy(() -> getSecurityClient(accessToken).authenticate());
     }
 
     public void testRefreshAsDifferentUser() throws IOException {

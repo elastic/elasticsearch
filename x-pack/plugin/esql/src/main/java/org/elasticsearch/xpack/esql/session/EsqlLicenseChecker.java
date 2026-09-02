@@ -15,9 +15,15 @@ import org.elasticsearch.rest.RestStatus;
 
 public class EsqlLicenseChecker {
 
-    public static final LicensedFeature.Momentary CCS_FEATURE = LicensedFeature.momentary(
+    private static final LicensedFeature.Momentary CCS_FEATURE = LicensedFeature.momentary(
         null,
         "esql-ccs",
+        License.OperationMode.ENTERPRISE
+    );
+
+    private static final LicensedFeature.Momentary QUERY_APPROXIMATION_FEATURE = LicensedFeature.momentary(
+        null,
+        "esql-approximation",
         License.OperationMode.ENTERPRISE
     );
 
@@ -40,12 +46,23 @@ public class EsqlLicenseChecker {
      * to run ES|QL cross-cluster searches and what license (if any) was found.
      */
     public static ElasticsearchStatusException invalidLicenseForCcsException(XPackLicenseState licenseState) {
-        String message = "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: ";
-        if (licenseState == null) {
-            message += "none";
-        } else {
-            message += licenseState.statusDescription();
+        return getException("A valid Enterprise license is required to run ES|QL cross-cluster searches.", licenseState);
+    }
+
+    /**
+     * @param licenseState existing license state. Need to extract info on the current installed license.
+     * @throws ElasticsearchStatusException if query approximation is not supported.
+     */
+    public static void checkQueryApproximation(XPackLicenseState licenseState) throws ElasticsearchStatusException {
+        if (licenseState == null || QUERY_APPROXIMATION_FEATURE.check(licenseState) == false) {
+            throw getException("A valid Enterprise license is required to use ES|QL query approximation.", licenseState);
         }
-        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
+    }
+
+    private static ElasticsearchStatusException getException(String message, XPackLicenseState licenseState) {
+        return new ElasticsearchStatusException(
+            message + " License found: " + (licenseState == null ? "none" : licenseState.statusDescription()),
+            RestStatus.BAD_REQUEST
+        );
     }
 }

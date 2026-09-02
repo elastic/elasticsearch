@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_DEDUPE` function [esql-mv_dedupe]
 
-:::{include} ../../_snippets/functions/layout/mv_dedupe.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_dedupe.md
 :::

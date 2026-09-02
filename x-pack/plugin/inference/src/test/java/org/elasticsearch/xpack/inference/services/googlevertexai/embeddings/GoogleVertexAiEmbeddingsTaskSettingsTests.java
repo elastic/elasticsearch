@@ -22,7 +22,6 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
@@ -52,7 +51,7 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
             newSettingsMap.put(GoogleVertexAiEmbeddingsTaskSettings.INPUT_TYPE, newSettings.getInputType().toString());
         }
         GoogleVertexAiEmbeddingsTaskSettings updatedSettings = (GoogleVertexAiEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
-            Collections.unmodifiableMap(newSettingsMap)
+            newSettingsMap
         );
         if (newSettings.autoTruncate() == null) {
             assertEquals(initialSettings.autoTruncate(), updatedSettings.autoTruncate());

@@ -7,17 +7,17 @@ documentation
 required_capability: agg_sample
 
 // tag::doc[]
-FROM employees
-| STATS sample = SAMPLE(gender, 5)
+FROM sample_data
+| STATS sample_messages = SAMPLE(message, 3)
 // end::doc[]
-// Hardcode the sample values to work around the limitations of the CSV tests in the 
+// Hardcode the sample values to work around the limitations of the CSV tests in the
 // presence of randomness, and be able to specify an expected result for the docs.
-| EVAL sample = ["F", "M", "M", "F", "M"]
+| EVAL sample_messages = ["Connected to 10.1.0.1", "Connection error", "Disconnected"]
 ;
 
 // tag::doc-result[]
-sample:keyword
-[F, M, M, F, M]
+sample_messages:keyword
+[Connected to 10.1.0.1, Connection error, Disconnected]
 // end::doc-result[]
 ;
 
@@ -173,12 +173,12 @@ true
 
 sample cartesian_point
 required_capability: agg_sample
- 
-FROM airports_web | SORT abbrev | LIMIT 3 | STATS sample = SAMPLE(location, 999) | EVAL sample = MV_SORT(sample)
+
+FROM airports_web | SORT abbrev | LIMIT 3 | STATS sample = SAMPLE(location, 999) | EVAL sample = MV_SORT(sample::string)
 ;
 
-sample:cartesian_point
-[POINT (809321.6344269889 1006514.3393965173), POINT (-1.1868515102256078E7 4170563.5012235222), POINT (-437732.64923689933 585738.5549131387)]
+sample:keyword
+[POINT (-1.1868515102256078E7 4170563.5012235222), POINT (-437732.64923689933 585738.5549131387), POINT (809321.6344269889 1006514.3393965173)]
 ;
 
 
@@ -206,11 +206,11 @@ sample:date_nanos
 
 sample geo_point
 required_capability: agg_sample
- 
-FROM airports | SORT abbrev | LIMIT 2 | STATS sample = SAMPLE(location, 999) | EVAL sample = MV_SORT(sample)
+
+FROM airports | SORT abbrev | LIMIT 2 | STATS sample = SAMPLE(location, 999) | EVAL sample = MV_SORT(sample::string)
 ;
 
-sample:geo_point
+sample:keyword
 [POINT (-106.6166851616 35.0491578018276), POINT (-3.93221929167636 5.2543984451492)]
 ;
 
@@ -257,4 +257,32 @@ FROM apps | STATS sample = SAMPLE(version,999) | EVAL sample = MV_SORT(sample)
 
 sample:version
 [1, 1.2.3.4, 1.2.3.4, 1.11.0, 2.1, 2.3.4, 2.12.0, 5.2.9-SNAPSHOT, 5.2.9, 5.2.9, 5.2.9, bad]
+;
+
+
+documentation by group
+required_capability: agg_sample
+
+// tag::docsSampleByGroup[]
+FROM sample_data
+| STATS sample_messages = SAMPLE(message, 2) BY client_ip
+| SORT client_ip
+// end::docsSampleByGroup[]
+// Hardcode the sample values per group to work around the limitations of the CSV
+// tests in the presence of randomness.
+| EVAL sample_messages = CASE(
+    client_ip == TO_IP("172.21.0.5"),   ["Disconnected"],
+    client_ip == TO_IP("172.21.2.113"), ["Connected to 10.1.0.2"],
+    client_ip == TO_IP("172.21.2.162"), ["Connected to 10.1.0.3"],
+    client_ip == TO_IP("172.21.3.15"),  ["Connection error", "Connected to 10.1.0.1"]
+  )
+;
+
+// tag::docsSampleByGroup-result[]
+client_ip:ip | sample_messages:keyword
+172.21.0.5   | Disconnected
+172.21.2.113 | Connected to 10.1.0.2
+172.21.2.162 | Connected to 10.1.0.3
+172.21.3.15  | [Connection error, Connected to 10.1.0.1]
+// end::docsSampleByGroup-result[]
 ;

@@ -92,6 +92,10 @@ public class QueryParams {
         this.parsingErrors.add(e);
     }
 
+    public List<QueryParam> params() {
+        return params;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

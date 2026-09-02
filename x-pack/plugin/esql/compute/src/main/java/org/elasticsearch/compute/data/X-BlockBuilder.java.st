@@ -10,6 +10,9 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+$if(BytesRef)$
+import org.elasticsearch.common.bytes.PagedBytesCursor;
+$endif$
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.$Array$;
@@ -28,8 +31,12 @@ $if(BytesRef)$
     private BytesRefArray values;
 
     BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
+        this(estimatedSize, bigArrays, blockFactory, 0L);
+    }
+
+    BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory, long byteHint) {
         super(blockFactory);
-        values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
+        values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays, byteHint);
     }
 
 $else$
@@ -57,6 +64,18 @@ $endif$
         return this;
     }
 
+$if(BytesRef)$
+    @Override
+    public BytesRefBlockBuilder append(PagedBytesCursor value) {
+        ensureCapacity();
+        values.append(value);
+        hasNonNullValue = true;
+        valueCount++;
+        updatePosition();
+        return this;
+    }
+
+$endif$
     @Override
     protected int elementSize() {
         return $if(BytesRef)$-1$else$$BYTES$$endif$;
@@ -102,6 +121,13 @@ $if(BytesRef)$
     @Override
     protected void writeNullValue() {
         values.append(BytesRefBlock.NULL_VALUE);
+    }
+
+    @Override
+    public $Type$BlockBuilder cancelPositionEntry() {
+        values.truncateTo(firstValueIndexes[positionCount]);
+        super.cancelPositionEntry();
+        return this;
     }
 $endif$
 
@@ -149,14 +175,20 @@ $endif$
     private void copyFromVector($Type$Vector vector, int beginInclusive, int endExclusive) {
 $if(BytesRef)$
         BytesRef scratch = new BytesRef();
-$endif$
         for (int p = beginInclusive; p < endExclusive; p++) {
-$if(BytesRef)$
             appendBytesRef(vector.getBytesRef(p, scratch));
-$else$
-            append$Type$(vector.get$Type$(p));
-$endif$
         }
+$else$
+        int count = endExclusive - beginInclusive;
+        if (count == 0) {
+            return;
+        }
+        ensureCapacity(count);
+        vector.copyTo(beginInclusive, values, valueCount, count);
+        hasNonNullValue = true;
+        valueCount += count;
+        updatePositions(count);
+$endif$
     }
 
     /**
@@ -242,35 +274,48 @@ $if(BytesRef)$
 
 $else$
     private $Type$Block buildBigArraysBlock() {
-        final $Type$Block theBlock;
-    $if(boolean)$
-        final BitArray array = new BitArray(valueCount, blockFactory.bigArrays());
-        for (int i = 0; i < valueCount; i++) {
-            if (values[i]) {
-                array.set(i);
-            }
-        }
-    $else$
-        final $Array$ array = blockFactory.bigArrays().new$Array$(valueCount, false);
-        for (int i = 0; i < valueCount; i++) {
-            array.set(i, values[i]);
-        }
-    $endif$
-        if (isDense() && singleValued()) {
-            theBlock = new $Type$BigArrayVector(array, positionCount, blockFactory).asBlock();
-        } else {
-            theBlock = new $Type$BigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
-        }
         /*
-        * Update the breaker with the actual bytes used.
-        * We pass false below even though we've used the bytes. That's weird,
-        * but if we break here we will throw away the used memory, letting
-        * it be deallocated. The exception will bubble up and the builder will
-        * still technically be open, meaning the calling code should close it
-        * which will return all used memory to the breaker.
-        */
-        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
-        return theBlock;
+         * Keep ownership of the BigArray until adjustBreaker succeeds. If it throws after
+         * wrapping, release the array here; the incomplete block is abandoned without close
+         * so we do not need BigArrayBlock.closeInternal's overhead debit on the failure path.
+         */
+    $if(boolean)$
+        BitArray array = new BitArray(valueCount, blockFactory.bigArrays());
+    $else$
+        $Array$ array = blockFactory.bigArrays().new$Array$(valueCount, false);
+    $endif$
+        try {
+    $if(boolean)$
+            for (int i = 0; i < valueCount; i++) {
+                if (values[i]) {
+                    array.set(i);
+                }
+            }
+    $else$
+            for (int i = 0; i < valueCount; i++) {
+                array.set(i, values[i]);
+            }
+    $endif$
+            final $Type$Block theBlock;
+            if (isDense() && singleValued()) {
+                theBlock = new $Type$BigArrayVector(array, positionCount, blockFactory).asBlock();
+            } else {
+                theBlock = new $Type$BigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+            }
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
+            array = null; // ownership transferred to theBlock
+            return theBlock;
+        } finally {
+            Releasables.close(array);
+        }
     }
 $endif$
 

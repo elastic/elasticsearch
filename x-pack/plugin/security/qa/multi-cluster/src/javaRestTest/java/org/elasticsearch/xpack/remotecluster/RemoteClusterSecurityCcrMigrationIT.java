@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
-import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
-
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -18,8 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.test.AnnotationTestOrdering;
-import org.elasticsearch.test.AnnotationTestOrdering.Order;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -42,7 +38,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-@TestCaseOrdering(AnnotationTestOrdering.class)
 public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final String CCR_USER = "ccr_user";
@@ -82,8 +77,16 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
         return true;
     }
 
-    @Order(10)
-    public void testInitialSetup() throws IOException {
+    public void testCcrMigrationFromRcs1ToRcs2AndBack() throws Exception {
+        initialSetup();
+        setupRcs1();
+        changeFollowerClusterCredentialsForRcs2();
+        setupRcs2();
+        changeFollowerClusterCredentialsForRcs1();
+        setupRcs1Again();
+    }
+
+    private void initialSetup() throws IOException {
         // For manual follow
         indexDocsToLeaderCluster("leader-index", 2);
 
@@ -95,8 +98,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
         assertOK(performRequestWithAdminUser(putUserRequest));
     }
 
-    @Order(20)
-    public void testRcs1Setup() throws Exception {
+    private void setupRcs1() throws Exception {
         // Create role on leader cluster
         final Request putRoleRequest = new Request("POST", "/_security/role/" + CCR_USER_ROLE);
         putRoleRequest.setJsonEntity("""
@@ -162,8 +164,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
     }
 
     // First migrate to RCS 2.0
-    @Order(30)
-    public void testFollowerClusterCredentialsChangeForRcs2() throws IOException {
+    private void changeFollowerClusterCredentialsForRcs2() throws IOException {
         // Update the ccr_user_role so that it is sufficient for both RCS 1.0 and 2.0
         final Request putRoleRequest = new Request("POST", "/_security/role/" + CCR_USER_ROLE);
         putRoleRequest.setJsonEntity("""
@@ -194,7 +195,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
         indexDocsToLeaderCluster("metrics-001", 1);
         indexDocsToLeaderCluster("metrics-002", 1);
 
-        // Create cross-cluster API key, add it to the key store and restart follower cluster
+        // Create a cross-cluster API key and reload the follower cluster's secure settings
         final Map<String, Object> crossClusterAccessApiKey = createCrossClusterAccessApiKey("""
             {
               "replication": [
@@ -206,8 +207,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
         configureRemoteClusterCredentials("my_remote_cluster", (String) crossClusterAccessApiKey.get("encoded"), keystoreSettings);
     }
 
-    @Order(40)
-    public void testRcs2Setup() throws Exception {
+    private void setupRcs2() throws Exception {
         // Configure a new remote cluster using RCS 2.0
         configureRemoteCluster("my_remote_cluster");
 
@@ -237,8 +237,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
     }
 
     // Second migrate back to RCS 1.0
-    @Order(50)
-    public void testFollowerClusterCredentialsChangeForRcs1() throws IOException {
+    private void changeFollowerClusterCredentialsForRcs1() throws IOException {
         // Remove the RCS 2.0 remote cluster
         removeRemoteCluster();
 
@@ -268,8 +267,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
         removeRemoteClusterCredentials("my_remote_cluster", keystoreSettings);
     }
 
-    @Order(60)
-    public void testRcs1SetupAgain() throws Exception {
+    private void setupRcs1Again() throws Exception {
         // Create role on leader cluster (in case it was removed in previous step)
         final Request putRoleRequest = new Request("POST", "/_security/role/" + CCR_USER_ROLE);
         putRoleRequest.setJsonEntity("""

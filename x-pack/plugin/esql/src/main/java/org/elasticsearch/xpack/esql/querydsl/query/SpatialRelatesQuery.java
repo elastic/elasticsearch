@@ -21,6 +21,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.spatial.XYQueriesUtils;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -130,6 +131,16 @@ public class SpatialRelatesQuery extends Query {
                 throw new QueryShardException(context, "failed to find type for field [" + field + "]");
             }
             return buildShapeQuery(context, fieldType);
+        }
+
+        @Override
+        public org.apache.lucene.search.Query toQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor)
+            throws IOException {
+            org.apache.lucene.search.Query query = toQuery(context);
+            if (query != null) {
+                query.visit(visitor);
+            }
+            return query;
         }
 
         abstract org.apache.lucene.search.Query buildShapeQuery(SearchExecutionContext context, MappedFieldType fieldType);

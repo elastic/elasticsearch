@@ -9,70 +9,74 @@
 
 package org.elasticsearch.search.diversification.mmr;
 
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
 public class MMRResultDiversificationTests extends ESTestCase {
 
-    public void testMMRDiversification() throws IOException {
-        for (int x = 0; x < 10; x++) {
-            List<Integer> expectedDocIds = new ArrayList<>();
-            MMRResultDiversificationContext diversificationContext = getRandomContext(expectedDocIds);
+    public void testMMRDiversificationWithFloatVectors() throws IOException {
+        List<Integer> expectedDocIds = new ArrayList<>();
+        MMRResultDiversificationContext diversificationContext = getFloatContext(expectedDocIds);
 
-            RankDoc[] docs = new RankDoc[] {
-                new RankDoc(1, 2.0f, 1),
-                new RankDoc(2, 1.8f, 1),
-                new RankDoc(3, 1.8f, 1),
-                new RankDoc(4, 1.0f, 1),
-                new RankDoc(5, 0.8f, 1),
-                new RankDoc(6, 0.8f, 1) };
+        RankDoc[] docs = new RankDoc[] {
+            new RankDoc(1, 2.0f, 1),
+            new RankDoc(2, 1.8f, 1),
+            new RankDoc(3, 1.8f, 1),
+            new RankDoc(4, 1.0f, 1),
+            new RankDoc(5, 0.8f, 1),
+            new RankDoc(6, 0.8f, 1) };
 
-            int rankIndex = 1;
-            for (RankDoc doc : docs) {
-                doc.rank = rankIndex++;
-            }
+        int rankIndex = 1;
+        for (RankDoc doc : docs) {
+            doc.rank = rankIndex++;
+        }
 
-            MMRResultDiversification resultDiversification = new MMRResultDiversification(diversificationContext);
-            RankDoc[] diversifiedTopDocs = resultDiversification.diversify(docs);
-            assertNotSame(docs, diversifiedTopDocs);
+        MMRResultDiversification resultDiversification = new MMRResultDiversification(diversificationContext);
+        RankDoc[] diversifiedTopDocs = resultDiversification.diversify(docs);
+        assertNotSame(docs, diversifiedTopDocs);
 
-            assertEquals(expectedDocIds.size(), diversifiedTopDocs.length);
-            for (int i = 0; i < expectedDocIds.size(); i++) {
-                assertEquals((int) expectedDocIds.get(i), diversifiedTopDocs[i].doc);
-            }
+        assertEquals(expectedDocIds.size(), diversifiedTopDocs.length);
+        for (int i = 0; i < expectedDocIds.size(); i++) {
+            assertEquals((int) expectedDocIds.get(i), diversifiedTopDocs[i].doc);
         }
     }
 
-    private MMRResultDiversificationContext getRandomContext(List<Integer> expectedDocIds) {
-        if (randomBoolean()) {
-            return getRandomFloatContext(expectedDocIds);
+    public void testMMRDiversificationWithByteVectors() throws IOException {
+        List<Integer> expectedDocIds = new ArrayList<>();
+        MMRResultDiversificationContext diversificationContext = getByteContext(expectedDocIds);
+
+        RankDoc[] docs = new RankDoc[] {
+            new RankDoc(1, 2.0f, 1),
+            new RankDoc(2, 1.8f, 1),
+            new RankDoc(3, 1.8f, 1),
+            new RankDoc(4, 1.0f, 1),
+            new RankDoc(5, 0.8f, 1),
+            new RankDoc(6, 0.8f, 1) };
+
+        int rankIndex = 1;
+        for (RankDoc doc : docs) {
+            doc.rank = rankIndex++;
         }
-        return getRandomByteContext(expectedDocIds);
+
+        MMRResultDiversification resultDiversification = new MMRResultDiversification(diversificationContext);
+        RankDoc[] diversifiedTopDocs = resultDiversification.diversify(docs);
+        assertNotSame(docs, diversifiedTopDocs);
+
+        assertEquals(expectedDocIds.size(), diversifiedTopDocs.length);
+        for (int i = 0; i < expectedDocIds.size(); i++) {
+            assertEquals((int) expectedDocIds.get(i), diversifiedTopDocs[i].doc);
+        }
     }
 
-    private MMRResultDiversificationContext getRandomFloatContext(List<Integer> expectedDocIds) {
-        final MapperBuilderContext context = MapperBuilderContext.root(false, false);
-
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder(
-            "dense_vector_field",
-            IndexVersion.current(),
-            false,
-            false,
-            List.of()
-        ).elementType(DenseVectorFieldMapper.ElementType.FLOAT).dimensions(4).build(context);
-
-        DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
-        builder.elementType(DenseVectorFieldMapper.ElementType.FLOAT);
+    private MMRResultDiversificationContext getFloatContext(List<Integer> expectedDocIds) {
 
         Supplier<VectorData> queryVectorData = () -> new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
         var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData);
@@ -98,19 +102,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
         return diversificationContext;
     }
 
-    private MMRResultDiversificationContext getRandomByteContext(List<Integer> expectedDocIds) {
-        final MapperBuilderContext context = MapperBuilderContext.root(false, false);
-
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder(
-            "dense_vector_field",
-            IndexVersion.current(),
-            false,
-            false,
-            List.of()
-        ).elementType(DenseVectorFieldMapper.ElementType.BYTE).dimensions(4).build(context);
-
-        DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
-        builder.elementType(DenseVectorFieldMapper.ElementType.BYTE);
+    private MMRResultDiversificationContext getByteContext(List<Integer> expectedDocIds) {
 
         Supplier<VectorData> queryVectorData = () -> new VectorData(new byte[] { 0x50, 0x20, 0x40, 0x40 });
         var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData);
@@ -136,20 +128,61 @@ public class MMRResultDiversificationTests extends ESTestCase {
         return diversificationContext;
     }
 
+    public void testMMRDiversificationWithActualNullVector() throws IOException {
+        Supplier<VectorData> queryVectorData = () -> null;
+        var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData);
+
+        Map<Integer, VectorData> vectors = new HashMap<>();
+        vectors.put(1, null);
+        vectors.put(2, new VectorData(new float[] { 0.4f, 0.2f, 0.4f, 0.4f }));
+        vectors.put(3, new VectorData(new float[] { 0.4f, 0.2f, 0.3f, 0.3f }));
+        vectors.put(4, new VectorData(new float[] { 0.4f, 0.1f, 0.3f, 0.3f }));
+        diversificationContext.setFieldVectors(vectors);
+
+        RankDoc[] docs = new RankDoc[] {
+            new RankDoc(1, 2.0f, 1),
+            new RankDoc(2, 1.8f, 1),
+            new RankDoc(3, 1.0f, 1),
+            new RankDoc(4, 0.8f, 1) };
+
+        int rankIndex = 1;
+        for (RankDoc doc : docs) {
+            doc.rank = rankIndex++;
+        }
+
+        MMRResultDiversification resultDiversification = new MMRResultDiversification(diversificationContext);
+        RankDoc[] diversifiedTopDocs = resultDiversification.diversify(docs);
+
+        assertEquals(3, diversifiedTopDocs.length);
+        for (RankDoc doc : diversifiedTopDocs) {
+            assertNotEquals(1, doc.rank);
+        }
+    }
+
+    public void testMMRDiversificationWithAllNullVectors() throws IOException {
+        Supplier<VectorData> queryVectorData = () -> null;
+        var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData);
+
+        Map<Integer, VectorData> vectors = new HashMap<>();
+        vectors.put(1, null);
+        vectors.put(2, null);
+        vectors.put(3, null);
+        diversificationContext.setFieldVectors(vectors);
+
+        RankDoc[] docs = new RankDoc[] { new RankDoc(1, 2.0f, 1), new RankDoc(2, 1.8f, 1), new RankDoc(3, 1.0f, 1) };
+
+        int rankIndex = 1;
+        for (RankDoc doc : docs) {
+            doc.rank = rankIndex++;
+        }
+
+        MMRResultDiversification resultDiversification = new MMRResultDiversification(diversificationContext);
+        RankDoc[] diversifiedTopDocs = resultDiversification.diversify(docs);
+
+        assertEquals(0, diversifiedTopDocs.length);
+    }
+
     public void testMMRDiversificationIfNoSearchHits() throws IOException {
-        final MapperBuilderContext context = MapperBuilderContext.root(false, false);
-
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder(
-            "dense_vector_field",
-            IndexVersion.current(),
-            false,
-            false,
-            List.of()
-        ).elementType(DenseVectorFieldMapper.ElementType.FLOAT).dimensions(4).build(context);
-
-        // Change the element type to byte, which is incompatible with int8 HNSW index options
-        DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
-        builder.elementType(DenseVectorFieldMapper.ElementType.FLOAT);
 
         Supplier<VectorData> queryVectorData = () -> new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
         var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.6f, 10, queryVectorData);

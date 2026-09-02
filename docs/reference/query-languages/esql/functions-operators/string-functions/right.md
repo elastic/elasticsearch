@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `RIGHT` function [esql-right]
 
-:::{include} ../../_snippets/functions/layout/right.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/right.md
 :::

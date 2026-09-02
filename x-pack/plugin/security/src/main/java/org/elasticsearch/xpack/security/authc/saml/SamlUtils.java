@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.security.authc.saml;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.XmlUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
+import org.opensaml.core.config.InitializationException;
 import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.XMLObjectBuilderFactory;
@@ -37,9 +37,6 @@ import java.io.InputStream;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.net.URISyntaxException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -79,21 +76,17 @@ public class SamlUtils {
      * The initialization happens within do privileged block as the underlying Apache XML security library has a permission check.
      * The initialization happens with a specific context classloader as OpenSAML loads resources from its jar file.
      */
-    static void initialize(Logger logger) throws PrivilegedActionException {
+    static void initialize(Logger logger) throws InitializationException {
         if (INITIALISED.compareAndSet(false, true)) {
             // We want to force these classes to be loaded _before_ we fiddle with the context classloader
             LoggerFactory.getLogger(InitializationService.class);
-            SpecialPermission.check();
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                logger.debug("Initializing OpenSAML");
-                try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(InitializationService.class)) {
-                    InitializationService.initialize();
-                    // Force load this now, because it has a static field that needs to run inside the doPrivileged block
-                    var ignore2 = new X509CertificateBuilder().buildObject();
-                }
-                logger.debug("Initialized OpenSAML");
-                return null;
-            });
+            logger.debug("Initializing OpenSAML");
+            try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(InitializationService.class)) {
+                InitializationService.initialize();
+                // Force load this now, because it has a static field that needs to run inside the context classloader block
+                var ignore2 = new X509CertificateBuilder().buildObject();
+            }
+            logger.debug("Initialized OpenSAML");
             builderFactory = XMLObjectProviderRegistrySupport.getBuilderFactory();
         }
     }

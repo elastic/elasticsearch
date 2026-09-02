@@ -399,3 +399,73 @@
       indices.delete_data_stream:
         name: data-stream-for-modification2
   - is_true: acknowledged
+
+---
+"Modify a data stream with delete backing index action":
+  - requires:
+      cluster_features: ["data_stream.modify.delete_index"]
+      reason: "this API uses a new operation type released under this feature"
+      test_runner_features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [data-*]
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream-for-modification
+  - is_true: acknowledged
+
+  # rollover data stream to create new backing index
+  - do:
+      indices.rollover:
+        alias: "data-stream-for-modification"
+  - is_true: acknowledged
+
+  # save index names for later use
+  - do:
+      indices.get_data_stream:
+        name: data-stream-for-modification
+  - set: { data_streams.0.indices.0.index_name: first_index }
+  - set: { data_streams.0.indices.1.index_name: write_index }
+
+  - do:
+      catch: /cannot remove backing index \[.*\] of data stream \[data-stream-for-modification\] because it is the write index/
+      indices.modify_data_stream:
+        body:
+          actions:
+            - delete_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: $write_index
+
+  - do:
+      indices.modify_data_stream:
+        body:
+          actions:
+            - delete_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: $first_index
+
+  - do:
+      indices.get_data_stream:
+        name: "data-stream-for-modification"
+  - match: { data_streams.0.name: data-stream-for-modification }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 3 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: $write_index }
+
+  - do:
+      indices.exists:
+        index: $first_index
+  - is_false: ''
+
+  - do:
+      indices.delete_data_stream:
+        name: data-stream-for-modification
+  - is_true: acknowledged

@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -75,6 +78,15 @@ public interface LucenePushdownPredicates {
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value);
 
     /**
+     * Whether every field with this name supports the given block-loader configuration. This is the same hook
+     * that gates block-loader fusion ({@link MappedFieldType#supportsBlockLoaderConfig}); {@code field_extract}
+     * query pushdown reuses it so the flattened field type itself rejects pushdown for mapped sub-fields (keys
+     * declared under {@code properties}). Both pushdown paths therefore agree on which keys are pushable, keeping
+     * the function's result consistent with the per-row evaluator regardless of plan shape.
+     */
+    boolean supportsLoaderConfig(FieldAttribute field, BlockLoaderFunctionConfig config, MappedFieldType.FieldExtractPreference preference);
+
+    /**
      * We see fields as pushable if either they are aggregatable or they are indexed.
      * This covers non-indexed cases like <code>AbstractScriptFieldType</code> which hard-coded <code>isAggregatable</code> to true,
      * as well as normal <code>FieldAttribute</code>'s which can only be pushed down if they are indexed.
@@ -83,10 +95,13 @@ public interface LucenePushdownPredicates {
      * support it, and relying on the compute engine for the nodes that do not.
      */
     default boolean isPushableFieldAttribute(Expression exp) {
-        // Potentially unmapped fields are not pushabled: the field may be unmapped on some shards, and pushing down would produce wrong
+        // Potentially unmapped fields are not pushable: the field may be unmapped on some shards, and pushing down would produce wrong
         // results (e.g., missing rows when the predicate is pushed to Lucene).
+        // FunctionEsField values are synthesized by the block loader (e.g. LENGTH(kwd), field_extract(...)); there is no indexed Lucene
+        // field behind them, so predicates and TopN over them must stay in the compute engine even though they are exact values.
         if (exp instanceof FieldAttribute fa
             && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
+            && fa.field() instanceof FunctionEsField == false
             && fa.getExactInfo().hasExact()
             && isIndexedAndHasDocValues(fa)) {
             return fa.dataType() != DataType.TEXT || hasExactSubfield(fa);
@@ -166,6 +181,18 @@ public interface LucenePushdownPredicates {
             }
 
             @Override
+            public boolean supportsLoaderConfig(
+                FieldAttribute field,
+                BlockLoaderFunctionConfig config,
+                MappedFieldType.FieldExtractPreference preference
+            ) {
+                // No mapping access during can_match: be conservative and never report a loader config as
+                // supported, so field_extract query pushdown never fires without SearchStats to confirm the
+                // key is an unmapped keyed sub-field.
+                return false;
+            }
+
+            @Override
             public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
                 return false;
             }
@@ -208,6 +235,15 @@ public interface LucenePushdownPredicates {
             @Override
             public boolean isIndexed(FieldAttribute attr) {
                 return stats.isIndexed(new FieldAttribute.FieldName(attr.name()));
+            }
+
+            @Override
+            public boolean supportsLoaderConfig(
+                FieldAttribute field,
+                BlockLoaderFunctionConfig config,
+                MappedFieldType.FieldExtractPreference preference
+            ) {
+                return stats.supportsLoaderConfig(new FieldAttribute.FieldName(field.name()), config, preference);
             }
 
             @Override

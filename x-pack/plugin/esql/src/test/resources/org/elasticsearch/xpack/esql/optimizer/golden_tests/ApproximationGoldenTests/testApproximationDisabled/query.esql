@@ -1,0 +1,3 @@
+SET approximation=false;
+FROM many_numbers
+  | STATS COUNT(sv), MEDIAN(sv)

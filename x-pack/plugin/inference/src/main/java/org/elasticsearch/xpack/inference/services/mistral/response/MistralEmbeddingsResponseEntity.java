@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.mistral.response;
 
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.BaseResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 
@@ -17,8 +17,8 @@ import java.io.IOException;
 
 public class MistralEmbeddingsResponseEntity extends BaseResponseEntity {
     @Override
-    protected InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException {
+    protected InferenceServiceResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
         // expected response type is the same as the Open AI Embeddings
-        return OpenAiEmbeddingsResponseEntity.fromResponse(request, response);
+        return OpenAiEmbeddingsResponseEntity.fromResponse(outboundRequest, response);
     }
 }

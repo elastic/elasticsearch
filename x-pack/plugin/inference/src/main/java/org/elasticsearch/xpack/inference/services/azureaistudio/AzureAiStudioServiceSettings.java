@@ -11,7 +11,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -25,6 +24,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.ENDPOINT_TYPE_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TARGET_FIELD;
@@ -38,38 +38,44 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
 
     protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(240);
 
-    protected static BaseAzureAiStudioCommonFields fromMap(
+    protected static AzureAiStudioCommonSettings fromMap(
         Map<String, Object> map,
         ValidationException validationException,
         ConfigurationParseContext context
     ) {
-        String target = extractRequiredString(map, TARGET_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            AzureAiStudioService.NAME,
-            context
-        );
-        AzureAiStudioEndpointType endpointType = extractRequiredEnum(
+        var target = extractRequiredString(map, TARGET_FIELD, SERVICE_SETTINGS, validationException);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
+        var endpointType = extractRequiredEnum(
             map,
             ENDPOINT_TYPE_FIELD,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             AzureAiStudioEndpointType::fromString,
             EnumSet.allOf(AzureAiStudioEndpointType.class),
             validationException
         );
-
-        AzureAiStudioProvider provider = extractRequiredEnum(
+        var provider = extractRequiredEnum(
             map,
             PROVIDER_FIELD,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             AzureAiStudioProvider::fromString,
             EnumSet.allOf(AzureAiStudioProvider.class),
             validationException
         );
 
-        return new BaseAzureAiStudioCommonFields(target, provider, endpointType, rateLimitSettings);
+        return new AzureAiStudioCommonSettings(target, provider, endpointType, rateLimitSettings);
+    }
+
+    protected AzureAiStudioCommonSettings updateCommonSettings(
+        Map<String, Object> serviceSettings,
+        ValidationException validationException
+    ) {
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            ConfigurationParseContext.REQUEST
+        );
+        return new AzureAiStudioCommonSettings(this.target, this.provider, this.endpointType, extractedRateLimitSettings);
     }
 
     protected AzureAiStudioServiceSettings(StreamInput in) throws IOException {
@@ -91,7 +97,7 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
-    protected record BaseAzureAiStudioCommonFields(
+    protected record AzureAiStudioCommonSettings(
         String target,
         AzureAiStudioProvider provider,
         AzureAiStudioEndpointType endpointType,
@@ -137,5 +143,4 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
         builder.field(ENDPOINT_TYPE_FIELD, this.endpointType);
         rateLimitSettings.toXContent(builder, params);
     }
-
 }

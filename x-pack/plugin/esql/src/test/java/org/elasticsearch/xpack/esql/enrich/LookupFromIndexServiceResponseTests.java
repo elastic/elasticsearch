@@ -9,26 +9,41 @@ package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.junit.After;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -37,7 +52,13 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
 
     LookupFromIndexService.LookupResponse createTestInstance(BlockFactory blockFactory) {
         String planString = randomBoolean() ? randomAlphaOfLength(20) : null;
-        return new LookupFromIndexService.LookupResponse(randomList(0, 10, () -> randomPage(blockFactory)), blockFactory, planString);
+        return new LookupFromIndexService.LookupResponse(
+            randomList(0, 10, () -> randomPage(blockFactory)),
+            blockFactory,
+            planString,
+            0L,
+            randomList(0, 3, () -> randomAlphaOfLength(10))
+        );
     }
 
     /**
@@ -75,7 +96,11 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
 
     @Override
     protected Writeable.Reader<LookupFromIndexService.LookupResponse> instanceReader() {
-        return in -> new LookupFromIndexService.LookupResponse(in, TestBlockFactory.getNonBreakingInstance());
+        return in -> new LookupFromIndexService.LookupResponse(
+            in,
+            TestBlockFactory.getNonBreakingInstance(),
+            new ThreadContext(Settings.EMPTY)
+        );
     }
 
     @Override
@@ -91,7 +116,13 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
             // Mutate planString
             planString = planString == null ? randomAlphaOfLength(20) : planString + "_mutated";
         }
-        return new LookupFromIndexService.LookupResponse(pages, instance.blockFactory, planString);
+        return new LookupFromIndexService.LookupResponse(
+            pages,
+            instance.blockFactory,
+            planString,
+            instance.bytesRead() + 1L,
+            instance.warnings()
+        );
     }
 
     public void testWithBreaker() throws IOException {
@@ -103,7 +134,7 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
                 orig,
                 getNamedWriteableRegistry(),
                 (out, v) -> v.writeTo(out),
-                in -> new LookupFromIndexService.LookupResponse(in, copyFactory),
+                in -> new LookupFromIndexService.LookupResponse(in, copyFactory, new ThreadContext(Settings.EMPTY)),
                 TransportVersion.current()
             );
             try {
@@ -129,14 +160,16 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
         LookupFromIndexService.LookupResponse origWithPlan = new LookupFromIndexService.LookupResponse(
             randomList(0, 5, () -> randomPage(origFactory)),
             origFactory,
-            "test-plan-string"
+            "test-plan-string",
+            0L,
+            List.of()
         );
         try {
             LookupFromIndexService.LookupResponse copyWithPlan = copyInstance(
                 origWithPlan,
                 getNamedWriteableRegistry(),
                 (out, v) -> v.writeTo(out),
-                in -> new LookupFromIndexService.LookupResponse(in, copyFactory),
+                in -> new LookupFromIndexService.LookupResponse(in, copyFactory, new ThreadContext(Settings.EMPTY)),
                 TransportVersion.current()
             );
             try {
@@ -153,14 +186,16 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
         LookupFromIndexService.LookupResponse origWithoutPlan = new LookupFromIndexService.LookupResponse(
             randomList(0, 5, () -> randomPage(origFactory)),
             origFactory,
-            null
+            null,
+            0L,
+            List.of()
         );
         try {
             LookupFromIndexService.LookupResponse copyWithoutPlan = copyInstance(
                 origWithoutPlan,
                 getNamedWriteableRegistry(),
                 (out, v) -> v.writeTo(out),
-                in -> new LookupFromIndexService.LookupResponse(in, copyFactory),
+                in -> new LookupFromIndexService.LookupResponse(in, copyFactory, new ThreadContext(Settings.EMPTY)),
                 TransportVersion.current()
             );
             try {
@@ -198,9 +233,171 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
         assertThat(factory.breaker().getUsed(), equalTo(0L));
     }
 
+    public void testSenderWriteToReleasesAfterBreakerTrip() throws IOException {
+        BlockFactory pageFactory = blockFactory();
+        BlockFactory writeToFactory = blockFactory(ByteSizeValue.ZERO);
+        List<Page> pages = randomList(2, 5, () -> randomPage(pageFactory));
+        LookupFromIndexService.LookupResponse response = new LookupFromIndexService.LookupResponse(
+            pages,
+            writeToFactory,
+            null,
+            0L,
+            List.of()
+        );
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            expectThrows(CircuitBreakingException.class, () -> response.writeTo(out));
+        } finally {
+            response.decRef();
+        }
+    }
+
+    public void testReceiverReleasesAlreadyReadPagesOnBreakerTrip() throws IOException {
+        int pageCount = between(10, 20);
+        BlockFactory senderFactory = blockFactory();
+        List<Page> originalPages = randomList(pageCount, pageCount, () -> nonNullRandomPage(senderFactory));
+        long pagesHeapBytes = originalPages.stream().mapToLong(Page::ramBytesUsedByBlocks).sum();
+        LookupFromIndexService.LookupResponse sender = new LookupFromIndexService.LookupResponse(
+            originalPages,
+            senderFactory,
+            randomBoolean() ? randomAlphaOfLength(20) : null,
+            0L,
+            List.of()
+        );
+        BytesReference wireBytes;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            sender.writeTo(out);
+            wireBytes = out.bytes();
+        } finally {
+            sender.decRef();
+        }
+
+        BlockFactory receiverFactory = blockFactory(ByteSizeValue.ofBytes(pagesHeapBytes / 4));
+        try (StreamInput in = new NamedWriteableAwareStreamInput(wireBytes.streamInput(), new NamedWriteableRegistry(List.of()))) {
+            in.setTransportVersion(TransportVersion.current());
+            expectThrows(
+                CircuitBreakingException.class,
+                () -> new LookupFromIndexService.LookupResponse(in, receiverFactory, new ThreadContext(Settings.EMPTY))
+            );
+        }
+    }
+
+    private Page nonNullRandomPage(BlockFactory blockFactory) {
+        Block[] blocks = new Block[between(1, 20)];
+        int positionCount = between(1, 100);
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                var randomBlock = RandomBlock.randomBlock(blockFactory, RandomBlock.randomElementType(), positionCount, false, 1, 1, 0, 0);
+                blocks[i] = randomBlock.block();
+            }
+        } finally {
+            if (blocks[blocks.length - 1] == null) {
+                Releasables.close(blocks);
+            }
+        }
+        return new Page(blocks);
+    }
+
+    public void testReceiverReleasesPagesOnTrailingReadFailure() throws IOException {
+        BlockFactory senderFactory = blockFactory();
+        int pageCount = between(1, 4);
+        LookupFromIndexService.LookupResponse sender = new LookupFromIndexService.LookupResponse(
+            randomList(pageCount, pageCount, () -> randomPage(senderFactory)),
+            senderFactory,
+            randomAlphaOfLength(20), // ensure non-null planString so trailing bytes exist to truncate
+            0L,
+            List.of()
+        );
+        BytesReference wireBytes;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            sender.writeTo(out);
+            wireBytes = out.bytes();
+        } finally {
+            sender.decRef();
+        }
+
+        BytesReference truncated = wireBytes.slice(0, wireBytes.length() - 1);
+        try (StreamInput in = new NamedWriteableAwareStreamInput(truncated.streamInput(), new NamedWriteableRegistry(List.of()))) {
+            in.setTransportVersion(TransportVersion.current());
+            expectThrows(
+                EOFException.class,
+                () -> new LookupFromIndexService.LookupResponse(in, blockFactory(), new ThreadContext(Settings.EMPTY))
+            );
+        }
+    }
+
+    /**
+     * The BWC branch in the LookupResponse constructor reads warnings from the thread context
+     * when deserializing from an old node. It must <em>take</em> them (removing them) rather
+     * than just reading, otherwise they also travel as response headers and get duplicated.
+     * We verify by deserializing twice on the same thread context — the second read should
+     * get no warnings.
+     */
+    public void testBwcReadTakesWarningsFromThreadContext() throws IOException {
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(DriverCompletionInfo.ESQL_DRIVER_WARNINGS);
+        BlockFactory senderFactory = blockFactory();
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        // Serialize at the old version — warnings won't be on the wire
+        LookupFromIndexService.LookupResponse original = new LookupFromIndexService.LookupResponse(
+            List.of(randomPage(senderFactory)),
+            senderFactory,
+            null,
+            0L,
+            List.of("some warning", "another warning")
+        );
+        BytesReference wireBytes;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(oldVersion);
+            original.writeTo(out);
+            wireBytes = out.bytes();
+        } finally {
+            original.decRef();
+        }
+
+        // Simulate transport depositing warnings into thread context
+        threadContext.addResponseHeader("Warning", HeaderWarning.formatWarning("some warning"));
+        threadContext.addResponseHeader("Warning", HeaderWarning.formatWarning("another warning"));
+
+        // First deserialization should eat the warnings from thread context
+        BlockFactory firstFactory = blockFactory();
+        LookupFromIndexService.LookupResponse first;
+        try (StreamInput in = new NamedWriteableAwareStreamInput(wireBytes.streamInput(), new NamedWriteableRegistry(List.of()))) {
+            in.setTransportVersion(oldVersion);
+            first = new LookupFromIndexService.LookupResponse(in, firstFactory, threadContext);
+        }
+        try {
+            assertThat(first.warnings(), hasSize(2));
+            assertThat(first.warnings(), contains("some warning", "another warning"));
+        } finally {
+            first.decRef();
+        }
+
+        // A second deserialization on the same thread context should get no warnings
+        BlockFactory secondFactory = blockFactory();
+        LookupFromIndexService.LookupResponse second;
+        try (StreamInput in = new NamedWriteableAwareStreamInput(wireBytes.streamInput(), new NamedWriteableRegistry(List.of()))) {
+            in.setTransportVersion(oldVersion);
+            second = new LookupFromIndexService.LookupResponse(in, secondFactory, threadContext);
+        }
+        try {
+            assertThat(
+                "first read must eat warnings so a second read on the same thread context does not duplicate them",
+                second.warnings(),
+                empty()
+            );
+        } finally {
+            second.decRef();
+        }
+    }
+
     private BlockFactory blockFactory() {
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(4 /* more than we need*/))
-            .withCircuitBreaking();
+        return blockFactory(ByteSizeValue.ofMb(4 /* more than we need*/));
+    }
+
+    private BlockFactory blockFactory(ByteSizeValue limit) {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking();
         breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
         return BlockFactory.builder(bigArrays).build();
     }

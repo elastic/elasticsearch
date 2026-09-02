@@ -1,5 +1,0 @@
-area: Snapshot/Restore
-issues: []
-pr: 142361
-summary: Fix incorrect totalTime when shard snapshot never started
-type: bug

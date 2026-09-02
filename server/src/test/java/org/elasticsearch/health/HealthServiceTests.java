@@ -52,8 +52,7 @@ public class HealthServiceTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void stopThreadPool() throws Exception {
         threadPool.shutdownNow();
     }
 

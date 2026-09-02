@@ -34,6 +34,7 @@ public class RepositoryS3ClientYamlTestSuiteIT extends AbstractRepositoryS3Clien
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
+        null,
         "bucket",
         "base_path_integration_tests",
         S3ConsistencyModel::randomConsistencyModel,
@@ -52,7 +53,11 @@ public class RepositoryS3ClientYamlTestSuiteIT extends AbstractRepositoryS3Clien
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters("repository_s3/10_basic", "repository_s3/20_repository_permanent_credentials");
+        return createParameters(
+            "repository_s3/10_basic",
+            "repository_s3/20_repository_permanent_credentials",
+            "repository_s3/30_storage_class_settings"
+        );
     }
 
     public RepositoryS3ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

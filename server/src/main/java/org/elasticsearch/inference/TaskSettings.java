@@ -18,5 +18,11 @@ public interface TaskSettings extends ToXContentObject, VersionedNamedWriteable 
 
     boolean isEmpty();
 
+    /**
+     * Update the task settings with the provided settings, combining them as necessary.
+     *
+     * @param newSettings a <b>modifiable</b> map with the new task settings
+     * @return the updated task settings
+     */
     TaskSettings updatedTaskSettings(Map<String, Object> newSettings);
 }

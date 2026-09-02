@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
@@ -25,6 +26,8 @@ import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.iplocation.api.IpLocationService;
+import org.elasticsearch.persistent.PersistentTaskLifecycleManager;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -36,6 +39,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteTransportClient;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -67,5 +71,9 @@ public record PluginServiceInstances(
     LinkedProjectConfigService linkedProjectConfigService,
     ProjectRoutingResolver projectRoutingResolver,
     RemoteTransportClient remoteTransportClient,
-    CrossProjectModeDecider crossProjectModeDecider
+    CrossProjectModeDecider crossProjectModeDecider,
+    PersistentTaskLifecycleManager taskLifecycleManager,
+    DataStreamLifecycleErrorStore dlmErrorStore,
+    IpLocationService ipLocationService,
+    UsageService usageService
 ) implements Plugin.PluginServices {}

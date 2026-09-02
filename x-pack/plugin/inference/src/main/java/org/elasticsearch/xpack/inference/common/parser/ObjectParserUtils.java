@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.inference.common.parser;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.util.Map;
 
 public final class ObjectParserUtils {
@@ -64,6 +66,21 @@ public final class ObjectParserUtils {
 
     public static boolean isMapNullOrEmpty(@Nullable Map<String, Object> map) {
         return map == null || map.isEmpty();
+    }
+
+    /**
+     * Parse an integer and ensure it is positive.
+     * @param parser the parser
+     * @param field the field name
+     * @return the parsed integer
+     * @throws IOException if the value cannot be parsed
+     */
+    public static int parsePositiveInteger(XContentParser parser, String field) throws IOException {
+        int value = parser.intValue();
+        if (value <= 0) {
+            throw new IllegalArgumentException("[" + field + "] must be a positive integer");
+        }
+        return value;
     }
 
     private ObjectParserUtils() {}

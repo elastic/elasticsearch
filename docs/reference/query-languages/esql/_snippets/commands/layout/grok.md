@@ -38,7 +38,7 @@ The following examples show how to parse, type-convert, and handle multivalued o
 
 Parse a string that contains a timestamp, an IP address, an email address, and a number:
 
-:::{include} ../examples/docs.csv-spec/basicGrok.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/basicGrok.md
 :::
 
 ### Convert int or float types with :type suffix
@@ -47,19 +47,19 @@ By default, `GROK` outputs keyword string columns. `int` and `float` types can
 be converted by appending `:type` to the semantics in the pattern. For example
 `{NUMBER:num:int}`:
 
-:::{include} ../examples/docs.csv-spec/grokWithConversionSuffix.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/grokWithConversionSuffix.md
 :::
 
 ### Convert other types using type conversion functions
 
 For other type conversions, use [Type conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md):
 
-:::{include} ../examples/docs.csv-spec/grokWithToDatetime.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/grokWithToDatetime.md
 :::
 
 ### Create a multivalued column with duplicate field names
 
 If a field name is used more than once, `GROK` creates a multi-valued column:
 
-:::{include} ../examples/docs.csv-spec/grokWithDuplicateFieldNames.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/grokWithDuplicateFieldNames.md
 :::

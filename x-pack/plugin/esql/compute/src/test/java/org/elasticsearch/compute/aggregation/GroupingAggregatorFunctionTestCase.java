@@ -62,7 +62,6 @@ import static org.elasticsearch.compute.test.BlockTestUtils.append;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 
 /**
  * Shared tests for testing grouped aggregations.
@@ -351,6 +350,33 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             simpleWithMode(AggregatorMode.FINAL)
         );
         assertSimpleOutput(runner.deepCopy(), results);
+    }
+
+    /**
+     * Forces output chunking through the whole {@code INITIAL -> INTERMEDIATE -> FINAL} pipeline by pinning
+     * {@code maxPageSize == 1}, so each stage's {@code evaluate()} is invoked once per single-group slice rather than
+     * once over all groups. This guards every aggregator against evaluators that assume a single evaluate call covering
+     * all groups and against page-local key building that only works for the full, in-order selection.
+     */
+    public final void testChunkedEvaluationAcrossModes() {
+        var runner = new TestDriverRunner().builder(driverContext()).collectDeepCopy();
+        int end = between(50, 60);
+        runner.input(simpleInput(runner.blockFactory(), end));
+        List<Page> results = runner.run(
+            chunkedFactory(AggregatorMode.INITIAL),
+            chunkedFactory(AggregatorMode.INTERMEDIATE),
+            chunkedFactory(AggregatorMode.FINAL)
+        );
+        assertSimpleOutput(runner.deepCopy(), results);
+    }
+
+    private Operator.OperatorFactory chunkedFactory(AggregatorMode mode) {
+        return HashAggregationOperatorTests.randomBuilder()
+            .groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
+            .mode(mode)
+            .aggregators(List.of(aggregatorFunction().groupingAggregatorFactory(mode, channels(mode))))
+            .maxPageSize(1)
+            .build();
     }
 
     private SourceOperator nullValues(SourceOperator source, BlockFactory blockFactory) {
@@ -738,12 +764,15 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
                     @Override
                     public AddInput prepareProcessRawInputPage(SeenGroupIds ignoredSeenGroupIds, Page page) {
+                        final AddInput delegateAddInput = delegate.prepareProcessRawInputPage(bigArrays -> {
+                            BitArray seen = new BitArray(0, bigArrays);
+                            seen.or(seenGroupIds);
+                            return seen;
+                        }, page);
+                        if (delegateAddInput == null) {
+                            return null;
+                        }
                         return new AddInput() {
-                            final AddInput delegateAddInput = delegate.prepareProcessRawInputPage(bigArrays -> {
-                                BitArray seen = new BitArray(0, bigArrays);
-                                seen.or(seenGroupIds);
-                                return seen;
-                            }, page);
 
                             private void addBlock(int positionOffset, IntBlock groupIds) {
                                 for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
@@ -816,6 +845,11 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     }
 
                     @Override
+                    public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
+                        return delegate.prepareProcessIntermediateInputPage(seenGroupIds, page);
+                    }
+
+                    @Override
                     public void addIntermediateInput(int positionOffset, IntArrayBlock groupIds, Page page) {
                         addIntermediateInputInternal(positionOffset, groupIds, page);
                     }
@@ -865,18 +899,13 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     }
 
                     @Override
-                    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-                        delegate.evaluateIntermediate(blocks, offset, selected);
+                    public PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+                        return delegate.prepareEvaluateIntermediate(selected, ctx);
                     }
 
                     @Override
-                    public void evaluateFinal(
-                        Block[] blocks,
-                        int offset,
-                        IntVector selected,
-                        GroupingAggregatorEvaluationContext evaluationContext
-                    ) {
-                        delegate.evaluateFinal(blocks, offset, selected, evaluationContext);
+                    public PreparedForEvaluation prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+                        return delegate.prepareEvaluateFinal(selected, ctx);
                     }
 
                     @Override

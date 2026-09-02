@@ -7,16 +7,22 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -24,7 +30,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Factory for creating source operators that read from external storage using
@@ -39,7 +47,16 @@ import java.util.List;
  *   <li>Use FormatReader to parse the data format</li>
  *   <li>Produce ESQL Page batches for the query pipeline</li>
  * </ul>
+ *
+ * <p><b>Single-file only; no production callers.</b> Takes one {@link StoragePath} and lets the
+ * reader self-infer the file's schema; multi-file paths must go through
+ * {@link AsyncExternalSourceOperatorFactory}, which pins each reader to the per-file schema
+ * carried by its {@link FileSplit}.
+ *
+ * @deprecated retained for test fixtures only; new code should use
+ *             {@link AsyncExternalSourceOperatorFactory}.
  */
+@Deprecated
 public class ExternalSourceOperatorFactory implements SourceOperator.SourceOperatorFactory {
 
     private final StorageProvider storageProvider;
@@ -49,6 +66,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
     private final int batchSize;
     private final int rowLimit;
     private final ExternalSliceQueue sliceQueue;
+    private final InformationalWarningBudget informationalWarningBudget = new InformationalWarningBudget(SkipWarnings.MAX_ADDED_WARNINGS);
 
     public ExternalSourceOperatorFactory(
         StorageProvider storageProvider,
@@ -109,21 +127,31 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 attributes,
                 batchSize,
                 rowLimit,
-                sliceQueue
+                sliceQueue,
+                driverContext.blockFactory(),
+                informationalWarningBudget
             );
         }
 
         StorageObject storageObject = storageProvider.newObject(path);
         try {
+            Consumer<String> warnSink = msg -> {
+                String toEmit = informationalWarningBudget.accept(msg);
+                if (toEmit != null) {
+                    HeaderWarning.addWarning(toEmit);
+                }
+            };
             FormatReadContext ctx = FormatReadContext.builder()
                 .projectedColumns(projectedColumns)
                 .batchSize(batchSize)
                 .rowLimit(rowLimit)
+                .informationalWarningSink(warnSink)
                 .build();
             CloseableIterator<Page> pages = formatReader.read(storageObject, ctx);
-            return new ExternalSourceOperator(pages, driverContext);
+            pages = formatReader.rowPositionStrategy().apply(pages, SyntheticColumns.rowPositionIndexInNames(projectedColumns));
+            return new ExternalSourceOperator(pages, path);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to create external source operator for: " + path, e);
+            throw new ElasticsearchException("Failed to create external source operator for [" + path + "]", e);
         }
     }
 
@@ -145,10 +173,12 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private static final Logger logger = LogManager.getLogger(ExternalSourceOperator.class);
 
         private final CloseableIterator<Page> pages;
+        private final StoragePath path;
         private boolean finished = false;
 
-        ExternalSourceOperator(CloseableIterator<Page> pages, DriverContext driverContext) {
+        ExternalSourceOperator(CloseableIterator<Page> pages, StoragePath path) {
             this.pages = pages;
+            this.path = path;
         }
 
         @Override
@@ -161,7 +191,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 return pages.next();
             } catch (Exception e) {
                 finished = true;
-                throw new RuntimeException("Error reading from external source", e);
+                throw new ElasticsearchException("Error reading from external source [" + path + "]", e);
             }
         }
 
@@ -210,11 +240,16 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private final FormatReader formatReader;
         private final List<String> projectedColumns;
         private final List<Attribute> attributes;
+        // Data-attribute view of {@link #attributes}; built once at construction.
+        private final ExternalSchema queryDataSchema;
         private final int batchSize;
         private final int rowLimit;
         private final ExternalSliceQueue sliceQueue;
+        private final BlockFactory blockFactory;
+        private final InformationalWarningBudget warningBudget;
         private final ArrayDeque<ExternalSplit> pendingChildren = new ArrayDeque<>();
         private CloseableIterator<Page> currentPages;
+        private StoragePath currentSplitPath;
         private boolean finished = false;
 
         SliceQueueSourceOperator(
@@ -224,15 +259,20 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             List<Attribute> attributes,
             int batchSize,
             int rowLimit,
-            ExternalSliceQueue sliceQueue
+            ExternalSliceQueue sliceQueue,
+            BlockFactory blockFactory,
+            InformationalWarningBudget warningBudget
         ) {
             this.storageProvider = storageProvider;
             this.formatReader = formatReader;
             this.projectedColumns = projectedColumns;
             this.attributes = attributes;
+            this.queryDataSchema = ExternalSchema.dataAttributesOf(attributes);
             this.batchSize = batchSize;
             this.rowLimit = rowLimit;
             this.sliceQueue = sliceQueue;
+            this.blockFactory = blockFactory;
+            this.warningBudget = warningBudget;
         }
 
         @Override
@@ -246,6 +286,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                         return currentPages.next();
                     }
                     closeCurrentPages();
+                    currentSplitPath = null;
                     ExternalSplit next = nextLeafSplit();
                     if (next == null) {
                         finished = true;
@@ -255,7 +296,8 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 }
             } catch (Exception e) {
                 finished = true;
-                throw new RuntimeException("Error reading from external source split", e);
+                String loc = currentSplitPath != null ? currentSplitPath.toString() : "unknown";
+                throw new ElasticsearchException("Error reading from external source split [" + loc + "]", e);
             }
         }
 
@@ -278,21 +320,82 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
 
         private CloseableIterator<Page> openFileSplit(ExternalSplit split) throws IOException {
             if (split instanceof FileSplit fileSplit) {
-                StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
-                boolean firstSplit = true;
-                boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
-                if (fileSplit.offset() > 0) {
-                    obj = new RangeStorageObject(obj, fileSplit.offset(), fileSplit.length());
-                    firstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+                currentSplitPath = fileSplit.path();
+                StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
+                boolean firstSplit = FileSplitProvider.isFirstInFile(fileSplit);
+                boolean lastSplit = FileSplitProvider.isLastInFile(fileSplit);
+
+                ColumnMapping columnMapping = fileSplit.columnMapping();
+                List<String> effectiveProjection = projectedColumns;
+                if (columnMapping != null && queryDataSchema.size() < attributes.size()) {
+                    effectiveProjection = new ArrayList<>(queryDataSchema.size());
+                    for (Attribute attr : queryDataSchema) {
+                        effectiveProjection.add(attr.name());
+                    }
                 }
+
+                Consumer<String> warnSink = msg -> {
+                    String toEmit = warningBudget.accept(msg);
+                    if (toEmit != null) {
+                        HeaderWarning.addWarning(toEmit);
+                    }
+                };
                 FormatReadContext ctx = FormatReadContext.builder()
-                    .projectedColumns(projectedColumns)
+                    .projectedColumns(effectiveProjection)
                     .batchSize(batchSize)
                     .rowLimit(FormatReader.NO_LIMIT)
                     .firstSplit(firstSplit)
                     .lastSplit(lastSplit)
+                    .recordAligned(FileSplitProvider.isRecordAlignedMacroSplit(fileSplit))
+                    .splitStartByte(fileSplit.offset())
+                    .informationalWarningSink(warnSink)
                     .build();
-                return formatReader.read(obj, ctx);
+                CloseableIterator<Page> pages = formatReader.read(obj, ctx);
+
+                // Empty queryDataSchema is COUNT(*) / _file.*-only: no data columns to reshape and the
+                // reader already emits zero-data-block row-count pages, so skip the adapter (a
+                // full-width mapping would otherwise trip its output-size-vs-mapping-width guard).
+                // Identity mappings are no longer short-circuited: SchemaAdaptingIterator validates
+                // output block element types on every page (see SchemaAdaptingIterator.validateOutputTypes).
+                if (columnMapping != null && queryDataSchema.isEmpty() == false) {
+                    // Per-file source types are only needed when the mapping has a KEYWORD cast
+                    // (the only path where LongBlock — DATETIME / DATE_NANOS / LONG — needs
+                    // disambiguating). Skip the schema-narrowing dance entirely otherwise.
+                    DataType[] perFileColumnTypes = null;
+                    if (columnMapping.hasKeywordCast()) {
+                        // The reader emits columns in the file's natural order, intersected with
+                        // the requested projection. Narrow `effectiveProjection` to columns
+                        // present in `fileSplit.readSchema()` in the file's order so the
+                        // per-position type lookup aligns with the reader's emitted page.
+                        List<Attribute> readSchema = fileSplit.readSchema();
+                        List<String> perFileCols = effectiveProjection;
+                        if (readSchema != null && readSchema.isEmpty() == false && effectiveProjection != null) {
+                            HashSet<String> wanted = new HashSet<>(effectiveProjection);
+                            perFileCols = new ArrayList<>(Math.min(effectiveProjection.size(), readSchema.size()));
+                            for (Attribute attr : readSchema) {
+                                if (wanted.contains(attr.name())) {
+                                    perFileCols.add(attr.name());
+                                }
+                            }
+                        }
+                        perFileColumnTypes = ColumnMapping.buildPerFileColumnTypes(readSchema, perFileCols);
+                    }
+                    pages = new SchemaAdaptingIterator(
+                        pages,
+                        queryDataSchema.attributes(),
+                        columnMapping,
+                        blockFactory,
+                        -1,
+                        perFileColumnTypes,
+                        warnSink
+                    );
+                }
+                // rowPositionStrategy is applied after SchemaAdaptingIterator: SAI validates data
+                // columns (width = queryDataSchema) and the strategy appends the synthetic
+                // _rowPosition block after. Applying it before SAI would give SAI N+1 blocks for
+                // an N-column schema, tripping validateOutputTypes.
+                pages = formatReader.rowPositionStrategy().apply(pages, SyntheticColumns.rowPositionIndexInNames(projectedColumns));
+                return pages;
             }
             throw new IllegalArgumentException("Unsupported split type: " + split.getClass().getName());
         }
@@ -327,5 +430,6 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         public String toString() {
             return "SliceQueueSourceOperator";
         }
+
     }
 }

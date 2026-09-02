@@ -22,12 +22,13 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.script.GeoPointFieldScript;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,7 +59,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
+        checker.registerUpdateCheck("ignore_z_value", b -> b.field("ignore_z_value", false), m -> {
             GeoPointFieldMapper gpfm = (GeoPointFieldMapper) m;
             assertFalse(gpfm.ignoreZValue());
         });
@@ -66,6 +67,9 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("index", b -> b.field("index", false));
+        registerScriptChecks(checker);
+        checker.registerIgnoredParameter("time_series_dimension");
+        checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "position"));
     }
 
     @Override
@@ -593,11 +597,6 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return syntheticSourceSupport(ignoreMalformed, false);
-    }
-
-    @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnReader) {
         return new SyntheticSourceSupport() {
             private final boolean ignoreZValue = usually();
             private final GeoPoint nullValue = usually() ? null : randomGeoPoint();
@@ -609,12 +608,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                     if (v.malformedOutput != null) {
                         return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
                     }
-
-                    if (columnReader) {
-                        return new SyntheticSourceExample(v.input, decode(encode(v.output)), this::mapping);
-                    }
                     return new SyntheticSourceExample(v.input, v.output, this::mapping);
-
                 }
                 List<Value> values = randomList(1, maxVals, this::generateValue);
                 List<Object> in = values.stream().map(Value::input).toList();
@@ -723,7 +717,33 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
-        throw new AssumptionViolatedException("not supported");
+        return new IngestScriptSupport() {
+
+            @Override
+            protected ScriptFactory emptyFieldScript() {
+                return (GeoPointFieldScript.Factory) (
+                    fieldName,
+                    params,
+                    searchLookup,
+                    onScriptError) -> (GeoPointFieldScript.LeafFactory) ctx -> new GeoPointFieldScript(
+                        fieldName,
+                        params,
+                        searchLookup,
+                        OnScriptError.FAIL,
+                        ctx
+                    ) {
+                        @Override
+                        public void execute() {
+
+                        }
+                    };
+            }
+
+            @Override
+            protected ScriptFactory nonEmptyFieldScript() {
+                return emptyFieldScript();
+            }
+        };
     }
 
     @Override

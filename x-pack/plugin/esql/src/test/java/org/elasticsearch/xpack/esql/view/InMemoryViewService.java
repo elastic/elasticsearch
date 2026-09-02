@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -20,22 +22,25 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.indexSettings;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.view.ViewResolver.MAX_VIEW_DEPTH_SETTING;
 
@@ -48,6 +53,8 @@ public class InMemoryViewService extends ViewService implements Closeable {
     private final ThreadPool threadPool;
     private ViewMetadata viewMetadata;
     private final List<String> indices = new ArrayList<>();
+    /** Maps alias name → target index name for aliases added via {@link #addAlias}. */
+    private final Map<String, String> aliasToIndex = new HashMap<>();
 
     private static final Set<Setting<?>> ALL_SETTINGS;
     static {
@@ -72,7 +79,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     private InMemoryViewService(ClusterService clusterService, ThreadPool threadPool, ViewMetadata metadata) {
-        super(clusterService, TEST_FUNCTION_REGISTRY, TEST_PARSER);
+        super(clusterService, TEST_PARSER);
         this.threadPool = threadPool;
         this.viewMetadata = metadata;
     }
@@ -105,9 +112,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
             existingViews.put(request.view().name(), request.view());
             viewMetadata = new ViewMetadata(existingViews);
             var projectBuilder = ProjectMetadata.builder(projectId).putCustom(ViewMetadata.TYPE, viewMetadata);
-            indices.forEach(
-                index -> projectBuilder.put(IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0)))
-            );
+            rebuildProjectMetadata(projectBuilder);
             ClusterServiceUtils.setState(
                 clusterService,
                 new ClusterState.Builder(clusterService.state()).putProjectMetadata(projectBuilder).build()
@@ -121,28 +126,60 @@ public class InMemoryViewService extends ViewService implements Closeable {
     public void addIndex(ProjectId projectId, String name) {
         var projectBuilder = ProjectMetadata.builder(projectId).putCustom(ViewMetadata.TYPE, viewMetadata);
         indices.add(name);
-        indices.forEach(index -> projectBuilder.put(IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0))));
+        rebuildProjectMetadata(projectBuilder);
         ClusterServiceUtils.setState(
             clusterService,
             new ClusterState.Builder(clusterService.state()).putProjectMetadata(projectBuilder).build()
         );
     }
 
+    /**
+     * Adds an index alias {@code aliasName} pointing to {@code indexName} in the cluster state.
+     * The target index must have been added via {@link #addIndex} before calling this.
+     */
+    public void addAlias(ProjectId projectId, String aliasName, String indexName) {
+        aliasToIndex.put(aliasName, indexName);
+        var projectBuilder = ProjectMetadata.builder(projectId).putCustom(ViewMetadata.TYPE, viewMetadata);
+        rebuildProjectMetadata(projectBuilder);
+        ClusterServiceUtils.setState(
+            clusterService,
+            new ClusterState.Builder(clusterService.state()).putProjectMetadata(projectBuilder).build()
+        );
+    }
+
+    private void rebuildProjectMetadata(ProjectMetadata.Builder projectBuilder) {
+        indices.forEach(index -> {
+            var builder = IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0));
+            aliasToIndex.forEach((alias, targetIndex) -> {
+                if (targetIndex.equals(index)) {
+                    builder.putAlias(AliasMetadata.builder(alias).build());
+                }
+            });
+            projectBuilder.put(builder);
+        });
+    }
+
     @Override
-    public void deleteView(ProjectId projectId, DeleteViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+    public void deleteViews(
+        ProjectId projectId,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        Collection<String> viewNames,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         try {
+            Optional<String> notFoundView = viewNames.stream().filter(v -> viewMetadata.getView(v) == null).findAny();
+            if (notFoundView.isPresent()) {
+                throw new ResourceNotFoundException("view [{}] not found", notFoundView.get());
+            }
+
             Map<String, View> existingViews = new HashMap<>(viewMetadata.views());
-            existingViews.remove(request.name());
+            viewNames.forEach(existingViews::remove);
             viewMetadata = new ViewMetadata(existingViews);
             listener.onResponse(AcknowledgedResponse.TRUE);
         } catch (Exception e) {
             listener.onFailure(e);
         }
-    }
-
-    protected boolean viewsFeatureEnabled() {
-        // This is a test implementation, so we assume the feature is always enabled
-        return true;
     }
 
     @Override
@@ -159,9 +196,14 @@ public class InMemoryViewService extends ViewService implements Closeable {
     void clearAllViewsAndIndices() {
         viewMetadata = ViewMetadata.EMPTY;
         indices.clear();
+        aliasToIndex.clear();
     }
 
     public InMemoryViewResolver getViewResolver() {
-        return new InMemoryViewResolver(clusterService, () -> viewMetadata);
+        return new InMemoryViewResolver(clusterService, () -> viewMetadata, CrossProjectModeDecider.NOOP);
+    }
+
+    public InMemoryViewResolver getViewResolver(CrossProjectModeDecider crossProjectModeDecider) {
+        return new InMemoryViewResolver(clusterService, () -> viewMetadata, crossProjectModeDecider);
     }
 }

@@ -12,16 +12,17 @@ import org.apache.http.HeaderElement;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
-import org.hamcrest.MatcherAssert;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.nio.charset.StandardCharsets;
 
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_INFERENCE_ENTITY_ID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -30,80 +31,108 @@ import static org.mockito.Mockito.when;
 
 public class ContextualAiResponseHandlerTests extends ESTestCase {
 
-    public void testCheckForFailureStatusCode_DoesNotThrowFor200() {
-        callCheckForFailureStatusCode(200, "id");
-    }
-
-    public void testCheckForFailureStatusCode_ThrowsFor500_WithShouldRetryTrue() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(500, "id"));
+    public void testBuildFailureStatusCodeException_StatusCode500_ReturnsRetryableServerError() {
+        var errorBody = "Internal server error: service unavailable";
+        var exception = callHandleFailureStatusCode(500, errorBody);
         assertTrue(exception.shouldRetry());
-        MatcherAssert.assertThat(
-            exception.getCause().getMessage(),
-            containsString("Received a server error status code for request from inference entity id [id] status [500]")
-        );
-        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
-    }
-
-    public void testCheckForFailureStatusCode_ThrowsFor503() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(503, "id"));
-        assertFalse(exception.shouldRetry());
-        MatcherAssert.assertThat(
-            exception.getCause().getMessage(),
-            containsString("Received a server error status code for request from inference entity id [id] status [503]")
-        );
-        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
-    }
-
-    public void testCheckForFailureStatusCode_ThrowsFor429() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(429, "id"));
-        assertTrue(exception.shouldRetry());
-        MatcherAssert.assertThat(
-            exception.getCause().getMessage(),
-            containsString("Received a rate limit status code for request from inference entity id [id] status [429]")
-        );
-        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
-    }
-
-    public void testCheckForFailureStatusCode_ThrowsFor401() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(401, "inferenceEntityId"));
-        assertFalse(exception.shouldRetry());
-        MatcherAssert.assertThat(
+        assertThat(
             exception.getCause().getMessage(),
             containsString(
-                "Received an authentication error status code for request from inference entity id [inferenceEntityId] status [401]"
+                Strings.format(
+                    "Received a server error status code for request from inference entity id [%s] status [500]",
+                    TEST_INFERENCE_ENTITY_ID
+                )
             )
         );
-        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNAUTHORIZED));
+        assertThat(exception.getCause().getMessage(), containsString(errorBody));
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor400() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(400, "id"));
-        assertFalse(exception.shouldRetry());
-        MatcherAssert.assertThat(
+    public void testBuildFailureStatusCodeException_StatusCode503_ReturnsRetryableServerError() {
+        var errorBody = "Service temporarily unavailable";
+        var exception = callHandleFailureStatusCode(503, errorBody);
+        assertTrue(exception.shouldRetry());
+        assertThat(
             exception.getCause().getMessage(),
-            containsString("Received an unsuccessful status code for request from inference entity id [id] status [400]")
+            containsString(
+                Strings.format(
+                    "Received a server error status code for request from inference entity id [%s] status [503]",
+                    TEST_INFERENCE_ENTITY_ID
+                )
+            )
         );
-        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getCause().getMessage(), containsString(errorBody));
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor300() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(300, "id"));
-        assertFalse(exception.shouldRetry());
-        MatcherAssert.assertThat(
+    public void testBuildFailureStatusCodeException_StatusCode429_ReturnsRetryableRateLimitError() {
+        var errorBody = "Rate limit exceeded, please retry later";
+        var exception = callHandleFailureStatusCode(429, errorBody);
+        assertTrue(exception.shouldRetry());
+        assertThat(
             exception.getCause().getMessage(),
-            containsString("Unhandled redirection for request from inference entity id [id] status [300]")
+            containsString(
+                Strings.format(
+                    "Received a rate limit status code for request from inference entity id [%s] status [429]",
+                    TEST_INFERENCE_ENTITY_ID
+                )
+            )
         );
-        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
+        assertThat(exception.getCause().getMessage(), containsString(errorBody));
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
-    private static void callCheckForFailureStatusCode(int statusCode, String modelId) {
-        callCheckForFailureStatusCode(statusCode, null, modelId);
+    public void testBuildFailureStatusCodeException_StatusCode401_ReturnsAuthenticationError() {
+        var errorBody = "Invalid API key provided";
+        var exception = callHandleFailureStatusCode(401, errorBody);
+        assertFalse(exception.shouldRetry());
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString(
+                Strings.format(
+                    "Received an authentication error status code for request from inference entity id [%s] status [401]",
+                    TEST_INFERENCE_ENTITY_ID
+                )
+            )
+        );
+        assertThat(exception.getCause().getMessage(), containsString(errorBody));
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNAUTHORIZED));
     }
 
-    private static void callCheckForFailureStatusCode(int statusCode, @Nullable String errorMessage, String modelId) {
+    public void testBuildFailureStatusCodeException_StatusCode400_ReturnsUnsuccessfulError() {
+        var errorBody = "Invalid request: missing required field";
+        var exception = callHandleFailureStatusCode(400, errorBody);
+        assertFalse(exception.shouldRetry());
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString(
+                Strings.format(
+                    "Received an unsuccessful status code for request from inference entity id [%s] status [400]",
+                    TEST_INFERENCE_ENTITY_ID
+                )
+            )
+        );
+        assertThat(exception.getCause().getMessage(), containsString(errorBody));
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
+    }
+
+    public void testBuildFailureStatusCodeException_StatusCode300_ReturnsRedirectionError() {
+        var errorBody = "Resource has been moved";
+        var exception = callHandleFailureStatusCode(300, errorBody);
+        assertFalse(exception.shouldRetry());
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString(
+                Strings.format("Unhandled redirection for request from inference entity id [%s] status [300]", TEST_INFERENCE_ENTITY_ID)
+            )
+        );
+        assertThat(exception.getCause().getMessage(), containsString(errorBody));
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
+    }
+
+    private static RetryException callHandleFailureStatusCode(int statusCode, @Nullable String errorMessage) {
         var statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(statusCode);
-        when(statusLine.toString()).thenReturn("HTTP/1.1 " + statusCode + " Error");
 
         var httpResponse = mock(HttpResponse.class);
         when(httpResponse.getStatusLine()).thenReturn(statusLine);
@@ -111,11 +140,11 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
         when(header.getElements()).thenReturn(new HeaderElement[] {});
         when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
 
-        var mockRequest = mock(Request.class);
-        when(mockRequest.getInferenceEntityId()).thenReturn(modelId);
+        var mockRequest = mock(OutboundRequest.class);
+        when(mockRequest.getInferenceEntityId()).thenReturn(TEST_INFERENCE_ENTITY_ID);
         var httpResult = new HttpResult(httpResponse, errorMessage == null ? new byte[] {} : errorMessage.getBytes(StandardCharsets.UTF_8));
         var handler = new ContextualAiResponseHandler("", (request, result) -> null, false);
 
-        handler.checkForFailureStatusCode(mockRequest, httpResult);
+        return handler.buildFailureStatusCodeException(mockRequest, httpResult);
     }
 }

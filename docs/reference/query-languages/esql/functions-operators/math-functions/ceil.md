@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `CEIL` function [esql-ceil]
 
-:::{include} ../../_snippets/functions/layout/ceil.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/ceil.md
 :::

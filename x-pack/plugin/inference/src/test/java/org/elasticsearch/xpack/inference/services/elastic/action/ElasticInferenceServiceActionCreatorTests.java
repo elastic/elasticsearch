@@ -11,9 +11,16 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockRequest;
@@ -21,10 +28,12 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -36,6 +45,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequest;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.junit.After;
@@ -46,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.inference.InferenceStringTests.inferenceStringToMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -62,7 +73,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
@@ -75,7 +89,13 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
     }
 
     @After
@@ -90,8 +110,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "data": [
@@ -109,11 +127,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -144,7 +158,14 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
     }
 
     private ExecutableAction createAction(Sender sender, ElasticInferenceServiceModel model, CCMAuthenticationApplierFactory factory) {
-        var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), factory);
+        var cache = new InferencePreferencesCache(
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            mock(Client.class),
+            mockClusterService(),
+            featureService(true),
+            listener -> listener.onResponse(null)
+        );
+        var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), factory, cache);
         var actionCreatorListener = new TestPlainActionFuture<ExecutableAction>();
         actionCreator.create(model, createTraceContext(), actionCreatorListener);
 
@@ -156,8 +177,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "data": [
@@ -176,11 +195,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model, createApplierFactory(secret));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -203,6 +218,51 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var inputList = (List<String>) requestMap.get("input");
             assertThat(inputList, contains("hello world"));
             assertThat(requestMap.get("model"), is("my-model-id"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_SparseEmbedding_AddsRegionPolicyHeader() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            String responseJson = """
+                {
+                    "data": [
+                        {
+                            "hello": 2.1259406
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
+            var regionPolicy = new RegionPolicy(List.of("eu"), null);
+            var cache = new InferencePreferencesCache(
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                mock(Client.class),
+                mockClusterService(),
+                featureService(true),
+                listener -> listener.onResponse(regionPolicy)
+            );
+            var actionCreator = new ElasticInferenceServiceActionCreator(
+                sender,
+                createWithEmptySettings(threadPool),
+                createNoopApplierFactory(),
+                cache
+            );
+            var actionCreatorListener = new TestPlainActionFuture<ExecutableAction>();
+            actionCreator.create(model, createTraceContext(), actionCreatorListener);
+            var action = actionCreatorListener.actionGet(TIMEOUT);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
+            listener.actionGet(TIMEOUT);
+
+            var request = assertSingleRequestSent(webServer.requests());
+            assertThat(request.getHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_GEOS_HEADER), equalTo("eu"));
         }
     }
 
@@ -236,8 +296,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             // This will fail because the expected output is {"data": [{...}]}
             String responseJson = """
                 {
@@ -253,11 +311,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -283,8 +337,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "results": [
@@ -304,14 +356,15 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             var modelId = "my-model-id";
             var topN = 3;
-            var query = "query";
-            var documents = List.of("document 1", "document 2", "document 3");
+            var query = InferenceString.ofText("query");
+            var documents = InferenceString.fromStringList(List.of("document 1", "document 2", "document 3"));
 
             var model = ElasticInferenceServiceRerankModelTests.createModel(getUrl(webServer), modelId);
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(query, documents, null, topN, false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            action.execute(new QueryAndDocsInputs(query, documents, null, topN, false), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -334,14 +387,14 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             assertThat(requestMap.size(), is(4));
 
             assertThat(requestMap.get("documents"), instanceOf(List.class));
-            List<String> requestDocuments = (List<String>) requestMap.get("documents");
-            assertThat(requestDocuments.get(0), equalTo(documents.get(0)));
-            assertThat(requestDocuments.get(1), equalTo(documents.get(1)));
-            assertThat(requestDocuments.get(2), equalTo(documents.get(2)));
+            var requestDocuments = (List<Map<String, String>>) requestMap.get("documents");
+            for (int i = 0; i < documents.size(); i++) {
+                assertThat(requestDocuments.get(i), equalTo(inferenceStringToMap(documents.get(i))));
+            }
 
             assertThat(requestMap.get("top_n"), equalTo(topN));
 
-            assertThat(requestMap.get("query"), equalTo(query));
+            assertThat(requestMap.get("query"), equalTo(inferenceStringToMap(query)));
 
             assertThat(requestMap.get("model"), equalTo(modelId));
         }
@@ -352,8 +405,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "results": [
@@ -373,15 +424,16 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             var modelId = "my-model-id";
             var topN = 3;
-            var query = "query";
-            var documents = List.of("document 1", "document 2", "document 3");
+            var query = InferenceString.ofText("query");
+            var documents = InferenceString.fromStringList(List.of("document 1", "document 2", "document 3"));
 
             var model = ElasticInferenceServiceRerankModelTests.createModel(getUrl(webServer), modelId);
             var secret = "secret-token";
             var action = createAction(sender, model, createApplierFactory(secret));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(query, documents, null, topN, false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            action.execute(new QueryAndDocsInputs(query, documents, null, topN, false), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -404,13 +456,13 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             assertThat(requestMap.size(), is(4));
 
             assertThat(requestMap.get("documents"), instanceOf(List.class));
-            List<String> requestDocuments = (List<String>) requestMap.get("documents");
-            assertThat(requestDocuments.get(0), equalTo(documents.get(0)));
-            assertThat(requestDocuments.get(1), equalTo(documents.get(1)));
-            assertThat(requestDocuments.get(2), equalTo(documents.get(2)));
+            var requestDocuments = (List<Map<String, String>>) requestMap.get("documents");
+            for (int i = 0; i < documents.size(); i++) {
+                assertThat(requestDocuments.get(i), equalTo(inferenceStringToMap(documents.get(i))));
+            }
 
             assertThat(requestMap.get("top_n"), equalTo(topN));
-            assertThat(requestMap.get("query"), equalTo(query));
+            assertThat(requestMap.get("query"), equalTo(inferenceStringToMap(query)));
             assertThat(requestMap.get("model"), equalTo(modelId));
         }
     }
@@ -420,8 +472,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "data": [
@@ -445,11 +495,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("hello world", "second text"), InputType.UNSPECIFIED),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world", "second text"), InputType.UNSPECIFIED), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -479,8 +525,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "data": [
@@ -505,11 +549,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model, createApplierFactory(secret));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("hello world", "second text"), InputType.UNSPECIFIED),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world", "second text"), InputType.UNSPECIFIED), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -539,8 +579,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "data": [
@@ -558,11 +596,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("search query"), InputType.SEARCH),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(EmbeddingsInput.fromStrings(List.of("search query"), InputType.SEARCH), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -595,8 +629,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             // This will fail because the expected output is {"data": [[...]]}
             String responseJson = """
                 {
@@ -612,11 +644,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(thrownException.getMessage(), containsString("[EmbeddingFloatResult] failed to parse field [data]"));
@@ -639,8 +667,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "data": []
@@ -653,7 +679,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of(), InputType.UNSPECIFIED), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of(), InputType.UNSPECIFIED), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -673,8 +699,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJsonContentTooLarge = """
                 {
                     "error": "Input validation error: `input` must have less than 512 tokens. Given: 571",
@@ -700,11 +724,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -743,8 +763,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "data": [
@@ -763,11 +781,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -794,6 +808,18 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
     private TraceContext createTraceContext() {
         return new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10));
+    }
+
+    private static ClusterService mockClusterService() {
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+        return clusterService;
+    }
+
+    private static FeatureService featureService(boolean hasFeature) {
+        var featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(InferenceFeatures.INFERENCE_CLEAR_PREFERENCES_CACHE))).thenReturn(hasFeature);
+        return featureService;
     }
 
 }

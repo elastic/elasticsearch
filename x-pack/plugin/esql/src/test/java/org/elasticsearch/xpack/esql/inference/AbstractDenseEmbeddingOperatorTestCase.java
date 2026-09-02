@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
@@ -118,5 +120,51 @@ public abstract class AbstractDenseEmbeddingOperatorTestCase extends InferenceOp
         runner.input(simpleInput(runner.context().blockFactory(), between(1, 100)));
         Exception actualException = expectThrows(ElasticsearchException.class, () -> runner.run(factory));
         assertThat(actualException.getMessage(), equalTo("Inference service unavailable"));
+    }
+
+    /**
+     * A page whose input column is entirely null has nothing to embed, so no inference request is issued and the query completes
+     * with null embeddings. The inference service here fails every request it receives and the operator does not tolerate
+     * failures, so the query completing at all is what establishes that no request was issued.
+     */
+    public void testAllNullInputIssuesNoInferenceRequest() {
+        InferenceService failingService = mockedInferenceService(
+            new AtomicBoolean(true),
+            new ElasticsearchException("Inference service unavailable")
+        );
+
+        int inputSize = between(1, 100);
+        var runner = new TestDriverRunner().builder(driverContext());
+        runner.input(allNullInput(runner.context().blockFactory(), inputSize));
+
+        List<Page> results = runner.run(createOperatorFactory(failingService));
+        try {
+            for (Page resultPage : results) {
+                FloatBlock embeddings = resultPage.getBlock(resultPage.getBlockCount() - 1);
+                for (int pos = 0; pos < resultPage.getPositionCount(); pos++) {
+                    assertThat(embeddings.isNull(pos), equalTo(true));
+                }
+            }
+        } finally {
+            results.forEach(Page::releaseBlocks);
+        }
+    }
+
+    private Page allNullInput(BlockFactory blockFactory, int size) {
+        Block[] blocks = new Block[inputsCount];
+        try {
+            for (int b = 0; b < inputsCount; b++) {
+                try (var builder = blockFactory.newBytesRefBlockBuilder(size)) {
+                    for (int i = 0; i < size; i++) {
+                        builder.appendNull();
+                    }
+                    blocks[b] = builder.build();
+                }
+            }
+        } catch (Exception e) {
+            Releasables.closeExpectNoException(blocks);
+            throw e;
+        }
+        return new Page(blocks);
     }
 }

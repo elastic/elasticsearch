@@ -698,9 +698,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {bad_ARROW-GH-43605}
   issue: https://github.com/elastic/elasticsearch/issues/157747
-- class: org.elasticsearch.snapshots.RestoreOverOpenIndexIT
-  method: testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore
-  issue: https://github.com/elastic/elasticsearch/issues/157793
 - class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
   method: testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes
   issue: https://github.com/elastic/elasticsearch/issues/157799

@@ -174,7 +174,6 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testRetryOnEsRejectedExecutionException() throws Exception {
         String policyId = randomAlphaOfLength(5);
         SnapshotLifecyclePolicy policy = randomSnapshotLifecyclePolicy(policyId);
@@ -202,28 +201,30 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
             TimeValue.timeValueMillis(100) // Short flush interval for faster test
         );
 
-        client.setVerifier((action, request, listener) -> {
-            int currentAttempt = attemptCount.incrementAndGet();
-            assertThat(action, sameInstance(TransportBulkAction.TYPE));
-            assertThat(request, instanceOf(BulkRequest.class));
+        try {
+            client.setVerifier((action, request, listener) -> {
+                int currentAttempt = attemptCount.incrementAndGet();
+                assertThat(action, sameInstance(TransportBulkAction.TYPE));
+                assertThat(request, instanceOf(BulkRequest.class));
 
-            if (currentAttempt <= 2) {
-                // First 2 attempts fail with EsRejectedExecutionException
-                // VerifyingClient will call listener.onFailure with this exception
-                throw new EsRejectedExecutionException("rejected");
-            } else {
-                // Third attempt succeeds - return response for VerifyingClient to call listener.onResponse
-                return new BulkResponse(new BulkItemResponse[0], 0L);
-            }
-        });
+                if (currentAttempt <= 2) {
+                    // First 2 attempts fail with EsRejectedExecutionException
+                    // VerifyingClient will call listener.onFailure with this exception
+                    throw new EsRejectedExecutionException("rejected");
+                } else {
+                    // Third attempt succeeds - return response for VerifyingClient to call listener.onResponse
+                    return new BulkResponse(new BulkItemResponse[0], 0L);
+                }
+            });
 
-        retryHistoryStore.putAsync(record);
+            retryHistoryStore.putAsync(record);
 
-        // Wait for success after retries
-        assertTrue("BulkProcessor2 should retry and eventually succeed", successLatch.await(10, TimeUnit.SECONDS));
-        assertEquals("Should have retried 3 times total", 3, attemptCount.get());
-
-        retryHistoryStore.close();
+            // Wait for success after retries
+            assertTrue("BulkProcessor2 should retry and eventually succeed", successLatch.await(10, TimeUnit.SECONDS));
+            assertEquals("Should have retried 3 times total", 3, attemptCount.get());
+        } finally {
+            retryHistoryStore.close();
+        }
     }
 
     @SuppressWarnings("unchecked")

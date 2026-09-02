@@ -83,7 +83,7 @@ public class SnapshotHistoryStore implements Closeable {
     /**
      * For unit testing, allows a more frequent flushInterval
      */
-    public SnapshotHistoryStore(
+    SnapshotHistoryStore(
         Client client,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -120,8 +120,8 @@ public class SnapshotHistoryStore implements Closeable {
                         );
                         throw new ElasticsearchException(e);
                     }
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(
+                    if (logger.isTraceEnabled()) {
+                        logger.trace(
                             "about to index: {}",
                             request.requests()
                                 .stream()

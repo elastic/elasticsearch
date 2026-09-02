@@ -25,8 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -281,7 +280,7 @@ public class SecurityTests extends ESTestCase {
             ProjectRoutingResolver.NOOP,
             new SystemIndices(List.of()),
             new UsageService(),
-            new NoopCircuitBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS)
+            new NoneCircuitBreakerService()
         );
     }
 

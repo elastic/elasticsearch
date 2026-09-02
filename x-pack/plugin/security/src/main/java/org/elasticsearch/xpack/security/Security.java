@@ -775,7 +775,7 @@ public class Security extends Plugin
                 services.projectRoutingResolver(),
                 services.systemIndices(),
                 services.usageService(),
-                services.circuitBreakerService().getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS)
+                services.circuitBreakerService()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -802,7 +802,7 @@ public class Security extends Plugin
         ProjectRoutingResolver projectRoutingResolver,
         SystemIndices coreSystemIndices,
         UsageService usageService,
-        CircuitBreaker circuitBreaker
+        CircuitBreakerService circuitBreakerService
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -1002,7 +1002,7 @@ public class Security extends Plugin
             clusterService,
             threadPool,
             auditLogCustomizer,
-            circuitBreaker
+            circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS)
         );
         final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState(), clusterService);
         components.add(auditTrailService);

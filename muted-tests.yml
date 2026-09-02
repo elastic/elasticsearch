@@ -124,6 +124,8 @@ tests:
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   method: testExchangeSourceContinueOnFailure
   issue: https://github.com/elastic/elasticsearch/issues/157535
+- class: org.elasticsearch.xpack.security.authc.jwt.JwtWithOidcAuthIT
+  issue: https://github.com/elastic/elasticsearch/issues/158345
 
 # Examples:
 #

@@ -205,6 +205,32 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   classpath = sourceSets.csvSpecTest.runtimeClasspath
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'
+  // The vector suite is NOT part of the PR path: it crosses every routed case with every expressible
+  // vector. It lives in vectorSpecTests, which nothing adds to `check`.
+  filter { excludeTestsMatching '*VectorSpecIT' }
+}
+
+
+// The full vector crossing for ORC. Deliberately NOT wired into `check` -- it is invoked by the
+// esql-datasource-vectors-manual pipeline, matching how csv, tsv, ndjson and parquet expose theirs.
+//
+// ORC needs no fixture variants: every fixture-bound dimension is scoped away from it, so the vectors
+// vary only format-agnostic axes and generateOrcFixtures serves all of them. That is why this arrives as
+// a task and a suite class rather than as a generator.
+def vectorSpecTests = tasks.register('vectorSpecTests', StandaloneRestIntegTestTask) {
+  // Vector crossing puts thousands of cases in this task, past randomizedtesting's 600s default.
+  // Raising the ceiling lets it finish; it does not make it faster.
+  systemProperty 'tests.timeoutSuite', '14400000!'
+  dependsOn generateOrcFixtures
+  dependsOn generateEsqlSpecTests
+  usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
+  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+  classpath = sourceSets.csvSpecTest.runtimeClasspath
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+  filter { includeTestsMatching '*VectorSpecIT' }
 }
 
 tasks.named('check').configure { dependsOn csvSpecTests }

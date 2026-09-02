@@ -432,8 +432,8 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testDirectiveExpressibleCountsPerFormat() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(1743));
-        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(1620));
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(1661));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(1538));
         assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(316));
         assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(197));
     }
@@ -507,7 +507,7 @@ public class FixtureDimensionsTests extends ESTestCase {
     public void testTheVectorUniverseSizeIsPinned() {
         int[] seen = { 0 };
         FixtureDimensions.get().forEachVector(v -> seen[0]++);
-        assertThat(seen[0], equalTo(33579));
+        assertThat(seen[0], equalTo(33383));
     }
 
     private static Properties realDeclaration() {
@@ -551,8 +551,8 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testDisjointRemovalLeavesEveryFormatsSelectionUntouched() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(1743));
-        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(1620));
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(1661));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(1538));
         assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(316));
         assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(197));
     }
@@ -677,15 +677,26 @@ public class FixtureDimensionsTests extends ESTestCase {
     }
 
     /**
-     * ORC yields nothing although its fixtures are generated for every layout. That is the point: no ORC
-     * vector suite consumes them, so the vectors cannot run, and calling them covered because the
-     * directory is full is the mistake this whole contract exists to prevent. The absence is declared by
-     * format.rule.orc rather than inferred.
+     * Every declared format is consumed by some suite. This replaces a test that pinned the opposite for
+     * ORC -- that its fixtures were generated for every layout and read by nothing -- which was true, and
+     * was declared as {@code format.rule.orc} on the grounds that ORC vector suites were out of scope by
+     * decision. A decision is not an impossibility: the fixtures already existed, so closing it needed a
+     * suite class and a task, not a generator. OrcVectorSpecIT consumes them now.
+     *
+     * <p>Stated as a total over the declared formats rather than as a fact about ORC, so the next format
+     * added to the contract cannot arrive with its directory full and nothing reading it -- which is the
+     * mistake this contract exists to prevent, and the one ORC spent its whole life demonstrating.
      */
-    public void testAFormatNoSuiteConsumesYieldsNoVectors() {
+    public void testEveryDeclaredFormatIsConsumedBySomeSuite() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.expressibleVectors("orc", Set.of(FixtureDimensions.Seam.DIRECTIVE, FixtureDimensions.Seam.FIXTURE)), empty());
-        assertThat("and the contract says why", d.absenceReason("format", "orc", "orc"), containsString("rule:"));
+        Set<FixtureDimensions.Seam> all = Set.of(FixtureDimensions.Seam.values());
+        for (String format : d.values("format")) {
+            assertThat(
+                "format [" + format + "] is declared but no suite yields vectors for it; either wire a suite or declare the absence",
+                d.expressibleVectors(format, all),
+                not(empty())
+            );
+        }
     }
 
     /**
@@ -703,7 +714,7 @@ public class FixtureDimensionsTests extends ESTestCase {
         // these numbers are here to announce: all three grew when lz4 and snappy stopped being gaps and
         // the generators began producing them. ndjson sits well below csv and tsv because it carries the
         // codecs and none of the dialects.
-        Map<String, Integer> expectedGap = Map.of("csv", 1637, "tsv", 1514, "ndjson", 210); // dimension-copy-ok: a test that pins
+        Map<String, Integer> expectedGap = Map.of("csv", 1555, "tsv", 1432, "ndjson", 210); // dimension-copy-ok: a test that pins
                                                                                             // per-format
                                                                                             // expectations must name the formats it pins
         for (String format : List.of("csv", "tsv", "ndjson")) { // dimension-copy-ok: a test that pins per-format expectations must name the

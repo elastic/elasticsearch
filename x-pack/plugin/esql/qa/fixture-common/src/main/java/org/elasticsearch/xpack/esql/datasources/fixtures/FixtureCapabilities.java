@@ -38,6 +38,7 @@ public final class FixtureCapabilities {
         "format=tsv@tsv",
         "format=ndjson@ndjson",
         "format=parquet@parquet",
+        "format=orc@orc",
         // Compressed variants of every text fixture are written at fixture-load time by
         // AbstractExternalSourceSpecTestCase.generateCompressedFixtures, so these bytes already exist for
         // all three text formats -- no generator work earned these rows, only the consumption that reads
@@ -114,9 +115,13 @@ public final class FixtureCapabilities {
         // -- the CRUD validator truncates the object key at the `?`, so registering the dataset fails
         // whenever a format-specific setting is present, which is nearly always on the text formats.
         // ndjson and parquet register fine: ndjson's config keys are rarely set by these datasets, and
-        // parquet registers no format-specific keys at all since elastic/elasticsearch#157868.
+        // parquet registers no format-specific keys at all since elastic/elasticsearch#157868. ORC is in
+        // parquet's position for the same structural reason -- OrcDataSourcePlugin declares
+        // FormatSpec.of("orc", ".orc"), whose config-key set is empty -- so #1841 has nothing to truncate
+        // and the shape registers.
         "path_shape=glob@ndjson",
-        "path_shape=glob@parquet"
+        "path_shape=glob@parquet",
+        "path_shape=glob@orc"
     );
 
     /** Whether a suite can ask for this resolver-bound value on this format. */

@@ -10,26 +10,29 @@
 package org.elasticsearch.sourcebatch;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class KeyValueWriterTests extends ESTestCase {
 
     private static byte[] expectedKv(String json) throws IOException {
-        try (
-            XContentParser parser = XContentHelper.createParserNotCompressed(
-                XContentParserConfiguration.EMPTY,
-                new BytesArray(json),
-                XContentType.JSON
-            )
-        ) {
+        return expectedKv(new BytesArray(json), XContentType.JSON);
+    }
+
+    private static byte[] expectedKv(BytesReference source, XContentType xContentType) throws IOException {
+        try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, xContentType)) {
             parser.nextToken(); // START_OBJECT
             return SourceBatchEncodeHelper.serializeKeyValue(parser);
         }
@@ -48,7 +51,7 @@ public class KeyValueWriterTests extends ESTestCase {
         KeyValueWriter writer = KeyValueWriter.forObjectPayload();
         writer.writeIntField("i", 42);
         writer.writeLongField("l", 10_000_000_000L);
-        writer.writeFloatField("d", 1.5f);
+        writer.writeDoubleField("d", 1.5);
         writer.writeStringField("s", "hello".getBytes(UTF_8), 0, 5);
         writer.writeBooleanField("t", true);
         writer.writeBooleanField("f", false);
@@ -132,6 +135,18 @@ public class KeyValueWriterTests extends ESTestCase {
         assertEquals("d", reader.key());
         assertEquals(SourceValueType.DOUBLE, reader.type());
         assertEquals(3.14, reader.doubleValue(), 0.0);
+        assertFalse(reader.next());
+    }
+
+    public void testFloatFieldUsesFloatType() throws IOException {
+        KeyValueWriter writer = KeyValueWriter.forObjectPayload();
+        writer.writeFloatField("f", 3.14f);
+
+        KeyValueReader reader = new KeyValueReader(writer.toBytes());
+        assertTrue(reader.next());
+        assertEquals("f", reader.key());
+        assertEquals(SourceValueType.FLOAT, reader.type());
+        assertEquals(3.14f, reader.floatValue(), 0.0f);
         assertFalse(reader.next());
     }
 
@@ -228,9 +243,8 @@ public class KeyValueWriterTests extends ESTestCase {
     }
 
     /**
-     * {@link KeyValueWriter#writeLongField} always emits {@link SourceValueType#LONG}; callers
-     * that want int-range narrowing (as {@link SourceBatchEncodeHelper} does for Jackson) must
-     * use {@link KeyValueWriter#writeIntField} explicitly.
+     * {@link KeyValueWriter#writeLongField} emits {@link SourceValueType#LONG} even when the value
+     * fits in an int; {@link KeyValueWriter#writeIntField} must be used explicitly for INT.
      */
     public void testWriteLongFieldDoesNotNarrowToInt() throws IOException {
         KeyValueWriter writer = KeyValueWriter.forObjectPayload();
@@ -242,11 +256,37 @@ public class KeyValueWriterTests extends ESTestCase {
         assertEquals(SourceValueType.LONG, reader.type());
         assertEquals(42L, reader.longValue());
         assertFalse(reader.next());
+    }
 
-        // Parser path narrows the same JSON value to INT.
-        KeyValueReader parserReader = new KeyValueReader(expectedKv("{\"n\":42}"));
-        assertTrue(parserReader.next());
-        assertEquals(SourceValueType.INT, parserReader.type());
+    /** Parser-reported LONG inside int range must not be narrowed to INT when serializing. */
+    public void testSerializeKeyValuePreservesParserLongWidth() throws IOException {
+        try (
+            MapXContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                Map.of("n", 42L),
+                XContentType.JSON
+            )
+        ) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            byte[] kv = SourceBatchEncodeHelper.serializeKeyValue(parser);
+            KeyValueReader reader = new KeyValueReader(kv);
+            assertTrue(reader.next());
+            assertEquals("n", reader.key());
+            assertEquals(SourceValueType.LONG, reader.type());
+            assertEquals(42L, reader.longValue());
+            assertFalse(reader.next());
+        }
+    }
+
+    /** JSON floating-point literals are DOUBLE-typed; encode must not narrow to FLOAT. */
+    public void testSerializeKeyValuePreservesParserDoubleWidth() throws IOException {
+        KeyValueReader reader = new KeyValueReader(expectedKv("{\"n\":1.5}"));
+        assertTrue(reader.next());
+        assertEquals("n", reader.key());
+        assertEquals(SourceValueType.DOUBLE, reader.type());
+        assertEquals(1.5, reader.doubleValue(), 0.0);
+        assertFalse(reader.next());
     }
 
     public void testWriteStringFieldWithSlice() throws IOException {

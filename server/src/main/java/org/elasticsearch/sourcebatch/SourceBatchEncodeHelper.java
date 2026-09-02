@@ -165,26 +165,21 @@ public final class SourceBatchEncodeHelper {
                 case VALUE_NUMBER -> {
                     XContentParser.NumberType numType = parser.numberType();
                     switch (numType) {
-                        case INT, LONG -> {
-                            long val = parser.longValue();
-                            if (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) {
-                                elemTypes[count] = SourceValueType.INT;
-                                elemNumeric[count] = val;
-                            } else {
-                                elemTypes[count] = SourceValueType.LONG;
-                                elemNumeric[count] = val;
-                            }
+                        case INT -> {
+                            elemTypes[count] = SourceValueType.INT;
+                            elemNumeric[count] = parser.intValue();
                         }
-                        case FLOAT, DOUBLE -> {
-                            double val = parser.doubleValue();
-                            float fval = (float) val;
-                            if ((double) fval == val) {
-                                elemTypes[count] = SourceValueType.FLOAT;
-                                elemNumeric[count] = Float.floatToRawIntBits(fval);
-                            } else {
-                                elemTypes[count] = SourceValueType.DOUBLE;
-                                elemNumeric[count] = Double.doubleToRawLongBits(val);
-                            }
+                        case LONG -> {
+                            elemTypes[count] = SourceValueType.LONG;
+                            elemNumeric[count] = parser.longValue();
+                        }
+                        case FLOAT -> {
+                            elemTypes[count] = SourceValueType.FLOAT;
+                            elemNumeric[count] = Float.floatToRawIntBits(parser.floatValue());
+                        }
+                        case DOUBLE -> {
+                            elemTypes[count] = SourceValueType.DOUBLE;
+                            elemNumeric[count] = Double.doubleToRawLongBits(parser.doubleValue());
                         }
                         default -> {
                             elemTypes[count] = SourceValueType.STRING;
@@ -213,24 +208,9 @@ public final class SourceBatchEncodeHelper {
                 XContentParser.NumberType numType = parser.numberType();
                 switch (numType) {
                     case INT -> writer.writeIntField(fieldName, parser.intValue());
-                    case LONG -> {
-                        long val = parser.longValue();
-                        if (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) {
-                            writer.writeIntField(fieldName, (int) val);
-                        } else {
-                            writer.writeLongField(fieldName, val);
-                        }
-                    }
+                    case LONG -> writer.writeLongField(fieldName, parser.longValue());
                     case FLOAT -> writer.writeFloatField(fieldName, parser.floatValue());
-                    case DOUBLE -> {
-                        double val = parser.doubleValue();
-                        float fval = (float) val;
-                        if ((double) fval == val) {
-                            writer.writeFloatField(fieldName, fval);
-                        } else {
-                            writer.writeDoubleField(fieldName, val);
-                        }
-                    }
+                    case DOUBLE -> writer.writeDoubleField(fieldName, parser.doubleValue());
                     default -> {
                         XContentString.UTF8Bytes str = parser.optimizedText().bytes();
                         writer.writeStringField(fieldName, str.bytes(), str.offset(), str.length());

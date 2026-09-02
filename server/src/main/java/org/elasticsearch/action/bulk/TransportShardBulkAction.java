@@ -464,6 +464,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     )
                 );
             }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert false : "do not expect failures when passing a listener";
+                super.onFailure(e);
+            }
         }.run();
     }
 

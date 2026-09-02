@@ -50,8 +50,8 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
         final long count = reader.valueCount(rank);
         payload.reset();
         for (long i = 0; i < count; i++) {
-            final long address = first + i;
-            payload.appendSlot(reader.isNullSlot(address) ? null : reader.valueAt(address));
+            // A null slot reads back as null, which is what appendSlot takes for one.
+            payload.appendSlot(reader.valueAt(first + i));
         }
         return payload.build();
     }
@@ -117,8 +117,9 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
             }
 
             @Override
-            public int nullCount() {
-                // Only the null-slot table is touched, so the counting pass costs no block decoding.
+            public int nullCount() throws IOException {
+                // Whichever layout this is, only what already says which slots are null is touched: the
+                // null-slot table, or the ordinals. The values themselves are never decoded.
                 int nulls = 0;
                 for (long i = 0; i < count; i++) {
                     if (reader.isNullSlot(first + i)) {
@@ -134,18 +135,14 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
             }
 
             @Override
-            public boolean isNull() {
-                return reader.isNullSlot(at);
-            }
-
-            @Override
             public int ordinal() throws IOException {
                 if (ordinalMap == null) {
                     return -1;
                 }
                 final int ordinal = reader.ordinalAt(at);
-                if (ordinal >= ordinalMap.length) {
-                    // Escaped this column's dictionary, so only its bytes say what it is.
+                if (ordinal == StringColumnMetadata.Dictionary.NULL_ORDINAL || ordinal >= ordinalMap.length) {
+                    // Null, or escaped this column's dictionary. Neither names a term the column being
+                    // written would recognise, so value() is what settles it.
                     return -1;
                 }
                 return ordinalMap[ordinal];
@@ -198,7 +195,6 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
         return new StringColumnValues() {
 
             private final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
-            private final BytesRef empty = new BytesRef(BytesRef.EMPTY_BYTES);
             private int count;
             private BytesRef slot;
 
@@ -218,13 +214,8 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
             }
 
             @Override
-            public boolean isNull() {
-                return slot == null;
-            }
-
-            @Override
             public BytesRef value() {
-                return slot == null ? empty : slot;
+                return slot;
             }
 
             @Override

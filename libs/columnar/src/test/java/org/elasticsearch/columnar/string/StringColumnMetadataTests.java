@@ -100,8 +100,11 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
         assertEquals("multi-valued", metadata.multiValued(), read.multiValued());
         assertEquals("has value addresses", metadata.hasValueAddresses(), read.hasValueAddresses());
         assertEquals("has null slots", metadata.hasNullSlots(), read.hasNullSlots());
-        assertTableRoundTrips("value addresses", metadata.addressing().valueAddresses(), read.addressing().valueAddresses());
-        assertTableRoundTrips("null slots", metadata.addressing().nullSlots(), read.addressing().nullSlots());
+        assertTableRoundTrips("value addresses", metadata.valueAddresses(), read.valueAddresses());
+        // Only a plain column keeps a null-slot table; a dictionary names its nulls with an ordinal.
+        if (metadata instanceof StringColumnMetadata.Plain written) {
+            assertTableRoundTrips("null slots", written.nullSlots(), ((StringColumnMetadata.Plain) read).nullSlots());
+        }
     }
 
     private static void assertTableRoundTrips(String what, MonotonicWriter.Table written, MonotonicWriter.Table read) {

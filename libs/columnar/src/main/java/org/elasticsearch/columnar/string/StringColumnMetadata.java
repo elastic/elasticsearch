@@ -31,9 +31,14 @@ import java.io.IOException;
  * {@link Dictionary#ordinals()} and resolves it against {@link Dictionary#dictionary()}; it stores no values
  * of its own, since a value is either named by a term or held in {@link Dictionary#escapes()}.
  *
- * <p>What both layouts have is here: how many documents and values the column holds, what its values would
- * occupy stored plainly, how a document's slots are found ({@link Addressing}), and what it recorded of the
- * terms it holds most.
+ * <p>What both layouts have is here: how many documents and values the column holds, how many of those slots
+ * are null, what the values would occupy stored plainly, where each document's slots begin
+ * ({@link #valueAddresses()}), and what the column recorded of the terms it holds most.
+ *
+ * <p>Where the nulls are is not shared, because the two layouts can afford different answers. {@link Plain}
+ * stores a null as a zero-length value and keeps a table of the addresses that hold one. {@link Dictionary}
+ * names a null with a reserved ordinal, which costs no table and keeps a null out of every term's ordinal
+ * range — so a query answered from the ordinals alone is not also answering for the empty term.
  */
 public sealed interface StringColumnMetadata extends ColumnMetadata permits StringColumnMetadata.Plain, StringColumnMetadata.Dictionary {
 
@@ -46,11 +51,27 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     /** How many slots the column holds across all documents, null slots included. */
     long numValues();
 
+    /**
+     * How many of the column's slots are null. Recorded whichever layout follows, and for both the same
+     * reason: a merge that would otherwise count its inputs reads this off each of them, and the layout is
+     * not chosen until after the count is in. Which layout it is decides where the nulls themselves are
+     * recorded, not whether the count is.
+     */
+    long numNullSlots();
+
     /** What the column's values would occupy stored plainly, which a decision about its layout is weighed against. */
     long valueBytes();
 
-    /** How a document's slots are found, and which of them are null. */
-    Addressing addressing();
+    /**
+     * The first value address of each document, and one past the end, present only when the slots and the
+     * documents are not in step. When every document holds exactly one slot the table is dropped and a
+     * document's value address is its rank.
+     *
+     * <p>Shared by both layouts, unlike the nulls: finding where a document's slots are is the same question
+     * whichever layout names them. The table stores its data in the data file, read off-heap from the mapped
+     * input, and its small monotonic-block metadata here.
+     */
+    MonotonicWriter.Table valueAddresses();
 
     /** What the column recorded of the terms it holds most, or null when it recorded nothing. */
     Summary summary();
@@ -83,35 +104,9 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         return numValues() != numDocsWithField();
     }
 
-    /** How many of the column's slots are null. */
-    default long numNullSlots() {
-        return addressing().numNullSlots();
-    }
-
     /** True when at least one slot in the column is null. */
     default boolean hasNullSlots() {
         return numNullSlots() > 0;
-    }
-
-    /**
-     * How a column's slots are addressed, which is the same question whichever layout names them. Each table
-     * stores its data in the data file (read off-heap from the mapped input) and its small monotonic-block
-     * metadata here, and each is written only when a count already on the wire says so:
-     *
-     * <ul>
-     *   <li><b>value addresses</b> — the first value address of each document, present only when the slots
-     *       and the documents are not in step. When every document holds one slot the table is dropped and a
-     *       document's value address is its rank.</li>
-     *   <li><b>null slots</b> — the value addresses that hold a null slot, in increasing order, present only
-     *       when {@code numNullSlots > 0}. A null occupies an address like any other slot (its bytes stored
-     *       as a zero-length value), so one address space covers the whole column and a document's slot count
-     *       is the difference between consecutive value addresses whether or not any of them are null.</li>
-     * </ul>
-     */
-    record Addressing(long numNullSlots, MonotonicWriter.Table valueAddresses, MonotonicWriter.Table nullSlots) {
-
-        /** A column whose documents are in step with its slots and none of whose slots are null. */
-        public static final Addressing NONE = new Addressing(0, MonotonicWriter.Table.NONE, MonotonicWriter.Table.NONE);
     }
 
     /**
@@ -127,13 +122,23 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      */
     record Summary(ValueStream.Metadata terms, long countsOffset, long countsLength, long numValues) {}
 
-    /** A column that stores its values as they were written. */
+    /**
+     * A column that stores its values as they were written.
+     *
+     * <p>A null is stored as a zero-length value, so it occupies an address like any other slot and
+     * {@link #nullSlots()} is the only thing that tells it from an empty string. That table is this layout's
+     * alone: the values are bytes, and bytes have no spare value to mean "null" the way an ordinal does.
+     *
+     * @param nullSlots the value addresses holding a null, ascending; present only when {@code numNullSlots > 0}
+     */
     record Plain(
         ColumnIteratorMetadata iterator,
         int numDocsWithField,
         long numValues,
+        long numNullSlots,
         long valueBytes,
-        Addressing addressing,
+        MonotonicWriter.Table valueAddresses,
+        MonotonicWriter.Table nullSlots,
         ValueStream.Metadata values,
         Summary summary
     ) implements StringColumnMetadata {
@@ -145,12 +150,15 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
 
         @Override
         public Plain withSummary(Summary summary) {
-            return new Plain(iterator, numDocsWithField, numValues, valueBytes, addressing, values, summary);
+            return new Plain(iterator, numDocsWithField, numValues, numNullSlots, valueBytes, valueAddresses, nullSlots, values, summary);
         }
 
         @Override
         public void writeBody(DataOutput out) throws IOException {
             values.writeTo(out);
+            if (hasNullSlots()) {
+                writeTable(out, nullSlots);
+            }
         }
     }
 
@@ -159,14 +167,24 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      * not hold escapes into {@link #escapes()}, found by counting the escapes before it, which
      * {@link #escapeRanks()} makes bounded work by recording how many came before every block of values.
      *
-     * <p>An ordinal equal to {@link #dictionarySize()} is the escape marker.
+     * <p>Two ordinals are reserved. {@link #NULL_ORDINAL} names a null, so the {@link #dictionarySize()} terms
+     * take the ordinals from {@link #FIRST_TERM_ORDINAL} up, and {@link #escapeOrdinal()} — the first ordinal
+     * past them — marks a value the dictionary does not hold. Naming a null rather than tabling it keeps this
+     * layout's hot path free of the
+     * question: a null is in no term's ordinal range, so a query resolved against the dictionary excludes
+     * nulls without a second lookup and can never confuse one with the empty term. It also keeps nulls out of
+     * the escapes, which a column-wide {@code escapeCount == 0} is worth staying on the right side of.
+     *
+     * <p>Zero rather than another value above the terms, so recognising a null takes no knowledge of how
+     * large the dictionary is and adding a term never moves it.
      */
     record Dictionary(
         ColumnIteratorMetadata iterator,
         int numDocsWithField,
         long numValues,
+        long numNullSlots,
         long valueBytes,
-        Addressing addressing,
+        MonotonicWriter.Table valueAddresses,
         ValueStream.Metadata dictionary,
         NumericColumnMetadata ordinals,
         ValueStream.Metadata escapes,
@@ -180,9 +198,20 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             return StringColumnLayout.DICTIONARY;
         }
 
+        /** The ordinal naming a null slot. Fixed, so it costs a reader nothing to know. */
+        public static final int NULL_ORDINAL = 0;
+
+        /** The ordinal of the first term, the reserved null taking the one below it. */
+        public static final int FIRST_TERM_ORDINAL = NULL_ORDINAL + 1;
+
         /** Whether any value escaped the dictionary. */
         public boolean hasEscapes() {
             return escapes != null && escapes.numValues() > 0;
+        }
+
+        /** The ordinal marking a value no term names, one past the last term. */
+        public int escapeOrdinal() {
+            return dictionarySize + FIRST_TERM_ORDINAL;
         }
 
         @Override
@@ -191,8 +220,9 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 iterator,
                 numDocsWithField,
                 numValues,
+                numNullSlots,
                 valueBytes,
-                addressing,
+                valueAddresses,
                 dictionary,
                 ordinals,
                 escapes,
@@ -215,7 +245,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     }
 
     static StringColumnMetadata empty(ColumnIteratorMetadata iterator) {
-        return plain(iterator, 0, 0, Addressing.NONE, ValueStream.Metadata.empty());
+        return plain(iterator, 0, 0, 0, MonotonicWriter.Table.NONE, MonotonicWriter.Table.NONE, ValueStream.Metadata.empty());
     }
 
     /** A column that stores its values as they were written. */
@@ -223,10 +253,12 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         ColumnIteratorMetadata iterator,
         int numDocsWithField,
         long numValues,
-        Addressing addressing,
+        long numNullSlots,
+        MonotonicWriter.Table valueAddresses,
+        MonotonicWriter.Table nullSlots,
         ValueStream.Metadata values
     ) {
-        return new Plain(iterator, numDocsWithField, numValues, values.valueBytes(), addressing, values, null);
+        return new Plain(iterator, numDocsWithField, numValues, numNullSlots, values.valueBytes(), valueAddresses, nullSlots, values, null);
     }
 
     /** A column that names its values with ordinals into {@code dictionary}. */
@@ -234,8 +266,9 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         ColumnIteratorMetadata iterator,
         int numDocsWithField,
         long numValues,
+        long numNullSlots,
         long valueBytes,
-        Addressing addressing,
+        MonotonicWriter.Table valueAddresses,
         ValueStream.Metadata dictionary,
         NumericColumnMetadata ordinals,
         ValueStream.Metadata escapes,
@@ -246,8 +279,9 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             iterator,
             numDocsWithField,
             numValues,
+            numNullSlots,
             valueBytes,
-            addressing,
+            valueAddresses,
             dictionary,
             ordinals,
             escapes,
@@ -267,13 +301,11 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         out.writeVLong(numValues());
         out.writeVLong(numNullSlots());
         out.writeVLong(valueBytes());
-        // Written ahead of the layout because they answer the same question whichever layout follows, and
-        // each is gated on a count already on the wire above.
+        // Written ahead of the layout because finding a document's slots is the same question whichever
+        // layout follows, and gated on counts already on the wire above. How the nulls among those slots are
+        // recorded is not shared, so that goes in the body.
         if (hasValueAddresses()) {
-            writeTable(out, addressing().valueAddresses());
-        }
-        if (hasNullSlots()) {
-            writeTable(out, addressing().nullSlots());
+            writeTable(out, valueAddresses());
         }
         out.writeByte(layout().id());
         writeBody(out);
@@ -313,11 +345,13 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         long numNullSlots = in.readVLong();
         long valueBytes = in.readVLong();
         MonotonicWriter.Table valueAddresses = numValues != numDocsWithField ? readTable(in) : MonotonicWriter.Table.NONE;
-        MonotonicWriter.Table nullSlots = numNullSlots > 0 ? readTable(in) : MonotonicWriter.Table.NONE;
-        Addressing addressing = new Addressing(numNullSlots, valueAddresses, nullSlots);
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
         final StringColumnMetadata column = switch (layout) {
-            case PLAIN -> plain(iterator, numDocsWithField, numValues, addressing, ValueStream.Metadata.readFrom(in));
+            case PLAIN -> {
+                final ValueStream.Metadata values = ValueStream.Metadata.readFrom(in);
+                final MonotonicWriter.Table nullSlots = numNullSlots > 0 ? readTable(in) : MonotonicWriter.Table.NONE;
+                yield plain(iterator, numDocsWithField, numValues, numNullSlots, valueAddresses, nullSlots, values);
+            }
             case DICTIONARY -> {
                 final int dictionarySize = in.readVInt();
                 final ValueStream.Metadata dictionary = ValueStream.Metadata.readFrom(in);
@@ -328,8 +362,9 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                     iterator,
                     numDocsWithField,
                     numValues,
+                    numNullSlots,
                     valueBytes,
-                    addressing,
+                    valueAddresses,
                     dictionary,
                     ordinals,
                     escapes,

@@ -39,14 +39,16 @@ import java.util.List;
  *
  * <p>Nothing column-proportional is held on the heap: the values go into a {@link ValueStream}, which streams
  * them a block at a time and writes its offset table to a temporary file, and the tables that address the
- * column's slots go through {@link AddressingWriter}, which does the same. Blocks address a fixed count of
- * values while chunks bound how many bytes are compressed at once, so a block of long urls and a block of
- * single characters are the same count of values and nothing like the same amount of data.
+ * column's slots go through {@link AddressingWriter} and {@link NullSlotWriter}, which do the same. Blocks
+ * address a fixed count of values while chunks bound how many bytes are compressed at once, so a block of
+ * long urls and a block of single characters are the same count of values and nothing like the same amount
+ * of data.
  *
  * <p>Which {@link StringColumnLayout} a column takes is decided from its values: a dictionary when the terms
  * it repeats are worth naming under the caller's {@link DictionaryPolicy}, and otherwise the values
- * themselves. How a document's slots are found is the same question either way, so both layouts write the
- * addressing tables identically — see {@link StringColumnMetadata.Addressing}.
+ * themselves. Where a document's slots begin is the same question either way, so both layouts write that
+ * table identically. Which of those slots are null is not: a dictionary names a null with a reserved ordinal,
+ * while a plain column, having no spare byte string to mean null with, tables the addresses that hold one.
  */
 public final class StringColumnWriter {
 
@@ -137,7 +139,8 @@ public final class StringColumnWriter {
         }
 
         final ValueStream.Metadata written;
-        final StringColumnMetadata.Addressing addressing;
+        final MonotonicWriter.Table valueAddresses;
+        final MonotonicWriter.Table nullSlotTable;
         try (
             ValueStream.Writer stream = new ValueStream.Writer(
                 chunkCodec,
@@ -149,29 +152,36 @@ public final class StringColumnWriter {
                 data.getName(),
                 data
             );
-            AddressingWriter slots = AddressingWriter.open(numDocsWithField, numValues, numNullSlots, directory, context, data.getName())
+            AddressingWriter slots = AddressingWriter.open(numDocsWithField, numValues, directory, context, data.getName());
+            // Bytes have no spare value to mean null with, so this layout alone tables its null slots.
+            NullSlotWriter nullSlots = NullSlotWriter.open(numNullSlots, directory, context, data.getName())
         ) {
             long valueAddress = 0;
+            final BytesRef empty = new BytesRef(BytesRef.EMPTY_BYTES);
             StringColumnValues values = cursors.get();
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                 slots.startDocument(valueAddress);
                 for (int i = 0, count = values.valueCount(); i < count; i++) {
                     values.nextValue();
-                    if (values.isNull()) {
-                        slots.recordNull(valueAddress);
+                    final BytesRef value = values.value();
+                    if (value == null) {
+                        // A null stores zero bytes, so it takes an address like any other and the table above
+                        // is the only thing that tells it from an empty string.
+                        nullSlots.recordNull(valueAddress);
+                        stream.add(empty);
+                    } else {
+                        stream.add(value);
                     }
-                    // A null slot stores zero bytes, so it takes an address like any other and the null-slot
-                    // table above is the only thing that tells it from an empty string.
-                    stream.add(values.value());
                     valueAddress++;
                 }
             }
             assert valueAddress == numValues : "wrote " + valueAddress + " slots, counted " + numValues;
             written = stream.finish();
-            addressing = slots.finish(numValues, data);
+            valueAddresses = slots.finish(numValues, data);
+            nullSlotTable = nullSlots.finish(data);
         }
         return withSummary(
-            StringColumnMetadata.plain(iterator, numDocsWithField, numValues, addressing, written),
+            StringColumnMetadata.plain(iterator, numDocsWithField, numValues, numNullSlots, valueAddresses, nullSlotTable, written),
             surveyed,
             numValues,
             valuesPerBlock,
@@ -259,6 +269,8 @@ public final class StringColumnWriter {
         IndexOutput data
     ) throws IOException {
         final int dictionarySize = vocabulary.size();
+        // The terms start above the reserved null, and the escape marker sits one past the last of them.
+        final int escapeOrdinal = dictionarySize + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
         final BytesRef scratch = new BytesRef();
 
         final ValueStream.Metadata dictionary;
@@ -291,17 +303,11 @@ public final class StringColumnWriter {
             long escapes = 0;
             final ValueStream.Metadata escapeStream;
             final MonotonicWriter.Table escapeRanks;
-            final StringColumnMetadata.Addressing addressing;
+            final MonotonicWriter.Table valueAddresses;
             try (
                 MonotonicWriter ranks = new MonotonicWriter(directory, context, data.getName(), escapeRankEntries(numValues));
-                AddressingWriter slots = AddressingWriter.open(
-                    numDocsWithField,
-                    numValues,
-                    numNullSlots,
-                    directory,
-                    context,
-                    data.getName()
-                )
+                // Nulls are named by a reserved ordinal below, so this layout keeps no null-slot table.
+                AddressingWriter slots = AddressingWriter.open(numDocsWithField, numValues, directory, context, data.getName())
             ) {
                 // Opened one at a time, each named before the next is asked for: a temporary file that the
                 // one after it fails to open is still a file to delete, and only its name says which.
@@ -323,14 +329,10 @@ public final class StringColumnWriter {
                                     ranks.add(escapes);
                                 }
                                 values.nextValue();
-                                // A null slot is named like any other: its bytes are empty, so it takes the
-                                // ordinal of the empty term or escapes as a zero-length value, and the
-                                // null-slot table is what tells it from an empty string either way.
-                                if (values.isNull()) {
-                                    slots.recordNull(index);
-                                }
                                 // A cursor that already knows the ordinal saves resolving the value's bytes
                                 // only to look them up again, which is most of what merging such a column costs.
+                                // It answers for terms alone, so a null still costs its bytes to recognise —
+                                // which for a null is no bytes at all.
                                 final int mapped = values.ordinal();
                                 if (mapped >= 0) {
                                     ordinalTemp.writeVInt(mapped);
@@ -338,18 +340,33 @@ public final class StringColumnWriter {
                                     continue;
                                 }
                                 final BytesRef value = values.value();
+                                // A null is named by the reserved ordinal below the terms. It never reaches
+                                // the dictionary or the escapes, so it cannot be confused with the empty term,
+                                // and a column whose only unnamed values were nulls still reports no escapes —
+                                // which is what a reader answering from the ordinals alone needs.
+                                if (value == null) {
+                                    ordinalTemp.writeVInt(StringColumnMetadata.Dictionary.NULL_ORDINAL);
+                                    index++;
+                                    continue;
+                                }
                                 final int ordinal;
                                 if (hasPrevious && previous.get().bytesEquals(value)) {
                                     ordinal = previousOrdinal;
                                 } else {
                                     final int id = vocabulary.terms().find(value);
-                                    ordinal = id >= 0 ? vocabulary.ordinalOfId()[id] : Vocabulary.DROPPED;
+                                    // A term the survey saw can still have been dropped from the dictionary,
+                                    // so the ordinal is shifted only once it is known to name one — DROPPED
+                                    // shifted would land on a reserved ordinal rather than staying a marker.
+                                    final int termOrdinal = id >= 0 ? vocabulary.ordinalOfId()[id] : Vocabulary.DROPPED;
+                                    ordinal = termOrdinal == Vocabulary.DROPPED
+                                        ? Vocabulary.DROPPED
+                                        : termOrdinal + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
                                     previous.copyBytes(value);
                                     previousOrdinal = ordinal;
                                     hasPrevious = true;
                                 }
                                 if (ordinal == Vocabulary.DROPPED) {
-                                    ordinalTemp.writeVInt(dictionarySize);
+                                    ordinalTemp.writeVInt(escapeOrdinal);
                                     escapeTemp.writeVInt(value.length);
                                     escapeTemp.writeBytes(value.bytes, value.offset, value.length);
                                     escapes++;
@@ -364,7 +381,7 @@ public final class StringColumnWriter {
                         assert index == numValues : "wrote " + index + " slots, counted " + numValues;
                     }
                 }
-                addressing = slots.finish(numValues, data);
+                valueAddresses = slots.finish(numValues, data);
                 escapeStream = replayEscapes(
                     directory,
                     context,
@@ -397,8 +414,9 @@ public final class StringColumnWriter {
                 iterator,
                 numDocsWithField,
                 numValues,
+                numNullSlots,
                 valueBytes,
-                addressing,
+                valueAddresses,
                 dictionary,
                 ordinals,
                 escapeStream,

@@ -255,6 +255,52 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
             assertTrue("expected a dictionary", reader.hasDictionary());
             assertEquals("null slots recorded", numNullSlots(docSlots), metadata.numNullSlots());
+            // The dictionary names every term here, and a null is named too rather than escaping. A reader
+            // answering from the ordinals alone gives up on a column that let anything escape, so a null
+            // costing an escape would cost that column the ordinals entirely.
+            assertEquals("a null does not escape", 0L, reader.escapeCount());
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator());
+            for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
+                assertEquals("doc " + doc, encode(docSlots[doc]), dv.binaryValue());
+            }
+        });
+    }
+
+    /**
+     * A null and an empty string in the same dictionary column. Both are zero bytes, so what separates them
+     * is the reserved ordinal — and it has to, because a query resolved against the dictionary answers for
+     * the empty term by its ordinal and must not answer for the nulls with it.
+     */
+    public void testDictionaryTellsANullFromTheEmptyTerm() throws IOException {
+        final BytesRef empty = new BytesRef("");
+        final BytesRef[][] docSlots = new BytesRef[between(400, 1200)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            // Both often enough that the empty string earns a dictionary entry of its own.
+            docSlots[d] = switch (d % 4) {
+                case 0 -> new BytesRef[] { empty };
+                case 1 -> new BytesRef[] { null, new BytesRef("kept-" + (d % 3)) };
+                case 2 -> new BytesRef[] { empty, null };
+                default -> new BytesRef[] { new BytesRef("kept-" + (d % 3)) };
+            };
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertTrue("expected a dictionary", reader.hasDictionary());
+            assertEquals("a null does not escape", 0L, reader.escapeCount());
+
+            final ColumnIterator iterator = reader.iterator();
+            assertTrue(iterator.advanceExact(2));
+            final long first = reader.firstValueAddress(iterator.rank());
+            assertFalse("doc 2 slot 0 is the empty string", reader.isNullSlot(first));
+            assertTrue("doc 2 slot 1 is null", reader.isNullSlot(first + 1));
+            assertEquals("the empty string reads back as itself", empty, reader.valueAt(first));
+            assertNull("a null reads back as null", reader.valueAt(first + 1));
+            assertNotEquals("a null takes an ordinal the empty term does not", reader.ordinalAt(first), reader.ordinalAt(first + 1));
+            assertEquals(
+                "and that ordinal is the reserved one, below every term",
+                StringColumnMetadata.Dictionary.NULL_ORDINAL,
+                reader.ordinalAt(first + 1)
+            );
+
             final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator());
             for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
                 assertEquals("doc " + doc, encode(docSlots[doc]), dv.binaryValue());
@@ -329,7 +375,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
 
     /** The slot a cursor is on, as the test describes it: {@code null} for a null slot, the bytes otherwise. */
     private static BytesRef slotOf(StringColumnValues cursor) throws IOException {
-        return cursor.isNull() ? null : cursor.value();
+        return cursor.value();
     }
 
     /**
@@ -392,9 +438,11 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         }
         withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
             assertTrue("expected a dictionary", reader.hasDictionary());
-            // A map that renames every ordinal, so a carried ordinal cannot pass by accident.
-            final int[] ordinalMap = new int[reader.dictionarySize()];
-            for (int ordinal = 0; ordinal < ordinalMap.length; ordinal++) {
+            // A map that renames every ordinal, so a carried ordinal cannot pass by accident. Indexed by this
+            // column's ordinals, which begin above the reserved null.
+            final int[] ordinalMap = new int[reader.dictionarySize() + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL];
+            for (int i = 0; i < reader.dictionarySize(); i++) {
+                final int ordinal = StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL + i;
                 ordinalMap[ordinal] = ordinal + 100;
             }
             final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator());

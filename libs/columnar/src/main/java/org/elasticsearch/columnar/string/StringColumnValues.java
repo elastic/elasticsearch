@@ -65,13 +65,10 @@ public abstract class StringColumnValues extends DocIdSetIterator {
      */
     public abstract void nextValue() throws IOException;
 
-    /** Whether the slot the cursor is on is null rather than a value. */
-    public abstract boolean isNull() throws IOException;
-
     /**
-     * The value the cursor is on, or an empty {@link BytesRef} on a null slot — which is how a null is
-     * stored, {@link #isNull()} being what tells it from an empty string. Reading it that way means every
-     * caller that only moves bytes around needs no null branch of its own.
+     * The value the cursor is on, or null when the slot is null — which is the only thing that says a slot is
+     * null, so an implementation returning an empty {@link BytesRef} instead loses the distinction rather
+     * than merely describing it differently.
      */
     public abstract BytesRef value() throws IOException;
 

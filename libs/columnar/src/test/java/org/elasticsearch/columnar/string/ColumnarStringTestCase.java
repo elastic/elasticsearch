@@ -339,14 +339,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
             }
 
             @Override
-            public boolean isNull() {
-                return docSlots[doc][upto - 1] == null;
-            }
-
-            @Override
             public BytesRef value() {
-                final BytesRef slot = docSlots[doc][upto - 1];
-                return slot == null ? EMPTY : slot;
+                return docSlots[doc][upto - 1];
             }
 
             @Override

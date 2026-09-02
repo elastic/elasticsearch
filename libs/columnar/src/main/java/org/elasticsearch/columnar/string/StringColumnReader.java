@@ -28,10 +28,12 @@ import java.util.List;
  * single-valued column maps a document's rank straight to its value address, while a multi-valued one looks
  * the range up in the value-address table.
  *
- * <p>A null slot holds an address like any other and stores zero bytes; {@link #isNullSlot} tells the two
- * apart, which is what keeps an inline null distinguishable from an empty string. That holds under either
- * layout — a dictionary names a null slot with the empty term's ordinal, or lets it escape as a zero-length
- * value, and the null-slot table settles it either way.
+ * <p>A null slot holds an address like any other, and {@link #isNullSlot} says whether one does — but the two
+ * layouts answer it differently. A dictionary column names a null with a reserved ordinal, so the ordinal
+ * already read to resolve the value settles it, a null is in no term's ordinal range, and nothing null
+ * reaches the escapes. A plain column has no spare byte string to mean null with, so it stores one as a
+ * zero-length value and keeps a table of the addresses that hold one, which is the only thing separating a
+ * null from an empty string there.
  *
  * <p>The values sit in a {@link ValueStream}: addressed in blocks of a fixed count of values, compressed in
  * chunks of a fixed number of bytes, with a chunk closing only on a block boundary so no value spans two of
@@ -57,6 +59,9 @@ public final class StringColumnReader {
     private final long escapeCount;
     private final int blockSize;
 
+    /** The ordinal marking an escaped value on a dictionary column, or {@code -1} on a plain one. */
+    private final int escapeOrdinal;
+
     /** The last value {@link #escapeRankOf} answered, and its rank, so an ascending pass carries on. */
     private long escapeCursorAddress = -1;
     private long escapeCursorRank;
@@ -80,29 +85,21 @@ public final class StringColumnReader {
         this.data = data;
         this.meta = meta;
         this.iteratorReader = new ColumnIteratorReader(meta.iterator(), data);
-        final StringColumnMetadata.Addressing addressing = meta.addressing();
         this.valueAddresses = meta.hasValueAddresses()
             ? MonotonicReader.open(
                 data,
-                addressing.valueAddresses().meta(),
+                meta.valueAddresses().meta(),
                 meta.numDocsWithField() + 1L,
-                addressing.valueAddresses().dataOffset(),
-                addressing.valueAddresses().dataLength()
+                meta.valueAddresses().dataOffset(),
+                meta.valueAddresses().dataLength()
             )
             : null;
-        this.numNullSlots = addressing.numNullSlots();
-        this.nullSlots = meta.hasNullSlots()
-            ? MonotonicReader.open(
-                data,
-                addressing.nullSlots().meta(),
-                numNullSlots,
-                addressing.nullSlots().dataOffset(),
-                addressing.nullSlots().dataLength()
-            )
-            : null;
-        this.nullCursorAddress = nullSlots == null ? Long.MAX_VALUE : nullSlots.get(0);
+        this.numNullSlots = meta.numNullSlots();
         switch (meta) {
             case StringColumnMetadata.Dictionary column -> {
+                // Nulls are named in the ordinals, so there is no table to open.
+                this.nullSlots = null;
+                this.escapeOrdinal = column.escapeOrdinal();
                 this.values = null;
                 this.dictionary = column.dictionary().open(data);
                 this.ordinals = new NumericColumnReader(column.ordinals(), data);
@@ -125,6 +122,16 @@ public final class StringColumnReader {
                 }
             }
             case StringColumnMetadata.Plain column -> {
+                this.nullSlots = column.hasNullSlots()
+                    ? MonotonicReader.open(
+                        data,
+                        column.nullSlots().meta(),
+                        column.numNullSlots(),
+                        column.nullSlots().dataOffset(),
+                        column.nullSlots().dataLength()
+                    )
+                    : null;
+                this.escapeOrdinal = -1;
                 this.values = column.numDocsWithField() == 0 ? null : column.values().open(data);
                 this.dictionary = null;
                 this.ordinals = null;
@@ -135,6 +142,7 @@ public final class StringColumnReader {
                 this.blockSize = column.values().valuesPerBlock();
             }
         }
+        this.nullCursorAddress = nullSlots == null ? Long.MAX_VALUE : nullSlots.get(0);
     }
 
     /** A fresh iterator over the documents that have a value; positioned by {@link ColumnIterator#rank()}. */
@@ -163,11 +171,16 @@ public final class StringColumnReader {
     /**
      * Whether the slot at {@code valueAddress} is null rather than a value.
      *
-     * <p>Both callers walk a document's addresses in order and documents in order, so this keeps a cursor
-     * into the null-slot table and advances it, making a full scan cost one pass over that table. A caller
-     * that asks about an address behind the one it last asked about re-seeks by binary search.
+     * <p>A dictionary column answers from the ordinal, which names a null outright. A plain column stores a
+     * null as a zero-length value, so only the null-slot table tells it from an empty string; callers walk a
+     * document's addresses in order and documents in order, so this keeps a cursor into that table and
+     * advances it, making a full scan cost one pass over it. A caller that asks about an address behind the
+     * one it last asked about re-seeks by binary search.
      */
-    public boolean isNullSlot(long valueAddress) {
+    public boolean isNullSlot(long valueAddress) throws IOException {
+        if (dictionary != null) {
+            return ordinals.valueAt(valueAddress) == StringColumnMetadata.Dictionary.NULL_ORDINAL;
+        }
         if (nullSlots == null) {
             return false;
         }
@@ -201,20 +214,31 @@ public final class StringColumnReader {
     }
 
     /**
-     * The value at {@code valueAddress} in {@code [0, numValues)}. The returned {@link BytesRef} points into a
-     * buffer this reader reuses, so it is only valid until the next call. A null slot reads back as a
-     * zero-length value; use {@link #isNullSlot} to tell it from an empty string.
+     * The value at {@code valueAddress} in {@code [0, numValues)}, or null when that slot is null. The
+     * returned {@link BytesRef} points into a buffer this reader reuses, so it is only valid until the next
+     * call.
+     *
+     * <p>Null rather than a zero-length value, so a caller reading bytes cannot mistake a null for an empty
+     * string, which is the same contract the write-path cursor keeps — see {@link StringColumnValues#value()}.
+     * {@link #isNullSlot} remains for a caller that wants the question without the bytes: on a plain column it
+     * answers from the null-slot table, where this decodes the block the value lives in.
      */
     public BytesRef valueAt(long valueAddress) throws IOException {
         if (dictionary != null) {
             // The ordinals are one per value in the same order, so a value address addresses them directly.
             final long ordinal = ordinals.valueAt(valueAddress);
-            if (ordinal == dictionarySize) {
+            if (ordinal == StringColumnMetadata.Dictionary.NULL_ORDINAL) {
+                return null;
+            }
+            if (ordinal == escapeOrdinal) {
                 escapes.get(escapeRankOf(valueAddress), value);
             } else {
-                dictionary.get(ordinal, value);
+                dictionary.get(ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL, value);
             }
         } else {
+            if (isNullSlot(valueAddress)) {
+                return null;
+            }
             values.get(valueAddress, value);
         }
         return value;
@@ -241,7 +265,7 @@ public final class StringColumnReader {
             rank = escapeRanks.get(block);
         }
         for (; at < valueAddress; at++) {
-            if (ordinals.valueAt(at) == dictionarySize) {
+            if (ordinals.valueAt(at) == escapeOrdinal) {
                 rank++;
             }
         }
@@ -302,15 +326,23 @@ public final class StringColumnReader {
         return meta.valueBytes();
     }
 
-    /** The term at {@code ordinal}, on a column that has a dictionary. */
+    /**
+     * The term at {@code ordinal}, on a column that has a dictionary. The {@link #dictionarySize()} terms take
+     * the ordinals from {@link StringColumnMetadata.Dictionary#FIRST_TERM_ORDINAL} up, so the term a caller
+     * wants the {@code i}th of is at {@code FIRST_TERM_ORDINAL + i}.
+     */
     public BytesRef termAt(int ordinal, BytesRef dst) throws IOException {
-        dictionary.get(ordinal, dst);
+        assert ordinal >= StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL
+            && ordinal < dictionarySize + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL
+            : "ordinal [" + ordinal + "] names no term in a dictionary of " + dictionarySize;
+        dictionary.get(ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL, dst);
         return dst;
     }
 
     /**
-     * The ordinal the value at {@code valueAddress} takes, or {@link #dictionarySize()} when it escaped.
-     * Only meaningful on a column that has a dictionary.
+     * The ordinal the value at {@code valueAddress} takes: a term's,
+     * {@link StringColumnMetadata.Dictionary#NULL_ORDINAL} when the slot is null, or one past the last term
+     * when it escaped. Only meaningful on a column that has a dictionary.
      */
     public int ordinalAt(long valueAddress) throws IOException {
         return Math.toIntExact(ordinals.valueAt(valueAddress));

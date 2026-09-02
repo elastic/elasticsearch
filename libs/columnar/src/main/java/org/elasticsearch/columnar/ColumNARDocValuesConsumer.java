@@ -308,8 +308,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             if (reader.hasDictionary() == false || reader.escapeCount() > 0) {
                 return null;
             }
-            for (int ordinal = 0; ordinal < reader.dictionarySize(); ordinal++) {
-                reader.termAt(ordinal, term);
+            for (int t = 0; t < reader.dictionarySize(); t++) {
+                reader.termAt(StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL + t, term);
                 if (union.add(BytesRef.deepCopyOf(term))) {
                     unionBytes += term.length;
                     if (unionBytes > dictionaryPolicy.maxBytes()) {
@@ -432,8 +432,12 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     }
 
     /**
-     * What each of a segment's dictionary ordinals becomes in the merged column, or null when the segment
-     * has no dictionary the merged vocabulary was built from.
+     * What each of a segment's dictionary ordinals becomes in the merged column, indexed by the segment's own
+     * ordinal, or null when the segment has no dictionary the merged vocabulary was built from.
+     *
+     * <p>Only the terms are mapped. A null and an escaped value both fall outside it, and the cursor answers
+     * {@code -1} for either, because neither names a term the merged column would recognise: what those are
+     * is settled by the value the cursor hands back, not by an ordinal meaning something else over there.
      */
     private static int[] ordinalMap(BinaryDocValues values, Vocabulary.Terms vocabulary) throws IOException {
         if (vocabulary == null || (values instanceof ColumnarStringBinaryDocValues) == false) {
@@ -443,16 +447,20 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         if (reader.hasDictionary() == false) {
             return null;
         }
-        final int[] map = new int[reader.dictionarySize()];
+        // Long enough for the term ordinals and no longer, so the escape marker indexes off the end and is
+        // turned away without a test of its own. The reserved null's entry is never read.
+        final int[] map = new int[reader.dictionarySize() + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL];
         final BytesRef term = new BytesRef();
-        for (int ordinal = 0; ordinal < map.length; ordinal++) {
+        for (int i = 0; i < reader.dictionarySize(); i++) {
+            final int ordinal = StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL + i;
             reader.termAt(ordinal, term);
             final int id = vocabulary.terms().find(term);
             if (id < 0 || vocabulary.ordinalOfId()[id] == Vocabulary.DROPPED) {
                 // The merged vocabulary was built from these dictionaries, so every term should be in it.
                 return null;
             }
-            map[ordinal] = vocabulary.ordinalOfId()[id];
+            // The ordinal the merged column will store, so the writer can take it as it stands.
+            map[ordinal] = vocabulary.ordinalOfId()[id] + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
         }
         return map;
     }
@@ -542,11 +550,6 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             @Override
             public void nextValue() throws IOException {
                 current.values.nextValue();
-            }
-
-            @Override
-            public boolean isNull() throws IOException {
-                return current.values.isNull();
             }
 
             @Override

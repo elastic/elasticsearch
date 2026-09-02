@@ -12,70 +12,47 @@ package org.elasticsearch.columnar.string;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
 import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * Builds the two tables that say where a document's slots are and which of them are null — see
- * {@link StringColumnMetadata.Addressing}. Both go through {@link MonotonicWriter}, which streams them to a
- * temporary file, so nothing column-proportional is held on the heap.
+ * Builds the table that says where each document's slots begin. It goes through {@link MonotonicWriter},
+ * which streams it to a temporary file, so nothing column-proportional is held on the heap.
  *
- * <p>Held apart from the layouts because the question it answers is the same for all of them: a dictionary
- * column names its values with ordinals, but a document's slots are found and a null slot is recognised
- * exactly as they are in a column that stores its values.
+ * <p>Every layout writes this one, because finding a document's slots is the same question whichever layout
+ * names the values: a dictionary column names its with ordinals, but its documents are addressed exactly as
+ * they are in a column that stores its values. Which of those slots are null is <em>not</em> a shared
+ * question — a dictionary has a spare ordinal to name a null with, and only {@link StringColumnLayout#PLAIN}
+ * needs {@link NullSlotWriter}.
  */
 final class AddressingWriter implements Closeable {
 
     /** Null when every document holds exactly one slot, in which case a document's value address is its rank. */
     private final MonotonicWriter valueAddresses;
-    /** Null when no slot in the column is null. */
-    private final MonotonicWriter nullSlots;
     private final int numDocsWithField;
-    private final long numNullSlots;
 
     private int docs;
-    private long nulls;
 
     /**
      * @param numDocsWithField documents that have at least one slot
      * @param numValues        slots across all of them, null slots included
-     * @param numNullSlots     how many of those slots are null
      */
-    static AddressingWriter open(
-        int numDocsWithField,
-        long numValues,
-        long numNullSlots,
-        Directory directory,
-        IOContext context,
-        String name
-    ) throws IOException {
-        MonotonicWriter valueAddresses = null;
-        MonotonicWriter nullSlots = null;
-        try {
-            // A document holding several slots and one holding none both put the slots out of step with the
-            // documents, and either way a rank stops being its own value address. One past the end, so the
-            // last document's slot count is a difference like any other.
-            if (numValues != numDocsWithField) {
-                valueAddresses = new MonotonicWriter(directory, context, name, numDocsWithField + 1L);
-            }
-            if (numNullSlots > 0) {
-                nullSlots = new MonotonicWriter(directory, context, name, numNullSlots);
-            }
-            return new AddressingWriter(valueAddresses, nullSlots, numDocsWithField, numNullSlots);
-        } catch (Exception e) {
-            IOUtils.closeWhileHandlingException(valueAddresses, nullSlots);
-            throw e;
-        }
+    static AddressingWriter open(int numDocsWithField, long numValues, Directory directory, IOContext context, String name)
+        throws IOException {
+        // A document holding several slots and one holding none both put the slots out of step with the
+        // documents, and either way a rank stops being its own value address. One past the end, so the last
+        // document's slot count is a difference like any other.
+        final MonotonicWriter valueAddresses = numValues != numDocsWithField
+            ? new MonotonicWriter(directory, context, name, numDocsWithField + 1L)
+            : null;
+        return new AddressingWriter(valueAddresses, numDocsWithField);
     }
 
-    private AddressingWriter(MonotonicWriter valueAddresses, MonotonicWriter nullSlots, int numDocsWithField, long numNullSlots) {
+    private AddressingWriter(MonotonicWriter valueAddresses, int numDocsWithField) {
         this.valueAddresses = valueAddresses;
-        this.nullSlots = nullSlots;
         this.numDocsWithField = numDocsWithField;
-        this.numNullSlots = numNullSlots;
     }
 
     /** Records that the document about to be written begins at {@code valueAddress}. */
@@ -86,29 +63,20 @@ final class AddressingWriter implements Closeable {
         }
     }
 
-    /** Records that the slot at {@code valueAddress} is null; a slot that holds a value leaves no trace. */
-    void recordNull(long valueAddress) throws IOException {
-        assert nullSlots != null : "null slot at [" + valueAddress + "] in a column counted as having none";
-        nullSlots.add(valueAddress);
-        nulls++;
-    }
-
-    /** Closes both tables into {@code data}, {@code numValues} being the address one past the column's last slot. */
-    StringColumnMetadata.Addressing finish(long numValues, IndexOutput data) throws IOException {
+    /** Closes the table into {@code data}, {@code numValues} being the address one past the column's last slot. */
+    MonotonicWriter.Table finish(long numValues, IndexOutput data) throws IOException {
         assert docs == numDocsWithField : "wrote " + docs + " documents, counted " + numDocsWithField;
-        assert nulls == numNullSlots : "wrote " + nulls + " null slots, counted " + numNullSlots;
-        if (valueAddresses != null) {
-            valueAddresses.add(numValues);
+        if (valueAddresses == null) {
+            return MonotonicWriter.Table.NONE;
         }
-        return new StringColumnMetadata.Addressing(
-            numNullSlots,
-            valueAddresses == null ? MonotonicWriter.Table.NONE : valueAddresses.finish(data),
-            nullSlots == null ? MonotonicWriter.Table.NONE : nullSlots.finish(data)
-        );
+        valueAddresses.add(numValues);
+        return valueAddresses.finish(data);
     }
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(valueAddresses, nullSlots);
+        if (valueAddresses != null) {
+            valueAddresses.close();
+        }
     }
 }

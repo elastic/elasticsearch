@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -63,34 +65,25 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         }
     }
 
+    // Metadata ops (length/lastModified/exists) are deliberately exempt from permit acquisition.
+    // The permit is pure throughput control with no correctness role; these are cheap, short-lived
+    // HEAD/stat calls whose fan-out is already bounded by the caller thread pool and
+    // ExternalSourceResolver.MAX_PARALLEL_METADATA_READS. Parking them behind long-lived stream
+    // permits (streams hold their permit for their whole minutes-long lifetime) starved SEARCH
+    // threads — see #1151. Byte-transfer ops (newStream/readBytes) stay permit-governed.
     @Override
     public long length() throws IOException {
-        acquirePermit();
-        try {
-            return delegate.length();
-        } finally {
-            limiter.release();
-        }
+        return delegate.length();
     }
 
     @Override
     public Instant lastModified() throws IOException {
-        acquirePermit();
-        try {
-            return delegate.lastModified();
-        } finally {
-            limiter.release();
-        }
+        return delegate.lastModified();
     }
 
     @Override
     public boolean exists() throws IOException {
-        acquirePermit();
-        try {
-            return delegate.exists();
-        } finally {
-            limiter.release();
-        }
+        return delegate.exists();
     }
 
     @Override
@@ -135,18 +128,29 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         try {
             acquirePermit();
         } catch (Exception e) {
             listener.onFailure(e);
-            return;
+            return () -> {};
         }
         try {
             // We intentionally use a raw ActionListener instead of ActionListener.wrap so a
             // throw from listener.onResponse(result) does NOT get auto-routed to our onFailure
             // lambda — that would double-release the permit and double-fire the downstream
             // listener (onResponse + onFailure for the same I/O).
-            delegate.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
+            return delegate.startReadBytesAsync(position, length, factory, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(DirectReadBuffer result) {
                     limiter.release();
@@ -175,6 +179,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         } catch (Exception e) {
             limiter.release();
             listener.onFailure(e);
+            return () -> {};
         }
     }
 
@@ -226,10 +231,21 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         try {
             limiter.acquire();
         } catch (TimeoutException e) {
-            throw new EsRejectedExecutionException("Failed to acquire concurrency permit for cloud API call: " + e.getMessage());
+            // Permit pool exhausted: a node-local admission back-pressure condition, not a client error. Raise it as
+            // the retryable 503-class type the retry layer acts on (RetryableStorageObject -> RetryPolicy.execute
+            // catches ExternalUnavailableException and re-attempts). throttling=false: this is a local semaphore, not
+            // a remote-store 429/503, so it must not feed the per-bucket adaptive backoff or the throttle budget.
+            throw new ExternalUnavailableException(e, "Timed out acquiring cloud API concurrency permit: {}", e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new EsRejectedExecutionException("Interrupted while waiting for concurrency permit: " + e);
+            // Interrupt is a shutdown/cancellation signal, not back-pressure: throw non-retryable so the
+            // retry layer does not loop on an interrupt flag that will fire again immediately. The interrupt
+            // is preserved as the cause so the origin survives in diagnostics (the type has no cause constructor).
+            EsRejectedExecutionException rejected = new EsRejectedExecutionException(
+                "Interrupted while acquiring cloud API concurrency permit"
+            );
+            rejected.initCause(e);
+            throw rejected;
         }
     }
 

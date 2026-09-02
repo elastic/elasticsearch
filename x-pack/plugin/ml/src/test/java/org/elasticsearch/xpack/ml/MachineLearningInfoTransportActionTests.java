@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -38,17 +39,26 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
+import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.MlMemoryAction;
+import org.elasticsearch.xpack.core.ml.calendars.Calendar;
+import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -71,7 +81,9 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStatsTests;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
@@ -130,8 +142,14 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         givenJobs(Collections.emptyList(), Collections.emptyList());
         givenDatafeeds(Collections.emptyList());
+        givenDatafeedConfigs(Collections.emptyList());
+        givenCalendars(Collections.emptyList());
+        givenFilters(Collections.emptyList());
+        givenScheduledEvents(Collections.emptyList());
+        givenModelSnapshots(Collections.emptyList());
         givenDataFrameAnalytics(Collections.emptyList(), Collections.emptyList());
         givenTrainedModels(Collections.emptyList());
+        givenInferenceEndpoints(Collections.emptyList());
         givenTrainedModelStats(
             new GetTrainedModelsStatsAction.Response(
                 new QueryPage<>(Collections.emptyList(), 0, GetTrainedModelsStatsAction.Response.RESULTS_FIELD)
@@ -490,7 +508,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
         settings.put(MachineLearning.DATA_FRAME_ANALYTICS_ENABLED.getKey(), false);
-        settings.put(MachineLearning.NLP_ENABLED.getKey(), false);
+        settings.put(XPackSettings.NLP_ENABLED.getKey(), false);
 
         // This test works by setting up a mocks that imply trained models exist, then checking
         // that the usage stats don't mention them. This proves that the trained model APIs
@@ -572,7 +590,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("jobs.opened.forecasts.total"), equalTo(11));
             assertThat(source.getValue("jobs.opened.forecasts.forecasted_jobs"), equalTo(2));
 
-            assertThat(source.getValue("inference"), anEmptyMap());
+            assertThat(source.getValue("inference.trained_models"), is(nullValue()));
+            assertThat(source.getValue("inference.deployments"), is(nullValue()));
+            assertThat(source.getValue("inference.ingest_processors"), is(nullValue()));
         }
     }
 
@@ -778,6 +798,72 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             );
             return Void.TYPE;
         }).when(client).execute(same(GetDatafeedsStatsAction.INSTANCE), any(), any());
+    }
+
+    private void givenDatafeedConfigs(List<DatafeedConfig> datafeeds) {
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetDatafeedsAction.Response> listener = (ActionListener<GetDatafeedsAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(
+                new GetDatafeedsAction.Response(new QueryPage<>(datafeeds, datafeeds.size(), DatafeedConfig.RESULTS_FIELD))
+            );
+            return Void.TYPE;
+        }).when(client).execute(same(GetDatafeedsAction.INSTANCE), any(), any());
+    }
+
+    private void givenCalendars(List<Calendar> calendars) {
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetCalendarsAction.Response> listener = (ActionListener<GetCalendarsAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(new GetCalendarsAction.Response(new QueryPage<>(calendars, calendars.size(), Calendar.RESULTS_FIELD)));
+            return Void.TYPE;
+        }).when(client).execute(same(GetCalendarsAction.INSTANCE), any(), any());
+    }
+
+    private void givenFilters(List<MlFilter> filters) {
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetFiltersAction.Response> listener = (ActionListener<GetFiltersAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(new GetFiltersAction.Response(new QueryPage<>(filters, filters.size(), MlFilter.RESULTS_FIELD)));
+            return Void.TYPE;
+        }).when(client).execute(same(GetFiltersAction.INSTANCE), any(), any());
+    }
+
+    private void givenScheduledEvents(List<ScheduledEvent> scheduledEvents) {
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetCalendarEventsAction.Response> listener = (ActionListener<GetCalendarEventsAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(
+                new GetCalendarEventsAction.Response(new QueryPage<>(scheduledEvents, scheduledEvents.size(), ScheduledEvent.RESULTS_FIELD))
+            );
+            return Void.TYPE;
+        }).when(client).execute(same(GetCalendarEventsAction.INSTANCE), any(), any());
+    }
+
+    private void givenModelSnapshots(List<ModelSnapshot> modelSnapshots) {
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetModelSnapshotsAction.Response> listener = (ActionListener<GetModelSnapshotsAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(
+                new GetModelSnapshotsAction.Response(new QueryPage<>(modelSnapshots, modelSnapshots.size(), ModelSnapshot.RESULTS_FIELD))
+            );
+            return Void.TYPE;
+        }).when(client).execute(same(GetModelSnapshotsAction.INSTANCE), any(), any());
+    }
+
+    private void givenInferenceEndpoints(List<ModelConfigurations> endpoints) {
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetInferenceModelAction.Response> listener = (ActionListener<GetInferenceModelAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(new GetInferenceModelAction.Response(endpoints));
+            return Void.TYPE;
+        }).when(client).execute(same(GetInferenceModelAction.INSTANCE), any(), any());
     }
 
     private void givenDataFrameAnalytics(

@@ -20,6 +20,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -241,6 +242,78 @@ public class DfsPhaseTimeoutTests extends IndexShardTestCase {
         }
     }
 
+    public void testCollectStatisticsWithRewriteTimeoutAllowPartial() throws Exception {
+        DfsSearchResult dfsResult = new DfsSearchResult(null, null, null);
+        ContextIndexSearcher cis = newContextSearcher(reader);
+
+        try (TestSearchContext context = new TestSearchContext(createSearchExecutionContext(), indexShard, cis) {
+            @Override
+            public TimeValue timeout() {
+                return TimeValue.ZERO;
+            }
+
+            @Override
+            public DfsSearchResult dfsResult() {
+                return dfsResult;
+            }
+        }) {
+            context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+            context.parsedQuery(new ParsedQuery(new RewriteTimeoutQuery()));
+            context.request().source(new SearchSourceBuilder());
+
+            DfsPhase.execute(context);
+
+            assertTrue(dfsResult.searchTimedOut());
+            assertEquals(0, dfsResult.terms().length);
+            assertEquals(0, dfsResult.termStatistics().length);
+            assertEquals(0, dfsResult.maxDoc());
+        }
+    }
+
+    public void testCollectStatisticsWithRewriteTimeoutDisallowPartial() throws Exception {
+        DfsSearchResult dfsResult = new DfsSearchResult(null, null, null);
+        ContextIndexSearcher cis = newContextSearcher(reader);
+
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(false);
+        searchRequest.source(new SearchSourceBuilder());
+        ShardSearchRequest shardRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            System.currentTimeMillis(),
+            null
+        );
+
+        try (TestSearchContext context = new TestSearchContext(createSearchExecutionContext(), indexShard, cis) {
+            @Override
+            public ShardSearchRequest request() {
+                return shardRequest;
+            }
+
+            @Override
+            public TimeValue timeout() {
+                return TimeValue.ZERO;
+            }
+
+            @Override
+            public DfsSearchResult dfsResult() {
+                return dfsResult;
+            }
+        }) {
+            context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+            context.parsedQuery(new ParsedQuery(new RewriteTimeoutQuery()));
+
+            SearchTimeoutException ex = expectThrows(SearchTimeoutException.class, () -> DfsPhase.execute(context));
+            assertThat(ex.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+            assertTrue(ex.isTimeout());
+        }
+    }
+
     private SearchExecutionContext createSearchExecutionContext() {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
@@ -284,6 +357,34 @@ public class DfsPhaseTimeoutTests extends IndexShardTestCase {
             LuceneTestCase.MAYBE_CACHE_POLICY,
             true
         );
+    }
+
+    private static final class RewriteTimeoutQuery extends Query {
+        @Override
+        public Query rewrite(IndexSearcher searcher) {
+            ((ContextIndexSearcher) searcher).throwTimeExceededException();
+            throw new AssertionError("should have thrown TimeExceededException");
+        }
+
+        @Override
+        public String toString(String field) {
+            return "rewrite timeout query";
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj);
+        }
+
+        @Override
+        public int hashCode() {
+            return classHash();
+        }
     }
 
     private static ContextIndexSearcher newThrowingOnFirstSearchSearcher(IndexReader reader) throws IOException {

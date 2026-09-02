@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.inference.services.huggingface.embeddings.Hugging
 import org.elasticsearch.xpack.inference.services.huggingface.request.completion.HuggingFaceUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModel;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModelCreator;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -75,7 +75,7 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
     );
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new HuggingFaceChatCompletionResponseHandler(
         "hugging face chat completion",
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiCompletionResponseEntity::fromResponse
     );
     private static final HuggingFaceChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new HuggingFaceChatCompletionModelCreator();
     private static final Map<TaskType, ModelCreator<? extends HuggingFaceModel>> MODEL_CREATORS = Map.of(
@@ -161,7 +161,11 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
 
         for (var request : batchedRequests) {
             var action = huggingFaceModel.accept(actionCreator);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 

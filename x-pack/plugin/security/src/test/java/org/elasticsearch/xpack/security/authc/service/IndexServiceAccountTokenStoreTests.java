@@ -38,6 +38,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -68,7 +71,9 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -83,7 +88,9 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore.SERVICE_ACCOUNT_TOKEN_DOC_TYPE;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -123,6 +130,8 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
                 responseProviderHolder.get().accept(request, (ActionListener<ActionResponse>) listener);
             }
         };
+        // The store reads a single value from cluster state, so a stub is enough here: the minimum node version, which is
+        // stamped into the token document it writes.
         clusterService = mock(ClusterService.class);
         final ClusterState clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
@@ -138,6 +147,8 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         when(projectIndex.indexExists()).thenReturn(true);
         when(projectIndex.isIndexUpToDate()).thenReturn(true);
+        // Running the action inline bypasses the index version check and the index creation a real SecurityIndexManager
+        // would perform first; the tests that need those to fail stub indexExists and isAvailable instead.
         doAnswer((i) -> {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
@@ -201,7 +212,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         // created
         responseProviderHolder.set((r, l) -> l.onResponse(createSingleBulkResponse()));
         final PlainActionFuture<CreateServiceAccountTokenResponse> future1 = new PlainActionFuture<>();
-        store.createToken(authentication, request, future1);
+        store.createBuiltInToken(authentication, request, future1);
         final BulkRequest bulkRequest = (BulkRequest) requestHolder.get();
         assertThat(bulkRequest.requests(), hasSize(1));
         final IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
@@ -232,12 +243,12 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         final Exception exception = mock(Exception.class);
         responseProviderHolder.set((r, l) -> l.onFailure(exception));
         final PlainActionFuture<CreateServiceAccountTokenResponse> future3 = new PlainActionFuture<>();
-        store.createToken(authentication, request, future3);
+        store.createBuiltInToken(authentication, request, future3);
         final ExecutionException e3 = expectThrows(ExecutionException.class, () -> future3.get());
         assertThat(e3.getCause(), is(exception));
     }
 
-    public void testCreateTokenWillFailForInvalidServiceAccount() {
+    public void testCreateBuiltInTokenWillFailForInvalidServiceAccount() {
         final Authentication authentication = createAuthentication();
         final CreateServiceAccountTokenRequest request = randomValueOtherThanMany(
             r -> "elastic".equals(r.getNamespace()) && "fleet-server".equals(r.getServiceName()),
@@ -248,12 +259,65 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
             )
         );
         final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
-        store.createToken(authentication, request, future);
+        store.createBuiltInToken(authentication, request, future);
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
         assertThat(
             e.getMessage(),
             containsString("service account [" + request.getNamespace() + "/" + request.getServiceName() + "] does not exist")
         );
+    }
+
+    /**
+     * A user-managed account is unknown to this store, so its tokens must be creatable for a principal that no built-in
+     * account carries — the case {@link IndexServiceAccountTokenStore#createBuiltInToken} rejects.
+     */
+    public void testCreateUserManagedTokenDoesNotRequireABuiltInAccount() {
+        final Authentication authentication = createAuthentication();
+        final CreateServiceAccountTokenRequest request = new CreateServiceAccountTokenRequest(
+            randomValueOtherThan("elastic", () -> randomAlphaOfLengthBetween(3, 8)),
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8)
+        );
+
+        responseProviderHolder.set((r, l) -> l.onResponse(createSingleBulkResponse()));
+        final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
+        store.createUserManagedToken(authentication, request, future);
+
+        final CreateServiceAccountTokenResponse response = future.actionGet();
+        assertThat(response.getName(), equalTo(request.getTokenName()));
+        assertNotNull(response.getValue());
+
+        final BulkRequest bulkRequest = (BulkRequest) requestHolder.get();
+        assertThat(bulkRequest.requests(), hasSize(1));
+        final Map<String, Object> sourceMap = ((IndexRequest) bulkRequest.requests().get(0)).sourceAsMap();
+        assertThat(sourceMap.get("username"), equalTo(request.getNamespace() + "/" + request.getServiceName()));
+        assertThat(sourceMap.get("doc_type"), equalTo(SERVICE_ACCOUNT_TOKEN_DOC_TYPE));
+    }
+
+    /**
+     * Nothing downstream rejects a principal no user-managed account could carry: the document would simply be written
+     * under it, minting a usable credential. A reserved-namespace ID is the worst case, since the token would name a
+     * built-in account.
+     */
+    public void testCreateUserManagedTokenRejectsIdsNoAccountCouldCarry() {
+        final Authentication authentication = createAuthentication();
+        responseProviderHolder.set((r, l) -> fail("must not write anything, but got " + r));
+
+        for (String[] namespaceAndService : List.of(
+            new String[] { "elastic", "fleet-server" },
+            new String[] { "elastic", randomAlphaOfLengthBetween(3, 8) },
+            new String[] { "-" + randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8) },
+            new String[] { randomAlphaOfLengthBetween(3, 8), "bad name" },
+            new String[] { randomAlphaOfLengthBetween(3, 8), randomAlphaOfLength(129) }
+        )) {
+            final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
+            store.createUserManagedToken(
+                authentication,
+                new CreateServiceAccountTokenRequest(namespaceAndService[0], namespaceAndService[1], randomAlphaOfLengthBetween(3, 8)),
+                future
+            );
+            expectThrows(IllegalArgumentException.class, future::actionGet);
+        }
     }
 
     public void testFindTokensFor() {
@@ -262,7 +326,8 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         final String[] tokenNames = randomArray(nhits, nhits, String[]::new, ValidationTests::randomTokenName);
 
         responseProviderHolder.set((r, l) -> {
-            if (r instanceof SearchRequest) {
+            if (r instanceof SearchRequest searchRequest) {
+                assertTokensForAccountQuery(searchRequest, accountId);
                 final SearchHit[] hits = IntStream.range(0, nhits)
                     .mapToObj(
                         i -> new SearchHit(
@@ -307,6 +372,50 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         assertThat(e1, is(e));
     }
 
+    public void testHasTokensFor() {
+        final ServiceAccountId accountId = new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+
+        // Both outcomes are asserted in one run: randomizing between them would leave the threshold unpinned half the
+        // time. The GREATER_THAN_OR_EQUAL_TO case is the one a real response produces, since the count is capped at 1.
+        final Map<TotalHits, Boolean> cases = new LinkedHashMap<>();
+        cases.put(new TotalHits(0, TotalHits.Relation.EQUAL_TO), false);
+        cases.put(new TotalHits(1, TotalHits.Relation.EQUAL_TO), true);
+        cases.put(new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), true);
+
+        cases.forEach((totalHits, expected) -> {
+            responseProviderHolder.set((r, l) -> {
+                if (r instanceof SearchRequest searchRequest) {
+                    assertTokensForAccountQuery(searchRequest, accountId);
+                    // an existence check must neither fetch hits nor count past the first match
+                    assertThat(searchRequest.source().size(), equalTo(0));
+                    assertThat(searchRequest.source().terminateAfter(), equalTo(1));
+                    assertThat(searchRequest.source().trackTotalHitsUpTo(), equalTo(1));
+                    assertNull(searchRequest.scroll());
+                    final SearchHits searchHits = new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN, null, null, null);
+                    final var searchResponse = SearchResponseUtils.successfulResponse(searchHits);
+                    searchHits.decRef(); // transfer ownership to searchResponse
+                    ActionListener.respondAndRelease(l, searchResponse);
+                } else {
+                    fail("unexpected request " + r);
+                }
+            });
+
+            final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+            store.hasTokensFor(accountId, future);
+            assertThat("total hits " + totalHits, future.actionGet(), is(expected));
+        });
+    }
+
+    public void testHasTokensForException() {
+        final ServiceAccountId accountId = new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+        final RuntimeException e = new RuntimeException("fail");
+        responseProviderHolder.set((r, l) -> l.onFailure(e));
+
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        store.hasTokensFor(accountId, future);
+        assertThat(expectThrows(RuntimeException.class, future::actionGet), is(e));
+    }
+
     public void testDeleteToken() {
         final AtomicBoolean cacheCleared = new AtomicBoolean(false);
         responseProviderHolder.set((r, l) -> {
@@ -338,7 +447,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
             "token1"
         );
         final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();
-        store.deleteToken(deleteServiceAccountTokenRequest1, future1);
+        store.deleteBuiltInToken(deleteServiceAccountTokenRequest1, future1);
         assertThat(future1.actionGet(), is(true));
         assertThat(cacheCleared.get(), is(true));
 
@@ -349,7 +458,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
             randomAlphaOfLengthBetween(3, 8)
         );
         final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
-        store.deleteToken(deleteServiceAccountTokenRequest2, future2);
+        store.deleteBuiltInToken(deleteServiceAccountTokenRequest2, future2);
         assertThat(future2.actionGet(), is(false));
 
         // Invalid service account
@@ -359,8 +468,77 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
             "token1"
         );
         final PlainActionFuture<Boolean> future3 = new PlainActionFuture<>();
-        store.deleteToken(deleteServiceAccountTokenRequest3, future3);
+        store.deleteBuiltInToken(deleteServiceAccountTokenRequest3, future3);
         assertThat(future3.actionGet(), is(false));
+    }
+
+    public void testDeleteUserManagedToken() {
+        final String namespace = randomValueOtherThan("elastic", () -> randomAlphaOfLengthBetween(3, 8));
+        final String serviceName = randomAlphaOfLengthBetween(3, 8);
+        final AtomicBoolean cacheCleared = new AtomicBoolean(false);
+        responseProviderHolder.set((r, l) -> {
+            if (r instanceof final DeleteRequest dr) {
+                final boolean found = dr.id().equals(SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + namespace + "/" + serviceName + "/token1");
+                l.onResponse(
+                    new DeleteResponse(
+                        mock(ShardId.class),
+                        randomAlphaOfLengthBetween(3, 8),
+                        randomLong(),
+                        randomLong(),
+                        randomLong(),
+                        found
+                    )
+                );
+            } else if (r instanceof ClearSecurityCacheRequest) {
+                cacheCleared.set(true);
+                l.onResponse(
+                    new ClearSecurityCacheResponse(mock(ClusterName.class), List.of(mock(ClearSecurityCacheResponse.Node.class)), List.of())
+                );
+            } else {
+                fail("unexpected request " + r);
+            }
+        });
+
+        final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();
+        store.deleteUserManagedToken(new DeleteServiceAccountTokenRequest(namespace, serviceName, "token1"), future1);
+        assertThat(future1.actionGet(), is(true));
+        assertThat(cacheCleared.get(), is(true));
+
+        // non-exist token name
+        final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
+        store.deleteUserManagedToken(
+            new DeleteServiceAccountTokenRequest(namespace, serviceName, randomAlphaOfLengthBetween(3, 8)),
+            future2
+        );
+        assertThat(future2.actionGet(), is(false));
+    }
+
+    /**
+     * No user-managed account can be stored under the reserved namespace or under a malformed ID, so a delete for one
+     * must report "not found" instead of issuing a delete for a document ID that could never have been written. Deleting
+     * such a token is the built-in path's business, reached through {@link IndexServiceAccountTokenStore#deleteBuiltInToken}.
+     */
+    public void testDeleteUserManagedTokenRejectsIdsNoAccountCouldCarry() {
+        responseProviderHolder.set((r, l) -> fail("must not reach the index, but got " + r));
+
+        for (String[] namespaceAndService : List.of(
+            new String[] { "elastic", "fleet-server" },
+            new String[] { "elastic", randomAlphaOfLengthBetween(3, 8) },
+            new String[] { "-" + randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8) },
+            new String[] { randomAlphaOfLengthBetween(3, 8), "bad name" },
+            new String[] { randomAlphaOfLengthBetween(3, 8), randomAlphaOfLength(129) }
+        )) {
+            final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+            store.deleteUserManagedToken(
+                new DeleteServiceAccountTokenRequest(namespaceAndService[0], namespaceAndService[1], randomAlphaOfLengthBetween(3, 8)),
+                future
+            );
+            assertThat(
+                "expected no token for [" + namespaceAndService[0] + "/" + namespaceAndService[1] + "]",
+                future.actionGet(),
+                is(false)
+            );
+        }
     }
 
     public void testIndexStateIssues() {
@@ -375,13 +553,18 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         store.findTokensFor(accountId, future1);
         assertThat(future1.actionGet(), equalTo(List.of()));
 
+        final PlainActionFuture<Boolean> hasTokensFuture1 = new PlainActionFuture<>();
+        store.hasTokensFor(accountId, hasTokensFuture1);
+        assertThat(hasTokensFuture1.actionGet(), is(false));
+
+        // A built-in account, so that the delete reaches the index checks rather than short-circuiting on the principal
         final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest = new DeleteServiceAccountTokenRequest(
-            randomAlphaOfLengthBetween(3, 8),
-            randomAlphaOfLengthBetween(3, 8),
+            ElasticServiceAccounts.NAMESPACE,
+            "fleet-server",
             randomAlphaOfLengthBetween(3, 8)
         );
         final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
-        store.deleteToken(deleteServiceAccountTokenRequest, future2);
+        store.deleteBuiltInToken(deleteServiceAccountTokenRequest, future2);
         assertThat(future2.actionGet(), is(false));
 
         // Index exists but not available
@@ -400,10 +583,70 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         final ElasticsearchException e3 = expectThrows(ElasticsearchException.class, future3::actionGet);
         assertThat(e3, is(e));
 
+        final PlainActionFuture<Boolean> hasTokensFuture2 = new PlainActionFuture<>();
+        store.hasTokensFor(accountId, hasTokensFuture2);
+        assertThat(expectThrows(ElasticsearchException.class, hasTokensFuture2::actionGet), is(e));
+
         final PlainActionFuture<Boolean> future4 = new PlainActionFuture<>();
-        store.deleteToken(deleteServiceAccountTokenRequest, future4);
+        store.deleteBuiltInToken(deleteServiceAccountTokenRequest, future4);
         final ElasticsearchException e4 = expectThrows(ElasticsearchException.class, future4::actionGet);
         assertThat(e4, is(e));
+    }
+
+    /**
+     * The principal check precedes the index checks, so an account that cannot exist gets "not found" rather than the
+     * index's unavailability error — the answer does not depend on index state. This mirrors
+     * {@link IndexServiceAccountTokenStore#createBuiltInToken}, which has always checked before touching the index.
+     */
+    public void testDeleteRejectsAnImpossibleAccountWithoutConsultingTheIndex() {
+        // Unavailable, so reaching the index at all would surface an error rather than "not found"
+        Mockito.reset(securityIndex);
+        final SecurityIndexManager.IndexState projectIndex = Mockito.mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.indexExists()).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
+        when(projectIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(
+            new ElasticsearchException("security index unavailable")
+        );
+        responseProviderHolder.set((r, l) -> fail("must not reach the index, but got " + r));
+
+        // No built-in account by this name
+        final PlainActionFuture<Boolean> builtInFuture = new PlainActionFuture<>();
+        store.deleteBuiltInToken(
+            new DeleteServiceAccountTokenRequest(ElasticServiceAccounts.NAMESPACE, "no-such-service", randomAlphaOfLengthBetween(3, 8)),
+            builtInFuture
+        );
+        assertThat(builtInFuture.actionGet(), is(false));
+
+        // The reserved namespace, which no user-managed account may use
+        final PlainActionFuture<Boolean> userManagedFuture = new PlainActionFuture<>();
+        store.deleteUserManagedToken(
+            new DeleteServiceAccountTokenRequest(ElasticServiceAccounts.NAMESPACE, "fleet-server", randomAlphaOfLengthBetween(3, 8)),
+            userManagedFuture
+        );
+        assertThat(userManagedFuture.actionGet(), is(false));
+
+        Mockito.verify(securityIndex, Mockito.never()).forCurrentProject();
+    }
+
+    /**
+     * Both token searches must be constrained to the account's own token documents. The {@code doc_type} clause is what
+     * keeps them off the {@code service_account} documents that {@link UserManagedServiceAccountStore} writes under the
+     * same {@code username}; without it an account with no tokens would look as though it had one.
+     */
+    private static void assertTokensForAccountQuery(SearchRequest searchRequest, ServiceAccountId accountId) {
+        final BoolQueryBuilder query = asInstanceOf(BoolQueryBuilder.class, searchRequest.source().query());
+        final List<QueryBuilder> clauses = new ArrayList<>(query.filter());
+        clauses.addAll(query.must());
+        assertThat(
+            clauses,
+            containsInAnyOrder(
+                QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_TOKEN_DOC_TYPE),
+                QueryBuilders.termQuery("username", accountId.asPrincipal())
+            )
+        );
+        assertThat(query.should(), empty());
+        assertThat(query.mustNot(), empty());
     }
 
     private GetResponse createGetResponse(ServiceAccountToken serviceAccountToken, boolean exists) throws IOException {

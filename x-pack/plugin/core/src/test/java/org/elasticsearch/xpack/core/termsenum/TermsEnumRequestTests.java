@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumRequest;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,8 +36,8 @@ public class TermsEnumRequestTests extends AbstractXContentSerializingTestCase<T
     private NamedXContentRegistry xContentRegistry;
     private NamedWriteableRegistry namedWriteableRegistry;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initRegistries() throws Exception {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(IndicesModule.getNamedWriteables());

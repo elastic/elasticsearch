@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
+import org.junit.rules.TestRule;
 
 /**
  * Shared cluster base for Parquet csv-spec tests.
@@ -27,8 +28,10 @@ import org.junit.ClassRule;
  */
 abstract class AbstractParquetExternalSpecTestCase extends AbstractExternalSourceSpecTestCase {
 
-    @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
+
+    @ClassRule
+    public static TestRule ruleChain = chainFixturesBeforeCluster(cluster);
 
     protected AbstractParquetExternalSpecTestCase(
         String fileName,

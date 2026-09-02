@@ -31,11 +31,6 @@ public class AnalyzerUnmappedLookupJoinExpressionTests extends AnalyzerUnmappedT
         return "FROM partial_mapping_sample_data | LOOKUP JOIN partial_message_types_lookup ON " + onExpr;
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-    }
-
     // ── Same-side left filter (error) ─────────────────────────────────────────
 
     public void testNullify_leftSide_mappedField_literal_errors() {

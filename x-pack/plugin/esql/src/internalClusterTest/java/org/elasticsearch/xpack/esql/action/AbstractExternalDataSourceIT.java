@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import net.jpountz.lz4.LZ4FrameOutputStream;
+
+import com.github.luben.zstd.ZstdOutputStream;
+
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
@@ -256,6 +261,41 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
         return name;
     }
 
+    /**
+     * Registers a NON-STRICT ({@code dynamic:true}) dataset with a declared mapping against the shared data source,
+     * creating it on first use, and records it for teardown. A non-strict mapping overlays the declared columns onto
+     * the inferred schema and leaves undeclared columns to normal inference/reconciliation, so it exercises the
+     * declared-overlay path on top of inference (e.g. {@code union_by_name} widening of an undeclared column).
+     */
+    protected String registerNonStrictDataset(
+        String name,
+        String resourceUri,
+        LinkedHashMap<String, DatasetFieldMapping> properties,
+        Map<String, Object> settings
+    ) {
+        if (registeredDataSources.contains(SHARED_TEST_DATA_SOURCE) == false) {
+            registerDataSource(SHARED_TEST_DATA_SOURCE, Map.of());
+        }
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    name,
+                    SHARED_TEST_DATA_SOURCE,
+                    resourceUri,
+                    null,
+                    new HashMap<>(settings),
+                    mapping
+                )
+            )
+        );
+        registeredDatasets.add(name);
+        return name;
+    }
+
     @After
     public void cleanupRegistry() {
         for (String dataset : registeredDatasets) {
@@ -345,6 +385,30 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
         return target;
     }
 
+    /** Writes {@code content} to {@code target} as a bzip2-compressed file. */
+    protected static Path writeBzip2(Path target, String content) throws IOException {
+        try (OutputStream out = new BZip2CompressorOutputStream(Files.newOutputStream(target))) {
+            out.write(content.getBytes(StandardCharsets.UTF_8));
+        }
+        return target;
+    }
+
+    /** Writes {@code content} to {@code target} as a zstd-compressed file. */
+    protected static Path writeZstd(Path target, String content) throws IOException {
+        try (OutputStream out = new ZstdOutputStream(Files.newOutputStream(target))) {
+            out.write(content.getBytes(StandardCharsets.UTF_8));
+        }
+        return target;
+    }
+
+    /** Writes {@code content} to {@code target} as an LZ4-framed compressed file. */
+    protected static Path writeLz4(Path target, String content) throws IOException {
+        try (OutputStream out = new LZ4FrameOutputStream(Files.newOutputStream(target))) {
+            out.write(content.getBytes(StandardCharsets.UTF_8));
+        }
+        return target;
+    }
+
     /**
      * An in-memory Parquet {@link OutputFile} backed by {@code baos}. Parquet needs random-access-ish
      * position tracking on write; this minimal implementation reports the running byte position.
@@ -424,5 +488,24 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
             }
         }
         return nodes;
+    }
+
+    /**
+     * Every {@link AsyncExternalSourceOperator.Status} across the query's driver profiles. Lets a caller assert on the
+     * <em>real I/O</em> a scan performed (splits totalled, bytes read), not merely the post-prune profile counters —
+     * the two differ exactly when the read path scans files the pruning already eliminated. Requires
+     * {@code profile(true)}.
+     */
+    protected static List<AsyncExternalSourceOperator.Status> externalScanStatuses(EsqlQueryResponse response) {
+        assertThat("query must be run with profile(true) to inspect the external scan", response.profile(), notNullValue());
+        List<AsyncExternalSourceOperator.Status> statuses = new ArrayList<>();
+        for (var driver : response.profile().drivers()) {
+            for (var op : driver.operators()) {
+                if (op.status() instanceof AsyncExternalSourceOperator.Status status) {
+                    statuses.add(status);
+                }
+            }
+        }
+        return statuses;
     }
 }

@@ -551,6 +551,66 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         );
     }
 
+    public void testCreateProcessorEmptyTargetFieldThrows() {
+        assertInvalidTargetFieldThrows("");
+    }
+
+    public void testCreateProcessorDotTargetFieldThrows() {
+        assertInvalidTargetFieldThrows(".");
+    }
+
+    public void testCreateProcessorMalformedTargetFieldThrows() {
+        assertInvalidTargetFieldThrows("a..b");
+    }
+
+    public void testCreateProcessorValidTargetFieldParses() {
+        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(
+            client,
+            clusterService,
+            Settings.EMPTY,
+            new SetOnce<>(mock(InferenceAuditor.class))
+        );
+
+        Map<String, Object> config = new HashMap<>() {
+            {
+                put(InferenceProcessor.MODEL_ID, "my_model");
+                put(InferenceProcessor.TARGET_FIELD, "result");
+            }
+        };
+
+        var processor = processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config, null);
+        assertFalse(processor.isConfiguredWithInputsFields());
+        assertEquals("result", processor.getTargetField());
+    }
+
+    private void assertInvalidTargetFieldThrows(String targetField) {
+        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(
+            client,
+            clusterService,
+            Settings.EMPTY,
+            new SetOnce<>(mock(InferenceAuditor.class))
+        );
+
+        Map<String, Object> config = new HashMap<>() {
+            {
+                put(InferenceProcessor.MODEL_ID, "my_model");
+                put(InferenceProcessor.TARGET_FIELD, targetField);
+            }
+        };
+
+        ElasticsearchParseException ex = expectThrows(
+            ElasticsearchParseException.class,
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config, null)
+        );
+        assertThat(
+            ex.getMessage(),
+            equalTo(
+                "[target_field] must be a non-empty, dot-delimited field path; to write results to the document root use the "
+                    + "[input_output] configuration with an [output_field]"
+            )
+        );
+    }
+
     public void testCreateProcessorWithIncompatibleResultFieldSetting() {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(
             client,

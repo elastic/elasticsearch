@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Booleans;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
-import java.net.URLDecoder;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -25,7 +26,8 @@ import java.util.Set;
 /**
  * Detects Hive-style partition columns from file paths (e.g., {@code /year=2024/month=06/file.parquet}).
  * Parses key=value segments, validates consistency across all files, and infers types
- * using Spark-style rules: try Integer, Long, Double, Boolean, fallback to keyword.
+ * using Spark-style rules extended for ES|QL: try Integer, Long, Unsigned Long, Double, Boolean,
+ * fallback to keyword.
  */
 public final class HivePartitionDetector implements PartitionDetector {
 
@@ -59,11 +61,7 @@ public final class HivePartitionDetector implements PartitionDetector {
     }
 
     @Override
-    public PartitionMetadata detect(List<StorageEntry> files, Map<String, Object> config) {
-        return detect(files);
-    }
-
-    static PartitionMetadata detect(List<StorageEntry> files) {
+    public PartitionMetadata detect(List<StorageEntry> files) {
         if (files == null || files.isEmpty()) {
             return PartitionMetadata.EMPTY;
         }
@@ -177,7 +175,7 @@ public final class HivePartitionDetector implements PartitionDetector {
                 continue;
             }
             String key = segment.substring(0, eqIdx);
-            String value = urlDecode(afterEq);
+            String value = decodePartitionValue(afterEq);
             if (partitions.containsKey(key)) {
                 continue;
             }
@@ -187,9 +185,21 @@ public final class HivePartitionDetector implements PartitionDetector {
         return partitions;
     }
 
-    private static String urlDecode(String value) {
+    /**
+     * Decodes a partition folder value that a Hive-style writer percent-escaped. Hive escapes partition folder names
+     * with {@code %XX} only and writes a literal {@code +} unescaped (it is not in the escape set). This is therefore
+     * a plain UTF-8 percent-decode that keeps {@code +} literal, unlike {@code application/x-www-form-urlencoded}
+     * decoding, which maps {@code +} to a space and so corrupts {@code a+b} to {@code "a b"} (a filter on the true
+     * value then drops every row of that folder). This decodes {@code %XX} escapes as UTF-8 and keeps a literal
+     * {@code +} as {@code +} by passing {@code plusAsSpace=false} explicitly, so the result does not depend on the
+     * REST-only {@code es.rest.url_plus_as_space} setting; a malformed escape is left as the raw value rather than
+     * failing the detection.
+     *
+     * <p>Shared by {@link TemplatePartitionDetector}, which decodes its own directory segments the same way.
+     */
+    static String decodePartitionValue(String value) {
         try {
-            return URLDecoder.decode(value, StandardCharsets.UTF_8);
+            return RestUtils.decodeComponent(value, StandardCharsets.UTF_8, false);
         } catch (IllegalArgumentException e) {
             return value;
         }
@@ -211,18 +221,31 @@ public final class HivePartitionDetector implements PartitionDetector {
 
     private static DataType tryAllIntegral(List<String> values) {
         boolean needsLong = false;
+        boolean needsUnsignedLong = false;
+        boolean hasNegative = false;
         for (String v : values) {
             if (v == null) {
                 continue;
             }
             try {
                 Number n = StringUtils.parseIntegral(v);
-                if (n instanceof Long) {
-                    needsLong = true;
+                if (n instanceof BigInteger) {
+                    needsUnsignedLong = true;
+                } else {
+                    if (n instanceof Long) {
+                        needsLong = true;
+                    }
+                    if (n.longValue() < 0) {
+                        hasNegative = true;
+                    }
                 }
             } catch (Exception e) {
                 return null;
             }
+        }
+        if (needsUnsignedLong) {
+            // A negative value and one above Long.MAX_VALUE have no exact common numeric type.
+            return hasNegative ? DataType.KEYWORD : DataType.UNSIGNED_LONG;
         }
         return needsLong ? DataType.LONG : DataType.INTEGER;
     }
@@ -263,11 +286,16 @@ public final class HivePartitionDetector implements PartitionDetector {
         if (type == DataType.LONG) {
             return Long.parseLong(value);
         }
+        if (type == DataType.UNSIGNED_LONG) {
+            return DeclaredTypeCoercions.coerceToUnsignedLong(value);
+        }
         if (type == DataType.DOUBLE) {
             return Double.parseDouble(value);
         }
         if (type == DataType.BOOLEAN) {
-            return Booleans.parseBoolean(value);
+            // Match tryAllBoolean's case-insensitive inference: a folder typed BOOLEAN there (e.g. a standard
+            // writer's flag=True/flag=False) must cast, so parse the same true/false-in-any-case token set.
+            return DeclaredTypeCoercions.strictParseBoolean(value);
         }
         return value;
     }

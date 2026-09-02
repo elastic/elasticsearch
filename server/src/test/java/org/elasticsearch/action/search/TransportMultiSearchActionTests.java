@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -51,9 +52,12 @@ import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -73,13 +77,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -551,6 +555,29 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         assertThat(deepBytes - shallowBytes, equalTo(expectedFrameDelta));
     }
 
+    public void testEstimateFailureBytesIncludesShardFailures() {
+        RuntimeException bare = new RuntimeException("bare failure, no shard detail");
+        long bareBytes = TransportMultiSearchAction.estimateFailureBytes(bare);
+
+        SearchPhaseExecutionException fewFailures = searchPhaseExecutionExceptionWithShardFailures(4);
+        long fewFailuresBytes = TransportMultiSearchAction.estimateFailureBytes(fewFailures);
+        assertThat(fewFailuresBytes, greaterThan(bareBytes));
+
+        SearchPhaseExecutionException manyFailures = searchPhaseExecutionExceptionWithShardFailures(28);
+        long manyFailuresBytes = TransportMultiSearchAction.estimateFailureBytes(manyFailures);
+        assertThat("estimate should scale with shard failure count", manyFailuresBytes, greaterThan(fewFailuresBytes));
+    }
+
+    public void testEstimateFailureBytesIsAtLeastActualHeap() {
+        SearchPhaseExecutionException failure = searchPhaseExecutionExceptionWithShardFailures(5);
+        long estimate = TransportMultiSearchAction.estimateFailureBytes(failure);
+        long measured = RamUsageEstimator.sizeOfObject(failure);
+        assertTrue(
+            "estimateFailureBytes (" + estimate + ") must not under-count RamUsageEstimator (" + measured + ")",
+            estimate >= measured
+        );
+    }
+
     public void testEstimateSuggest() throws Exception {
         TermSuggestion termSuggestion = new TermSuggestion("my-suggest", 5, SortBy.SCORE);
         // Suggest sorts the list in-place, so it must be mutable.
@@ -735,13 +762,21 @@ public class TransportMultiSearchActionTests extends ESTestCase {
 
     public void testBreakerReleasedOnSubSearchFailure() throws Exception {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1);
-        AtomicInteger call = new AtomicInteger();
+        Exception failure = searchPhaseExecutionExceptionWithShardFailures(5);
+        long failureBytes = TransportMultiSearchAction.estimateFailureBytes(failure);
         SearchResponse emptyResponse = SearchResponse.emptyResponseBuilder().tookInMillis(1L).build();
         try {
             long perResponseBytes = TransportMultiSearchAction.estimateActualBytes(emptyResponse);
-            runMsearchWithBreaker(breaker, 2, () -> SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(), call);
+            runMsearchWithBreaker(
+                breaker,
+                2,
+                () -> SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(),
+                index -> index == 0,
+                () -> failure,
+                null
+            );
             assertThat(breaker.getUsed(), equalTo(0L));
-            assertThat(breaker.totalReserved(), equalTo(perResponseBytes));
+            assertThat(breaker.totalReserved(), equalTo(perResponseBytes + failureBytes));
         } finally {
             emptyResponse.decRef();
         }
@@ -779,14 +814,15 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         // Simulate query-phase agg bytes already on the breaker before the response arrives.
         breaker.addWithoutBreaking(handoffBytes);
 
-        runMsearchWithBreaker(breaker, 1, () -> {
+        AtomicReference<CancellableTask> msearchTask = new AtomicReference<>();
+        expectThrows(CircuitBreakingException.class, () -> runMsearchWithBreaker(breaker, 1, () -> {
             SearchResponse r = SearchResponse.emptyResponseBuilder().tookInMillis(1L).build();
             r.setQueryPhaseAggregationBreakerBytes(handoffBytes);
             return r;
-        });
+        }, null, null, null, msearchTask::set));
 
-        // The CBE path must release the pre-reserved handoff bytes; releaseAll() is a no-op (nothing accumulated).
         assertThat(breaker.getUsed(), equalTo(0L));
+        assertTrue(msearchTask.get().isCancelled());
     }
 
     public void testBreakerReleasesHandoffOnUnexpectedException() throws Exception {
@@ -807,37 +843,102 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    public void testBreakerTripDuringExecution() throws Exception {
+    public void testBreakerTripDuringExecutionAbortsMsearch() throws Exception {
         int tripOn = 2;
         int numRequests = 3;
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(tripOn);
-        // The mock client completes searches synchronously, so all three sub-searches run sequentially
-        // via the recursive executeSearch chain (not the outer concurrent for-loop). Reservation call 1
-        // succeeds (slot 0), call 2 trips (slot 1), call 3 succeeds (slot 2).
-        boolean[] failures = new boolean[numRequests];
-        Exception[] failureExceptions = new Exception[numRequests];
+        AtomicReference<CancellableTask> msearchTask = new AtomicReference<>();
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> runMsearchWithBreaker(
+                breaker,
+                numRequests,
+                () -> SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(),
+                null,
+                null,
+                null,
+                msearchTask::set
+            )
+        );
+        assertThat(breaker.getUsed(), equalTo(0L));
+        assertTrue(msearchTask.get().isCancelled());
+    }
+
+    public void testBreakerAccountsFailureItems() throws Exception {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1);
+        int numRequests = 4;
         MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numRequests];
+        AtomicLong usedWhilePending = new AtomicLong(-1);
         runMsearchWithBreaker(
             breaker,
             numRequests,
             () -> SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(),
-            null,
-            (captured) -> {
-                for (int i = 0; i < captured.length; i++) {
-                    items[i] = captured[i];
-                    failures[i] = captured[i].isFailure();
-                    failureExceptions[i] = captured[i].getFailure();
-                }
+            index -> true,
+            () -> searchPhaseExecutionExceptionWithShardFailures(3),
+            captured -> {
+                System.arraycopy(captured, 0, items, 0, numRequests);
+                usedWhilePending.set(breaker.getUsed());
             }
         );
-        assertFalse(failures[0]);
-        assertThat(items[0].getResponse(), not(nullValue()));
-        assertTrue(failures[1]);
-        assertThat(items[1].getResponse(), nullValue());
-        assertThat(failureExceptions[1], instanceOf(CircuitBreakingException.class));
-        assertFalse(failures[2]);
-        assertThat(items[2].getResponse(), not(nullValue()));
+        long expectedTotal = 0;
+        for (MultiSearchResponse.Item item : items) {
+            assertTrue(item.isFailure());
+            expectedTotal += TransportMultiSearchAction.estimateFailureBytes(item.getFailure());
+        }
+        assertThat(usedWhilePending.get(), equalTo(expectedTotal));
         assertThat(breaker.getUsed(), equalTo(0L));
+        assertThat(breaker.totalReserved(), equalTo(expectedTotal));
+    }
+
+    public void testFailureItemTripAbortsMsearch() throws Exception {
+        int numRequests = 20;
+        int numFailuresThatFit = 2;
+        long originalFailureBytes = TransportMultiSearchAction.estimateFailureBytes(searchPhaseExecutionExceptionWithShardFailures(10));
+        long byteLimit = numFailuresThatFit * originalFailureBytes;
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(byteLimit);
+        AtomicReference<CancellableTask> msearchTask = new AtomicReference<>();
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> runMsearchWithBreaker(
+                breaker,
+                numRequests,
+                () -> SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(),
+                index -> true,
+                () -> searchPhaseExecutionExceptionWithShardFailures(10),
+                null,
+                msearchTask::set
+            )
+        );
+        assertThat(breaker.getUsed(), equalTo(0L));
+        assertTrue(msearchTask.get().isCancelled());
+    }
+
+    public void testOversizedFailureItemAbortsMsearch() throws Exception {
+        long largeFailureBytes = TransportMultiSearchAction.estimateFailureBytes(searchPhaseExecutionExceptionWithShardFailures(50));
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(largeFailureBytes - 1);
+        AtomicReference<CancellableTask> msearchTask = new AtomicReference<>();
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> runMsearchWithBreaker(
+                breaker,
+                1,
+                () -> SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(),
+                index -> true,
+                () -> searchPhaseExecutionExceptionWithShardFailures(50),
+                null,
+                msearchTask::set
+            )
+        );
+        assertThat(breaker.getUsed(), equalTo(0L));
+        assertTrue(msearchTask.get().isCancelled());
+    }
+
+    private static SearchPhaseExecutionException searchPhaseExecutionExceptionWithShardFailures(int numShardFailures) {
+        ShardSearchFailure[] failures = new ShardSearchFailure[numShardFailures];
+        for (int i = 0; i < numShardFailures; i++) {
+            failures[i] = new ShardSearchFailure(new RuntimeException("simulated shard failure " + i));
+        }
+        return new SearchPhaseExecutionException("query", "all shards failed", failures);
     }
 
     private static SearchResponse responseWithHits(SearchHit... hits) {
@@ -849,53 +950,66 @@ public class TransportMultiSearchActionTests extends ESTestCase {
 
     private void runMsearchWithBreaker(TrackingCircuitBreaker breaker, int numRequests, Supplier<SearchResponse> responseSupplier)
         throws Exception {
-        runMsearchWithBreaker(breaker, numRequests, responseSupplier, null, null);
+        runMsearchWithBreaker(breaker, numRequests, responseSupplier, null, null, null);
     }
 
     private void runMsearchWithBreaker(
         TrackingCircuitBreaker breaker,
         int numRequests,
         Supplier<SearchResponse> responseSupplier,
-        AtomicInteger failFirstSearch
-    ) throws Exception {
-        runMsearchWithBreaker(breaker, numRequests, responseSupplier, failFirstSearch, null);
-    }
-
-    private void runMsearchWithBreaker(
-        TrackingCircuitBreaker breaker,
-        int numRequests,
-        Supplier<SearchResponse> responseSupplier,
-        AtomicInteger failFirstSearch,
+        IntPredicate failSearch,
         Consumer<MultiSearchResponse.Item[]> responseItemsConsumer
     ) throws Exception {
+        runMsearchWithBreaker(breaker, numRequests, responseSupplier, failSearch, null, responseItemsConsumer);
+    }
+
+    private void runMsearchWithBreaker(
+        TrackingCircuitBreaker breaker,
+        int numRequests,
+        Supplier<SearchResponse> responseSupplier,
+        IntPredicate failSearch,
+        Supplier<Exception> failureSupplier,
+        Consumer<MultiSearchResponse.Item[]> responseItemsConsumer
+    ) throws Exception {
+        runMsearchWithBreaker(breaker, numRequests, responseSupplier, failSearch, failureSupplier, responseItemsConsumer, null);
+    }
+
+    private void runMsearchWithBreaker(
+        TrackingCircuitBreaker breaker,
+        int numRequests,
+        Supplier<SearchResponse> responseSupplier,
+        IntPredicate failSearch,
+        Supplier<Exception> failureSupplier,
+        Consumer<MultiSearchResponse.Item[]> responseItemsConsumer,
+        Consumer<CancellableTask> onTaskRegistered
+    ) {
         Settings settings = Settings.builder().put("node.name", "msearch-breaker-test").build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
         ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        MockTransportService transportService = MockTransportService.createNewService(
+            Settings.EMPTY,
+            VersionInformation.CURRENT,
+            TransportVersion.current(),
+            threadPool
+        );
         try {
-            TransportService transportService = new TransportService(
-                Settings.EMPTY,
-                mock(Transport.class),
-                threadPool,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
-                    .applySettings(settings)
-                    .address(boundAddress.publishAddress())
-                    .build(),
-                null,
-                Collections.emptySet()
-            );
+            transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(transportService));
+            transportService.start();
+            transportService.acceptIncomingRequests();
             ClusterService clusterService = mock(ClusterService.class);
             when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
             MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
             for (int i = 0; i < numRequests; i++) {
                 multiSearchRequest.add(new SearchRequest());
             }
+            AtomicInteger callIndex = new AtomicInteger();
             NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow()) {
                 @Override
                 public void search(SearchRequest request, ActionListener<SearchResponse> listener) {
-                    if (failFirstSearch != null && failFirstSearch.getAndIncrement() == 0) {
-                        listener.onFailure(new RuntimeException("simulated failure"));
+                    if (failSearch != null && failSearch.test(callIndex.getAndIncrement())) {
+                        Exception failure = failureSupplier != null ? failureSupplier.get() : new RuntimeException("simulated failure");
+                        listener.onFailure(failure);
                         return;
                     }
                     SearchResponse response = responseSupplier.get();
@@ -908,7 +1022,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
 
                 @Override
                 public String getLocalNodeId() {
-                    return "local";
+                    return transportService.getLocalNode().getId();
                 }
             };
             TransportMultiSearchAction action = new TransportMultiSearchAction(
@@ -921,17 +1035,27 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 DefaultProjectResolver.INSTANCE,
                 breaker
             );
+            CancellableTask task = (CancellableTask) transportService.getTaskManager()
+                .register("transport", TransportMultiSearchAction.TYPE.name(), multiSearchRequest);
+            if (onTaskRegistered != null) {
+                onTaskRegistered.accept(task);
+            }
             PlainActionFuture<MultiSearchResponse> future = new PlainActionFuture<>();
-            action.execute(
-                multiSearchRequest.createTask(0, "type", "action", null, Map.of()),
-                multiSearchRequest,
-                responseItemsConsumer == null ? future : future.delegateFailureAndWrap((l, response) -> {
-                    responseItemsConsumer.accept(response.getResponses());
-                    l.onResponse(response);
-                })
-            );
-            future.get();
+            try {
+                action.execute(
+                    task,
+                    multiSearchRequest,
+                    responseItemsConsumer == null ? future : future.delegateFailureAndWrap((l, response) -> {
+                        responseItemsConsumer.accept(response.getResponses());
+                        l.onResponse(response);
+                    })
+                );
+                future.actionGet();
+            } finally {
+                transportService.getTaskManager().unregister(task);
+            }
         } finally {
+            transportService.close();
             assertTrue(ESTestCase.terminate(threadPool));
         }
     }
@@ -941,16 +1065,26 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         private final AtomicLong totalReserved = new AtomicLong();
         private final AtomicInteger reservationCalls = new AtomicInteger();
         private final int tripOnCall;
+        private final long byteLimit;
 
         private final RuntimeException reservationRuntimeException;
 
         TrackingCircuitBreaker(int tripOnCall) {
-            this(tripOnCall, null);
+            this(tripOnCall, null, -1L);
         }
 
         TrackingCircuitBreaker(int tripOnCall, RuntimeException reservationRuntimeException) {
+            this(tripOnCall, reservationRuntimeException, -1L);
+        }
+
+        TrackingCircuitBreaker(long byteLimit) {
+            this(-1, null, byteLimit);
+        }
+
+        private TrackingCircuitBreaker(int tripOnCall, RuntimeException reservationRuntimeException, long byteLimit) {
             this.tripOnCall = tripOnCall;
             this.reservationRuntimeException = reservationRuntimeException;
+            this.byteLimit = byteLimit;
         }
 
         @Override
@@ -962,6 +1096,9 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 throw reservationRuntimeException;
             }
             if (tripOnCall >= 0 && reservationCalls.incrementAndGet() == tripOnCall) {
+                throw new CircuitBreakingException("tripped", getDurability());
+            }
+            if (byteLimit >= 0 && used.get() + bytes > byteLimit) {
                 throw new CircuitBreakingException("tripped", getDurability());
             }
             used.addAndGet(bytes);

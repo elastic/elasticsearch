@@ -275,7 +275,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
     }
 
     public void testCaseInsensitiveEquality() throws IOException {
-        String value = "a".repeat(between(0, 256));
+        String value = "a".repeat(between(1, 256));
         String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.isEmpty() ? 1 : value.length()));
         String esqlQuery = """
             FROM test

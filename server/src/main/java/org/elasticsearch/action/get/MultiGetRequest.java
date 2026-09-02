@@ -67,7 +67,7 @@ public class MultiGetRequest extends UntypedActionRequest
         private String index;
         private String id;
         private String routing;
-        // Whether this item's routing came from the _slice parameter. Like GetRequest, this is provenance used for
+        // Whether this item's routing came from the slice parameter. Like GetRequest, this is provenance used for
         // coordinating-node validation only and is intentionally not serialized (the routing value itself is what the
         // shard needs to build the slice-scoped identity term).
         private boolean routingFromSlice;
@@ -131,7 +131,7 @@ public class MultiGetRequest extends UntypedActionRequest
             return this.routing;
         }
 
-        /** Mark whether this item's {@link #routing()} was supplied via the {@code _slice} parameter. */
+        /** Mark whether this item's {@link #routing()} was supplied via the {@code slice} parameter. */
         public Item setRoutingFromSlice(boolean routingFromSlice) {
             this.routingFromSlice = routingFromSlice;
             return this;

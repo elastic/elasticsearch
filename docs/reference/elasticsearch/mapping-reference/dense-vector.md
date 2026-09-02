@@ -579,6 +579,9 @@ $$$dense-vector-index-options$$$
 `ef_construction`
 :   (Optional, integer) The number of candidates to track while assembling the list of nearest neighbors for each new node. Defaults to `100`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.
 
+`flat_index_threshold` {applies_to}`stack: ga 9.4`
+:   (Optional, integer) The segment document count threshold below which graph or IVF construction is skipped in favor of brute-force flat search. `-1` (default) defers to format-specific defaults. `0` always builds the graph or IVF structure. A positive value overrides the format default. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw`, `bbq_hnsw`, and `bbq_disk` index types.
+
 `default_visit_percentage` {applies_to}`stack: ga 9.2`
 :   (Optional, integer) Only applicable to `bbq_disk`. Must be between 0 and 100.  0 will default to using `num_candidates` for calculating the percent visited. Increasing `default_visit_percentage` tends to improve the accuracy of the final results. Defaults to ~1% per shard for every 1 million vectors.
 
@@ -587,6 +590,9 @@ $$$dense-vector-index-options$$$
 
 `cluster_size` {applies_to}`stack: ga 9.2`
 :   (Optional, integer) Only applicable to `bbq_disk`.  The number of vectors per cluster.  Smaller cluster sizes increases accuracy at the cost of performance. Defaults to `384`. Must be a value between `64` and `65536`.
+
+`bits` {applies_to}`stack: ga 9.4`
+:   (Optional, integer) Only applicable to `bbq_disk`. The number of bits per dimension for quantization encoding. Valid values are `1` (default), `2`, `4`, or `7`. Higher values increase fidelity at the cost of slightly more disk space and slower queries. When no `rescore_vector` is specified, `bits` automatically adjusts the default oversampling: `1` uses 3.0x, `2` uses 1.5x, `4` and `7` disable oversampling. This setting can be changed without reindexing. Refer to [Quantize bits](/reference/elasticsearch/mapping-reference/bbq.md#bbq-bits) for details.
 
 `rescore_vector` {applies_to}`stack: preview =9.0, ga 9.1+`
 :   (Optional, object) An optional section that configures automatic vector rescoring on knn queries for the given field. Only applicable to quantized index types.
@@ -721,10 +727,10 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
 
 ## GPU vector indexing
 ```{applies_to}
-stack: preview 9.3
+stack: preview 9.3, ga 9.4
 ```
 
-{{es}} can leverage  [GPU acceleration](gpu-vector-indexing.md)  to speed up the indexing of dense vectors.
+{{es}} can leverage [GPU acceleration](docs-content://solutions/search/vector/gpu-vector-indexing.md) to speed up the indexing of dense vectors.
 
 
 ## Index modes for vector search [dense-vector-index-modes]
@@ -735,7 +741,7 @@ stack: preview 9.3
 
 The `vectordb_document` [index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) optimizes an index for vector search workloads.
 
-In {{serverless-short}}, this mode is automatically applied to indices in Vector DB projects. On {{ech}}, you must set it explicitly at index creation time:
+You must set the mode at index creation time:
 
 ```console
 PUT my-vector-index

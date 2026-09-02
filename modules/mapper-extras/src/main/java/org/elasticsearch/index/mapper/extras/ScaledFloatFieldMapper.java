@@ -31,10 +31,10 @@ import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocValuesFieldFactory;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FallbackPostMapper;
 import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -87,14 +87,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         return (ScaledFloatFieldMapper) in;
     }
 
-    public static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
-        true,
-        FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-        true,
-        true,
-        FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
-    );
-
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed;
@@ -144,7 +136,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         public Builder(String name, IndexSettings indexSettings) {
             super(name);
             this.docValuesParameters = FieldMapper.DocValuesParameter.of(
-                DEFAULT_DOC_VALUES_PARAMS,
+                FieldMapper.DocValuesParameter.defaultValues(
+                    indexSettings,
+                    FieldMapper.DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                    IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
+                ),
                 m -> toType(m).docValuesParameters(),
                 indexSettings.getMode().isStrictColumnar()
             );
@@ -406,7 +403,17 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue));
             }
-            return NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context, indexType.hasPoints());
+            return NumberFieldMapper.NumberType.LONG.rangeQuery(
+                name(),
+                lo,
+                hi,
+                true,
+                true,
+                hasDocValues(),
+                context,
+                indexType.hasPoints(),
+                indexType.hasTerms()
+            );
         }
 
         @Override
@@ -680,8 +687,13 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == false;
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParameters.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
+    }
+
+    @Override
+    protected FieldMapper.DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
     }
 
     @Override
@@ -721,7 +733,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     context.addIgnoredField(mappedFieldType.name());
                     if (isSourceSynthetic) {
                         // Save a copy of the field so synthetic source can load it
-                        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                        FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
                     }
                     return;
                 } else {
@@ -754,7 +766,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 context.addIgnoredField(mappedFieldType.name());
                 if (isSourceSynthetic) {
                     // Save a copy of the field so synthetic source can load it
-                    IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                    FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
                 }
                 return;
             } else {
@@ -900,6 +912,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (ignoreMalformed.value()) {
                 layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
             }
+            if (onFailureColumnEnabled()) {
+                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+            }
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
@@ -911,6 +926,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             );
             if (ignoreMalformed.value()) {
                 layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+            }
+            if (onFailureColumnEnabled()) {
+                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
             }
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         }

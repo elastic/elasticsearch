@@ -219,7 +219,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         int len = Math.toIntExact(length);
         final DirectReadBuffer drb;
         try {
-            drb = factory.allocate(len);
+            drb = factory.allocateWritableWindow(len);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -310,7 +310,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                 return new IOException("Object not found: " + path, cause);
             }
         }
-        return new IOException(context + " " + path, cause);
+        return new IOException(context + " " + path + ": " + GcsFailureDetail.of(cause), cause);
     }
 
     /**
@@ -343,7 +343,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             } else if (e.getCode() == 403) {
                 fetchMetadataViaRangeRead();
             } else {
-                throw new IOException("Failed to get metadata for " + path, e);
+                throw new IOException("Failed to get metadata for " + path + ": " + GcsFailureDetail.of(e), e);
             }
         }
     }
@@ -360,7 +360,10 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                 setNotFound();
                 return;
             }
-            throw new IOException("Failed to get metadata for " + path + " (metadata denied, range read also failed)", e);
+            throw new IOException(
+                "Failed to get metadata for " + path + " (metadata denied, range read also failed): " + GcsFailureDetail.of(e),
+                e
+            );
         }
 
         if (objectExists) {

@@ -12,6 +12,16 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.mrjar'
 
+dependencies {
+  implementation(project(':libs:core'))
+
+  // test:framework reaches this project again transitively (server -> libs:native -> foreign-adapter),
+  // which puts our own jar on a classpath that already has our main classes: excluding it keeps jarHell happy.
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'foreign-adapter'
+  }
+}
+
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }

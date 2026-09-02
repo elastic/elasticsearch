@@ -1233,6 +1233,30 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         }
     }
 
+    // Test fix for issue https://github.com/elastic/elasticsearch/issues/154315
+    public void testRoundToOnNonFieldNotTransformToQueryAndTags() {
+        for (String expression : List.of("round_to(abs(long), 1, 2, 3, 4)", "round_to(long + 1, 1, 2, 3, 4)")) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | stats count(*) by x = {}
+                """, expression);
+
+            ExchangeExec exchange = validatePlanBeforeExchange(query, DataType.LONG);
+            AggregateExec agg = as(exchange.child(), AggregateExec.class);
+            EvalExec eval = as(agg.child(), EvalExec.class);
+            assertEquals(1, eval.fields().size());
+            RoundTo roundTo = as(eval.fields().getFirst().child(), RoundTo.class);
+            assertThat(roundTo.field(), not(instanceOf(FieldAttribute.class)));
+
+            FieldExtractExec fieldExtract = as(eval.child(), FieldExtractExec.class);
+            EsQueryExec esQuery = as(fieldExtract.child(), EsQueryExec.class);
+            List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQuery.queryBuilderAndTags();
+            assertEquals(1, queryBuilderAndTags.size());
+            assertNull(queryBuilderAndTags.getFirst().query());
+            assertTrue(queryBuilderAndTags.getFirst().tags().isEmpty());
+        }
+    }
+
     private static SearchStats searchStats() {
         // create a SearchStats with min and max in milliseconds
         Map<String, Object> minValue = Map.of("date", 1697804103360L); // 2023-10-20T12:15:03.360Z

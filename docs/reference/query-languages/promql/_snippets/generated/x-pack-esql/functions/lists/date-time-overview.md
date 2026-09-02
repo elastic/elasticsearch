@@ -24,6 +24,9 @@
 * [`time`](/reference/query-languages/promql/functions/date-time.md#promql-fn-time) {applies_to}`stack: preview 9.4, ga 9.5`
   :::{include} ../brief-summary/time.md
   :::
+* [`timestamp`](/reference/query-languages/promql/functions/date-time.md#promql-fn-timestamp) {applies_to}`stack: ga 9.6`
+  :::{include} ../brief-summary/timestamp.md
+  :::
 * [`year`](/reference/query-languages/promql/functions/date-time.md#promql-fn-year) {applies_to}`stack: ga 9.5`
   :::{include} ../brief-summary/year.md
   :::

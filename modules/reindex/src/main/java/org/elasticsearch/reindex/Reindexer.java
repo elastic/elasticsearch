@@ -187,21 +187,22 @@ public class Reindexer {
     }
 
     public void execute(
-        BulkByPaginatedSearchTask task,
-        ReindexRequest request,
-        Client bulkClient,
-        ActionListener<BulkByPaginatedSearchResponse> listener
+        final BulkByPaginatedSearchTask task,
+        final ReindexRequest request,
+        final Client bulkClient,
+        final ActionListener<BulkByPaginatedSearchResponse> listener
     ) {
+        final var closeRemoteInfoListener = ActionListener.releaseAfter(listener, request.getRemoteInfo()); // null-safe
         final ResumeInfo resumeInfo = request.getResumeInfo().orElse(null);
         if (resumeInfo != null && resumeInfo.sourceTaskResult() != null) {
             // source task result should be present for top-level tasks only (e.g. leader or non-sliced worker)
             storeRelocationSourceTaskResult(
                 task,
                 resumeInfo,
-                ActionListener.wrap(v -> doExecute(task, request, bulkClient, listener), listener::onFailure)
+                ActionListener.wrap(v -> doExecute(task, request, bulkClient, closeRemoteInfoListener), closeRemoteInfoListener::onFailure)
             );
         } else {
-            doExecute(task, request, bulkClient, listener);
+            doExecute(task, request, bulkClient, closeRemoteInfoListener);
         }
     }
 
@@ -958,7 +959,7 @@ public class Reindexer {
     }
 
     /**
-     * Simple implementation of reindex using scrolling and bulk. There are tons
+     * Simple implementation of reindex using paginated search and bulk. There are tons
      * of optimizations that can be done on certain types of reindex requests
      * but this makes no attempt to do any of them so it can be as simple
      * possible.

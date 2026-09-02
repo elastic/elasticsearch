@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
@@ -25,12 +24,15 @@ import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -53,25 +55,23 @@ import java.util.Set;
 public class StatisticsRowGroupFilterParityTests extends ESTestCase {
 
     private BlockFactory blockFactory;
-    private BufferAllocator allocator;
+    private CircuitBreaker breaker;
 
     private static final int ROWS_PER_GROUP = 1024;
     private static final int ROW_GROUPS = 4;
 
     private PlainCompressionCodecFactory codecFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactoryAndCodec() throws Exception {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
-        allocator = blockFactory.arrowAllocator();
+        breaker = blockFactory.breaker();
         codecFactory = new PlainCompressionCodecFactory();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void releaseCodecFactory() throws Exception {
         codecFactory.release();
-        super.tearDown();
     }
 
     public void testKeepSetMatchesParquetMrForEqualityFilter() throws IOException {
@@ -155,7 +155,7 @@ public class StatisticsRowGroupFilterParityTests extends ESTestCase {
         Set<Long> survivingStarts = new HashSet<>();
         try (
             ParquetFileReader reader = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(new InMemoryStorageObject(file), allocator),
+                new ParquetStorageObjectAdapter(new InMemoryStorageObject(file), breaker),
                 PlainParquetReadOptions.builder(codecFactory).withRecordFilter(FilterCompat.get(predicate)).build()
             )
         ) {
@@ -187,7 +187,7 @@ public class StatisticsRowGroupFilterParityTests extends ESTestCase {
 
     private ParquetFileReader openReader(byte[] file) throws IOException {
         return ParquetFileReader.open(
-            new ParquetStorageObjectAdapter(new InMemoryStorageObject(file), allocator),
+            new ParquetStorageObjectAdapter(new InMemoryStorageObject(file), breaker),
             PlainParquetReadOptions.builder(codecFactory).build()
         );
     }

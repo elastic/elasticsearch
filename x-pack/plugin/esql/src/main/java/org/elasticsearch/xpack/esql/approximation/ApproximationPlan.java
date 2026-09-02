@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.approximation;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
@@ -112,6 +114,10 @@ public class ApproximationPlan {
      */
     public static final String CERTIFIED_COLUMN_PREFIX = "_approximation_certified(";
 
+    public static boolean isApproximationColumn(String name) {
+        return name.startsWith(CONFIDENCE_INTERVAL_COLUMN_PREFIX) || name.startsWith(CERTIFIED_COLUMN_PREFIX);
+    }
+
     public static Map<NameId, Map<String, Object>> createColumnMetadata(List<Attribute> attributes) {
         var resolved = new HashMap<NameId, Map<String, Object>>();
         for (Attribute attribute : attributes) {
@@ -142,6 +148,13 @@ public class ApproximationPlan {
         }
         return null;
     }
+
+    /**
+     * Reduced t-digest compression used for internal approximation bucket columns.
+     * Bucket columns only need rough quantile estimates for BCa bootstrap CI computation,
+     * so full compression is unnecessary and wastes significant memory.
+     */
+    static final double PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION = QuantileStates.DEFAULT_COMPRESSION / 10.0;
 
     /**
      * The number of times (trials) the sampled rows are divided into buckets.
@@ -493,6 +506,14 @@ public class ApproximationPlan {
                 // For the supported single-valued aggregations, add buckets with sampled
                 // values, that will be used to compute a confidence interval.
                 // For multivalued aggregations, confidence intervals do not make sense.
+
+                AggregateFunction bucketAggFn;
+                if (aggFn instanceof Percentile p) {
+                    bucketAggFn = p.withTDigestStateCompression(PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION);
+                } else {
+                    bucketAggFn = aggFn;
+                }
+
                 List<Attribute> buckets = new ArrayList<>();
                 for (int trialId = 0; trialId < TRIAL_COUNT; trialId++) {
                     for (int bucketId = 0; bucketId < BUCKET_COUNT; bucketId++) {
@@ -509,8 +530,10 @@ public class ApproximationPlan {
                         Alias bucket = new Alias(
                             Source.EMPTY,
                             Attribute.rawTemporaryName(agg.name(), BUCKET_NAME_PART, Integer.toString(trialId * BUCKET_COUNT + bucketId)),
-                            aggFn.withFilter(
-                                aggFn.hasFilter() == false ? bucketIdFilter : new And(Source.EMPTY, aggFn.filter(), bucketIdFilter)
+                            bucketAggFn.withFilter(
+                                bucketAggFn.hasFilter() == false
+                                    ? bucketIdFilter
+                                    : new And(Source.EMPTY, bucketAggFn.filter(), bucketIdFilter)
                             ),
                             null,
                             true

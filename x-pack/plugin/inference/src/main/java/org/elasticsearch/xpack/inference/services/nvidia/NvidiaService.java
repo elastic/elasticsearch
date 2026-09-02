@@ -48,7 +48,7 @@ import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbedd
 import org.elasticsearch.xpack.inference.services.nvidia.request.completion.NvidiaChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModel;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModelCreator;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -92,7 +92,7 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
     );
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new NvidiaChatCompletionResponseHandler(
         "NVIDIA chat completion",
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiCompletionResponseEntity::fromResponse
     );
     private static final NvidiaChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new NvidiaChatCompletionModelCreator();
     private static final Map<TaskType, ModelCreator<? extends NvidiaModel>> MODEL_CREATORS = Map.of(
@@ -231,7 +231,11 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
 
         for (var request : batchedRequests) {
             var action = nvidiaEmbeddingsModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 

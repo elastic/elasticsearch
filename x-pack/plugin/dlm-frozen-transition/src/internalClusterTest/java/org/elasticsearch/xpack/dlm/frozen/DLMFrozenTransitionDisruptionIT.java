@@ -24,6 +24,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
+import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
@@ -34,6 +35,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
@@ -76,6 +78,8 @@ import java.util.function.BiConsumer;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -697,6 +701,17 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * master node while it is being stopped asynchronously by the disruption thread.
      */
     private void waitForStableCluster(int nodeCount) throws Exception {
+        // The disruption latch fires before the async disruption thread finishes stopping the
+        // node. If we probe cluster health while the node is still shutting down,
+        // ensureStableCluster can route the health request via the dying node's local client,
+        // whose response future is never completed (no transport disconnect fires for in-JVM
+        // client calls, and the node's scheduler that would enforce the request timeout is
+        // gone), hanging the test until the suite timeout. Wait for the disruption to actually
+        // finish first.
+        for (Thread t : disruptionThreadsToJoin) {
+            t.join(TimeUnit.SECONDS.toMillis(60));
+            assertFalse("disruption thread [" + t.getName() + "] did not finish in time", t.isAlive());
+        }
         assertBusy(() -> {
             try {
                 ensureStableCluster(nodeCount);
@@ -798,18 +813,21 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
                 ActionListener listener,
                 BiConsumer<ActionRequest, ActionListener> proceed
             ) {
-                if (latch.getCount() > 0) {
+                if (disruptionDone.compareAndSet(false, true)) {
                     logger.info("--> intercepted [{}], running disruption action now", actionName);
-                    latch.countDown();
-                    if (disruptionDone.compareAndSet(false, true)) {
-                        if (async) {
-                            Thread t = new Thread(disruptionAction, "test-disruption-" + actionName);
-                            disruptionThreadsToJoin.add(t);
-                            t.start();
-                        } else {
-                            disruptionAction.run();
-                        }
+                    if (async) {
+                        Thread t = new Thread(disruptionAction, "test-disruption-" + actionName);
+                        disruptionThreadsToJoin.add(t);
+                        t.start();
+                    } else {
+                        disruptionAction.run();
                     }
+                    // Count down only after the disruption thread is started (or the sync action
+                    // completed): waitForStableCluster joins threads in disruptionThreadsToJoin
+                    // after awaiting this latch. Thread.join on a not-yet-started thread returns
+                    // immediately, so counting down before t.start() would let the test race ahead
+                    // while the master node is still being stopped.
+                    latch.countDown();
                 }
                 proceed.accept(request, listener);
             }
@@ -825,24 +843,34 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
             assertFalse(
                 "Transition should have completed for [" + candidateIndex + "]",
-                transitionService.getTransitionExecutor().transitionSubmitted(candidateIndex)
+                transitionService.getTransitionExecutor().transitionSubmitted(ProjectId.DEFAULT, candidateIndex)
             );
         }, 60, TimeUnit.SECONDS);
     }
 
     /**
-     * Asserts that no error has been recorded in the DLM error store for the given index.
-     * Awaits transition completion before checking error store.
+     * Asserts that the frozen transition did not record an error for the given index.
+     * Awaits transition completion before checking the error store.
+     * <p>
+     * The regular data stream lifecycle service shares the error store with the frozen transition
+     * and force merges the rolled-over backing index concurrently with these disruption tests. When a
+     * test deletes the index while that force merge is in flight, the lifecycle service can record a
+     * transient error, which it clears on its next run once the index is gone (see #157257). Such
+     * entries are unrelated to the frozen transition under test and are tolerated here; any other
+     * error entry fails the assertion.
      */
     private void assertNoErrorRecorded(String candidateIndex) throws Exception {
         awaitTransitionCompletion(candidateIndex);
         DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
         DataStreamLifecycleErrorStore errorStore = transitionService.getTransitionExecutor().getErrorStore();
-        assertThat(
-            "No error should be recorded for a gracefully-skipped index",
-            errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIndex),
-            nullValue()
-        );
+        ErrorEntry error = errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIndex);
+        if (error != null) {
+            assertThat(
+                "Only a transient lifecycle force-merge error is tolerated for a gracefully-skipped index, but was: " + error,
+                error.error(),
+                anyOf(containsString("Force merge request only had"), containsString("failed to forcemerge"))
+            );
+        }
     }
 
     /**

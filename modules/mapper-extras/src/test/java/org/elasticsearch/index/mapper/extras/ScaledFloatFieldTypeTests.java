@@ -131,7 +131,8 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
                 includeUpper,
                 false,
                 MOCK_CONTEXT,
-                randomBoolean()
+                randomBoolean(),
+                false
             );
             Query scaledFloatQ = ft.rangeQuery(l, u, includeLower, includeUpper, MOCK_CONTEXT);
             assertEquals(searcher.count(doubleQ), searcher.count(scaledFloatQ));

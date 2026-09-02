@@ -155,6 +155,20 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         drainDeserializedHits((hit, i) -> consumer.accept(hitPositions[i], hit));
     }
 
+    long estimatedRetainedBytes() throws IOException {
+        ensureDeserialized();
+        if (deserializedHits == null) {
+            return 0L;
+        }
+        long size = 0L;
+        for (SearchHit hit : deserializedHits) {
+            if (hit != null) {
+                size += hit.ramBytesUsed();
+            }
+        }
+        return size;
+    }
+
     /**
      * Walks {@code deserializedHits}, invoking {@code visitor} for each non-null slot and clearing
      * the slot afterwards so the same hit is never handed out twice. Shared by {@link #consumeHits}

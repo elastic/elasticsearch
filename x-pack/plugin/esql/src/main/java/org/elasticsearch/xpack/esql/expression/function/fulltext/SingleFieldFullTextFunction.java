@@ -7,30 +7,42 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -53,9 +65,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
         PostOptimizationPlanVerificationAware {
 
     protected final Expression field;
-
-    // Options for the function. They don't need to be serialized as the data nodes will retrieve them from the query builder
-    private final transient Expression options;
+    private final Expression options;
 
     protected SingleFieldFullTextFunction(
         Source source,
@@ -155,6 +165,56 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
         return fieldAsFieldAttribute(field);
     }
 
+    /**
+     * Builds the runtime-search evaluator for a {@code text} field: the query string is analyzed once into its
+     * terms, and each row's value is then analyzed and matched by the {@link RuntimeSearch.TokenStreamMatcher} the
+     * given function builds from those terms. How the terms must match (any term, consecutive phrase, ...) is the
+     * only thing that differs between the full-text functions supporting runtime search.
+     */
+    protected ExpressionEvaluator.Factory runtimeTextEvaluator(
+        ToEvaluator toEvaluator,
+        Function<List<BytesRef>, RuntimeSearch.TokenStreamMatcher> matcherBuilder
+    ) {
+        // Without options there is no query-side override, so the values analyzer covers both sides — the query
+        // analyzer defaults to the values analyzer like search_analyzer does on an indexed field.
+        Analyzer analyzer = resolveValuesAnalyzer(toEvaluator);
+        List<BytesRef> queryTerms;
+        try {
+            queryTerms = RuntimeSearch.analyzeTerms(analyzer, queryAsObject().toString());
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to tokenize query string: " + e.getMessage(), e);
+        }
+        // TODO: use the `zero_terms_query` option, for now we use `none`.
+        if (queryTerms.isEmpty()) {
+            return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
+        }
+
+        return new RuntimeSearchTextEvaluator.Factory(
+            source(),
+            toEvaluator.apply(field()),
+            matcherBuilder.apply(queryTerms),
+            analyzer,
+            context -> new BytesRef()
+        );
+    }
+
+    /**
+     * The values analyzer declared for this function's field — the role the mapping's {@code analyzer} plays for an
+     * indexed text field — or {@code null} when none was declared. Runtime text columns declare it through
+     * {@code TO_TEXT}'s {@code analyzer} option; references produced by {@code EVAL}/{@code RENAME} carry the
+     * declaration as attribute metadata. {@link AnalyzedTextExpression} covers both forms.
+     */
+    @Nullable
+    protected String valuesAnalyzerName() {
+        return AnalyzedTextExpression.valuesAnalyzerOf(field());
+    }
+
+    /** The declared values analyzer resolved through the registry, or the standard analyzer when none was declared. */
+    protected Analyzer resolveValuesAnalyzer(EvaluatorMapper.ToEvaluator toEvaluator) {
+        String name = valuesAnalyzerName();
+        return name == null ? new StandardAnalyzer() : RuntimeSearch.resolveNamedAnalyzer(name, toEvaluator);
+    }
+
     @Override
     public boolean foldable() {
         // The function is foldable if the field is guaranteed to be null, due to the field not being present in the mapping
@@ -174,35 +234,43 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return postAnalysisPlanVerification(null);
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(AnalysisRegistry analysisRegistry) {
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
-            fieldVerifier(plan, this, field, failures);
+            fieldVerifier(plan, this, field, analysisRegistry, failures);
         };
     }
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
-        // check plan again after predicates are pushed down into subqueries
+        // Check plan again after predicates are pushed down into subqueries. No analysis registry is available at
+        // this point, so registry-backed checks (e.g. analyzer-name validation) only run in the post-analysis pass;
+        // registry inputs cannot change during optimization, so skipping them here is safe.
         return (plan, failures) -> {
             super.postOptimizationPlanVerification().accept(plan, failures);
-            fieldVerifier(plan, this, field, failures);
+            fieldVerifier(plan, this, field, null, failures);
         };
     }
 
     @Override
     public boolean equals(Object o) {
-        // Functions do not serialize options, as they get included in the query builder.
-        // We override equals and hashcode to ignore options when comparing two function instances
         if (o == null || getClass() != o.getClass()) return false;
         SingleFieldFullTextFunction that = (SingleFieldFullTextFunction) o;
 
         // Compare query builders using identity because that's how they are compared during query rewriting
-        return Objects.equals(field(), that.field()) && Objects.equals(query(), that.query()) && queryBuilder() == that.queryBuilder();
+        return Objects.equals(field(), that.field())
+            && Objects.equals(query(), that.query())
+            && queryBuilder() == that.queryBuilder()
+            && Objects.equals(options, that.options());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), System.identityHashCode(queryBuilder()));
+        return Objects.hash(field(), query(), System.identityHashCode(queryBuilder()), options);
     }
 
     /**
@@ -222,6 +290,41 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
      * Keys are option names, values are the expected data types.
      */
     protected abstract Map<String, DataType> getAllowedOptions();
+
+    /** Resolves the query and values analyzers and delegates to {@link RuntimeSearch#textEvaluatorForQuery}. */
+    protected ExpressionEvaluator.Factory textEvaluatorForQueryWithOptions(
+        Query query,
+        Map<String, Object> opts,
+        EvaluatorMapper.ToEvaluator toEvaluator
+    ) {
+        NamedAnalyzer valuesAnalyzer = RuntimeSearch.resolveNamedAnalyzer(valuesAnalyzerName(), toEvaluator);
+        NamedAnalyzer queryAnalyzer = RuntimeSearch.resolveNamedAnalyzer(opts, toEvaluator);
+        return RuntimeSearch.textEvaluatorForQuery(
+            source(),
+            toEvaluator.apply(field()),
+            query,
+            // the analyzer option overrides the query side only, defaulting to the values analyzer
+            queryAnalyzer == null ? valuesAnalyzer : queryAnalyzer,
+            valuesAnalyzer
+        );
+    }
+
+    /** Resolves the query and values analyzers and delegates to {@link RuntimeSearch#textScoreEvaluatorForQuery}. */
+    protected ExpressionEvaluator.Factory textScoreEvaluatorForQueryWithOptions(
+        Query query,
+        Map<String, Object> opts,
+        EvaluatorMapper.ToEvaluator toEvaluator
+    ) {
+        NamedAnalyzer valuesAnalyzer = RuntimeSearch.resolveNamedAnalyzer(valuesAnalyzerName(), toEvaluator);
+        NamedAnalyzer queryAnalyzer = RuntimeSearch.resolveNamedAnalyzer(opts, toEvaluator);
+        return RuntimeSearch.textScoreEvaluatorForQuery(
+            source(),
+            toEvaluator.apply(field()),
+            query,
+            queryAnalyzer == null ? valuesAnalyzer : queryAnalyzer,
+            valuesAnalyzer
+        );
+    }
 
     /**
      * Returns a human-readable string listing the expected field types.

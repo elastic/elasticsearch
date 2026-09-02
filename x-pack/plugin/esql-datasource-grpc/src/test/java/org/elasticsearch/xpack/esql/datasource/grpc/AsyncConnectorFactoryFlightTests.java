@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
 import org.elasticsearch.xpack.esql.datasources.spi.ResultCursor;
 import org.elasticsearch.xpack.esql.datasources.spi.Split;
+import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -42,9 +43,8 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() throws Exception {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 

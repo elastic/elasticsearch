@@ -107,6 +107,22 @@ user5:
       privileges:
         - read
 
+# Grants value+org on `index` but only `org` on `index-user1` (value is FLS-denied there).
+# Exercises COUNT and SUM across indices where a field is visible in one index but
+# FLS-denied in another — the FLS analogue of the flattened-field cross-index conflicts
+# fixed in issues #154011 and #154484.
+fls_cross_index:
+  cluster: []
+  indices:
+    - names: [ 'index' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ value, org ]
+    - names: [ 'index-user1' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ org ]
+
 fls_user:
   cluster: []
   indices:

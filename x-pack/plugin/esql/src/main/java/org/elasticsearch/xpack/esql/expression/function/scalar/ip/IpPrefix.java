@@ -14,12 +14,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -42,7 +45,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 /**
  * Truncates an IP value to a given prefix length.
  */
-public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
+public class IpPrefix extends EsqlScalarFunction implements OptionalArgument, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "IpPrefix", IpPrefix::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(IpPrefix.class)
         .ternary(IpPrefix::new)
@@ -60,6 +63,7 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
     private final Expression prefixLengthV6Field;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "ip",
         briefSummary = "Truncates an IP to a given prefix length.",
         description = "Truncates an IP to a given prefix length.",

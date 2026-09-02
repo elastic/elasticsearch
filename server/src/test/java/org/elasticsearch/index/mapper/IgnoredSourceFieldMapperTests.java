@@ -10,11 +10,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.WildcardFieldMaskingReader;
@@ -2652,29 +2654,25 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             .build();
 
         // with TSDB doc values format enabled and matching index version, the doc values ignored source format should be used
+        IndexVersion switchToDocValuesFormatVersion = Build.current().isSnapshot()
+            ? IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES
+            : IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES_NO_FF;
         assertEquals(
             IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE,
-            IgnoredSourceFieldMapper.ignoredSourceFormat(
-                createIndexSettings(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES, tsdbDocValuesFormatEnabled)
-            )
+            IgnoredSourceFieldMapper.ignoredSourceFormat(createIndexSettings(switchToDocValuesFormatVersion, tsdbDocValuesFormatEnabled))
         );
 
         // index version alone is not enough, TSDB doc values setting must also be enabled.
         assertNotEquals(
             IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE,
-            IgnoredSourceFieldMapper.ignoredSourceFormat(
-                createIndexSettings(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES, tsdbDocValuesFormatDisabled)
-            )
+            IgnoredSourceFieldMapper.ignoredSourceFormat(createIndexSettings(switchToDocValuesFormatVersion, tsdbDocValuesFormatDisabled))
         );
 
         // TSDB doc values format is not enough, the index version must also match
         assertNotEquals(
             IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE,
             IgnoredSourceFieldMapper.ignoredSourceFormat(
-                createIndexSettings(
-                    IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES),
-                    tsdbDocValuesFormatEnabled
-                )
+                createIndexSettings(IndexVersionUtils.getPreviousVersion(switchToDocValuesFormatVersion), tsdbDocValuesFormatEnabled)
             )
         );
     }

@@ -321,6 +321,51 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
         runAndCompare(index, query, params, VECTOR_SCORE_SCRIPT_COSINE, DELTA);
     }
 
+    /**
+     * A search over an index pattern that spans an index mapping the vector field and one that does not must
+     * return the mapped index's results without any shard failures — the shards that don't map the field
+     * simply match nothing. Same behaviour as the [knn] query on an unmapped field.
+     */
+    public void testMixedMappedAndUnmappedIndices() throws IOException {
+        TestParams params = indexRandomDocs();
+
+        String unmappedIndex = "dense_vector_query_it_unmapped";
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("text")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
+            .build();
+        prepareCreate(unmappedIndex).setMapping(mapping).setSettings(settings).get();
+        ensureGreen(unmappedIndex);
+
+        int unmappedDocs = randomIntBetween(1, 10);
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[unmappedDocs];
+        for (int i = 0; i < unmappedDocs; i++) {
+            docs[i] = prepareIndex(unmappedIndex).setId(String.valueOf(i)).setSource("text", randomAlphaOfLength(5));
+        }
+        indexRandom(true, docs);
+
+        // Covers both the raw path and the quantized shortcut, which rewrites to [exact_knn] only on the
+        // shards that resolve the field.
+        DenseVectorQueryBuilder query = new DenseVectorQueryBuilder(VECTOR_FIELD, params.queryVector(), null, randomBoolean());
+        assertNoFailuresAndResponse(prepareSearch(INDEX_NAME, unmappedIndex).setQuery(query).setSize(params.numDocs()), response -> {
+            assertHitCount(response, params.numDocs());
+            for (SearchHit hit : response.getHits().getHits()) {
+                assertThat("only the index mapping the vector field should contribute hits", hit.getIndex(), equalTo(INDEX_NAME));
+            }
+        });
+
+        // Targeting only unmapped indices returns an empty result set rather than failing every shard.
+        assertNoFailuresAndResponse(prepareSearch(unmappedIndex).setQuery(query), response -> assertHitCount(response, 0));
+    }
+
     /** Loose per-codec budget for codec-path vs raw script-score distance. */
     private static double quantizedTolerance(VectorIndexType type) {
         return switch (type) {

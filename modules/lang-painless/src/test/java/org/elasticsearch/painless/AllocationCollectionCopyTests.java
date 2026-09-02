@@ -13,7 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * End-to-end tests for {@code @allocates_dynamic} estimators on collection materialization and copying ({@code toArray} and the
+ * End-to-end tests for {@code @allocates} estimators on collection materialization and copying ({@code toArray} and the
  * copy constructors), whose result scales with the source collection's size.
  */
 public class AllocationCollectionCopyTests extends AllocationTestCase {

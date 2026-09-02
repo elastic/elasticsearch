@@ -10,15 +10,19 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -325,6 +329,155 @@ public final class SourceStatisticsSerializer {
     }
 
     /**
+     * Restricts cached statistics to what a read of shape {@code expectedReadConfig} may legitimately be served — the
+     * serve-side dual of the publish gate.
+     * <p>
+     * An entry's statistics measure the rows the read that produced them produced, so a read of a different shape
+     * must not be handed them. The physical record count is the exception, and only where the producer licensed it
+     * ({@link ExternalStats#ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY}): under {@code FAIL_FAST} that count is the same number
+     * for every declaration.
+     * <p>
+     * The gate bites only when the entry carries a read configuration at all. An entry stamped by a rail that computes none is
+     * left exactly as it was before read configurations existed, so the columnar readers — which harvest without stamping — keep
+     * their current warmth instead of silently going cold.
+     */
+    public static Map<String, Object> restrictToReadConfig(Map<String, Object> stats, String expectedReadConfig) {
+        if (stats == null || stats.isEmpty()) {
+            return stats;
+        }
+        Object entryReadConfig = stats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
+        if (entryReadConfig == null || Objects.equals(entryReadConfig, expectedReadConfig)) {
+            return stats;
+        }
+        boolean countSurvives = Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+        Map<String, Object> restricted = new HashMap<>(stats.size());
+        for (Map.Entry<String, Object> entry : stats.entrySet()) {
+            String key = entry.getKey();
+            boolean drop = key.startsWith(STATS_COL_PREFIX) || (countSurvives == false && key.equals(STATS_ROW_COUNT));
+            if (drop == false) {
+                restricted.put(key, entry.getValue());
+            }
+        }
+        return restricted;
+    }
+
+    /**
+     * The widened-column pin's stats boundary — the sibling of {@link #overlayDeclaredSchemaOnStats} for the
+     * {@code union_by_name} reconciliation path. When a text file's shared column is inferred from a narrow sampled
+     * prefix and then read at the wider reconciled type (the pin), an out-of-sample value that does not fit the narrow
+     * type is null-filled (or its whole row dropped under {@code skip_row}) when that same file is read solo at the
+     * narrow type. The per-file stats cache identity is read-schema-blind ({@code (path, mtime, config)}), so a solo
+     * narrow read and the pinned wider read share one entry: the harvested {@code value_count}/{@code null_count} are
+     * short by the null-filled cells and the extremum is the narrow-read value, none of which a wider read would
+     * produce. These are wrong VALUES, not merely a wrong unit, so {@link #normalizeStatsToReconciled} and the
+     * cache-path coercion cannot rescue them. For each {@code pinnedColumns} entry this POISONS the extrema and DROPS
+     * {@code value_count}/{@code null_count} so the column safe-misses to a scan; {@code dropRowCount} additionally
+     * drops {@code row_count} for the {@code skip_row} case, where the narrow read dropped whole rows and even
+     * {@code COUNT(*)} would be short. {@code size_bytes} and non-column keys are untouched. Returns the input instance
+     * unchanged when there is nothing to do; otherwise a new map (inputs are routinely {@code Map.copyOf}-immutable).
+     *
+     * @param pinnedColumns columns whose read type was pinned above their inferred type
+     * @param dropRowCount  whether the error policy drops whole rows ({@code skip_row}), making {@code row_count} stale too
+     */
+    public static Map<String, Object> overlayPinnedColumnsOnStats(
+        Map<String, Object> statsMap,
+        Set<String> pinnedColumns,
+        boolean dropRowCount
+    ) {
+        if (statsMap == null || statsMap.isEmpty() || pinnedColumns.isEmpty()) {
+            return statsMap;
+        }
+        Map<String, Object> out = new HashMap<>(statsMap);
+        // A dropped row is not column-scoped damage. Every column's counts and extrema are computed over the rows
+        // that SURVIVED, so when the narrow read dropped whole rows, no column's statistics describe the row set
+        // this read would produce — not just the pinned ones. Poison the file's whole column vocabulary in that
+        // case; poisoning only `pinnedColumns` would leave an untouched column serving a value harvested over a
+        // smaller row set (a wrong MIN/COUNT, not a stale one).
+        for (String column : dropRowCount ? columnsPresentIn(out) : pinnedColumns) {
+            poisonColumnExtrema(out, column);
+            out.remove(columnValueCountKey(column));
+            out.remove(columnNullCountKey(column));
+            if (dropRowCount) {
+                // Bytes of the SURVIVING values, so a row drop moves it exactly like the counts do. Dropped rather
+                // than poisoned because its only consumer is a filter-ordering cost estimate, which degrades to
+                // "unknown" gracefully; the commit-side sibling already removes it, so this keeps the two symmetric.
+                out.remove(STATS_COL_PREFIX + column + SIZE_BYTES_SUFFIX);
+            }
+        }
+        if (dropRowCount) {
+            out.remove(STATS_ROW_COUNT);
+        }
+        return out;
+    }
+
+    /**
+     * The column names a flat stats map carries, recovered by matching the statistic SUFFIX rather than splitting on
+     * the first dot: a column name can itself contain dots (an {@code id.path} rename reaches arbitrary physical
+     * names), so a name-first split would truncate them.
+     */
+    private static Set<String> columnsPresentIn(Map<String, Object> statsMap) {
+        Set<String> columns = new HashSet<>();
+        for (String key : statsMap.keySet()) {
+            if (key.startsWith(STATS_COL_PREFIX) == false) {
+                continue;
+            }
+            for (String suffix : COLUMN_STAT_SUFFIXES) {
+                if (key.endsWith(suffix)) {
+                    columns.add(key.substring(STATS_COL_PREFIX.length(), key.length() - suffix.length()));
+                    break;
+                }
+            }
+        }
+        return columns;
+    }
+
+    /**
+     * The widened-column pin's stats boundary on the COMMIT path: the sibling of {@link #overlayPinnedColumnsOnStats},
+     * which is the serve-side boundary. The two guard opposite directions of the same read-schema-blind cache identity
+     * ({@code (path, mtime, config)}, no read-type component; see
+     * {@link org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey}): a solo narrow read and a widening glob's
+     * pinned wider read of the same file share one cache entry. The serve-side overlay stops a widening query from SERVING
+     * the narrow read's stale stats; this stops a widening read's harvest from COMMITTING (and so polluting) the entry a
+     * solo narrow read serves. A pinned wider read parses an out-of-sample value the narrow read null-filled (or
+     * row-dropped under {@code skip_row}), so its harvested {@code value_count} / {@code null_count} / extrema for a pinned
+     * column are values the narrow read never produces.
+     * <p>
+     * Unlike the serve-side overlay this STRIPS each pinned column's whole stat family rather than poisoning it: the commit
+     * is a last-writer-wins {@code putAll} into the shared entry, so removing the pinned column's keys leaves the solo
+     * narrow read's own correct stats intact and warm. A poison marker would instead persist into the shared entry and make
+     * the narrow read safe-miss too. Under {@code dropRowCount} ({@code skip_row}, where a narrow-read parse failure drops
+     * the whole row) {@code row_count} is stripped as well. {@code size_bytes} and non-column keys are untouched. Returns
+     * the input instance unchanged when there is nothing to do; otherwise a new map (inputs are routinely
+     * {@code Map.copyOf}-immutable).
+     *
+     * @param pinnedColumns columns whose read type was pinned above their inferred type for the harvested read
+     * @param dropRowCount  whether the error policy drops whole rows ({@code skip_row}), making {@code row_count} stale too
+     */
+    public static Map<String, Object> removeColumnStatFamilies(
+        Map<String, Object> statsMap,
+        Set<String> pinnedColumns,
+        boolean dropRowCount
+    ) {
+        if (statsMap == null || statsMap.isEmpty() || pinnedColumns.isEmpty()) {
+            return statsMap;
+        }
+        Map<String, Object> out = new HashMap<>(statsMap);
+        // Row-scope, as on the serve side: when this read dropped whole rows, every column's harvested counts and
+        // extrema describe a row set the sharing reads never saw, so none of them may commit — not only the pinned
+        // columns'.
+        for (String column : dropRowCount ? columnsPresentIn(out) : pinnedColumns) {
+            String prefix = STATS_COL_PREFIX + column;
+            for (String suffix : COLUMN_STAT_SUFFIXES) {
+                out.remove(prefix + suffix);
+            }
+        }
+        if (dropRowCount) {
+            out.remove(STATS_ROW_COUNT);
+        }
+        return out;
+    }
+
+    /**
      * Compares two keyword/text stat extrema in UTF-8 byte order — the SAME order the runtime keyword MIN/MAX
      * aggregators and comparisons use ({@link BytesRef} unsigned-byte order) — NOT {@link String#compareTo}'s
      * UTF-16 code-unit order, which disagrees for supplementary (astral) chars vs BMP chars in
@@ -497,8 +650,54 @@ public final class SourceStatisticsSerializer {
             splits.add(s);
         }
         SplitStats folded = SplitStats.fold(splits, implicitNullsForAbsentColumn);
-        // Mutable copy: callers (e.g. ExternalSourceCacheService.foldFragments) re-attach the keying fields.
-        return folded == null ? null : new HashMap<>(folded.toMap());
+        if (folded == null) {
+            return null;
+        }
+        // Mutable copy: callers (e.g. ExternalSourceCacheService.mergeStripesAndRekey) re-attach the CACHE-identity
+        // keys (mtime, config fingerprint), whose correct fold is caller-specific -- stripes share one mtime, files
+        // do not. The SERVE-identity keys are folded here, so no caller can silently lose them.
+        Map<String, Object> merged = new HashMap<>(folded.toMap());
+        attachFoldedReadConfigIdentity(splitStats, merged);
+        return merged;
+    }
+
+    /**
+     * Folds the serve-identity keys the compact model does not carry, so an N&gt;1 merge cannot silently launder a
+     * configuration-dependent measurement into a configuration-less map (the N==1 short-circuit above already
+     * preserves them by returning the input). Three states for the read configuration: every input measured by the
+     * SAME configuration &rarr; the fold was too, re-attach it; NO input carries one (the columnar readers, which
+     * harvest without stamping) &rarr; leave absent, preserving {@link #restrictToReadConfig}'s deliberate
+     * pass-through; anything else (disagreeing, or mixed stamped/unstamped) &rarr; stamp
+     * {@link ReadConfigFingerprint#MIXED}, which no expected configuration ever equals, so the serve gate strips
+     * rather than serving a fold no single read produced. The count licence is an AND, matching
+     * {@code ExternalSourceCacheService.foldFragments}: a sum of configuration-independent counts is itself
+     * configuration-independent, but one unlicensed input makes the sum depend on how that file's rows were read.
+     */
+    private static void attachFoldedReadConfigIdentity(List<Map<String, Object>> splitStats, Map<String, Object> merged) {
+        String agreed = null;
+        boolean mixed = false;
+        boolean allLicensed = true;
+        boolean first = true;
+        for (Map<String, Object> stats : splitStats) {
+            String fingerprint = stats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String s && s.isEmpty() == false
+                ? s
+                : null;
+            if (first) {
+                agreed = fingerprint;
+                first = false;
+            } else if (Objects.equals(agreed, fingerprint) == false) {
+                mixed = true;
+            }
+            allLicensed &= Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+        }
+        if (mixed) {
+            merged.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, ReadConfigFingerprint.MIXED);
+        } else if (agreed != null) {
+            merged.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, agreed);
+        }
+        if (allLicensed) {
+            merged.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+        }
     }
 
     @Nullable

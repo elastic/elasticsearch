@@ -11,7 +11,6 @@ package org.elasticsearch.simdvec;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
-import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorScorer;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.Directory;
@@ -21,7 +20,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
-import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
@@ -764,22 +762,6 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
                 return VectorUtil.normalizeDistanceToUnitInterval(Math.max(score, 0f));
             }
         }
-    }
-
-    static void assertFloatArrayEquals(float[] expected, float[] actual, float delta) {
-        assertThat(actual.length, equalTo(expected.length));
-        for (int i = 0; i < expected.length; i++) {
-            assertEquals("differed at element [" + i + "]", expected[i], actual[i], Math.abs(expected[i]) * delta + delta);
-        }
-    }
-
-    static void assertFloatEquals(float expected, float actual, float delta) {
-        assertEquals(expected, actual, Math.abs(expected) * delta + delta);
-    }
-
-    static RandomVectorScorerSupplier luceneScoreSupplier(QuantizedByteVectorValues values, VectorSimilarityFunction sim)
-        throws IOException {
-        return new Lucene104ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
     }
 
     // creates the vector based on the given ordinal, which is reproducible given the ord and dims

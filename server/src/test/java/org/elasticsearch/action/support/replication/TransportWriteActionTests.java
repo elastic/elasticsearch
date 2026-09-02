@@ -22,6 +22,8 @@ import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationOperation.ReplicaResponse;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.action.shard.FailedShardEntry;
+import org.elasticsearch.cluster.action.shard.NoLongerPrimaryShardException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -79,7 +81,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -396,7 +397,7 @@ public class TransportWriteActionTests extends ESTestCase {
         // A write replication action proxy should fail the shard
         assertEquals(1, shardFailedRequests.length);
         CapturingTransport.CapturedRequest shardFailedRequest = shardFailedRequests[0];
-        ShardStateAction.FailedShardEntry shardEntry = (ShardStateAction.FailedShardEntry) shardFailedRequest.request();
+        FailedShardEntry shardEntry = (FailedShardEntry) shardFailedRequest.request();
         // the shard the request was sent to and the shard to be failed should be the same
         assertEquals(shardEntry.getShardId(), replica.shardId());
         assertEquals(shardEntry.getAllocationId(), replica.allocationId().getId());
@@ -409,7 +410,7 @@ public class TransportWriteActionTests extends ESTestCase {
             // simulate the primary has been demoted
             transport.handleRemoteError(
                 shardFailedRequest.requestId(),
-                new ShardStateAction.NoLongerPrimaryShardException(replica.shardId(), "shard-failed-test")
+                new NoLongerPrimaryShardException(replica.shardId(), "shard-failed-test")
             );
             assertFalse(success.get());
             assertNotNull(failure.get());
@@ -625,7 +626,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 null,
                 TransportWriteActionTests.threadPool,
                 null,
-                new ActionFilters(new HashSet<>()),
+                ActionFilters.EMPTY,
                 TestRequest::new,
                 TestRequest::new,
                 (service, ignore) -> EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -656,7 +657,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 mockIndicesService(clusterService),
                 threadPool,
                 shardStateAction,
-                new ActionFilters(new HashSet<>()),
+                ActionFilters.EMPTY,
                 TestRequest::new,
                 TestRequest::new,
                 executorFunction,

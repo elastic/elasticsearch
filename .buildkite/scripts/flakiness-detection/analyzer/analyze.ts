@@ -12,13 +12,21 @@ export interface FailureEntry {
   message: string;
 }
 
+export interface ExampleFailure {
+  // Original JUnit testcase name, including the randomized-runner seed suffix
+  // (e.g. `foo {seed=[A:B]}`). Retained so a collapsed row still carries the
+  // exact seeds needed to reproduce the failure.
+  name: string;
+  message: string;
+}
+
 export interface TestSummary {
   className: string;
   method: string;
   passes: number;
   failures: number;
   failureKinds: FailureKind[];
-  exampleMessages: string[];
+  exampleFailures: ExampleFailure[];
 }
 
 export interface BatchSummary {
@@ -55,6 +63,17 @@ const SKIP_DIRS = new Set([
 // the (max 3) example messages — but bounds the worst case when a single
 // stack trace runs to multiple megabytes.
 const MAX_FAILURE_TEXT_BYTES = 16 * 1024;
+
+// Elasticsearch's randomized runner bakes a distinct per-iteration seed into
+// each testcase name (`method {seed=[<classSeed>:<methodSeed>]}`), so every
+// `-Dtests.iters` iteration would otherwise key to a separate row. Strip that
+// suffix so all iterations of a method aggregate into one row with real
+// pass/fail counts; the original seed-bearing name is preserved in
+// `ExampleFailure.name` for reproduction. Non-seed parameterization suffixes
+// (e.g. `{p0=x}`) are left intact.
+export function stripSeedSuffix(name: string): string {
+  return name.replace(/ \{seed=\[[0-9A-Fa-f:]+\]\}$/, "");
+}
 
 export function classifyFailure(f: FailureEntry): FailureKind {
   const msg = f.message ?? "";
@@ -109,6 +128,9 @@ interface PendingFailure {
 
 interface CurrentCase {
   entry: TestSummary;
+  // Original testcase name (with seed suffix); the row's `entry.method` has the
+  // seed stripped, but the raw name is recorded on failing examples for repro.
+  rawName: string;
   // First `<failure>` or `<error>` child of the testcase wins; subsequent ones
   // are ignored. Text/CDATA chunks append to `pending.text` while inside the
   // corresponding element body (gated by `insideFailureBody`).
@@ -127,7 +149,7 @@ function ensureEntry(state: AggregateState, className: string, method: string): 
       passes: 0,
       failures: 0,
       failureKinds: [],
-      exampleMessages: [],
+      exampleFailures: [],
     };
     state.perTestMap.set(key, entry);
   }
@@ -281,8 +303,10 @@ function streamParseReport(file: string, state: AggregateState): Promise<BatchSu
       const attrs = node.attributes as Record<string, string>;
 
       if (tag === "testcase") {
+        const rawName = attrs.name ?? "";
         curCase = {
-          entry: ensureEntry(state, attrs.classname ?? "", attrs.name ?? ""),
+          entry: ensureEntry(state, attrs.classname ?? "", stripSeedSuffix(rawName)),
+          rawName,
           pending: null,
           insideFailureBody: false,
           skipped: false,
@@ -343,10 +367,10 @@ function streamParseReport(file: string, state: AggregateState): Promise<BatchSu
             curCase.entry.failures += 1;
             curCase.entry.failureKinds.push(kind);
             if (
-              curCase.entry.exampleMessages.length < 3 &&
-              !curCase.entry.exampleMessages.includes(message)
+              curCase.entry.exampleFailures.length < 3 &&
+              !curCase.entry.exampleFailures.some((e) => e.name === curCase!.rawName && e.message === message)
             ) {
-              curCase.entry.exampleMessages.push(message);
+              curCase.entry.exampleFailures.push({ name: curCase.rawName, message });
             }
             batchFailed += 1;
           }

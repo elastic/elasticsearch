@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
@@ -15,7 +16,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
@@ -40,39 +41,44 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         );
     }
 
-    public void testInvalidateNodeMaxShardWriteLoadProportion() {
-        ClusterInfo clusterInfo = ClusterInfo.builder().build();
-        String invalidatedNodeId = randomIdentifier();
-        String otherNodeId = randomValueOtherThan(invalidatedNodeId, ESTestCase::randomIdentifier);
-        double initialInvalidatedValue = randomWriteLoadProportion();
-        double otherValue = randomWriteLoadProportion();
-        double recomputedValue = randomValueOtherThan(initialInvalidatedValue, ClusterInfoTests::randomWriteLoadProportion);
+    public void testCacheUsageFieldsAreTransportVersionGated() throws Exception {
+        final var shardCacheRequirements = Map.of(randomShardId(), new BoostedAndUnboostedCacheRequirements(10L, 20L));
+        final var nodeCacheSizeAndCommitments = Map.of(randomIdentifier(), new NodeCacheSizeAndCommitments(100L, 10L, 30L));
+        final var clusterInfo = ClusterInfo.builder()
+            .shardCacheRequirements(shardCacheRequirements)
+            .nodeCacheSizeAndCommitments(nodeCacheSizeAndCommitments)
+            .build();
 
-        // prime cache for two nodes
-        clusterInfo.nodeMaxShardWriteLoadProportion(invalidatedNodeId, () -> initialInvalidatedValue);
-        clusterInfo.nodeMaxShardWriteLoadProportion(otherNodeId, () -> otherValue);
-        assertTrue(clusterInfo.nodeMaxShardWriteLoadProportion.containsKey(invalidatedNodeId));
-        assertTrue(clusterInfo.nodeMaxShardWriteLoadProportion.containsKey(otherNodeId));
+        final var currentVersionCopy = copyInstance(clusterInfo, TransportVersion.current());
+        assertThat(currentVersionCopy.getShardCacheRequirements(), equalTo(shardCacheRequirements));
+        assertThat(currentVersionCopy.getNodeCacheSizeAndCommitments(), equalTo(nodeCacheSizeAndCommitments));
 
-        clusterInfo.invalidateNodeMaxShardWriteLoadProportion(invalidatedNodeId);
-
-        assertFalse(clusterInfo.nodeMaxShardWriteLoadProportion.containsKey(invalidatedNodeId));
-        assertTrue(clusterInfo.nodeMaxShardWriteLoadProportion.containsKey(otherNodeId));
-
-        // Re-priming the invalidated entry with a different value succeeds (no assertion fires
-        // because the prior cached value has been removed).
-        assertThat(clusterInfo.nodeMaxShardWriteLoadProportion(invalidatedNodeId, () -> recomputedValue), equalTo(recomputedValue));
+        final var preCacheUsageVersion = TransportVersionUtils.getPreviousVersion(ClusterInfo.CACHE_METADATA_IN_CLUSTER_INFO);
+        final var preCacheUsageCopy = copyInstance(clusterInfo, preCacheUsageVersion);
+        assertThat(preCacheUsageCopy.getShardCacheRequirements(), equalTo(Map.of()));
+        assertThat(preCacheUsageCopy.getNodeCacheSizeAndCommitments(), equalTo(Map.of()));
     }
 
-    public void testInvalidateNodeMaxShardWriteLoadProportionForUnknownNodeIsNoop() {
-        ClusterInfo clusterInfo = ClusterInfo.builder().build();
-        String cachedNodeId = randomIdentifier();
-        String unknownNodeId = randomValueOtherThan(cachedNodeId, ESTestCase::randomIdentifier);
-        clusterInfo.nodeMaxShardWriteLoadProportion(cachedNodeId, ClusterInfoTests::randomWriteLoadProportion);
+    public void testHostedShardsFieldsAreTransportVersionGated() throws Exception {
+        final var clusterInfo = ClusterInfo.builder().hostedShardsPartitionSizeByNodeId(randomHostedShardsPartitionSizes()).build();
 
-        clusterInfo.invalidateNodeMaxShardWriteLoadProportion(unknownNodeId);
+        final var currentVersionCopy = copyInstance(clusterInfo, TransportVersion.current());
+        assertThat(currentVersionCopy.getHostedShardsPartitionSizeByNodeId(), equalTo(clusterInfo.getHostedShardsPartitionSizeByNodeId()));
 
-        assertTrue(clusterInfo.nodeMaxShardWriteLoadProportion.containsKey(cachedNodeId));
+        final var preCacheUsageVersion = TransportVersionUtils.getPreviousVersion(ClusterInfo.PARTITION_SIZES_IN_CLUSTER_INFO);
+        final var preCacheUsageCopy = copyInstance(clusterInfo, preCacheUsageVersion);
+        assertThat(preCacheUsageCopy.getHostedShardsPartitionSizeByNodeId(), equalTo(Map.of()));
+    }
+
+    public void testSearchLaneRequirementsAreTransportVersionGated() throws Exception {
+        final var clusterInfo = ClusterInfo.builder().shardSearchLaneRequirements(randomShardSearchLaneRequirements()).build();
+
+        final var currentVersionCopy = copyInstance(clusterInfo, TransportVersion.current());
+        assertThat(currentVersionCopy.getShardSearchLaneRequirements(), equalTo(clusterInfo.getShardSearchLaneRequirements()));
+
+        final var preLaneVersion = TransportVersionUtils.getPreviousVersion(ClusterInfo.SEARCH_LANE_REQUIREMENTS_IN_CLUSTER_INFO);
+        final var preLaneCopy = copyInstance(clusterInfo, preLaneVersion);
+        assertThat(preLaneCopy.getShardSearchLaneRequirements(), equalTo(Map.of()));
     }
 
     private static double randomWriteLoadProportion() {
@@ -108,8 +114,42 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomNodeUsageStatsForThreadPools(),
             randomShardWriteLoad(),
             randomMaxHeapSizes(),
-            randomNodeIdsWriteLoadHotspottingSet()
+            randomNodeIdsWriteLoadHotspottingSet(),
+            randomNodeCacheSizeAndCommitmentsMap(),
+            randomShardCacheRequirements(),
+            randomHostedShardsPartitionSizes(),
+            randomShardSearchLaneRequirements()
         );
+    }
+
+    private static Map<ShardId, Double> randomShardSearchLaneRequirements() {
+        final int numEntries = randomIntBetween(0, 128);
+        final Map<ShardId, Double> builder = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            builder.put(randomShardId(), randomDouble());
+        }
+        return builder;
+    }
+
+    private static Map<String, NodeCacheSizeAndCommitments> randomNodeCacheSizeAndCommitmentsMap() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            nodeCacheSizeAndCommitments.put(randomIdentifier(), NodeCacheSizeAndCommitmentsTests.randomNodeCacheSizeAndCommitments());
+        }
+        return nodeCacheSizeAndCommitments;
+    }
+
+    private static Map<ShardId, BoostedAndUnboostedCacheRequirements> randomShardCacheRequirements() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            shardCacheRequirements.put(
+                randomShardId(),
+                new BoostedAndUnboostedCacheRequirements(randomNonNegativeLong(), randomNonNegativeLong())
+            );
+        }
+        return shardCacheRequirements;
     }
 
     private static Map<ShardId, Double> randomShardWriteLoad() {
@@ -139,18 +179,19 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         return shardHeapUsageBuilder;
     }
 
-    private static Map<String, EstimatedHeapUsage> randomNodeHeapUsage() {
+    private static Map<String, NodeHeapMetrics> randomNodeHeapUsage() {
         int numEntries = randomIntBetween(0, 128);
-        Map<String, EstimatedHeapUsage> nodeHeapUsage = new HashMap<>(numEntries);
+        Map<String, NodeHeapMetrics> nodeHeapUsage = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             String key = randomAlphaOfLength(32);
-            final int totalBytes = randomIntBetween(0, Integer.MAX_VALUE);
-            final EstimatedHeapUsage estimatedHeapUsage = new EstimatedHeapUsage(
+            final int maxHeapSize = randomIntBetween(0, Integer.MAX_VALUE);
+            final long totalHeapUsage = randomLongBetween(0, maxHeapSize);
+            final NodeHeapMetrics nodeHeapMetrics = new NodeHeapMetrics(
                 randomAlphaOfLength(4),
-                totalBytes,
-                randomIntBetween(0, totalBytes)
+                maxHeapSize,
+                new NodeHeapEstimates(totalHeapUsage, randomLongBetween(0, totalHeapUsage))
             );
-            nodeHeapUsage.put(key, estimatedHeapUsage);
+            nodeHeapUsage.put(key, nodeHeapMetrics);
         }
         return nodeHeapUsage;
     }
@@ -244,6 +285,15 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             builder.put(new ClusterInfo.NodeAndPath(randomAlphaOfLength(10), randomAlphaOfLength(10)), valueBuilder.build());
         }
         return builder;
+    }
+
+    private static Map<String, Long> randomHostedShardsPartitionSizes() {
+        int numEntries = randomIntBetween(0, 16);
+        Map<String, Long> result = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            result.put(randomAlphaOfLength(10), randomNonNegativeLong());
+        }
+        return result;
     }
 
     public void testChunking() {

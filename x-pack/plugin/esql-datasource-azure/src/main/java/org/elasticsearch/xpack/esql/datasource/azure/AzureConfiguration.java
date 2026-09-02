@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  *       and optionally {@code jwt_audience}</li>
  *   <li>{@code auth=anonymous} — anonymous access to public containers</li>
  *   <li>{@code auth=managed_identity} — the node's managed identity via Azure IMDS. Requires the
- *       {@code esql.datasource.managed_identity.enabled} cluster setting.</li>
+ *       {@code esql.external.managed_identity.enabled} cluster setting.</li>
  * </ul>
  */
 public class AzureConfiguration extends FileDataSourceConfiguration {
@@ -178,7 +178,7 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
             + "or account and sas_token; "
             + "set auth=anonymous for public containers; "
             + "set auth=managed_identity to use the node's managed identity "
-            + "(requires the esql.datasource.managed_identity.enabled cluster setting); "
+            + "(requires the esql.external.managed_identity.enabled cluster setting); "
             + "or configure federated authentication with tenant_id and client_id";
     }
 

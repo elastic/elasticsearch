@@ -52,7 +52,7 @@ import java.util.NoSuchElementException;
  *       and {@code service_account_impersonation_url}</li>
  *   <li>{@code auth=anonymous} — anonymous access to public buckets</li>
  *   <li>{@code auth=managed_identity} — the node's GCE/GKE metadata-server credentials
- *       ({@link ComputeEngineCredentials}); requires the {@code esql.datasource.managed_identity.enabled}
+ *       ({@link ComputeEngineCredentials}); requires the {@code esql.external.managed_identity.enabled}
  *       cluster setting</li>
  * </ul>
  * File-based ADC sources ({@code GOOGLE_APPLICATION_CREDENTIALS}, the well-known gcloud credential
@@ -264,7 +264,7 @@ public class GcsStorageProvider implements StorageProvider {
             if (e.getCode() == 403) {
                 return existsViaRead(bucket, objectName, path);
             }
-            throw new IOException("Failed to check existence of " + path + credentialHint(), e);
+            throw new IOException("Failed to check existence of " + path + ": " + GcsFailureDetail.of(e) + credentialHint(), e);
         }
     }
 
@@ -275,7 +275,14 @@ public class GcsStorageProvider implements StorageProvider {
             if (e.getCode() == 404) {
                 return false;
             }
-            throw new IOException("Failed to check existence of " + path + " (metadata denied, read also failed)" + credentialHint(), e);
+            throw new IOException(
+                "Failed to check existence of "
+                    + path
+                    + " (metadata denied, read also failed): "
+                    + GcsFailureDetail.of(e)
+                    + credentialHint(),
+                e
+            );
         }
     }
 

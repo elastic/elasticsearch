@@ -86,18 +86,14 @@ public class S3BlobContainerStorageClassTests extends ESTestCase {
     private S3HttpHandler s3HttpHandler;
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initHttpHandler() throws Exception {
         s3HttpHandler = new S3HttpHandler(BUCKET, S3ConsistencyModel.randomConsistencyModel());
         httpServer.createContext("/", s3HttpHandler);
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
+    public void removeHttpContext() throws Exception {
         httpServer.removeContext("/");
-        super.tearDown();
     }
 
     private S3BlobContainer buildContainer(

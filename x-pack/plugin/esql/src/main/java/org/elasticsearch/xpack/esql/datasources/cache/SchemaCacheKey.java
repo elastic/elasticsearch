@@ -97,10 +97,17 @@ public record SchemaCacheKey(
     );
 
     public static SchemaCacheKey build(String canonicalPath, long mtime, String formatType, Map<String, Object> config) {
-        String endpoint = config != null ? String.valueOf(config.getOrDefault("endpoint", "")) : "";
-        String region = config != null ? String.valueOf(config.getOrDefault("region", "")) : "";
+        EndpointRegion location = EndpointRegion.of(config);
         String formatConfig = buildFormatConfig(config);
-        return new SchemaCacheKey(canonicalPath, mtime, formatType != null ? formatType : "", formatConfig, endpoint, region, null);
+        return new SchemaCacheKey(
+            canonicalPath,
+            mtime,
+            formatType != null ? formatType : "",
+            formatConfig,
+            location.endpoint(),
+            location.region(),
+            null
+        );
     }
 
     /**
@@ -130,11 +137,25 @@ public record SchemaCacheKey(
      * marker-suffixed {@code formatType} keeps these entries out of the per-file contribution-matching
      * paths.
      * <p>
-     * Known residual, inherited from the per-file rail: under a lenient error policy
-     * ({@code skip_row}/{@code null_field}) a harvested row count can be declaration-dependent (see the
-     * {@code warmsRowCountSafely} discussion on the strict single-file rail). The dataset aggregate
-     * memoizes exactly what the per-file rail serves, so it neither narrows nor widens that residual -
-     * both must be closed together by the declared-schema fingerprint follow-up.
+     * Under a lenient error policy ({@code skip_row}/{@code null_field}) a harvested row count IS
+     * declaration-dependent, which is why the resolved read configuration now participates in the stats identity
+     * ({@link ReadConfigFingerprint}): a harvest may only enrich, and an entry may only serve, a read of the
+     * same read configuration. What still crosses read configurations is the physical record count under
+     * {@code FAIL_FAST}, licensed by the producer because there the count is the same number for every
+     * declaration.
+     * <p>
+     * <b>The dataset aggregate does NOT inherit that gate</b>, and an earlier revision of this javadoc claimed it
+     * did. The aggregate entry stores a bare row count with no read-configuration stamp and no licence, so the
+     * serve path's unstamped pass-through — which exists for the columnar readers, that harvest without stamping —
+     * fires on it. Nothing compares the configuration that produced the aggregate against the one consuming it.
+     * <p>
+     * It is not a wrong answer today, and each reason is an accident rather than a guard. The strict multi-file
+     * rail never reaches the aggregate at all. A non-strict overlay only retypes and renames in place, never
+     * appends, so a projection-less {@code COUNT(*)} sees the same survivor set under every read configuration
+     * this rail can reach. And a projection-decided drop suppresses its publish at the producer, so a
+     * survivor-count-dependent aggregate is never built. Change any one of those and this becomes a silent wrong
+     * count with no failing test. The fix, if it is ever worth doing, is to stamp the aggregate with the fold's
+     * read configuration and licence and gate the serve, exactly as the per-file rail does.
      */
     public static SchemaCacheKey forDatasetAggregate(
         String pattern,
@@ -146,10 +167,17 @@ public record SchemaCacheKey(
         // fileSetFingerprint (isDatasetAggregate() vs the collision defense). Require the fingerprint here
         // so a marker-suffixed key with a null fingerprint is never representable and the two agree.
         Objects.requireNonNull(fingerprint, "dataset aggregate key requires a non-null file-set fingerprint");
-        String endpoint = config != null ? String.valueOf(config.getOrDefault("endpoint", "")) : "";
-        String region = config != null ? String.valueOf(config.getOrDefault("region", "")) : "";
+        EndpointRegion location = EndpointRegion.of(config);
         String formatType = (sourceType == null ? "" : sourceType) + DATASET_AGGREGATE_MARKER;
-        return new SchemaCacheKey(pattern == null ? "" : pattern, 0L, formatType, buildFormatConfig(config), endpoint, region, fingerprint);
+        return new SchemaCacheKey(
+            pattern == null ? "" : pattern,
+            0L,
+            formatType,
+            buildFormatConfig(config),
+            location.endpoint(),
+            location.region(),
+            fingerprint
+        );
     }
 
     /**
@@ -159,6 +187,18 @@ public record SchemaCacheKey(
      */
     public boolean isDatasetAggregate() {
         return formatType().endsWith(DATASET_AGGREGATE_MARKER);
+    }
+
+    /**
+     * Whether {@code key} participates in the cache identity: it changes how rows are interpreted (or whether
+     * inference fails on the same bytes) and is not a credential. The single predicate behind
+     * {@link #buildFormatConfig}, exposed so each format module can assert that every key its reader consumes is
+     * either identity-affecting here or explicitly declared inert on that module's side. Without that assertion a
+     * newly added reader option defaults to "does not affect identity" silently, and two queries that read the same
+     * bytes differently collide on one cache entry.
+     */
+    public static boolean affectsIdentity(String key) {
+        return FORMAT_AFFECTING_PARAMS.contains(key) && CREDENTIAL_PARAMS.contains(key) == false;
     }
 
     /**
@@ -175,7 +215,7 @@ public record SchemaCacheKey(
         TreeMap<String, String> sorted = new TreeMap<>();
         for (Map.Entry<String, Object> entry : config.entrySet()) {
             String key = entry.getKey();
-            if (FORMAT_AFFECTING_PARAMS.contains(key) && CREDENTIAL_PARAMS.contains(key) == false) {
+            if (affectsIdentity(key)) {
                 sorted.put(key, String.valueOf(entry.getValue()));
             }
         }

@@ -1,6 +1,0 @@
-area: Search
-issues:
- - 97280
-pr: 152509
-summary: Fork `ensureShardSearchActive` callbacks off the refresh thread
-type: bug

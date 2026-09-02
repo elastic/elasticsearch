@@ -65,6 +65,37 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleInternalPlugin
         result.task(":licenseHeaders").outcome == TaskOutcome.SUCCESS
     }
 
+    def "detects duplicate license headers in same file"() {
+        given:
+        duplicateHeaderFile()
+
+        when:
+        def result = gradleRunner("licenseHeaders").buildAndFail()
+
+        then:
+        result.task(":licenseHeaders").outcome == TaskOutcome.FAILED
+        assertOutputContains(result.output, "./src/main/java/org/acme/DuplicateHeader.java")
+
+        and: "problems report contains duplicate-license-header problem"
+        assertProblemsReportContains("license-headers")
+        assertProblemsReportContainsProblem("duplicate-license-header")
+    }
+
+    def "detects duplicate license header placed after package declaration"() {
+        given:
+        duplicateHeaderAfterPackageFile()
+
+        when:
+        def result = gradleRunner("licenseHeaders").buildAndFail()
+
+        then:
+        result.task(":licenseHeaders").outcome == TaskOutcome.FAILED
+        assertOutputContains(result.output, "./src/main/java/org/acme/DuplicateHeaderAfterPackage.java")
+
+        and:
+        assertProblemsReportContainsProblem("duplicate-license-header")
+    }
+
     def "supports sspl by convention"() {
         given:
         dualLicensedFile()
@@ -129,6 +160,60 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleInternalPlugin
  package ${packageString(sourceFile)};
 
  public class ${sourceFile.getName() - ".java"} {
+ }
+ """
+    }
+
+    /** A file with two Elasticsearch copyright blocks placed consecutively before the package declaration. */
+    private File duplicateHeaderFile() {
+        file("src/main/java/org/acme/DuplicateHeader.java") << """
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+ package org.acme;
+ public class DuplicateHeader {
+ }
+ """
+    }
+
+    /**
+     * A file with an Elastic 2.0 header before the package declaration and a tri-license header
+     * inserted after the package declaration — the exact pattern seen in MatchConfigSerializationTests.
+     */
+    private File duplicateHeaderAfterPackageFile() {
+        file("src/main/java/org/acme/DuplicateHeaderAfterPackage.java") << """
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+ package org.acme;
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+ public class DuplicateHeaderAfterPackage {
  }
  """
     }

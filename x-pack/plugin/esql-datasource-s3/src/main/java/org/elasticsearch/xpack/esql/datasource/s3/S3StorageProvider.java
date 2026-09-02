@@ -49,12 +49,14 @@ import org.elasticsearch.xpack.esql.datasource.nettycommons.PooledRecvByteBufAll
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
@@ -473,7 +475,11 @@ public class S3StorageProvider implements StorageProvider {
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
                 return existsViaRangeGet(bucket, key, path);
             }
-            throw new IOException("Failed to check existence of " + path + credentialHint(), e);
+            ExternalUnavailableException unavailable = mapResolveFailure(path, e);
+            if (unavailable != null) {
+                throw unavailable;
+            }
+            throw new IOException("Failed to check existence of " + path + ": " + S3FailureDetail.of(e) + credentialHint(), e);
         }
     }
 
@@ -486,8 +492,45 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
-            throw new IOException("Failed to check existence of " + path + " (HEAD denied, range GET also failed)" + credentialHint(), e);
+            ExternalUnavailableException unavailable = mapResolveFailure(path, e);
+            if (unavailable != null) {
+                throw unavailable;
+            }
+            throw new IOException(
+                "Failed to check existence of "
+                    + path
+                    + " (HEAD denied, range GET also failed): "
+                    + S3FailureDetail.of(e)
+                    + credentialHint(),
+                e
+            );
         }
+    }
+
+    /**
+     * Types retryable S3 statuses before resolution code can erase the vendor status inside an
+     * {@link IOException}. The returned exception is both the HTTP 503 surfaced to the caller and
+     * the marker consumed by the storage retry policy.
+     */
+    private static ExternalUnavailableException mapResolveFailure(StoragePath path, Exception cause) {
+        if (cause instanceof S3Exception s3 && ExternalUnavailableException.isRetryableStatus(s3.statusCode())) {
+            boolean throttling = ExternalUnavailableException.isThrottlingStatus(s3.statusCode());
+            long retryAfterMs = 0L;
+            if (throttling && s3.awsErrorDetails() != null && s3.awsErrorDetails().sdkHttpResponse() != null) {
+                retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
+                    s3.awsErrorDetails().sdkHttpResponse().firstMatchingHeader("Retry-After").orElse(null)
+                );
+            }
+            return new ExternalUnavailableException(
+                throttling,
+                retryAfterMs,
+                cause,
+                "S3 store unavailable resolving [{}] (HTTP {})",
+                path,
+                s3.statusCode()
+            );
+        }
+        return null;
     }
 
     @Override
@@ -619,6 +662,10 @@ public class S3StorageProvider implements StorageProvider {
                 continuationToken = response.nextContinuationToken();
                 hasMorePages = response.isTruncated();
             } catch (Exception e) {
+                ExternalUnavailableException unavailable = mapResolveFailure(baseDirectory, e);
+                if (unavailable != null) {
+                    throw unavailable;
+                }
                 String msg = (e instanceof S3Exception s3e && s3e.statusCode() == 403)
                     ? "Access denied listing objects in bucket ["
                         + bucket
@@ -628,7 +675,7 @@ public class S3StorageProvider implements StorageProvider {
                         + "Verify that the configured credentials have s3:ListBucket permission on this bucket, "
                         + "or use exact file paths instead of glob patterns."
                     : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
-                throw new RuntimeException(msg, e);
+                throw new UncheckedIOException(new IOException(msg + ": " + S3FailureDetail.of(e), e));
             }
         }
     }

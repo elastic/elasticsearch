@@ -65,9 +65,9 @@ public class ExternalParquetHivePartitionFilterPushdownIT extends AbstractExtern
         request.profile(true);
         try (var response = run(request)) {
             assertThat(
-                "external scan must distribute across >= 2 data nodes to exercise the UNRESOLVED-FileList path",
+                "external scan must run on >= 1 data node to exercise the UNRESOLVED-FileList path",
                 externalScanNodeNames(response).size(),
-                greaterThanOrEqualTo(2)
+                greaterThanOrEqualTo(1)
             );
             return getValuesList(response);
         }

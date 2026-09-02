@@ -12,7 +12,7 @@ package org.elasticsearch.painless;
 import java.util.Locale;
 
 /**
- * End-to-end tests for the {@code String} {@code @allocates_dynamic} estimators (concat, substring, toCharArray, case mapping,
+ * End-to-end tests for the {@code String} {@code @allocates} estimators (concat, substring, toCharArray, case mapping,
  * trim): each charges its result's byte cost, computed from the receiver/argument lengths, before the allocating call runs.
  * String literals in the scripts are constant-pool loads and are not charged, so the observed total is the method's alone.
  */

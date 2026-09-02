@@ -115,10 +115,14 @@ public final class SplitDiscoveryPhase {
      * split coalescing.
      *
      * @param plan          the split-enriched physical plan
-     * @param filesScanned  distinct files contributing splits (file-based sources only; {@code 0} otherwise)
-     * @param splitsScanned total number of discovered splits across all external sources
-     * @param bytesScanned  sum of {@link ExternalSplit#estimatedSizeInBytes()} over the discovered splits,
-     *                      ignoring splits that report an unknown ({@code < 0}) size
+     * @param filesScanned  distinct files contributing splits; a source that falls through to a whole-list read
+     *                      (empty splits, not an exhaustive prune) contributes every file in the resolved list
+     * @param splitsScanned total number of discovered splits across all external sources; a source that falls
+     *                      through to a whole-list read contributes one unit per file, matching how the runtime
+     *                      reads it
+     * @param bytesScanned  sum of {@link ExternalSplit#estimatedSizeInBytes()} over the discovered splits, or the
+     *                      listed file sizes for a whole-list fall-through; either way only positive sizes are
+     *                      summed
      */
     public record Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned) {}
 
@@ -291,7 +295,24 @@ public final class SplitDiscoveryPhase {
             result = splitProvider.discoverSplits(context);
         } catch (ElasticsearchException e) {
             throw e;
+        } catch (IllegalArgumentException e) {
+            // Preserve the 400. Everything below is wrapped in a bare ElasticsearchException, which maps to
+            // 500 -- so an invalid setting value reaching here (e.g. target_split_size) was reported as a
+            // server fault even though the parser it came from rejects it as user input. Re-wrap in kind so
+            // the status survives while the path context is still added, mirroring resolveSingleSource's
+            // "Failed to resolve metadata for [path]" wrap, which preserves IllegalArgumentException too.
+            throw new IllegalArgumentException(
+                "failed to discover splits for external source [" + exec.sourcePath() + "] of type [" + exec.sourceType() + "]",
+                e
+            );
         } catch (Exception e) {
+            RuntimeException surfaced = ExternalFailures.surface(
+                e,
+                "failed to discover splits for external source [" + exec.sourcePath() + "] of type [" + exec.sourceType() + "]"
+            );
+            if (surfaced != e) {
+                throw surfaced;
+            }
             throw new ElasticsearchException(
                 "failed to discover splits for external source [{}] of type [{}]",
                 e,
@@ -301,6 +322,29 @@ public final class SplitDiscoveryPhase {
         }
         List<ExternalSplit> splits = result.splits();
         if (splits.isEmpty()) {
+            // No splits because every file was eliminated by a row-count-preserving filter contradiction (see
+            // SplitDiscoveryResult#exhaustivelyPruned). Swap in FileList.EMPTY so the read path scans nothing; a row
+            // filter still runs downstream, so the answer is unchanged (0 rows) and the scanned counts stay an
+            // honest zero. An empty result that is NOT an exhaustive prune (unresolved glob, SINGLE source, empty
+            // file list, or a provider that could not certify its prune) falls through to the whole read.
+            if (result.exhaustivelyPruned()) {
+                return exec.withFileList(FileList.EMPTY);
+            }
+            // The fall-through reads every file in the resolved list, each as one unit, so the accounting must say
+            // that: reporting zeros here would describe a full-dataset read as no work at all. An unresolved list
+            // reports zero because its listing has not happened yet (the counts do not exist at this layer), and a
+            // file-less SINGLE source reports zero by contract (SplitDiscoveryResult).
+            if (fileList != null && fileList.isResolved() && fileList.isEmpty() == false) {
+                int fileCount = fileList.fileCount();
+                stats.filesScanned += fileCount;
+                stats.splitsScanned += fileCount;
+                for (int i = 0; i < fileCount; i++) {
+                    long sizeInBytes = fileList.size(i);
+                    if (sizeInBytes > 0) {
+                        stats.bytesScanned += sizeInBytes;
+                    }
+                }
+            }
             return exec;
         }
         stats.filesScanned += result.filesScanned();

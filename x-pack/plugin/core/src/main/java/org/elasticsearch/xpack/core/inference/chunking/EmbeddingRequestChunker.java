@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.inference.chunking;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -47,19 +49,51 @@ import java.util.stream.Collectors;
 public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
 
     // Visible for testing
-    record Request(int inputIndex, int chunkIndex, ChunkOffset chunk, InferenceString input) {
+    record Request(int inputIndex, int chunkIndex, ChunkOffset chunk, InferenceString input) implements Accountable {
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Request.class);
+        private static final long CHUNK_OFFSET_SIZE = RamUsageEstimator.shallowSizeOfInstance(ChunkOffset.class);
+        private static final long CHUNK_WRAPPER_SIZE = RamUsageEstimator.shallowSizeOfInstance(InferenceStringGroup.class)
+            + RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER
+                    + RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            );
+
         public InferenceString chunkText() {
-            if (chunk.start() == 0 && chunk.end() == input.value().length()) {
+            if (chunkContainsWholeInput()) {
                 return input;
             } else {
                 return new InferenceString(input.dataType(), input.dataFormat(), input.value().substring(chunk.start(), chunk.end()));
             }
         }
+
+        /**
+         * Accounts for what chunking actually allocates: the substring copy that {@link #chunkText()} creates plus the
+         * {@link InferenceStringGroup} wrapper that {@link BatchRequest#inputs()} puts it in. The original input String is
+         * owned by the caller and deliberately not charged here.
+         */
+        @Override
+        public long ramBytesUsed() {
+            var chunkChars = chunk.end() - chunk.start();
+            return SHALLOW_SIZE + CHUNK_OFFSET_SIZE + CHUNK_WRAPPER_SIZE + InferenceString.estimateRamBytesUsed(chunkChars);
+        }
+
+        private boolean chunkContainsWholeInput() {
+            return chunk.start() == 0 && chunk.end() == input.value().length();
+        }
     }
 
-    public record BatchRequest(List<Request> requests) {
+    public record BatchRequest(List<Request> requests) implements Accountable {
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BatchRequest.class);
+
         public Supplier<List<InferenceStringGroup>> inputs() {
             return () -> requests.stream().map(request -> new InferenceStringGroup(request.chunkText())).collect(Collectors.toList());
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return SHALLOW_SIZE + RamUsageEstimator.sizeOfCollection(requests());
         }
     }
 

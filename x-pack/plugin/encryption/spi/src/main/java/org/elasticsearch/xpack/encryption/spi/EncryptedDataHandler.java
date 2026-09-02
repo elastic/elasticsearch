@@ -30,7 +30,8 @@ public interface EncryptedDataHandler<T extends Metadata.ProjectCustom> {
      * @param current          the current value of the custom in cluster state, or {@code null} if absent
      * @param encryptionService used to decrypt with the previous key and encrypt under the active key
      * @param activeKeyId      the key ID every encrypted value in the returned custom must be under
-     * @return the re-encrypted custom
+     * @return the re-encrypted custom. This may be the same instance if no change is needed. This must not be null when {@code current}
+     *         is not null.
      */
     T reEncrypt(T current, EncryptionService encryptionService, String activeKeyId);
 

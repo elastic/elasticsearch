@@ -77,12 +77,15 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        assert indexingPressure.get() != null : "indexing pressure must be set";
-        List<RestHandler> handlers = new ArrayList<>(3);
-        handlers.add(new OTLPMetricsRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
-        handlers.add(new OTLPTracesRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
-        handlers.add(new OTLPLogsRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
-        return handlers;
+        if (enabled) {
+            assert indexingPressure.get() != null : "indexing pressure must be set";
+            List<RestHandler> handlers = new ArrayList<>(3);
+            handlers.add(new OTLPMetricsRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
+            handlers.add(new OTLPTracesRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
+            handlers.add(new OTLPLogsRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
+            return handlers;
+        }
+        return List.of();
     }
 
     @Override
@@ -92,7 +95,14 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
         ClusterService clusterService = services.clusterService();
         indexingPressure.set(services.indexingPressure());
         registry.set(
-            new OTelIndexTemplateRegistry(settings, clusterService, services.threadPool(), services.client(), services.xContentRegistry())
+            new OTelIndexTemplateRegistry(
+                settings,
+                clusterService,
+                services.threadPool(),
+                services.client(),
+                services.xContentRegistry(),
+                services.featureService()
+            )
         );
         if (enabled) {
             OTelIndexTemplateRegistry registryInstance = registry.get();

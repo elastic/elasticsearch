@@ -35,8 +35,9 @@ import java.util.concurrent.Executor;
  * which returns a unified {@link SourceMetadata} containing schema and source information.
  * <p>
  * Per-query format configuration (delimiter, encoding, etc.) is set on the reader instance
- * via {@link #withConfig(Map)}. Per-query optimizer hints (pushed filters for row-group
- * or stripe skipping) are set via {@link #withPushedFilter(Object)}. Per-read execution
+ * via {@link #withConfig(Map)}. Optimizer hints (pushed filters for row-group or stripe
+ * skipping) are set via {@link #withPushedFilter(Object)} from the plan and reminted per
+ * file. Per-read execution
  * parameters (projection, batch size, limit, error policy, split config) are bundled in
  * {@link FormatReadContext}.
  */
@@ -214,12 +215,19 @@ public interface FormatReader extends Closeable {
      * local physical optimization. Only format readers that support predicate pushdown
      * (e.g., Parquet row-group skipping, ORC stripe-level predicates) need to override this.
      * <p>
-     * The filter is per-query: it applies identically to every file/split in the query.
-     * Implementations should cast the filter to their expected type and return a new reader
-     * instance with the filter stored as an instance field.
+     * The filter is installed from the plan, then reminted per {@code FileSplit}: a file that
+     * cannot host the planned predicate (missing column, or a one-way widening with no safe
+     * inverse) is given {@code null} so the residual {@code FilterExec} re-applies on the
+     * unified page. {@code null} means this instance has no pushed filter — clear any filter a
+     * previous call installed. Unrecognized types return {@code this}.
+     * <p>
+     * Implementations should cast the filter to their expected type. Applying or clearing a
+     * recognized filter returns a new reader with the filter stored as an instance field;
+     * already-clear {@code null} and unrecognized types return {@code this}.
      *
-     * @param pushedFilter opaque filter object, or null if no filter was pushed
-     * @return a new reader with the filter applied, or {@code this} if the filter is not applicable
+     * @param pushedFilter opaque filter object, or {@code null} to clear
+     * @return a new reader with the filter applied or cleared, or {@code this} if the filter
+     *         is not applicable (unrecognized type, or already clear when {@code null})
      */
     default FormatReader withPushedFilter(Object pushedFilter) {
         return this;
@@ -234,17 +242,23 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Returns a format reader configured with the schema attributes.
+     * Returns a format reader configured with the schema attributes, letting the reader skip
+     * re-reading/inferring the schema from the file header on every read — especially important for
+     * split-based reads where the split may start mid-file (no header available).
      * <p>
-     * The schema is determined during the planning phase (via {@link #metadata(StorageObject)})
-     * and is constant for all files/splits in a query. Passing it here allows the reader to skip
-     * re-reading/inferring the schema from the file header on every read, which is especially
-     * important for split-based reads where the split may start mid-file (no header available).
+     * <b>This carries no authority.</b> Callers use it for two different things: the planning-phase
+     * schema, constant for the query ({@code FileSourceFactory}), and a schema just inferred from one
+     * file or even one chunk ({@code AsyncExternalSourceOperatorFactory},
+     * {@code ParallelParsingCoordinator}, {@code StreamingParallelParsingCoordinator}). A reader cannot
+     * tell the two apart from this call. So where a reader also receives
+     * {@link FormatReadContext#readSchema()} — the planner's per-file read contract — <b>that is the
+     * authority and must win on type</b>; whatever arrives here may be a guess. Letting the guess win
+     * is what produced the compressed-read type-cast crashes.
      * <p>
      * Formats with embedded schemas (Parquet, ORC) may ignore this since they always read
      * the schema from the file metadata.
      *
-     * @param schema the planning-phase schema attributes, or null to clear
+     * @param schema the schema attributes, or null to clear. NOT necessarily planning-phase — see above.
      * @return a new reader with the schema set, or {@code this} if the schema is not needed
      */
     default FormatReader withSchema(List<Attribute> schema) {
@@ -288,6 +302,59 @@ public interface FormatReader extends Closeable {
     }
 
     /**
+     * Whether the pinned schema this reader was handed is a DECLARED claim (bind its columns to the file BY NAME) as
+     * opposed to an INFERRED description (bind by position). Keyed on the schema's provenance, not on whether any
+     * column declared a {@code path}: a declaration whose order merely differs from the file, with no {@code path} at
+     * all, must still bind by name.
+     * <p>
+     * {@code dynamic} controls only whether a schema is inferred; it must not leak into how columns bind. Under
+     * {@code dynamic:true} the schema is inferred from the file, so its positions already are the file's — bind by
+     * position. Under {@code dynamic:false} the declaration itself is pinned as the schema; a reader that consumed it
+     * positionally would never look at the physical names it was handed, so the same mapping could read a different
+     * column. This bit makes such a reader bind by name, so the two modes agree (esql-planning#1307).
+     * <p>
+     * Only the text readers need it: they alone bind a pinned schema positionally. Parquet/ORC bind by footer name and
+     * NDJSON by object key, so they bind a declared schema by name under either mode already and keep the no-op default.
+     * A declared name the file does not supply reads null (CSV/TSV emit a warning; NDJSON and columnar formats read
+     * null silently), never a silent positional fallback.
+     *
+     * @param declaredProvenanceBinding true when the pinned schema is a DECLARED claim (provenance DECLARED)
+     * @return a new reader honoring the binding mode, or {@code this} when it does not apply
+     */
+    default FormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
+        return this;
+    }
+
+    /**
+     * Returns a reader that stamps {@code readConfig} onto the statistics it harvests — the caller-computed identity of
+     * how THIS file is being read (see {@code ReadConfigFingerprint}). Opaque to the reader, exactly like the canonical
+     * config string it sits beside: the reader carries it through onto its contributions and never interprets it.
+     * <p>
+     * The value is per FILE, not per query, so it is applied at the per-file seam rather than at configuration time.
+     * Computed by the caller because the inputs (the file's coordinator-minted read schema and the declared read spec)
+     * live above the reader — and because a reader deriving it from the schema IT was handed would derive a different
+     * value on each side: readers see physicalized, projection-merged schemas, not the file's own.
+     * <p>
+     * Default no-op: a format that harvests no statistics has nothing to stamp.
+     */
+    default FormatReader withReadConfig(String readConfig) {
+        return this;
+    }
+
+    /**
+     * Whether this reader can only bind its declared columns when it sees the start of the file, which makes the file
+     * unsplittable: every split past the first would have no way to resolve the binding.
+     *
+     * <p>True only for a headered text reader binding a DECLARED schema by name: the binding is resolved against the
+     * file's header line, and only the first split carries it. A headerless file's physical names encode their own
+     * positions ({@code col4} -> field 4), so it binds on any split and stays fully splittable — which is the file shape the
+     * throughput-sensitive reads actually use.
+     */
+    default boolean declaredNameBindingNeedsFileStart() {
+        return false;
+    }
+
+    /**
      * Returns the filter pushdown support for this format, or null if not supported.
      * <p>
      * When non-null, the optimizer can translate ESQL filter expressions into format-specific
@@ -298,6 +365,33 @@ public interface FormatReader extends Closeable {
      */
     default FilterPushdownSupport filterPushdownSupport() {
         return null;
+    }
+
+    /**
+     * Whether this reader still drops rows for {@link ErrorPolicy.Mode#SKIP_ROW} on the decode path it
+     * takes once a filter has been pushed into it.
+     * <p>
+     * A columnar reader honours {@code skip_row} by accumulating the positions that failed a declared-type
+     * coercion across the batch and compacting every block at the page emit point. A reader that evaluates
+     * a pushed predicate on a <em>separate</em> decode path (late materialization, two-phase decode) may
+     * never reach that emit point, in which case the failed cell is merely nulled and the row survives —
+     * silently serving {@code null_field} semantics for a {@code skip_row} read.
+     * <p>
+     * The default is therefore {@code false}: a reader is assumed <em>not</em> to drop rows once filtered
+     * until it declares that it does, so a new reader is correct while silent and only an explicit
+     * override can trade correctness for speed. On {@code false}, {@code PushFiltersToSource} withholds the
+     * pushdown and leaves the predicate in a {@code FilterExec} above the source; results stay correct on
+     * both counts (the filter still runs, just one level up, and every batch stays on the path that drops
+     * rows) and the only cost is the row-group / page-index skipping the pushdown would have bought.
+     * Overriding to {@code true} is a promise about a specific decode path and has to be demonstrated —
+     * see {@code OrcFormatReaderTests#testDropsRowsUnderPushedFilter}.
+     * <p>
+     * Only consulted when the read actually combines {@code skip_row} with declared-type columns — see
+     * {@code DeclaredReadSpec#dropsRowsOnCoercionFailure}. With no declared types there is nothing to
+     * coerce, hence no row to drop, and pushdown is always allowed.
+     */
+    default boolean dropsRowsUnderPushedFilter() {
+        return false;
     }
 
     default boolean supportsNativeAsync() {
@@ -330,7 +424,7 @@ public interface FormatReader extends Closeable {
      * {@code _rowPosition} slot populated. Every reader must explicitly declare a strategy:
      * a {@link PassThroughRowPositionStrategy} when the reader natively fills the slot in its own
      * iterator (parquet-mr, ORC, CSV, NDJSON), a {@link NullSpliceRowPositionStrategy} when the
-     * reader has no row-position channel and the slot must surface NULL (parquet-rs), or a future
+     * reader has no row-position channel and the slot must surface NULL, or a future
      * strategy that injects the column from per-page reader state. There is no default — readers
      * that "don't care" still participate, by returning {@link PassThroughRowPositionStrategy}.
      */

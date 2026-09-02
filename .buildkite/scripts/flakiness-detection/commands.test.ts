@@ -5,9 +5,33 @@ import {
   deduplicateYamlRunners,
   generateBatchCommand,
   buildCommands,
+  compileTasksFor,
 } from "./commands.ts";
 import type { ClassifiedTest } from "./domain.ts";
 import { DEFAULT_BATCHING_CONFIG } from "./domain.ts";
+
+describe("compileTasksFor", () => {
+  test("maps each source set to its compile task, de-duplicated per project", () => {
+    const tests: ClassifiedTest[] = [
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "a.ATests" },
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "a.BTests" },
+      { gradleProject: ":server", kind: "internalClusterTest", sourceSet: "internalClusterTest", fqcn: "a.CIT" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "javaRestTest", sourceSet: "javaRestTest", fqcn: "a.DIT" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
+    ];
+
+    expect(compileTasksFor(tests)).toEqual([
+      ":server:compileTestJava",
+      ":server:compileInternalClusterTestJava",
+      ":x-pack:plugin:ml:compileJavaRestTestJava",
+      ":x-pack:plugin:ml:compileYamlRestTestJava",
+    ]);
+  });
+
+  test("empty for no tests", () => {
+    expect(compileTasksFor([])).toEqual([]);
+  });
+});
 
 describe("collapseYamlSuites", () => {
   test("collapses multiple YAML files in same directory", () => {
@@ -199,7 +223,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :modules:transport-netty4:javaRestTest --tests org.elasticsearch.rest.RestIT --rerun",
+      ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :modules:transport-netty4:javaRestTest --tests org.elasticsearch.rest.RestIT --rerun",
     );
   });
 
@@ -209,7 +233,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":mod:b", kind: "javaRestTest", sourceSet: "javaRestTest", fqcn: "org.es.BarIT" },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :mod:a:javaRestTest --tests org.es.FooIT --rerun :mod:b:javaRestTest --tests org.es.BarIT --rerun",
+      ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :mod:a:javaRestTest --tests org.es.FooIT --rerun :mod:b:javaRestTest --tests org.es.BarIT --rerun",
     );
   });
 
@@ -218,7 +242,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun",
+      ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun",
     );
   });
 
@@ -232,7 +256,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/anomaly_detectors_get",
+      ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/anomaly_detectors_get",
     );
   });
 
@@ -252,7 +276,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/test1,ml/test2",
+      ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/test1,ml/test2",
     );
   });
 
@@ -272,7 +296,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun :x-pack:plugin:security:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/test1 -Dtests.rest.suite.:x-pack:plugin:security:yamlRestTest=security/test1",
+      ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun :x-pack:plugin:security:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/test1 -Dtests.rest.suite.:x-pack:plugin:security:yamlRestTest=security/test1",
     );
   });
 
@@ -287,7 +311,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest --tests "org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT.test {yaml=/10_apm/Test template reinstallation}" --rerun',
+      '.buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest --tests "org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT.test {yaml=/10_apm/Test template reinstallation}" --rerun',
     );
   });
 
@@ -309,7 +333,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest --tests "org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT.test {yaml=/10_apm/Test template reinstallation}" --rerun :x-pack:plugin:ml:yamlRestTest --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/anomaly_detectors_get/basic}" --rerun',
+      '.buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest --tests "org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT.test {yaml=/10_apm/Test template reinstallation}" --rerun :x-pack:plugin:ml:yamlRestTest --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/anomaly_detectors_get/basic}" --rerun',
     );
   });
 
@@ -327,7 +351,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
     ];
     expect(generateBatchCommand(batch, { ...DEFAULT_BATCHING_CONFIG, target: "local" })).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 ./gradlew :x-pack:plugin:ml:yamlRestTest --rerun",
+      ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 ./gradlew :x-pack:plugin:ml:yamlRestTest --rerun",
     );
   });
 
@@ -358,7 +382,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/a}" --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/b}" --rerun',
+      '.buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/a}" --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/b}" --rerun',
     );
   });
 });

@@ -116,6 +116,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
      */
     @Override
     public List<Attribute> output() {
+        // Output `_timeseries` if grouping is not constant, e.g. `without(...)`
         if (grouping == Grouping.WITHOUT) {
             if (child() instanceof AcrossSeriesAggregate childAggregate && childAggregate.grouping() != Grouping.WITHOUT) {
                 Set<String> excluded = new HashSet<>();
@@ -131,7 +132,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         // plan never produces. Absent labels are already excluded by the resolved() check.
         return groupings.stream()
             .filter(a -> a.resolved() && a.dataType() != DataType.NULL)
-            .filter(a -> a instanceof FieldAttribute fieldAttribute ? fieldAttribute.isMetric() == false : true)
+            .filter(a -> (a instanceof FieldAttribute fa && fa.isMetric()) == false)
             .toList();
     }
 
@@ -152,5 +153,11 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     @Override
     public FunctionType functionType() {
         return FunctionType.ACROSS_SERIES_AGGREGATION;
+    }
+
+    @Override
+    public boolean isIdentityTransparent() {
+        // Aggregates across series into a grouped result: a relabel below it must be part of this grouping's identity.
+        return false;
     }
 }

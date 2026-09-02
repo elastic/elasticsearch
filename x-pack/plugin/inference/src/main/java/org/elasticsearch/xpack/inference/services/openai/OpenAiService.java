@@ -54,7 +54,7 @@ import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbedd
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.request.OpenAiUnifiedChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.secrets.OpenAiOAuth2SecretsSettings;
 import org.elasticsearch.xpack.inference.services.openai.secrets.OpenAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -96,7 +96,7 @@ public class OpenAiService extends SenderService<OpenAiModel> {
     private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
         "openai completion",
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiCompletionResponseEntity::fromResponse
     );
 
     private static Map<TaskType, ModelCreator<? extends OpenAiModel>> initModelCreators(
@@ -257,6 +257,11 @@ public class OpenAiService extends SenderService<OpenAiModel> {
     }
 
     @Override
+    protected boolean supportsChatCompletionReasoning() {
+        return true;
+    }
+
+    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,
@@ -281,7 +286,11 @@ public class OpenAiService extends SenderService<OpenAiModel> {
 
         for (var request : batchedRequests) {
             var action = openAiModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 
@@ -301,7 +310,7 @@ public class OpenAiService extends SenderService<OpenAiModel> {
         var actionCreator = new OpenAiActionCreator(getSender(), getServiceComponents());
 
         var action = openAiModel.accept(actionCreator, request.taskSettings());
-        action.execute(new EmbeddingsInput(request::inputs, request.inputType()), timeout, listener);
+        action.execute(new EmbeddingsInput(request.inputs(), request.inputType()), timeout, listener);
     }
 
     @Override

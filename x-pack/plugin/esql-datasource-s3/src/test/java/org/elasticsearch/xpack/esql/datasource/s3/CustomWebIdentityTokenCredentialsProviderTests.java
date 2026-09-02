@@ -15,6 +15,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -64,9 +65,8 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
         }
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initEnvironmentAndWatcher() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         environment = TestEnvironment.newEnvironment(settings);
         Files.createDirectories(environment.configDir().resolve("esql-datasource-s3"));

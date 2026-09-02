@@ -14,18 +14,15 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
-import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureResponse;
@@ -54,7 +51,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public abstract class AbstractEnrichBasedCrossClusterTestCase extends AbstractMultiClustersTestCase {
+public abstract class AbstractEnrichBasedCrossClusterTestCase extends AbstractMultiClustersTestCase implements EnrichClusterPluginSupport {
 
     public static String REMOTE_CLUSTER_1 = "c1";
     public static String REMOTE_CLUSTER_2 = "c2";
@@ -79,15 +76,12 @@ public abstract class AbstractEnrichBasedCrossClusterTestCase extends AbstractMu
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
         plugins.add(TestEncryptionServicePlugin.class);
-        plugins.add(CrossClusterEnrichIT.LocalStateEnrich.class);
-        plugins.add(IngestCommonPlugin.class);
-        plugins.add(ReindexPlugin.class);
-        return plugins;
+        return addEnrichPlugins(plugins);
     }
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings()).put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
+        return enrichNodeSettings(super.nodeSettings());
     }
 
     static final EnrichPolicy hostPolicy = new EnrichPolicy("match", null, List.of("hosts"), "ip", List.of("ip", "os"));

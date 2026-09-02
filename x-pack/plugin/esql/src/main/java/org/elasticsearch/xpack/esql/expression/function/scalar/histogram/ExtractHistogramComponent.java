@@ -19,6 +19,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -26,6 +27,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -48,7 +51,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
  * Note that this function is currently only intended for usage in surrogates and not available as a user-facing function.
  * Therefore, it is intentionally not registered in {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
  */
-public class ExtractHistogramComponent extends EsqlScalarFunction {
+public class ExtractHistogramComponent extends EsqlScalarFunction implements AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -94,7 +97,11 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
      * @param componentOrdinal The {@link org.elasticsearch.compute.data.ExponentialHistogramBlock.Component#ordinal()}
      *                         as integer-expression, must be foldable
      */
-    @FunctionInfo(returnType = { "double" }, briefSummary = "Extracts a component value from a histogram.")
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = { "double" },
+        briefSummary = "Extracts a component value from a histogram."
+    )
     public ExtractHistogramComponent(
         Source source,
         @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression field,

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.ndjson;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 
 import java.util.function.Supplier;
@@ -47,12 +48,13 @@ public class Clusters {
             // Basic cluster settings
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
+            .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
             // Disable ML to avoid native code loading issues in some environments
             .setting("xpack.ml.enabled", "false")
             // Allow the LOCAL storage backend to read fixture files from the test resources directory.
             // The esql-datasource-http plugin's entitlement policy uses shared_repo for file read access.
             .setting("path.repo", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
-            .setting("esql.datasource.local_allowed_paths", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
+            .setting("esql.external.local_allowed_paths", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
             // S3 client configuration for accessing the S3HttpFixture
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
             // S3 credentials must be stored in keystore, not as regular settings

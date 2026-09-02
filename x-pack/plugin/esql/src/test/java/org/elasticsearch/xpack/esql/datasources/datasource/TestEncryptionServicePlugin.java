@@ -26,10 +26,6 @@ public class TestEncryptionServicePlugin extends Plugin {
 
     public static final String TEST_KEY_ID = "test-key";
 
-    public TestEncryptionServicePlugin() {
-        EncryptionServiceRegistry.reset();
-    }
-
     @Override
     public Collection<?> createComponents(PluginServices services) {
         EncryptionService svc = new EncryptionService() {

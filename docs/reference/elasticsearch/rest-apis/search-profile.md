@@ -1110,7 +1110,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
 
 In the `dfs.knn` portion of the response we can see the output the of timings for [query](search-profile.md#query-section), [rewrite](search-profile.md#rewrite-section), and [collector](search-profile.md#collectors-section). Unlike many other queries, kNN search does the bulk of the work during the query rewrite. This means `rewrite_time` represents the time spent on kNN search. The attribute `vector_operations_count` represents the overall count of vector operations performed during the kNN search.
 
-{applies_to}`stack: ga 9.6` Each entry in the `dfs.knn` array also includes an optional `knn_profile` object that gives a more detailed breakdown of where time was spent during the kNN search. Its contents depend on the underlying vector search algorithm.
+{applies_to}`stack: ga 9.6` {applies_to}`serverless: all` Each entry in the `dfs.knn` array also includes an optional `knn_profile` object that gives a more detailed breakdown of where time was spent during the kNN search. Its contents depend on the underlying vector search algorithm.
 
 For an HNSW search, `knn_profile` looks like the following:
 

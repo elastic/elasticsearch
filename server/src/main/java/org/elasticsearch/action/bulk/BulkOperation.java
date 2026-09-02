@@ -528,7 +528,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             );
             releaseOnFinish.close();
         } else {
-            final ActionListener<BulkShardResponse> shardListener = new ActionListener<>() {
+            client.execute(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
                 // Lazily get the project metadata to avoid keeping it around longer than it is needed
                 private ProjectMetadata projectMetadata = null;
 
@@ -589,9 +589,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     projectMetadata = null;
                     releaseOnFinish.close();
                 }
-            };
-
-            client.execute(TransportShardBulkAction.TYPE, bulkShardRequest, shardListener);
+            });
         }
     }
 

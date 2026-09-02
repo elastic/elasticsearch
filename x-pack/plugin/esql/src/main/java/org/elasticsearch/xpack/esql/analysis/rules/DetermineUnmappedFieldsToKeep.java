@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.UnmappedFieldsOrdering;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -24,9 +24,9 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * When {@code SET unmapped_fields="LOAD_ALL"} is in effect, annotates
@@ -45,6 +45,12 @@ import java.util.Map;
  */
 public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
+    private final Consumer<UnmappedFieldsOrdering> registerUnmappedFieldsOrdering;
+
+    public DetermineUnmappedFieldsToKeep(Consumer<UnmappedFieldsOrdering> registerUnmappedFieldsOrdering) {
+        this.registerUnmappedFieldsOrdering = registerUnmappedFieldsOrdering;
+    }
+
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
         if (context.unmappedResolution().loadsAllUnmappedFields() == false) {
@@ -54,50 +60,35 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (pattern.isNone()) {
             return plan;
         }
-        List<UnmappedFieldsPattern.KeepTerm> keepOrder = outermostKeepOrder(plan);
-        Map<String, String> renames = outermostRenames(plan);
-        return plan.transformUp(EsRelation.class, esr -> {
+        LogicalPlan annotated = plan.transformUp(EsRelation.class, esr -> {
             if (esr.indexMode() == IndexMode.LOOKUP) {
                 return esr;
             }
-            return esr.withAdditionalAttribute(new UnmappedFieldsAttribute(Source.EMPTY, pattern, keepOrder, renames));
+            return esr.withAdditionalAttribute(new UnmappedFieldsAttribute(Source.EMPTY, pattern));
         });
+
+        registerUnmappedFieldsOrdering.accept(leaves -> withLeavesInPlaceOfSyntheticColumn(annotated, leaves).output());
+        return annotated;
     }
 
-    private static List<UnmappedFieldsPattern.KeepTerm> outermostKeepOrder(LogicalPlan plan) {
-        for (LogicalPlan p = plan; p instanceof UnaryPlan unary; p = unary.child()) {
-            if (p instanceof ResolvingProject project) {
-                // return the last seen KEEP command's projections
-                if (project.isKeep()) {
-                    return project.keepOrderTerms();
+    /**
+     * The plan with {@code leaves} standing in for the synthetic column, so asking it for its output re-runs every projection
+     * against a relation shaped exactly as it would have been had those fields been mapped: {@code ResolvingProject#replaceChild}
+     * re-invokes the real KEEP/DROP/RENAME resolvers, and EVAL and friends recompute their output on top
+     */
+    private static LogicalPlan withLeavesInPlaceOfSyntheticColumn(LogicalPlan annotated, List<Attribute> leaves) {
+        return annotated.transformUp(EsRelation.class, esr -> {
+            List<Attribute> realAttributes = new ArrayList<>(esr.output().size());
+            boolean carriesSyntheticColumn = false;
+            for (Attribute a : esr.output()) {
+                if (a instanceof UnmappedFieldsAttribute) {
+                    carriesSyntheticColumn = true;
+                } else {
+                    realAttributes.add(a);
                 }
             }
-        }
-        return List.of();
-    }
-
-    private static Map<String, String> outermostRenames(LogicalPlan plan) {
-        Map<String, String> renames = new HashMap<>();
-        for (LogicalPlan p = plan; p instanceof UnaryPlan unary; p = unary.child()) {
-            if (p instanceof ResolvingProject project) {
-                if (project.isKeep()) {
-                    break;
-                }
-
-                for (NamedExpression ne : project.projections()) {
-                    if (ne instanceof Alias alias && alias.child() instanceof NamedExpression orig) {
-                        String newName = alias.name();
-                        String originalName = orig.name();
-                        boolean boundByOuterRename = renames.containsKey(newName) || renames.containsValue(newName);
-                        renames.replaceAll((k, v) -> v.equals(newName) ? originalName : v);
-                        if (boundByOuterRename == false) {
-                            renames.put(newName, originalName);
-                        }
-                    }
-                }
-            }
-        }
-        return renames.isEmpty() ? Map.of() : Map.copyOf(renames);
+            return carriesSyntheticColumn ? esr.withAttributes(realAttributes).withAdditionalAttributes(leaves) : esr;
+        });
     }
 
     /**

@@ -15,11 +15,13 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
+import org.elasticsearch.xpack.esql.analysis.UnmappedFieldsOrdering;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -41,6 +43,8 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.isApproximationColumn;
+
 /**
  * Coordinator-side post-processor for {@code SET unmapped_fields="LOAD_ALL"}.
  *
@@ -53,25 +57,27 @@ import java.util.function.BiConsumer;
  * {@code DROP} covers it), so this post-processor is where the {@link UnmappedFieldsPattern} is applied per flattened <em>leaf</em>
  * name.
  *
- * <p>A leaf is not a column when {@code KEEP} is resolved, so the plan cannot position it; the column order is re-derived here. When a
- * top {@code KEEP} governs the output (carried as {@link UnmappedFieldsAttribute#keepOrder()}), {@link UnmappedFieldsPattern#keepOrdered}
- * replays its left-to-right ordering over the real columns plus the discovered leaves so the response honors {@code KEEP}'s contract;
- * otherwise the leaves keep their natural real-then-alphabetical position. {@code RENAME} above a {@code KEEP} is transparent: the ordering
- * walk in {@code DetermineUnmappedFieldsToKeep} descends through it, and {@code ResolvingProject.computeProjections} preserves the
- * {@code _unmapped_fields} position so that {@code EVAL}-added columns that appear after it in the schema always trail the expanded leaves.
- * Query columns following {@code $$unmapped_fields} ({@code INLINE STATS} aggregates, {@code EVAL} aliases) stay before approximation
- * confidence-interval columns, which always trail the expanded leaves.
+ * <p>A discovered field is not a column when {@code KEEP} is resolved, so the plan could not position it then.
+ * {@link UnmappedFieldsOrdering} hands the discovered fields back to the plan as if they had been mapped all
+ * along and asks it for its output: every {@code KEEP}/{@code DROP}/{@code RENAME} re-resolves itself, and {@code EVAL} columns trail
+ * the discovered fields because the discovered fields take the relation slot the synthetic column occupied. Approximation extras
+ * ({@code _approximation_*}) are added after analysis, so they are held out of that replay and pinned last.
  * <p>
  * TODO every row's {@code _source} ends up parsed three times: the data node parses it to filter the column, then the
  *  coordinator parses the column once to collect field names and once more to expand them. A columnar shape — one block of
  *  names and one of values — would let us build the union while reading and expand without re-parsing.
  */
-class ExpandUnmappedFieldsPostProcessor {
+public final class ExpandUnmappedFieldsPostProcessor {
     /**
      * Expands the {@code _unmapped_fields} column in {@code result} into per-field columns.
      * Returns {@code result} unchanged if no {@link UnmappedFieldsAttribute} is present in the schema.
      */
-    static Result expand(Result result, BlockFactory blockFactory, PlannerSettings plannerSettings) {
+    public static Result expand(
+        Result result,
+        @Nullable UnmappedFieldsOrdering ordering,
+        BlockFactory blockFactory,
+        PlannerSettings plannerSettings
+    ) {
         List<Attribute> schema = result.schema();
 
         int unmappedIdx = CollectionUtils.findIndex(schema, e -> e instanceof UnmappedFieldsAttribute);
@@ -87,20 +93,27 @@ class ExpandUnmappedFieldsPostProcessor {
         boolean success = false;
         try {
             var fieldNames = collectFieldNames(result, unmappedIdx, pattern, blockFactory.breaker(), reservationFactor);
-            Map<String, String> renames = unmappedAttribute.renames();
-            Set<String> existingNames = existingColumnNames(schema, unmappedIdx, renames);
-            List<String> leafNames = new ArrayList<>(fieldNames.size());
-            // A leaf that collides with an existing column is dropped, not an error: with flattening a leaf mapped in one index can also
-            // appear in another's _source, and the per-shard UnmappedKeywordBlockLoader already filled that column, so the value is kept.
+            Set<String> existingNames = existingColumnNames(schema, unmappedIdx);
+            List<String> expandedFieldNames = new ArrayList<>(fieldNames.size());
+            // A discovered field name that collides with an existing column name is dropped, not an error: with flattening a
+            // discovered field mapped in one index can also appear in another's _source, and the per-shard UnmappedKeywordBlockLoader
+            // already filled that column, so the value is kept.
             for (String name : fieldNames) {
                 if (existingNames.contains(name) == false) {
-                    leafNames.add(name);
+                    expandedFieldNames.add(name);
                 }
             }
             // TODO account for newSchema's field names against the circuit breaker. A wide _source turns into a wide schema, and
             // unlike the pages, the response schema has no breaker-tracked lifetime to release it against today.
-            ExpandedLayout layout = computeLayout(schema, unmappedIdx, leafNames, unmappedAttribute.keepOrder(), renames);
-            List<Page> newPages = rewritePages(result, unmappedIdx, leafNames, layout.blockOrder(), blockFactory, reservationFactor);
+            ExpandedLayout layout = computeLayout(schema, unmappedIdx, expandedFieldNames, ordering);
+            List<Page> newPages = rewritePages(
+                result,
+                unmappedIdx,
+                expandedFieldNames,
+                layout.blockOrder(),
+                blockFactory,
+                reservationFactor
+            );
 
             Result expanded = new Result(
                 layout.schema(),
@@ -121,12 +134,12 @@ class ExpandUnmappedFieldsPostProcessor {
     }
 
     /**
-     * Collect the unique leaf field names (sorted) carried by {@code _unmapped_fields} across all pages.
+     * Collect the unique field names (sorted) carried by {@code _unmapped_fields} across all pages.
      * <p>
-     * TODO cap this set. Every distinct leaf in any row's {@code _source} becomes an output column, so a wide, deep or
+     * TODO cap this set. Every distinct field in any row's {@code _source} becomes an output column, so a wide, deep or
      *  heterogeneous index can blow the response up into thousands of columns.
      * <p>
-     * TODO walk the JSON with a parser instead of materialising a whole {@code Map} only to flatten it to leaf names. That would
+     * TODO walk the JSON with a parser instead of materialising a whole {@code Map} only to flatten it to field names. That would
      *  also make the reservation below unnecessary.
      */
     private static SortedSet<String> collectFieldNames(
@@ -171,18 +184,16 @@ class ExpandUnmappedFieldsPostProcessor {
     }
 
     /**
-     * The names of every column except {@code _unmapped_fields}, plus the pre-rename originals of any renamed columns.
-     * Used to prevent an expanded leaf from shadowing a query column, and to suppress the original name of a renamed PUNK
-     * column so it doesn't appear as a duplicate leaf alongside the renamed column.
+     * The names of every column except {@code _unmapped_fields}. A discovered field colliding with one of them is dropped rather
+     * than expanded, so a discovered field can never shadow a query column.
      */
-    private static Set<String> existingColumnNames(List<Attribute> schema, int unmappedIdx, Map<String, String> renames) {
+    private static Set<String> existingColumnNames(List<Attribute> schema, int unmappedIdx) {
         Set<String> existingNames = new HashSet<>();
         for (int i = 0; i < schema.size(); i++) {
             if (i != unmappedIdx) {
                 existingNames.add(schema.get(i).name());
             }
         }
-        existingNames.addAll(renames.values());
         return existingNames;
     }
 
@@ -192,95 +203,79 @@ class ExpandUnmappedFieldsPostProcessor {
     private record ExpandedLayout(List<Attribute> schema, int[] blockOrder) {}
 
     /**
-     * Builds the expanded output layout: the final column order plus, per column, which block feeds it.
-     * <p>
-     * Column ordering: non-approximation columns before {@code _unmapped_fields} (in schema order), then non-approximation columns
-     * after {@code _unmapped_fields}, then the expanded leaves, then approximation columns. When a governing {@code KEEP} is present
-     * (carried as {@code keepOrder}), {@link UnmappedFieldsPattern#keepOrdered} re-derives the order of the non-approximation kept
-     * columns and the leaves; non-approximation appended columns and approximation columns always trail.
+     * Builds the expanded output layout by asking {@code ordering} where the discovered fields belong: it hands them to the plan as
+     * if they had been mapped all along, so {@code KEEP}/{@code DROP}/{@code RENAME} re-resolve themselves rather than being
+     * re-implemented here. Discovered fields are recognised by {@link NameId} — the attributes handed out below are the very ones
+     * that come back — while real columns match by name, which survives the optimizer minting new ids.
      */
     private static ExpandedLayout computeLayout(
         List<Attribute> schema,
         int unmappedIdx,
-        List<String> leafNames,
-        List<UnmappedFieldsPattern.KeepTerm> keepOrder,
-        Map<String, String> renames
+        List<String> expandedFieldsNames,
+        @Nullable UnmappedFieldsOrdering ordering
     ) {
         int originalColumnCount = schema.size();
-        List<String> keptRealNames = new ArrayList<>();
-        List<String> appendedNonApproxNames = new ArrayList<>();
-        List<String> appendedApproxNames = new ArrayList<>();
+        List<Attribute> expandedFieldsAttributes = new ArrayList<>(expandedFieldsNames.size());
+        Map<NameId, Integer> expandedAttributeIdToIdx = new HashMap<>(expandedFieldsNames.size());
+        for (int i = 0; i < expandedFieldsNames.size(); i++) {
+            Attribute attr = new ReferenceAttribute(Source.EMPTY, null, expandedFieldsNames.get(i), DataType.KEYWORD);
+            expandedFieldsAttributes.add(attr);
+            expandedAttributeIdToIdx.put(attr.id(), i);
+        }
+        // Approximation extras (_approximation_*) are appended after analysis, so the replayed plan knows nothing about them. They
+        // are held out of the ordering and pinned last, which is where the response wants them anyway.
+        // TODO: revisit approximation under LOAD_ALL. A top-level STATS makes the pattern NONE, so the synthetic column is never
+        // planned and the two cannot co-occur; INLINE STATS does plan it, so confirm whether approximation can reach this path.
         Map<String, Integer> nameToSchemaIdx = new HashMap<>();
-        // ResolvingProject.computeProjections pins the synthetic attribute right after the governing KEEP's projections, so a real
-        // column before unmappedIdx was KEEP-selected (order is replayable) and one after it was appended by a later EVAL (must trail).
-        // Approximation columns always trail the expanded leaves regardless of where they appear in the input schema.
+        List<Integer> approximationIdx = new ArrayList<>();
         for (int i = 0; i < originalColumnCount; i++) {
             if (i == unmappedIdx) {
                 continue;
             }
-            String name = schema.get(i).name();
-            nameToSchemaIdx.put(name, i);
-            if (ApproximationPlan.isApproximationColumn(name)) {
-                appendedApproxNames.add(name);
-            } else if (i < unmappedIdx) {
-                keptRealNames.add(name);
+            if (isApproximationColumn(schema.get(i).name())) {
+                approximationIdx.add(i);
             } else {
-                appendedNonApproxNames.add(name);
+                nameToSchemaIdx.put(schema.get(i).name(), i);
             }
         }
-        Map<String, Integer> leafNameToIdx = new HashMap<>();
-        for (int i = 0; i < leafNames.size(); i++) {
-            leafNameToIdx.put(leafNames.get(i), i);
-        }
+        int dataColumnCount = originalColumnCount - 1 - approximationIdx.size();
 
-        List<String> orderedNames;
-        if (keepOrder.isEmpty()) {
-            // No governing KEEP: natural order - every real column in schema order, then the expanded leaves, then approximation.
-            orderedNames = new ArrayList<>(originalColumnCount - 1 + leafNames.size());
-            orderedNames.addAll(keptRealNames);
-            orderedNames.addAll(appendedNonApproxNames);
-            orderedNames.addAll(leafNames);
-            orderedNames.addAll(appendedApproxNames);
-        } else {
-            List<String> originalKeptNames = new ArrayList<>(keptRealNames.size());
-            for (String actual : keptRealNames) {
-                originalKeptNames.add(renames.getOrDefault(actual, actual));
-            }
-            List<String> keepScope = new ArrayList<>(originalKeptNames.size() + leafNames.size());
-            keepScope.addAll(originalKeptNames);
-            keepScope.addAll(leafNames);
-            List<String> orderedOriginals = UnmappedFieldsPattern.keepOrdered(keepScope, keepOrder);
-            // Translate original names back to actual (post-rename) names so the schema lookup below works.
-            Map<String, String> originalToActual = new HashMap<>(renames.size());
-            for (Map.Entry<String, String> e : renames.entrySet()) {
-                if (nameToSchemaIdx.containsKey(e.getKey())) {
-                    originalToActual.put(e.getValue(), e.getKey()); // original → actual
+        List<Attribute> orderedExpandedAttributes = ordering == null ? null : ordering.order(expandedFieldsAttributes);
+        if (orderedExpandedAttributes == null || orderedExpandedAttributes.size() != dataColumnCount + expandedFieldsAttributes.size()) {
+            // Either nothing was captured, or the replay disagrees with the executed schema because something rewrote the shape
+            // after analysis. Fall back to the natural real-then-discovered order rather than dropping or duplicating a column.
+            assert ordering == null : "unmapped fields ordering replay diverged from the executed schema";
+            orderedExpandedAttributes = new ArrayList<>(dataColumnCount + expandedFieldsAttributes.size());
+            for (int i = 0; i < originalColumnCount; i++) {
+                if (i != unmappedIdx && isApproximationColumn(schema.get(i).name()) == false) {
+                    orderedExpandedAttributes.add(schema.get(i));
                 }
             }
-            orderedNames = new ArrayList<>(orderedOriginals.size() + appendedNonApproxNames.size() + appendedApproxNames.size());
-            for (String orig : orderedOriginals) {
-                orderedNames.add(originalToActual.getOrDefault(orig, orig));
-            }
-            orderedNames.addAll(appendedNonApproxNames);
-            orderedNames.addAll(appendedApproxNames);
+            orderedExpandedAttributes.addAll(expandedFieldsAttributes);
         }
 
-        List<Attribute> newSchema = new ArrayList<>(orderedNames.size());
-        int[] blockOrder = new int[orderedNames.size()];
-        for (int pos = 0; pos < orderedNames.size(); pos++) {
-            String name = orderedNames.get(pos);
-            Integer schemaIdx = nameToSchemaIdx.get(name);
-            if (schemaIdx != null) {
-                newSchema.add(schema.get(schemaIdx));
-                blockOrder[pos] = schemaIdx;
-            } else {
-                int leafIdx = leafNameToIdx.getOrDefault(name, -1);
-                if (leafIdx < 0) {
-                    throw new IllegalStateException("ordered name [" + name + "] is neither a retained column nor an expanded leaf");
-                }
-                newSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD));
-                blockOrder[pos] = originalColumnCount + leafIdx;
+        List<Attribute> newSchema = new ArrayList<>(orderedExpandedAttributes.size() + approximationIdx.size());
+        int[] blockOrder = new int[orderedExpandedAttributes.size() + approximationIdx.size()];
+        int pos = 0;
+        for (Attribute attribute : orderedExpandedAttributes) {
+            Integer attributeIdx = expandedAttributeIdToIdx.get(attribute.id());
+            if (attributeIdx != null) {
+                newSchema.add(attribute);
+                blockOrder[pos++] = originalColumnCount + attributeIdx;
+                continue;
             }
+            Integer schemaIdx = nameToSchemaIdx.get(attribute.name());
+            if (schemaIdx == null) {
+                throw new IllegalStateException(
+                    "orderedExpandedAttributes column [" + attribute.name() + "] is neither a retained column nor a discovered field"
+                );
+            }
+            newSchema.add(schema.get(schemaIdx));
+            blockOrder[pos++] = schemaIdx;
+        }
+        for (int idx : approximationIdx) {
+            newSchema.add(schema.get(idx));
+            blockOrder[pos++] = idx;
         }
         return new ExpandedLayout(newSchema, blockOrder);
     }
@@ -289,20 +284,20 @@ class ExpandUnmappedFieldsPostProcessor {
     private static List<Page> rewritePages(
         Result result,
         int unmappedIdx,
-        List<String> leafNames,
+        List<String> expandedFieldsNames,
         int[] blockOrder,
         BlockFactory factory,
         double reservationFactor
     ) {
         int originalColumnCount = result.schema().size();
-        // The authoritative set of surviving leaf names: already pattern-filtered by collectFieldNames and collision-pruned by expand().
-        // The per-row leaf sink keeps only these, so schema and values are driven by one source of truth and dropped leaves never build.
-        Set<String> keep = Set.copyOf(leafNames);
+        Set<String> keep = Set.copyOf(expandedFieldsNames);
         var newPages = new ArrayList<Page>(result.pages().size());
         var success = false;
         try {
             for (Page p : result.pages()) {
-                newPages.add(rewritePage(unmappedIdx, keep, leafNames, blockOrder, originalColumnCount, factory, p, reservationFactor));
+                newPages.add(
+                    rewritePage(unmappedIdx, keep, expandedFieldsNames, blockOrder, originalColumnCount, factory, p, reservationFactor)
+                );
             }
             success = true;
             return newPages;
@@ -316,24 +311,20 @@ class ExpandUnmappedFieldsPostProcessor {
     private static Page rewritePage(
         int unmappedIdx,
         Set<String> keep,
-        List<String> leafNames,
+        List<String> expandedFieldsNames,
         int[] blockOrder,
         int originalColumnCount,
         BlockFactory blockFactory,
         Page page,
         double reservationFactor
     ) {
-        // Output blocks follow blockOrder: a retained column (code < originalColumnCount) keeps its original block, an expanded leaf
-        // gets a freshly built one. The retained/leaf split is disjoint (expand() drops colliding leaves) so each position has one source.
-        int leafCount = leafNames.size();
+        int expandedFieldsCount = expandedFieldsNames.size();
         Block[] allBlocks = new Block[blockOrder.length];
 
         var success = false;
-        BytesRefBlock.Builder[] builders = new BytesRefBlock.Builder[leafCount];
+        BytesRefBlock.Builder[] builders = new BytesRefBlock.Builder[expandedFieldsCount];
         try (var ignored = Releasables.wrap(builders)) {
-            // Place the retained blocks now (incRef so releasing the input page below leaves them alive) and record where each leaf's
-            // built block goes, so the expansion below builds straight into its final position.
-            int[] leafOutputPos = new int[leafCount];
+            int[] fieldOutputPos = new int[expandedFieldsCount];
             for (int pos = 0; pos < blockOrder.length; pos++) {
                 int code = blockOrder[pos];
                 if (code < originalColumnCount) {
@@ -341,44 +332,48 @@ class ExpandUnmappedFieldsPostProcessor {
                     block.incRef();
                     allBlocks[pos] = block;
                 } else {
-                    leafOutputPos[code - originalColumnCount] = pos;
+                    fieldOutputPos[code - originalColumnCount] = pos;
                 }
             }
 
             // Zero expanded columns means nothing to expand, so just drop the _unmapped_fields column, keep any retained blocks,
             // and skip the wasted per-row _source re-parse.
-            if (leafCount > 0) {
+            if (expandedFieldsCount > 0) {
                 BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
                 Arrays.setAll(builders, i -> blockFactory.newBytesRefBlockBuilder(page.getPositionCount()));
-                // valueScratch and leaves are reused across rows: valueScratch holds one leaf's keyword values before they are appended,
-                // leaves holds the current row's flattened leaf-path to value map. jsonScratch grows to the largest value seen in this
-                // page, so it is per-page rather than per-result.
+                // ------ Naming convention ------
+                // "leaf" = JSON string
+                // "discovered field" = a "leaf" outside of the JSON parsing flow; it's already in the analysis/logical plan land
+
+                // valueScratch and fieldNameAndValues are reused across rows: valueScratch holds one leaf's keyword values before they
+                // are appended, fieldNameAndValues holds the current row's flattened leaf-path to value map. jsonScratch grows to the
+                // largest value seen in this page, so it is per-page rather than per-result.
                 var jsonScratch = new BytesRef();
                 List<BytesRef> valueScratch = new ArrayList<>();
-                Map<String, Object> leaves = new HashMap<>();
+                Map<String, Object> fieldNameAndValues = new HashMap<>();
                 BiConsumer<String, Object> leafSink = (name, value) -> {
                     if (keep.contains(name)) {
-                        collectLeaf(leaves, name, value);
+                        collectLeaf(fieldNameAndValues, name, value);
                     }
                 };
                 CircuitBreaker breaker = blockFactory.breaker();
                 for (int row = 0; row < page.getPositionCount(); row++) {
                     if (unmappedBlock.isNull(row)) {
-                        appendRow(Map.of(), leafNames, builders, valueScratch);
+                        appendRow(Map.of(), expandedFieldsNames, builders, valueScratch);
                         continue;
                     }
                     BytesRef json = getBytesRef(unmappedBlock, row, jsonScratch);
                     long reservation = reserveForParse(json, breaker, reservationFactor);
                     try {
-                        leaves.clear();
+                        fieldNameAndValues.clear();
                         collectLeaves("", parseJson(json), leafSink);
-                        appendRow(leaves, leafNames, builders, valueScratch);
+                        appendRow(fieldNameAndValues, expandedFieldsNames, builders, valueScratch);
                     } finally {
                         breaker.addWithoutBreaking(-reservation);
                     }
                 }
                 for (int i = 0; i < builders.length; i++) {
-                    allBlocks[leafOutputPos[i]] = builders[i].build();
+                    allBlocks[fieldOutputPos[i]] = builders[i].build();
                 }
             }
             var result = new Page(page.getPositionCount(), allBlocks);

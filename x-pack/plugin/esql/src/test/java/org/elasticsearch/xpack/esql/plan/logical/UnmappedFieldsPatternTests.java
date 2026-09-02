@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern.keepOrdered;
-
 public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<UnmappedFieldsPattern> {
 
     @Override
@@ -143,40 +141,6 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
         assertTrue(pattern.objectSubfieldsCouldMatch("samples"));
     }
 
-    public void testKeepOrderedMirrorsKeepResolverPriorities() {
-        List<String> cols = List.of("foo", "bar");
-        assertEquals(List.of("bar", "foo"), keepOrdered(cols, List.of(pattern("*"), exact("foo"))));
-        assertEquals(List.of("foo", "bar"), keepOrdered(cols, List.of(exact("foo"), pattern("*"))));
-        assertEquals(List.of("bar", "foo"), keepOrdered(cols, List.of(pattern("bar*"), exact("foo"), pattern("*"))));
-        assertEquals(List.of("bar", "foo"), keepOrdered(cols, List.of(pattern("foo*"), exact("bar"), pattern("fo*"))));
-    }
-
-    public void testKeepOrderedInterleavesRealColumnsAndExpandedLeaves() {
-        List<String> childOutput = List.of("id", "unmapped", "unmapped.bar", "unmapped.deep.leaf", "unmapped.foo");
-        assertEquals(
-            List.of("id", "unmapped.bar", "unmapped.deep.leaf", "unmapped.foo", "unmapped"),
-            keepOrdered(childOutput, List.of(pattern("*"), pattern("unmapped.*"), exact("unmapped")))
-        );
-        assertEquals(
-            List.of("unmapped.bar", "unmapped.deep.leaf", "unmapped.foo", "unmapped", "id"),
-            keepOrdered(childOutput, List.of(pattern("unmapped.*"), exact("unmapped"), pattern("*")))
-        );
-        assertEquals(
-            List.of("unmapped.bar", "unmapped.deep.leaf", "unmapped.foo", "id", "unmapped"),
-            keepOrdered(childOutput, List.of(pattern("unmapped.*"), exact("id"), exact("unmapped")))
-        );
-    }
-
-    public void testKeepOrderedAppendsUnmatchedColumnsLast() {
-        assertEquals(List.of("unmapped.foo", "x"), keepOrdered(List.of("x", "unmapped.foo"), List.of(pattern("unmapped.*"))));
-    }
-
-    public void testKeepOrderedTreatsQuotedNameContainingStarAsExplicit() {
-        List<String> childOutput = List.of("foobar", "foo*", "foo.leaf");
-        assertEquals(List.of("foo*", "foobar", "foo.leaf"), keepOrdered(childOutput, List.of(exact("foo*"), pattern("*"))));
-        assertEquals(List.of("foobar", "foo*", "foo.leaf"), keepOrdered(childOutput, List.of(pattern("foo*"), pattern("*"))));
-    }
-
     public void testForKeepExactNamesDontReachIncludeGroups() {
         var exactOnly = UnmappedFieldsPattern.forKeep(List.of(new UnresolvedAttribute(Source.EMPTY, "foo")));
         assertTrue(exactOnly.isNone());
@@ -187,13 +151,5 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
         );
         assertFalse(mixed.objectSubfieldsCouldMatch("foo"));
         assertTrue(mixed.objectSubfieldsCouldMatch("bar"));
-    }
-
-    private static UnmappedFieldsPattern.KeepTerm pattern(String name) {
-        return new UnmappedFieldsPattern.KeepTerm(name, true);
-    }
-
-    private static UnmappedFieldsPattern.KeepTerm exact(String name) {
-        return new UnmappedFieldsPattern.KeepTerm(name, false);
     }
 }

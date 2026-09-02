@@ -12,9 +12,11 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Table;
@@ -30,15 +32,13 @@ import org.elasticsearch.test.ESTestCase;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class RestCatRecoveryActionTests extends ESTestCase {
 
@@ -49,54 +49,72 @@ public class RestCatRecoveryActionTests extends ESTestCase {
         final int failedShards = totalShards - successfulShards;
         final Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
         final List<RecoveryState> recoveryStates = new ArrayList<>();
+        // A nano-time clock used for Timer.time() calls, which we can advance deterministically.
+        final AtomicLong nanoTime = new AtomicLong(1_000_000_000L);
 
         for (int i = 0; i < successfulShards; i++) {
-            final RecoveryState state = mock(RecoveryState.class);
-            when(state.getShardId()).thenReturn(new ShardId(new Index("index", "_na_"), i));
-            final RecoveryState.Timer timer = mock(RecoveryState.Timer.class);
-            final long startTime = randomLongBetween(0, new Date().getTime());
-            when(timer.startTime()).thenReturn(startTime);
-            final long time = randomLongBetween(1000000, 10 * 1000000);
-            when(timer.time()).thenReturn(time);
-            when(timer.stopTime()).thenReturn(startTime + time);
-            when(state.getTimer()).thenReturn(timer);
-            when(state.getRecoverySource()).thenReturn(TestShardRouting.buildRecoverySource());
-            when(state.getStage()).thenReturn(randomFrom(RecoveryState.Stage.values()));
-            when(state.getLocalRetries()).thenReturn(randomIntBetween(0, 10));
-            when(state.getRecoveryPriority()).thenReturn(randomFrom(ShardRouting.RecoveryPriority.values()));
-            final DiscoveryNode sourceNode = randomBoolean() ? mock(DiscoveryNode.class) : null;
-            if (sourceNode != null) {
-                when(sourceNode.getHostName()).thenReturn(randomAlphaOfLength(8));
+            final RecoverySource recoverySource = TestShardRouting.buildRecoverySource();
+            final boolean needsSourceNode = recoverySource.getType() == RecoverySource.Type.PEER
+                || recoverySource.getType() == RecoverySource.Type.RESHARD_SPLIT;
+            final DiscoveryNode sourceNode = (needsSourceNode || randomBoolean())
+                ? DiscoveryNodeUtils.builder(randomIdentifier())
+                    .name(randomAlphaOfLength(8))
+                    .address(randomAlphaOfLength(8), randomAlphaOfLength(8), buildNewFakeTransportAddress())
+                    .build()
+                : null;
+            final DiscoveryNode targetNode = DiscoveryNodeUtils.builder(randomIdentifier())
+                .name(randomAlphaOfLength(8))
+                .address(randomAlphaOfLength(8), randomAlphaOfLength(8), buildNewFakeTransportAddress())
+                .build();
+            final boolean primary = recoverySource.getType() == RecoverySource.Type.PEER ? randomBoolean() : true;
+
+            final ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                new ShardId(new Index("index", "_na_"), i),
+                targetNode.getId(),
+                primary,
+                ShardRoutingState.INITIALIZING,
+                recoverySource
+            );
+            final RecoveryState state = new RecoveryState(shardRouting, targetNode, sourceNode, nanoTime::get);
+            state.setLocalRetries(randomIntBetween(0, 10));
+
+            // Walk the state machine to a randomly chosen target stage. Declaration order matches traversal order.
+            final RecoveryState.Stage targetStage = randomFrom(RecoveryState.Stage.values());
+            if (targetStage.ordinal() >= RecoveryState.Stage.INIT.ordinal()) {
+                state.setStage(RecoveryState.Stage.INIT);
             }
-            when(state.getSourceNode()).thenReturn(sourceNode);
-            final DiscoveryNode targetNode = mock(DiscoveryNode.class);
-            when(targetNode.getHostName()).thenReturn(randomAlphaOfLength(8));
-            when(state.getTargetNode()).thenReturn(targetNode);
-
-            RecoveryState.Index index = mock(RecoveryState.Index.class);
-
-            final int totalRecoveredFiles = randomIntBetween(1, 64);
-            when(index.totalRecoverFiles()).thenReturn(totalRecoveredFiles);
-            final int recoveredFileCount = randomIntBetween(0, totalRecoveredFiles);
-            when(index.recoveredFileCount()).thenReturn(recoveredFileCount);
-            when(index.recoveredFilesPercent()).thenReturn((100f * recoveredFileCount) / totalRecoveredFiles);
-            when(index.totalFileCount()).thenReturn(randomIntBetween(totalRecoveredFiles, 2 * totalRecoveredFiles));
-
-            final int totalRecoveredBytes = randomIntBetween(1, 1 << 24);
-            when(index.totalRecoverBytes()).thenReturn((long) totalRecoveredBytes);
-            final int recoveredBytes = randomIntBetween(0, totalRecoveredBytes);
-            when(index.recoveredBytes()).thenReturn((long) recoveredBytes);
-            when(index.recoveredBytesPercent()).thenReturn((100f * recoveredBytes) / totalRecoveredBytes);
-            when(index.totalRecoverBytes()).thenReturn((long) randomIntBetween(totalRecoveredBytes, 2 * totalRecoveredBytes));
-            when(state.getIndex()).thenReturn(index);
-
-            final RecoveryState.Translog translog = mock(RecoveryState.Translog.class);
-            final int translogOps = randomIntBetween(0, 1 << 18);
-            when(translog.totalOperations()).thenReturn(translogOps);
-            final int translogOpsRecovered = randomIntBetween(0, translogOps);
-            when(translog.recoveredOperations()).thenReturn(translogOpsRecovered);
-            when(translog.recoveredPercent()).thenReturn(translogOps == 0 ? 100f : (100f * translogOpsRecovered / translogOps));
-            when(state.getTranslog()).thenReturn(translog);
+            if (targetStage.ordinal() >= RecoveryState.Stage.INDEX.ordinal()) {
+                state.setStage(RecoveryState.Stage.INDEX);
+                final int reusedFiles = randomIntBetween(0, 5);
+                for (int f = 0; f < reusedFiles; f++) {
+                    state.getIndex().addFileDetail("reused-" + f, randomLongBetween(1, 1 << 20), true);
+                }
+                final int nonReusedFiles = randomIntBetween(1, 10);
+                for (int f = 0; f < nonReusedFiles; f++) {
+                    final long length = randomLongBetween(1, 1 << 20);
+                    state.getIndex().addFileDetail("file-" + f, length, false);
+                    state.getIndex().addRecoveredBytesToFile("file-" + f, randomLongBetween(0, length));
+                }
+                state.getIndex().setFileDetailsComplete();
+            }
+            if (targetStage.ordinal() >= RecoveryState.Stage.VERIFY_INDEX.ordinal()) {
+                state.setStage(RecoveryState.Stage.VERIFY_INDEX);
+            }
+            if (targetStage.ordinal() >= RecoveryState.Stage.TRANSLOG.ordinal()) {
+                state.setStage(RecoveryState.Stage.TRANSLOG);
+                final int translogOps = randomIntBetween(0, 1 << 18);
+                state.getTranslog().totalOperations(translogOps);
+                state.getTranslog().incrementRecoveredOperations(randomIntBetween(0, translogOps));
+            }
+            if (targetStage.ordinal() >= RecoveryState.Stage.FINALIZE.ordinal()) {
+                state.setStage(RecoveryState.Stage.FINALIZE);
+            }
+            // Advance the nano-time clock so that running-timer states report a non-zero elapsed time.
+            // Do this before moving to DONE so that we capture the elapsed time in stop().
+            nanoTime.addAndGet(randomLongBetween(1_000_000L, 30_000_000_000L));
+            if (targetStage.ordinal() >= RecoveryState.Stage.DONE.ordinal()) {
+                state.setStage(RecoveryState.Stage.DONE);
+            }
 
             recoveryStates.add(state);
         }

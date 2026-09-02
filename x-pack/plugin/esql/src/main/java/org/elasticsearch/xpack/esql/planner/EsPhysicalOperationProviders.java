@@ -29,6 +29,7 @@ import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
+import org.elasticsearch.compute.lucene.query.MinCompetitiveQuery;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.ReadDimsOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
@@ -626,7 +627,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 scoring,
                 directoryBytesRead,
                 context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE),
-                singleValueQueryWarnings
+                singleValueQueryWarnings,
+                planMinCompetitive(context.luceneMinCompetitivePilot().get())
             );
         }
         Layout.Builder layout = new Layout.Builder();
@@ -668,6 +670,23 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, nullsFiltered, buildLoader));
         }
         return fieldInfos;
+    }
+
+    private MinCompetitiveQuery.Factory planMinCompetitive(@Nullable LuceneMinCompetitiveTimestampTopN pilot) {
+        if (pilot == null) {
+            return null;
+        }
+        MinCompetitiveQuery.BuildMinCompetitiveQuery buildMinCompetitiveQuery = (ctx, page) -> {
+            SearchExecutionContext executionContext = ((DefaultShardContext) ctx).ctx;
+            EsMinCompetitiveQueries minCompetitiveQueries = new EsMinCompetitiveQueries(
+                pilot.supplier(),
+                pilot.sortFieldName(),
+                executionContext
+            );
+            Query q = minCompetitiveQueries.buildMinCompetitiveQuery(page);
+            return q.rewrite(executionContext.searcher());
+        };
+        return new MinCompetitiveQuery.Factory(pilot.supplier(), buildMinCompetitiveQuery);
     }
 
     /**

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -113,6 +114,20 @@ public class FieldNameUtils {
         if (projectAll.get() == false) {
             parsed.forEachDown(Dedup.class, d -> {
                 if (d.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
+                    projectAll.set(true);
+                }
+            });
+        }
+
+        // HIGHLIGHT with an empty ON list (bare HIGHLIGHT / query with no ON, derivedFields == true)
+        // derives its targets from every text/keyword column of the child. Those names are not in
+        // Highlight.references() until analysis, so a downstream KEEP/STATS that only names
+        // highlight_* would otherwise never request the source columns from field-caps.
+        // Mappings are not available yet. Request ALL_FIELDS, same as Enrich / Dedup / UnresolvedStar.
+        // ON * is already covered by the UnresolvedStar walk above; leave that path alone.
+        if (projectAll.get() == false) {
+            parsed.forEachDown(Highlight.class, h -> {
+                if (h.fields().isEmpty()) {
                     projectAll.set(true);
                 }
             });
@@ -510,7 +525,6 @@ public class FieldNameUtils {
             || p instanceof Rename
             || p instanceof Row
             || p instanceof TopN
-            || p instanceof Row
             || p instanceof UnresolvedSourceRelation) == false;
     }
 

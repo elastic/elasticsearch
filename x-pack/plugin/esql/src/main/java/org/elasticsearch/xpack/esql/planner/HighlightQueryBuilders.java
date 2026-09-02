@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -31,9 +30,11 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -73,18 +74,14 @@ public final class HighlightQueryBuilders {
             case Match match -> requireOnField(fieldName(match.field()), onFields);
             case MatchPhrase matchPhrase -> requireOnField(fieldName(matchPhrase.field()), onFields);
             case QueryString queryString -> {
-                String defaultField = queryStringDefaultField(queryString);
+                String defaultField = HighlightSupport.queryStringDefaultField(queryString);
                 if (defaultField != null) {
                     requireOnField(defaultField, onFields);
                 }
             }
-            case And and -> {
-                verifyQueryStructure(and.left(), onFields);
-                verifyQueryStructure(and.right(), onFields);
-            }
-            case Or or -> {
-                verifyQueryStructure(or.left(), onFields);
-                verifyQueryStructure(or.right(), onFields);
+            case BinaryLogic binary -> {
+                verifyQueryStructure(binary.left(), onFields);
+                verifyQueryStructure(binary.right(), onFields);
             }
             case Not not -> verifyQueryStructure(not.field(), onFields);
             // KQL resolves fields while rewriting its query builder. Unknown fields become match-none.
@@ -101,10 +98,6 @@ public final class HighlightQueryBuilders {
         }
     }
 
-    /**
-     * Verifies that a HIGHLIGHT query uses supported full-text forms, references its {@code fields} (only when
-     * {@code enforceOnFields} is true), and translates with the {@code analyzer} that execution will use.
-     */
     public static void verify(Expression queryExpr, List<String> fields, Analyzer analyzer, boolean enforceOnFields) {
         String literal = queryTextIfLiteral(queryExpr);
         // Pushdown accepts more expressions than the runtime context, so check the query shape first.
@@ -128,16 +121,6 @@ public final class HighlightQueryBuilders {
         }
     }
 
-    private static String queryStringDefaultField(QueryString queryString) {
-        if (queryString.options() instanceof MapExpression map) {
-            Expression value = map.get("default_field");
-            if (value != null && value.foldable()) {
-                return BytesRefs.toString(value.fold(FoldContext.small()));
-            }
-        }
-        return null;
-    }
-
     /**
      * Translates a HIGHLIGHT expression into a Query DSL {@link QueryBuilder}.
      */
@@ -153,6 +136,9 @@ public final class HighlightQueryBuilders {
         return build(queryExpr);
     }
 
+    // This switch, verifyQueryStructure above, and HighlightSupport#deriveFields all walk the same full-text
+    // expression hierarchy and must stay in sync as new forms are added. This one is the most important to keep
+    // current: a missing case here throws IllegalStateException at runtime, not at verification.
     private static QueryBuilder build(Expression expr) {
         return switch (expr) {
             case And and -> QueryBuilders.boolQuery().must(build(and.left())).must(build(and.right()));

@@ -2797,4 +2797,22 @@ public abstract class Engine implements Closeable {
             assert engineLock.isReadLockedByCurrentThread() : Thread.currentThread();
         }
     }
+
+    /// Specifies what high lever client request caused this engine operation
+    /// or in other words the purpose of this engine operation.
+    /// This is different from [org.elasticsearch.index.engine.Engine.Operation] because
+    /// `Operation` only captures mutating operations.
+    public enum OperationPurpose {
+        SEARCHABLE_DOCS_CHECK,
+        REALTIME_GET,
+        GET_FROM_TRANSLOG,
+        // Index, update, delete, or the same on replica.
+        // We don't need to precisely distinguish these right now.
+        MUTATION,
+        RECOVERY;
+
+        static OperationPurpose from(Operation ignored) {
+            return OperationPurpose.MUTATION;
+        }
+    }
 }

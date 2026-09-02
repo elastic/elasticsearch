@@ -36,8 +36,6 @@ final class UnmappedKeywordBlockLoader implements BlockLoader {
 
     UnmappedKeywordBlockLoader(String fieldName, Set<String> sourcePaths, IgnoredSourceFormat ignoredSourceFormat) {
         this.fieldName = fieldName;
-        // needed to signal that _source should be loaded for individual fields, not the entire _source. An empty sourcePaths means
-        // StoredFieldsSpec.NEEDS_SOURCE is in effect, which triggers the entire _source loading.
         this.sourcePaths = sourcePaths;
         this.ignoredSourceFormat = ignoredSourceFormat;
     }
@@ -93,12 +91,15 @@ final class UnmappedKeywordBlockLoader implements BlockLoader {
             UnmappedKeywordValues.collect(source.extractValue(fieldName, null), values);
             if (values.isEmpty()) {
                 builder.appendNull();
-            } else if (values.size() == 1) {
-                ((BytesRefBuilder) builder).appendBytesRef(values.get(0));
+                return;
+            }
+            BytesRefBuilder bytesRefBuilder = (BytesRefBuilder) builder;
+            if (values.size() == 1) {
+                bytesRefBuilder.appendBytesRef(values.get(0));
             } else {
                 builder.beginPositionEntry();
                 for (BytesRef value : values) {
-                    ((BytesRefBuilder) builder).appendBytesRef(value);
+                    bytesRefBuilder.appendBytesRef(value);
                 }
                 builder.endPositionEntry();
             }

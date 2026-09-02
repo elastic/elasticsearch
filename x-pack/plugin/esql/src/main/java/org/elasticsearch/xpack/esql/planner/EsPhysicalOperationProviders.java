@@ -499,6 +499,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // TODO: consider fixing FallbackSyntheticSourceBlockLoader instead of working around it here. Rejected for now because it
             // only covers the synthetic-source half, and its constructor rejects the NO_IGNORED_SOURCE format stored source reports.
             if (asUnsupportedSource == false && name.equals(fullFieldName) && super.fieldType(name) == null) {
+                // Neither LOAD nor LOAD_ALL fuses a function into loading an unmapped field, and unmappedKeywordBlockLoader has
+                // nowhere to put one - so catch it here rather than let it be dropped and surface as a wrong value much later.
+                assert blockLoaderFunctionConfig == null
+                    : "cannot fuse [" + blockLoaderFunctionConfig + "] into loading unmapped field [" + name + "]";
                 return unmappedKeywordBlockLoader(name, this);
             }
             return super.blockLoader(
@@ -517,6 +521,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          */
         static BlockLoader unmappedKeywordBlockLoader(String name, DefaultShardContext context) {
             Set<String> sourcePaths = context.ctx.isSourceEnabled() ? context.ctx.sourcePath(name) : Set.of();
+            // sourcePaths here is needed in this form to signal that _source should be loaded for individual fields, not the entire
+            // _source. It's a contract that FallbackSyntheticSourceBlockLoader has. An empty sourcePaths means
+            // StoredFieldsSpec.NEEDS_SOURCE is in effect, which triggers the entire _source loading.
             return new UnmappedKeywordBlockLoader(name, sourcePaths, context.ctx.getIndexSettings().getIgnoredSourceFormat());
         }
 

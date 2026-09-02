@@ -7039,7 +7039,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
-    // --- row-width validation under a declared (pinned) schema: esql-planning#1842 ---
+    // --- row-width validation under a declared (pinned) schema ---
 
     /**
      * Reads the fixture and returns the surviving row count; warnings land in the thread context for drainWarnings().
@@ -7079,7 +7079,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
     }
 
-    /** The fixture from esql-planning#1842: row 1 splits into 5 fields against a 3-column header. */
+    /** Row 1 splits into 5 fields against a 3-column header. */
     private static final String RAGGED_MV_CSV = "id:integer,tags:keyword,score:integer\n1,[alpha,beta,gamma],10\n2,solo,20\n";
 
     private static Map<String, Object> skipRowConfig() {
@@ -7088,7 +7088,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     /**
      * A row wider than the file's own header is drift under a DECLARED schema exactly as it is under a pinned inferred
-     * one. Before esql-planning#1842 the declared branch bounded rows at Integer.MAX_VALUE, so the 5-field row was
+     * one. The declared branch used to bound rows at Integer.MAX_VALUE, so the 5-field row was
      * accepted, `tags` read the fragment "[alpha", and nothing warned. Both walkers, both bindings.
      */
     public void testDeclaredBindingKeepsRowWidthValidation() throws Exception {
@@ -7196,13 +7196,160 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A row too wide reports the WIDTH error whatever you project. The direct walkers tokenize and convert in one
+     * pass, so before the review fix a bad value in a surplus field reported first: projecting `score` on the
+     * motivating fixture died with `Failed to parse CSV value [beta] as [INTEGER]` — a cell in no logical column of
+     * the file — while projecting `id, tags` produced the structural error for the same row.
+     */
+    public void testRowWidthErrorBeatsCoercionErrorWhateverIsProjected() throws Exception {
+        for (List<String> projection : List.of(List.of("id", "tags"), List.of("score"), List.of("id", "tags", "score"))) {
+            for (boolean directBlock : List.of(false, true)) {
+                String desc = "projection=" + projection + " directBlock=" + directBlock;
+                CsvFormatReader reader = declaredReader(true, directBlock, skipRowConfig());
+                int rows = readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), projection);
+                List<String> warnings = drainWarnings();
+                assertEquals(desc, 1, rows);
+                assertTrue(
+                    desc + " expected the structural width error, got: " + warnings,
+                    warnings.stream().anyMatch(w -> w.contains("CSV row has [5] columns but the file's header defines [3] columns"))
+                );
+                assertFalse(
+                    desc + " the coercion error must not surface for a surplus cell: " + warnings,
+                    warnings.stream().anyMatch(w -> w.contains("Failed to parse CSV value [beta]"))
+                );
+            }
+        }
+    }
+
+    /**
+     * One malformed physical row costs ONE error against the budget. Before the review fix, NULL_FIELD recorded the
+     * coercion failure of the misaligned cell AND the row-width failure, so `max_errors: 1` tripped on a single row.
+     */
+    public void testMalformedRowCostsOneErrorAgainstTheBudget() throws Exception {
+        Map<String, Object> config = Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "null_field", "max_errors", 1);
+        for (boolean directBlock : List.of(false, true)) {
+            String desc = "directBlock=" + directBlock;
+            CsvFormatReader reader = declaredReader(true, directBlock, config);
+            int rows = readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of("score"));
+            List<String> warnings = drainWarnings();
+            assertEquals(desc + " the good row survives a budget of one", 1, rows);
+            assertFalse(
+                desc + " one row must not exhaust a budget of one: " + warnings,
+                warnings.stream().anyMatch(w -> w.contains("error budget exceeded"))
+            );
+        }
+    }
+
+    /**
+     * The split-then-convert bracket route fabricates the trailing empty too, and must agree with the fused walker:
+     * a row ending in a bare delimiter is a present empty last field, so a row that fits its header is accepted.
+     */
+    public void testBatchBracketSplitterCountsTrailingEmptyField() throws Exception {
+        String csv = "a,b,c\nx,y,\n";
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "c", DataType.KEYWORD)
+        );
+        Map<String, Object> config = Map.of(
+            "header_row",
+            true,
+            "multi_value_syntax",
+            "BRACKETS",
+            "error_mode",
+            "skip_row",
+            "max_errors",
+            100
+        );
+        // A zero-column projection skips the fused walker (which needs columnCount > 0) and takes the
+        // split-then-convert bracket route through splitLineBracketAware — the second fabrication site.
+        for (boolean directBlock : List.of(false, true)) {
+            String desc = "directBlock=" + directBlock;
+            CsvFormatReader reader = declaredReader(true, directBlock, config);
+            int rows = readRowCount(reader, createStorageObject(csv), schema, List.of());
+            List<String> warnings = drainWarnings();
+            assertEquals(desc + " the row fits the 3-column header", 1, rows);
+            assertTrue(desc + " a full-width trailing delimiter is not drift: " + warnings, warnings.isEmpty());
+        }
+    }
+
+    /**
+     * Under SKIP_ROW the row is doomed at its first bad value, so later conversion failures on the SAME row are not
+     * charged again — the walk continues only to finish counting the row's fields. Two bad cells, one error.
+     */
+    public void testMultipleCoercionFailuresOnOneRowChargeOneError() throws Exception {
+        String csv = "id:integer,score:integer\nnope,alsonope\n7,8\n";
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.INTEGER),
+            new ReferenceAttribute(Source.EMPTY, null, "score", DataType.INTEGER)
+        );
+        for (boolean directBlock : List.of(false, true)) {
+            String desc = "directBlock=" + directBlock;
+            CsvFormatReader reader = declaredReader(true, directBlock, skipRowConfig());
+            int rows = readRowCount(reader, createStorageObject(csv), schema, List.of("id", "score"));
+            List<String> warnings = drainWarnings();
+            assertEquals(desc + " only the clean row survives", 1, rows);
+            long rowErrors = warnings.stream().filter(w -> w.contains("Row [1] error:")).count();
+            assertEquals(desc + " one row, one charged error, got: " + warnings, 1L, rowErrors);
+        }
+    }
+
+    /**
+     * The width a row is counted as must be a property of the LINE, not of the schema reading it. Two declarations
+     * over the same file — one naming exactly the file's columns, one naming an extra column the file does not have —
+     * must reach the same verdict on the same physical row.
+     *
+     * <p>Before the review fix the trailing present-empty field was fabricated only when it fell inside the
+     * projection's addressable space, which grows with the declaration: `{a,b}` counted `x,y,` as two fields and
+     * accepted it, `{a,b,spare}` counted three and rejected it. That also broke the shared COUNT(*) warm-count
+     * licence, which is only sound while every reader of a file counts the same rows.
+     */
+    public void testRowWidthVerdictDoesNotDependOnDeclarationWidth() throws Exception {
+        String csv = "a,b\nx,y,\n";
+        List<Attribute> exact = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD)
+        );
+        List<Attribute> wider = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "spare", DataType.KEYWORD)
+        );
+        Map<String, Object> config = Map.of(
+            "header_row",
+            true,
+            "multi_value_syntax",
+            "BRACKETS",
+            "error_mode",
+            "skip_row",
+            "max_errors",
+            100
+        );
+        for (boolean directBlock : List.of(false, true)) {
+            String desc = "directBlock=" + directBlock;
+            int exactRows = readRowCount(declaredReader(true, directBlock, config), createStorageObject(csv), exact, List.of("a", "b"));
+            List<String> exactWarnings = drainWarnings();
+            int widerRows = readRowCount(declaredReader(true, directBlock, config), createStorageObject(csv), wider, List.of("a", "b"));
+            drainWarnings();
+
+            assertEquals(desc + " the declaration's width must not change the verdict", exactRows, widerRows);
+            // Three fields against a two-column header is drift under either declaration.
+            assertEquals(desc, 0, exactRows);
+            assertTrue(
+                desc + " expected a width warning, got: " + exactWarnings,
+                exactWarnings.stream().anyMatch(w -> w.contains("CSV row has [3] columns but the file's header defines [2] columns"))
+            );
+        }
+    }
+
+    /**
      * A row ending in a bare delimiter (`x,y,` against a 2-column header) counts as three columns, and the inference
      * path rejects it. A declaration WIDER than the file must reach the same verdict: the bound is the file's header
      * width either way, so the declaration's extra columns cannot buy the row room the file does not have.
      *
-     * <p>Both multi-value modes are covered because only BRACKETS reaches the walker that fabricates a trailing
-     * present-empty field, and that fabrication is bounded by the projection's addressable space — which a wide
-     * declaration inflates.
+     * <p>Both multi-value modes are covered because only BRACKETS reaches the walker that fabricates the trailing
+     * present-empty field. That fabrication is unconditional: the field count is a property of the line, so it does
+     * not move with the declaration.
      */
     public void testDeclaredBindingWiderDeclarationMatchesInferenceOnTrailingDelimiterRow() throws Exception {
         String csv = "a,b\nx,y,\n";
@@ -7397,7 +7544,11 @@ public class CsvFormatReaderTests extends ESTestCase {
             "max_errors",
             100
         );
-        CsvFormatReader reader = declaredReader(true, true, config);
+        // Built from CsvFormatOptions.TSV, the dialect CsvDataSourcePlugin actually registers for .tsv, rather than
+        // a hand-assembled config that only happens to share its delimiter.
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV)
+            .withConfig(config)
+            .withDeclaredProvenanceBinding(true);
         int rows = readRowCount(reader, createStorageObject(tsv), idTagsScore(), List.of("id", "tags"));
         List<String> warnings = drainWarnings();
         assertEquals(1, rows);

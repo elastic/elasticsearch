@@ -279,25 +279,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Whether a field that closed with no content (an unquoted trailing delimiter, e.g. {@code a,b,})
-     * counts as a present-but-empty field rather than a dropped trailing delimiter beyond the schema.
-     * Shared by the fused bracket walker ({@code splitAndConvertProjected}) and the split-then-convert
-     * bracket route ({@code splitCommaDelimiterBracketAwareFields}) so the two routes agree on where the
-     * schema boundary falls.
-     * <p>
-     * The {@code priorFieldCount > 0} guard requires a preceding field: an unquoted trailing empty is only
-     * meaningful after a delimiter that closed a real field (the {@code b,} in {@code a,b,}). A tokenization
-     * that produced no fields at all is not a row ending in a bare delimiter, so it fabricates no empty
-     * field. This also makes the predicate always {@code false} for a single-column schema
-     * ({@code schemaColumnCount == 1} leaves no integer with {@code 0 < priorFieldCount < 1}): a
-     * single-column present-empty cell arrives instead through the quoted-empty path ({@code ""}), while a
-     * blank line is skipped before tokenization.
-     */
-    private static boolean isPresentTrailingEmpty(int priorFieldCount, int schemaColumnCount) {
-        return priorFieldCount > 0 && priorFieldCount < schemaColumnCount;
-    }
-
-    /**
      * Reused {@link DateFormatter} that delegates to ES's hand-rolled
      * {@code Iso8601DateTimeParser}: covers the {@code YYYY-MM-DDTHH:MM:SS[.fff][Z|+HH:MM]} family
      * (plus date-only inputs like {@code YYYY-MM-DD}) without the {@link DateTimeFormatter}
@@ -983,7 +964,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * ({@link #ABSENT_FIELD} where the file lacks it), and the file's own column count.
      *
      * <p>They travel together because a route that supplied the index without the width would silently disable
-     * row-width validation — esql-planning#1842, which this type exists to make unrepresentable.
+     * row-width validation — the defect this type exists to make unrepresentable.
      */
     private record DeclaredBinding(int[] fieldIndex, int fileColumnCount) {
         /** A headerless file's names ARE positions ({@code col4} -> field 4), so it states no width to bound rows by. */
@@ -2599,17 +2580,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * Bracket- and quote-aware comma split; must stay aligned with {@link CsvBatchIterator#splitLineBracketAware}.
-     * {@code schemaColumnCount} lets the end-of-line handling reproduce the fused walker's trailing present-empty
-     * rule: a row-ending delimiter inside the schema yields a present empty field, beyond it a lone trailing
-     * delimiter is dropped.
+     * A row ending in a bare delimiter yields a present empty last field, unconditionally — the field count is a
+     * property of the line, not of any schema.
      */
-    private static String[] splitCommaDelimiterBracketAwareFields(
-        String line,
-        char quote,
-        char esc,
-        int schemaColumnCount,
-        boolean trimSpaces
-    ) {
+    private static String[] splitCommaDelimiterBracketAwareFields(String line, char quote, char esc, boolean trimSpaces) {
         final char delim = ',';
         List<String> entries = new ArrayList<>();
         StringBuilder current = new StringBuilder();
@@ -2710,13 +2684,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (current.length() > 0) {
             entries.add(emitField(current, trimSpaces));
         } else if (trailingFieldHasContent) {
-            // The trailing field was opened but yielded no text (e.g. a quoted empty `""`): a present
-            // empty field. Not bounded by schemaColumnCount: an over-count is caught by column-count
-            // validation downstream, matching the fused walker.
+            // The trailing field was opened but yielded no text (e.g. a quoted empty `""`): a present empty
+            // field. An over-count is caught by column-count validation downstream, matching the fused walker.
             entries.add("");
-        } else if (isPresentTrailingEmpty(entries.size(), schemaColumnCount)) {
-            // The line ended on a field-closing delimiter (e.g. `a,b,`): a present empty trailing field
-            // that falls inside the schema. Beyond the schema a lone trailing delimiter is dropped (lenient).
+        } else if (entries.isEmpty() == false) {
+            // The line ended on a field-closing delimiter (e.g. `a,b,`): a present empty trailing field. Counted
+            // whatever the schema says, so the row's width is the same number for every reader of this file.
+            // The emptiness guard is defensive: reaching here with no entries needs a line that produced no fields
+            // at all, and blank lines are filtered by isBlankOrComment before tokenization.
             entries.add("");
         }
         return entries.toArray(String[]::new);
@@ -4062,13 +4037,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * Commas inside quotes or brackets are not delimiters. Escaped commas ({@code \,}) are skipped.
          */
         private String[] splitLineBracketAware(String line) {
-            return splitCommaDelimiterBracketAwareFields(
-                line,
-                options.quoteChar(),
-                options.escapeChar(),
-                sourceIndexBound,
-                options.trimSpaces()
-            );
+            return splitCommaDelimiterBracketAwareFields(line, options.quoteChar(), options.escapeChar(), options.trimSpaces());
         }
 
         /**
@@ -4211,6 +4180,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * positional binding, the file's header width under declared binding (where the two differ).
          */
         private String rowTooWideMessage(int actualFields) {
+            // Discriminates on the binding, not on whether the two numbers happen to coincide: a declaration that names
+            // as many columns as the file still bound the row by the FILE's width, and should say so.
             return schemaFieldIndex == null
                 ? "CSV row has [" + actualFields + "] columns but schema defines [" + schemaColumnCount + "] columns"
                 : "CSV row has [" + actualFields + "] columns but the file's header defines [" + rowWidthLimit + "] columns";
@@ -5072,22 +5043,79 @@ public class CsvFormatReader implements SegmentableFormatReader {
          *
          * @return {@code true} if the field was accepted, {@code false} if a row-level error was raised
          */
+        /**
+         * Coercion errors seen while walking the current row, held until the row's WIDTH has been accepted.
+         *
+         * <p>The direct walkers tokenize and convert in one pass, so without this a bad value in a SURPLUS field
+         * reports before the width guard is reached: the caller sees a coercion error naming a cell that belongs to
+         * no logical column of the file, and under NULL_FIELD the row is charged twice against the error budget.
+         * Deferring reproduces the batch path's order — tokenize, check width, then convert — without a second walk.
+         * Structural errors (field cap, unclosed quote, malformed row) stay immediate: those are tokenization
+         * failures, and they beat everything on the batch path too.
+         */
+        private final List<String> pendingFieldErrors = new ArrayList<>();
+        private final List<String> pendingFieldValues = new ArrayList<>();
+        private final List<Attribute> pendingFieldAttrs = new ArrayList<>();
+        /** First coercion error on a row under SKIP_ROW/FAIL_FAST; the row is doomed, but the walk finishes to count it. */
+        private String pendingRowError;
+        private boolean hasPendingErrors;
+
+        /** Drops anything held from a previous row. Cheap no-op unless the previous row actually erred. */
+        private void clearPendingErrors() {
+            if (hasPendingErrors) {
+                pendingFieldErrors.clear();
+                pendingFieldValues.clear();
+                pendingFieldAttrs.clear();
+                pendingRowError = null;
+                hasPendingErrors = false;
+            }
+        }
+
+        /**
+         * Reports the row's held coercion errors now that its width has been accepted. Returns false when the row
+         * must be dropped. A row that failed BOTH its width and a conversion never reaches here: the width guard
+         * clears the pending state and reports the structural error, which is the one the caller needs.
+         */
+        private boolean flushPendingErrors(String rawLine) {
+            if (hasPendingErrors == false) {
+                return true;
+            }
+            String rowError = pendingRowError;
+            if (rowError != null) {
+                clearPendingErrors();
+                onRowError(rowError, null, rawLine, false);
+                return false;
+            }
+            for (int i = 0; i < pendingFieldErrors.size(); i++) {
+                onFieldError(pendingFieldErrors.get(i), pendingFieldValues.get(i), pendingFieldAttrs.get(i));
+            }
+            clearPendingErrors();
+            return true;
+        }
+
+        /** Holds a coercion error until {@link #flushPendingErrors}; returns true so the walk finishes the field count. */
+        private boolean deferFieldError(String message, String value, int bufIdx) {
+            hasPendingErrors = true;
+            if (modeOrdinal == ErrorPolicy.Mode.NULL_FIELD.ordinal()) {
+                pendingFieldErrors.add(message);
+                pendingFieldValues.add(value);
+                pendingFieldAttrs.add(projectedAttrs[bufIdx]);
+            } else if (pendingRowError == null) {
+                // SKIP_ROW / FAIL_FAST stop at the first failing column on the batch path; mirror that.
+                pendingRowError = message;
+            }
+            return true;
+        }
+
         private boolean emitConvertedStageField(String value, int bufIdx, DataType dt) {
             // bufIdx is the projected-column slot, so a declared per-column date format is honored on the
             // direct-to-block path exactly as on the Jackson path (both funnel through tryConvertValue).
             Object result = tryConvertValue(value, dt, bufIdx);
             if (lastFieldError != null) {
-                if (modeOrdinal == ErrorPolicy.Mode.NULL_FIELD.ordinal()) {
-                    stageNullValue(bufIdx);
-                    onFieldError(lastFieldError, value, projectedAttrs[bufIdx]);
-                    lastFieldError = null;
-                    return true;
-                } else {
-                    String err = lastFieldError;
-                    lastFieldError = null;
-                    onRowError(err, null, directRawLine(), false);
-                    return false;
-                }
+                String err = lastFieldError;
+                lastFieldError = null;
+                stageNullValue(bufIdx);
+                return deferFieldError(err, value, bufIdx);
             }
             stageConvertedValue(bufIdx, result);
             return true;
@@ -5161,6 +5189,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * buffer, avoiding the extra pre-scan pass that the prior two-step approach required.
          */
         private boolean splitAndConvertOptimisticQuoted(char[] buf, int from, int to) {
+            clearPendingErrors();
             final char delim = options.delimiter();
             final char quote = options.quoteChar();
             final boolean escaping = options.escaping();
@@ -5211,7 +5240,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             int totalFields = fieldIndex;
             if (totalFields > rowWidthLimit) {
+                // The structural error wins: a row this wide has no meaningful columns to report field errors about.
+                clearPendingErrors();
                 onRowError(rowTooWideMessage(totalFields), null, directRawLine(), true);
+                return false;
+            }
+            if (flushPendingErrors(directRawLine()) == false) {
                 return false;
             }
             for (int c = 0; c < columnCount; c++) {
@@ -5236,6 +5270,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * @return {@code true} if the row was accepted, {@code false} if rejected by the error policy
          */
         private boolean splitAndConvertPlain(char[] buf, int from, int to) {
+            clearPendingErrors();
             final char delim = options.delimiter();
             int fieldIndex = 0;
             int fieldStart = from;
@@ -5257,7 +5292,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             int totalFields = fieldIndex;
             if (totalFields > rowWidthLimit) {
+                // The structural error wins: a row this wide has no meaningful columns to report field errors about.
+                clearPendingErrors();
                 onRowError(rowTooWideMessage(totalFields), null, directRawLine(), true);
+                return false;
+            }
+            if (flushPendingErrors(directRawLine()) == false) {
                 return false;
             }
             // Null-fill projected columns whose source index falls past the row's trailing edge.
@@ -5521,6 +5561,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * @throws MalformedRowException if a quoted field is never closed before end of record
          */
         private boolean splitAndConvertQuoted(char[] buf, int from, int to) {
+            clearPendingErrors();
             final char delim = options.delimiter();
             final char quote = options.quoteChar();
             final char esc = options.escapeChar();
@@ -5615,7 +5656,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
             int totalFields = fieldIndex;
             if (totalFields > rowWidthLimit) {
+                // The structural error wins: a row this wide has no meaningful columns to report field errors about.
+                clearPendingErrors();
                 onRowError(rowTooWideMessage(totalFields), null, directRawLine(), true);
+                return false;
+            }
+            if (flushPendingErrors(directRawLine()) == false) {
                 return false;
             }
             for (int c = 0; c < columnCount; c++) {
@@ -5723,6 +5769,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * @return {@code true} if the row was accepted, {@code false} if it was rejected
          */
         private boolean splitAndConvertProjected(String line, int lineIdx) {
+            clearPendingErrors();
             // Emit the file-global byte offset captured at line-read time; the _rowPosition slot
             // maps to no source field, so the field walk below never overwrites it.
             if (rowPositionSlot >= 0) {
@@ -5893,9 +5940,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // trailingFieldHasContent false. It is still a PRESENT empty field when it falls inside the
             // schema, so count it and fill it like any other present-empty field. Beyond the schema a
             // lone trailing delimiter on a full-width row is not an extra column and does not error.
-            boolean presentTrailingEmpty = isPresentTrailingEmpty(fieldIndex, sourceIndexBound);
+            // A row ending in a bare delimiter carries a present empty last field. That is a property of the LINE,
+            // so it is counted whether or not anything reads it — the count must not depend on the schema, or the same
+            // row is a different width under different declarations. fieldIndex > 0
+            // excludes a tokenization that produced no fields at all; blank lines are skipped before tokenization.
+            boolean presentTrailingEmpty = fieldIndex > 0;
             int totalFields = (trailingFieldHasContent || presentTrailingEmpty) ? fieldIndex + 1 : fieldIndex;
             if (totalFields > rowWidthLimit) {
+                // The structural error wins (see the direct walkers).
+                clearPendingErrors();
                 onRowError(rowTooWideMessage(totalFields), null, line, true);
                 return false;
             }
@@ -5914,6 +5967,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 } else if (presentTrailingEmpty) {
                     rowBuffer[bufIdx] = presentEmptyValue(dt);
                 }
+            }
+
+            // After the trailing field, so a coercion failure there joins the same ordering as the rest of the row.
+            if (flushPendingErrors(line) == false) {
+                return false;
             }
 
             for (int c = 0; c < columnCount; c++) {
@@ -5967,17 +6025,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private boolean emitConvertedStringField(String value, int bufIdx, DataType dt, String rawLine) {
             Object result = tryConvertValue(value, dt, bufIdx);
             if (lastFieldError != null) {
-                if (modeOrdinal == ErrorPolicy.Mode.NULL_FIELD.ordinal()) {
-                    rowBuffer[bufIdx] = null;
-                    onFieldError(lastFieldError, value, projectedAttrs[bufIdx]);
-                    lastFieldError = null;
-                    return true;
-                } else {
-                    String err = lastFieldError;
-                    lastFieldError = null;
-                    onRowError(err, null, rawLine, false);
-                    return false;
-                }
+                String err = lastFieldError;
+                lastFieldError = null;
+                rowBuffer[bufIdx] = null;
+                return deferFieldError(err, value, bufIdx);
             }
             rowBuffer[bufIdx] = result;
             return true;

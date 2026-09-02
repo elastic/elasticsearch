@@ -128,7 +128,7 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
      * chunk 0 and passed down, not from a header this chunk can see. This plants a row wider than the file's header
      * deep enough to land past the first chunk and pins that the real coordinator-supplied width rejects it —
      * the reader-level half is pinned by CsvFormatReaderTests#testDeclaredBindingRowWidthOnNonFirstSplit, which
-     * hands the header columns over by hand. See esql-planning#1842.
+     * hands the header columns over by hand.
      */
     public void testDeclaredHeaderedCsvAppliesRowWidthBoundOnLaterChunks() throws Exception {
         long chunkSize = new CsvFormatReader(blockFactory).minimumSegmentSize();

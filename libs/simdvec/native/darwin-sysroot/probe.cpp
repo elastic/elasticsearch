@@ -14,10 +14,10 @@
  * the union of the system headers that the native libraries built with it actually
  * include (simdvec and simdjson today).
  *
- * assemble.sh compiles this program twice. First against the full xnu staging tree, using the
- * compiler's dependency output to compute the exact set of xnu headers reachable from
- * here. That computed closure is what lands in the sysroot. Then it compiles them again
- * on the reduced set to prove the sysroot is self-contained.
+ * assemble.sh compiles this program twice, both times with -fsyntax-only. First against the
+ * full xnu staging tree, using the compiler's dependency output to compute the exact set of
+ * xnu headers reachable from here. That computed closure is what lands in the sysroot. Then
+ * again on the reduced set, to prove the sysroot is self-contained.
  *
  * This file defines what the sysroot supports. A library that needs a system header
  * not reachable from here will fail to compile until the include is added and the
@@ -80,26 +80,4 @@
 #include <vector>
 #include <version>
 
-/*
- * This "probe" function instantiates classes and calls functions to exercise the runtime surface.
- * This is OPTIONAL: including a header only proves it parses, but it is actually sufficient.
- * The sysroot has to support code that actually uses the library, but on Darwin this is provided by system
- * dynamic libraries.
- * Adding function calls here will surface which library functions the C/C++ classes and functions actually
- * call, as they will appear in the import list of the compiled binary (the resulting import list is what
- * the undefined-symbol audit inspects).
- */
-extern "C" int probe(void) {
-    std::vector<std::string> v;
-    v.emplace_back("probe");
-    std::ostringstream os;
-    os << v.front() << ' ' << 42 << ' ' << 3.5;
-    std::string s = os.str();
-    std::mutex m;
-    std::lock_guard<std::mutex> lock(m);
-    std::atomic<int> a { 0 };
-    a.fetch_add(1);
-    auto p = std::make_unique<std::string>(s);
-    return static_cast<int>(p->size() + std::numeric_limits<float>::max_exponent
-        + static_cast<int>(std::min<size_t>(s.size(), 3)));
-}
+/* This file is only ever preprocessed and parsed: the include list above is all of it. */

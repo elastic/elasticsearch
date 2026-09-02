@@ -66,9 +66,10 @@ RUN echo "deb [check-valid-until=no] http://archive.debian.org/debian buster mai
     && rm -rf /var/lib/apt/lists/*
 
 # The Darwin sysroot is assembled in a separate stage to keep its build-only tools out of
-# the published image: Apple's Libc header installer needs perl, unifdef and ed, and the
-# AvailabilityVersions generator needs python3. This stage builds on the toolchain stage
-# because assemble.sh uses clang to compute the header closure and to verify the result.
+# the published image: Apple's Libc header installer needs perl, unifdef and ed, the
+# AvailabilityVersions generator needs python3, and the licence scan uses licensecheck.
+# This stage builds on the toolchain stage because assemble.sh uses clang to compute the
+# header closure and to verify the result.
 FROM toolchain AS sysroot-builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -76,6 +77,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 \
         unifdef \
         ed \
+        licensecheck \
     && rm -rf /var/lib/apt/lists/*
 
 COPY darwin-sysroot/ /darwin-sysroot/

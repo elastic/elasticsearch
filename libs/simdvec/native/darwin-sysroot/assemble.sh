@@ -260,30 +260,56 @@ $CLANGXX $PROBE_FLAGS $SYSROOT_INCS -fsyntax-only "$HERE/probe.cpp" \
     || { echo "FAILED: sysroot is not self-contained"; exit 1; }
 
 echo "== licence scan =="
-# The gate that keeps the image publishable. Its job is narrow: catch a file without an
-# open-source grant entering the sysroot, which in practice means a new xnu header showing
-# up in the closure after a version bump.
-APPROVED='Apple Public Source License|APSL|@APPLE_LICENSE_HEADER|@APPLE_OSREFERENCE_LICENSE_HEADER'
-APPROVED=$APPROVED'|@APPLE_APACHE_LICENSE_HEADER|Redistribution and use in source|Apache License'
-APPROVED=$APPROVED'|Permission to use, copy, modify|University Corporation for Atmospheric Research'
-APPROVED=$APPROVED'|Public Domain|SPDX-License-Identifier|Carnegie Mellon|Mach Operating System'
-# Libc's stdint.h carries a bare copyright with no grant; retained deliberately, see above.
-ALLOWED='^usr/include/stdint.h$'
-unlicensed=$( cd "$SYSROOT" \
-    && find usr/include -type f -not -path 'usr/include/c++/v1/*' | sort \
-    | while read -r relative; do
-        grep -qiE "$APPROVED" "$relative" || echo "$relative"
-      done | grep -vE "$ALLOWED" || true )
-if [ -n "$unlicensed" ]; then
-    echo "FAILED: files with no approved licence marker:"
-    echo "$unlicensed"
+# Keep the image publishable: check that any file we add  has a compatible license.
+#
+# Detection is done via licensecheck. licensecheck reports one licence per file, or a
+# dual-licence expression joined by "and/or" when a file carries more than one grant.
+#
+# libc++ is excluded: it is upstream LLVM and carries an SPDX identifier.
+APPROVED_LICENCES='APSL-2.0
+APSL-1.1
+Apache-2.0
+BSD-2-Clause
+BSD-2-Clause-NetBSD
+BSD-3-Clause
+BSD-4-Clause
+BSD-4-Clause-UC
+ISC
+public-domain'
+
+# licensecheck cannot classify these four, so they are excluded and reviewed by hand:
+#   stdint.h    bare Apple copyright
+#   search.h    "Written by J.T. Conklin <jtc@netbsd.org> / Public domain."
+#   strhash.h   permission-to-use grant, Terry Jones & Jordan Hubbard / PCS Computer Systeme, 1990
+#   wordexp.h   permission-to-use grant, University Corporation for Atmospheric Research, 1994
+HAND_REVIEWED='stdint.h
+search.h
+strhash.h
+wordexp.h'
+
+( cd "$INC" && find . -type f -not -path './c++/v1/*' | sed 's|^\./||' | sort ) \
+    | grep -vxF "$HAND_REVIEWED" > "$WORK/scan-files.txt"
+( cd "$INC" && xargs -a "$WORK/scan-files.txt" \
+    licensecheck --machine --shortname-scheme=spdx --lines 0 ) > "$WORK/licences.tsv"
+# A file licensecheck silently skipped would otherwise pass unexamined.
+[ "$(wc -l < "$WORK/licences.tsv")" -eq "$(wc -l < "$WORK/scan-files.txt")" ] \
+    || { echo "FAILED: licensecheck did not report on every file"; exit 1; }
+
+# Every licence present must be approved; "A and/or B" is split so both are checked.
+cut -f2 "$WORK/licences.tsv" | sed 's| and/or |\n|g' | sort -u \
+    | grep -vxF "$APPROVED_LICENCES" > "$WORK/unapproved.txt" || true
+if [ -s "$WORK/unapproved.txt" ]; then
+    echo "FAILED: licences not in the approved set:"
+    sed 's/^/  /' "$WORK/unapproved.txt"
+    grep -Ff "$WORK/unapproved.txt" "$WORK/licences.tsv" | cut -f1 | sed 's/^/    in /'
     exit 1
 fi
+echo "   $(wc -l < "$WORK/scan-files.txt") files scanned, all licences approved"
 
 echo "== manifest =="
 {
     echo "Darwin arm64 sysroot for cross-compiling Elasticsearch native libraries."
-    echo "Assembled by libs/simdvec/native/darwin-sysroot/assemble.sh; no macOS SDK content."
+    echo "Assembled by libs/simdvec/native/darwin-sysroot/assemble.sh."
     echo
     echo "Components:"
     grep -E '^[A-Z_]+=' "$HERE/versions.env" | sed 's/^/  /'

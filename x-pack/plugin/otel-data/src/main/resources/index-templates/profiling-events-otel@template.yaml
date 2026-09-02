@@ -1,0 +1,18 @@
+---
+version: ${xpack.oteldata.template.version}
+index_patterns: ["profiling-events*.otel-*"]
+priority: 250
+data_stream:
+  hidden: false
+allow_auto_create: true
+_meta:
+  description: OTel data stream template for eBPF Profiler events
+  managed: true
+composed_of:
+  - profiling-events-otel@mappings
+  - profiling-events-otel@custom
+ignore_missing_component_templates:
+  - profiling-events-otel@custom
+template:
+  lifecycle:
+    data_retention: 60d

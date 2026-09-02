@@ -58,8 +58,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
     private Long timeBetweenStarts;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initMocks() throws Exception {
         lastRunDuration = randomBoolean() ? randomLongBetween(0, 100000) : null;
         timeBetweenStarts = randomBoolean() ? randomLongBetween(0, 100000) : null;
         when(dataStreamLifecycleService.getLastRunDuration()).thenReturn(lastRunDuration);

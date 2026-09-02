@@ -36,6 +36,32 @@ Here's the overall process that makes this work, ignoring spot preemptions for n
 - Upload this file as a Buildkite artifact (which the next attempt, if there is one, will download)
 - Automatically retry this step if there were any failures for tests that haven't executed twice
 
+### Pruning granularity
+
+`InternalTestRerunPlugin` prunes previously successful work at three levels, from coarsest to finest:
+
+- **Task**: a task listed in `successfulTasks` is disabled outright with `onlyIf(false)`.
+- **Suite**: a class listed in `successfulSuites` is excluded with a `Class.*` filter pattern.
+- **Individual test**: a `Class#method` reference listed in `successfulTests` is excluded with a filter pattern for that method.
+
+Individual test pruning needs care for suites run by the randomized runner with a `@ParametersFactory`, because those report one test per parameter, for example `test {yaml=analysis-common/30_tokenizers/letter}`.
+`RandomizedRunner#applyFilters` keeps a test candidate as soon as *either* its parameterized description *or* its bare method description is allowed to run, so excluding only the parameterized name has no effect at all.
+The plugin therefore emits the bare `Class.method` pattern in addition to the parameterized one.
+That does not take the method's other parameters down with it: those still carry a parameterized name that no pattern matches, which is enough to keep them running.
+`MutedTestsBuildService` does the same thing for `muted-tests.yml`, and the two mechanisms contribute patterns to the same filter.
+
+### Ordered suites
+
+Individual test pruning assumes tests are independent. Upgrade suites are not: they are parameterized over upgrade phases and an early phase sets up the cluster state a later phase asserts on, so skipping a phase that already passed makes the later phase fail.
+
+Projects hosting such suites opt out in their `build.gradle`:
+
+```groovy
+smartRetry.pruneIndividualTests.set(false)
+```
+
+Task and suite pruning stay active for those projects, since both either skip a suite in its entirety or not at all.
+
 ### Spot Preemptions
 
 Here's how the above process additionally handles spot preemptions:

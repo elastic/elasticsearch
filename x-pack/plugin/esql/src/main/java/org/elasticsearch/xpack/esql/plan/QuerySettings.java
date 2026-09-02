@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
@@ -82,6 +83,8 @@ public final class QuerySettings {
         .canonicalize(ZoneId::normalized)
         .build();
 
+    // LOAD_ALL is deliberately absent from this description: it is snapshot-only, and there is no mechanism to hold
+    // docs back for a snapshot-only value of an already-released setting. Document it once it ships.
     @Param(name = "unmapped_fields", type = { "keyword" }, since = "preview 9.3-9.4, ga 9.5+", description = """
         Determines how unmapped fields are treated.
         For a conceptual overview and use cases, including performance considerations, refer to
@@ -129,7 +132,14 @@ public final class QuerySettings {
     public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = QuerySettingDef.string(
         "unmapped_fields",
         QuerySettings::parseUnmappedResolution
-    ).withDefault(UnmappedResolution.DEFAULT).build();
+    )
+        .withValidator(
+            (value, ctx) -> value == UnmappedResolution.LOAD_ALL && ctx.isSnapshot() == false
+                ? "unmapped_fields value [LOAD_ALL] requires a snapshot build"
+                : null
+        )
+        .withDefault(UnmappedResolution.DEFAULT)
+        .build();
 
     @Param(
         name = "column_metadata",
@@ -231,10 +241,19 @@ public final class QuerySettings {
         try {
             return UnmappedResolution.valueOf(value.toUpperCase(Locale.ROOT));
         } catch (Exception e) {
-            throw new IllegalArgumentException(
-                "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(UnmappedResolution.values())
-            );
+            throw new IllegalArgumentException(invalidUnmappedResolutionMessage(value, Build.current().isSnapshot()));
         }
+    }
+
+    /**
+     * Parsing runs before the snapshot-only validator of {@link #UNMAPPED_FIELDS}, so this message is what a user of a production build
+     * sees for a typo. It must not advertise {@link UnmappedResolution#LOAD_ALL}, which that build rejects.
+     */
+    static String invalidUnmappedResolutionMessage(String value, boolean snapshotBuild) {
+        List<UnmappedResolution> available = Arrays.stream(UnmappedResolution.values())
+            .filter(resolution -> snapshotBuild || resolution.loadsAllUnmappedFields() == false)
+            .toList();
+        return "Invalid unmapped_fields resolution [" + value + "], must be one of " + available;
     }
 
     /**

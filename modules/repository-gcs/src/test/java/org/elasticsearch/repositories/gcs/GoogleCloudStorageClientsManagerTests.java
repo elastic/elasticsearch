@@ -29,6 +29,8 @@ import org.elasticsearch.repositories.gcs.GoogleCloudStorageService.GoogleCloudS
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -66,9 +68,8 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
     private GoogleCloudStorageService googleCloudStorageService;
     private GoogleCloudStorageClientsManager gcsClientsManager;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initClientsManager() throws Exception {
         privateKeyIdGenerators = ConcurrentCollections.newConcurrentMap();
         statsCollector = new GcsRepositoryStatsCollector();
         clientNames = Stream.concat(Stream.of("default"), IntStream.range(0, between(1, 4)).mapToObj(i -> randomIdentifier() + "_" + i))
@@ -106,9 +107,8 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
         assertNotNull(gcsClientsManager.getPerProjectClientsHolders());
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void cleanup() throws Exception {
         clusterService.close();
         threadPool.close();
     }

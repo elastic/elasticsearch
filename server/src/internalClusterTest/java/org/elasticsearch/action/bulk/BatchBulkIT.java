@@ -9,19 +9,41 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -31,14 +53,15 @@ import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assume.assumeTrue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2, numClientNodes = 1)
 public class BatchBulkIT extends ESIntegTestCase {
@@ -56,8 +79,18 @@ public class BatchBulkIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(ShardBatchIndexer.BATCH_INDEXING.getKey(), true)
+            .put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true)
             .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        // DataStreamsPlugin is needed by the pre-built-batch tests that target a data stream rather than a
+        // concrete index. MapperExtrasPlugin registers match_only_text, used by testColumnarMatchOnlyTextBatchMode.
+        return CollectionUtils.appendToCopyNoNullElements(
+            CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), DataStreamsPlugin.class),
+            MapperExtrasPlugin.class
+        );
     }
 
     private void createBatchIndex(String index, int shards, int replicas) throws IOException {
@@ -69,7 +102,6 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", shards)
                         .put("index.number_of_replicas", replicas)
                         .put("index.mapping.source.mode", "synthetic")
-
                 )
                 .setMapping(mapping)
         );
@@ -115,6 +147,173 @@ public class BatchBulkIT extends ESIntegTestCase {
         return internalCluster().getNodeNames()[internalCluster().getNodeNames().length - 1];
     }
 
+    public void testColumnarKeywordBatchMode() throws IOException {
+        String index = "test-columnar-keywords";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                    mapping.startObject("service").field("type", "keyword").endObject();
+                    mapping.startObject("env").field("type", "keyword").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+
+        int numDocs = randomIntBetween(20, 100);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .source(XContentType.JSON, "host", "host-" + (i % 5), "service", "svc-" + (i % 3), "env", "prod")
+                    .opType(DocWriteRequest.OpType.CREATE)
+            );
+        }
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+
+        // Spot-check a specific doc by id.
+        var getResponse = client().get(new org.elasticsearch.action.get.GetRequest(index).id("doc-0")).actionGet();
+        assertTrue(getResponse.isExists());
+    }
+
+    public void testColumnarMatchOnlyTextBatchMode() throws IOException {
+        String index = "test-columnar-match-only-text";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("message").field("type", "match_only_text").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+
+        int numDocs = randomIntBetween(20, 100);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .source(XContentType.JSON, "message", "hello world " + i)
+                    .opType(DocWriteRequest.OpType.CREATE)
+            );
+        }
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+
+        // The inverted (DOCS-only) index built by the batch path must be searchable via match.
+        assertResponse(
+            prepareSearch(index).setQuery(QueryBuilders.matchQuery("message", "hello")).setSize(0).setTrackTotalHits(true),
+            searchResponse -> {
+                assertNoFailures(searchResponse);
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+            }
+        );
+
+        // Spot-check a specific doc by id.
+        var getResponse = client().get(new org.elasticsearch.action.get.GetRequest(index).id("doc-0")).actionGet();
+        assertTrue(getResponse.isExists());
+    }
+
     public void testBulkIndexingViaBatchMode() throws IOException {
         String index = "test-batch";
         createBatchIndex(index, 2, 1);
@@ -138,6 +337,57 @@ public class BatchBulkIT extends ESIntegTestCase {
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
         });
+
+        // the batch listener hooks must feed the indexing stats exactly like the sequential path
+        var statsResponse = indicesAdmin().prepareStats(index).clear().setIndexing(true).get();
+        var primaryStats = statsResponse.getPrimaries().getIndexing().getTotal();
+        assertThat(primaryStats.getIndexCount(), equalTo((long) numDocs));
+        assertThat(primaryStats.getIndexCurrent(), equalTo(0L));
+        assertThat(primaryStats.getIndexFailedCount(), equalTo(0L));
+        // replicas take the batch path too: 1 replica per shard doubles the total
+        assertThat(statsResponse.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(numDocs * 2L));
+    }
+
+    public void testBatchModeWithVersionConflicts() throws IOException {
+        String index = "test-batch-version-conflict";
+        createBatchIndex(index, 1, 0);
+        String coordinatingNode = findCoordinatingNode();
+
+        int numDocs = randomIntBetween(5, 20);
+        BulkRequest firstBulk = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            firstBulk.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .opType(DocWriteRequest.OpType.CREATE)
+                    .source(Map.of("name", "doc-" + i, "value", i, "message", "hello world " + i))
+            );
+        }
+        assertNoFailures(client(coordinatingNode).bulk(firstBulk).actionGet());
+
+        // re-creating the same ids fails every item with a version conflict, through the batch path
+        BulkRequest conflictingBulk = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            conflictingBulk.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .opType(DocWriteRequest.OpType.CREATE)
+                    .source(Map.of("name", "doc-" + i, "value", i, "message", "hello again " + i))
+            );
+        }
+        BulkResponse conflictingResponse = client(coordinatingNode).bulk(conflictingBulk).actionGet();
+        assertTrue(conflictingResponse.hasFailures());
+        for (BulkItemResponse item : conflictingResponse.getItems()) {
+            assertTrue(item.isFailed());
+            assertThat(item.getFailure().getStatus(), equalTo(RestStatus.CONFLICT));
+        }
+
+        // failures must be recorded by the batch listener hooks: failed and version-conflict
+        // counts match the conflicting docs, and index_current returns to zero
+        var statsResponse = indicesAdmin().prepareStats(index).clear().setIndexing(true).get();
+        var primaryStats = statsResponse.getPrimaries().getIndexing().getTotal();
+        assertThat(primaryStats.getIndexCount(), equalTo((long) numDocs));
+        assertThat(primaryStats.getIndexFailedCount(), equalTo((long) numDocs));
+        assertThat(primaryStats.getIndexFailedDueToVersionConflictCount(), equalTo((long) numDocs));
+        assertThat(primaryStats.getIndexCurrent(), equalTo(0L));
     }
 
     public void testSyntheticSourceReconstruction() throws IOException {
@@ -1459,5 +1709,695 @@ public class BatchBulkIT extends ESIntegTestCase {
                 }
             }
         );
+    }
+
+    public void testColumnarFlattenedBatchMode() throws IOException {
+        final String index = "test-columnar-flattened";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                    mapping.startObject("attrs").field("type", "flattened").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        final String coordinatingNode = findCoordinatingNode();
+        final int numDocs = randomIntBetween(20, 100);
+        final BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .source(XContentType.JSON, "host", "srv-" + (i % 5), "attrs", Map.of("env", "prod", "region", "us-east-" + (i % 3)))
+                    .opType(DocWriteRequest.OpType.CREATE)
+            );
+        }
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "flattened batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+
+            final BulkResponse response = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(response);
+            assertThat(response.getItems().length, equalTo(numDocs));
+
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+    }
+
+    /**
+     * Verifies the batch path handles a mixed-shape flattened batch without falling back: one doc with
+     * a non-empty object, one with an explicit null, one with an empty object, and one with a nested key.
+     */
+    public void testColumnarFlattenedMixedShapes() throws IOException {
+        final String index = "test-columnar-flattened-mixed";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("attrs").field("type", "flattened").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        final String coordinatingNode = findCoordinatingNode();
+        final BulkRequest bulkRequest = new BulkRequest();
+        // Doc 0: non-empty object with a simple key.
+        bulkRequest.add(
+            new IndexRequest(index).id("doc-0").source(XContentType.JSON, "attrs", Map.of("a", "1")).opType(DocWriteRequest.OpType.CREATE)
+        );
+        // Doc 1: explicit null — produces a leaf at the own path, no sub-keys.
+        bulkRequest.add(
+            new IndexRequest(index).id("doc-1").source("{\"attrs\":null}", XContentType.JSON).opType(DocWriteRequest.OpType.CREATE)
+        );
+        // Doc 2: empty object — like null, no sub-keys.
+        bulkRequest.add(
+            new IndexRequest(index).id("doc-2").source("{\"attrs\":{}}", XContentType.JSON).opType(DocWriteRequest.OpType.CREATE)
+        );
+        // Doc 3: nested object → dotted key "o.i".
+        bulkRequest.add(
+            new IndexRequest(index).id("doc-3")
+                .source(XContentType.JSON, "attrs", Map.of("o", Map.of("i", "v")))
+                .opType(DocWriteRequest.OpType.CREATE)
+        );
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "mixed-shape flattened batch on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+
+            final BulkResponse response = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(response);
+            assertThat(response.getItems().length, equalTo(4));
+
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(4L));
+        });
+    }
+
+    /** Verifies that two independent flattened bags in the same mapping both stay on the columnar path. */
+    public void testColumnarTwoFlattenedFields() throws IOException {
+        final String index = "test-columnar-two-flattened";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("tags").field("type", "flattened").endObject();
+                    mapping.startObject("meta").field("type", "flattened").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        final String coordinatingNode = findCoordinatingNode();
+        final int numDocs = randomIntBetween(20, 100);
+        final BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .source(
+                        XContentType.JSON,
+                        "tags",
+                        Map.of("color", "red-" + i, "size", "M"),
+                        "meta",
+                        Map.of("region", "us-" + (i % 3), "tier", "gold")
+                    )
+                    .opType(DocWriteRequest.OpType.CREATE)
+            );
+        }
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "two-flattened batch on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+
+            final BulkResponse response = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(response);
+            assertThat(response.getItems().length, equalTo(numDocs));
+
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+    }
+
+    /**
+     * Regression test: a keyword field with {@code multi_value: false, on_failure: ignore} indexed via the batch
+     * path must index the first value as a normal doc value and route the second (violating) value to
+     * {@code ._on_failure} so that synthetic source can reconstruct the full array.
+     */
+    @SuppressWarnings("unchecked")
+    public void testMultiValueFalseOnFailureIgnoreInBatchPath() throws IOException {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
+        String index = "test-batch-mvf";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("field");
+                    {
+                        mapping.field("type", "keyword");
+                        mapping.startObject("doc_values");
+                        {
+                            mapping.field("multi_value", false);
+                            mapping.field("on_failure", "ignore");
+                        }
+                        mapping.endObject();
+                    }
+                    mapping.endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        // prevent random index templates from overriding seq_no options, which columnar mode defaults
+                        .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(
+            new IndexRequest(index).id("doc-1")
+                .opType(DocWriteRequest.OpType.INDEX)
+                .source("{\"field\": [\"val1\", \"val2\"]}", XContentType.JSON)
+        );
+        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertNoFailures(bulkResponse);
+
+        refresh(index);
+
+        // The first value must be indexed and searchable.
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.termQuery("field", "val1")).setSize(1), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(
+                "first value must be indexed and searchable in the batch path",
+                searchResponse.getHits().getTotalHits().value(),
+                equalTo(1L)
+            );
+        });
+
+        // The second value must not be indexed as a regular doc value (it was routed to ._on_failure).
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.termQuery("field", "val2")).setSize(1), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(
+                "second value must not be indexed as a regular keyword value in the batch path",
+                searchResponse.getHits().getTotalHits().value(),
+                equalTo(0L)
+            );
+        });
+
+        // Document must exist and its source must contain both values: val1 (the primary column) and val2 (._on_failure sidecar).
+        var getResponse = client().get(new GetRequest(index).id("doc-1")).actionGet();
+        assertTrue(getResponse.isExists());
+        assertThat(
+            "both values must appear in source after ._on_failure read-side wiring",
+            getResponse.getSourceAsMap().get("field"),
+            equalTo(List.of("val1", "val2"))
+        );
+    }
+
+    public void testPreBuiltBatch() throws IOException {
+        String index = "test-prebuilt-batch";
+        int numShards = randomIntBetween(1, 4);
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                    mapping.startObject("value").field("type", "long").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", numShards)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = randomIntBetween(10, 40);
+
+        // Build a single whole-index batch. Row indices are assigned sequentially; the coordinator
+        // scatters row references to each shard's sub-request.
+        SourceBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            for (int i = 0; i < numDocs; i++) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("host", "host-" + (i % 3));
+                doc.field("value", (long) i);
+                doc.endObject();
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
+                encoder.commitScratchTo(0);
+            }
+            batch = encoder.buildPartition(0);
+        }
+
+        // Build sourceless IndexRequests carrying row references into the pre-built batch.
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest ir = new IndexRequest(index).id("doc-" + i).opType(DocWriteRequest.OpType.INDEX);
+            ir.indexSource().setSourceRow(batch, i, XContentType.JSON);
+            bulkRequest.add(ir);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(index, batch));
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+        assertResponse(prepareSearch(index).setTrackTotalHits(true), response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+        // Spot-check source reconstruction for one doc.
+        var getResponse = client().get(new GetRequest(index).id("doc-0")).actionGet();
+        assertTrue(getResponse.isExists());
+        assertThat(getResponse.getSourceAsMap().get("host"), equalTo("host-0"));
+        assertThat(getResponse.getSourceAsMap().get("value"), equalTo(0));
+    }
+
+    public void testPreBuiltBatchRejectsSourceExtractedRouting() throws IOException {
+        String index = "test-prebuilt-routing-path";
+
+        // TIME_SERIES mode is required for routing_path (ForRoutingPath / ForIndexDimensions).
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_data_stream_timestamp").field("enabled", true).endObject();
+            mapping.startObject("properties");
+            {
+                mapping.startObject("@timestamp").field("type", "date").endObject();
+                mapping.startObject("service_name").field("type", "keyword").field("time_series_dimension", true).endObject();
+                mapping.startObject("value").field("type", "long").endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                        .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "service_name")
+                        .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2024-01-01T00:00:00Z")
+                        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2030-01-01T00:00:00Z")
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = 3;
+
+        SourceBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            for (int i = 0; i < numDocs; i++) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("@timestamp", "2025-01-01T00:00:00Z");
+                doc.field("service_name", "svc-" + i);
+                doc.field("value", (long) i);
+                doc.endObject();
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
+                encoder.commitScratchTo(0);
+            }
+            batch = encoder.buildPartition(0);
+        }
+
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest ir = new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE);
+            ir.indexSource().setSourceRow(batch, i, XContentType.JSON);
+            bulkRequest.add(ir);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(index, batch));
+
+        // The IllegalArgumentException from SourceBatchSharder#resolve is caught and turned into per-item failures;
+        // the bulk request itself does not throw.
+        BulkResponse response = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertTrue("expected bulk failures for source-extracted routing", response.hasFailures());
+        for (BulkItemResponse item : response.getItems()) {
+            assertTrue("item " + item.getItemId() + " must fail", item.isFailed());
+            assertThat(item.getFailureMessage(), containsString("routes by extracting fields from _source"));
+        }
+    }
+
+    public void testPreBuiltBatchThrowsOnMissingRow() throws IOException {
+        String index = "test-prebuilt-missing-row";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                    mapping.startObject("value").field("type", "long").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+
+        SourceBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            XContentBuilder doc = JsonXContent.contentBuilder();
+            doc.startObject();
+            doc.field("host", "host-0");
+            doc.field("value", 0L);
+            doc.endObject();
+            encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
+            encoder.commitScratchTo(0);
+            batch = encoder.buildPartition(0);
+        }
+
+        // Item has inline source bytes — no row reference — but we also set preBuiltBatches.
+        // The coordinator rejects the whole bulk eagerly (at routing time) because every item in a
+        // provided-batch bulk must carry a source-row reference.
+        BulkRequest bulkRequest = new BulkRequest();
+        XContentBuilder inlineDoc = JsonXContent.contentBuilder();
+        inlineDoc.startObject();
+        inlineDoc.field("host", "host-0");
+        inlineDoc.field("value", 0L);
+        inlineDoc.endObject();
+        bulkRequest.add(new IndexRequest(index).id("doc-0").opType(DocWriteRequest.OpType.INDEX).source(inlineDoc));
+        bulkRequest.setPreBuiltBatches(Map.of(index, batch));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client(coordinatingNode).bulk(bulkRequest).actionGet()
+        );
+        assertThat(e.getMessage(), containsString("must carry a source-row reference"));
+    }
+
+    public void testPreBuiltBatchTargetsDataStreamName() throws Exception {
+        String dataStream = "logs-prebuilt-ds";
+        putBatchDataStreamTemplate(dataStream, 3);
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStream)
+            )
+        );
+        ensureGreen(dataStream);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = randomIntBetween(10, 30);
+        Instant baseTime = Instant.parse("2025-01-15T10:00:00.000Z");
+
+        SourceBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            for (int i = 0; i < numDocs; i++) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("@timestamp", baseTime.plusSeconds(i).toString());
+                doc.field("host", "host-" + (i % 4));
+                doc.field("value", (long) i);
+                doc.endObject();
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
+                encoder.commitScratchTo(0);
+            }
+            batch = encoder.buildPartition(0);
+        }
+
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest ir = new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE);
+            ir.indexSource().setSourceRow(batch, i, XContentType.JSON);
+            bulkRequest.add(ir);
+        }
+        // Keyed by the data stream name, not by .ds-logs-prebuilt-ds-000001.
+        bulkRequest.setPreBuiltBatches(Map.of(dataStream, batch));
+
+        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertNoFailures(bulkResponse);
+
+        refresh(dataStream);
+        assertResponse(prepareSearch(dataStream).setTrackTotalHits(true).setSize(numDocs).addSort("value", SortOrder.ASC), response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs));
+            SearchHit[] hits = response.getHits().getHits();
+            for (int i = 0; i < numDocs; i++) {
+                Map<String, Object> source = hits[i].getSourceAsMap();
+                assertThat("host mismatch at doc " + i, source.get("host"), equalTo("host-" + (i % 4)));
+                assertThat("value mismatch at doc " + i, source.get("value"), equalTo(i));
+            }
+        });
+    }
+
+    public void testPreBuiltBatchTargetsAliasName() throws IOException {
+        String index = "test-prebuilt-alias-backed";
+        String alias = "test-prebuilt-alias";
+        createBatchIndex(index, 3, 0);
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(index).alias(alias).writeIndex(true))
+        );
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = randomIntBetween(10, 30);
+
+        SourceBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            for (int i = 0; i < numDocs; i++) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("name", "name-" + i);
+                doc.field("value", (long) i);
+                doc.endObject();
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
+                encoder.commitScratchTo(0);
+            }
+            batch = encoder.buildPartition(0);
+        }
+
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest ir = new IndexRequest(alias).id("doc-" + i).opType(DocWriteRequest.OpType.INDEX);
+            ir.indexSource().setSourceRow(batch, i, XContentType.JSON);
+            bulkRequest.add(ir);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(alias, batch));
+
+        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertNoFailures(bulkResponse);
+
+        refresh(index);
+        assertResponse(prepareSearch(index).setTrackTotalHits(true).setSize(numDocs).addSort("value", SortOrder.ASC), response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs));
+            SearchHit[] hits = response.getHits().getHits();
+            for (int i = 0; i < numDocs; i++) {
+                assertThat("name mismatch at doc " + i, hits[i].getSourceAsMap().get("name"), equalTo("name-" + i));
+            }
+        });
+    }
+
+    private void putBatchDataStreamTemplate(String dataStream, int shards) throws IOException {
+        String mapping = """
+            {
+                "properties": {
+                    "@timestamp": { "type": "date" },
+                    "host": { "type": "keyword" },
+                    "value": { "type": "long" }
+                }
+            }
+            """;
+        var request = new TransportPutComposableIndexTemplateAction.Request(dataStream + "-template");
+        request.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(dataStream + "*"))
+                .template(
+                    new Template(
+                        Settings.builder().put("index.number_of_shards", shards).put("index.number_of_replicas", 0).build(),
+                        CompressedXContent.fromJSON(mapping),
+                        null
+                    )
+                )
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
+        );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request));
     }
 }

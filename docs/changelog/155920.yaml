@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 155920
+summary: "Fix match & match_phrase with `AND` or `minimum_should_match` on runtime multivalue expressions"
+type: bug

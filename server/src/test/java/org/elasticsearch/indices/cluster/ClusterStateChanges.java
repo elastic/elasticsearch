@@ -173,7 +173,7 @@ public class ClusterStateChanges {
         );
         shardFailedTaskExecutor = new ShardFailedTaskExecutor(allocationService, null);
         shardStartedTaskExecutor = new ShardStartedTaskExecutor(clusterSettings, allocationService, null);
-        ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
+        ActionFilters actionFilters = ActionFilters.EMPTY;
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         DestructiveOperations destructiveOperations = new DestructiveOperations(SETTINGS, clusterSettings);
         Environment environment = TestEnvironment.newEnvironment(SETTINGS);
@@ -207,7 +207,7 @@ public class ClusterStateChanges {
                 MapperService mapperService = mock(MapperService.class);
                 when(indexService.mapperService()).thenReturn(mapperService);
                 when(mapperService.documentMapper()).thenReturn(null);
-                when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {});
+                when(indexService.getIndexEventListener()).thenReturn(IndexEventListener.NOOP);
                 when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
                 return ((CheckedFunction<IndexService, ?, ?>) invocationOnMock.getArguments()[1]).apply(indexService);
             });

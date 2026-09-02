@@ -30,9 +30,12 @@ import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -56,7 +59,7 @@ public class RepeatStaticTests extends ESTestCase {
         int number = (int) ScalarFunction.MAX_BYTES_REF_RESULT_SIZE + 1;
         String repeated = process(str, number);
         assertNull(repeated);
-        assertWarnings(
+        assertDriverWarnings(
             "Line -1:-1: java.lang.IllegalArgumentException: Creating repeated strings with more than [1048576] bytes is not supported",
             "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded."
         );
@@ -69,7 +72,7 @@ public class RepeatStaticTests extends ESTestCase {
     public void testLengthOverflowRejected() {
         // int multiplication of length*count would overflow (2 * Integer.MAX_VALUE == -2) and skip the size guard
         assertNull(process("ab", Integer.MAX_VALUE));
-        assertWarnings(
+        assertDriverWarnings(
             "Line -1:-1: java.lang.IllegalArgumentException: Creating repeated strings with more than [1048576] bytes is not supported",
             "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded."
         );
@@ -78,7 +81,7 @@ public class RepeatStaticTests extends ESTestCase {
     public void testLengthOverflowWrapsPositiveRejected() {
         // 65536 * 65537 overflows int to +65536, which is under the size limit and would skip the guard
         assertNull(process("a".repeat(65536), 65537));
-        assertWarnings(
+        assertDriverWarnings(
             "Line -1:-1: java.lang.IllegalArgumentException: Creating repeated strings with more than [1048576] bytes is not supported",
             "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded."
         );
@@ -99,6 +102,21 @@ public class RepeatStaticTests extends ESTestCase {
      * The following fields and methods were borrowed from AbstractScalarFunctionTestCase
      */
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
+    private final List<DriverContext> driverContexts = Collections.synchronizedList(new ArrayList<>());
+
+    /**
+     * Asserts the warnings accumulated across every {@link DriverContext} this test built.
+     */
+    private void assertDriverWarnings(String... expected) {
+        Set<String> collected = new LinkedHashSet<>();
+        for (DriverContext ctx : driverContexts) {
+            if (ctx.isFinished() == false) {
+                ctx.finish();
+            }
+            collected.addAll(ctx.warnings());
+        }
+        assertThat(collected, containsInAnyOrder(expected));
+    }
 
     private static Page row(List<Object> values) {
         return new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values));
@@ -111,7 +129,9 @@ public class RepeatStaticTests extends ESTestCase {
     private DriverContext driverContext() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
         breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
-        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
+        DriverContext driverContext = new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
+        driverContexts.add(driverContext);
+        return driverContext;
     }
 
     @After

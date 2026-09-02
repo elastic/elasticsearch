@@ -7,13 +7,17 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
+
+import java.util.Objects;
 
 /**
  * Search and shard context used as entries in {@link org.elasticsearch.compute.lucene.IndexedByShardId}. These are shared by both the data
@@ -38,12 +42,30 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardCo
  */
 class ComputeSearchContext implements Releasable {
     private final int index;
+    @Nullable
     private final SearchContext searchContext;
     private final SetOnce<ShardContext> shardContext = new SetOnce<>();
 
     ComputeSearchContext(int index, SearchContext searchContext) {
         this.index = index;
-        this.searchContext = searchContext;
+        this.searchContext = Objects.requireNonNull(searchContext);
+    }
+
+    private ComputeSearchContext(int index) {
+        this.index = index;
+        this.searchContext = null;
+    }
+
+    /** Tombstone with no {@link SearchContext}, so the closed search context can be GC'd. */
+    ComputeSearchContext tombstone() {
+        return new ComputeSearchContext(index);
+    }
+
+    private void ensureNotTombstone() {
+        if (searchContext == null) {
+            assert false : "ComputeSearchContext for index [" + index + "] was already closed";
+            throw new AlreadyClosedException("ComputeSearchContext for index [" + index + "] was already closed");
+        }
     }
 
     public int index() {
@@ -58,6 +80,7 @@ class ComputeSearchContext implements Releasable {
     }
 
     public SearchContext searchContext() {
+        ensureNotTombstone();
         return searchContext;
     }
 
@@ -74,6 +97,7 @@ class ComputeSearchContext implements Releasable {
     }
 
     private ShardContext createShardContext(Releasable releasable, QueryWarnings queryWarnings) {
+        ensureNotTombstone();
         EsqlSearchExecutionContext searchExecutionContext = new EsqlSearchExecutionContext(
             searchContext.getSearchExecutionContext(),
             queryWarnings

@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.TransportVersion;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -32,9 +35,20 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
  * New pushdown tests should be added here rather than in {@link LocalPhysicalPlanOptimizerTests}.
  */
 public class PushdownGoldenTests extends UnmappedGoldenTestCase {
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public PushdownGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION);
 
     private static final String SALARIES_RESOURCE = "s3://bucket/golden_salaries.parquet";
+
+    private static final String PACK_DIMS_AGG = "pack_dims_agg";
 
     public void testFilterPushdownNoUnmapped() {
         String query = """
@@ -63,6 +77,15 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
         runUnmappedTests(query);
     }
 
+    public void testFilterPushdownWhenPotentiallyUnmappedFieldIsMapped() {
+        String query = """
+            FROM sample_data
+            | KEEP message, mapped_on_data_node
+            | WHERE mapped_on_data_node == "Disconnection error"
+            """;
+        runTestsLoadOnly(query, STAGES);
+    }
+
     public void testSortPushdownNoUnmapped() {
         String query = """
             FROM sample_data
@@ -81,6 +104,16 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
             | LIMIT 5
             """;
         runUnmappedTests(query);
+    }
+
+    public void testSortPushdownWhenPotentiallyUnmappedFieldIsMapped() {
+        String query = """
+            FROM sample_data
+            | KEEP message, mapped_on_data_node
+            | SORT mapped_on_data_node
+            | LIMIT 5
+            """;
+        runTestsLoadOnly(query, STAGES);
     }
 
     public void testFilterConjunctionPushableAndNonPushable() {
@@ -212,7 +245,7 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
             | SORT name
             """;
         builder(query).stages(STAGES)
-            .transportVersion(TransportVersion.current())
+            .since(DatasetMetadata.ESQL_DATASOURCES)
             .datasetMetadata(salariesDatasetMetadata())
             .externalSourceResolution(salariesExternalSourceResolution())
             .run();
@@ -234,7 +267,8 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
             | SORT name
             """;
         builder(query).stages(STAGES)
-            .transportVersion(TransportVersion.current())
+            .since(DatasetMetadata.ESQL_DATASOURCES)
+            .expectationChangesAt(PACK_DIMS_AGG)
             .datasetMetadata(salariesDatasetMetadata())
             .externalSourceResolution(salariesExternalSourceResolution())
             .run();
@@ -278,6 +312,99 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
                 | WHERE mv_intersects(["Alice", "Anna", "Peter"], first_name)
             """;
         runGoldenTest(query, STAGES);
+    }
+
+    /**
+     * mv_greater Lucene pushdown strategies: YES (exact drop filter), YES+inclusive, YES+NOT,
+     * YES keyword (exact byte-encoded), YES keyword+NOT, RECHECK double, RECHECK+NOT, text NO.
+     */
+    public void testMvGreaterPushdown() {
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE mv_greater(salary, 25000)
+            """, STAGES, "yes");
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE mv_greater(salary, 25000, {"include_bound": true})
+            """, STAGES, "yes_inclusive");
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE NOT mv_greater(salary, 25000)
+            """, STAGES, "yes_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP keyword
+                | WHERE mv_greater(keyword, "m")
+            """, STAGES, "yes_keyword");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP keyword
+                | WHERE NOT mv_greater(keyword, "m")
+            """, STAGES, "yes_keyword_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP double
+                | WHERE mv_greater(double, 1.0)
+            """, STAGES, "recheck");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP double
+                | WHERE NOT mv_greater(double, 1.0)
+            """, STAGES, "recheck_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP text
+                | WHERE mv_greater(text, "a")
+            """, STAGES, "text_no");
+    }
+
+    /**
+     * mv_less Lucene pushdown strategies: same matrix as {@link #testMvGreaterPushdown}.
+     */
+    public void testMvLessPushdown() {
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE mv_less(salary, 30000)
+            """, STAGES, "yes");
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE mv_less(salary, 30000, {"include_bound": true})
+            """, STAGES, "yes_inclusive");
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE NOT mv_less(salary, 30000)
+            """, STAGES, "yes_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP keyword
+                | WHERE mv_less(keyword, "m")
+            """, STAGES, "yes_keyword");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP keyword
+                | WHERE NOT mv_less(keyword, "m")
+            """, STAGES, "yes_keyword_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP double
+                | WHERE mv_less(double, 1.0)
+            """, STAGES, "recheck");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP double
+                | WHERE NOT mv_less(double, 1.0)
+            """, STAGES, "recheck_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP text
+                | WHERE mv_less(text, "a")
+            """, STAGES, "text_no");
     }
 
     /** Registers {@code golden_salaries} as an external dataset so {@code FROM golden_salaries} becomes an external relation. */

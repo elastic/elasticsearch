@@ -36,7 +36,7 @@ class TDigestPercentileRanksAggregator extends AbstractTDigestPercentilesAggrega
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        HistogramUnionState state = getState(owningBucketOrdinal);
+        HistogramUnionState state = takeState(owningBucketOrdinal);
         if (state == null) {
             return buildEmptyAggregation();
         } else {

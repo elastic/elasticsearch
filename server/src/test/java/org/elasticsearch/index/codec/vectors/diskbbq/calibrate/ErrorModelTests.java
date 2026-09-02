@@ -39,7 +39,7 @@ public class ErrorModelTests extends ESTestCase {
     public void testSelectTopNDescendingReturnsLargestInDescendingOrder() {
         double[] keys = { 5.0, 1.0, 4.0, 2.0, 3.0 };
         int[] idx = new int[keys.length];
-        ErrorModel.selectTopNDescending(keys, idx, keys.length, 3);
+        CalibrationUtils.selectTopNDescending(keys, idx, keys.length, 3);
         // top-3 keys are 5, 4, 3 at indices 0, 2, 4; only idx[0..n) is specified by the contract.
         assertEquals(0, idx[0]);
         assertEquals(2, idx[1]);
@@ -50,7 +50,7 @@ public class ErrorModelTests extends ESTestCase {
         // n == 1: picks the (a) maximum key. 7.0 ties at indices 1 and 3.
         double[] keys = { -3.0, 7.0, 2.0, 7.0, 1.0 };
         int[] idx = new int[keys.length];
-        ErrorModel.selectTopNDescending(keys, idx, keys.length, 1);
+        CalibrationUtils.selectTopNDescending(keys, idx, keys.length, 1);
         assertEquals(7.0, keys[idx[0]], 0.0);
         assertTopN(keys, 1);
     }
@@ -59,7 +59,7 @@ public class ErrorModelTests extends ESTestCase {
         // n >= len takes the full-sort branch: the whole array is permuted into descending key order.
         double[] keys = { 2.0, 5.0, -1.0, 3.0 };
         int[] idx = new int[keys.length];
-        ErrorModel.selectTopNDescending(keys, idx, keys.length, keys.length);
+        CalibrationUtils.selectTopNDescending(keys, idx, keys.length, keys.length);
         assertEquals(1, idx[0]); // 5.0
         assertEquals(3, idx[1]); // 3.0
         assertEquals(0, idx[2]); // 2.0
@@ -70,7 +70,7 @@ public class ErrorModelTests extends ESTestCase {
     public void testSelectTopNDescendingSingletonArray() {
         double[] keys = { 42.0 };
         int[] idx = new int[1];
-        ErrorModel.selectTopNDescending(keys, idx, 1, 1);
+        CalibrationUtils.selectTopNDescending(keys, idx, 1, 1);
         assertEquals(0, idx[0]);
     }
 
@@ -78,7 +78,7 @@ public class ErrorModelTests extends ESTestCase {
         // Four docs tie at the top; the top-3 must all be those, and the singleton 1.0 must be excluded.
         double[] keys = { 4.0, 4.0, 4.0, 1.0, 4.0 };
         int[] idx = new int[keys.length];
-        ErrorModel.selectTopNDescending(keys, idx, keys.length, 3);
+        CalibrationUtils.selectTopNDescending(keys, idx, keys.length, 3);
         for (int i = 0; i < 3; i++) {
             assertEquals(4.0, keys[idx[i]], 0.0);
         }
@@ -99,14 +99,14 @@ public class ErrorModelTests extends ESTestCase {
     }
 
     /**
-     * Verifies the {@link ErrorModel#selectTopNDescending} postcondition: {@code idx[0..n)} holds distinct in-range
+     * Verifies the {@link CalibrationUtils#selectTopNDescending} postcondition: {@code idx[0..n)} holds distinct in-range
      * indices whose keys are the {@code n} largest, listed in non-increasing key order. Compares selected key
      * <em>values</em> (not indices) against a reference full sort so it is robust to how ties are broken.
      */
     private static void assertTopN(double[] keys, int n) {
         int len = keys.length;
         int[] idx = new int[len];
-        ErrorModel.selectTopNDescending(keys, idx, len, n);
+        CalibrationUtils.selectTopNDescending(keys, idx, len, n);
 
         Set<Integer> seen = new HashSet<>();
         for (int i = 0; i < n; i++) {
@@ -132,7 +132,7 @@ public class ErrorModelTests extends ESTestCase {
 
     public void testEstimateQuantizationErrorStdModelReturnsFiniteModel() throws IOException {
         CalibrationFixture fixture = newCalibrationFixture(8);
-        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.EUCLIDEAN, 10);
+        CalibrationSource source = fixture.toSource(randomFrom(VectorSimilarityFunction.values()), 10);
         QuantizationErrorStdModel model = ErrorModel.estimateErrorScalingFit(source, 128).scalingModel();
         assertTrue(Double.isFinite(model.params().beta0()));
         assertTrue(Double.isFinite(model.params().beta1()));
@@ -141,7 +141,7 @@ public class ErrorModelTests extends ESTestCase {
 
     public void testEstimateMagnitudeModelReturnsFiniteModel() throws IOException {
         CalibrationFixture fixture = newCalibrationFixture(8);
-        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.EUCLIDEAN, 10);
+        CalibrationSource source = fixture.toSource(randomFrom(VectorSimilarityFunction.values()), 10);
         ErrorScalingFit scalingFit = ErrorModel.estimateErrorScalingFit(source, 128);
         QuantizationErrorStdModel magnitudeModel = ErrorModel.estimateMagnitudeModel(scalingFit, source, true, 4, 2, 128);
         assertTrue(Double.isFinite(magnitudeModel.params().beta0()));
@@ -151,7 +151,7 @@ public class ErrorModelTests extends ESTestCase {
 
     public void testEstimateMagnitudeModelReusesScalingSlope() throws IOException {
         CalibrationFixture fixture = newCalibrationFixture(8);
-        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.EUCLIDEAN, 10);
+        CalibrationSource source = fixture.toSource(randomFrom(VectorSimilarityFunction.values()), 10);
         ErrorScalingFit scalingFit = ErrorModel.estimateErrorScalingFit(source, 128);
         QuantizationErrorStdModel magnitudeModel = ErrorModel.estimateMagnitudeModel(scalingFit, source, true, 4, 2, 128);
         assertEquals(scalingFit.scalingModel().params().beta1(), magnitudeModel.params().beta1(), 0.0);
@@ -163,7 +163,7 @@ public class ErrorModelTests extends ESTestCase {
         int[] queryOrdinals = { 0, 1, 2, 3 };
         int[] corpusOrdinals = { 4, 5, 6, 7, 8, 9, 10, 11 };
         CalibrationSource source = new CalibrationSource(
-            VectorSimilarityFunction.EUCLIDEAN,
+            randomFrom(VectorSimilarityFunction.values()),
             8,
             fvv,
             queryOrdinals,
@@ -172,7 +172,8 @@ public class ErrorModelTests extends ESTestCase {
             false,
             null,
             corpusOrdinals,
-            10
+            10,
+            fvv.size()
         );
         Regression.OLSResult scalingParams = new Regression.OLSResult(-2.5, 0.35, 0.01, 0.001, 0.0, 0.01);
         ErrorScalingFit scalingFit = ErrorScalingFit.fromScalingModel(new QuantizationErrorStdModel(scalingParams));
@@ -184,7 +185,7 @@ public class ErrorModelTests extends ESTestCase {
 
     public void testGrowingCorpusSweepReusesWarmStartCentroids() throws IOException {
         CalibrationFixture fixture = newCalibrationFixture(8);
-        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.EUCLIDEAN, 10);
+        CalibrationSource source = fixture.toSource(randomFrom(VectorSimilarityFunction.values()), 10);
         HierarchicalKMeans<float[]> kmeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, 8);
         float[][] docWarmStart = null;
         float[][] queryWarmStart = null;
@@ -229,7 +230,7 @@ public class ErrorModelTests extends ESTestCase {
 
     public void testMagnitudeFitReusesScalingFitClusteringState() throws IOException {
         CalibrationFixture fixture = newCalibrationFixture(8);
-        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.EUCLIDEAN, 10);
+        CalibrationSource source = fixture.toSource(randomFrom(VectorSimilarityFunction.values()), 10);
         ErrorScalingFit scalingFit = ErrorModel.estimateErrorScalingFit(source, 128);
         QuantizationErrorStdModel magnitudeModel = ErrorModel.estimateMagnitudeModel(scalingFit, source, true, 4, 2, 128);
         assertTrue(Double.isFinite(magnitudeModel.params().beta0()));
@@ -254,7 +255,7 @@ public class ErrorModelTests extends ESTestCase {
         float[][] rows = randomNormalizedRows(numQueries + corpusSize, dim, 43L);
         FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(rows), null, dim);
         CalibrationSource source = new CalibrationSource(
-            VectorSimilarityFunction.EUCLIDEAN,
+            randomFrom(VectorSimilarityFunction.values()),
             dim,
             fvv,
             range(0, numQueries),
@@ -263,7 +264,8 @@ public class ErrorModelTests extends ESTestCase {
             false,
             null,
             range(numQueries, corpusSize),
-            10
+            10,
+            fvv.size()
         );
         int nDocsPerCluster = 128;
 
@@ -360,7 +362,7 @@ public class ErrorModelTests extends ESTestCase {
         float[][] rows = randomNormalizedRows(9000, dim, 7L);
         FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(rows), null, dim);
         CalibrationSource source = new CalibrationSource(
-            VectorSimilarityFunction.EUCLIDEAN,
+            randomFrom(VectorSimilarityFunction.values()),
             dim,
             fvv,
             range(0, 256),
@@ -369,9 +371,10 @@ public class ErrorModelTests extends ESTestCase {
             false,
             null,
             range(256, 8000),
-            10
+            10,
+            fvv.size()
         );
-        double invDim = ManifoldModel.estimateManifoldParameters(source)[1];
+        double invDim = ManifoldModel.estimateManifoldParameters(source).invDim();
 
         ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(source);
         QuantizationErrorStdModel model = ErrorModel.estimateMagnitudeFromRealResiduals(invDim, source, false, 4, 2, 128, state);
@@ -403,9 +406,10 @@ public class ErrorModelTests extends ESTestCase {
             false,
             null,
             corpus,
-            10
+            10,
+            fvv.size()
         );
-        double invDim = ManifoldModel.estimateManifoldParameters(source)[1];
+        double invDim = ManifoldModel.estimateManifoldParameters(source).invDim();
         ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(source);
         return ErrorModel.estimateMagnitudeFromRealResiduals(invDim, source, false, 4, 2, 128, state).errorStd(128, corpus.length);
     }
@@ -432,7 +436,19 @@ public class ErrorModelTests extends ESTestCase {
 
     private record CalibrationFixture(FloatVectorValues fvv, int[] queryOrdinals, int[] corpusOrdinals, int dim) {
         CalibrationSource toSource(VectorSimilarityFunction similarityFunction, int k) {
-            return new CalibrationSource(similarityFunction, dim, fvv, queryOrdinals, dim, false, false, null, corpusOrdinals, k);
+            return new CalibrationSource(
+                similarityFunction,
+                dim,
+                fvv,
+                queryOrdinals,
+                dim,
+                false,
+                false,
+                null,
+                corpusOrdinals,
+                k,
+                fvv.size()
+            );
         }
     }
 

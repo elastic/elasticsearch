@@ -23,16 +23,13 @@ public class PrometheusSeriesRestActionTests extends ESTestCase {
     private NoOpNodeClient client;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initClient() throws Exception {
         threadPool = createThreadPool();
         client = new NoOpNodeClient(threadPool);
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void terminateThreadPool() throws Exception {
         terminate(threadPool);
     }
 

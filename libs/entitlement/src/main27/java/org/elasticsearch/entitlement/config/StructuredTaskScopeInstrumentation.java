@@ -33,6 +33,9 @@ public class StructuredTaskScopeInstrumentation implements InstrumentationConfig
                 new TypeToken<StructuredTaskScope.Joiner<?, ?, ?>>() {},
                 new TypeToken<UnaryOperator<StructuredTaskScope.Configuration>>() {}
             ).enforce(Policies::manageThreads).elseThrowNotEntitled();
+            rule.callingStatic(StructuredTaskScope::open, new TypeToken<UnaryOperator<StructuredTaskScope.Configuration>>() {})
+                .enforce(Policies::manageThreads)
+                .elseThrowNotEntitled();
         });
     }
 }

@@ -186,7 +186,10 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         components.withModule("net.sf.ehcache:ehcache", ExcludeAllTransitivesRule.class);
 
         // Shibboleth dependencies
-        components.withModule("net.shibboleth.utilities:java-support", ExcludeAllTransitivesRule.class);
+        components.withModule("net.shibboleth:shib-support", ExcludeAllTransitivesRule.class);
+        components.withModule("net.shibboleth:shib-security", ExcludeAllTransitivesRule.class);
+        components.withModule("net.shibboleth:shib-networking", ExcludeAllTransitivesRule.class);
+        components.withModule("net.shibboleth:shib-velocity", ExcludeAllTransitivesRule.class);
 
         // Apache Arrow dependencies
         components.withModule("org.apache.arrow:arrow-format", ExcludeAllTransitivesRule.class);
@@ -293,6 +296,7 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
 
         // Apache HTTP dependencies
         components.withModule("org.apache.httpcomponents.client5:httpclient5", ExcludeAllTransitivesRule.class);
+        components.withModule("org.apache.httpcomponents.client5:httpclient5-cache", ExcludeAllTransitivesRule.class);
         components.withModule("org.apache.httpcomponents:fluent-hc", ExcludeAllTransitivesRule.class);
         components.withModule("org.apache.httpcomponents:httpasyncclient", ExcludeAllTransitivesRule.class);
         components.withModule("org.apache.httpcomponents:httpclient", ExcludeAllTransitivesRule.class);
@@ -374,15 +378,15 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         // org.apache.tika:tika-parser-microsoft-module brings in com.pff:java-libpst:0.9.3.
         // org.apache.tika:tika-parser-microsoft-module brings in commons-logging:commons-logging:1.3.5. We use 1.2.
         // org.apache.tika:tika-parser-microsoft-module brings in org.bouncycastle:bcjmail-jdk18on:1.81.
-        // org.apache.tika:tika-parser-microsoft-module brings in org.bouncycastle:bcprov-jdk18on:1.81. We use 1.84.
+        // org.apache.tika:tika-parser-microsoft-module brings in org.bouncycastle:bcprov-jdk18on:1.81. We use 1.85.
         // org.apache.tika:tika-parser-microsoft-module brings in tika-parser-mail-commons.
         components.withModule("org.apache.tika:tika-parser-microsoft-module", ExcludeAllTransitivesRule.class);
         // org.apache.tika:tika-parser-miscoffice-module brings in org.glassfish.jaxb:jaxb-runtime:4.0.5.
         components.withModule("org.apache.tika:tika-parser-miscoffice-module", ExcludeOtherGroupsTransitiveRule.class);
         // org.apache.tika:tika-parser-pdf-module brings in org.apache.pdfbox:pdfbox-tools:3.0.5.
         // org.apache.tika:tika-parser-pdf-module brings in org.bouncycastle:bcjmail-jdk18on:1.81. Closest we use is
-        // bcprov-jdk18on:1.84.
-        // org.apache.tika:tika-parser-pdf-module brings in org.bouncycastle:bcprov-jdk18on:1.81. We use 1.84.
+        // bcprov-jdk18on:1.85.
+        // org.apache.tika:tika-parser-pdf-module brings in org.bouncycastle:bcprov-jdk18on:1.81. We use 1.85.
         // org.apache.tika:tika-parser-pdf-module brings in org.glassfish.jaxb:jaxb-runtime:4.0.5.
         components.withModule("org.apache.tika:tika-parser-pdf-module", ExcludeOtherGroupsTransitiveRule.class);
         // org.apache.tika:tika-parser-text-module brings in com.github.albfernandez:juniversalchardet:2.5.0..
@@ -419,7 +423,8 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         components.withModule("org.openjdk.jmh:jmh-core", ExcludeAllTransitivesRule.class);
 
         // OpenSAML dependencies
-        components.withModule("org.opensaml:opensaml-core", ExcludeAllTransitivesRule.class);
+        components.withModule("org.opensaml:opensaml-core-api", ExcludeAllTransitivesRule.class);
+        components.withModule("org.opensaml:opensaml-core-impl", ExcludeAllTransitivesRule.class);
         components.withModule("org.opensaml:opensaml-messaging-api", ExcludeAllTransitivesRule.class);
         components.withModule("org.opensaml:opensaml-messaging-impl", ExcludeAllTransitivesRule.class);
         components.withModule("org.opensaml:opensaml-profile-api", ExcludeAllTransitivesRule.class);

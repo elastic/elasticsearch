@@ -20,7 +20,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import static java.lang.Math.max;
 import static java.lang.Math.round;
 import static org.elasticsearch.cluster.routing.allocation.decider.Decision.THROTTLE;
-import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.initializingShard;
+import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.initializingShardRecoverySourceType;
 
 /**
  * This allocation decider limits the number of concurrent relocation of indexing shards depending on the node's heap size. On small
@@ -60,7 +60,7 @@ public class StatelessThrottlingConcurrentRecoveriesAllocationDecider extends Al
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.isPromotableToPrimary() && shardRouting.unassigned() == false) {
             // Peer recovery
-            assert initializingShard(shardRouting, node.nodeId()).recoverySource().getType() == RecoverySource.Type.PEER;
+            assert initializingShardRecoverySourceType(shardRouting, node.nodeId()) == RecoverySource.Type.PEER;
             int currentInRecoveries = allocation.routingNodes().getIncomingRecoveries(node.nodeId());
             ByteSizeValue heapSize = allocation.clusterInfo().getMaxHeapSizePerNode().get(node.nodeId());
             if (currentInRecoveries > 0) {

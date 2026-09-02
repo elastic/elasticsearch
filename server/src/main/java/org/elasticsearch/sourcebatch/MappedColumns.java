@@ -21,7 +21,6 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.LuceneLongColumn;
 
 import java.util.ArrayList;
@@ -33,14 +32,9 @@ public final class MappedColumns {
     private final int offset;
     private final int count;
 
-    @Nullable
-    private final byte[] seqNos;
-
-    @Nullable
-    private final byte[] primaryTerms;
-
-    @Nullable
-    private final byte[] versions;
+    private final BytesRef seqNos;
+    private final BytesRef primaryTerms;
+    private final BytesRef versions;
 
     private final List<LuceneColumn> columns;
 
@@ -48,19 +42,12 @@ public final class MappedColumns {
      * Constructs a {@code MappedColumns} covering the window {@code [from, from + count)} of the
      * given backing arrays and columns.
      */
-    public MappedColumns(
-        int offset,
-        int count,
-        @Nullable byte[] seqNos,
-        @Nullable byte[] primaryTerms,
-        @Nullable byte[] versions,
-        List<LuceneColumn> columns
-    ) {
+    public MappedColumns(int offset, int count, BytesRef seqNos, BytesRef primaryTerms, BytesRef versions, List<LuceneColumn> columns) {
         this.offset = offset;
         this.count = count;
-        this.seqNos = seqNos;
-        this.primaryTerms = primaryTerms;
-        this.versions = versions;
+        this.seqNos = Objects.requireNonNull(seqNos, "seqNos");
+        this.primaryTerms = Objects.requireNonNull(primaryTerms, "primaryTerms");
+        this.versions = Objects.requireNonNull(versions, "versions");
         this.columns = List.copyOf(columns);
     }
 
@@ -70,24 +57,18 @@ public final class MappedColumns {
 
     public void setSeqNo(int doc, long value) {
         assert doc >= 0 && doc < count;
-        if (seqNos != null) {
-            ByteUtils.writeLongLE(value, seqNos, (offset + doc) * 8);
-        }
+        ByteUtils.writeLongLE(value, seqNos.bytes, seqNos.offset + ((offset + doc) * 8));
     }
 
     public void fillPrimaryTerm(long value) {
-        if (primaryTerms != null) {
-            for (int i = 0; i < count; i++) {
-                ByteUtils.writeLongLE(value, primaryTerms, (offset + i) * 8);
-            }
+        for (int i = 0; i < count; i++) {
+            ByteUtils.writeLongLE(value, primaryTerms.bytes, primaryTerms.offset + ((offset + i) * 8));
         }
     }
 
     public void setVersion(int doc, long value) {
         assert doc >= 0 && doc < count;
-        if (versions != null) {
-            ByteUtils.writeLongLE(value, versions, (offset + doc) * 8);
-        }
+        ByteUtils.writeLongLE(value, versions.bytes, versions.offset + ((offset + doc) * 8));
     }
 
     public MappedColumns slice(int from, int to) {
@@ -183,12 +164,21 @@ public final class MappedColumns {
         }
     }
 
-    public static LuceneColumn longColumn(byte[] values, String name, IndexableFieldType fieldType, LongColumn.NumericKind kind) {
+    public static LuceneColumn longColumn(BytesRef values, String name, IndexableFieldType fieldType, LongColumn.NumericKind kind) {
         return LuceneLongColumn.longColumn(values, name, fieldType, kind);
     }
 
     public static LuceneColumn binaryColumn(BytesRef[] values, String name, IndexableFieldType fieldType) {
-        return new WindowedBinaryColumn(values, name, fieldType, 0, values.length);
+        return new WindowedBinaryColumn(values, name, fieldType, 0, values.length, false);
+    }
+
+    /**
+     * Like {@link #binaryColumn} but the row-path cursor is a no-op: {@code rowFieldCursor()} always
+     * returns {@link DocIdSetIterator#NO_MORE_DOCS}. Use when a companion column owns the row-path
+     * emission for the same field (e.g. a token-stream column that also writes binary doc values).
+     */
+    public static LuceneColumn binaryDvOnlyColumn(BytesRef[] values, String name, IndexableFieldType fieldType) {
+        return new WindowedBinaryColumn(values, name, fieldType, 0, values.length, true);
     }
 
     private static final class WindowedBinaryColumn extends BinaryColumn implements LuceneColumn {
@@ -197,13 +187,18 @@ public final class MappedColumns {
         private final int from;
         private final int count;
         private final IndexableFieldType fieldType;
+        // When true, rowFieldCursor() is a no-op. Use this only when a companion column emits the
+        // complete field (including any doc values) on the row path, so this column's row emission
+        // would be redundant or conflicting.
+        private final boolean noOpRowPath;
 
-        WindowedBinaryColumn(BytesRef[] values, String name, IndexableFieldType fieldType, int from, int count) {
+        WindowedBinaryColumn(BytesRef[] values, String name, IndexableFieldType fieldType, int from, int count, boolean noOpRowPath) {
             super(name, fieldType, allPresent(values, from, count) ? Density.DENSE : Density.SPARSE);
             this.values = values;
             this.from = from;
             this.count = count;
             this.fieldType = fieldType;
+            this.noOpRowPath = noOpRowPath;
         }
 
         private static boolean allPresent(BytesRef[] values, int from, int count) {
@@ -218,7 +213,7 @@ public final class MappedColumns {
         @Override
         public WindowedBinaryColumn slice(int from, int count) {
             Objects.checkFromIndexSize(from, count, this.count);
-            return new WindowedBinaryColumn(values, name(), fieldType, this.from + from, count);
+            return new WindowedBinaryColumn(values, name(), fieldType, this.from + from, count, noOpRowPath);
         }
 
         @Override
@@ -228,6 +223,17 @@ public final class MappedColumns {
 
         @Override
         public LuceneColumn.RowFieldCursor rowFieldCursor() {
+            if (noOpRowPath) {
+                return new LuceneColumn.RowFieldCursor() {
+                    @Override
+                    public int nextDoc() {
+                        return DocIdSetIterator.NO_MORE_DOCS;
+                    }
+
+                    @Override
+                    public void appendCurrentFields(List<? super IndexableField> out) {}
+                };
+            }
             // A reusable mutable field whose bytes value is updated per document. Using the public
             // Field(String, BytesRef, IndexableFieldType) constructor sets fieldsData to the given
             // BytesRef; subsequent setBytesValue calls update fieldsData in place. The IndexWriter

@@ -155,6 +155,17 @@ public final class DoubleRangeArrayBlock extends AbstractBlockRefCounted impleme
 
     @Override
     public DoubleRangeBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return this;
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return this;
+            }
+            return (DoubleRangeBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
         DoubleRangeBlock result = null;
         DoubleBlock newFromBlock = null;
         DoubleBlock newToBlock = null;

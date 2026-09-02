@@ -550,7 +550,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     if (binaryOperator instanceof VectorBinarySet == false
                         && hasSourceBackedExpression(binaryOperator.left())
                         && hasSourceBackedExpression(binaryOperator.right())
-                        && distinctSelectorOffsets(binaryOperator).size() > 1) {
+                        && collectAllOffsetsForBranch(binaryOperator).size() > 1) {
                         failures.add(
                             fail(lp, "binary expressions with different offsets are not supported at this time [{}]", lp.sourceText())
                         );
@@ -565,6 +565,70 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             }
             root.set(false);
         });
+
+        verifyMetadataManipulationPlacement(p, null, failures);
+    }
+
+    /**
+     * Enforces the supported scope for {@code label_replace}/{@code label_join}: because a derived label is materialized as a
+     * concrete column (never by rewriting the series-identity blob), it must be consumed by an enclosing {@code by(...)}
+     * aggregation. Walking down the plan, each relabel is checked against the nearest enclosing <i>identity consumer</i> - the
+     * aggregate, reduction, or binary operator whose output identity it would feed. Only an {@link AcrossSeriesAggregate} with
+     * {@link AcrossSeriesAggregate.Grouping#BY} can consume it; a bare (non-aggregated) call, a {@code without(...)} grouping,
+     * a {@code topk}/{@code bottomk} reduction, or a binary operator would require identity-blob rewriting and is rejected.
+     *
+     * @param consumer the nearest enclosing identity consumer for a relabel at this position, or {@code null} at the root
+     */
+    private static void verifyMetadataManipulationPlacement(LogicalPlan node, LogicalPlan consumer, Failures failures) {
+        if (node instanceof MetadataManipulationFunction relabel) {
+            checkRelabelConsumer(relabel, consumer, failures);
+            // A relabel passes identity through unchanged, so a nested relabel is consumed by the same enclosing consumer.
+            verifyMetadataManipulationPlacement(relabel.child(), consumer, failures);
+            return;
+        }
+        // A relabel appearing beneath an identity-consuming node (see PromqlPlan#isIdentityTransparent) is consumed by it;
+        // identity-transparent nodes (and any non-PromqlPlan node such as a relation) keep the parent's consumer.
+        LogicalPlan childConsumer = node instanceof PromqlPlan promqlPlan && promqlPlan.isIdentityTransparent() == false ? node : consumer;
+        for (LogicalPlan child : node.children()) {
+            verifyMetadataManipulationPlacement(child, childConsumer, failures);
+        }
+    }
+
+    private static void checkRelabelConsumer(MetadataManipulationFunction relabel, LogicalPlan consumer, Failures failures) {
+        String name = relabel.definition().name();
+        if (consumer instanceof AcrossSeriesAggregate agg) {
+            if (agg.grouping() == AcrossSeriesAggregate.Grouping.BY) {
+                return;
+            }
+            String reason = agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT
+                ? "with a `without(...)` grouping"
+                : "without a `by(...)` grouping";
+            failures.add(
+                fail(
+                    relabel,
+                    "[{}] is only supported inside a `by(...)` aggregation, but was used {} [{}]",
+                    name,
+                    reason,
+                    relabel.sourceText()
+                )
+            );
+            return;
+        }
+        String context = switch (consumer) {
+            case null -> "as a top-level (non-aggregated) expression";
+            case AcrossSeriesReduction reduction -> "under [" + reduction.definition().name() + "]";
+            case VectorBinaryOperator binaryOperator -> "as an operand of a binary operator";
+            default -> "in an unsupported position";
+        };
+        failures.add(
+            fail(
+                relabel,
+                "[{}] is only supported inside a `by(...)` aggregation, but was used {} [{}]",
+                name,
+                context,
+                relabel.sourceText()
+            )
+        );
     }
 
     /**
@@ -630,7 +694,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      * carry no data window and are excluded. More than one distinct value within a merged binary operator is
      * unsupported (see the verifier guard).
      */
-    private static Set<Duration> distinctSelectorOffsets(LogicalPlan plan) {
+    private static Set<Duration> collectAllOffsetsForBranch(LogicalPlan plan) {
         Set<Duration> offsets = new HashSet<>();
         for (Selector selector : plan.collect(Selector.class)) {
             if (selector instanceof LiteralSelector == false && selector.evaluation() != null) {
@@ -646,7 +710,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      * expression are rejected), so the first source-backed selector's offset is representative. {@link Duration#ZERO}
      * when there is none.
      */
-    public Duration offset(LogicalPlan branch) {
+    public Duration collectFirstOffsetForBranch(LogicalPlan branch) {
         for (Selector selector : branch.collect(Selector.class)) {
             if (selector instanceof LiteralSelector == false && selector.evaluation() != null) {
                 return selector.evaluation().offsetDuration();
@@ -672,10 +736,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      * Returns the local evaluation timestamp for the current selector branch.
      * <p>
      * Unlike {@link PromqlCommand#timestamp()}, which returns the global evaluation timestamp,
-     * this function returns the plan fragment timestamp and includes any applied offset.
+     * this function returns the plan branch timestamp and includes any applied offset.
      */
-    public Expression timestamp(LogicalPlan fragment) {
-        var offset = offset(fragment);
+    public Expression collectEvaluationTimestampForBranch(LogicalPlan branch) {
+        var offset = collectFirstOffsetForBranch(branch);
         var timestamp = timestamp();
         if (timestamp == null || timestamp.resolved() == false) {
             return timestamp;

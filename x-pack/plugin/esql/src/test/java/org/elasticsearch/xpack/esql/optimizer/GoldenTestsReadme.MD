@@ -9,13 +9,14 @@ Contrast with regular (unit) tests, which include a specific assertion of some c
 
 ## How do I add a new golden test?
 
-`extend` `org.elasticsearch.xpack.esql.optimizer.GoldenTestCase`, and add new tests by invoking the
-`runGoldenTest` method.
+Extend `org.elasticsearch.xpack.esql.optimizer.GoldenTestCase`, then invoke `runGoldenTest(...)` or
+use its fluent builder. The builder keeps the query and any special inputs or version coverage
+together.
 
 ```java
 class MyGoldenTest extends GoldenTestCase {
   public void testBasicFrom() {
-    runGoldenTest("FROM employees");
+    builder("FROM employees").run();
   }
 }
 ```
@@ -26,7 +27,9 @@ You can also specify which plans you want to verify (all plans are output by def
 
 ```java
 public void testBasic() throws Exception {
-  runGoldenTest("FROM employees", EnumSet.of(Stage.ANALYZER, Stage.LOGICAL));
+  builder("FROM employees")
+      .stages(EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION))
+      .run();
 }
 ```
 
@@ -111,8 +114,8 @@ public void testMultiTypeField() {
 Values are registered transport version names (`TransportVersion.fromName`); declare labels
 oldest-first; neither combines with a pinned `transportVersion(...)`. Tests without labels keep
 the flat layout, and directory names carry no order, so a new label never renames existing
-directories or breaks existing mutes. If one gate changes most of a suite, declare the label once
-in the suite's shared builder helper — the failing tests tell you exactly which ones fork.
+directories or breaks existing mutes. Keep `since(...)` and `expectationChangesAt(...)` directly
+on each affected test's builder chain so its version coverage is visible beside its query.
 
 ### Two runs per suite
 

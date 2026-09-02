@@ -18,6 +18,8 @@ import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IntroSelector;
+import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -272,7 +274,7 @@ public final class CalibrationUtils {
      * tracked via a {@link HashMap} keyed on the swapped positions. This is O(totalSample) time and
      * space with no rejection retries and no boxing beyond the map entries.
      */
-    static SampledData sampleData(FloatVectorValues vectorValues, int maxQuerySample, int maxCorpusSample) throws IOException {
+    static SampledData sampleData(FloatVectorValues vectorValues, int maxQuerySample, int maxCorpusSample) {
         int n = vectorValues.size();
         Random rng = new Random(CALIBRATION_SEED);
         int nQueries = Math.min(maxQuerySample, n / 2);
@@ -397,6 +399,69 @@ public final class CalibrationUtils {
         }
 
         return KMeansFloatVectorValues.build(result, null, dim);
+    }
+
+    /**
+     * Fills {@code idx[0..n)} with the indices of the {@code n} largest {@code keys[0..len)}, ordered by
+     * descending key.
+     * Requires {@code idx.length >= len} and {@code 0 <= n <= len}. Survivors are ordered descending so the caller
+     * accumulates error moments largest-first.
+     */
+    static void selectTopNDescending(double[] keys, int[] idx, int len, int n) {
+        for (int i = 0; i < len; i++) {
+            idx[i] = i;
+        }
+        int m = Math.min(n, len);
+        if (m <= 0) {
+            return;
+        }
+        if (m < len) {
+            // partition idx so idx[0..m) hold the m largest keys (unordered). select(from, to, k) leaves the k
+            // elements that sort first in [from, k); under this descending comparator those are the m largest.
+            new IntroSelector() {
+                double pivot;
+
+                @Override
+                protected void swap(int i, int j) {
+                    int tmp = idx[i];
+                    idx[i] = idx[j];
+                    idx[j] = tmp;
+                }
+
+                @Override
+                protected void setPivot(int i) {
+                    pivot = keys[idx[i]];
+                }
+
+                @Override
+                protected int comparePivot(int j) {
+                    // descending: pivot sorts before j when pivot's key is larger
+                    return Double.compare(keys[idx[j]], pivot);
+                }
+            }.select(0, len, m);
+        }
+        // order the m selected indices descending by key.
+        new IntroSorter() {
+            double pivot;
+
+            @Override
+            protected void swap(int i, int j) {
+                int tmp = idx[i];
+                idx[i] = idx[j];
+                idx[j] = tmp;
+            }
+
+            @Override
+            protected void setPivot(int i) {
+                pivot = keys[idx[i]];
+            }
+
+            @Override
+            protected int comparePivot(int j) {
+                // descending: pivot sorts before j when pivot's key is larger
+                return Double.compare(keys[idx[j]], pivot);
+            }
+        }.sort(0, m);
     }
 
 }

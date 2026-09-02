@@ -111,6 +111,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
@@ -3019,6 +3020,42 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             + "[Invalid sequence - escape character is not followed by special wildcard char]";
         ParsingException e = expectThrows(ParsingException.class, () -> plan(query));
         assertThat(e.getMessage(), is(error));
+    }
+
+    public void testSimplifyLikeNoWildcardFromConstantExpression() {
+        // After constant folding, LIKE CONCAT("foo", "") => LIKE "foo" => Equals
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where first_name like concat("foo", "")
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        assertTrue(filter.condition() instanceof Equals);
+    }
+
+    public void testSimplifyLikeMatchAllFromConstantExpression() {
+        // After constant folding, LIKE CONCAT("", "*") => LIKE "*" => IsNotNull
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where first_name like concat("", "*")
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), IsNotNull.class);
+    }
+
+    public void testSimplifyRLikeMatchAllFromConstantExpression() {
+        // After constant folding, RLIKE CONCAT("", ".*") => RLIKE ".*" => IsNotNull
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where first_name rlike concat("", ".*")
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), IsNotNull.class);
     }
 
     public void testFoldNullInToLocalRelation() {
@@ -7325,6 +7362,22 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit3 = asLimit(eval.child(), 1000, false);
     }
 
+    /**
+     * Regression for https://github.com/elastic/elasticsearch/issues/153507:
+     * a TS STATS aggregate alias that collides with a grouping key must be shadowed (grouping wins)
+     * when TranslateTimeSeriesAggregate builds the PackDims Project, matching non-TS STATS behavior.
+     */
+    public void testMetricsAggregateAliasCollidesWithGroupingKey() {
+        assumeTrue(
+            "Requires fix for TS STATS alias/grouping shadowing",
+            EsqlCapabilities.Cap.FIX_TS_STATS_ALIAS_GROUPING_SHADOW.isEnabled()
+        );
+        var plan = planMetrics("TS k8s | STATS pod = FIRST(events_received, @timestamp) BY pod");
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("pod")));
+        assertWarnings("Line 1:16: Field 'pod' shadowed by field at line 1:60");
+    }
+
     public void testTranslateMetricsWithoutGrouping() {
         var query = "TS k8s | STATS max(rate(network.total_bytes_in))";
         var plan = planMetrics(query);
@@ -8152,6 +8205,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateOverTimeWithWindow() {
+        // multiple of the bucket (including equal): the plain window duration is preserved
         {
             int window = between(1, 20);
             var query = String.format(Locale.ROOT, """
@@ -8204,7 +8258,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             WindowFilter windowFilter = (WindowFilter) holder.get().filter();
             assertThat(((Duration) windowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window));
         }
-        // non-multiple window (>= bucket) - now supported via GCD sub-bucketing
+        // non-multiple window (>= bucket): the plain window duration is preserved; the decomposition into a full
+        // and a partial aggregate happens during physical planning - see InsertPartialWindowAggregates
         {
             int window = randomValueOtherThanMany(n -> n % 5 == 0 || n < 5, () -> between(6, 30));
             var query = String.format(Locale.ROOT, """
@@ -8218,6 +8273,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             assertNotNull(holder.get());
             assertTrue(holder.get().hasWindow());
             assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(window)));
+            Holder<WindowFilter> windowFilterHolder = new Holder<>();
+            plan.forEachExpressionDown(WindowFilter.class, windowFilterHolder::set);
+            assertNull(windowFilterHolder.get());
         }
         // no time bucket
         {
@@ -8269,7 +8327,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
     }
 
-    public void testApplyWindowFilter() {
+    public void testApplyWindowFilterSmallWindows() {
         // single layer of aggregations
         {
             int window = randomIntBetween(1, 4);
@@ -8367,7 +8425,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateOverTimeWithNonMultipleWindow() {
-        // 7m window with 5m bucket -> GCD=1m internal bucket, 5m output bucket
+        // 7m window with 5m bucket: the logical plan keeps the plain window and the user bucket; the decomposition
+        // into a full and a partial aggregate happens during physical planning - see InsertPartialWindowAggregates
         {
             var query = """
                 TS k8s
@@ -8379,23 +8438,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
             assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
             TimeSeriesAggregate tsAgg = tsHolder.get();
-            // Internal bucket should be GCD(7m, 5m) = 1m
+            // The time bucket is always the user bucket; the window never rewrites it
             assertNotNull(tsAgg.timeBucket());
-            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
-            // Output bucket should be the user-specified 5m
-            assertNotNull(tsAgg.outputTimeBucket());
-            assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
-            // The 7m window must be preserved on the first-pass aggregate function
-            Holder<AggregateFunction> afHolder = new Holder<>();
-            tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
-                if (af.hasWindow()) {
-                    afHolder.set(af);
-                }
-            });
-            assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
-            assertThat(afHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(7)));
+            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+            assertPlainWindow(tsAgg, Duration.ofMinutes(7));
         }
-        // 12m window with 8m bucket -> GCD=4m internal bucket, 8m output bucket
+        // 12m window with 8m bucket
         {
             var query = """
                 TS k8s
@@ -8407,19 +8455,23 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
             assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
             TimeSeriesAggregate tsAgg = tsHolder.get();
-            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(4)));
-            assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(8)));
-            // The 12m window must be preserved on the first-pass aggregate function
-            Holder<AggregateFunction> afHolder = new Holder<>();
-            tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
-                if (af.hasWindow()) {
-                    afHolder.set(af);
-                }
-            });
-            assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
-            assertThat(afHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(12)));
+            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(8)));
+            assertPlainWindow(tsAgg, Duration.ofMinutes(12));
         }
-        // Exact multiple: 10m window with 5m bucket -> GCD=5m, internal == output (no sub-bucketing)
+        // A window and bucket combination that used to exceed the GCD sub-bucket limit: 301s over a 5m bucket
+        {
+            var query = """
+                TS k8s
+                | STATS avg(last_over_time(network.bytes_in, 301 second)) BY tbucket(5 minute)
+                | LIMIT 10
+                """;
+            var plan = planMetrics(query);
+            Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
+            plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
+            assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
+            assertPlainWindow(tsHolder.get(), Duration.ofSeconds(301));
+        }
+        // Exact multiple: 10m window with 5m bucket -> the plain window duration is preserved
         {
             var query = """
                 TS k8s
@@ -8431,51 +8483,50 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
             assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
             TimeSeriesAggregate tsAgg = tsHolder.get();
-            // When window is an exact multiple, internal and output buckets should both be the user bucket
             assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
-            assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
-            // The 10m window must be preserved on the first-pass aggregate function
-            Holder<AggregateFunction> afHolder = new Holder<>();
-            tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
-                if (af.hasWindow()) {
-                    afHolder.set(af);
-                }
-            });
-            assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
-            assertThat(afHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+            assertPlainWindow(tsAgg, Duration.ofMinutes(10));
         }
     }
 
-    public void testTranslateOverTimeWithCombinedSmallAndNonMultipleWindows() {
-        var e = expectThrows(IllegalArgumentException.class, () -> {
-            var query = """
-                TS k8s
-                | STATS min(max_over_time(network.bytes_in, 2 minute)), sum(rate(network.total_bytes_in, 7 minute)) BY TBUCKET(5 minute)
-                | LIMIT 10
-                """;
-            planMetrics(query);
+    private static void assertPlainWindow(TimeSeriesAggregate tsAgg, Duration window) {
+        Holder<AggregateFunction> afHolder = new Holder<>();
+        tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
+            if (af.hasWindow()) {
+                afHolder.set(af);
+            }
         });
-        assertThat(e.getMessage(), containsString("Combining windows smaller than the time bucket with non-multiple windows"));
+        assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
+        assertThat(afHolder.get().window().fold(FoldContext.small()), equalTo(window));
+        assertFalse(afHolder.get().hasFilter());
     }
 
-    public void testTranslateOverTimeWithTooManySubBuckets() {
-        // 301s window with 300s (5m) bucket -> GCD=1s -> 300 sub-buckets, exceeds limit of 128
-        var e = expectThrows(IllegalArgumentException.class, () -> {
-            var query = """
-                TS k8s
-                | STATS avg(last_over_time(network.bytes_in, 301 second)) BY tbucket(5 minute)
-                | LIMIT 10
-                """;
-            planMetrics(query);
-        });
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "The window [301 second] and bucket [5 minute] combination requires [300] internal sub-buckets of size [1s]"
-                    + " per output bucket, which exceeds the limit of [128];"
-                    + " use a larger time bucket or adjust the window to be an exact multiple of the time bucket"
-            )
-        );
+    /**
+     * Windows smaller than the bucket and non-multiple windows dispatch per aggregate, so combining them in the
+     * same STATS works: the small one becomes a row filter, the non-multiple one keeps its plain window for the
+     * physical decomposition.
+     */
+    public void testTranslateOverTimeWithCombinedSmallAndNonMultipleWindows() {
+        var query = """
+            TS k8s
+            | STATS min(max_over_time(network.bytes_in, 2 minute)), sum(rate(network.total_bytes_in, 7 minute)) BY TBUCKET(5 minute)
+            | LIMIT 10
+            """;
+        var plan = planMetrics(query);
+        Holder<Max> maxHolder = new Holder<>();
+        Holder<Rate> rateHolder = new Holder<>();
+        plan.forEachExpressionDown(Max.class, maxHolder::set);
+        plan.forEachExpressionDown(Rate.class, rateHolder::set);
+        assertNotNull(maxHolder.get());
+        assertNotNull(rateHolder.get());
+        // the 2m window became a row filter
+        assertFalse(maxHolder.get().hasWindow());
+        assertTrue(maxHolder.get().hasFilter());
+        WindowFilter smallWindowFilter = (WindowFilter) maxHolder.get().filter();
+        assertThat(smallWindowFilter.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(2)));
+        // the 7m window is preserved as is
+        assertTrue(rateHolder.get().hasWindow());
+        assertFalse(rateHolder.get().hasFilter());
+        assertThat(rateHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(7)));
     }
 
     public void testMvSortInvalidOrder() {
@@ -10508,6 +10559,34 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * Limit[10000[INTEGER],false,false]
+     * \_Aggregate[[$$@timestamp$time_bucket{r}#120],[MAX(LASTOVERTIME_$1{r}#152,true[BOOLEAN],PT0S[TIME_DURATION])
+     *   AS max(network.cost)#122, $$@timestamp$time_bucket{r}#120 AS @timestamp#120]]
+     *   \_TimeSeriesAggregate[[_tsid{m}#151, $$@timestamp$time_bucket{r}#120],[LASTOVERTIME(network.cost{f}#142,true[BOOLEAN],
+     *     PT0S[TIME_DURATION],@timestamp{f}#125) AS LASTOVERTIME_$1#152, $$@timestamp$time_bucket{r}#120],
+     *     BUCKET(@timestamp{f}#125,PT1M[TIME_DURATION]),BUCKET(@timestamp{f}#125,PT1M[TIME_DURATION]),@timestamp{f}#125,TS_COMMAND]
+     *     \_Eval[[BUCKET(@timestamp{f}#125,PT1M[TIME_DURATION]) AS $$@timestamp$time_bucket#120]]
+     *       \_EsRelation[k8s][@timestamp{f}#125, client.ip{f}#129, cluster{f}#126, ..]
+     * }
+     */
+    public void testTranslateMetricsWithTimeBucketNamedAfterTimestamp() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query("""
+            TS k8s
+            | STATS max(network.cost) BY @timestamp = BUCKET(@timestamp, 1 minute)
+            """));
+
+        assertThat(Expressions.names(plan.output()), contains("max(network.cost)", "@timestamp"));
+
+        var tsStats = plan.collect(TimeSeriesAggregate.class).getFirst();
+        var timestamp = as(tsStats.timestamp(), FieldAttribute.class);
+        assertThat(tsStats.child().output(), hasItem(timestamp));
+        var eval = as(tsStats.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("$$@timestamp$time_bucket"));
+        LastOverTime lastOverTime = as(Alias.unwrap(tsStats.aggregates().getFirst()), LastOverTime.class);
+        assertThat(lastOverTime.timestamp(), equalTo(timestamp));
+    }
+
+    /**
      * Verifies that multi-value constant literals used as GROUP BY keys are not propagated
      * after the Aggregate node. GROUP BY explodes multi-values into single values, so propagating
      * the original multi-value literal would be incorrect.
@@ -11603,7 +11682,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var mixedIndex = new EsIndex(
             "*",
             mapping,
-            Map.of("ts_index", IndexMode.TIME_SERIES, "standard_index", IndexMode.STANDARD),
+            Map.of("ts_index", new IndexProperties(IndexMode.TIME_SERIES, 0), "standard_index", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );

@@ -173,12 +173,12 @@ true
 
 sample cartesian_point
 required_capability: agg_sample
- 
-FROM airports_web | SORT abbrev | LIMIT 3 | STATS sample = SAMPLE(location, 999) | EVAL sample = MV_SORT(sample)
+
+FROM airports_web | SORT abbrev | LIMIT 3 | STATS sample = SAMPLE(location, 999) | EVAL sample = MV_SORT(sample::string)
 ;
 
-sample:cartesian_point
-[POINT (809321.6344269889 1006514.3393965173), POINT (-1.1868515102256078E7 4170563.5012235222), POINT (-437732.64923689933 585738.5549131387)]
+sample:keyword
+[POINT (-1.1868515102256078E7 4170563.5012235222), POINT (-437732.64923689933 585738.5549131387), POINT (809321.6344269889 1006514.3393965173)]
 ;
 
 
@@ -206,11 +206,11 @@ sample:date_nanos
 
 sample geo_point
 required_capability: agg_sample
- 
-FROM airports | SORT abbrev | LIMIT 2 | STATS sample = SAMPLE(location, 999) | EVAL sample = MV_SORT(sample)
+
+FROM airports | SORT abbrev | LIMIT 2 | STATS sample = SAMPLE(location, 999) | EVAL sample = MV_SORT(sample::string)
 ;
 
-sample:geo_point
+sample:keyword
 [POINT (-106.6166851616 35.0491578018276), POINT (-3.93221929167636 5.2543984451492)]
 ;
 

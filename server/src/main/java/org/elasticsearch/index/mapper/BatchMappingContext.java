@@ -10,12 +10,14 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,56 +26,97 @@ import java.util.List;
  * The single per-batch context metadata mappers read and write during columnar batch mapping (see
  * {@link ShardBatchMapper}). Deliberately flat: unlike the row-major path's
  * {@link BatchDocumentParserContext}, there is no per-document parser context or {@link LuceneDocument}
- * here — a columnar mapper is invoked once for the whole batch, reads the per-document
- * values it needs straight off the chunk-local {@link IndexRequest}s, and attaches one
+ * here — a columnar mapper is invoked once for the whole batch, reads the per-document values it
+ * needs from the typed accessor arrays (e.g. {@link #uids()}, {@link #sources()}), and attaches one
  * {@link LuceneColumn} spanning every document via {@link #addColumn}.
+ *
+ * <p>Per-document data (uids, routings, content types, sources, and the engine-written
+ * seqNo/primaryTerm/version byte arrays) is owned by the underlying {@link IndexOperationBatch}.
+ * This context is a read-only view over that batch; it additionally accumulates the mapping-time
+ * state (the assembled {@link LuceneColumn} list and the {@code _field_names} entries) that belongs
+ * to the mapping phase rather than the operation record.
  */
 public final class BatchMappingContext {
 
-    // TODO: Need to remove dependency on the IndexRequest object. We currently need it for source and tsid.
-    private final IndexRequest[] requests;
-    private final int docCount;
+    private final IndexOperationBatch batch;
     private final MappingLookup mappingLookup;
     private final IndexSettings indexSettings;
+    private final Recycler<BytesRef> recycler;
     private final List<LuceneColumn> columns = new ArrayList<>();
     private final FieldNamesFieldMapper fieldNamesFieldMapper;
 
-    // Will go in translog
-    /** {@code _seq_no}: docCount * 8 bytes, little-endian longs; lazily allocated. */
-    private byte[] seqNo;
-    /** {@code _primary_term}: docCount * 8 bytes, little-endian longs; lazily allocated. */
-    private byte[] primaryTerm;
-    /** {@code _version}: docCount * 8 bytes, little-endian longs; lazily allocated. */
-    private byte[] version;
-    private BytesRef[] uids;
-    private BytesRef[] routings;
-
-    private boolean routingsInitialized;
     private boolean frozen;
     /** Accumulates {@code (doc, name)} pairs for {@code _field_names}. */
     private DeduplicatingStringColumnAccumulator fieldNames;
     /** Accumulates {@code (doc, name)} pairs for {@code _ignored}. */
     private DeduplicatingStringColumnAccumulator ignoredFields;
+    /**
+     * The mapped {@code @timestamp} column, published by {@code DateFieldMapper.mapColumnBatch}
+     * when it maps the data-stream timestamp field. Readable via {@link #timestamps()}, and will be
+     * {@code null} before the column is mapped. Mirrors the per-document
+     * side channel that {@link DataStreamTimestampFieldMapper} uses on the row path
+     * ({@code DataStreamTimestampFieldMapper.storeTimestampValueForReuse}).
+     */
+    private EscfLongColumn timestamps;
 
-    public BatchMappingContext(IndexRequest[] requests, MappingLookup mappingLookup, IndexSettings indexSettings) {
-        this.requests = requests;
-        this.docCount = requests.length;
+    /**
+     * Primary constructor. Delegates all per-doc data accessors to {@code batch} and records
+     * accumulated columns and field names during mapping.
+     */
+    public BatchMappingContext(
+        IndexOperationBatch batch,
+        MappingLookup mappingLookup,
+        IndexSettings indexSettings,
+        Recycler<BytesRef> recycler
+    ) {
+        this.batch = batch;
         this.mappingLookup = mappingLookup;
         this.indexSettings = indexSettings;
+        this.recycler = recycler;
         this.fieldNamesFieldMapper = mappingLookup.getMapping().fieldNamesFieldMapper();
-    }
-
-    public MappingLookup mappingLookup() {
-        return mappingLookup;
     }
 
     public IndexSettings indexSettings() {
         return indexSettings;
     }
 
-    /** The chunk-local index request for document {@code doc}. */
-    public IndexRequest request(int doc) {
-        return requests[doc];
+    /**
+     * Records the mapped {@code @timestamp} ESCF column so that {@code postColumnarParse} hooks
+     * (e.g. {@link DataStreamTimestampFieldMapper} and {@link TimeSeriesIdFieldMapper}) can read
+     * per-document timestamp values via {@link #timestamps()} without re-scanning
+     * the Lucene column list. Mirrors the row-path side channel
+     * ({@code DataStreamTimestampFieldMapper.storeTimestampValueForReuse}).
+     *
+     * @throws IllegalArgumentException if called more than once
+     */
+    public void setTimestamps(EscfLongColumn timestamps) {
+        if (this.timestamps != null) {
+            throw new IllegalArgumentException(
+                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] encountered multiple values"
+            );
+        }
+        this.timestamps = timestamps;
+    }
+
+    /**
+     * Returns the {@code @timestamp} column for direct access.
+     *
+     * @throws IllegalArgumentException if no timestamp column was recorded (mirrors the row path's
+     *     "data stream timestamp field [@timestamp] is missing" error from
+     *     {@link DataStreamTimestampFieldMapper#extractTimestampValue})
+     */
+    public EscfLongColumn timestamps() {
+        if (timestamps == null) {
+            throw new IllegalArgumentException(
+                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
+            );
+        }
+        return timestamps;
+    }
+
+    // TODO: nothing allocates through this yet — the columns it would produce have no owner to release them.
+    public Recycler<BytesRef> recycler() {
+        return recycler;
     }
 
     /** Attaches a fully-assembled {@link LuceneColumn} covering all {@code docCount} rows. */
@@ -92,84 +135,96 @@ public final class BatchMappingContext {
     }
 
     /**
-     * Lazily allocates and returns the mutable {@code _seq_no} backing byte array (length
-     * {@code docCount * 8}). Each 8-byte slot is pre-filled with
-     * {@link SequenceNumbers#UNASSIGNED_SEQ_NO} in little-endian order; the engine overwrites
-     * the real per-document value after mapping.
+     * Returns the mutable {@code _seq_no} buffer. Delegated to the underlying
+     * {@link IndexOperationBatch#seqNoBytes()}; see that method for the aliasing contract.
      */
-    public byte[] seqNos() {
-        if (seqNo == null) {
-            seqNo = new byte[docCount * 8];
-            // Fill every 8-byte slot with UNASSIGNED_SEQ_NO; Arrays.fill cannot be used because
-            // a long value is not a repeated byte pattern.
-            for (int d = 0; d < docCount; d++) {
-                ByteUtils.writeLongLE(SequenceNumbers.UNASSIGNED_SEQ_NO, seqNo, d * 8);
-            }
-        }
-        return seqNo;
+    public BytesRef seqNos() {
+        return batch.seqNoBytes();
     }
 
     /**
-     * Lazily allocates and returns the mutable {@code _primary_term} backing byte array (length
-     * {@code docCount * 8}). Slots are zero-initialized (0L default); the engine fills the real
-     * value after mapping.
+     * Returns the mutable {@code _primary_term} buffer. Delegated to the underlying
+     * {@link IndexOperationBatch#primaryTermBytes()}.
      */
-    public byte[] primaryTerms() {
-        if (primaryTerm == null) {
-            primaryTerm = new byte[docCount * 8];
-        }
-        return primaryTerm;
+    public BytesRef primaryTerms() {
+        return batch.primaryTermBytes();
     }
 
     /**
-     * Lazily allocates and returns the mutable {@code _version} backing byte array (length
-     * {@code docCount * 8}). Slots are zero-initialized (0L default); the engine fills the real
-     * value after mapping.
+     * Returns the mutable {@code _version} buffer. Delegated to the underlying
+     * {@link IndexOperationBatch#versionBytes()}.
      */
-    public byte[] versions() {
-        if (version == null) {
-            version = new byte[docCount * 8];
-        }
-        return version;
+    public BytesRef versions() {
+        return batch.versionBytes();
     }
 
     /**
-     * Lazily computes and returns the routing array, or {@code null} if no document in the chunk
-     * has an explicit routing (the common case). When non-null, individual entries may still be
-     * {@code null} for documents without routing.
+     * Returns the routing array, or {@code null} if no document in the chunk has an explicit
+     * routing (the common case). When non-null, individual entries may still be {@code null} for
+     * documents without routing.
      */
     public BytesRef[] routings() {
-        if (routingsInitialized == false) {
-            for (int d = 0; d < docCount; d++) {
-                final String routing = requests[d].routing();
-                if (routing != null) {
-                    if (routings == null) {
-                        routings = new BytesRef[docCount];
-                    }
-                    routings[d] = new BytesRef(routing);
-                }
-            }
-            routingsInitialized = true;
-        }
-        return routings;
+        return batch.routings();
+    }
+
+    /** Returns the per-document content-type array; entries default to {@link XContentType#JSON} when the request had none. */
+    public XContentType[] contentTypes() {
+        return batch.contentTypes();
     }
 
     /**
-     * Lazily computes and returns the {@code _id} (Uid-encoded) array.
+     * Returns the per-document source array. Individual entries may be {@code null} for documents
+     * that carry no source.
+     */
+    public BytesReference[] sources() {
+        return batch.sources();
+    }
+
+    /**
+     * Returns the {@code _id} (Uid-encoded) array.
      */
     public BytesRef[] uids() {
-        if (uids == null) {
-            uids = new BytesRef[docCount];
-            for (int d = 0; d < docCount; d++) {
-                final String id = requests[d].id();
-                if (id == null) {
-                    // TODO: We do not support synthetic id yet. This will change once we do.
-                    throw new IllegalStateException("_id should have been set on the coordinating node");
-                }
-                uids[d] = Uid.encodeId(id);
-            }
-        }
-        return uids;
+        return batch.uids();
+    }
+
+    /**
+     * Returns the plain-text id for document {@code doc}, or {@code null} if not yet assigned.
+     * For time-series indices the id is derived during mapping and set via {@link #setSyntheticId}.
+     */
+    public String id(int doc) {
+        return batch.id(doc);
+    }
+
+    /**
+     * Sets the synthetic {@code _id} and uid for document {@code doc}. Called by the time-series
+     * columnar {@code _id} mapper during {@code postColumnarParse}.
+     */
+    public void setSyntheticId(int doc, String id, BytesRef uid) {
+        assert frozen == false;
+        batch.setSyntheticId(doc, id, uid);
+    }
+
+    /**
+     * Returns the coordinator-computed tsid array, or {@code null} if no document in the batch
+     * carries a tsid (the common case for non-time-series indices).
+     */
+    public BytesRef[] tsids() {
+        return batch.tsids();
+    }
+
+    /**
+     * Whether {@code _data_stream_timestamp} is present and enabled for this index..
+     */
+    public boolean isDataStreamTimestampFieldEnabled() {
+        return mappingLookup.isDataStreamTimestampFieldEnabled();
+    }
+
+    /**
+     * Returns the {@link MappingLookup} for this index. Used by metadata mappers that need to
+     * inspect the mapping during {@code postColumnarParse} (e.g. timestamp resolution detection).
+     */
+    public MappingLookup mappingLookup() {
+        return mappingLookup;
     }
 
     /**
@@ -191,7 +246,7 @@ public final class BatchMappingContext {
      */
     void recordFieldName(int doc, BytesRef value) {
         if (fieldNames == null) {
-            fieldNames = new DeduplicatingStringColumnAccumulator(docCount);
+            fieldNames = new DeduplicatingStringColumnAccumulator(batch.docCount());
         }
         fieldNames.record(doc, value);
     }
@@ -216,23 +271,35 @@ public final class BatchMappingContext {
     public void addIgnoredFieldColumnar(int doc, String field) {
         assert frozen == false;
         if (ignoredFields == null) {
-            ignoredFields = new DeduplicatingStringColumnAccumulator(docCount);
+            ignoredFields = new DeduplicatingStringColumnAccumulator(batch.docCount());
         }
         ignoredFields.record(doc, new BytesRef(field));
     }
 
+    /**
+     * Whether {@code _source} is reconstructed from doc values.
+     */
+    public boolean isSourceSynthetic() {
+        return mappingLookup.isSourceSynthetic();
+    }
+
     /** The number of documents in this chunk. */
     public int docCount() {
-        return docCount;
+        return batch.docCount();
     }
 
     /**
      * Returns the accumulated columns as a {@link MappedColumns} covering the full batch
      * {@code [0, docCount)}. The engine slices this per sub-batch before calling
      * {@link MappedColumns#toColumnBatch()}.
+     *
+     * <p>The seqNo, primaryTerm, and version byte arrays are aliased by reference from the
+     * underlying {@link IndexOperationBatch}, so engine writes through
+     * {@link MappedColumns#setSeqNo}/{@link MappedColumns#fillPrimaryTerm}/
+     * {@link MappedColumns#setVersion} are immediately visible to the Lucene columns.
      */
     public MappedColumns columns() {
         frozen = true;
-        return new MappedColumns(0, docCount, seqNo, primaryTerm, version, columns);
+        return new MappedColumns(0, batch.docCount(), batch.seqNoBytes(), batch.primaryTermBytes(), batch.versionBytes(), columns);
     }
 }

@@ -230,6 +230,10 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         );
         lookupService.lookupAsync(request, parentTask, listener.map(response -> {
             totalBytesRead.addAndGet(response.bytesRead());
+            // Replay warnings accumulated by the (possibly remote) lookup driver.
+            for (String warning : response.warnings()) {
+                driverContext().addWarning(warning);
+            }
             List<Page> pages = response.takePages();
             return new OngoingJoin(new RightChunkedLeftJoin(inputPage, loadFields.size()), pages.iterator());
         }));

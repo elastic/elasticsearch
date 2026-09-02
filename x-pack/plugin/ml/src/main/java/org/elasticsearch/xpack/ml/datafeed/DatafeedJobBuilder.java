@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
@@ -127,22 +128,29 @@ public class DatafeedJobBuilder {
 
         // if we had created a datafeed when the feature flag was enabled, but we disabled the feature flag
         // then verify that this datafeed does not use CPS features
-        var validationException = datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(
-            crossProjectModeDecider,
-            (org.elasticsearch.action.ActionRequestValidationException) null
-        );
+        var validationException = datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(crossProjectModeDecider, null);
 
         if (validationException != null) {
             listener.onFailure(validationException);
             return;
         }
 
+        // Apply cross-project search mode to IndicesOptions before creating the factory
+        DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(
+            datafeedConfig,
+            crossProjectModeDecider,
+            datafeedConfig.getCloudInternalCredential() != null
+        );
+        PersistedCloudCredential cloudCredential = effectiveDatafeedConfig.getCloudInternalCredential();
+        String cloudCredentialId = cloudCredential != null ? cloudCredential.id() : null;
+
         ActionListener<DataExtractorFactory> dataExtractorFactoryHandler = ActionListener.wrap(dataExtractorFactory -> {
             TimeValue frequency = getFrequencyOrDefault(datafeedConfig, job, xContentRegistry);
             TimeValue queryDelay = datafeedConfig.getQueryDelay();
+            // Delayed-data searches must use the same execution copy as the extractor.
             DelayedDataDetector delayedDataDetector = DelayedDataDetectorFactory.buildDetector(
                 job,
-                datafeedConfig,
+                effectiveDatafeedConfig,
                 parentTaskAssigningClient,
                 xContentRegistry
             );
@@ -153,8 +161,9 @@ public class DatafeedJobBuilder {
             );
             DatafeedJob datafeedJob = new DatafeedJob(
                 datafeedConfig.getId(),
-                datafeedConfig.getProjectRouting(),
+                effectiveDatafeedConfig.getProjectRouting(),
                 job.getId(),
+                cloudCredentialId,
                 buildDataDescription(job),
                 frequency.millis(),
                 queryDelay.millis(),
@@ -177,15 +186,12 @@ public class DatafeedJobBuilder {
         }, e -> {
             Exception enriched = DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(
                 datafeedConfig.getId(),
-                datafeedConfig.getProjectRouting(),
+                effectiveDatafeedConfig.getProjectRouting(),
                 e
             );
             auditor.error(job.getId(), enriched.getMessage());
             listener.onFailure(enriched);
         });
-
-        // Apply cross-project search mode to IndicesOptions before creating the factory
-        DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(datafeedConfig, crossProjectModeDecider);
 
         DataExtractorFactory.create(
             parentTaskAssigningClient,

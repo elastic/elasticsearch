@@ -90,7 +90,7 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
         Sparkline::new
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sparkline.class)
-        .quinary(Sparkline::new, 0)
+        .quinary(Sparkline::new)
         .capabilities(
             "complex", // Fix for complex queries inside the agg inside the SPARKLINE
             "null_alongside", // Fix for null aggs (e.g. COUNT_DISTINCT(null)) paired with SPARKLINE

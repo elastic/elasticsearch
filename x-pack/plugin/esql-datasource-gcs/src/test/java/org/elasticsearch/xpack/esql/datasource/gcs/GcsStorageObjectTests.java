@@ -13,11 +13,8 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -34,6 +31,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -50,14 +48,7 @@ import static org.mockito.Mockito.when;
  */
 public class GcsStorageObjectTests extends ESTestCase {
 
-    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
-    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
-    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
-    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
-        .build();
-    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
 
     private final Storage mockStorage = mock(Storage.class);
 
@@ -499,11 +490,50 @@ public class GcsStorageObjectTests extends ESTestCase {
         assertNull(error.get());
         assertNotNull(result.get());
         try (DirectReadBuffer drb = result.get()) {
-            assertTrue("readBytesAsync must return a direct ByteBuffer", drb.buffer().isDirect());
+            assertFalse("readBytesAsync must return a heap ByteBuffer", drb.buffer().isDirect());
             assertEquals(5, drb.buffer().remaining());
         }
         verify(mockReader).seek(10);
         verify(mockReader).limit(15);
+    }
+
+    public void testReadBytesAsyncConstrainsOverAllocatedDestination() throws Exception {
+        byte[] payload = "async".getBytes(StandardCharsets.UTF_8);
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
+        doAnswer(invocation -> {
+            ByteBuffer buffer = invocation.getArgument(0);
+            buffer.put(payload);
+            return payload.length;
+        }).when(mockReader).read(any(ByteBuffer.class));
+
+        AtomicInteger closeCalls = new AtomicInteger();
+        DirectBufferFactory overAllocatingFactory = length -> {
+            ByteBuffer buffer = ByteBuffer.allocate(length + 17);
+            buffer.limit(1);
+            return new DirectReadBuffer(buffer, closeCalls::incrementAndGet);
+        };
+        GcsStorageObject obj = new GcsStorageObject(
+            mockStorage,
+            "my-bucket",
+            "data/file.parquet",
+            StoragePath.of("gs://my-bucket/data/file.parquet")
+        );
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+        AtomicReference<Exception> error = new AtomicReference<>();
+
+        obj.readBytesAsync(10, payload.length, overAllocatingFactory, Runnable::run, ActionListener.wrap(result::set, error::set));
+
+        assertNull(error.get());
+        assertNotNull(result.get());
+        try (DirectReadBuffer drb = result.get()) {
+            assertEquals(payload.length + 17, drb.buffer().capacity());
+            assertEquals(payload.length, drb.buffer().remaining());
+            byte[] actual = new byte[payload.length];
+            drb.buffer().get(actual);
+            assertArrayEquals(payload, actual);
+        }
+        assertEquals(1, closeCalls.get());
     }
 
     public void testReadBytesAsyncNegativePositionFails() throws Exception {

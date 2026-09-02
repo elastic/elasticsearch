@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -728,6 +729,112 @@ public enum IndexMode {
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.STORED;
         }
+    },
+    /**
+     * Strict columnar index mode optimized for indexing and searching {@code dense_vector} fields.
+     */
+    // TODO: report usage in _xpack/usage, like vectordb_document
+    VECTORDB_COLUMNAR("vectordb_columnar") {
+        @Override
+        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
+            validateRoutingPathSettings(settings);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return VECTORDB_COLUMNAR_INDEX_MODE;
+        }
+
+        @Override
+        public void validateMapping(MappingLookup lookup, Settings settings) {
+            validateNoMappingRuntimeFields(lookup, this);
+            validateAllFieldsReconstructableFromDocValues(lookup, this);
+        }
+
+        @Override
+        public void validateAlias(String indexRouting, String searchRouting) {}
+
+        @Override
+        public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException {
+            if (isDataStream) {
+                MetadataCreateDataStreamService.validateTimestampFieldMapping(mappingLookup);
+            }
+        }
+
+        @Override
+        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
+            return null;
+        }
+
+        @Override
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
+        }
+
+        @Override
+        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c) {
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+            return null;
+        }
+
+        @Override
+        public RoutingFields buildRoutingFields(IndexSettings settings) {
+            return RoutingFields.Noop.INSTANCE;
+        }
+
+        @Override
+        public boolean shouldValidateTimestamp() {
+            return false;
+        }
+
+        @Override
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
+            if (sourceFieldMapper.enabled() == false) {
+                throw new IllegalArgumentException(
+                    "_source can not be disabled in index using [" + IndexMode.VECTORDB_COLUMNAR + "] index mode"
+                );
+            }
+        }
+
+        @Override
+        public SourceFieldMapper.Mode defaultSourceMode() {
+            return SourceFieldMapper.Mode.SYNTHETIC;
+        }
+
+        // TODO: support SourceFieldMapper.Mode#COLUMNAR_STORED
+        @Override
+        public List<SourceFieldMapper.Mode> supportedSourceModes() {
+            return List.of(SourceFieldMapper.Mode.SYNTHETIC);
+        }
+
+        @Override
+        public String getDefaultCodec() {
+            return CodecService.BEST_COMPRESSION_CODEC;
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return true;
+        }
+
+        @Override
+        public boolean isStrictColumnar() {
+            return true;
+        }
+
+        @Override
+        public boolean isSearchOptimizedColumnar() {
+            return true;
+        }
     };
 
     static final String HOST_NAME = "host.name";
@@ -849,11 +956,16 @@ public enum IndexMode {
         return version.supports(getMinimalSupportedVersion());
     }
 
+    public static final FeatureFlag VECTORDB_COLUMNAR_FEATURE_FLAG = new FeatureFlag("vectordb_columnar_index_mode");
+
     /**
-     * Returns all available index modes.
+     * Returns only the index modes that are available in the current build.
+     * The vectordb_columnar mode is excluded in non-snapshot builds where its feature flag is disabled.
      */
     public static IndexMode[] availableModes() {
-        return values();
+        return Arrays.stream(values())
+            .filter(m -> VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled() || m != VECTORDB_COLUMNAR)
+            .toArray(IndexMode[]::new);
     }
 
     private final String name;
@@ -963,6 +1075,26 @@ public enum IndexMode {
     }
 
     /**
+     * Whether this is a columnar mode whose primary access pattern is search rather than analytics. Columnar modes default their
+     * fields to doc-values-only access, which drops the structures that only retrieval uses: the vector index of a
+     * {@code dense_vector}, the norms of a {@code text} field. Modes that return {@code true} keep those structures instead.
+     * <p>
+     * For such modes this exemption is unconditional: keeping the retrieval structures is intrinsic to the mode, so it takes
+     * precedence even over an explicitly configured {@link IndexSettings#INDEX_DISABLED_BY_DEFAULT}. Non-columnar modes return
+     * {@code false} because the exemption is meaningless for them: they never strip these structures by default.
+     */
+    public boolean isSearchOptimizedColumnar() {
+        return false;
+    }
+
+    /**
+     * Whether this index mode is optimized for dense-vector workloads.
+     */
+    public boolean isVectorDb() {
+        return this == VECTORDB_DOCUMENT || this == VECTORDB_COLUMNAR;
+    }
+
+    /**
      * Whether this index mode represents a time series (tsdb) index.
      */
     public boolean isTsdb() {
@@ -999,6 +1131,7 @@ public enum IndexMode {
             case "logsdb_columnar" -> IndexMode.LOGSDB_COLUMNAR;
             case "lookup" -> IndexMode.LOOKUP;
             case "vectordb_document" -> IndexMode.VECTORDB_DOCUMENT;
+            case "vectordb_columnar" -> IndexMode.VECTORDB_COLUMNAR;
             default -> throw new IllegalArgumentException(
                 "["
                     + value
@@ -1008,6 +1141,9 @@ public enum IndexMode {
             );
         };
 
+        if (mode == IndexMode.VECTORDB_COLUMNAR && VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException("[" + value + "] index mode is only available in snapshot builds.");
+        }
         return mode;
     }
 
@@ -1021,6 +1157,7 @@ public enum IndexMode {
     }
 
     public static final TransportVersion VECTORDB_DOCUMENT_INDEX_MODE = TransportVersion.fromName("vectordb_document_index_mode");
+    public static final TransportVersion VECTORDB_COLUMNAR_INDEX_MODE = TransportVersion.fromName("vectordb_columnar_index_mode");
 
     public static IndexMode readFrom(StreamInput in) throws IOException {
         int mode = in.readByte();
@@ -1032,6 +1169,7 @@ public enum IndexMode {
             case 4 -> COLUMNAR;
             case 5 -> LOGSDB_COLUMNAR;
             case 6 -> VECTORDB_DOCUMENT;
+            case 7 -> VECTORDB_COLUMNAR;
             default -> throw new IllegalStateException("unexpected index mode [" + mode + "]");
         };
     }
@@ -1053,6 +1191,7 @@ public enum IndexMode {
             case COLUMNAR -> 4;
             case LOGSDB_COLUMNAR -> 5;
             case VECTORDB_DOCUMENT -> 6;
+            case VECTORDB_COLUMNAR -> 7;
         };
         out.writeByte((byte) code);
     }
@@ -1064,7 +1203,7 @@ public enum IndexMode {
 
     /**
      * A built-in index setting provider that supplies additional index settings based on the index mode.
-     * Currently, only the lookup index mode provides non-empty additional settings.
+     * Lookup, strict columnar data-stream, and vector database modes provide additional settings.
      */
     public static final class IndexModeSettingsProvider implements IndexSettingProvider {
         @Override
@@ -1072,6 +1211,7 @@ public enum IndexMode {
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,
+            boolean registryInstalledTemplate,
             ProjectMetadata projectMetadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
@@ -1083,7 +1223,7 @@ public enum IndexMode {
             if (indexMode == null) {
                 String modeName = indexTemplateAndCreateRequestSettings.get(IndexSettings.MODE.getKey());
                 if (modeName != null) {
-                    indexMode = IndexMode.valueOf(modeName.toUpperCase(Locale.ROOT));
+                    indexMode = IndexMode.fromString(modeName);
                 }
             }
             if (indexMode == LOOKUP) {
@@ -1098,7 +1238,7 @@ public enum IndexMode {
                 && IndexSettings.DISABLE_SEQUENCE_NUMBERS.exists(indexTemplateAndCreateRequestSettings) == false) {
                 additionalSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
             }
-            if (indexMode == VECTORDB_DOCUMENT) {
+            if (indexMode != null && indexMode.isVectorDb()) {
                 // Force index.mapping.exclude_source_vectors to true
                 String excludeSourceVectorsKey = IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey();
                 String userValue = indexTemplateAndCreateRequestSettings.get(excludeSourceVectorsKey);
@@ -1108,7 +1248,9 @@ public enum IndexMode {
                             + excludeSourceVectorsKey
                             + "] cannot be set to [false] when ["
                             + IndexSettings.MODE.getKey()
-                            + "=vectordb_document]"
+                            + "="
+                            + indexMode.getName()
+                            + "]"
                     );
                 }
                 additionalSettings.put(excludeSourceVectorsKey, true);
@@ -1117,7 +1259,7 @@ public enum IndexMode {
                 // Only applied when the user has not explicitly configured [index.store.preload].
                 String preloadKey = IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey();
                 if (IndexModule.INDEX_STORE_PRE_LOAD_SETTING.exists(indexTemplateAndCreateRequestSettings) == false) {
-                    additionalSettings.putList(preloadKey, VECTORDB_DOCUMENT_MODE_PRELOAD_EXTENSIONS);
+                    additionalSettings.putList(preloadKey, VECTORDB_MODE_PRELOAD_EXTENSIONS);
                 }
 
                 // Enable intra-merge parallelism so dense_vector merges can run in parallel within a single merge.
@@ -1136,12 +1278,12 @@ public enum IndexMode {
             }
         }
 
-        // Vector file extensions preloaded into the file system cache by default for [index.mode=vectordb_document].
+        // Vector file extensions preloaded into the file system cache by default for vector database index modes.
         // Excludes:
         // - "vec" (raw vector data) and "clivf" (IVF cluster posting lists): large, streamed from disk on demand
         // - "vem", "vemf", "vemq", "vemb", "vfi", "mivf" (metadata): tiny and already fully read when directory
         // is opened
-        static final List<String> VECTORDB_DOCUMENT_MODE_PRELOAD_EXTENSIONS = List.of(
+        static final List<String> VECTORDB_MODE_PRELOAD_EXTENSIONS = List.of(
             "vex",    // HNSW graph
             "veq",    // scalar-quantized vector data
             "veb",    // binary-quantized vector data

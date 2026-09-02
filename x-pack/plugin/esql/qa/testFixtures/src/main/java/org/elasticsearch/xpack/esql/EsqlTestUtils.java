@@ -32,6 +32,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
@@ -1297,6 +1298,14 @@ public final class EsqlTestUtils {
                 var from = randomMillisUpToYear9999();
                 var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
                 yield new LongRangeBlockBuilder.LongRange(from, to);
+            }
+            case DOUBLE_RANGE -> {
+                double first = randomDouble();
+                double second;
+                do {
+                    second = randomDouble();
+                } while (first == second);
+                yield new DoubleRangeBlockBuilder.DoubleRange(Math.min(first, second), Math.max(first, second));
             }
             case NULL -> null;
             case SOURCE -> {

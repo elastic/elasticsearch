@@ -87,7 +87,7 @@ FROM events_ip
 | 2023-10-23T13:53:55.832Z | 172.21.3.15 | 5033755 | Connection error |
 | 2023-10-23T13:52:55.015Z | 172.21.3.15 | 8268153 | Connection error |
 
-Note how the `client_ip` column is correctly identified as type `ip`, and all values are displayed. However, if instead the query sources two conflicting indices with `FROM events_*`, the type of the `client_ip` column cannot be determined and is reported as `unsupported` with all values returned as `null`.
+Note how the `client_ip` column is correctly identified as type `ip`, and all values are displayed. However, if instead the query sources two conflicting indices with `FROM events_*`, the type of the `client_ip` column cannot be determined and is reported as `unsupported` with all values returned as `null`. To understand how conflicting types are reported in the API response, refer to [column metadata](esql-rest.md#esql-rest-column-metadata).
 
 $$$query-unsupported$$$
 

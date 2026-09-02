@@ -81,7 +81,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -89,8 +88,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -422,7 +419,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         String remoteIndex = (String) testClusterInfo.get("remote.index");
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
-        boolean skipUnavailable = (Boolean) testClusterInfo.get("remote.skip_unavailable");
 
         SearchListenerPlugin.blockLocalQueryPhase();
         SearchListenerPlugin.blockRemoteQueryPhase();
@@ -439,7 +435,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         if (dfs) {
             request.getSearchRequest().searchType(SearchType.DFS_QUERY_THEN_FETCH);
         }
-        // shardId 0 means to throw the Exception only on shard 0; all others should work
+        // shardId 0 means to throw the Exception only on shard 0
         ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), 0);
         request.getSearchRequest().source(new SearchSourceBuilder().query(queryBuilder).size(10));
 
@@ -463,8 +459,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertNotNull(finishedResponse.getSearchResponse());
             assertClusterDetailsFailureOnOneShardOnlyAllowPartialResultsFalseMinimizeRoundtripsFalse(
                 finishedResponse.getSearchResponse().getClusters(),
-                skipUnavailable,
-                dfs,
                 localNumShards,
                 remoteNumShards,
                 true
@@ -479,8 +473,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
             assertClusterDetailsFailureOnOneShardOnlyAllowPartialResultsFalseMinimizeRoundtripsFalse(
                 statusResponse.getClusters(),
-                skipUnavailable,
-                dfs,
                 localNumShards,
                 remoteNumShards,
                 true
@@ -574,7 +566,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         String remoteIndex = (String) testClusterInfo.get("remote.index");
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
-        boolean skipUnavailable = (Boolean) testClusterInfo.get("remote.skip_unavailable");
 
         SearchListenerPlugin.blockLocalQueryPhase();
         SearchListenerPlugin.blockRemoteQueryPhase();
@@ -621,8 +612,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertNotNull(finishedResponse.getSearchResponse());
             assertClustersDetailsFailuresOnOneClusterOnlyAllowPartialResultsFalseMinimizeRoundtripsFalse(
                 finishedResponse.getSearchResponse().getClusters(),
-                skipUnavailable,
-                dfs,
                 localNumShards,
                 remoteNumShards
             );
@@ -635,8 +624,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         assertClustersDetailsFailuresOnOneClusterOnlyAllowPartialResultsFalseMinimizeRoundtripsFalse(
             statusResponse.getClusters(),
-            skipUnavailable,
-            dfs,
             localNumShards,
             remoteNumShards
         );
@@ -1022,7 +1009,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String remoteIndex = (String) testClusterInfo.get("remote.index");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
-        boolean skipUnavailable = (Boolean) testClusterInfo.get("remote.skip_unavailable");
 
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(REMOTE_CLUSTER + ":" + remoteIndex);
         request.setCcsMinimizeRoundtrips(false);
@@ -1054,8 +1040,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertNotNull(finishedResponse.getSearchResponse());
             assertClusterDetailsFailureOnOneShardOnlyAllowPartialResultsFalseMinimizeRoundtripsFalse(
                 finishedResponse.getSearchResponse().getClusters(),
-                skipUnavailable,
-                dfs,
                 0,
                 remoteNumShards,
                 false
@@ -1068,8 +1052,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         assertTrue(statusResponse.isPartial());
         assertClusterDetailsFailureOnOneShardOnlyAllowPartialResultsFalseMinimizeRoundtripsFalse(
             statusResponse.getClusters(),
-            skipUnavailable,
-            dfs,
             0,
             remoteNumShards,
             false
@@ -1824,112 +1806,55 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         );
     }
 
+    /**
+     * Asserts certain consistent features of the response metadata when there is a single shard failure and
+     * {@code allow_partial_search_results=false}. Due to the search task being cancelled on the first shard failure, it is not possible to
+     * guarantee that some or all other shards will not fail due to the internal cancel, so the assertions that can be considered invariant
+     * are limited. This method only asserts that the status of the clusters is not {@link SearchResponse.Cluster.Status#RUNNING}, that all
+     * shards are accounted for, and that any shard failures are of the expected type.
+     */
     private static void assertClusterDetailsFailureOnOneShardOnlyAllowPartialResultsFalseMinimizeRoundtripsFalse(
         SearchResponse.Clusters clusters,
-        boolean remoteSkipUnavailable,
-        boolean dfs,
         int localNumShards,
         int remoteNumShards,
         boolean localIncluded
     ) {
-        int successfulLocalShards;
-        int successfulRemoteShards;
-        if (dfs) {
-            // For a DFS search, the exception thrown by ThrowingQueryBuilder is thrown during the DfsPhase, before the DfsQueryPhase.
-            // When allow_partial_search_results=false, the search is cancelled on the first shard failure, so no shards ever see a
-            // successful query result
-            successfulLocalShards = 0;
-            successfulRemoteShards = 0;
-        } else {
-            successfulLocalShards = localNumShards - 1;
-            successfulRemoteShards = remoteNumShards - 1;
-        }
-
         int numClusters = localIncluded ? 2 : 1;
         assertThat(clusters, notNullValue());
         assertThat(clusters.getTotal(), equalTo(numClusters));
         assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
         assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
-        if (dfs) {
-            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
-            if (remoteSkipUnavailable) {
-                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(1));
-                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(numClusters - 1));
-            } else {
-                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(numClusters));
-            }
-        } else {
-            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(numClusters));
-            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
-            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
-        }
+        int partialClusters = clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL);
+        int skippedClusters = clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED);
+        int failedClusters = clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED);
+        assertThat(partialClusters + skippedClusters + failedClusters, equalTo(numClusters));
 
         if (localIncluded == false) {
             assertNull(clusters.getCluster(LOCAL_CLUSTER));
         } else {
-            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(LOCAL_CLUSTER);
-            assertNotNull(localClusterSearchInfo);
-            if (dfs) {
-                assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.FAILED));
-                assertThat(localClusterSearchInfo.getTook(), nullValue());
-            } else {
-                assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
-                assertThat(localClusterSearchInfo.getTook().millis(), greaterThanOrEqualTo(0L));
-            }
-            assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
-            assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
-            // Failures due to the search task being cancelled after the first failure may be included in the results, reducing the number
-            // of successful shards and increasing the number of failed shards and failures
-            assertThat(localClusterSearchInfo.getSuccessfulShards(), lessThanOrEqualTo(successfulLocalShards));
-            assertThat(localClusterSearchInfo.getFailedShards(), greaterThanOrEqualTo(1));
-            var sumOfLocalShards = localClusterSearchInfo.getSuccessfulShards() + localClusterSearchInfo.getFailedShards();
-            assertThat(sumOfLocalShards, equalTo(localClusterSearchInfo.getTotalShards()));
-            assertThat(localClusterSearchInfo.getFailures().size(), greaterThanOrEqualTo(1));
-            ShardSearchFailure localShardSearchFailure = localClusterSearchInfo.getFailures().getFirst();
-            // When allow_partial_search_results=false, the exception may be a TaskCancelledException
-            assertThat(
-                "should have 'index corrupted' or 'partial results are not allowed' in reason but was: " + localShardSearchFailure.reason(),
-                localShardSearchFailure.reason(),
-                anyOf(
-                    containsString("index corrupted"),
-                    containsString("Fatal failure during search: partial results are not allowed and at least one shard has failed")
+            assertOneClusterDetailsAllowPartialResultsFalseMinimizeRoundtripsFalse(localNumShards, clusters.getCluster(LOCAL_CLUSTER));
+        }
+
+        assertOneClusterDetailsAllowPartialResultsFalseMinimizeRoundtripsFalse(remoteNumShards, clusters.getCluster(REMOTE_CLUSTER));
+    }
+
+    private static void assertOneClusterDetailsAllowPartialResultsFalseMinimizeRoundtripsFalse(
+        int numShards,
+        SearchResponse.Cluster clusterInfo
+    ) {
+        assertNotNull(clusterInfo);
+        assertThat(clusterInfo.getStatus(), not(SearchResponse.Cluster.Status.RUNNING));
+        assertThat(clusterInfo.getTotalShards(), equalTo(numShards));
+        assertThat(clusterInfo.getSkippedShards(), equalTo(0));
+        assertThat(clusterInfo.getFailedShards() + clusterInfo.getSuccessfulShards(), equalTo(numShards));
+        clusterInfo.getFailures()
+            .forEach(
+                failure -> assertThat(
+                    "should have 'index corrupted' in reason but was: " + failure.reason(),
+                    failure.reason(),
+                    containsString("index corrupted")
                 )
             );
-        }
-
-        SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
-        assertNotNull(remoteClusterSearchInfo);
-        if (dfs) {
-            if (remoteSkipUnavailable) {
-                assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SKIPPED));
-            } else {
-                assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.FAILED));
-            }
-            assertThat(remoteClusterSearchInfo.getTook(), nullValue());
-        } else {
-            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
-            assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
-        }
-
-        assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
-        assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
-        // Failures due to the search task being cancelled after the first failure may be included in the results, reducing the number
-        // of successful shards and increasing the number of failed shards and failures
-        assertThat(remoteClusterSearchInfo.getSuccessfulShards(), lessThanOrEqualTo(successfulRemoteShards));
-        assertThat(remoteClusterSearchInfo.getFailedShards(), greaterThanOrEqualTo(1));
-        var sumOfRemoteShards = remoteClusterSearchInfo.getSuccessfulShards() + remoteClusterSearchInfo.getFailedShards();
-        assertThat(sumOfRemoteShards, equalTo(remoteClusterSearchInfo.getTotalShards()));
-        assertThat(remoteClusterSearchInfo.getFailures().size(), greaterThanOrEqualTo(1));
-        ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().getFirst();
-        // When allow_partial_search_results=false, the exception may be a TaskCancelledException
-        assertThat(
-            "should have 'index corrupted' or 'partial results are not allowed' in reason but was: " + remoteShardSearchFailure.reason(),
-            remoteShardSearchFailure.reason(),
-            anyOf(
-                containsString("index corrupted"),
-                containsString("Fatal failure during search: partial results are not allowed and at least one shard has failed")
-            )
-        );
     }
 
     private static void assertClusterDetailsAllShardsFailed(
@@ -2037,118 +1962,31 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         assertOneClusterDetailsAllShardsFailed(clusters.getCluster(REMOTE_CLUSTER), expectedStatus, minimizeRoundtrips, remoteNumShards);
     }
 
+    /**
+     * Asserts certain consistent features of the response metadata when there are shard failures on only the remote cluster and
+     * {@code allow_partial_search_results=false}. Due to the search task being cancelled on the first shard failure, it is not possible to
+     * guarantee that some or all other shards will not fail due to the internal cancel, so the assertions that can be considered invariant
+     * are limited. This method only asserts that the status of the clusters is not {@link SearchResponse.Cluster.Status#RUNNING}, that all
+     * shards are accounted for, and that any shard failures are of the expected type.
+     */
     private static void assertClustersDetailsFailuresOnOneClusterOnlyAllowPartialResultsFalseMinimizeRoundtripsFalse(
         SearchResponse.Clusters clusters,
-        boolean remoteSkipUnavailable,
-        boolean dfs,
         int localNumShards,
         int remoteNumShards
     ) {
         assertNotNull(clusters);
         assertThat(clusters.getTotal(), equalTo(2));
-        SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(LOCAL_CLUSTER);
-        assertNotNull(localClusterSearchInfo);
-        boolean localFailure = localClusterSearchInfo.getFailedShards() > 0;
-        // If the internal cancel happens before the local cluster gets results for all shards, the status will be PARTIAL instead of
-        // SUCCESSFUL, localClusterSearchInfo.getFailedShards() will be non-zero, and there may be ShardSearchFailure in the response
-        if (localFailure) {
-            localClusterSearchInfo.getFailures().forEach(failure -> {
-                assertThat(failure.getCause(), instanceOf(TaskCancelledException.class));
-                assertThat(
-                    failure.reason(),
-                    containsString("Fatal failure during search: partial results are not allowed and at least one shard has failed")
-                );
-            });
-        }
-
-        int skipped = 0;
-        int successful = 0;
-        int failed = 0;
-        int partial = 0;
-
-        // Determine status count from the local cluster
-        // When the search uses DFS_QUERY_THEN_FETCH, the failure on the remote cluster happens before the DfsPhase completes, which
-        // causes the search to be cancelled, so it never progresses to the DfsQueryPhase on the local cluster, causing the state to be
-        // FAILED even though no failures may have actually occurred on the local cluster.
-        // When not using DFS_QUERY_THEN_FETCH, there may still be failures on the local cluster due to the search being cancelled
-        if (dfs) {
-            failed++;
-        } else {
-            if (localFailure) {
-                partial++;
-            } else {
-                successful++;
-            }
-        }
-
-        // Determine status count from the remote cluster
-        if (remoteSkipUnavailable) {
-            skipped++;
-        } else {
-            failed++;
-        }
-
         assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
-        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(partial));
-        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(skipped));
-        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(successful));
-        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(failed));
 
-        if (dfs) {
-            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.FAILED));
-            assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
-            assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(0));
-            assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
-            assertThat(localClusterSearchInfo.getFailedShards(), equalTo(localNumShards));
-            // There may be TaskCancellationException in the failures list if the search is cancelled before the DfsPhase finishes
-            assertThat(localClusterSearchInfo.getFailures().size(), greaterThanOrEqualTo(0));
-            assertThat(localClusterSearchInfo.getTook(), nullValue());
-        } else {
-            if (localFailure) {
-                assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
-                assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
-                assertThat(localClusterSearchInfo.getSuccessfulShards(), lessThan(localNumShards));
-                assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
-                assertThat(localClusterSearchInfo.getFailedShards(), greaterThan(0));
-                var sumOfLocalShards = localClusterSearchInfo.getSuccessfulShards() + localClusterSearchInfo.getFailedShards();
-                assertThat(sumOfLocalShards, equalTo(localClusterSearchInfo.getTotalShards()));
-                // Depending on the cause of the failure on the local cluster, there may or may not be TaskCancellationException in the
-                // failures list
-                assertThat(localClusterSearchInfo.getFailures().size(), greaterThanOrEqualTo(0));
-            } else {
-                assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
-                assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
-                assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards));
-                assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
-                assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
-                assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
-            }
-            assertThat(localClusterSearchInfo.getTook().millis(), greaterThan(0L));
-        }
+        int partial = clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL);
+        int skipped = clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED);
+        int successful = clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL);
+        int failed = clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED);
+        assertThat(partial + skipped + successful + failed, equalTo(2));
 
-        SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
-        assertNotNull(remoteClusterSearchInfo);
-        SearchResponse.Cluster.Status expectedStatus = remoteSkipUnavailable
-            ? SearchResponse.Cluster.Status.SKIPPED
-            : SearchResponse.Cluster.Status.FAILED;
-        assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
-        assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
-        assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(0));
-        assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
-        assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(remoteNumShards));
-        assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(remoteNumShards));
-        assertNull(remoteClusterSearchInfo.getTook());
-        assertFalse(remoteClusterSearchInfo.isTimedOut());
-        ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().getFirst();
-        // When allow_partial_search_results=false, the exception may be a TaskCancelledException
-        assertThat(
-            "should have 'index corrupted' or 'partial results are not allowed' in reason but was: " + remoteShardSearchFailure.reason(),
-            remoteShardSearchFailure.reason(),
-            anyOf(
-                containsString("index corrupted"),
-                containsString("Fatal failure during search: partial results are not allowed and at least one shard has failed")
-            )
-        );
+        assertOneClusterDetailsAllowPartialResultsFalseMinimizeRoundtripsFalse(localNumShards, clusters.getCluster(LOCAL_CLUSTER));
+
+        assertOneClusterDetailsAllowPartialResultsFalseMinimizeRoundtripsFalse(remoteNumShards, clusters.getCluster(REMOTE_CLUSTER));
     }
 
     private static void assertClusterDetailsSearchTimeout(SearchResponse.Clusters clusters, int localNumShards, int remoteNumShards) {

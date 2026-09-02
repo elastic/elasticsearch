@@ -14,6 +14,7 @@ import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.document.column.BytesRefValuesCursor;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
@@ -74,7 +75,8 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
 
     @Override
     public LuceneColumn.RowFieldCursor rowFieldCursor() {
-        final ObjectTupleCursor<BytesRef> cursor = data.bytesRefCursor();
+        // retainValues=true: see appendCurrentFields below — the emitted Fields outlive the cursor position.
+        final ObjectTupleCursor<BytesRef> cursor = data.bytesRefCursor(true);
         return new LuceneColumn.RowFieldCursor() {
             @Override
             public int nextDoc() {
@@ -87,33 +89,31 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
                 // called more than once for the same document and every emitted field is retained in
                 // the caller's list, so a single reused field object would collapse all values to the
                 // last one. cursor.value() already returns a fresh BytesRef per element.
-                out.add(new Field(name(), cursor.value(), fieldType()));
+                //
+                // Lucene's Field(String, BytesRef, FieldType) constructor rejects tokenized+indexed
+                // field types ("cannot set a BytesRef value on a tokenized field"). Indexed tokenized
+                // fields require a String so Lucene can run an analyzer over them.
+                if (fieldType().tokenized() && fieldType().indexOptions() != IndexOptions.NONE) {
+                    out.add(new Field(name(), cursor.value().utf8ToString(), fieldType()));
+                } else {
+                    out.add(new Field(name(), cursor.value(), fieldType()));
+                }
             }
         };
     }
 
     @Override
     public ObjectTupleCursor<BytesRef> tuples() {
-        return data.bytesRefCursor();
+        // retainValues=false: Lucene's indexing chain consumes each tuple value before advancing the
+        // cursor, which is all ObjectTupleCursor#value() promises, so the shared BytesRef is enough.
+        return data.bytesRefCursor(false);
     }
 
     @Override
     public BytesRefValuesCursor values() {
         if (density() == Density.SPARSE) {
-            // SPARSE columns are never consulted via the dense values cursor.
             return super.values();
         }
-        final int count = data.docCount;
-        return new BytesRefValuesCursor(count) {
-            private int pos;
-
-            @Override
-            public BytesRef nextValue() {
-                if (pos >= size()) {
-                    throw new IllegalStateException("nextValue() called more than size()=" + size() + " times");
-                }
-                return data.getBinaryValue(pos++);
-            }
-        };
+        return ((AbstractVarColumn) data).bytesRefValuesCursor(false);
     }
 }

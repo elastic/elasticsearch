@@ -1450,9 +1450,28 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 ClusterState clusterState = ClusterState.EMPTY_STATE;
                 writer.writeFullStateAndCommit(1, ClusterState.EMPTY_STATE);
 
-                final int indexCount = between(2, usually() ? 20 : 1000);
+                final int indexCount = between(2, randomBoolean() ? 20 : 1000);
 
-                final int maxSegmentCount = (indexCount / 100) + 100; // only expect to have two tiers, each with max 100 segments
+                // The defaultMergePolicy set for the cluster state index is: 100 segments per tier; and merge will batch 100 segments per
+                // tier into 1 segment in the next tier.
+                //
+                // Roughly, an index's smallest segment is used as a heuristic with which the merge algorithm estimates the number of
+                // segments in a tier and initiates merges. The merge algorithm does not actually count segments, but rather bytes. The
+                // cluster state index's smallest segment is its first write initializing the global metadata, which is only around half the
+                // size of a write to add index metadata. So while each index metadata write will add one segment, it will be counted by the
+                // heuristic as two segments.
+                //
+                // Lucene's tier system places the first 100 estimated segments into tier-0, then tier-1 holds 100 batches of 100, tier-2
+                // contains 100 batches of 10000 segments, etc. This test will not populate tier-2: it doesn't drive sufficient writes.
+                //
+                // Therefore, in an example of 101 indices, the merge algorithm will estimate that there are 203 segments (101*2 + 1 for the
+                // initial write) based on bytes: the first 100 will go into tier 0, the next 100 will go into the first segment in tier 1,
+                // and then the last three will go into another segment in tier 1. This means the final estimated segment count is 102:
+                // those 102 estimated segments will not be merged further.
+                //
+                // We'll set the upper bound of segments as if all the segments modulo 100 were in tier-1, and the remainder in tier-0 (just
+                // make it 100, don't need to be that precise).
+                final int maxSegmentCount = ((indexCount * 2 + 1) / 100) + 100;
                 final int filesPerSegment = 3; // .cfe, .cfs, .si
                 final int extraFiles = 2; // segments_*, write.lock
                 final int maxFileCount = (maxSegmentCount * filesPerSegment) + extraFiles;
@@ -1496,13 +1515,13 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                 // don't bother preparing the description unless we are failing
                                 fileNames.sort(Comparator.naturalOrder());
                                 fail(
-                                    "after "
-                                        + indexCount
-                                        + " indices have "
+                                    "after adding "
+                                        + i
+                                        + " indices, "
                                         + fileCount
-                                        + " files vs max of "
+                                        + " cluster state index files were found. This exceeds the expected maximum number of "
                                         + maxFileCount
-                                        + ": "
+                                        + " files: the index merge policy should ensure this maximum. Files found: "
                                         + fileNames
                                 );
                             }

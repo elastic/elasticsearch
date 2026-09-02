@@ -267,7 +267,8 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                     targetNode.getId(),
                     0L,
                     "test",
-                    RoutingChangesObserver.NOOP
+                    RoutingChangesObserver.NOOP,
+                    ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                 );
                 routingNodes.startShard(test.v2(), RoutingChangesObserver.NOOP, 0L);
             }

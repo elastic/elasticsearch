@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 
 import java.util.EnumSet;
 
@@ -18,16 +21,64 @@ import java.util.EnumSet;
  */
 public class HighlightGoldenTests extends GoldenTestCase {
 
+    private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION);
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public HighlightGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
     /**
      * HIGHLIGHT survives logical and local physical optimization, producing a {@code HighlightExec}
      * whose generated {@code highlight_<field>} column is appended to the output layout.
      */
     public void testBasicHighlight() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
         String query = """
             FROM employees
             | HIGHLIGHT "elasticsearch" ON first_name
             """;
-        runGoldenTest(query, EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+        builder(query).stages(STAGES).since(Highlight.ESQL_HIGHLIGHT).run();
+    }
+
+    public void testMatchOperatorWhereIsPushedBelowHighlight() {
+        String query = """
+            FROM employees
+            | HIGHLIGHT "elasticsearch" ON first_name
+            | WHERE first_name : "elasticsearch"
+            """;
+        builder(query).stages(STAGES).since(Highlight.ESQL_HIGHLIGHT).run();
+    }
+
+    /**
+     * The logical optimizer moves the SORT and LIMIT below HIGHLIGHT, combining them into a TopN that HIGHLIGHT now sits above.
+     * The local physical plan then pushes that TopN into the source, so highlighting runs on the surviving rows.
+     */
+    public void testTopNIsPushedBelowHighlight() {
+        String query = """
+            FROM employees
+            | WHERE first_name : "elasticsearch"
+            | HIGHLIGHT "elasticsearch" ON first_name
+            | SORT emp_no DESC
+            | LIMIT 10
+            """;
+        builder(query).stages(STAGES).since(Highlight.ESQL_HIGHLIGHT).run();
+    }
+
+    /**
+     * The TopN stays above HIGHLIGHT when it sorts on a generated highlight column, since that sort depends on the highlight output.
+     */
+    public void testTopNOnGeneratedSnippetIsNotPushedBelowHighlight() {
+        String query = """
+            FROM employees
+            | WHERE first_name : "elasticsearch"
+            | HIGHLIGHT "elasticsearch" ON first_name
+            | SORT highlight_first_name ASC
+            | LIMIT 10
+            """;
+        builder(query).stages(STAGES).since(Highlight.ESQL_HIGHLIGHT).run();
     }
 }

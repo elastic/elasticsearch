@@ -66,7 +66,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 /**
  * Mostly copied from Lucene
  */
-public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends LuceneTestCase {
+public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase<V> extends LuceneTestCase {
 
     protected TestIvfQueryConfigResolver testResolver() {
         return new TestIvfQueryConfigResolver(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, 1.0f);
@@ -107,24 +107,26 @@ public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase exte
         );
     }
 
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
+    abstract Query getDiversifyingChildrenKnnQuery(String fieldName, V queryVector, Query childFilter, int k, BitSetProducer parentBitSet);
 
-    abstract Query getDiversifyingChildrenKnnQuery(
-        String fieldName,
-        float[] queryVector,
-        Query childFilter,
-        int k,
-        BitSetProducer parentBitSet
-    );
+    abstract Field getKnnVectorField(String name, V vector);
 
+    /** Converts integer components to the appropriate vector type. */
+    abstract V vector(int... components);
+
+    /** Creates a typed array of the appropriate vector type. */
+    abstract V[] createVectorArray(int size);
+
+    /** Random vector of the given dimension. */
+    abstract V randomVector(int dim);
+
+    @SuppressWarnings("unchecked")
     public void testEmptyIndex() throws IOException {
         try (Directory indexStore = getIndexStore("field"); IndexReader reader = DirectoryReader.open(indexStore)) {
             IndexSearcher searcher = newSearcher(reader);
             Query q = getDiversifyingChildrenKnnQuery(
                 "field",
-                new float[] { 1, 2 },
+                vector(1, 2),
                 null,
                 2,
                 new QueryBitSetProducer(new TermQuery(new Term("docType", "_parent")))
@@ -157,13 +159,13 @@ public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase exte
                 // may not
                 // verify we handle it gracefully
                 BitSetProducer parentFilter = new QueryBitSetProducer(new TermQuery(new Term("docType", "_parent")));
-                Query query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, null, 3, parentFilter);
+                Query query = getDiversifyingChildrenKnnQuery("field", vector(2, 2), null, 3, parentFilter);
                 TopDocs topDocs = searcher.search(query, 3);
                 assertEquals(0, topDocs.totalHits.value());
                 assertEquals(0, topDocs.scoreDocs.length);
 
                 // Test with match_all filter and large k to test exact search
-                query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, Queries.ALL_DOCS_INSTANCE, 10, parentFilter);
+                query = getDiversifyingChildrenKnnQuery("field", vector(2, 2), Queries.ALL_DOCS_INSTANCE, 10, parentFilter);
                 topDocs = searcher.search(query, 3);
                 assertEquals(0, topDocs.totalHits.value());
                 assertEquals(0, topDocs.scoreDocs.length);
@@ -181,7 +183,7 @@ public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase exte
             ) {
                 for (int i = 0; i < 3; ++i) {
                     Document doc = new Document();
-                    doc.add(getKnnVectorField("field", new float[] { 2, 2 }));
+                    doc.add(getKnnVectorField("field", vector(2, 2)));
                     doc.add(newStringField("id", Integer.toString(i), Field.Store.YES));
                     w.addDocument(doc);
                 }
@@ -198,13 +200,13 @@ public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase exte
                 // may not
                 // verify we handle it gracefully
                 BitSetProducer parentFilter = new QueryBitSetProducer(new TermQuery(new Term("docType", "_parent")));
-                Query query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, null, 3, parentFilter);
+                Query query = getDiversifyingChildrenKnnQuery("field", vector(2, 2), null, 3, parentFilter);
                 TopDocs topDocs = searcher.search(query, 3);
                 assertEquals(0, topDocs.totalHits.value());
                 assertEquals(0, topDocs.scoreDocs.length);
 
                 // Test with match_all filter and large k to test exact search
-                query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, Queries.ALL_DOCS_INSTANCE, 10, parentFilter);
+                query = getDiversifyingChildrenKnnQuery("field", vector(2, 2), Queries.ALL_DOCS_INSTANCE, 10, parentFilter);
                 topDocs = searcher.search(query, 3);
                 assertEquals(0, topDocs.totalHits.value());
                 assertEquals(0, topDocs.scoreDocs.length);
@@ -212,15 +214,16 @@ public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase exte
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testFilterWithNoVectorMatches() throws IOException {
         try (
-            Directory indexStore = getIndexStore("field", new float[] { 0, 1 }, new float[] { 1, 2 }, new float[] { 0, 0 });
+            Directory indexStore = getIndexStore("field", vector(0, 1), vector(1, 2), vector(0, 0));
             IndexReader reader = DirectoryReader.open(indexStore)
         ) {
             IndexSearcher searcher = newSearcher(reader);
             Query filter = new TermQuery(new Term("other", "value"));
             BitSetProducer parentFilter = parentFilter(reader);
-            Query kvq = getDiversifyingChildrenKnnQuery("field", new float[] { 1, 2 }, filter, 2, parentFilter);
+            Query kvq = getDiversifyingChildrenKnnQuery("field", vector(1, 2), filter, 2, parentFilter);
             TopDocs topDocs = searcher.search(kvq, 3);
             assertEquals(0, topDocs.totalHits.value());
         }
@@ -239,7 +242,7 @@ public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase exte
                 List<Document> toAdd = new ArrayList<>();
                 for (int j = 1; j <= 5; j++) {
                     Document doc = new Document();
-                    doc.add(getKnnVectorField("field", new float[] { j, j }));
+                    doc.add(getKnnVectorField("field", vector(j, j)));
                     doc.add(newStringField("id", Integer.toString(j), Field.Store.YES));
                     toAdd.add(doc);
                 }
@@ -249,7 +252,7 @@ public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase exte
                 toAdd = new ArrayList<>();
                 for (int j = 7; j <= 11; j++) {
                     Document doc = new Document();
-                    doc.add(getKnnVectorField("field", new float[] { j, j }));
+                    doc.add(getKnnVectorField("field", vector(j, j)));
                     doc.add(newStringField("id", Integer.toString(j), Field.Store.YES));
                     toAdd.add(doc);
                 }
@@ -261,15 +264,15 @@ public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase exte
                 assertEquals(1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
                 BitSetProducer parentFilter = parentFilter(searcher.getIndexReader());
-                Query query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, null, 3, parentFilter);
+                Query query = getDiversifyingChildrenKnnQuery("field", vector(2, 2), null, 3, parentFilter);
                 assertScorerResults(searcher, query, new float[] { 1f, 1f / 51f }, new String[] { "2", "7" }, 2, 0.0001f);
 
-                query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, null, 3, parentFilter);
+                query = getDiversifyingChildrenKnnQuery("field", vector(6, 6), null, 3, parentFilter);
                 assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2, 0.0001f);
-                query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, Queries.ALL_DOCS_INSTANCE, 20, parentFilter);
+                query = getDiversifyingChildrenKnnQuery("field", vector(6, 6), Queries.ALL_DOCS_INSTANCE, 20, parentFilter);
                 assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2, 0.0001f);
 
-                query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, Queries.ALL_DOCS_INSTANCE, 1, parentFilter);
+                query = getDiversifyingChildrenKnnQuery("field", vector(6, 6), Queries.ALL_DOCS_INSTANCE, 1, parentFilter);
                 assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 1, 0.0001f);
             }
         }
@@ -288,7 +291,7 @@ public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase exte
                     for (int j = 0; j < 5; j++) {
                         List<Document> toAdd = new ArrayList<>();
                         Document doc = new Document();
-                        doc.add(getKnnVectorField("field", new float[] { r, r }));
+                        doc.add(getKnnVectorField("field", vector(r, r)));
                         doc.add(newStringField("id", Integer.toString(r), Field.Store.YES));
                         toAdd.add(doc);
                         toAdd.add(makeParent(new int[] { r }));
@@ -301,7 +304,7 @@ public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase exte
             try (IndexReader reader = DirectoryReader.open(d)) {
                 IndexSearcher searcher = newSearcher(reader);
                 TopDocs results = searcher.search(
-                    getDiversifyingChildrenKnnQuery("field", new float[] { 0, 0 }, null, 8, parentFilter(searcher.getIndexReader())),
+                    getDiversifyingChildrenKnnQuery("field", vector(0, 0), null, 8, parentFilter(searcher.getIndexReader())),
                     10
                 );
                 assertEquals(8, results.scoreDocs.length);
@@ -310,7 +313,7 @@ public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase exte
 
                 // test some results in the middle of the sequence - also tests docid tiebreaking
                 results = searcher.search(
-                    getDiversifyingChildrenKnnQuery("field", new float[] { 10, 10 }, null, 8, parentFilter(searcher.getIndexReader())),
+                    getDiversifyingChildrenKnnQuery("field", vector(10, 10), null, 8, parentFilter(searcher.getIndexReader())),
                     10
                 );
                 assertEquals(8, results.scoreDocs.length);
@@ -320,7 +323,8 @@ public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase exte
         }
     }
 
-    Directory getIndexStore(String field, float[]... contents) throws IOException {
+    @SuppressWarnings("unchecked")
+    Directory getIndexStore(String field, V... contents) throws IOException {
         Directory indexStore = newDirectory();
         RandomIndexWriter writer = new RandomIndexWriter(
             random(),
@@ -348,8 +352,6 @@ public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase exte
         writer.close();
         return indexStore;
     }
-
-    abstract Field getKnnVectorField(String name, float[] vector);
 
     void assertIdMatches(IndexReader reader, String expectedId, int docId) throws IOException {
         String actualId = reader.storedFields().document(docId).get("id");

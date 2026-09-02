@@ -30,7 +30,7 @@ import java.util.Set;
  * but handle the internal versioning scheme without scripts accessing the ctx map.
  */
 public class ReindexMetadata extends Metadata {
-    private static final String SLICE = SliceIndexing.PARAM_NAME;
+    private static final String SLICE = SliceIndexing.FIELD_NAME;
     private static final Map<String, FieldProperty<?>> PROPERTIES_WITHOUT_SLICE = Map.of(
         INDEX,
         ObjectField.withWritable(),

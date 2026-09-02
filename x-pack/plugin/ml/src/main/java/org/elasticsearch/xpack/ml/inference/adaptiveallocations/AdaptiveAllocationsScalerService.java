@@ -101,7 +101,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 return;
             }
             metrics.add(
-                meterRegistry.registerLongsGauge(
+                meterRegistry.registerLongsAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.actual_number_of_allocations.current",
                     "the actual number of allocations",
                     "",
@@ -109,7 +109,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 )
             );
             metrics.add(
-                meterRegistry.registerLongsGauge(
+                meterRegistry.registerLongsAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.needed_number_of_allocations.current",
                     "the number of allocations needed according to the adaptive allocations scaler",
                     "",
@@ -117,7 +117,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 )
             );
             metrics.add(
-                meterRegistry.registerDoublesGauge(
+                meterRegistry.registerDoublesAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.measured_request_rate.current",
                     "the request rate reported by the stats API",
                     "1/s",
@@ -125,7 +125,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 )
             );
             metrics.add(
-                meterRegistry.registerDoublesGauge(
+                meterRegistry.registerDoublesAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.estimated_request_rate.current",
                     "the request rate estimated by the adaptive allocations scaler",
                     "1/s",
@@ -133,7 +133,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 )
             );
             metrics.add(
-                meterRegistry.registerDoublesGauge(
+                meterRegistry.registerDoublesAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.measured_inference_time.current",
                     "the inference time reported by the stats API",
                     "s",
@@ -141,7 +141,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 )
             );
             metrics.add(
-                meterRegistry.registerDoublesGauge(
+                meterRegistry.registerDoublesAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.estimated_inference_time.current",
                     "the inference time estimated by the adaptive allocations scaler",
                     "s",
@@ -149,7 +149,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 )
             );
             metrics.add(
-                meterRegistry.registerLongsGauge(
+                meterRegistry.registerLongsAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.queue_size.current",
                     "the queue size reported by the stats API",
                     "s",

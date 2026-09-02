@@ -16,7 +16,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -44,8 +43,7 @@ public class StreamingTaskManagerTests extends ESTestCase {
     private StreamingTaskManager streamingTaskManager;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createStreamingTaskManager() throws Exception {
         taskManager = mock();
         ThreadPool threadPool = mock();
         streamingTaskManager = new StreamingTaskManager(taskManager, threadPool);
@@ -55,11 +53,6 @@ public class StreamingTaskManagerTests extends ESTestCase {
             TaskAwareRequest taskAwareRequest = ans.getArgument(2);
             return taskAwareRequest.createTask(1L, taskType, taskAction, TaskId.EMPTY_TASK_ID, Map.of());
         }).when(taskManager).register(any(), any(), any(), eq(false));
-    }
-
-    @After
-    public void tearDown() throws Exception {
-        super.tearDown();
     }
 
     public void testSubscribeRegistersTask() {

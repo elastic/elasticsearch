@@ -228,7 +228,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
     @Override
     public void close() {
         try {
-            IOUtils.close(snapshotHistoryStore.get(), snapshotLifecycleService.get(), snapshotRetentionService.get());
+            IOUtils.close(snapshotLifecycleService.get(), snapshotRetentionService.get(), snapshotHistoryStore.get());
         } catch (IOException e) {
             throw new ElasticsearchException("unable to close snapshot lifecycle services", e);
         }

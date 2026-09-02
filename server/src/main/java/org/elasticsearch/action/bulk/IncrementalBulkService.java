@@ -253,13 +253,12 @@ public class IncrementalBulkService {
                         }
                     }
                 );
+                createNewBulkRequest(EMPTY_STATE);
             } catch (Exception e) {
                 // The caller never receives this Handler, so nothing would be left to release the reservation.
                 incrementalOperation.close();
                 throw e;
             }
-
-            createNewBulkRequest(EMPTY_STATE);
         }
 
         /**

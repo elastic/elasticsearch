@@ -10,7 +10,8 @@
 package org.elasticsearch.simdvec;
 
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.simdvec.internal.FixedSizeScratch;
+import org.elasticsearch.simdvec.internal.vectorization.BBQDotProduct;
+import org.elasticsearch.simdvec.internal.vectorization.ESNextAshBBQVectorsScorer;
 
 import java.io.IOException;
 
@@ -31,7 +32,7 @@ public final class ESNextAshVectorsScorer {
 
     /** Creates a scalar {@link AshScorer} for the integer-query path. */
     public static AshScorer<byte[]> createInteger(IndexInput in, int nDims, int bitsPerDim, int queryBitsPerDim) {
-        return new IntegerImpl(in, nDims, bitsPerDim, queryBitsPerDim);
+        return new ESNextAshBBQVectorsScorer(BBQDotProduct.create(in, nDims, bitsPerDim, queryBitsPerDim));
     }
 
     /** Scalar float-path scorer. */
@@ -57,12 +58,12 @@ public final class ESNextAshVectorsScorer {
         }
 
         @Override
-        public void scoreBulk(float[] queryTransformed, float[] scores, int scoresOffset, int blockSize) throws IOException {
+        public void scoreBulk(float[] queryTransformed, float[] scores, int blockSize) throws IOException {
             float sum = ESVectorUtil.sum(queryTransformed, nDims);
             int numLevels = 1 << bitsPerDim;
             float centerOffset = (numLevels - 1) / 2.0f;
             for (int j = 0; j < blockSize; j++) {
-                scores[scoresOffset + j] = scoreFloatSingle(queryTransformed, sum, centerOffset);
+                scores[j] = scoreFloatSingle(queryTransformed, sum, centerOffset);
             }
         }
 
@@ -100,49 +101,4 @@ public final class ESNextAshVectorsScorer {
         }
     }
 
-    /** Scalar integer-path scorer. */
-    static final class IntegerImpl implements AshScorer<byte[]> {
-        private final IndexInput in;
-        private final int bitsPerDim;
-        private final int queryBitsPerDim;
-        private final int planeBytes;
-        private final int packedCodeBytes;
-        private final FixedSizeScratch docPlanesScratch;
-
-        IntegerImpl(IndexInput in, int nDims, int bitsPerDim, int queryBitsPerDim) {
-            this.in = in;
-            this.bitsPerDim = bitsPerDim;
-            this.queryBitsPerDim = queryBitsPerDim;
-            this.planeBytes = (nDims + 7) >>> 3;
-            this.packedCodeBytes = bitsPerDim * planeBytes;
-            this.docPlanesScratch = new FixedSizeScratch(packedCodeBytes);
-        }
-
-        @Override
-        public float score(byte[] queryQuantized) throws IOException {
-            return scoreIntegerSingle(queryQuantized);
-        }
-
-        @Override
-        public void scoreBulk(byte[] queryQuantized, float[] scores, int scoresOffset, int blockSize) throws IOException {
-            for (int j = 0; j < blockSize; j++) {
-                scores[scoresOffset + j] = scoreIntegerSingle(queryQuantized);
-            }
-        }
-
-        private float scoreIntegerSingle(byte[] queryQuantized) throws IOException {
-            byte[] docPlanes = docPlanesScratch.apply(packedCodeBytes);
-            in.readBytes(docPlanes, 0, packedCodeBytes);
-
-            int rawDot = 0;
-            for (int qp = 0; qp < queryBitsPerDim; qp++) {
-                for (int dp = 0; dp < bitsPerDim; dp++) {
-                    int pc = ESVectorUtil.andBitCount(queryQuantized, qp * planeBytes, docPlanes, dp * planeBytes, planeBytes);
-                    int weight = (1 << qp) * (1 << dp);
-                    rawDot += weight * pc;
-                }
-            }
-            return rawDot;
-        }
-    }
 }

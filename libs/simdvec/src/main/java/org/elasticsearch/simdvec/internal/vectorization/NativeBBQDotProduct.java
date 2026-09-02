@@ -56,11 +56,12 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
      * Factory method for a native-code dot-product implementation where possible.
      *
      * @param in         input positioned at the first data vector to score
+     * @param nDims      number of dimensions
      * @param docBits    bits per dimension of the data vector, in {@code [1, MAX_BITS]}
      * @param queryBits  bits per dimension of the query vector, in {@code [1, MAX_BITS]}
-     * @param planeBytes bytes in a single bit-plane, {@code ceil(dimensions / 8)}
      */
-    public static BBQDotProduct create(IndexInput in, int docBits, int queryBits, int planeBytes) {
+    public static BBQDotProduct create(IndexInput in, int nDims, int docBits, int queryBits) {
+        int planeBytes = planeBytes(nDims);
         if (!supports(in, docBits, queryBits)) {
             return PanamaBBQDotProduct.create(in, docBits, queryBits, planeBytes);
         }

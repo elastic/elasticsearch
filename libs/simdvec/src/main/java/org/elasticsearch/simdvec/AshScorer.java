@@ -30,8 +30,8 @@ public interface AshScorer<T> {
     float score(T query) throws IOException;
 
     /**
-     * Score a bulk of vectors. Writes results starting at {@code scoresOffset}.
+     * Score a bulk of vectors. Writes results into {@code scores[0..blockSize)}.
      * Advances the IndexInput past {@code blockSize} vectors' packed code bytes.
      */
-    void scoreBulk(T query, float[] scores, int scoresOffset, int blockSize) throws IOException;
+    void scoreBulk(T query, float[] scores, int blockSize) throws IOException;
 }

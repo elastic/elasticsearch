@@ -77,17 +77,17 @@ public class BBQDotProductTests extends BaseVectorizationTests {
             .iterator();
     }
 
-    private BBQDotProduct getImpl(Implementation impl, IndexInput input, int planeBytes) {
+    private BBQDotProduct getImpl(Implementation impl, IndexInput input, int nDims) {
         return switch (impl) {
-            case SCALAR -> BBQDotProduct.create(input, docBits, queryBits, planeBytes);
-            case PANAMA -> PanamaBBQDotProduct.create(input, docBits, queryBits, planeBytes);
-            case NATIVE -> NativeBBQDotProduct.create(input, docBits, queryBits, planeBytes);
+            case SCALAR -> BBQDotProduct.create(input, nDims, docBits, queryBits);
+            case PANAMA -> PanamaBBQDotProduct.create(input, nDims, docBits, queryBits);
+            case NATIVE -> NativeBBQDotProduct.create(input, nDims, docBits, queryBits);
         };
     }
 
     public void testBulkScoring() throws Exception {
         int nDims = randomDims();
-        int planeBytes = planeBytes(nDims);
+        int planeBytes = BBQDotProduct.planeBytes(nDims);
         int count = BULK_SIZE * randomIntBetween(1, 4) - randomIntBetween(0, BULK_SIZE - 1);
 
         byte[] query = randomPackedVector(queryBits, planeBytes, nDims);
@@ -103,7 +103,7 @@ public class BBQDotProductTests extends BaseVectorizationTests {
                 Long consumed = null;
                 for (Implementation impl : Implementation.values()) {
                     IndexInput read = in.clone();
-                    BBQDotProduct dotProduct = getImpl(impl, read, planeBytes);
+                    BBQDotProduct dotProduct = getImpl(impl, read, nDims);
                     float[] scores = new float[BULK_SIZE];
 
                     for (int offset = 0; offset < count; offset += BULK_SIZE) {
@@ -127,7 +127,7 @@ public class BBQDotProductTests extends BaseVectorizationTests {
 
     public void testSingleMatchesBulk() throws Exception {
         int nDims = randomDims();
-        int planeBytes = planeBytes(nDims);
+        int planeBytes = BBQDotProduct.planeBytes(nDims);
 
         byte[] query = randomPackedVector(queryBits, planeBytes, nDims);
         byte[][] vectors = new byte[][] { randomPackedVector(docBits, planeBytes, nDims) };
@@ -138,8 +138,8 @@ public class BBQDotProductTests extends BaseVectorizationTests {
                 long expected = basicBitImplementation(query, vectors[0], planeBytes, nDims);
 
                 for (Implementation impl : Implementation.values()) {
-                    BBQDotProduct single = getImpl(impl, in.clone(), planeBytes);
-                    BBQDotProduct bulk = getImpl(impl, in.clone(), planeBytes);
+                    BBQDotProduct single = getImpl(impl, in.clone(), nDims);
+                    BBQDotProduct bulk = getImpl(impl, in.clone(), nDims);
 
                     float[] bulkScores = new float[1];
                     bulk.dotProductBulk(query, 1, bulkScores);
@@ -152,7 +152,7 @@ public class BBQDotProductTests extends BaseVectorizationTests {
 
     public void testBulkOffsets() throws Exception {
         int nDims = randomDims();
-        int planeBytes = planeBytes(nDims);
+        int planeBytes = BBQDotProduct.planeBytes(nDims);
         int count = randomIntBetween(1, BULK_SIZE);
 
         byte[] query = randomPackedVector(queryBits, planeBytes, nDims);
@@ -177,7 +177,7 @@ public class BBQDotProductTests extends BaseVectorizationTests {
             try (IndexInput in = dir.openInput("vecs.bin", IOContext.DEFAULT)) {
                 for (Implementation impl : Implementation.values()) {
                     IndexInput read = in.clone();
-                    BBQDotProduct dotProduct = getImpl(impl, read, planeBytes);
+                    BBQDotProduct dotProduct = getImpl(impl, read, nDims);
 
                     float[] scores = new float[BULK_SIZE];
                     Arrays.fill(scores, Float.NaN);
@@ -205,13 +205,13 @@ public class BBQDotProductTests extends BaseVectorizationTests {
 
     public void testTierSelectionFollowsSupport() throws Exception {
         int nDims = randomDims();
-        int planeBytes = planeBytes(nDims);
+        int planeBytes = BBQDotProduct.planeBytes(nDims);
 
         try (Directory dir = newParametrizedDirectory()) {
             write(dir, new byte[][] { randomPackedVector(docBits, planeBytes, nDims) });
             try (IndexInput in = dir.openInput("vecs.bin", IOContext.DEFAULT)) {
                 IndexInput panamaIn = in.clone();
-                BBQDotProduct panama = PanamaBBQDotProduct.create(panamaIn, docBits, queryBits, planeBytes);
+                BBQDotProduct panama = PanamaBBQDotProduct.create(panamaIn, nDims, docBits, queryBits);
                 if (PanamaBBQDotProduct.supports(panamaIn, docBits, queryBits, planeBytes)) {
                     assertThat(describe("Panama"), panama, instanceOf(PanamaBBQDotProduct.class));
                 } else {
@@ -219,7 +219,7 @@ public class BBQDotProductTests extends BaseVectorizationTests {
                 }
 
                 IndexInput nativeIn = in.clone();
-                BBQDotProduct nativ = NativeBBQDotProduct.create(nativeIn, docBits, queryBits, planeBytes);
+                BBQDotProduct nativ = NativeBBQDotProduct.create(nativeIn, nDims, docBits, queryBits);
                 if (NativeBBQDotProduct.supports(nativeIn, docBits, queryBits)) {
                     assertThat(describe("native"), nativ, instanceOf(NativeBBQDotProduct.class));
                 } else {
@@ -273,10 +273,6 @@ public class BBQDotProductTests extends BaseVectorizationTests {
 
     private static int randomDims() {
         return randomIntBetween(8, 1024);
-    }
-
-    private static int planeBytes(int nDims) {
-        return (nDims + 7) >>> 3;
     }
 
     private static void write(Directory dir, byte[][] bytes) throws IOException {

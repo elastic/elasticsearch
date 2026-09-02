@@ -119,14 +119,14 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
                 for (int j = 0; j < nDims; j++) {
                     int byteIdx = j >>> 3;
                     int bitIdx = 7 - (j & 7);
-                    for (int p = 0; p < bitsPerDim; p++) {
+                    for (int p = 0; p < queryBitsPerDim; p++) {
                         if ((rounded[j] & (1 << p)) != 0) {
                             queryQuantized[p * planeBytes + byteIdx] |= (byte) (1 << bitIdx);
                         }
                     }
                 }
             }
-            default -> throw new IllegalArgumentException("Unsupported bitsPerDim: " + bitsPerDim);
+            default -> throw new IllegalArgumentException("Unsupported bitsPerDim: " + queryBitsPerDim);
         }
 
         float centerOffset = ((1 << bitsPerDim) - 1) / 2.0f;
@@ -366,7 +366,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         }
 
         // Step 1: Read packed codes via the scorer (produces raw dot products).
-        scorer.scoreBulk(scorerQuery, scores, 0, blockSize);
+        scorer.scoreBulk(scorerQuery, scores, blockSize);
 
         // Step 2: Read corrections (IndexInput is now past the codes, at the corrections)
         indexInput.readBytes(bulkCorrectionsBuf, 0, blockSize * CORRECTION_BYTES);

@@ -208,12 +208,7 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
                 dimensions,
                 dataLength,
                 bulkSize,
-                NativeBBQDotProduct.create(
-                    in,
-                    encoding.indexBits(),
-                    encoding.queryBits(),
-                    BBQDotProduct.planeBytes(encoding.indexBits(), dataLength)
-                )
+                NativeBBQDotProduct.create(in, encoding.indexBits(), encoding.queryBits(), dimensions)
             );
         }
 

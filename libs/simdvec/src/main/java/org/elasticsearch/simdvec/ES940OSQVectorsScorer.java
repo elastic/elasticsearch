@@ -123,12 +123,7 @@ public class ES940OSQVectorsScorer {
         this.scratch = encoding.indexBits() == 7 ? new byte[dimensions] : null;
         this.packedScratch = encoding.bitEncoding == BitEncoding.PACKED ? new byte[length] : null;
         this.dotProduct = switch (encoding) {
-            case D1Q1, D1Q4, D2Q4_STRIPED, D4Q4_STRIPED -> BBQDotProduct.create(
-                in,
-                encoding.indexBits(),
-                encoding.queryBits(),
-                BBQDotProduct.planeBytes(encoding.indexBits(), dataLength)
-            );
+            case D1Q1, D1Q4, D2Q4_STRIPED, D4Q4_STRIPED -> BBQDotProduct.create(in, encoding.indexBits(), encoding.queryBits(), dimensions);
             case D2Q4_PACKED, D4Q4_PACKED, D7Q7 -> null;
         };
     }

@@ -57,16 +57,7 @@ public final class MemorySegmentESNextAshVectorsScorer {
      * @return a scorer implementing {@link AshScorer}{@code <byte[]>}
      */
     public static AshScorer<byte[]> createInteger(IndexInput in, int nDims, int bitsPerDim, int queryBitsPerDim) {
-        int planeBytes = (nDims + 7) >>> 3;
-        int packedCodeBytes = bitsPerDim * planeBytes;
-        AshMemorySegmentScorer<byte[]> inner = null;
-        if (queryBitsPerDim == 4 && bitsPerDim == 1) {
-            inner = new MSAshD1Q4Scorer(in, nDims, planeBytes, packedCodeBytes);
-        } else if (queryBitsPerDim == 4 && bitsPerDim == 2) {
-            inner = new MSAshD2Q4Scorer(in, nDims, planeBytes, packedCodeBytes);
-        }
-        AshScorer<byte[]> scalar = ESNextAshVectorsScorer.createInteger(in, nDims, bitsPerDim, queryBitsPerDim);
-        return new DelegatingScorer<>(inner, scalar);
+        return new ESNextAshBBQVectorsScorer(PanamaBBQDotProduct.create(in, nDims, bitsPerDim, queryBitsPerDim));
     }
 
     /**
@@ -94,14 +85,14 @@ public final class MemorySegmentESNextAshVectorsScorer {
         }
 
         @Override
-        public void scoreBulk(T query, float[] scores, int scoresOffset, int blockSize) throws IOException {
+        public void scoreBulk(T query, float[] scores, int blockSize) throws IOException {
             if (inner != null) {
-                boolean handled = inner.scoreBulk(query, scores, scoresOffset, blockSize);
+                boolean handled = inner.scoreBulk(query, scores, blockSize);
                 if (handled) {
                     return;
                 }
             }
-            scalar.scoreBulk(query, scores, scoresOffset, blockSize);
+            scalar.scoreBulk(query, scores, blockSize);
         }
     }
 
@@ -113,7 +104,7 @@ public final class MemorySegmentESNextAshVectorsScorer {
     interface AshMemorySegmentScorer<T> {
         float score(T query) throws IOException;
 
-        boolean scoreBulk(T query, float[] scores, int scoresOffset, int blockSize) throws IOException;
+        boolean scoreBulk(T query, float[] scores, int blockSize) throws IOException;
     }
 
     /**

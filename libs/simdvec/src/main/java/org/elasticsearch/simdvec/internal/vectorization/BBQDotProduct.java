@@ -53,16 +53,21 @@ public class BBQDotProduct {
      * Factory method for a scalar dot-product implementation.
      *
      * @param in         input positioned at the first data vector to score
+     * @param nDims      number of dimensions
      * @param docBits    bits per dimension of the data vector, in {@code [1, MAX_BITS]}
      * @param queryBits  bits per dimension of the query vector, in {@code [1, MAX_BITS]}
-     * @param planeBytes bytes in a single bit-plane, {@code ceil(dimensions / 8)}
      */
-    public static BBQDotProduct create(IndexInput in, int docBits, int queryBits, int planeBytes) {
+    public static BBQDotProduct create(IndexInput in, int nDims, int docBits, int queryBits) {
+        int planeBytes = planeBytes(nDims);
         // a single-plane query already needs only one pass per data plane, so it gains nothing from a specialisation
         if (queryBits == 4) {
             return new Q4DxImpl(in, docBits, planeBytes);
         }
         return new BBQDotProduct(in, docBits, queryBits, planeBytes);
+    }
+
+    public static int planeBytes(int nDims) {
+        return (nDims + 7) >>> 3;
     }
 
     /** Plane width of a bit-plane encoded vector, which stores exactly one plane per data bit */

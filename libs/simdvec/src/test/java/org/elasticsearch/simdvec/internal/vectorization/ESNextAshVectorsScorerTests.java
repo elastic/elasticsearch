@@ -29,12 +29,11 @@ import java.util.List;
 import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
 /**
- * Tests for {@link org.elasticsearch.simdvec.ESNextAshVectorsScorer} and its Panama-accelerated subclasses.
+ * Tests for {@link org.elasticsearch.simdvec.ESNextAshVectorsScorer} and its Panama/native-accelerated subclasses.
  * <p>
  * For each (DirectoryType, bitsPerDim, queryBitsPerDim) combination, writes random
- * packed ASH data to an IndexInput, creates both scalar and Panama scorers via
- * {@link org.elasticsearch.simdvec.VectorScorerFactory}, and asserts they produce
- * matching raw dot products.
+ * packed ASH data to an IndexInput, creates scorers via {@link org.elasticsearch.simdvec.VectorScorerFactory},
+ * and asserts that the scalar, Panama, and (for integer path) native tiers produce matching results.
  */
 public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
 
@@ -56,8 +55,18 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        // (bitsPerDim, queryBitsPerDim): D1QF (float), D1Q4 (integer), D2Q4 (integer)
-        var bitCombinations = List.of(List.of(1, 0), List.of(1, 4), List.of(2, 4));
+        // (bitsPerDim, queryBitsPerDim): float path (queryBitsPerDim==0) and integer path
+        // Also include small nDims cases (below 128 bits / 16 planeBytes) to exercise fall-through to scalar
+        var bitCombinations = List.of(
+            List.of(1, 0),  // float path
+            List.of(1, 4),  // original integer combinations
+            List.of(2, 4),
+            List.of(4, 4),  // newly accelerated
+            List.of(3, 4),  // Panama only (no native)
+            List.of(8, 4),  // Panama only (no native)
+            List.of(1, 1),  // queryBitsPerDim == 1
+            List.of(2, 1)   // queryBitsPerDim == 1 with multi-plane doc
+        );
         return () -> bitCombinations.stream()
             .flatMap(bits -> Arrays.stream(DirectoryType.values()).map(d -> new Object[] { d, bits.get(0), bits.get(1) }))
             .iterator();
@@ -102,26 +111,33 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
 
                 float[] scalarScores = new float[BULK_SIZE];
                 float[] panamaScores = new float[BULK_SIZE];
+                float[] nativeScores = new float[BULK_SIZE];
 
                 if (queryBitsPerDim > 0) {
-                    // Integer path
+                    // Integer path: compare scalar, Panama, and native
                     IndexInput scalarSlice = in.slice("scalar", 0, dataLength);
                     AshScorer<byte[]> scalarScorer = defaultProvider().getVectorScorerFactory()
                         .newESNextAshIntegerVectorsScorer(scalarSlice, nDims, bitsPerDim, queryBitsPerDim);
                     IndexInput panamaInput = in.clone();
                     AshScorer<byte[]> panamaScorer = panamaProvider().getVectorScorerFactory()
                         .newESNextAshIntegerVectorsScorer(panamaInput, nDims, bitsPerDim, queryBitsPerDim);
+                    IndexInput nativeInput = in.clone();
+                    AshScorer<byte[]> nativeScorer = nativeProvider().getVectorScorerFactory()
+                        .newESNextAshIntegerVectorsScorer(nativeInput, nDims, bitsPerDim, queryBitsPerDim);
 
                     for (int offset = 0; offset < numVectors; offset += BULK_SIZE) {
                         int blockSize = Math.min(BULK_SIZE, numVectors - offset);
-                        scalarScorer.scoreBulk(queryQuantized, scalarScores, 0, blockSize);
-                        panamaScorer.scoreBulk(queryQuantized, panamaScores, 0, blockSize);
-                        assertScoresMatch(scalarScores, panamaScores, blockSize, offset);
+                        scalarScorer.scoreBulk(queryQuantized, scalarScores, blockSize);
+                        panamaScorer.scoreBulk(queryQuantized, panamaScores, blockSize);
+                        nativeScorer.scoreBulk(queryQuantized, nativeScores, blockSize);
+                        assertScoresMatch("scalar vs panama", scalarScores, panamaScores, blockSize, offset);
+                        assertScoresMatch("scalar vs native", scalarScores, nativeScores, blockSize, offset);
                     }
                     assertEquals(dataLength, scalarSlice.getFilePointer());
                     assertEquals(dataLength, panamaInput.getFilePointer());
+                    assertEquals(dataLength, nativeInput.getFilePointer());
                 } else {
-                    // Float path
+                    // Float path: compare scalar and Panama only
                     IndexInput scalarSlice = in.slice("scalar", 0, dataLength);
                     AshScorer<float[]> scalarScorer = defaultProvider().getVectorScorerFactory()
                         .newESNextAshFloatVectorsScorer(scalarSlice, nDims, bitsPerDim);
@@ -131,9 +147,9 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
 
                     for (int offset = 0; offset < numVectors; offset += BULK_SIZE) {
                         int blockSize = Math.min(BULK_SIZE, numVectors - offset);
-                        scalarScorer.scoreBulk(queryTransformed, scalarScores, 0, blockSize);
-                        panamaScorer.scoreBulk(queryTransformed, panamaScores, 0, blockSize);
-                        assertScoresMatch(scalarScores, panamaScores, blockSize, offset);
+                        scalarScorer.scoreBulk(queryTransformed, scalarScores, blockSize);
+                        panamaScorer.scoreBulk(queryTransformed, panamaScores, blockSize);
+                        assertScoresMatch("scalar vs panama", scalarScores, panamaScores, blockSize, offset);
                     }
                     assertEquals(dataLength, scalarSlice.getFilePointer());
                     assertEquals(dataLength, panamaInput.getFilePointer());
@@ -179,6 +195,82 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
 
                 float[] scalarScores = new float[BULK_SIZE];
                 float[] panamaScores = new float[BULK_SIZE];
+                float[] nativeScores = new float[BULK_SIZE];
+
+                if (queryBitsPerDim > 0) {
+                    IndexInput scalarSlice = in.slice("scalar", 0, dataLength);
+                    AshScorer<byte[]> scalarScorer = defaultProvider().getVectorScorerFactory()
+                        .newESNextAshIntegerVectorsScorer(scalarSlice, nDims, bitsPerDim, queryBitsPerDim);
+                    IndexInput panamaInput = in.clone();
+                    AshScorer<byte[]> panamaScorer = panamaProvider().getVectorScorerFactory()
+                        .newESNextAshIntegerVectorsScorer(panamaInput, nDims, bitsPerDim, queryBitsPerDim);
+                    IndexInput nativeInput = in.clone();
+                    AshScorer<byte[]> nativeScorer = nativeProvider().getVectorScorerFactory()
+                        .newESNextAshIntegerVectorsScorer(nativeInput, nDims, bitsPerDim, queryBitsPerDim);
+
+                    scalarScorer.scoreBulk(queryQuantized, scalarScores, tailSize);
+                    panamaScorer.scoreBulk(queryQuantized, panamaScores, tailSize);
+                    nativeScorer.scoreBulk(queryQuantized, nativeScores, tailSize);
+                    assertScoresMatch("scalar vs panama", scalarScores, panamaScores, tailSize, 0);
+                    assertScoresMatch("scalar vs native", scalarScores, nativeScores, tailSize, 0);
+                    assertEquals(dataLength, scalarSlice.getFilePointer());
+                    assertEquals(dataLength, panamaInput.getFilePointer());
+                    assertEquals(dataLength, nativeInput.getFilePointer());
+                } else {
+                    IndexInput scalarSlice = in.slice("scalar", 0, dataLength);
+                    AshScorer<float[]> scalarScorer = defaultProvider().getVectorScorerFactory()
+                        .newESNextAshFloatVectorsScorer(scalarSlice, nDims, bitsPerDim);
+                    IndexInput panamaInput = in.clone();
+                    AshScorer<float[]> panamaScorer = panamaProvider().getVectorScorerFactory()
+                        .newESNextAshFloatVectorsScorer(panamaInput, nDims, bitsPerDim);
+
+                    scalarScorer.scoreBulk(queryTransformed, scalarScores, tailSize);
+                    panamaScorer.scoreBulk(queryTransformed, panamaScores, tailSize);
+                    assertScoresMatch("scalar vs panama", scalarScores, panamaScores, tailSize, 0);
+                    assertEquals(dataLength, scalarSlice.getFilePointer());
+                    assertEquals(dataLength, panamaInput.getFilePointer());
+                }
+            }
+        }
+    }
+
+    /**
+     * Tests with nDims below 128 ({@code planeBytes < 16}) to exercise the fall-through to scalar in PanamaBBQDotProduct.
+     */
+    public void testScoreBulkSmallDims() throws Exception {
+        // nDims in [1,15] gives planeBytes in [1,2], both below the Panama 16-byte threshold
+        int nDims = randomIntBetween(1, 15);
+        int planeBytes = (nDims + 7) / 8;
+        int packedCodeBytes = bitsPerDim * planeBytes;
+        int numVectors = randomIntBetween(1, BULK_SIZE);
+
+        byte[][] packedCodes = new byte[numVectors][packedCodeBytes];
+        for (int i = 0; i < numVectors; i++) {
+            random().nextBytes(packedCodes[i]);
+        }
+
+        float[] queryTransformed = new float[nDims];
+        for (int j = 0; j < nDims; j++) {
+            queryTransformed[j] = (float) random().nextGaussian();
+        }
+        byte[] queryQuantized = null;
+        if (queryBitsPerDim > 0) {
+            queryQuantized = new byte[queryBitsPerDim * planeBytes];
+            random().nextBytes(queryQuantized);
+        }
+
+        try (Directory dir = newParametrizedDirectory()) {
+            try (IndexOutput out = dir.createOutput("test_ash_small.bin", IOContext.DEFAULT)) {
+                for (int i = 0; i < numVectors; i++) {
+                    out.writeBytes(packedCodes[i], 0, packedCodeBytes);
+                }
+                CodecUtil.writeFooter(out);
+            }
+
+            try (IndexInput in = dir.openInput("test_ash_small.bin", IOContext.DEFAULT)) {
+                long dataLength = (long) packedCodeBytes * numVectors;
+                float[] scalarScores = new float[BULK_SIZE];
+                float[] panamaScores = new float[BULK_SIZE];
 
                 if (queryBitsPerDim > 0) {
                     IndexInput scalarSlice = in.slice("scalar", 0, dataLength);
@@ -188,11 +280,9 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
                     AshScorer<byte[]> panamaScorer = panamaProvider().getVectorScorerFactory()
                         .newESNextAshIntegerVectorsScorer(panamaInput, nDims, bitsPerDim, queryBitsPerDim);
 
-                    scalarScorer.scoreBulk(queryQuantized, scalarScores, 0, tailSize);
-                    panamaScorer.scoreBulk(queryQuantized, panamaScores, 0, tailSize);
-                    assertScoresMatch(scalarScores, panamaScores, tailSize, 0);
-                    assertEquals(dataLength, scalarSlice.getFilePointer());
-                    assertEquals(dataLength, panamaInput.getFilePointer());
+                    scalarScorer.scoreBulk(queryQuantized, scalarScores, numVectors);
+                    panamaScorer.scoreBulk(queryQuantized, panamaScores, numVectors);
+                    assertScoresMatch("scalar vs panama (small dims)", scalarScores, panamaScores, numVectors, 0);
                 } else {
                     IndexInput scalarSlice = in.slice("scalar", 0, dataLength);
                     AshScorer<float[]> scalarScorer = defaultProvider().getVectorScorerFactory()
@@ -201,11 +291,9 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
                     AshScorer<float[]> panamaScorer = panamaProvider().getVectorScorerFactory()
                         .newESNextAshFloatVectorsScorer(panamaInput, nDims, bitsPerDim);
 
-                    scalarScorer.scoreBulk(queryTransformed, scalarScores, 0, tailSize);
-                    panamaScorer.scoreBulk(queryTransformed, panamaScores, 0, tailSize);
-                    assertScoresMatch(scalarScores, panamaScores, tailSize, 0);
-                    assertEquals(dataLength, scalarSlice.getFilePointer());
-                    assertEquals(dataLength, panamaInput.getFilePointer());
+                    scalarScorer.scoreBulk(queryTransformed, scalarScores, numVectors);
+                    panamaScorer.scoreBulk(queryTransformed, panamaScores, numVectors);
+                    assertScoresMatch("scalar vs panama (small dims)", scalarScores, panamaScores, numVectors, 0);
                 }
             }
         }
@@ -252,7 +340,7 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
 
                     float singleScore = singleScorer.score(queryQuantized);
                     float[] bulkScores = new float[1];
-                    bulkScorer.scoreBulk(queryQuantized, bulkScores, 0, 1);
+                    bulkScorer.scoreBulk(queryQuantized, bulkScores, 1);
                     assertEquals("Single vs bulk mismatch", singleScore, bulkScores[0], 0f);
                 } else {
                     IndexInput singleInput = in.clone();
@@ -265,17 +353,18 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
 
                     float singleScore = singleScorer.score(queryTransformed);
                     float[] bulkScores = new float[1];
-                    bulkScorer.scoreBulk(queryTransformed, bulkScores, 0, 1);
+                    bulkScorer.scoreBulk(queryTransformed, bulkScores, 1);
                     assertEquals("Single vs bulk mismatch", singleScore, bulkScores[0], 0f);
                 }
             }
         }
     }
 
-    private void assertScoresMatch(float[] scalarScores, float[] panamaScores, int count, int baseOffset) {
+    private void assertScoresMatch(String label, float[] expected, float[] actual, int count, int baseOffset) {
         for (int j = 0; j < count; j++) {
             assertEquals(
-                "Mismatch at vector "
+                label
+                    + " mismatch at vector "
                     + (baseOffset + j)
                     + " (directoryType="
                     + directoryType
@@ -284,8 +373,8 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
                     + "Q"
                     + queryBitsPerDim
                     + ")",
-                scalarScores[j],
-                panamaScores[j],
+                expected[j],
+                actual[j],
                 1e-3f
             );
         }

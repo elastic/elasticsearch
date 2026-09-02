@@ -462,11 +462,11 @@ public class InboundHandler {
             // ElasticsearchWrapperException, so ExceptionsHelper#unwrapCause stops at it and every caller that classifies a rejection by
             // type stops recognising it, losing both the 429 status and the breaker's byte-limit metadata. Only a breaker trip thrown
             // directly by the reader is exempt, so that a corrupt stream failing somewhere further down still surfaces as a read failure.
-            if (e instanceof CircuitBreakingException circuitBreakerTrip) {
+            if (e instanceof CircuitBreakingException) {
                 logger.debug(() -> "Circuit breaker tripped deserializing response from [" + remoteAddress + "]", e);
                 doHandleException(
                     handler,
-                    new RemoteTransportException("Failed to deserialize response from handler [" + handler + "]", circuitBreakerTrip)
+                    new RemoteTransportException("Failed to deserialize response from handler [" + handler + "]", e)
                 );
                 return;
             }

@@ -13,6 +13,7 @@ import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.core.Releasables;
 
 import java.lang.invoke.MethodHandles;
@@ -60,7 +62,7 @@ import java.util.Objects;
  * uses a {@link BytesRefArray} to store the actual bytes, and the hash table
  * slots store the {@code id} which indexes into the {@link BytesRefArray}.
  */
-public final class BytesRefSwissHash extends SwissHash implements Accountable, BytesRefHashTable {
+public final class BytesRefSwissHash extends SwissHash implements Accountable, BytesRefHashTable, PartitionedHashTable {
 
     // base size of the bytes ref hash
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefSwissHash.class)
@@ -85,6 +87,13 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     public static final int DEFAULT_PREFETCH_THRESHOLD = (int) ((1 << 17) * BytesRefSwissHash.BigCore.FILL_FACTOR); // ~114k entries
     public static int PREFETCH_THRESHOLD = DEFAULT_PREFETCH_THRESHOLD;
 
+    /**
+     * The recommended size to start partitioning this table. This size is chosen so that the table is large enough to
+     * amortize the overhead of partitioning while still fitting in the CPU caches (L3). The ideal value is machine-dependent;
+     * this constant is chosen conservatively for a moderate machine.
+     */
+    public static final int PARTITION_THRESHOLD = 400_000;
+
     static {
         if (PageCacheRecycler.PAGE_SIZE_IN_BYTES >> PAGE_SHIFT != 1) {
             throw new AssertionError("bad constants");
@@ -98,6 +107,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     }
 
     private static final VarHandle LONG_HANDLE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
+    private static final VarHandle INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
 
     private final BytesRefArray bytesRefs;
     private final boolean ownsBytesRefs;
@@ -251,6 +261,13 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         return (byte) (hash >>> (Long.SIZE - 7));
     }
 
+    /**
+     * Returns the partition index using bits that do not overlap with the lower 32 hash-slot bits or the top 7 control bits.
+     */
+    private static int partition(long hash64) {
+        return (int) (hash64 >>> Integer.SIZE) & PARTITION_MASK;
+    }
+
     @Override
     public void close() {
         Releasables.close(smallCore, bigCore);
@@ -370,6 +387,26 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             }
         }
 
+        /**
+         * Returns {@code true} if every key was appended, allowing the caller to apply append-only optimizations.
+         */
+        boolean mergeKeys(byte[] data, int len, int[] ids) {
+            final BytesRef key = new BytesRef();
+            int offset = 0;
+            final int preSize = size;
+            for (int i = 0; i < len; i++) {
+                key.length = (int) INT_HANDLE.get(data, offset);
+                offset += Integer.BYTES;
+                key.bytes = data;
+                key.offset = offset;
+                offset += key.length;
+                final long hash = hash64(key);
+                final int id = add(key, hash);
+                ids[i] = id >= 0 ? id : -1 - id;
+            }
+            return size == preSize + len;
+        }
+
         void transitionToBigCore() {
             int oldCapacity = growTracking();
             try {
@@ -379,6 +416,11 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
                 close();
                 smallCore = null;
             }
+        }
+
+        void clear() {
+            Arrays.fill(slots, -1L);
+            Arrays.fill(controlData, (byte) 0);
         }
 
         @Override
@@ -665,6 +707,60 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             }
         }
 
+        void grow(int minSize) {
+            do {
+                growTracking();
+            } while (nextGrowSize < minSize);
+            int oldCapacity = controlData.length - BYTE_VECTOR_LANES;
+            try {
+                BigCore newBigCore = new BigCore();
+                rehash(oldCapacity, newBigCore);
+                bigCore = newBigCore;
+            } finally {
+                close();
+            }
+        }
+
+        /**
+         * Returns {@code true} if every key was appended, allowing the caller to apply append-only optimizations.
+         */
+        boolean mergeKeys(byte[] data, int len, int[] ids) {
+            final BytesRef key = new BytesRef();
+            int offset = 0;
+            final int preSize = size;
+            if (preSize == 0) {
+                for (int id = 0; id < len; id++) {
+                    key.length = (int) INT_HANDLE.get(data, offset);
+                    offset += Integer.BYTES;
+                    key.bytes = data;
+                    key.offset = offset;
+                    offset += key.length;
+                    final long hash64 = hash64(key);
+                    insert(hash(hash64), control(hash64), (int) bytesRefs.size());
+                    bytesRefs.append(key);
+                    ids[id] = id;
+                }
+                size = len;
+                return true;
+            }
+            for (int i = 0; i < len; i++) {
+                key.length = (int) INT_HANDLE.get(data, offset);
+                offset += Integer.BYTES;
+                key.bytes = data;
+                key.offset = offset;
+                offset += key.length;
+                final long hash64 = hash64(key);
+                final int id = addImpl(key, hash64);
+                ids[i] = id >= 0 ? id : -1 - id;
+            }
+            return size == preSize + len;
+        }
+
+        void clear() {
+            Arrays.fill(controlData, EMPTY);
+            insertProbes = 0;
+        }
+
         private void rehash(int oldCapacity, BigCore newBigCore) {
             for (int i = 0; i < oldCapacity; i++) {
                 final byte control = controlData[i];
@@ -756,6 +852,169 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
     private boolean matches(PagedBytesCursor key, int id) {
         return key.equals(bytesRefs.get(id, cursorScratch));
+    }
+
+    /**
+     * Grows this table so it can hold at least {@code minSize} entries without future resizing.
+     */
+    public void ensureCapacity(int minSize) {
+        if (nextGrowSize < minSize) {
+            if (smallCore != null) {
+                smallCore.transitionToBigCore();
+                if (nextGrowSize < minSize) {
+                    bigCore.grow(minSize);
+                }
+            } else {
+                bigCore.grow(minSize);
+            }
+        }
+    }
+
+    /**
+     * Removes all entries while retaining the allocated capacity, so the table can be refilled without resizing.
+     */
+    public void clear() {
+        size = 0;
+        growCount = 0;
+        if (ownsBytesRefs) {
+            bytesRefs.truncateTo(0);
+        }
+        if (smallCore != null) {
+            smallCore.clear();
+        } else {
+            bigCore.clear();
+        }
+    }
+
+    @Override
+    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
+        final int[] batchPartitionCounts = new int[NUM_PARTITIONS];
+        final short[] shiftedIds = new short[PARTITION_WRITE_BATCH * NUM_PARTITIONS];
+        int batchStart = 0;
+        var partitionedKeys = new BytesRefPartitionedHashKeys(breaker, Math.max(Math.ceilDiv(size, NUM_PARTITIONS), 1));
+        final int[] partitionOffsets = partitionedKeys.partitionCounts;
+        boolean success = false;
+        try {
+            for (int id = 0; id < size; id++) {
+                bytesRefs.get(id, scratch);
+                final long hash64 = hash64(scratch);
+                final int p = partition(hash64);
+                if (batchPartitionCounts[p] == PARTITION_WRITE_BATCH) {
+                    partitionedKeys.splitKeys(breaker, bytesRefs, scratch, batchStart, shiftedIds, batchPartitionCounts);
+                    partitionSplitter.split(batchStart, shiftedIds, id - batchStart, batchPartitionCounts, partitionOffsets);
+                    for (int i = 0; i < NUM_PARTITIONS; i++) {
+                        partitionOffsets[i] += batchPartitionCounts[i];
+                    }
+                    batchStart = id;
+                    Arrays.fill(batchPartitionCounts, 0);
+                }
+                int c = batchPartitionCounts[p]++;
+                assert id - batchStart <= Short.MAX_VALUE : id - batchStart;
+                shiftedIds[p * PARTITION_WRITE_BATCH + c] = (short) (id - batchStart);
+            }
+            partitionedKeys.splitKeys(breaker, bytesRefs, scratch, batchStart, shiftedIds, batchPartitionCounts);
+            partitionSplitter.split(batchStart, shiftedIds, size - batchStart, batchPartitionCounts, partitionOffsets);
+            for (int i = 0; i < NUM_PARTITIONS; i++) {
+                partitionOffsets[i] += batchPartitionCounts[i];
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                partitionedKeys.releaseAll(breaker);
+            }
+        }
+        return partitionedKeys;
+    }
+
+    @Override
+    public boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
+        Objects.requireNonNull(resultIds);
+        final BytesRefPartitionedHashKeys subKeys = (BytesRefPartitionedHashKeys) keys;
+        assert subKeys.partitionData[partitionIndex] != null : "partition [" + partitionIndex + "] was already released";
+        final int keysInPartition = subKeys.keysInPartition(partitionIndex);
+        assert keysInPartition <= resultIds.length : keysInPartition + " > " + resultIds.length;
+        final int needed = Math.addExact(size, keysInPartition);
+        ensureCapacity(needed);
+        if (smallCore != null) {
+            return smallCore.mergeKeys(subKeys.partitionData[partitionIndex], keysInPartition, resultIds);
+        } else {
+            return bigCore.mergeKeys(subKeys.partitionData[partitionIndex], keysInPartition, resultIds);
+        }
+    }
+
+    static final class BytesRefPartitionedHashKeys implements PartitionedHashKeys {
+        final int[] partitionCounts;
+        final int[] partitionDataUsed;
+        byte[][] partitionData;
+
+        BytesRefPartitionedHashKeys(CircuitBreaker breaker, int estimatePerPartition) {
+            final int estimateBytesPerPartition = ArrayUtil.oversize(estimatePerPartition * 12, 1);
+            long usedBytes = (long) NUM_PARTITIONS * Integer.BYTES * 2
+                + (long) NUM_PARTITIONS * estimateBytesPerPartition;
+            breaker.addEstimateBytesAndMaybeBreak(usedBytes, "BytesRefSwissHash#partition");
+            partitionCounts = new int[NUM_PARTITIONS];
+            partitionDataUsed = new int[NUM_PARTITIONS];
+            partitionData = new byte[NUM_PARTITIONS][];
+            for (int p = 0; p < NUM_PARTITIONS; p++) {
+                partitionData[p] = new byte[estimateBytesPerPartition];
+            }
+        }
+
+        void splitKeys(CircuitBreaker breaker, BytesRefArray bytesRefs, BytesRef scratch, int idOffset, short[] positions, int[] fills) {
+            assert NUM_PARTITIONS * PARTITION_WRITE_BATCH < Short.MAX_VALUE : "shifted ids of one batch must fit in the short value range";
+            for (int p = 0; p < NUM_PARTITIONS; p++) {
+                final int c = fills[p];
+                if (c == 0) {
+                    continue;
+                }
+                final int base = p * PARTITION_WRITE_BATCH;
+                for (int i = 0; i < c; i++) {
+                    final int id = idOffset + (positions[base + i] & 0xFFFF);
+                    bytesRefs.get(id, scratch);
+                    final int packedSize = Integer.BYTES + scratch.length;
+                    ensureDataCapacity(breaker, p, partitionDataUsed[p] + packedSize);
+                    INT_HANDLE.set(partitionData[p], partitionDataUsed[p], scratch.length);
+                    System.arraycopy(scratch.bytes, scratch.offset, partitionData[p], partitionDataUsed[p] + Integer.BYTES, scratch.length);
+                    partitionDataUsed[p] += packedSize;
+                }
+            }
+        }
+
+        private void ensureDataCapacity(CircuitBreaker breaker, int p, int minLength) {
+            final byte[] sub = partitionData[p];
+            if (sub.length >= minLength) {
+                return;
+            }
+            final int newLength = ArrayUtil.oversize(minLength, 1);
+            breaker.addEstimateBytesAndMaybeBreak(newLength, "BytesRefSwissHash#partition");
+            partitionData[p] = Arrays.copyOf(sub, newLength);
+            breaker.addWithoutBreaking(-sub.length);
+        }
+
+        @Override
+        public int keysInPartition(int partition) {
+            return partitionCounts[partition];
+        }
+
+        @Override
+        public void releasePartition(CircuitBreaker breaker, int partition) {
+            final byte[] data = partitionData[partition];
+            if (data != null) {
+                partitionData[partition] = null;
+                breaker.addWithoutBreaking(-data.length);
+            }
+        }
+
+        @Override
+        public void releaseAll(CircuitBreaker breaker) {
+            long bytes = (long) NUM_PARTITIONS * Integer.BYTES * 2;
+            for (final byte[] data : partitionData) {
+                if (data != null) {
+                    bytes += data.length;
+                }
+            }
+            breaker.addWithoutBreaking(-bytes);
+        }
     }
 
     @Override

@@ -100,6 +100,15 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     private long filePos;
 
     /**
+     * Where a lazily positioned slice starts, until its first fill: -1 when nothing is pending,
+     * otherwise the number of bytes from the start of the block at {@code filePos + buffer.capacity()}
+     * to this input's position 0. Resolved, with the read it deferred, by the first fill, whether a
+     * read or {@link #seek(long)} triggers it; discarded by {@link #seekInternal(long)}, which fills
+     * for its own target instead. -1 rather than 0 because 0 is a legal pending value.
+     */
+    private int pendingDelta = -1;
+
+    /**
      * Creates a new instance of AsyncDirectIOIndexInput for reading index input with direct IO bypassing
      * OS buffer
      *
@@ -143,7 +152,11 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         this.isClosable = false;
         this.length = length;
         this.offset = offset;
-        this.filePos = -bufferSize;
+        // Remember the start position instead of reading it now; the first refill() resolves it, so
+        // slice() itself does no I/O.
+        final long alignedStart = offset - (offset % this.blockSize);
+        this.filePos = alignedStart - buffer.capacity();
+        this.pendingDelta = (int) (offset - alignedStart);
         buffer.limit(0);
     }
 
@@ -168,11 +181,16 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         final long absPos = pos + offset;
         long alignedPos = absPos - absPos % blockSize;
 
-        // check if our current buffer already contains the requested range
-        if (alignedPos >= filePos && alignedPos < filePos + buffer.capacity()) {
-            // The current buffer contains bytes of this request.
-            // Adjust the position and length accordingly to skip the current buffer.
-            alignedPos = filePos + buffer.capacity();
+        // The window this input is going to read anyway: its buffer once filled, or, for a slice
+        // that has not been read yet, the window its pending start lies in (the first refill reads
+        // it at filePos + capacity). A hint inside it is skipped like any already-buffered range;
+        // issuing it would be a full device read on this cache-bypassing input, e.g. IndexedDISI's
+        // constructor prefetch(0, 1) on a slice that is never read.
+        final long committedStart = pendingDelta >= 0 ? filePos + buffer.capacity() : filePos;
+        if (alignedPos >= committedStart && alignedPos < committedStart + buffer.capacity()) {
+            // That window contains bytes of this request.
+            // Adjust the position and length accordingly to skip it.
+            alignedPos = committedStart + buffer.capacity();
             length -= alignedPos - absPos;
         } else {
             // Add to the total length the bytes added by the alignment
@@ -194,7 +212,10 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     @Override
     public long getFilePointer() {
         long filePointer = filePos + buffer.position() - offset;
-        assert filePointer == -buffer.capacity() - offset || filePointer >= 0
+        // Before the first fill, filePointer is minus the buffer capacity, further offset by the
+        // pending delta for a lazily positioned slice (its filePos starts at alignedStart -
+        // bufferSize rather than -bufferSize).
+        assert filePointer == -buffer.capacity() - Math.max(pendingDelta, 0) || filePointer >= 0
             : "filePointer should either be initial value equal to negative buffer capacity, or larger than or equal to 0";
         return Math.max(filePointer, 0);
     }
@@ -202,6 +223,11 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     @Override
     public void seek(long pos) throws IOException {
         if (pos != getFilePointer()) {
+            if (pendingDelta >= 0) {
+                // fill first, so the window check below sees the same buffer the eager code had: a
+                // seek past this input's length that lands in that window repositions within it
+                resolvePendingStart();
+            }
             final long absolutePos = pos + offset;
             if (absolutePos >= filePos && absolutePos < filePos + buffer.limit()) {
                 // the new position is within the existing buffer
@@ -214,6 +240,9 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     }
 
     private void seekInternal(long pos) throws IOException {
+        // this positions the input itself, so a pending start is dropped rather than resolved on top
+        // of it later. Only clone() gets here with one.
+        pendingDelta = -1;
         final long absPos = pos + offset;
         final long alignedPos = absPos - (absPos % blockSize);
         filePos = alignedPos - buffer.capacity();
@@ -223,8 +252,24 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     }
 
     private void refill(int bytesToRead) throws IOException {
+        if (pendingDelta >= 0) {
+            // first fill of a lazily positioned slice. If it leaves nothing to read (a zero-length
+            // slice at the end of the file), fall through so the caller's own read throws
+            // EOFException as before.
+            resolvePendingStart();
+            if (buffer.hasRemaining()) {
+                return;
+            }
+        }
         assert filePos % blockSize == 0;
         refill(bytesToRead, 0);
+    }
+
+    /** Performs the fill that slice() used to perform at construction, for a still-pending start. */
+    private void resolvePendingStart() throws IOException {
+        final int pending = pendingDelta;
+        pendingDelta = -1;
+        refill(pending, pending);
     }
 
     private void refill(int bytesToRead, int delta) throws IOException {
@@ -393,16 +438,21 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         if ((length | offset) < 0 || length > this.length - offset) {
             throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: " + this);
         }
-        var slice = new AsyncDirectIOIndexInput(sliceDescription, this, this.offset + offset, length);
-        // TODO figure out how to make this async
-        // https://github.com/elastic/elasticsearch/issues/136046
-        slice.seekInternal(0L);
-        return slice;
+        // No seekInternal(0L) here: the constructor remembers the start position and the first
+        // refill resolves it, so a slice that is constructed and never read costs no device read.
+        // prefetch() skips a hint for that window, as it did when the buffer was filled here, so a
+        // hinted slice that is never read costs nothing either; see #136046.
+        return new AsyncDirectIOIndexInput(sliceDescription, this, this.offset + offset, length);
     }
 
     // pkg private for testing
     int prefetchSlots() {
         return prefetcher.posToSlot.size();
+    }
+
+    // pkg private for testing: true until the first fill
+    boolean isDeferred() {
+        return pendingDelta >= 0;
     }
 
     /**

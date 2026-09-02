@@ -239,6 +239,10 @@ final class IVFSlicedSearchHelper {
         long docs = 0;
         for (int ord : sliceToSortedOrds(sortedDocValues, sliceIds)) {
             ESAcceptDocs.SliceAcceptDocs range = getSliceAcceptDocsSupplier(sortedDocValues, skipper, ord);
+            // [startDoc, endDoc) is the contiguous doc-id span the slice occupies, so its width is an upper-bound
+            // estimate rather than an exact count: the span may also cover deleted docs or docs with no value for
+            // the vector field. The caller only needs this to size the slice's share of the leaf, so an estimate
+            // is fine.
             docs += Math.max(0, range.endDoc() - range.startDoc());
         }
         return docs;

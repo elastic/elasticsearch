@@ -163,16 +163,12 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
 
     @Override
     public int k() {
-        return kParam();
+        return kParam;
     }
 
     @Override
     public int numCands() {
         return numCandsParam;
-    }
-
-    public int kParam() {
-        return kParam;
     }
 
     public KnnSearchStrategy getStrategy() {

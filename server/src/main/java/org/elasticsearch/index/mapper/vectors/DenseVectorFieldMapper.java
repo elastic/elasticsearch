@@ -3639,18 +3639,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             };
         }
 
-        /**
-         * Whether this query is eligible for the post-filter path at all.
-         * <p>
-         * Nested (block-join) fields are not, for now. Their candidates are child vectors while results are
-         * counted per parent, which breaks two assumptions at once: the round-1 sizing in
-         * {@link PostFilterableKnnQuery#computeScaledK} models candidates as independent draws, and a pool of
-         * N children can collapse to far fewer than N results when a parent's children cluster together in
-         * vector space; and the order of filtering versus collapsing changes which parents survive. Getting
-         * that right needs a way to measure the result, which does not exist for nested vector search today.
-         * Until then nested fields stay on the pre-filter path, which has neither problem - it restricts the
-         * accepted docs to filter-passing children before collection.
-         */
         private boolean canPostFilter(Query filter, BitSetProducer parentFilter) {
             return filter != null && postFilterSelectivityThreshold < 1.0f;
         }

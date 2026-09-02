@@ -4289,7 +4289,7 @@ c:long
 4
 ;
 
-// IN subquery as a input to == and !=
+// IN subquery as an input to == and !=
 
 inSubqueryInEquals
 required_capability: where_in_subquery_without_view

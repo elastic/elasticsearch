@@ -66,9 +66,9 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  *       {@link Or}) is replaced with a synthetic boolean attribute and a {@link MarkJoin}
  *       is stacked below the rewritten {@link Filter}; the mark attribute carries the
  *       three-valued {@code IN} result up into normal boolean evaluation.</li>
- *   <li>An {@code InSubquery} inside a {@code STATS} {@code WHERE} filter (a {@link FilteredExpression}
+ *   <li>An {@code InSubquery} inside a {@code STATS} or {@code INLINE STATS} {@code WHERE} filter (a {@link FilteredExpression}
  *       on an {@link Aggregate}) is replaced with a synthetic boolean attribute and a {@link MarkJoin}
- *       is stacked below the aggregate's child — MarkJoin-only. INLINE STATS is not supported.</li>
+ *       is stacked below the aggregate's child — MarkJoin-only.</li>
  *   <li>An {@code InSubquery} inside a {@link IsNull}/{@link IsNotNull} operand, inside either operand of an
  *       {@link Equals} ({@code ==}, and {@code !=} which the parser maps to {@code Not(Equals(...))}), or inside
  *       any argument of a {@code CASE} or {@code COALESCE} call, is replaced with a synthetic boolean

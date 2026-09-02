@@ -78,9 +78,11 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskSta
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.createDataStream;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.randomRolloverConditions;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.FIVE_HUNDRED_TWELVE_MB;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.ONE_HUNDRED_MB;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.TARGET_MERGE_FACTOR_VALUE;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.TSDB_TARGET_MERGE_FACTOR_VALUE;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -345,6 +347,16 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
                 MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(),
                 MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()
             )
+        );
+        assertThat(
+            ((UpdateSettingsRequest) updateSettingsRequest).settings()
+                .getAsBytesSize(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ByteSizeValue.MINUS_ONE),
+            is(FIVE_HUNDRED_TWELVE_MB)
+        );
+        assertThat(
+            ((UpdateSettingsRequest) updateSettingsRequest).settings()
+                .getAsInt(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), -1),
+            is(TSDB_TARGET_MERGE_FACTOR_VALUE)
         );
     }
 
@@ -1134,6 +1146,211 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         builder = ProjectMetadata.builder(clusterService.state().metadata().getProject(builder.getId())).put(modifiedDataStream);
         state = ClusterState.builder(clusterService.state()).putProjectMetadata(builder).build();
         setState(clusterService, state);
+        dataStreamLifecycleService.run(clusterService.state());
+        assertBusy(() -> assertThat(clientSeenRequests.size(), is(4)));
+        assertThat(((ForceMergeRequest) clientSeenRequests.get(3)).indices().length, is(1));
+    }
+
+    public void testMergePolicySettingsAreConfiguredBeforeForcemergeForTsdb() throws Exception {
+        Instant currentTime = Instant.ofEpochMilli(now).truncatedTo(ChronoUnit.MILLIS);
+        Instant start1 = currentTime.minus(8, ChronoUnit.HOURS);
+        Instant end1 = currentTime.minus(6, ChronoUnit.HOURS);
+        Instant start2 = currentTime.minus(6, ChronoUnit.HOURS);
+        Instant end2 = currentTime.minus(4, ChronoUnit.HOURS);
+        Instant start3 = currentTime.minus(4, ChronoUnit.HOURS);
+        Instant end3 = currentTime.minus(2, ChronoUnit.HOURS);
+
+        final var projectId = randomProjectIdOrDefault();
+        String dataStreamName = "logs_my-app_prod";
+        var clusterState = DataStreamTestHelper.getClusterStateWithDataStream(
+            projectId,
+            dataStreamName,
+            List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2), Tuple.tuple(start3, end3))
+        );
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(clusterState.metadata().getProject(projectId));
+        DataStream dataStream = builder.dataStream(dataStreamName);
+        // Set the lifecycle with infinite retention so no indices are deleted
+        builder.put(
+            dataStream.copy()
+                .setName(dataStreamName)
+                .setGeneration(dataStream.getGeneration() + 1)
+                .setLifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build())
+                .build()
+        );
+        clusterState = ClusterState.builder(clusterState).putProjectMetadata(builder).build();
+
+        String nodeId = "localNode";
+        DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);
+        nodesBuilder.masterNodeId(nodeId);
+        clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
+        setState(clusterService, clusterState);
+        dataStream = clusterService.state().metadata().getProject(projectId).dataStreams().get(dataStreamName);
+
+        dataStreamLifecycleService.run(clusterService.state());
+
+        // 3 backing indices: one gets rolled over, the other two need TSDB-specific merge policy configured
+        assertBusy(() -> assertThat(clientSeenRequests.size(), is(3)), 30, TimeUnit.SECONDS);
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+        assertThat(((RolloverRequest) clientSeenRequests.get(0)).getRolloverTarget(), is(dataStreamName));
+        List<UpdateSettingsRequest> updateSettingsRequests = clientSeenRequests.subList(1, 3)
+            .stream()
+            .map(transportRequest -> (UpdateSettingsRequest) transportRequest)
+            .toList();
+        assertThat(updateSettingsRequests.get(0).indices()[0], is(dataStream.getIndices().get(0).getName()));
+        assertThat(updateSettingsRequests.get(1).indices()[0], is(dataStream.getIndices().get(1).getName()));
+
+        for (UpdateSettingsRequest settingsRequest : updateSettingsRequests) {
+            assertThat(
+                settingsRequest.settings()
+                    .getAsBytesSize(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ByteSizeValue.MINUS_ONE),
+                is(FIVE_HUNDRED_TWELVE_MB)
+            );
+            assertThat(
+                settingsRequest.settings().getAsInt(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), -1),
+                is(TSDB_TARGET_MERGE_FACTOR_VALUE)
+            );
+        }
+
+        // No changes, so running should not create any more requests
+        dataStreamLifecycleService.run(clusterService.state());
+        assertThat(clientSeenRequests.size(), is(3));
+
+        // Add a new TSDB backing index that already has the TSDB-specific merge policy applied.
+        // The service should issue a force merge rather than another update-settings request.
+        int numBackingIndices = dataStream.getIndices().size();
+        IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(
+            DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices + 1)
+        )
+            .settings(
+                settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                    .put("index.routing_path", "uid")
+                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start3.toString())
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end3.toString())
+                    .put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), FIVE_HUNDRED_TWELVE_MB)
+                    .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TSDB_TARGET_MERGE_FACTOR_VALUE)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .creationDate(now - 3000L);
+        MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(now - 2000L));
+        indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
+        IndexMetadata newIndexMetadata = indexMetaBuilder.build();
+        builder = ProjectMetadata.builder(clusterService.state().metadata().getProject(projectId)).put(newIndexMetadata, true);
+        clusterState = ClusterState.builder(clusterService.state()).putProjectMetadata(builder).build();
+        setState(clusterService, clusterState);
+        DataStream modifiedDataStream = dataStream.addBackingIndex(
+            clusterService.state().metadata().getProject(projectId),
+            newIndexMetadata.getIndex()
+        );
+        builder = ProjectMetadata.builder(clusterService.state().metadata().getProject(projectId)).put(modifiedDataStream);
+        clusterState = ClusterState.builder(clusterService.state()).putProjectMetadata(builder).build();
+        setState(clusterService, clusterState);
+        dataStreamLifecycleService.run(clusterService.state());
+        assertBusy(() -> assertThat(clientSeenRequests.size(), is(4)));
+        assertThat(((ForceMergeRequest) clientSeenRequests.get(3)).indices().length, is(1));
+    }
+
+    public void doTestMergePolicySettingsAreConfiguredBeforeForcemerge(
+        ByteSizeValue targetFloorSegment,
+        int targetMergeFactor,
+        boolean isTsdb
+    ) throws Exception {
+        Instant currentTime = Instant.ofEpochMilli(now).truncatedTo(ChronoUnit.MILLIS);
+        Instant start1 = currentTime.minus(8, ChronoUnit.HOURS);
+        Instant end1 = currentTime.minus(6, ChronoUnit.HOURS);
+        Instant start2 = currentTime.minus(6, ChronoUnit.HOURS);
+        Instant end2 = currentTime.minus(4, ChronoUnit.HOURS);
+        Instant start3 = currentTime.minus(4, ChronoUnit.HOURS);
+        Instant end3 = currentTime.minus(2, ChronoUnit.HOURS);
+
+        final var projectId = randomProjectIdOrDefault();
+        String dataStreamName = "logs_my-app_prod";
+        var clusterState = DataStreamTestHelper.getClusterStateWithDataStream(
+            projectId,
+            dataStreamName,
+            List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2), Tuple.tuple(start3, end3))
+        );
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(clusterState.metadata().getProject(projectId));
+        DataStream dataStream = builder.dataStream(dataStreamName);
+        // Set the lifecycle with infinite retention so no indices are deleted
+        builder.put(
+            dataStream.copy()
+                .setName(dataStreamName)
+                .setGeneration(dataStream.getGeneration() + 1)
+                .setLifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build())
+                .build()
+        );
+        clusterState = ClusterState.builder(clusterState).putProjectMetadata(builder).build();
+
+        String nodeId = "localNode";
+        DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);
+        nodesBuilder.masterNodeId(nodeId);
+        clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
+        setState(clusterService, clusterState);
+        dataStream = clusterService.state().metadata().getProject(projectId).dataStreams().get(dataStreamName);
+
+        dataStreamLifecycleService.run(clusterService.state());
+
+        // 3 backing indices: one gets rolled over, the other two need TSDB-specific merge policy configured
+        assertBusy(() -> assertThat(clientSeenRequests.size(), is(3)), 30, TimeUnit.SECONDS);
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+        assertThat(((RolloverRequest) clientSeenRequests.get(0)).getRolloverTarget(), is(dataStreamName));
+        List<UpdateSettingsRequest> updateSettingsRequests = clientSeenRequests.subList(1, 3)
+            .stream()
+            .map(transportRequest -> (UpdateSettingsRequest) transportRequest)
+            .toList();
+        assertThat(updateSettingsRequests.get(0).indices()[0], is(dataStream.getIndices().get(0).getName()));
+        assertThat(updateSettingsRequests.get(1).indices()[0], is(dataStream.getIndices().get(1).getName()));
+
+        for (UpdateSettingsRequest settingsRequest : updateSettingsRequests) {
+            assertThat(
+                settingsRequest.settings()
+                    .getAsBytesSize(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ByteSizeValue.MINUS_ONE),
+                is(targetFloorSegment)
+            );
+            assertThat(
+                settingsRequest.settings().getAsInt(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), -1),
+                is(targetMergeFactor)
+            );
+        }
+
+        // No changes, so running should not create any more requests
+        dataStreamLifecycleService.run(clusterService.state());
+        assertThat(clientSeenRequests.size(), is(3));
+
+        // Add a new TSDB backing index that already has the TSDB-specific merge policy applied.
+        // The service should issue a force merge rather than another update-settings request.
+        int numBackingIndices = dataStream.getIndices().size();
+        IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(
+            DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices + 1)
+        )
+            .settings(
+                settings(IndexVersion.current()).put(
+                    IndexSettings.MODE.getKey(),
+                    isTsdb ? IndexMode.TIME_SERIES : randomFrom(IndexMode.STANDARD, IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)
+                )
+                    .put("index.routing_path", "uid")
+                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start3.toString())
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end3.toString())
+                    .put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), targetFloorSegment)
+                    .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), targetMergeFactor)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .creationDate(now - 3000L);
+        MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(now - 2000L));
+        indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
+        IndexMetadata newIndexMetadata = indexMetaBuilder.build();
+        builder = ProjectMetadata.builder(clusterService.state().metadata().getProject(projectId)).put(newIndexMetadata, true);
+        clusterState = ClusterState.builder(clusterService.state()).putProjectMetadata(builder).build();
+        setState(clusterService, clusterState);
+        DataStream modifiedDataStream = dataStream.addBackingIndex(
+            clusterService.state().metadata().getProject(projectId),
+            newIndexMetadata.getIndex()
+        );
+        builder = ProjectMetadata.builder(clusterService.state().metadata().getProject(projectId)).put(modifiedDataStream);
+        clusterState = ClusterState.builder(clusterService.state()).putProjectMetadata(builder).build();
+        setState(clusterService, clusterState);
         dataStreamLifecycleService.run(clusterService.state());
         assertBusy(() -> assertThat(clientSeenRequests.size(), is(4)));
         assertThat(((ForceMergeRequest) clientSeenRequests.get(3)).indices().length, is(1));

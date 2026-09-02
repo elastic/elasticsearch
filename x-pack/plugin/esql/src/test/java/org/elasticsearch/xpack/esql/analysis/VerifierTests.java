@@ -4819,6 +4819,15 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testHighlightExplicitOnStrictnessAndImplicitLeniency() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT MATCH(title, \"x\") ON body",
+            containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        supportsHighlightImplicit(fullText()).query("FROM test | WHERE MATCH(title, \"x\") | HIGHLIGHT ON body");
+    }
+
     public void testHighlightImplicitRejectedOnOlderTransportVersion() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         defaultAnalyzer().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT)

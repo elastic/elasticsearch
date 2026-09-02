@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Wild
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -6113,6 +6114,97 @@ public class AnalyzerTests extends ESTestCase {
         return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation, true);
     }
 
+    public void testHighlightCombinesImplicitQueriesFromMultipleWhereCommands() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | WHERE MATCH(last_name, "y")
+            | HIGHLIGHT ON first_name
+            """));
+
+        Or query = as(highlight.query(), Or.class);
+        assertThat(query.left(), instanceOf(Match.class));
+        assertThat(query.right(), instanceOf(Match.class));
+    }
+
+    public void testHighlightCollectsOnlyPositiveFullTextConjuncts() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x") AND salary > 3 AND NOT MATCH(last_name, "y")
+            | HIGHLIGHT ON first_name
+            """));
+        assertThat(highlight.query(), instanceOf(Match.class));
+
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE MATCH(first_name, \"x\") OR salary > 3 | HIGHLIGHT ON first_name",
+            containsString("HIGHLIGHT requires a query or a preceding full-text WHERE")
+        );
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE NOT MATCH(first_name, \"x\") | HIGHLIGHT ON first_name",
+            containsString("HIGHLIGHT requires a query or a preceding full-text WHERE")
+        );
+    }
+
+    public void testHighlightImplicitQueryStopsAtStats() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE MATCH(first_name, \"x\") | STATS c = COUNT(*) BY first_name | HIGHLIGHT ON first_name",
+            containsString("HIGHLIGHT requires a query or a preceding full-text WHERE")
+        );
+    }
+
+    public void testHighlightImplicitQueryPassesDocLevelCommands() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | EVAL copy = first_name
+            | KEEP first_name, last_name, copy
+            | SORT first_name
+            | LIMIT 10
+            | DISSECT copy "%{part}"
+            | HIGHLIGHT ON first_name
+            """));
+
+        assertThat(highlight.query(), instanceOf(Match.class));
+        assertTrue(highlight.implicitQuery());
+    }
+
+    public void testHighlightImplicitQueryPassesRowPreservingCommands() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(supportsHighlight(basicWithEnrich()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | EVAL x = to_string(languages)
+            | ENRICH languages ON x
+            | SAMPLE 0.5
+            | HIGHLIGHT ON first_name
+            """));
+
+        assertThat(highlight.query(), instanceOf(Match.class));
+        assertTrue(highlight.implicitQuery());
+    }
+
+    public void testBareHighlightDerivesQueryFieldsAndGeneratedOutput() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | HIGHLIGHT
+            """));
+
+        assertThat(highlight.query(), instanceOf(Match.class));
+        assertTrue(highlight.implicitQuery());
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name")));
+        assertThat(highlight.generatedAttributes(), hasSize(1));
+        Attribute generated = highlight.generatedAttributes().getFirst();
+        assertThat(generated.name(), equalTo("highlight_first_name"));
+        assertThat(generated.dataType(), equalTo(KEYWORD));
+        assertTrue(highlight.output().contains(generated));
+    }
+
     public void testBareHighlightFallsBackToAllStringFields() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         Highlight highlight = soleHighlight(supportsHighlight(basic()).query("FROM test | HIGHLIGHT \"fox\""));
@@ -6134,6 +6226,45 @@ public class AnalyzerTests extends ESTestCase {
 
         assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name")));
         assertTrue(highlight.derivedFields());
+    }
+
+    public void testHighlightExplicitQueryBeatsUpstreamWhere() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | HIGHLIGHT MATCH(last_name, "y") ON last_name
+            """));
+
+        Match match = as(highlight.query(), Match.class);
+        assertThat(Expressions.name(match.field()), equalTo("last_name"));
+        assertFalse(highlight.implicitQuery());
+    }
+
+    public void testHighlightCollectsPredicateForDroppedField() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | DROP first_name
+            | HIGHLIGHT ON last_name
+            """));
+
+        assertThat(highlight.query(), instanceOf(Match.class));
+        assertTrue(highlight.implicitQuery());
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE MATCH(first_name, \"x\") | DROP first_name | HIGHLIGHT",
+            containsString("HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause")
+        );
+    }
+
+    public void testHighlightAnalysisConverges() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        TestAnalyzer testAnalyzer = supportsHighlight(basic());
+        LogicalPlan analyzed = testAnalyzer.query("FROM test | WHERE MATCH(first_name, \"x\") | HIGHLIGHT");
+        LogicalPlan analyzedAgain = testAnalyzer.buildAnalyzer().analyze(analyzed);
+
+        assertThat(soleHighlight(analyzedAgain), equalTo(soleHighlight(analyzed)));
     }
 
     /**

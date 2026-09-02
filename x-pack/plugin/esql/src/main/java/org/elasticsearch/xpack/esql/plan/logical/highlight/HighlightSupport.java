@@ -34,11 +34,22 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Analysis-time helpers for derived HIGHLIGHT field lists. Does not use {@code SearchExecutionContext}.
+ * Analysis-time helpers for implicit HIGHLIGHT query and field lists. Does not use {@code SearchExecutionContext}.
  */
 public final class HighlightSupport {
 
     private HighlightSupport() {}
+
+    public static boolean isSupportedImplicitPredicate(Expression expr) {
+        return switch (expr) {
+            case Match match -> true;
+            case MatchPhrase matchPhrase -> true;
+            case QueryString queryString -> true;
+            case Kql kql -> true;
+            case BinaryLogic binary -> isSupportedImplicitPredicate(binary.left()) && isSupportedImplicitPredicate(binary.right());
+            default -> false;
+        };
+    }
 
     public static List<NamedExpression> allHighlightableFields(List<Attribute> childrenOutput) {
         LinkedHashMap<String, NamedExpression> byName = new LinkedHashMap<>();

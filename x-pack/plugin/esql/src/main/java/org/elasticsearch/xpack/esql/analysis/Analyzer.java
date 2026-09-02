@@ -304,7 +304,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         new Batch<>(
             "Resolution",
             new ResolveRefs(),
-            // Must be after ResolveRefs: derivation reads the resolved child output to expand ON * and query-named fields.
+            // Must be after ResolveRefs: derivation reads the resolved child output and the resolved upstream WHERE predicates
             new ResolveHighlight(),
             new ImplicitCasting(),
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found

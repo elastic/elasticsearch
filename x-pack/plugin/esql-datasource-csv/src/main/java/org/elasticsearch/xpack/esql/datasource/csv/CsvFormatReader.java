@@ -5036,14 +5036,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * Stages the result of a (cold) typed string conversion for the direct path, dispatching the
-         * boxed value into the matching typed slot so {@link #appendStagedRow} can append it without a
-         * second boxing. Mirrors {@link #emitConvertedStringField} but targets the direct path's typed
-         * staging instead of the shared {@code rowBuffer}.
-         *
-         * @return always {@code true}: a coercion failure is held for {@link #flushPendingErrors}, not raised here
-         */
-        /**
          * Coercion errors seen while walking the current row, held until the row's WIDTH has been accepted.
          *
          * <p>The direct walkers tokenize and convert in one pass, so without this a bad value in a SURPLUS field
@@ -5107,6 +5099,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return true;
         }
 
+        /**
+         * Converts a field for the direct path and stages the boxed value in the matching typed slot, so
+         * {@link #appendStagedRow} can append it without a second boxing. Mirrors {@link #emitConvertedStringField}
+         * but targets the direct path's typed staging rather than the shared {@code rowBuffer}.
+         *
+         * @return always {@code true}: a coercion failure is held for {@link #flushPendingErrors}, not raised here
+         */
         private boolean emitConvertedStageField(String value, int bufIdx, DataType dt) {
             // bufIdx is the projected-column slot, so a declared per-column date format is honored on the
             // direct-to-block path exactly as on the Jackson path (both funnel through tryConvertValue).
@@ -5245,7 +5244,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 onRowError(rowTooWideMessage(totalFields), null, directRawLine(), true);
                 return false;
             }
-            if (flushPendingErrors(directRawLine()) == false) {
+            // hasPendingErrors first: directRawLine() materialises the row as a String, and this path is meant to
+            // stay String-free on an accepted row.
+            if (hasPendingErrors && flushPendingErrors(directRawLine()) == false) {
                 return false;
             }
             for (int c = 0; c < columnCount; c++) {
@@ -5297,7 +5298,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 onRowError(rowTooWideMessage(totalFields), null, directRawLine(), true);
                 return false;
             }
-            if (flushPendingErrors(directRawLine()) == false) {
+            // hasPendingErrors first: directRawLine() materialises the row as a String, and this path is meant to
+            // stay String-free on an accepted row.
+            if (hasPendingErrors && flushPendingErrors(directRawLine()) == false) {
                 return false;
             }
             // Null-fill projected columns whose source index falls past the row's trailing edge.
@@ -5661,7 +5664,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 onRowError(rowTooWideMessage(totalFields), null, directRawLine(), true);
                 return false;
             }
-            if (flushPendingErrors(directRawLine()) == false) {
+            // hasPendingErrors first: directRawLine() materialises the row as a String, and this path is meant to
+            // stay String-free on an accepted row.
+            if (hasPendingErrors && flushPendingErrors(directRawLine()) == false) {
                 return false;
             }
             for (int c = 0; c < columnCount; c++) {

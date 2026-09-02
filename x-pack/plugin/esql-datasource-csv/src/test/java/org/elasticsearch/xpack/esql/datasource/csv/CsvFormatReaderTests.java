@@ -7241,15 +7241,18 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The split-then-convert bracket route fabricates the trailing empty too, and must agree with the fused walker:
-     * a row ending in a bare delimiter is a present empty last field, so a row that fits its header is accepted.
+     * The split-then-convert bracket route fabricates the trailing empty too, and must agree with the fused walker.
+     * The header is deliberately narrower than the resulting row: if the route drops the trailing empty instead of
+     * counting it the row fits and passes silently, so only this shape can tell the two rules apart.
      */
     public void testBatchBracketSplitterCountsTrailingEmptyField() throws Exception {
-        String csv = "a,b,c\nx,y,\n";
+        // Two columns, not three: the row must then be one field WIDER than the header, so the assertion can tell
+        // "counted the trailing empty" from "dropped it". Against a 3-column header both rules accept the row and
+        // the test cannot discriminate.
+        String csv = "a,b\nx,y,\n";
         List<Attribute> schema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD),
-            new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD),
-            new ReferenceAttribute(Source.EMPTY, null, "c", DataType.KEYWORD)
+            new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD)
         );
         Map<String, Object> config = Map.of(
             "header_row",
@@ -7268,8 +7271,11 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatReader reader = declaredReader(true, directBlock, config);
             int rows = readRowCount(reader, createStorageObject(csv), schema, List.of());
             List<String> warnings = drainWarnings();
-            assertEquals(desc + " the row fits the 3-column header", 1, rows);
-            assertTrue(desc + " a full-width trailing delimiter is not drift: " + warnings, warnings.isEmpty());
+            assertEquals(desc + " the trailing empty makes the row wider than its header", 0, rows);
+            assertTrue(
+                desc + " expected a width warning naming 3 counted fields, got: " + warnings,
+                warnings.stream().anyMatch(w -> w.contains("CSV row has [3] columns but the file's header defines [2] columns"))
+            );
         }
     }
 

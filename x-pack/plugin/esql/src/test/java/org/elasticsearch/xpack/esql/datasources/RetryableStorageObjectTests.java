@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -33,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -227,6 +229,90 @@ public class RetryableStorageObjectTests extends ESTestCase {
         assertNotNull("async read should deliver a buffer after the scheduled retry", result.get());
         assertEquals("the single transient failure must reschedule exactly one retry continuation", 1, scheduledDelays.size());
         assertEquals("the read must succeed on the second attempt", 2, attempts.get());
+    }
+
+    /**
+     * Attempt 0 fails inline; DIRECT retry starts attempt 1 before attempt 0 returns its handle.
+     * Cancel must close attempt 1, not the stale attempt-0 handle.
+     */
+    public void testCancelClosesRetryAttemptNotStaleHandle() {
+        StoragePath path = StoragePath.of("s3://bucket/key");
+        AtomicInteger attempts = new AtomicInteger();
+        AtomicBoolean attempt0Closed = new AtomicBoolean();
+        AtomicBoolean attempt1Closed = new AtomicBoolean();
+        StorageObject flaky = new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Instant lastModified() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean exists() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StoragePath path() {
+                return path;
+            }
+
+            @Override
+            public int readBytes(long position, ByteBuffer target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Releasable startReadBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                int attempt = attempts.getAndIncrement();
+                if (attempt == 0) {
+                    listener.onFailure(new ExternalUnavailableException("transient async read failure", (Throwable) null));
+                    return () -> attempt0Closed.set(true);
+                }
+                if (attempt == 1) {
+                    return () -> attempt1Closed.set(true);
+                }
+                throw new AssertionError("unexpected attempt " + attempt);
+            }
+
+            @Override
+            public StorageObjectMetrics metrics() {
+                return new StorageObjectMetrics(0, 0, 0, 0);
+            }
+        };
+
+        RetryableStorageObject obj = new RetryableStorageObject(flaky, new RetryPolicy(3, 5, 50), RetryScheduler.DIRECT);
+        Releasable cancel = obj.startReadBytesAsync(
+            0,
+            4,
+            len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+            Runnable::run,
+            ActionListener.wrap(r -> fail("retry attempt stays in flight"), e -> fail("must not complete: " + e))
+        );
+        assertEquals(2, attempts.get());
+        cancel.close();
+        assertTrue("cancel must close the in-flight retry GET", attempt1Closed.get());
+        assertFalse("stale attempt-0 handle must not be the cancel target", attempt0Closed.get());
     }
 
     public void testMetricsForwardsDelegateCountersWhenNoRetries() {

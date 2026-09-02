@@ -42,7 +42,7 @@ public final class SourceBatchEncodeHelper {
      * Packs accumulated inline-array elements, choosing {@link SourceValueType#FIXED_ARRAY} when all
      * elements share a fixed-width type and {@code forceUnion} is false.
      */
-    public static PackedArray packAccumulatedElements(
+    private static PackedArray packAccumulatedElements(
         byte[] elemTypes,
         long[] elemNumeric,
         Object[] elemVar,

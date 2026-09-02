@@ -1,0 +1,32 @@
+---
+"Non-streaming chat completion returns a single JSON response":
+  - do:
+      inference.put:
+        task_type: chat_completion
+        inference_id: test-non-streaming-cc
+        body:
+          service: streaming_completion_test_service
+          service_settings:
+            model: test-model
+            api_key: test-key
+
+  - do:
+      inference.inference:
+        task_type: chat_completion
+        inference_id: test-non-streaming-cc
+        body:
+          messages:
+            - role: user
+              content: hello world
+
+  - match: { object: "chat.completion" }
+  - match: { model: "test-model" }
+  - is_true: id
+  - is_true: choices
+  - match: { choices.0.index: 0 }
+  - match: { choices.0.message.role: "assistant" }
+  - match: { choices.0.message.content: "HELLO WORLD" }
+  - match: { choices.0.finish_reason: "stop" }
+  - match: { usage.completion_tokens: 1 }
+  - match: { usage.prompt_tokens: 1 }
+  - match: { usage.total_tokens: 2 }

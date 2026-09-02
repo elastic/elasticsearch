@@ -278,6 +278,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                true,
                 null,
                 listener
             );
@@ -407,6 +408,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                true,
                 TIMEOUT,
                 listener
             );

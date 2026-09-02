@@ -984,7 +984,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
-            service.unifiedCompletionInfer(model, request, null, listener);
+            service.unifiedCompletionInfer(model, request, true, null, listener);
 
             // We don't need to check the actual response as we're only testing header propagation
             listener.actionGet(TEST_REQUEST_TIMEOUT);
@@ -1041,7 +1041,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
-            service.unifiedCompletionInfer(model, request, null, listener);
+            service.unifiedCompletionInfer(model, request, true, null, listener);
 
             // We don't need to check the actual response as we're only testing header propagation
             listener.actionGet(TEST_REQUEST_TIMEOUT);
@@ -1208,7 +1208,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
-            service.unifiedCompletionInfer(model, request, null, listener);
+            service.unifiedCompletionInfer(model, request, true, null, listener);
 
             // Receiving results for validation
             InferenceServiceResults inferenceServiceResults = listener.actionGet(TEST_REQUEST_TIMEOUT);
@@ -1932,6 +1932,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                true,
                 null,
                 listener
             );

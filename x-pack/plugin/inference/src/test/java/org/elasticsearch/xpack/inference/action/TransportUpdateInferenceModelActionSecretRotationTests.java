@@ -64,6 +64,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -346,10 +347,10 @@ public class TransportUpdateInferenceModelActionSecretRotationTests extends ESTe
         }).when(spyService).rerankInfer(any(), any(), any(), any());
 
         doAnswer(inv -> {
-            ActionListener<InferenceServiceResults> listener = inv.getArgument(3);
+            ActionListener<InferenceServiceResults> listener = inv.getArgument(4);
             listener.onResponse(new CompletionResults(List.of(new CompletionResults.Result("hello"))));
             return null;
-        }).when(spyService).unifiedCompletionInfer(any(), any(), any(), any());
+        }).when(spyService).unifiedCompletionInfer(any(), any(), anyBoolean(), any(), any());
 
         // updateModelWithEmbeddingDetails: return the model unchanged so we can assert on its secrets.
         // Use doAnswer (not when/thenAnswer) because spying calls the real method before the stub takes effect.

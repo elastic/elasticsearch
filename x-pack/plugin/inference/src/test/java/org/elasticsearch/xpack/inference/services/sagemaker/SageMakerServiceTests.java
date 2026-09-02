@@ -463,6 +463,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         sageMakerService.unifiedCompletionInfer(
             mockUnsupportedModel(),
             randomUnifiedCompletionRequest(),
+            true,
             THIRTY_SECONDS,
             assertUnsupportedModel()
         );
@@ -478,6 +479,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         sageMakerService.unifiedCompletionInfer(
             model,
             randomTextInputOnlyUnifiedCompletionRequest(),
+            true,
             THIRTY_SECONDS,
             assertNoFailureListener(ignored -> {
                 verify(schemas, only()).streamSchemaFor(eq(model));
@@ -500,6 +502,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         sageMakerService.unifiedCompletionInfer(
             model,
             randomTextInputOnlyUnifiedCompletionRequest(),
+            true,
             THIRTY_SECONDS,
             assertNoSuccessListener(ignored -> {
                 verify(schemas, only()).streamSchemaFor(eq(model));
@@ -530,6 +533,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         sageMakerService.unifiedCompletionInfer(
             model,
             randomTextInputOnlyUnifiedCompletionRequest(),
+            true,
             THIRTY_SECONDS,
             assertNoSuccessListener(e -> {
                 verify(schemas, only()).streamSchemaFor(eq(model));

@@ -112,6 +112,10 @@ public final class UnifiedCompletionUtils {
         "inference_api_chat_completion_cache_write_tokens_added"
     );
 
+    public static final TransportVersion CHAT_COMPLETION_NON_STREAMING_ADDED = TransportVersion.fromName(
+        "inference_api_chat_completion_non_streaming_added"
+    );
+
     public static <T> T extractRequiredFieldOfType(Map<String, Object> sourceMap, String key, Class<T> type, String containingObject) {
         return extractFieldOfType(sourceMap, key, type, true, containingObject);
     }

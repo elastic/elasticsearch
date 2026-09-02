@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -162,6 +163,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         public void unifiedCompletionInfer(
             Model model,
             UnifiedCompletionRequest request,
+            boolean stream,
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
@@ -170,7 +172,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                 return;
             }
             switch (model.getConfigurations().getTaskType()) {
-                case CHAT_COMPLETION -> listener.onResponse(makeUnifiedResults(request));
+                case CHAT_COMPLETION -> listener.onResponse(stream ? makeUnifiedResults(request) : makeNonStreamingUnifiedResults(request));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -178,6 +180,11 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                     )
                 );
             }
+        }
+
+        @Override
+        public boolean supportsNonStreamingChatCompletion() {
+            return true;
         }
 
         @Override
@@ -280,6 +287,17 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                     public void cancel() {}
                 });
             });
+        }
+
+        private ChatCompletionChunkResponse makeNonStreamingUnifiedResults(UnifiedCompletionRequest request) {
+            var content = request.messages().get(0).content().toString().toUpperCase(Locale.ROOT);
+            return new ChatCompletionChunkResponse(
+                "test-id",
+                List.of(new ChatCompletionChoiceResponse(new ChatCompletionMessageResponse(content, null, "assistant", null), "stop", 0)),
+                "test-model",
+                "chat.completion",
+                new ChatCompletionUsageResponse(1, 1, 2)
+            );
         }
 
         /*

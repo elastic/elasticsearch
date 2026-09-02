@@ -28,10 +28,11 @@ public class SimpleChatCompletionServiceIntegrationValidator implements ServiceI
 
     @Override
     public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        var chatCompletionInput = new UnifiedChatInput(TEST_INPUT, USER_ROLE, false);
+        var chatCompletionInput = new UnifiedChatInput(TEST_INPUT, USER_ROLE, true);
         service.unifiedCompletionInfer(
             model,
             chatCompletionInput.getRequest(),
+            chatCompletionInput.stream(),
             timeout,
             ServiceIntegrationValidator.wrapListenerForValidation(listener)
         );

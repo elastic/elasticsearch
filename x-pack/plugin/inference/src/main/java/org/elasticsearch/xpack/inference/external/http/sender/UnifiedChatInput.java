@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
@@ -22,8 +23,8 @@ import java.util.Objects;
 /**
  * This class encapsulates the unified request.
  * The main difference between this class and {@link CompletionInput} is this should only be used for
- * {@link org.elasticsearch.inference.TaskType#COMPLETION} originating through the
- * {@link org.elasticsearch.inference.InferenceService#unifiedCompletionInfer(Model, UnifiedCompletionRequest, TimeValue, ActionListener)}
+ * {@link TaskType#COMPLETION} originating through the
+ * {@link InferenceService#unifiedCompletionInfer(Model, UnifiedCompletionRequest, boolean, TimeValue, ActionListener)}
  * code path. These are requests sent to the API with the <code>_stream</code> route and {@link TaskType#CHAT_COMPLETION}.
  */
 public class UnifiedChatInput extends InferenceInputs {

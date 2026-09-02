@@ -129,6 +129,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         public void unifiedCompletionInfer(
             Model model,
             UnifiedCompletionRequest request,
+            boolean stream,
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {

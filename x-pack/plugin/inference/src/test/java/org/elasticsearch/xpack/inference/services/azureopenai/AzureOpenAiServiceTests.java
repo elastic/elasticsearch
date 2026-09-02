@@ -1230,6 +1230,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
+                true,
                 null,
                 listener
             );
@@ -1281,6 +1282,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
+                true,
                 null,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
@@ -1349,6 +1351,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
+                true,
                 null,
                 listener
             );

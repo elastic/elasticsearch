@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
@@ -789,6 +790,13 @@ public class InferenceNamedWriteablesProvider {
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, CompletionResults.NAME, CompletionResults::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.class,
+                ChatCompletionChunkResponse.NAME,
+                ChatCompletionChunkResponse::new
+            )
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, RankedDocsResults.NAME, RankedDocsResults::new)

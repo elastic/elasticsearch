@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_NON_STREAMING_ADDED;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
@@ -108,11 +109,18 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
                 timeout = BaseInferenceActionRequest.OLD_DEFAULT_TIMEOUT;
             }
         }
+
+        var stream = instance.isStreaming();
+        if (version.supports(CHAT_COMPLETION_NON_STREAMING_ADDED) == false) {
+            stream = true;
+        }
+
         return new UnifiedCompletionAction.Request(
             instance.getInferenceEntityId(),
             instance.getTaskType(),
             UnifiedCompletionRequestTests.mutateInstanceForTransportVersion(instance.getUnifiedCompletionRequest(), version),
             context,
+            stream,
             timeout
         );
     }
@@ -149,18 +157,20 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             randomFrom(TaskType.values()),
             UnifiedCompletionRequestTests.randomUnifiedCompletionRequest(),
             new InferenceContext(randomAlphaOfLength(10)),
+            randomBoolean(),
             randomFrom(randomTimeValue(), null)
         );
     }
 
     @Override
     protected UnifiedCompletionAction.Request mutateInstance(UnifiedCompletionAction.Request instance) throws IOException {
-        String inferenceEntityId = instance.getInferenceEntityId();
-        TaskType taskType = instance.getTaskType();
-        UnifiedCompletionRequest unifiedCompletionRequest = instance.getUnifiedCompletionRequest();
-        InferenceContext inferenceContext = instance.getContext();
-        TimeValue timeout = instance.getTimeout();
-        switch (between(0, 4)) {
+        var inferenceEntityId = instance.getInferenceEntityId();
+        var taskType = instance.getTaskType();
+        var unifiedCompletionRequest = instance.getUnifiedCompletionRequest();
+        var inferenceContext = instance.getContext();
+        var stream = instance.isStreaming();
+        var timeout = instance.getTimeout();
+        switch (between(0, 5)) {
             case 0 -> inferenceEntityId = randomValueOtherThan(inferenceEntityId, () -> randomAlphaOfLength(10));
             case 1 -> taskType = randomValueOtherThan(taskType, () -> randomFrom(TaskType.values()));
             case 2 -> unifiedCompletionRequest = randomValueOtherThan(
@@ -168,7 +178,8 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
                 UnifiedCompletionRequestTests::randomUnifiedCompletionRequest
             );
             case 3 -> inferenceContext = randomValueOtherThan(inferenceContext, () -> new InferenceContext(randomAlphaOfLength(10)));
-            case 4 -> {
+            case 4 -> stream = stream == false;
+            case 5 -> {
                 if (timeout.equals(TIMEOUT_NOT_DETERMINED)) {
                     // Using null as timeout will translate it internally to TIMEOUT_NOT_DETERMINED, which would not mutate the instance
                     timeout = randomValueOtherThan(timeout, ESTestCase::randomTimeValue);
@@ -178,7 +189,14 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             }
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new UnifiedCompletionAction.Request(inferenceEntityId, taskType, unifiedCompletionRequest, inferenceContext, timeout);
+        return new UnifiedCompletionAction.Request(
+            inferenceEntityId,
+            taskType,
+            unifiedCompletionRequest,
+            inferenceContext,
+            stream,
+            timeout
+        );
     }
 
     @Override

@@ -42,6 +42,7 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -2231,7 +2232,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                         10,
                         blockFactory,
                         policy,
-                        "test://bare-number-" + tag.toLowerCase() + "-streaming",
+                        "test://bare-number-" + tag.toLowerCase(Locale.ROOT) + "-streaming",
                         streamCounters
                     );
                     Page page = decoder.decodePage()
@@ -2262,7 +2263,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                         10,
                         blockFactory,
                         policy,
-                        "test://bare-number-" + tag.toLowerCase() + "-bytes",
+                        "test://bare-number-" + tag.toLowerCase(Locale.ROOT) + "-bytes",
                         bytesCounters
                     );
                     Page page = decoder.decodePage()

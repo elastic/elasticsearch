@@ -62,9 +62,13 @@ public class AuditUtil {
                 );
             } catch (CircuitBreakingException e) {
                 throw e;
+            } catch (ElasticsearchStatusException e) {
+                throw e;
             } catch (Exception e) {
                 logger.warn(() -> Strings.format("failed to read body of REST request [%s] for auditing", request.uri()), e);
-                return "Invalid Format: " + content.utf8ToString();
+                long maxBytes = renderer.maxBytes();
+                BytesReference capped = maxBytes > 0 && content.length() > maxBytes ? content.slice(0, (int) maxBytes) : content;
+                return "Invalid Format: " + capped.utf8ToString();
             }
         }
         return "";

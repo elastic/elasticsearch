@@ -52,7 +52,7 @@ public final class RequestBodyRenderer implements Releasable {
     public String render(BytesReference bytes, XContentType xContentType) throws IOException {
         if (xContentType.canonical() == XContentType.JSON) {
             checkSize(0, bytes.length());
-            var result = bytes.utf8ToString();
+            String result = bytes.utf8ToString();
             charge(bytes.length());
             return result;
         }
@@ -71,7 +71,7 @@ public final class RequestBodyRenderer implements Releasable {
     @Override
     public void close() {
         if (breaker != null && chargedBytes > 0) {
-            breaker.addWithoutBreaking(-chargedBytes);
+            breaker.addWithoutBreaking(-chargedBytes, label);
             chargedBytes = 0;
         }
     }

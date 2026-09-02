@@ -1780,9 +1780,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         if (Strings.hasLength(requestContent)) {
                             logEntry.with(REQUEST_BODY_FIELD_NAME, requestContent);
                         }
-                    } catch (Exception e) {
-                        renderer.close();
-                        throw e;
+                    } finally {
+                        if (bodyRenderer != renderer) {
+                            renderer.close();
+                        }
                     }
                 }
             }

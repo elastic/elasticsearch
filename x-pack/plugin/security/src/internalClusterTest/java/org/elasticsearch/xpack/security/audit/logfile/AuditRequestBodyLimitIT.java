@@ -61,7 +61,7 @@ public class AuditRequestBodyLimitIT extends SecurityIntegTestCase {
     public void testRequestBodyWithinLimitSucceeds() throws Exception {
         // A body under the 10-byte limit (after rendering): {"a":"b"} is 9 bytes
         String body = "{\"a\":\"b\"}";
-        Request request = new Request("PUT", "/test-index/_doc/1");
+        Request request = new Request("PUT", "/test-index/_doc/" + randomAlphaOfLength(8));
         request.setJsonEntity(body);
         RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
         options.addHeader(

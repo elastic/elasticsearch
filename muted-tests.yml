@@ -167,6 +167,9 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
   method: testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_NoDeferValidation
   issue: https://github.com/elastic/elasticsearch/issues/152599
+- class: org.elasticsearch.search.fieldcaps.FieldCapsHasValueTests
+  method: testUnmappedFieldsWithValueAfterRestart
+  issue: https://github.com/elastic/elasticsearch/issues/158359
 
 # Examples:
 #

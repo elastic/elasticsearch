@@ -140,37 +140,31 @@ final class RunTableSortedCodec implements SortedOrdinalCodec {
                         multiValued = true;
                         break;
                     }
-                    runTable.add((int) ords.nextValue());
+                    final int ord = (int) ords.nextValue();
+                    runTable.add(ord);
+                    sortedFieldObserver.onDoc(doc, ord);
                     numDocsWithField++;
                     numValues++;
                     present = ords.nextDoc();
                 } else {
                     runTable.add(sentinel);
+                    sortedFieldObserver.onDoc(doc, sentinel);
                 }
                 if (policy.allow(runTable.numRuns(), doc + 1) == false) {
+                    // Fallback re-reads the field and fires onDoc from scratch, so reset the observer
+                    // to discard the partial events emitted above.
+                    sortedFieldObserver.prepareForDocs();
                     return writeDefault(field, values, maxOrd, docValueCountConsumer, sortedFieldObserver);
                 }
             }
 
             if (multiValued) {
+                sortedFieldObserver.prepareForDocs();
                 return writeDefault(field, values, maxOrd, docValueCountConsumer, sortedFieldObserver);
             }
 
             ctx.meta().writeByte(RunTableLayout.LAYOUT_RUN_TABLE);
             SortedRunTableLayout.encode(runTable, ctx.data(), ctx.meta());
-
-            if (sortedFieldObserver != SortedFieldObserver.NOOP) {
-                final SortedNumericDocValues ordsObs = values.getSortedNumeric(field);
-                int presentObs = ordsObs.nextDoc();
-                for (int doc = 0; doc < maxDoc; doc++) {
-                    if (doc == presentObs) {
-                        sortedFieldObserver.onDoc(doc, ordsObs.nextValue());
-                        presentObs = ordsObs.nextDoc();
-                    } else {
-                        sortedFieldObserver.onDoc(doc, sentinel);
-                    }
-                }
-            }
 
             return new DocValueFieldCountStats(numDocsWithField, numValues, false);
         }

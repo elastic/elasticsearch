@@ -29,7 +29,7 @@ final class RunTableGate {
     // Temporary switch for the _tsid run-table benchmark. Leave true for the A run; flip to false in a
     // separate commit for the B run to route _tsid back to the ordinal-range layout while dimension
     // run-table stays on. Remove once the storage and indexing tradeoff is settled.
-    private static final boolean TSID_RUN_TABLE_ENABLED = false;
+    private static final boolean TSID_RUN_TABLE_ENABLED = true;
 
     @Nullable
     private final FieldContextResolver resolver;

@@ -167,37 +167,36 @@ public final class ReshardSearchFilters implements Closeable {
         Supplier<Searcher> searcherSupplier
     ) {
         var reshardingMetadata = indexMetadata.getReshardingMetadata();
-        var mayContainUnownedDocuments = false;
         if (reshardingMetadata != null && reshardingMetadata.isSplit()) {
-            IndexReshardingState.Split split = reshardingMetadata.getSplit();
-            if (split.isTargetShard(shardId.id())) {
-                /// We ensure that refresh happens between unowned data being deleted and target shard moving to DONE.
-                /// So at this point we know that there is no unowned data and we can skip warming.
-                mayContainUnownedDocuments = split.targetStateAtLeast(
-                    shardId.id(),
-                    IndexReshardingState.Split.TargetShardState.DONE
-                ) == false;
-            } else {
-                /// Similarly since we ensure the refresh is done after deleting unowned data we can skip warming
-                /// if the shard is DONE.
-                mayContainUnownedDocuments = split.sourceStateAtLeast(
-                    shardId.id(),
-                    IndexReshardingState.Split.SourceShardState.DONE
-                ) == false;
-            }
-        }
-
-        if (mayContainUnownedDocuments) {
-            warmerExecutor.execute(() -> {
-                try (Searcher searcher = searcherSupplier.get()) {
-                    var query = new ShardSplittingQuery(indexMetadata, shardId.id(), mapperService.hasNested());
-                    for (var leaf : searcher.getDirectoryReader().leaves()) {
-                        unownedBitsetCache.getBitSet(query, leaf);
+            var split = reshardingMetadata.getSplit();
+            var shard = shardId.id();
+            /// Target shards start with unowned files, until they get to the DONE state
+            var unownedFilesOnTarget = split.isTargetShard(shard)
+                && split.targetStateAtLeast(shard, IndexReshardingState.Split.TargetShardState.DONE) == false;
+            /// We're trying to balance the cost of cache misses with the overhead of prewarming on each refresh, since the
+            /// ShardSplittingQuery is expensive.
+            /// The source shard should not receive any query involving unowned documents until the target has reached the SPLIT state, so
+            /// we avoid prewarming the source whilst the target is in CLONE, which can last 10s of minutes. This of course presumes
+            /// perfect global knowledge of the cluster state, so it trades off more optimal prewarming in the happy path with additional
+            /// cache misses if a coordinator has more recent knowledge of the cluster state than this node. We hedge our bets  slightly by
+            /// waiting for the target to be in HANDOFF instead, since HANDOFF --> SPLIT should happen fairly quickly.
+            /// Note that correctness isn't compromised in any case: even if we fail to prewarm, the cache read-through mechanism guarantees
+            /// that unowned docs will be filtered.
+            var unownedFilesOnSource = split.isSourceShard(shard)
+                && split.sourceStateAtLeast(shard, IndexReshardingState.Split.SourceShardState.DONE) == false
+                && split.targetStateAtLeast(split.targetShard(shard), IndexReshardingState.Split.TargetShardState.HANDOFF);
+            if (unownedFilesOnTarget || unownedFilesOnSource) {
+                warmerExecutor.execute(() -> {
+                    try (Searcher searcher = searcherSupplier.get()) {
+                        var query = new ShardSplittingQuery(indexMetadata, shardId.id(), mapperService.hasNested());
+                        for (var leaf : searcher.getDirectoryReader().leaves()) {
+                            unownedBitsetCache.getBitSet(query, leaf);
+                        }
+                    } catch (ExecutionException e) {
+                        logger.debug(() -> Strings.format("failed to warm resharding unowned-document bitsets for shard [%s]", shardId), e);
                     }
-                } catch (ExecutionException e) {
-                    logger.debug(() -> Strings.format("failed to warm resharding unowned-document bitsets for shard [%s]", shardId), e);
-                }
-            });
+                });
+            }
         }
     }
 

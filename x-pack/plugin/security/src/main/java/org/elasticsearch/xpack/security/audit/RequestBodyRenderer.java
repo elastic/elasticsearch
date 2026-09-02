@@ -52,8 +52,9 @@ public final class RequestBodyRenderer implements Releasable {
     public String render(BytesReference bytes, XContentType xContentType) throws IOException {
         if (xContentType.canonical() == XContentType.JSON) {
             checkSize(0, bytes.length());
+            var result = bytes.utf8ToString();
             charge(bytes.length());
-            return bytes.utf8ToString();
+            return result;
         }
 
         try (var os = new LimitedOutputStream()) {
@@ -77,7 +78,7 @@ public final class RequestBodyRenderer implements Releasable {
 
     private void checkSize(long current, long additional) {
         if (maxBytes > 0 && current + additional > maxBytes) {
-            throw new TooLargeBodyException(maxBytes);
+            throw new TooLargeBodyException(current + additional, maxBytes);
         }
     }
 
@@ -91,8 +92,15 @@ public final class RequestBodyRenderer implements Releasable {
     }
 
     public static final class TooLargeBodyException extends RuntimeException {
-        public TooLargeBodyException(long maxBytes) {
+        private final long actualBytes;
+
+        public TooLargeBodyException(long actualBytes, long maxBytes) {
             super("JSON output exceeds the configured limit of " + maxBytes + " bytes");
+            this.actualBytes = actualBytes;
+        }
+
+        public long actualBytes() {
+            return actualBytes;
         }
     }
 
@@ -100,15 +108,15 @@ public final class RequestBodyRenderer implements Releasable {
         @Override
         public void write(byte[] b, int off, int len) {
             checkSize(count, len);
-            charge(len);
             super.write(b, off, len);
+            charge(len);
         }
 
         @Override
         public void write(int b) {
             checkSize(count, 1);
-            charge(1);
             super.write(b);
+            charge(1);
         }
     }
 }

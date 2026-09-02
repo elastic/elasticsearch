@@ -43,11 +43,13 @@ public class AuditUtilTests extends ESTestCase {
             new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
             XContentType.JSON
         ).build();
-        var limiter = new RequestBodyRenderer(json.length() - 1, null, null);
-        ElasticsearchStatusException ex = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> AuditUtil.restRequestContent(request, "xpack.security.audit.logfile.events.max_request_body_size", limiter)
-        );
+        ElasticsearchStatusException ex;
+        try (var limiter = new RequestBodyRenderer(json.length() - 1, null, null)) {
+            ex = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> AuditUtil.restRequestContent(request, "xpack.security.audit.logfile.events.max_request_body_size", limiter)
+            );
+        }
         assertThat(ex.status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
     }
 
@@ -79,11 +81,13 @@ public class AuditUtilTests extends ESTestCase {
             XContentType.SMILE
         ).build();
 
-        var tinyLimiter = new RequestBodyRenderer(10, null, null);
-        ElasticsearchStatusException ex = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> AuditUtil.restRequestContent(request, "xpack.security.audit.logfile.events.max_request_body_size", tinyLimiter)
-        );
+        ElasticsearchStatusException ex;
+        try (var tinyLimiter = new RequestBodyRenderer(10, null, null)) {
+            ex = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> AuditUtil.restRequestContent(request, "xpack.security.audit.logfile.events.max_request_body_size", tinyLimiter)
+            );
+        }
         assertThat(ex.status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
 
         try (var limiter = new RequestBodyRenderer(0, null, null)) {

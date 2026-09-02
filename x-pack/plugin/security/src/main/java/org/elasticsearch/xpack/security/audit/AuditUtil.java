@@ -53,9 +53,10 @@ public class AuditUtil {
                 return renderer.render(content, xContentType);
             } catch (RequestBodyRenderer.TooLargeBodyException e) {
                 throw new ElasticsearchStatusException(
-                    "Request body would exceed the audit size limit of [{}]; "
+                    "Request body of [{}] would exceed the audit size limit of [{}]; "
                         + "adjust [{}] to increase the limit or set it to 0 to disable",
                     RestStatus.REQUEST_ENTITY_TOO_LARGE,
+                    ByteSizeValue.ofBytes(e.actualBytes()),
                     ByteSizeValue.ofBytes(renderer.maxBytes()),
                     settingKey
                 );

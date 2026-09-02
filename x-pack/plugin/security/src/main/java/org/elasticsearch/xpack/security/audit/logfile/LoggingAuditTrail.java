@@ -1964,10 +1964,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         void build() {
-            if (includeThreadContext) {
-                withThreadContext();
-            }
             try {
+                if (includeThreadContext) {
+                    withThreadContext();
+                }
                 logger.info(AUDIT_MARKER, customizer.rewrite(eventContext, logEntry));
             } finally {
                 Releasables.close(bodyRenderer);

@@ -69,45 +69,37 @@ public class ResolvingProject extends Project {
     private final Command command;
 
     public ResolvingProject(Source source, LogicalPlan child, Command command) {
-        this(source, child, computeProjections(child.output(), command.resolver(), command.kind()), command);
+        this(source, child, computeProjections(child.output(), command.resolver()), command);
     }
 
     /**
      * Runs the resolver against the child output, keeping any {@link UnmappedFieldsAttribute} instances out of the resolver's scope
-     * (so KEEP/DROP/RENAME patterns cannot match the synthetic column), and re-inserting them at the correct position.
+     * (so KEEP/DROP/RENAME patterns cannot match the synthetic column), then re-appending them at the end. Where the synthetic column
+     * sits is irrelevant: the response order comes from the replay in {@code UnmappedFieldsOrdering}, which strips it before resolving.
      */
     private static List<? extends NamedExpression> computeProjections(
         List<Attribute> childOutput,
-        Function<List<Attribute>, List<? extends NamedExpression>> resolver,
-        Kind kind
+        Function<List<Attribute>, List<? extends NamedExpression>> resolver
     ) {
         List<Attribute> unmappedAttrs = new ArrayList<>();
         List<Attribute> resolverInput = new ArrayList<>();
-        int beforeCount = 0;
         for (Attribute a : childOutput) {
             if (a instanceof UnmappedFieldsAttribute) {
                 unmappedAttrs.add(a);
             } else {
                 resolverInput.add(a);
-                if (unmappedAttrs.isEmpty()) {
-                    beforeCount++;
-                }
             }
         }
         if (unmappedAttrs.isEmpty()) {
             return resolver.apply(childOutput);
         }
+        // Every non-LOOKUP relation gets one (the Verifier's LOAD_ALL allow-list runs later, so it does not gate this); two never meet
+        // because every multi-input node dedups its output by name. If that ever changes, the post-processor finds only the first.
+        assert unmappedAttrs.size() <= 1 : "expected at most one " + UnmappedFieldsAttribute.ATTRIBUTE_NAME + ", got " + unmappedAttrs;
         List<? extends NamedExpression> resolved = resolver.apply(resolverInput);
         List<NamedExpression> result = new ArrayList<>(resolved.size() + unmappedAttrs.size());
-        if (kind == Kind.KEEP) {
-            result.addAll(resolved);
-            result.addAll(unmappedAttrs);
-        } else {
-            int insertAt = Math.min(beforeCount, resolved.size());
-            result.addAll(resolved.subList(0, insertAt));
-            result.addAll(unmappedAttrs);
-            result.addAll(resolved.subList(insertAt, resolved.size()));
-        }
+        result.addAll(resolved);
+        result.addAll(unmappedAttrs);
         return result;
     }
 

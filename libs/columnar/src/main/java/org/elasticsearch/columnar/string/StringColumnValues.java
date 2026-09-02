@@ -40,6 +40,25 @@ public abstract class StringColumnValues extends DocIdSetIterator {
     public abstract int nullCount() throws IOException;
 
     /**
+     * The totals the counting pass exists to collect, when this cursor can report them without being walked,
+     * and null when it cannot. A merge reading columns this format wrote already has them: each segment
+     * recorded its own, so the pass would walk the iterator and the addressing tables of every input only to
+     * sum per-document counts back into a total that was on disk to begin with.
+     *
+     * <p>Only sound while nothing is dropped on the way through — a segment with deleted documents contributes
+     * fewer than it recorded, and a cursor over one has to be counted.
+     */
+    public Totals totals() {
+        return null;
+    }
+
+    /**
+     * What a column is counted for: the documents holding at least one slot, the slots they hold between
+     * them, and how many of those are null.
+     */
+    public record Totals(int numDocsWithField, long numValues, long numNullSlots) {}
+
+    /**
      * Moves to the document's next slot; call exactly {@link #valueCount()} times per document. This is
      * the only thing that moves the cursor, so what a caller reads of a slot it reads as many times as it
      * likes and in whichever order.

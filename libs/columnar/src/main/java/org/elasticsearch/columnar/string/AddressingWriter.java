@@ -33,8 +33,10 @@ final class AddressingWriter implements Closeable {
     private final MonotonicWriter valueAddresses;
     /** Null when no slot in the column is null. */
     private final MonotonicWriter nullSlots;
+    private final int numDocsWithField;
     private final long numNullSlots;
 
+    private int docs;
     private long nulls;
 
     /**
@@ -62,37 +64,38 @@ final class AddressingWriter implements Closeable {
             if (numNullSlots > 0) {
                 nullSlots = new MonotonicWriter(directory, context, name, numNullSlots);
             }
-            return new AddressingWriter(valueAddresses, nullSlots, numNullSlots);
+            return new AddressingWriter(valueAddresses, nullSlots, numDocsWithField, numNullSlots);
         } catch (Exception e) {
             IOUtils.closeWhileHandlingException(valueAddresses, nullSlots);
             throw e;
         }
     }
 
-    private AddressingWriter(MonotonicWriter valueAddresses, MonotonicWriter nullSlots, long numNullSlots) {
+    private AddressingWriter(MonotonicWriter valueAddresses, MonotonicWriter nullSlots, int numDocsWithField, long numNullSlots) {
         this.valueAddresses = valueAddresses;
         this.nullSlots = nullSlots;
+        this.numDocsWithField = numDocsWithField;
         this.numNullSlots = numNullSlots;
     }
 
     /** Records that the document about to be written begins at {@code valueAddress}. */
     void startDocument(long valueAddress) throws IOException {
+        docs++;
         if (valueAddresses != null) {
             valueAddresses.add(valueAddress);
         }
     }
 
-    /** Records what the slot at {@code valueAddress} is; only a null leaves a trace. */
-    void slot(long valueAddress, boolean isNull) throws IOException {
-        if (isNull) {
-            assert nullSlots != null : "null slot at [" + valueAddress + "] in a column counted as having none";
-            nullSlots.add(valueAddress);
-            nulls++;
-        }
+    /** Records that the slot at {@code valueAddress} is null; a slot that holds a value leaves no trace. */
+    void recordNull(long valueAddress) throws IOException {
+        assert nullSlots != null : "null slot at [" + valueAddress + "] in a column counted as having none";
+        nullSlots.add(valueAddress);
+        nulls++;
     }
 
     /** Closes both tables into {@code data}, {@code numValues} being the address one past the column's last slot. */
     StringColumnMetadata.Addressing finish(long numValues, IndexOutput data) throws IOException {
+        assert docs == numDocsWithField : "wrote " + docs + " documents, counted " + numDocsWithField;
         assert nulls == numNullSlots : "wrote " + nulls + " null slots, counted " + numNullSlots;
         if (valueAddresses != null) {
             valueAddresses.add(numValues);

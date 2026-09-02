@@ -187,6 +187,9 @@ public class StringColumnMergeTests extends ESTestCase {
             final int numDocs = between(200, 3000);
             final String[][] values = generator.generate(numDocs);
             final boolean[] deleted = new boolean[numDocs];
+            // Some runs delete nothing, so the merge also meets segments that give up every document they
+            // hold — which is what lets it take their totals from what they recorded instead of counting.
+            final boolean deleting = randomBoolean();
             final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
 
             try (Directory dir = newDirectory()) {
@@ -214,10 +217,12 @@ public class StringColumnMergeTests extends ESTestCase {
                         assertSlots(expected(values, new boolean[numDocs]), blobs);
                     }
 
-                    for (int d = 0; d < numDocs; d++) {
-                        if (random().nextInt(6) == 0) {
-                            writer.deleteDocuments(new Term(ID, Integer.toString(d)));
-                            deleted[d] = true;
+                    if (deleting) {
+                        for (int d = 0; d < numDocs; d++) {
+                            if (random().nextInt(6) == 0) {
+                                writer.deleteDocuments(new Term(ID, Integer.toString(d)));
+                                deleted[d] = true;
+                            }
                         }
                     }
                     writer.forceMerge(1);

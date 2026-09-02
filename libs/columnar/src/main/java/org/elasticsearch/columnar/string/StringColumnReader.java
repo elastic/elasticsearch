@@ -326,4 +326,14 @@ public final class StringColumnReader {
         return meta.numValues();
     }
 
+    /** How many documents hold at least one slot. */
+    public int numDocsWithField() {
+        return meta.numDocsWithField();
+    }
+
+    /** How many of the column's slots are null. */
+    public long numNullSlots() {
+        return meta.numNullSlots();
+    }
+
 }

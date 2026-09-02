@@ -157,7 +157,9 @@ public final class StringColumnWriter {
                 slots.startDocument(valueAddress);
                 for (int i = 0, count = values.valueCount(); i < count; i++) {
                     values.nextValue();
-                    slots.slot(valueAddress, values.isNull());
+                    if (values.isNull()) {
+                        slots.recordNull(valueAddress);
+                    }
                     // A null slot stores zero bytes, so it takes an address like any other and the null-slot
                     // table above is the only thing that tells it from an empty string.
                     stream.add(values.value());
@@ -324,7 +326,9 @@ public final class StringColumnWriter {
                                 // A null slot is named like any other: its bytes are empty, so it takes the
                                 // ordinal of the empty term or escapes as a zero-length value, and the
                                 // null-slot table is what tells it from an empty string either way.
-                                slots.slot(index, values.isNull());
+                                if (values.isNull()) {
+                                    slots.recordNull(index);
+                                }
                                 // A cursor that already knows the ordinal saves resolving the value's bytes
                                 // only to look them up again, which is most of what merging such a column costs.
                                 final int mapped = values.ordinal();

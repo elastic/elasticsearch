@@ -461,6 +461,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         throws IOException {
         List<ColumnMergeSub<StringColumnValues>> subs = new ArrayList<>();
         long cost = 0;
+        // What the counting pass would work out, summed from what the segments recorded. Held only while
+        // every input is one of our own columns contributing all of its documents; anything else — a foreign
+        // segment, or one with deletions — and there is nothing to sum, so the pass has to run.
+        int numDocsWithField = 0;
+        long numValues = 0;
+        long numNullSlots = 0;
+        boolean recorded = true;
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
             DocValuesProducer producer = mergeState.docValuesProducers[i];
             if (producer == null) {
@@ -475,18 +482,35 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 continue;
             }
             // Read decoded values directly for our own columns; fall back to the payload for anything else.
-            StringColumnValues values = binary instanceof ColumnarStringBinaryDocValues columnar
-                ? columnar.directValues(ordinalMap(binary, vocabulary))
-                : ColumnarStringBinaryDocValues.decodePayloads(binary);
+            final StringColumnValues values;
+            if (binary instanceof ColumnarStringBinaryDocValues columnar) {
+                values = columnar.directValues(ordinalMap(binary, vocabulary));
+                final StringColumnReader reader = columnar.reader();
+                numDocsWithField += reader.numDocsWithField();
+                numValues += reader.numValues();
+                numNullSlots += reader.numNullSlots();
+                // A deleted document is dropped as the merger maps it, so the segment's totals over-state
+                // what this merge takes from it.
+                recorded &= mergeState.liveDocs[i] == null;
+            } else {
+                values = ColumnarStringBinaryDocValues.decodePayloads(binary);
+                recorded = false;
+            }
             cost += values.cost();
             subs.add(new ColumnMergeSub<>(mergeState.docMaps[i], values));
         }
 
         DocIDMerger<ColumnMergeSub<StringColumnValues>> merger = DocIDMerger.of(subs, mergeState.needsIndexSort);
         long finalCost = cost;
+        StringColumnValues.Totals totals = recorded ? new StringColumnValues.Totals(numDocsWithField, numValues, numNullSlots) : null;
         return new StringColumnValues() {
             private ColumnMergeSub<StringColumnValues> current;
             private int docID = -1;
+
+            @Override
+            public Totals totals() {
+                return totals;
+            }
 
             @Override
             public int docID() {
@@ -576,9 +600,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
     /**
      * Counts the column in one pass, then streams the slots block by block from fresh cursors — never
-     * buffering the whole field on-heap. Both totals the pass collects are needed up front: the value
+     * buffering the whole field on-heap. All three totals the pass collects are needed up front: the value
      * addresses and the null slots are {@code DirectMonotonic} tables, which are built against a known
      * entry count.
+     *
+     * <p>A cursor that already knows them — a merge of our own columns, which each recorded theirs — reports
+     * them instead and the pass is skipped. The writer's own asserts still check the totals against what it
+     * is handed, so a cursor that mis-reports them does not go unnoticed.
      */
     private void writeStringColumn(FieldInfo field, ColumnarFieldType type, IOSupplier<StringColumnValues> cursors) throws IOException {
         writeStringColumn(field, type, cursors, null);
@@ -586,21 +614,25 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
     private void writeStringColumn(FieldInfo field, ColumnarFieldType type, IOSupplier<StringColumnValues> cursors, Vocabulary.Terms known)
         throws IOException {
-        int numDocsWithField = 0;
-        long numValues = 0;
-        long numNullSlots = 0;
         StringColumnValues counter = cursors.get();
-        for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
-            numDocsWithField++;
-            numValues += counter.valueCount();
-            numNullSlots += counter.nullCount();
+        StringColumnValues.Totals totals = counter.totals();
+        if (totals == null) {
+            int numDocsWithField = 0;
+            long numValues = 0;
+            long numNullSlots = 0;
+            for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
+                numDocsWithField++;
+                numValues += counter.valueCount();
+                numNullSlots += counter.nullCount();
+            }
+            totals = new StringColumnValues.Totals(numDocsWithField, numValues, numNullSlots);
         }
 
         StringColumnMetadata metadata = StringColumnWriter.write(
             maxDoc,
-            numDocsWithField,
-            numValues,
-            numNullSlots,
+            totals.numDocsWithField(),
+            totals.numValues(),
+            totals.numNullSlots(),
             cursors,
             ValueStream.VALUES_PER_BLOCK,
             ChunkCodec.ZSTD,

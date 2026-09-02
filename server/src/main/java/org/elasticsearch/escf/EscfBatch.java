@@ -149,7 +149,7 @@ public final class EscfBatch implements SourceBatch {
             }
             return size;
         }
-        // // Slice views share the parent's backing; materialize each column's parent's data.
+        // Slice views share the parent's backing; materialize each column's parent's data.
         for (EscfColumn column : columns) {
             size += valueBytes(column.toColumnData());
         }

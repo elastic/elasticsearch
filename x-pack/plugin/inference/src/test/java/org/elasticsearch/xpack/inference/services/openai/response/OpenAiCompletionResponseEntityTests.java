@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.openai.response;
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
+public class OpenAiCompletionResponseEntityTests extends ESTestCase {
 
     public void testFromResponse_CreatesResultsForASingleItem() throws IOException {
         String responseJson = """
@@ -50,13 +50,13 @@ public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
             }
             """;
 
-        ChatCompletionResults chatCompletionResults = OpenAiChatCompletionResponseEntity.fromResponse(
+        CompletionResults completionResults = OpenAiCompletionResponseEntity.fromResponse(
             mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(chatCompletionResults.getResults().size(), is(1));
-        assertThat(chatCompletionResults.getResults().get(0).content(), is("result"));
+        assertThat(completionResults.getResults().size(), is(1));
+        assertThat(completionResults.getResults().get(0).content(), is("result"));
     }
 
     public void testFromResponse_FailsWhenChoicesFieldIsNotPresent() {
@@ -88,7 +88,7 @@ public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
 
         var thrownException = expectThrows(
             IllegalArgumentException.class,
-            () -> OpenAiChatCompletionResponseEntity.fromResponse(
+            () -> OpenAiCompletionResponseEntity.fromResponse(
                 mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
@@ -126,7 +126,7 @@ public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
 
         var thrownException = expectThrows(
             XContentParseException.class,
-            () -> OpenAiChatCompletionResponseEntity.fromResponse(
+            () -> OpenAiCompletionResponseEntity.fromResponse(
                 mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
@@ -164,7 +164,7 @@ public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
 
         var thrownException = expectThrows(
             XContentParseException.class,
-            () -> OpenAiChatCompletionResponseEntity.fromResponse(
+            () -> OpenAiCompletionResponseEntity.fromResponse(
                 mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
@@ -199,7 +199,7 @@ public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
 
         var thrownException = expectThrows(
             XContentParseException.class,
-            () -> OpenAiChatCompletionResponseEntity.fromResponse(
+            () -> OpenAiCompletionResponseEntity.fromResponse(
                 mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )

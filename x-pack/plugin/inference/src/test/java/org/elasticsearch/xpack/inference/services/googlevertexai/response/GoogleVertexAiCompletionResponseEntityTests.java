@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.response;
 import org.apache.http.HttpResponse;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
@@ -70,8 +70,8 @@ public class GoogleVertexAiCompletionResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assert parsedResults instanceof ChatCompletionResults;
-        var results = (ChatCompletionResults) parsedResults;
+        assert parsedResults instanceof CompletionResults;
+        var results = (CompletionResults) parsedResults;
 
         assertThat(results.isStreaming(), is(false));
         assertThat(results.results().size(), is(1));

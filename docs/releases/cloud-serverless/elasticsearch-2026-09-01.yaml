@@ -630,30 +630,6 @@ entries:
   issues:
   - https://github.com/elastic/elasticsearch/issues/156822
 - file:
-    name: 157625.yaml
-    checksum: 49a7454ba46dd3f31b070f51855e4cecd6990184
-  type: enhancement
-  title: Avoid reading Parquet data past the `LIMIT` clause in ES|QL
-  products:
-  - product: cloud-serverless
-  - product: elasticsearch
-  areas:
-  - ES|QL
-  prs:
-  - https://github.com/elastic/elasticsearch/pull/157625
-- file:
-    name: 157920.yaml
-    checksum: de093746a0da6258640ca964d3778a63ee5721d0
-  type: enhancement
-  title: Limit ES|QL Parquet prefetch size by queued byte count
-  products:
-  - product: cloud-serverless
-  - product: elasticsearch
-  areas:
-  - ES|QL
-  prs:
-  - https://github.com/elastic/elasticsearch/pull/157920
-- file:
     name: 157536.yaml
     checksum: 1bfc094d6b0cf5b4d30f74d32b1e1927873af1ad
   type: enhancement
@@ -663,20 +639,6 @@ entries:
   - product: elasticsearch
   prs:
   - https://github.com/elastic/elasticsearch/pull/157536
-- file:
-    name: 157869.yaml
-    checksum: 00f1abef3d7f9cd22c545cf64666ec7324e0f88e
-  type: bug-fix
-  title: Fix ES|QL Parquet read window extending past the end of the file
-  products:
-  - product: cloud-serverless
-  - product: elasticsearch
-  areas:
-  - ES|QL
-  prs:
-  - https://github.com/elastic/elasticsearch/pull/157869
-  issues:
-  - https://github.com/elastic/elasticsearch/issues/154938
 - file:
     name: 157701.yaml
     checksum: 7bce90595dd80e6539aa9da825edea6c5a8adbb5

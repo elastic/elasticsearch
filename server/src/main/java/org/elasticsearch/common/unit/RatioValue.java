@@ -74,6 +74,7 @@ public class RatioValue implements Writeable {
      *                                     or if the provided string cannot be parsed as a double
      */
     public static RatioValue parseRatioValue(String sValue, RatioValue lowerBoundInclusive, RatioValue upperBoundInclusive) {
+        validateBounds(lowerBoundInclusive, upperBoundInclusive);
         if (sValue.endsWith("%")) {
             final String percentAsString = sValue.substring(0, sValue.length() - 1);
             try {
@@ -105,6 +106,15 @@ public class RatioValue implements Writeable {
             } catch (NumberFormatException e) {
                 throw new ElasticsearchParseException("Invalid ratio or percentage [{}]", sValue);
             }
+        }
+    }
+
+    private static void validateBounds(RatioValue lowerBoundInclusive, RatioValue upperBoundInclusive) {
+        if (lowerBoundInclusive == null || upperBoundInclusive == null) {
+            throw new IllegalArgumentException("lowerBoundInclusive and upperBoundInclusive must not be null");
+        }
+        if (lowerBoundInclusive.getAsPercent() > upperBoundInclusive.getAsPercent()) {
+            throw new IllegalArgumentException("lowerBoundInclusive must be less than or equal to upperBoundInclusive");
         }
     }
 

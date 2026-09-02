@@ -325,4 +325,111 @@ public class KeyValueWriterTests extends ESTestCase {
         assertKvEquals("""
             {"l0":{"l1":{"l2":{"l3":{"l4":{"leaf":7}}}}}}""", writer.toBytes());
     }
+
+    public void testEndObjectFieldWithoutBeginThrows() {
+        KeyValueWriter writer = KeyValueWriter.forObjectPayload();
+        expectThrows(IllegalStateException.class, writer::endObjectField);
+    }
+
+    public void testUnclosedNestedObjectToBytesThrows() {
+        KeyValueWriter writer = KeyValueWriter.forObjectPayload();
+        writer.beginObjectField("outer");
+        writer.writeIntField("inner", 1);
+        expectThrows(IllegalStateException.class, writer::toBytes);
+    }
+
+    public void testWriteStringFieldWithOutOfBoundsSliceThrows() {
+        KeyValueWriter writer = KeyValueWriter.forObjectPayload();
+        byte[] buf = "abc".getBytes(UTF_8);
+        expectThrows(IndexOutOfBoundsException.class, () -> writer.writeStringField("s", buf, 1, 5));
+    }
+
+    public void testWriteStringFieldWithZeroLengthSlice() throws IOException {
+        byte[] buf = "hello".getBytes(UTF_8);
+        KeyValueWriter writer = KeyValueWriter.forObjectPayload();
+        writer.writeStringField("s", buf, 3, 0);
+        assertKvEquals("""
+            {"s":""}""", writer.toBytes());
+    }
+
+    public void testDuplicateKeysAreRetained() {
+        KeyValueWriter writer = KeyValueWriter.forObjectPayload();
+        writer.writeIntField("dup", 1);
+        writer.writeIntField("dup", 2);
+
+        KeyValueReader reader = new KeyValueReader(writer.toBytes());
+        assertTrue(reader.next());
+        assertEquals("dup", reader.key());
+        assertEquals(1, reader.intValue());
+        assertTrue(reader.next());
+        assertEquals("dup", reader.key());
+        assertEquals(2, reader.intValue());
+        assertFalse(reader.next());
+    }
+
+    public void testNonFiniteFloatAndDoubleRoundTripBitExact() {
+        KeyValueWriter writer = KeyValueWriter.forObjectPayload();
+        writer.writeFloatField("nan", Float.NaN);
+        writer.writeFloatField("inf", Float.POSITIVE_INFINITY);
+        writer.writeDoubleField("dnan", Double.NaN);
+        writer.writeDoubleField("ninf", Double.NEGATIVE_INFINITY);
+
+        KeyValueReader reader = new KeyValueReader(writer.toBytes());
+        assertTrue(reader.next());
+        assertTrue(Float.isNaN(reader.floatValue()));
+        assertTrue(reader.next());
+        assertEquals(Float.POSITIVE_INFINITY, reader.floatValue(), 0.0f);
+        assertTrue(reader.next());
+        assertTrue(Double.isNaN(reader.doubleValue()));
+        assertTrue(reader.next());
+        assertEquals(Double.NEGATIVE_INFINITY, reader.doubleValue(), 0.0);
+        assertFalse(reader.next());
+    }
+
+    public void testIntegerExtremesRoundTrip() {
+        KeyValueWriter writer = KeyValueWriter.forObjectPayload();
+        writer.writeIntField("imin", Integer.MIN_VALUE);
+        writer.writeIntField("imax", Integer.MAX_VALUE);
+        writer.writeLongField("lmin", Long.MIN_VALUE);
+        writer.writeLongField("lmax", Long.MAX_VALUE);
+
+        KeyValueReader reader = new KeyValueReader(writer.toBytes());
+        assertTrue(reader.next());
+        assertEquals(Integer.MIN_VALUE, reader.intValue());
+        assertTrue(reader.next());
+        assertEquals(Integer.MAX_VALUE, reader.intValue());
+        assertTrue(reader.next());
+        assertEquals(Long.MIN_VALUE, reader.longValue());
+        assertTrue(reader.next());
+        assertEquals(Long.MAX_VALUE, reader.longValue());
+        assertFalse(reader.next());
+    }
+
+    public void testEmptyStringAndEmptyKeyRoundTrip() {
+        KeyValueWriter writer = KeyValueWriter.forObjectPayload();
+        writer.writeStringField("", new byte[0], 0, 0);
+        writer.writeNullField("");
+
+        KeyValueReader reader = new KeyValueReader(writer.toBytes());
+        assertTrue(reader.next());
+        assertEquals("", reader.key());
+        assertEquals(SourceValueType.STRING, reader.type());
+        assertEquals("", reader.stringValue());
+        assertTrue(reader.next());
+        assertEquals("", reader.key());
+        assertEquals(SourceValueType.NULL, reader.type());
+        assertFalse(reader.next());
+    }
+
+    public void testUtf8KeyRoundTrip() {
+        String key = "caf\u00e9";
+        KeyValueWriter writer = KeyValueWriter.forObjectPayload();
+        writer.writeIntField(key, 7);
+
+        KeyValueReader reader = new KeyValueReader(writer.toBytes());
+        assertTrue(reader.next());
+        assertEquals(key, reader.key());
+        assertEquals(7, reader.intValue());
+        assertFalse(reader.next());
+    }
 }

@@ -453,9 +453,6 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cluster.stats/10_basic/Sparse vector stats}
   issue: https://github.com/elastic/elasticsearch/issues/157110
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedFormatSpecIT
-  method: test {csv-spec:external-basic.renameColumn [gzip/LOCAL]}
-  issue: https://github.com/elastic/elasticsearch/issues/157111
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
   issue: https://github.com/elastic/elasticsearch/issues/155118
@@ -501,3 +498,9 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.BulkFailureRetryIT
   method: testBulkFailureRetries
   issue: https://github.com/elastic/elasticsearch/issues/158127
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=update_by_query/10_basic/Response for version conflict with conflicts=proceed}
+  issue: https://github.com/elastic/elasticsearch/issues/158337
+- class: org.elasticsearch.common.LocalTimeOffsetTests
+  method: testOverlap
+  issue: https://github.com/elastic/elasticsearch/issues/158343

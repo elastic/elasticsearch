@@ -59,7 +59,7 @@ public class RatioValueTests extends ESTestCase {
         try {
             RatioValue.parseRatioValue(r);
             fail("Value: [" + r + "] should be an invalid ratio");
-        } catch (ElasticsearchParseException e) {
+        } catch (IllegalArgumentException | ElasticsearchParseException e) {
             // success
         }
     }

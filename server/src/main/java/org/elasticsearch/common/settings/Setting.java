@@ -1535,25 +1535,12 @@ public class Setting<T> implements ToXContentObject {
         RatioValue maxValueInclusive,
         Property... properties
     ) {
-        return new Setting<>(key, defaultValue.toString(), sValue -> {
-            final var parsedValue = RatioValue.parseRatioValue(sValue);
-            if (parsedValue.getAsPercent() < minValueInclusive.getAsPercent()
-                || parsedValue.getAsPercent() > maxValueInclusive.getAsPercent()) {
-                final Function<RatioValue, Double> rangeRenderer = sValue.endsWith("%") ? RatioValue::getAsPercent : RatioValue::getAsRatio;
-                throw new IllegalArgumentException(
-                    "Failed to parse value ["
-                        + sValue
-                        + "] for setting ["
-                        + key
-                        + "] must be in range ["
-                        + (rangeRenderer.apply(minValueInclusive))
-                        + ", "
-                        + (rangeRenderer.apply(maxValueInclusive))
-                        + "]"
-                );
-            }
-            return parsedValue;
-        }, properties);
+        return new Setting<>(
+            key,
+            defaultValue.toString(),
+            sValue -> RatioValue.parseRatioValue(sValue, minValueInclusive, maxValueInclusive),
+            properties
+        );
     }
 
     /**

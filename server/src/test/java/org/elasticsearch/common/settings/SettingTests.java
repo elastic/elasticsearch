@@ -1657,14 +1657,14 @@ public class SettingTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> pctSetting.get(Settings.builder().put("test.ratio", "5%").build())
         );
-        assertThat(ePctLow.getMessage(), equalTo("Failed to parse value [5%] for setting [test.ratio] must be in range [10.0, 90.0]"));
+        assertThat(ePctLow.getMessage(), equalTo("Percentage should be in [10.0-90.0], got [5]"));
 
         // percentage above max
         var ePctHigh = expectThrows(
             IllegalArgumentException.class,
             () -> pctSetting.get(Settings.builder().put("test.ratio", "95%").build())
         );
-        assertThat(ePctHigh.getMessage(), equalTo("Failed to parse value [95%] for setting [test.ratio] must be in range [10.0, 90.0]"));
+        assertThat(ePctHigh.getMessage(), equalTo("Percentage should be in [10.0-90.0], got [95]"));
 
         // ratio form
         Setting<RatioValue> ratioSetting = Setting.ratioSetting(
@@ -1680,14 +1680,14 @@ public class SettingTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> ratioSetting.get(Settings.builder().put("test.ratio", "0.05").build())
         );
-        assertThat(eRatioLow.getMessage(), equalTo("Failed to parse value [0.05] for setting [test.ratio] must be in range [0.1, 0.9]"));
+        assertThat(eRatioLow.getMessage(), equalTo("Ratio should be in [0.1-0.9], got [0.05]"));
 
         // ratio above max
         var eRatioHigh = expectThrows(
             IllegalArgumentException.class,
             () -> ratioSetting.get(Settings.builder().put("test.ratio", "0.95").build())
         );
-        assertThat(eRatioHigh.getMessage(), equalTo("Failed to parse value [0.95] for setting [test.ratio] must be in range [0.1, 0.9]"));
+        assertThat(eRatioHigh.getMessage(), equalTo("Ratio should be in [0.1-0.9], got [0.95]"));
     }
 
     public void testBoundedRatioSettingRejectsOutOfBoundsDefault() {

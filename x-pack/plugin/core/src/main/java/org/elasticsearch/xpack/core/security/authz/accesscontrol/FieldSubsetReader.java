@@ -82,14 +82,16 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      * @param in       reader to filter
      * @param filter   fields to filter.
      * @param isMapped whether a field is mapped or not.
+     * @param getParentField
      */
     public static DirectoryReader wrap(
         DirectoryReader in,
         CharacterRunAutomaton filter,
         IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
-        Function<String, Boolean> isMapped
+        Function<String, Boolean> isMapped,
+        Function<String, String> getParentField
     ) throws IOException {
-        return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat, isMapped);
+        return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat, isMapped, getParentField);
     }
 
     // wraps subreaders with fieldsubsetreaders.
@@ -98,18 +100,20 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         private final CharacterRunAutomaton filter;
         private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
         private final Function<String, Boolean> isMapped;
+        private final Function<String, String> getParentField;
 
         FieldSubsetDirectoryReader(
             DirectoryReader in,
             final CharacterRunAutomaton filter,
             final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
-            Function<String, Boolean> isMapped
+            Function<String, Boolean> isMapped,
+            Function<String, String> getParentField
         ) throws IOException {
             super(in, new FilterDirectoryReader.SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
                     try {
-                        return new FieldSubsetReader(reader, filter, ignoredSourceFormat, isMapped);
+                        return new FieldSubsetReader(reader, filter, ignoredSourceFormat, isMapped, getParentField);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -118,12 +122,13 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             this.filter = filter;
             this.ignoredSourceFormat = ignoredSourceFormat;
             this.isMapped = isMapped;
+            this.getParentField = getParentField;
             verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(in);
         }
 
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat, isMapped);
+            return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat, isMapped, getParentField);
         }
 
         /** Return the automaton that is used to filter fields. */
@@ -151,6 +156,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     /** List of filtered fields */
     private final FieldInfos fieldInfos;
+    private final Function<String, String> getParentField;
     /** An automaton that only accepts authorized fields. */
     private final CharacterRunAutomaton filter;
     private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
@@ -164,7 +170,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         LeafReader in,
         CharacterRunAutomaton filter,
         IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
-        Function<String, Boolean> isMapped
+        Function<String, Boolean> isMapped,
+        Function<String, String> getParentField
     ) throws IOException {
         super(in);
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
@@ -202,10 +209,15 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             }
 
             if (filter.run(name)) {
+                String parentField = getParentField.apply(name);
+                if (parentField != null && filter.run(parentField) == false) {
+                    continue;
+                }
                 filteredInfos.add(fi);
             }
         }
         fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
+        this.getParentField = getParentField;
         this.filter = filter;
         this.ignoredSourceFormat = ignoredSourceFormat;
     }

@@ -131,6 +131,22 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         this.buffer.limit(0);
     }
 
+    // pkg private for testing — accepts a pre-opened FileChannel so tests can inject a wrapper (e.g. one that blocks reads
+    // on a latch to create deterministic races between close() and in-flight prefetches)
+    AsyncDirectIOIndexInput(FileChannel channel, int blockSize, int bufferSize, int maxPrefetches) throws IOException {
+        super("DirectIOIndexInput(channel=" + channel + ")");
+        this.channel = channel;
+        this.blockSize = blockSize;
+        this.prefetcher = new DirectIOPrefetcher(blockSize, this.channel, bufferSize, maxPrefetches);
+        this.buffer = allocateBuffer(bufferSize, blockSize);
+        this.isOpen = true;
+        this.isClosable = true;
+        this.length = channel.size();
+        this.offset = 0L;
+        this.filePos = -bufferSize;
+        this.buffer.limit(0);
+    }
+
     // for clone/slice
     private AsyncDirectIOIndexInput(String description, AsyncDirectIOIndexInput other, long offset, long length) throws IOException {
         super(description);
@@ -185,9 +201,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
 
     @Override
     public void close() throws IOException {
-        // Each input owns its prefetcher exclusively, so shutting it down is always safe.
         prefetcher.close();
-        // Closing the shared channel is only done by the root.
         if (isOpen && isClosable) {
             channel.close();
             isOpen = false;
@@ -574,6 +588,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
 
         @Override
         public void close() {
+            // Use shutdown instead of shutdownNow to prevent interrupting in-flight reads, which would close the channel.
             executor.shutdown();
         }
     }

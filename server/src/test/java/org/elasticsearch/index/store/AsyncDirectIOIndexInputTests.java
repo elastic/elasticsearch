@@ -26,6 +26,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -242,6 +244,7 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
         doTestCloseDoesNotCloseSharedChannel(true);
     }
 
+    @SuppressForbidden(reason = "requires FileChannel#open and FilterFileChannel#read for deterministic race injection")
     private void doTestCloseDoesNotCloseSharedChannel(boolean useClone) throws IOException {
         Path path = createTempDir("testCloseDoesNotCloseSharedChannel");
         int blockSize = getBlockSize(path);
@@ -252,12 +255,59 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
             try (var output = dir.createOutput("test", org.apache.lucene.store.IOContext.DEFAULT)) {
                 output.writeBytes(fileData, fileData.length);
             }
-            try (AsyncDirectIOIndexInput parent = new AsyncDirectIOIndexInput(path.resolve("test"), blockSize, BASE_BUFFER_SIZE, 2)) {
-                IndexInput child = useClone ? parent.clone() : parent.slice("child", 0, parent.length());
-                child.prefetch(BASE_BUFFER_SIZE, BASE_BUFFER_SIZE);
-                child.close();
+        }
 
-                // seek past the initial buffer to force a channel read; channel is expected to be open.
+        // Latches make the race deterministic: the prefetch virtual thread parks inside FileChannel.read until
+        // the test has called child.close(), ensuring shutdownNow() (pre-fix) always races an in-flight read.
+        CountDownLatch readStarted = new CountDownLatch(1);
+        CountDownLatch allowRead = new CountDownLatch(1);
+        CountDownLatch readDone = new CountDownLatch(1);
+        AtomicBoolean blockReads = new AtomicBoolean(false);
+
+        try (
+            java.nio.channels.FileChannel realChannel = java.nio.channels.FileChannel.open(
+                path.resolve("test"),
+                java.nio.file.StandardOpenOption.READ
+            )
+        ) {
+            var blockingChannel = new org.apache.lucene.tests.mockfile.FilterFileChannel(realChannel) {
+                @Override
+                public int read(java.nio.ByteBuffer dst, long position) throws IOException {
+                    if (blockReads.get()) {
+                        readStarted.countDown();
+                        try {
+                            allowRead.await();
+                        } catch (InterruptedException e) {
+                            // Restore the flag so the subsequent FileChannel.read sees it and throws ClosedByInterruptException,
+                            // closing the channel — that is precisely the pre-fix failure mode we are testing against.
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                    try {
+                        return super.read(dst, position);
+                    } finally {
+                        if (blockReads.get()) {
+                            readDone.countDown();
+                        }
+                    }
+                }
+            };
+
+            try (AsyncDirectIOIndexInput parent = new AsyncDirectIOIndexInput(blockingChannel, blockSize, BASE_BUFFER_SIZE, 2)) {
+                IndexInput child = useClone ? parent.clone() : parent.slice("child", 0, parent.length());
+
+                blockReads.set(true);
+                child.prefetch(BASE_BUFFER_SIZE, BASE_BUFFER_SIZE); // submits a virtual thread that will park in read()
+                try {
+                    readStarted.await(); // wait until the virtual thread is inside read()
+                    child.close(); // pre-fix: shutdownNow() interrupts the parked thread; post-fix: shutdown() does not
+                    allowRead.countDown(); // post-fix: let the thread proceed; pre-fix: thread already exited via interrupt
+                    readDone.await(); // wait for the read attempt to finish before checking the channel state
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+
+                // ClosedChannelException here means close() indirectly closed the shared channel
                 parent.seek(BASE_BUFFER_SIZE);
                 assertEquals(fileData[BASE_BUFFER_SIZE], parent.readByte());
             }

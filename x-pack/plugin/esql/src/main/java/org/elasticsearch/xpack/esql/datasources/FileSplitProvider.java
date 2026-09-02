@@ -13,6 +13,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -886,14 +887,13 @@ public class FileSplitProvider implements SplitProvider {
                         probeTasks.add(new ProbeTask(deferred, position));
                     }
                 }
-                List<RecordBoundaryProbe.Outcome> outcomes = BoundedParallelGather.gather(probeTasks, probe -> {
-                    long cpuStart = ThreadCpuTimer.currentNanos();
-                    try {
-                        return runProbe(probe, probeWindowBytes, isCancelled);
-                    } finally {
-                        if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
-                    }
-                }, splitDiscoveryConcurrency(), executor);
+
+                List<RecordBoundaryProbe.Outcome> outcomes = runGather(
+                    probeTasks,
+                    probe -> runProbe(probe, probeWindowBytes, isCancelled),
+                    splitDiscoveryConcurrency(),
+                    executor
+                );
 
                 // Results come back in input order, and each file's offsets were added in ascending order, so
                 // grouping by file preserves the ascending order the reduction requires.
@@ -909,6 +909,22 @@ public class FileSplitProvider implements SplitProvider {
             return outcomesByFile;
         } catch (Exception e) {
             throw ExternalFailures.surface(e, "Failed to discover splits");
+        }
+    }
+
+    private <T, R> List<R> runGather(List<T> items, CheckedFunction<T, R, Exception> task, int concurrency, Executor executor)
+        throws Exception {
+        if (BoundedParallelGather.executesInline(items)) {
+            return BoundedParallelGather.gather(items, task, concurrency, executor);
+        } else {
+            return BoundedParallelGather.gather(items, (T probe) -> {
+                long cpuStart = ThreadCpuTimer.currentNanos();
+                try {
+                    return task.apply(probe);
+                } finally {
+                    if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
+                }
+            }, concurrency, executor);
         }
     }
 

@@ -91,7 +91,9 @@ public final class TextRowRenderer {
         if (value == null) {
             // \N in ESCAPED, empty elsewhere: an escaped empty field is indistinguishable from an empty
             // string, and the two mean different things to the reader.
-            return dialect == Dialect.ESCAPED ? "\\N" : "";
+            // The null spelling rides the ESCAPE character: with escape=~ the reader decodes ~N, not \N.
+            // Hard-coding the backslash here wrote a null the reader would read as the literal text "\N".
+            return dialect == Dialect.ESCAPED ? escapeChar + "N" : "";
         }
         if (value instanceof List<?> list) {
             if (dialect != Dialect.QUOTED) {

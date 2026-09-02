@@ -93,7 +93,16 @@ public final class CsvFixtureGenerator {
             boolean headerRow = "false".equals(pinned.get("header_row")) == false;
             String delimiterName = pinned.getOrDefault("delimiter", dimensions.defaultValue("delimiter", format));
             char delimiter = dimensions.delimiterChar(delimiterName);
-            TextRowRenderer renderer = new TextRowRenderer(delimiter, dialect, headerRow);
+            // Every character the vector pins, not just the delimiter. Passing the 3-arg constructor here
+            // left quote and escape at their defaults while readSettings announced the pinned values to
+            // the reader -- bytes written with one grammar, read as another, which parses cleanly and
+            // means something else. The capability rows claimed these cells were rendered; they were not.
+            char quoteChar = dimensions.charValue("quote", pinned.getOrDefault("quote", dimensions.defaultValue("quote", format)));
+            char escapeChar = dimensions.charValue(
+                "escape",
+                pinned.getOrDefault("escape", dimensions.defaultValue("escape", format))
+            );
+            TextRowRenderer renderer = new TextRowRenderer(delimiter, quoteChar, escapeChar, dialect, headerRow);
             Path slugRoot = outputRoot.resolve("vector").resolve(slug.getKey()).resolve("standalone");
             Files.createDirectories(slugRoot);
             for (String dataset : matrix.datasetsFor(format)) {

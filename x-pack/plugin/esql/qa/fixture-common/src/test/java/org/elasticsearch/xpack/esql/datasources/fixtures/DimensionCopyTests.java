@@ -12,8 +12,11 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -23,7 +26,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 /**
  * Fails when our own code re-lists a dimension's values instead of reading them from the contract.
@@ -62,12 +64,30 @@ public class DimensionCopyTests extends ESTestCase {
 
         List<String> offenders = new ArrayList<>();
         List<Path> sources = new ArrayList<>();
-        try (Stream<Path> walk = Files.walk(qaRoot)) {
-            walk.filter(p -> p.toString().endsWith(".java"))
-                .filter(p -> p.toString().contains("/build/") == false)
-                .filter(p -> CONTRACT_OWNERS.contains(p.getFileName().toString()) == false)
-                .forEach(sources::add);
-        }
+        // Prune build directories during traversal rather than filtering afterwards: the test runner writes
+        // and deletes temp files under build/ while this walks, so a post-hoc filter still descends into a
+        // tree that is moving and Files.walk throws NoSuchFileException. A gate that fails on its own
+        // scratch directory teaches nothing.
+        Files.walkFileTree(qaRoot, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                return dir.getFileName().toString().equals("build") ? FileVisitResult.SKIP_SUBTREE : FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                String name = file.getFileName().toString();
+                if (name.endsWith(".java") && CONTRACT_OWNERS.contains(name) == false) {
+                    sources.add(file);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                return FileVisitResult.CONTINUE;
+            }
+        });
         assertFalse("walked no sources -- the gate would pass vacuously", sources.isEmpty());
 
         for (Path source : sources) {

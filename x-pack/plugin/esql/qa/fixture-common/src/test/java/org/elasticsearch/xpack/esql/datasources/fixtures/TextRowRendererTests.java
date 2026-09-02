@@ -103,4 +103,42 @@ public class TextRowRendererTests extends ESTestCase {
         String out = new TextRowRenderer('\t', TextRowRenderer.Dialect.ESCAPED, false).render(fixture(new Object[] { "a,b\tc", 1 }));
         assertThat(out, equalTo("a,b\\tc\t1\n"));
     }
+
+    /**
+     * A non-default quote character is actually used.
+     *
+     * <p>Untested until now, and that gap let a real defect ship: both generators called the 3-arg
+     * constructor, so quote and escape stayed at their defaults while the suite announced the pinned
+     * values to the reader. Bytes written with one grammar and read as another parse cleanly and mean
+     * something else -- the failure with no symptom.
+     */
+    public void testQuoteCharacterIsHonoured() {
+        String out = new TextRowRenderer(',', '\'', '\\', TextRowRenderer.Dialect.QUOTED, false).render(fixture(new Object[] { "a,b", 1 }));
+        assertThat(out, equalTo("'a,b',1\n"));
+        assertThat("the default quote must not appear", out.contains("\""), equalTo(false));
+    }
+
+    /** An internal occurrence of the configured quote is doubled, like the default one is. */
+    public void testConfiguredQuoteIsDoubledWhenItAppearsInAValue() {
+        String out = new TextRowRenderer(',', '\'', '\\', TextRowRenderer.Dialect.QUOTED, false).render(
+            fixture(new Object[] { "it's", 1 })
+        );
+        assertThat(out, equalTo("'it''s',1\n"));
+    }
+
+    /** A non-default escape character is used for the delimiter, the quote, and itself. */
+    public void testEscapeCharacterIsHonoured() {
+        String out = new TextRowRenderer(',', '"', '~', TextRowRenderer.Dialect.ESCAPED, false).render(
+            fixture(new Object[] { "a,b~c", 1 })
+        );
+        assertThat(out, equalTo("a~,b~~c,1\n"));
+        assertThat("the default escape must not appear", out.contains("\\"), equalTo(false));
+    }
+
+    /** The null spelling rides the escape character rather than a hard-coded backslash. */
+    public void testNullSpellingUsesTheConfiguredEscape() {
+        String out = new TextRowRenderer(',', '"', '~', TextRowRenderer.Dialect.ESCAPED, false).render(fixture(new Object[] { null, 1 }));
+        assertThat(out, equalTo("~N,1\n"));
+    }
+
 }

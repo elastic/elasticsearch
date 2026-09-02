@@ -84,6 +84,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomB
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesAutomatonQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
@@ -336,8 +337,8 @@ public final class TextFieldMapper extends FieldMapper {
             IndexMode indexMode = indexSettings.getMode();
             this.norms = Parameter.normsParam(m -> ((TextFieldMapper) m).norms, () -> {
                 if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DISABLE_NORMS_BY_DEFAULT_FOR_LOGSDB_AND_TSDB)) {
-                    // don't enable norms by default if the index mode is columnar.
-                    return indexMode == null || !indexMode.isColumnar();
+                    // Columnar modes disable norms by default, except the ones where text relevance scoring is important.
+                    return indexMode == null || indexMode.isColumnar() == false || indexMode.isSearchOptimizedColumnar();
                 }
                 // bwc - historically, norms were enabled by default on text fields regardless of which index mode was used
                 return true;
@@ -1044,7 +1045,7 @@ public final class TextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                return new ScanningBinaryDocValuesWildcardQuery(name(), value, caseInsensitive, binaryFormat());
+                return ScanningBinaryDocValuesAutomatonQuery.forWildcard(name(), value, caseInsensitive, binaryFormat());
             }
             if (caseInsensitive == false) {
                 Term term = new Term(name(), value);

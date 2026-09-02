@@ -1545,6 +1545,13 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL_DEEPLY_NESTED,
 
         /**
+         * Support IN subquery as a direct operand of the {@code ==} and {@code !=} operators, e.g.
+         * {@code WHERE (x IN (FROM sub)) == true}, in the {@code WHERE} and {@code EVAL} commands and in the
+         * {@code STATS} / {@code INLINE STATS} per-aggregate {@code WHERE} filters.
+         */
+        WHERE_IN_SUBQUERY_WITH_EQUALS_NOT_EQUALS,
+
+        /**
          * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
          */
         WHERE_IN_MULTI_COLUMN_SUBQUERY(Build.current().isSnapshot()),
@@ -3714,6 +3721,13 @@ public class EsqlCapabilities {
          * in the layout; without that, execution fails with {@code can't find input for [topk(...)]}.
          */
         FIX_PROMQL_TOPK_OVER_AGGREGATE,
+
+        /**
+         * Support for the PromQL {@code label_replace} and {@code label_join} metadata-manipulation functions, when the
+         * derived destination label is consumed by an enclosing {@code by(...)} aggregation. The destination may be a new
+         * label or may overwrite a stored label (a dimension or {@code __name__}).
+         */
+        PROMQL_LABEL_FUNCTIONS(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over

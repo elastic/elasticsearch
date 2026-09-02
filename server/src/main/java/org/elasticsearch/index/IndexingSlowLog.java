@@ -219,7 +219,11 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         final long avgTook = totalTook / successCount;
         final long startingSeqNo = batch.seqNo(0);
         final int docCount = batch.docCount();
-        logIfSlow(avgTook, () -> IndexingSlowLogMessage.ofBatch(loggingFields.logFields(), index, startingSeqNo, docCount, avgTook));
+        final int finalSuccessCount = successCount;
+        logIfSlow(
+            avgTook,
+            () -> IndexingSlowLogMessage.ofBatch(loggingFields.logFields(), index, startingSeqNo, docCount, finalSuccessCount, avgTook)
+        );
     }
 
     @Override
@@ -260,6 +264,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             Index index,
             long startingSeqNo,
             int docCount,
+            int successCount,
             long avgTookInNanos
         ) {
             Map<String, Object> map = new HashMap<>();
@@ -268,6 +273,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             map.put("elasticsearch.slowlog.took_millis", String.valueOf(TimeUnit.NANOSECONDS.toMillis(avgTookInNanos)));
             map.put("elasticsearch.slowlog.starting_seq_no", startingSeqNo);
             map.put("elasticsearch.slowlog.doc_count", docCount);
+            map.put("elasticsearch.slowlog.success_count", successCount);
             map.putAll(additionalFields);
             return new ESLogMessage().withFields(map);
         }

@@ -515,7 +515,8 @@ public final class IndexOperationBatch {
     public int estimatedBytes() {
         int estimate = 0;
         for (int i = 0; i < docCount; i++) {
-            estimate += uids[offset + i].length;
+            final BytesRef uid = uids[offset + i];
+            estimate += uid != null ? uid.length : 0;
         }
         if (sourceBatch != null) {
             estimate += sourceBatch.estimatedBytes();

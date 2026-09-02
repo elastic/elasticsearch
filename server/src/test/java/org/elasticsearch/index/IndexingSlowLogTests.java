@@ -167,9 +167,10 @@ public class IndexingSlowLogTests extends ESTestCase {
         Index index = new Index("foo", "123");
 
         // 100ms average per document, expressed in nanos; ESLogMessage#get returns every field as a String
-        ESLogMessage p = IndexingSlowLogMessage.ofBatch(Map.of(), index, 7L, 5, TimeUnit.MILLISECONDS.toNanos(100));
+        ESLogMessage p = IndexingSlowLogMessage.ofBatch(Map.of(), index, 7L, 5, 5, TimeUnit.MILLISECONDS.toNanos(100));
         assertThat(p.get("elasticsearch.slowlog.starting_seq_no"), equalTo("7"));
         assertThat(p.get("elasticsearch.slowlog.doc_count"), equalTo("5"));
+        assertThat(p.get("elasticsearch.slowlog.success_count"), equalTo("5"));
         assertThat(p.get("elasticsearch.slowlog.took_millis"), equalTo("100"));
     }
 

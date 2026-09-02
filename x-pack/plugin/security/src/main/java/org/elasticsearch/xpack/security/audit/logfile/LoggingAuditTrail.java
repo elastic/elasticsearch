@@ -164,7 +164,9 @@ import static org.elasticsearch.xpack.security.audit.AuditLevel.SECURITY_CONFIG_
 import static org.elasticsearch.xpack.security.audit.AuditLevel.SYSTEM_ACCESS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.TAMPERED_REQUEST;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
+import static org.elasticsearch.xpack.security.audit.AuditUtil.hasProtobufContent;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
+import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestRawContent;
 
 public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
@@ -212,6 +214,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String URL_QUERY_FIELD_NAME = "url.query";
     public static final String REQUEST_METHOD_FIELD_NAME = "request.method";
     public static final String REQUEST_BODY_FIELD_NAME = "request.body";
+    public static final String RAW_REQUEST_BODY_FIELD_NAME = "request.raw_body";
+    public static final String RAW_REQUEST_BODY_CONTENT_TYPE_FIELD_NAME = "request.raw_body_content_type";
+    public static final String RAW_REQUEST_BODY_CONTENT_ENCODING_FIELD_NAME = "request.raw_body_content_encoding";
     public static final String REQUEST_ID_FIELD_NAME = "request.id";
     public static final String ACTION_FIELD_NAME = "action";
     public static final String INDICES_FIELD_NAME = "indices";
@@ -1765,19 +1770,39 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         LogEntryBuilder withRequestBody(RestRequest request) {
             if (includeRequestBody) {
-                var renderer = new RequestBodyRenderer(maxRequestBodyBytes, circuitBreaker, "audit-body");
-                try {
-                    final String requestContent = restRequestContent(request, MAX_REQUEST_BODY_SIZE.getKey(), renderer);
-                    bodyRenderer = renderer;
-                    if (Strings.hasLength(requestContent)) {
-                        logEntry.with(REQUEST_BODY_FIELD_NAME, requestContent);
+                if (hasProtobufContent(request)) {
+                    withRawRequestBody(request);
+                } else {
+                    var renderer = new RequestBodyRenderer(maxRequestBodyBytes, circuitBreaker, "audit-body");
+                    try {
+                        final String requestContent = restRequestContent(request, MAX_REQUEST_BODY_SIZE.getKey(), renderer);
+                        bodyRenderer = renderer;
+                        if (Strings.hasLength(requestContent)) {
+                            logEntry.with(REQUEST_BODY_FIELD_NAME, requestContent);
+                        }
+                    } catch (Exception e) {
+                        renderer.close();
+                        throw e;
                     }
-                } catch (Exception e) {
-                    renderer.close();
-                    throw e;
                 }
             }
             return this;
+        }
+
+        private void withRawRequestBody(RestRequest request) {
+            final String rawContent = restRequestRawContent(request, maxRequestBodyBytes, MAX_REQUEST_BODY_SIZE.getKey());
+            if (Strings.hasLength(rawContent) == false) {
+                return;
+            }
+            logEntry.with(RAW_REQUEST_BODY_FIELD_NAME, rawContent);
+            final String contentType = request.header("Content-Type");
+            if (Strings.hasLength(contentType)) {
+                logEntry.with(RAW_REQUEST_BODY_CONTENT_TYPE_FIELD_NAME, contentType);
+            }
+            final String contentEncoding = request.header("Content-Encoding");
+            if (Strings.hasLength(contentEncoding)) {
+                logEntry.with(RAW_REQUEST_BODY_CONTENT_ENCODING_FIELD_NAME, contentEncoding);
+            }
         }
 
         LogEntryBuilder withRequestId(String requestId) {

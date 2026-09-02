@@ -3324,6 +3324,11 @@ public class EsqlCapabilities {
         PROMQL_TIMESTAMP,
 
         /**
+         * Support for PromQL {@code changes()} function.
+         */
+        PROMQL_CHANGES(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the {@code timeout} option in the {@code COMPLETION} and {@code RERANK} commands
          * and the {@code TEXT_EMBEDDING} function.
          */

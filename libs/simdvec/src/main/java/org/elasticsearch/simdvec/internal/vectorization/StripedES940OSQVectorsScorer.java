@@ -56,11 +56,6 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
         this.indexBitScale = bitScale(encoding.indexBits());
     }
 
-    private static int planeBytes(QuantEncoding encoding, int dataLength) {
-        assert dataLength % encoding.indexBits() == 0 : "data length " + dataLength + " is not " + encoding.indexBits() + " whole planes";
-        return dataLength / encoding.indexBits();
-    }
-
     /**
      * Applies the corrections that follow the data vectors in the input, returning the maximum score.
      */
@@ -166,7 +161,12 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
                 dimensions,
                 dataLength,
                 bulkSize,
-                PanamaBBQDotProduct.create(in, encoding.indexBits(), encoding.queryBits(), planeBytes(encoding, dataLength))
+                PanamaBBQDotProduct.create(
+                    in,
+                    encoding.indexBits(),
+                    encoding.queryBits(),
+                    BBQDotProduct.planeBytes(encoding.indexBits(), dataLength)
+                )
             );
         }
 
@@ -208,7 +208,12 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
                 dimensions,
                 dataLength,
                 bulkSize,
-                NativeBBQDotProduct.create(in, encoding.indexBits(), encoding.queryBits(), planeBytes(encoding, dataLength))
+                NativeBBQDotProduct.create(
+                    in,
+                    encoding.indexBits(),
+                    encoding.queryBits(),
+                    BBQDotProduct.planeBytes(encoding.indexBits(), dataLength)
+                )
             );
         }
 

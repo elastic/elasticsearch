@@ -9,6 +9,7 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.internal.BufferScratch;
 
@@ -57,7 +58,17 @@ public class BBQDotProduct {
      * @param planeBytes bytes in a single bit-plane, {@code ceil(dimensions / 8)}
      */
     public static BBQDotProduct create(IndexInput in, int docBits, int queryBits, int planeBytes) {
+        // a single-plane query already needs only one pass per data plane, so it gains nothing from a specialisation
+        if (queryBits == 4) {
+            return new Q4DxImpl(in, docBits, planeBytes);
+        }
         return new BBQDotProduct(in, docBits, queryBits, planeBytes);
+    }
+
+    /** Plane width of a bit-plane encoded vector, which stores exactly one plane per data bit */
+    public static int planeBytes(int docBits, int dataLength) {
+        assert dataLength % docBits == 0 : "data length " + dataLength + " is not " + docBits + " whole planes";
+        return dataLength / docBits;
     }
 
     protected BBQDotProduct(IndexInput in, int docBits, int queryBits, int planeBytes) {
@@ -89,9 +100,9 @@ public class BBQDotProduct {
      */
     public long dotProduct(byte[] query) throws IOException {
         assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
-        byte[] docPlanes = scratch.apply(docBytes);
-        in.readBytes(docPlanes, 0, docBytes);
-        return scalarDotProduct(query, docPlanes);
+        byte[] data = scratch.apply(docBytes);
+        in.readBytes(data, 0, docBytes);
+        return dotProduct(query, data);
     }
 
     /**
@@ -126,9 +137,10 @@ public class BBQDotProduct {
     }
 
     /**
-     * Basic generalized dot-product implementation using AND popcount
+     * Basic generalized dot-product implementation using AND popcount, over a data vector already read
+     * into {@code data}.
      */
-    private long scalarDotProduct(byte[] query, byte[] data) {
+    long dotProduct(byte[] query, byte[] data) {
         long dot = 0;
         for (int qp = 0; qp < queryBits; qp++) {
             for (int dp = 0; dp < docBits; dp++) {
@@ -137,5 +149,52 @@ public class BBQDotProduct {
             }
         }
         return dot;
+    }
+
+    /** Holds an accumulator per query plane, so each data plane is read once rather than once per query plane */
+    private static final class Q4DxImpl extends BBQDotProduct {
+
+        Q4DxImpl(IndexInput in, int docBits, int planeBytes) {
+            super(in, docBits, 4, planeBytes);
+        }
+
+        @Override
+        long dotProduct(byte[] query, byte[] data) {
+            long dot = 0;
+            for (int dp = 0; dp < docBits; dp++) {
+                dot += dotProduct(query, data, dp * planeBytes, planeBytes) << dp;
+            }
+            return dot;
+        }
+
+        private static long dotProduct(byte[] q, byte[] data, int dataOffset, int size) {
+            long subRet0 = 0;
+            long subRet1 = 0;
+            long subRet2 = 0;
+            long subRet3 = 0;
+            int i = 0;
+            for (final int upperBound = size & -Long.BYTES; i < upperBound; i += Long.BYTES) {
+                final long value = (long) BitUtil.VH_LE_LONG.get(data, dataOffset + i);
+                subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
+                subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + size) & value);
+                subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * size) & value);
+                subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * size) & value);
+            }
+            for (final int upperBound = size & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
+                final int value = (int) BitUtil.VH_LE_INT.get(data, dataOffset + i);
+                subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
+                subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + size) & value);
+                subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * size) & value);
+                subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * size) & value);
+            }
+            for (; i < size; i++) {
+                final int value = data[dataOffset + i] & 0xFF;
+                subRet0 += Integer.bitCount((q[i] & value) & 0xFF);
+                subRet1 += Integer.bitCount((q[i + size] & value) & 0xFF);
+                subRet2 += Integer.bitCount((q[i + 2 * size] & value) & 0xFF);
+                subRet3 += Integer.bitCount((q[i + 3 * size] & value) & 0xFF);
+            }
+            return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
+        }
     }
 }

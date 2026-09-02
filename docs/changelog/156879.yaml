@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 156879
+summary: Request filter support for logical views
+type: bug

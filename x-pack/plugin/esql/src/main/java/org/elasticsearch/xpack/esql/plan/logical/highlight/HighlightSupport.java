@@ -34,11 +34,22 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Analysis-time helpers for derived HIGHLIGHT field lists. Does not use {@code SearchExecutionContext}.
+ * Analysis-time helpers for implicit HIGHLIGHT query and field lists. Does not use {@code SearchExecutionContext}.
  */
 public final class HighlightSupport {
 
     private HighlightSupport() {}
+
+    public static boolean isSupportedImplicitPredicate(Expression expr) {
+        return switch (expr) {
+            case Match match -> true;
+            case MatchPhrase matchPhrase -> true;
+            case QueryString queryString -> true;
+            case Kql kql -> true;
+            case BinaryLogic binary -> isSupportedImplicitPredicate(binary.left()) && isSupportedImplicitPredicate(binary.right());
+            default -> false;
+        };
+    }
 
     /**
      * Every text or keyword column of {@code childrenOutput}, in output order. This is what {@code ON *} expands to,

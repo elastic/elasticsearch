@@ -15,9 +15,11 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +39,10 @@ public class HighlightSupportTests extends ESTestCase {
         return new Match(EMPTY, getFieldAttribute(field, KEYWORD), of(text), options);
     }
 
+    private static MatchPhrase matchPhrase(String field, String text, MapExpression options) {
+        return new MatchPhrase(EMPTY, getFieldAttribute(field, KEYWORD), of(text), options);
+    }
+
     private static QueryString queryString(String text, MapExpression options) {
         return new QueryString(EMPTY, of(text), options, TEST_CFG);
     }
@@ -47,6 +53,23 @@ public class HighlightSupportTests extends ESTestCase {
             entries.add(of(keyValue));
         }
         return new MapExpression(EMPTY, entries);
+    }
+
+    public void testSupportedImplicitPredicateShapes() {
+        Match match = match("title", "fox", null);
+        MatchPhrase phrase = matchPhrase("body", "quick fox", null);
+        QueryString qstr = queryString("fox", null);
+        Kql kql = new Kql(EMPTY, of("title: fox"), null, TEST_CFG);
+
+        assertTrue(HighlightSupport.isSupportedImplicitPredicate(match));
+        assertTrue(HighlightSupport.isSupportedImplicitPredicate(phrase));
+        assertTrue(HighlightSupport.isSupportedImplicitPredicate(qstr));
+        assertTrue(HighlightSupport.isSupportedImplicitPredicate(kql));
+        assertTrue(HighlightSupport.isSupportedImplicitPredicate(new And(EMPTY, match, phrase)));
+        assertTrue(HighlightSupport.isSupportedImplicitPredicate(new Or(EMPTY, qstr, kql)));
+        assertFalse(HighlightSupport.isSupportedImplicitPredicate(new Not(EMPTY, match)));
+        assertFalse(HighlightSupport.isSupportedImplicitPredicate(of("fox")));
+        assertFalse(HighlightSupport.isSupportedImplicitPredicate(new And(EMPTY, match, new Not(EMPTY, phrase))));
     }
 
     public void testAllHighlightableFieldsFiltersAndDeduplicates() {

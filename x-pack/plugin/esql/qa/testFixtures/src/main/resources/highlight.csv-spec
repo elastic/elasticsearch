@@ -1922,6 +1922,76 @@ The Lord of the <em>Rings</em>
 ;
 
 
+implicitQueryBareForm
+required_capability: highlight_implicit_query_and_fields
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT
+| KEEP title, highlight_title
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | <em>Return</em> of the Shadow
+;
+
+
+implicitQueryUntargetedOnFieldIsNull
+required_capability: highlight_implicit_query_and_fields
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT ON description
+| KEEP title, highlight_description
+| SORT title
+;
+
+title:text | highlight_description:keyword
+Return of the King Being the Third Part of The Lord of the Rings | null
+Return of the Shadow                                             | null
+;
+
+
+implicitQueryTwoWheresOrTogether
+required_capability: highlight_implicit_query_and_fields
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(title, "Return")
+| WHERE MATCH(author, "Tolkien")
+| HIGHLIGHT
+| KEEP title, author, highlight_title, highlight_author
+| SORT title
+;
+
+title:text | author:text | highlight_title:keyword | highlight_author:keyword
+Return of the King Being the Third Part of The Lord of the Rings | J. R. R. Tolkien                                 | <em>Return</em> of the King Being the Third Part of The Lord of the Rings | <em>Tolkien</em>
+Return of the Shadow                                             | [Christopher Tolkien, John Ronald Reuel Tolkien] | <em>Return</em> of the Shadow                                             | [Christopher <em>Tolkien</em>, John Ronald Reuel <em>Tolkien</em>]
+;
+
+
+# ON * includes multi-fields (author.keyword).
+highlightOnStar
+required_capability: highlight_implicit_query_and_fields
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT ON *
+| KEEP highlight_*
+| SORT highlight_title
+;
+
+highlight_author:keyword | highlight_author.keyword:keyword | highlight_book_no:keyword | highlight_collection:keyword | highlight_description:keyword | highlight_publisher:keyword | highlight_title:keyword
+null                     | null                             | null                      | null                         | null                          | null                        | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+null                     | null                             | null                      | null                         | null                          | null                        | <em>Return</em> of the Shadow
+;
+
+
 explicitQueryNoOnFallsBackToAllFields
 skip_flattened_rewrite: highlight_implicit_fields_exclude_flattened
 required_capability: highlight_implicit_query_and_fields
@@ -2030,3 +2100,20 @@ highlight_title:keyword     | highlight_body:keyword
 Return of the <em>King</em> | null
 ;
 
+
+implicitOnSemanticTextViaStar
+required_capability: highlight_implicit_query_and_fields
+required_capability: match_function
+
+FROM semantic_text
+| WHERE MATCH(semantic_text_field, "prosper")
+| HIGHLIGHT ON *
+| KEEP semantic_text_field, highlight_semantic_text_field
+| SORT semantic_text_field
+;
+
+semantic_text_field:text | highlight_semantic_text_field:keyword
+all we have to decide is what to do with the time that is given to us | null
+be excellent to each other                                            | null
+live long and prosper                                                 | live long and <em>prosper</em>
+;

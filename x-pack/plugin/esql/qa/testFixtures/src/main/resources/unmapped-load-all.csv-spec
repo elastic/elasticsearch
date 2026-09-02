@@ -2767,12 +2767,98 @@ message:keyword        | @timestamp:datetime      | client_ip:ip | event_duratio
 Connected to 10.1.0.1! | null                     | null         | null                | null                  | null                    | null                            | null
 ;
 
+#################
+# IN / NOT IN #
+#################
+
+loadAllUnmappedFieldAsInSubqueryLeftKey
+required_capability: optional_fields_load_all_in_subqueries
+required_capability: where_in_subquery_without_view
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword | unmapped_message:keyword
+42              | 43
+;
+
+loadAllUnmappedFieldAsNotInSubqueryLeftKey
+required_capability: optional_fields_load_all_in_subqueries
+required_capability: where_in_subquery_without_view
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE message == "42" OR message == "Connected to 10.1.0.1!"
+| WHERE unmapped_message NOT IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+loadAllUnmappedFieldAsInSubqueryLeftKeyNonAlignedNames
+required_capability: optional_fields_load_all_in_subqueries
+required_capability: where_in_subquery_without_view
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | RENAME unmapped_message AS other | KEEP other)
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword | unmapped_message:keyword
+42              | 43
+;
+
+loadAllUnmappedFieldAsInSubqueryLeftKeyWithSubqueryUnionRhs
+required_capability: optional_fields_load_all_in_subqueries
+required_capability: optional_fields_load_all_subqueries
+required_capability: where_in_subquery_without_view
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE unmapped_message IN
+    (FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message),
+          (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.3!" | KEEP unmapped_message)
+     | KEEP unmapped_message)
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.3! | Disconnected from 10.1.0.3
+;
+
+loadAllUnmappedFieldAsInSubqueryNoKeepExpandsExtras
+required_capability: optional_fields_load_all_in_subqueries
+required_capability: where_in_subquery_without_view
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
+| SORT @timestamp
+;
+
+@timestamp:datetime          | client_ip:ip | event_duration:long | message:keyword | unmapped_message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | 43                       | 2                     | e                       | 1232383
+;
+
 ###########################################################
 # Object and array expansion: flatten to leaf columns     #
 ###########################################################
 // An array-valued unmapped source field expands to a multivalue keyword column (its scalar elements), not a blind string.
 arrayFieldExpandsToMultivalue
 required_capability: optional_fields_load_all_v2
+
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_array_data

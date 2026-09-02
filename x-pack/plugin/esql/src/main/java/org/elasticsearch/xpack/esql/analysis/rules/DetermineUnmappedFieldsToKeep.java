@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
@@ -91,10 +92,12 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             return plan;
         }
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
+        boolean hasMerge = plan.anyMatch(p -> p instanceof MergePlan);
+        boolean hasInSubquery = plan.anyMatch(p -> p instanceof AbstractSubqueryJoin);
         LogicalPlan result;
-        if (plan.anyMatch(p -> p instanceof MergePlan) == false) {
+        if (hasMerge == false && hasInSubquery == false) {
             result = stampAll(plan).transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
-        } else if (pattern.isNone()) {
+        } else if (pattern.isNone() && hasInSubquery == false) {
             // Exact KEEP/STATS above a merge must not stamp or pass $$unmapped_fields through: alignment
             // Projects snapshot before this rule, and replaceChild on a ResolvingProject would re-append it.
             return plan;
@@ -195,8 +198,8 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * No {@link MergePlan} in the plan: one pattern for the whole query, stamped onto every non-LOOKUP
-     * {@link EsRelation} in a single {@code transformUp}.
+     * No {@link MergePlan} or {@link AbstractSubqueryJoin} in the plan: one pattern for the whole query,
+     * stamped onto every non-LOOKUP {@link EsRelation} in a single {@code transformUp}.
      */
     private static LogicalPlan stampAll(LogicalPlan plan) {
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
@@ -204,9 +207,11 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * Stamps {@link UnmappedFieldsAttribute} onto non-LOOKUP {@link EsRelation}s. {@link MergePlan} is the
-     * other special case: each branch is annotated with its own pattern. Every other node is only
-     * walked to reach those two; recursion stops at a union so a parent pattern cannot stamp through it.
+     * Stamps {@link UnmappedFieldsAttribute} onto non-LOOKUP {@link EsRelation}s. {@link MergePlan} is
+     * n-ary: each branch is annotated with its own pattern. {@link AbstractSubqueryJoin} is binary: the
+     * join output is the left side, so the right subquery is annotated from its own plan, not the outer
+     * pattern. Every other node is only walked to reach those; recursion stops at a union so a parent
+     * pattern cannot stamp through it.
      */
     private static LogicalPlan annotate(LogicalPlan plan, UnmappedFieldsPattern pattern) {
         if (plan instanceof MergePlan merge) {
@@ -216,13 +221,16 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             }).toList();
             return merge.replaceChildren(newChildren);
         }
+        if (plan instanceof AbstractSubqueryJoin join) {
+            return join.replaceChildren(annotate(join.left(), pattern), annotate(join.right(), computeUnmappedFieldsToKeep(join.right())));
+        }
         if (pattern.isNone()) {
             return plan;
         }
         if (plan instanceof EsRelation esr) {
             return stamp(esr, pattern);
         }
-        if (plan.anyMatch(p -> p instanceof MergePlan) == false) {
+        if (plan.anyMatch(p -> p instanceof MergePlan || p instanceof AbstractSubqueryJoin) == false) {
             return plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern));
         }
         return plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern)).toList());

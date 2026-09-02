@@ -63,21 +63,12 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
                     // Automaton wildcard "be*" matches "beta" and "best"; the all-null doc preceding "best" must not be matched.
-                    assertEquals(
-                        2,
-                        searcher.count(ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "be*", false, true))
-                    );
+                    assertEquals(2, searcher.count(ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "be*", false, true)));
                     // "*et*" short-circuits to a contains query: with a multi-valued doc present in the segment the contains fast path is
                     // gated off and the per-value decode fallback runs, so only "beta" (which contains "et") matches — not "best".
-                    assertEquals(
-                        1,
-                        searcher.count(ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*et*", false, true))
-                    );
+                    assertEquals(1, searcher.count(ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*et*", false, true)));
                     // "*ph*" contains-matches "alpha" only.
-                    assertEquals(
-                        1,
-                        searcher.count(ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*ph*", false, true))
-                    );
+                    assertEquals(1, searcher.count(ScanningBinaryDocValuesAutomatonQuery.forWildcard(fieldName, "*ph*", false, true)));
                 }
             }
         }
@@ -368,12 +359,7 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
 
     public void testVisitor() {
         Automaton automaton = Automata.makeString("hello");
-        ScanningBinaryDocValuesAutomatonQuery query = new ScanningBinaryDocValuesAutomatonQuery(
-            "my_field",
-            automaton,
-            false,
-            "desc"
-        );
+        ScanningBinaryDocValuesAutomatonQuery query = new ScanningBinaryDocValuesAutomatonQuery("my_field", automaton, false, "desc");
 
         AtomicBoolean called = new AtomicBoolean(false);
         query.visit(new QueryVisitor() {
@@ -434,21 +420,11 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
         assertNotEquals(q1, q3);
 
         // Different field → not equal.
-        ScanningBinaryDocValuesAutomatonQuery q4 = new ScanningBinaryDocValuesAutomatonQuery(
-            "other_field",
-            automaton1,
-            false,
-            "desc-a"
-        );
+        ScanningBinaryDocValuesAutomatonQuery q4 = new ScanningBinaryDocValuesAutomatonQuery("other_field", automaton1, false, "desc-a");
         assertNotEquals(q1, q4);
 
         // Different arrayOrderInlineNull → not equal.
-        ScanningBinaryDocValuesAutomatonQuery q5 = new ScanningBinaryDocValuesAutomatonQuery(
-            "field",
-            automaton1,
-            true,
-            "desc-a"
-        );
+        ScanningBinaryDocValuesAutomatonQuery q5 = new ScanningBinaryDocValuesAutomatonQuery("field", automaton1, true, "desc-a");
         assertNotEquals(q1, q5);
 
         // forWildcard with the same inputs produces equal instances.

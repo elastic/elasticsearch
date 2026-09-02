@@ -1373,7 +1373,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return new AutomatonQueryWithDescription(new Term(name()), automatonSupplier.get(), description);
             } else if (usesBinaryDocValues()) {
-                return new ScanningBinaryDocValuesAutomatonQuery(name(), automatonSupplier.get(), useArrayOrderBinaryDocValues, description);
+                return new ScanningBinaryDocValuesAutomatonQuery(
+                    name(),
+                    automatonSupplier.get(),
+                    useArrayOrderBinaryDocValues,
+                    description
+                );
             } else {
                 return new AutomatonQueryWithDescription(
                     new Term(name()),

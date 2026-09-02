@@ -31,12 +31,7 @@ public final class ScanningBinaryDocValuesAutomatonQuery extends AbstractBinaryD
 
     private final String description;
 
-    public ScanningBinaryDocValuesAutomatonQuery(
-        String fieldName,
-        Automaton automaton,
-        boolean arrayOrderInlineNull,
-        String description
-    ) {
+    public ScanningBinaryDocValuesAutomatonQuery(String fieldName, Automaton automaton, boolean arrayOrderInlineNull, String description) {
         super(fieldName, new ByteRunAutomaton(automaton), arrayOrderInlineNull);
         this.description = Objects.requireNonNull(description);
     }

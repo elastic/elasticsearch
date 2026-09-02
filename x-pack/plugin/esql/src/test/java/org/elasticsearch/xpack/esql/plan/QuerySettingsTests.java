@@ -1073,9 +1073,11 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testBuildRejectsClusterDefaultWithoutStringForm() {
+        // object(...) now derives a string form from its JSON reader, so the factory with genuinely no parser is
+        // builder(...) — a setting declared that way still cannot take an operator default.
         var e = expectThrows(
             IllegalStateException.class,
-            () -> QuerySettingDef.object("x", p -> p.text(), ex -> "v")
+            () -> QuerySettingDef.<String>builder("x")
                 .withDefault("v")
                 .streamFormat((out, value) -> out.writeString(value), in -> in.readString())
                 .withClusterDefault()

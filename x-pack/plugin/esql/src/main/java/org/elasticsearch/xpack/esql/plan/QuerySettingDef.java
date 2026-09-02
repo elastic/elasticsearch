@@ -16,6 +16,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.UnaryOperator;
 
 /**
@@ -206,7 +209,23 @@ public final class QuerySettingDef<T> {
 
     /** Escape hatch for non-primitive types. Supply both a JSON and an expression parser. */
     public static <T> Builder<T> object(String name, JsonReader<T> jsonReader, ExpressionReader<T> expressionReader) {
-        return Builder.<T>of(name, null).jsonReader(jsonReader).expressionReader(expressionReader);
+        return Builder.<T>of(name, null).jsonReader(jsonReader).expressionReader(expressionReader).clusterParser(raw -> {
+            // A cluster setting is a string, so an object-valued setting takes its JSON as one, read with the same
+            // parser the request body uses — the two surfaces then accept the same values by construction.
+            try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, raw)) {
+                if (parser.nextToken() == null) {
+                    throw new IllegalArgumentException("Setting [" + name + "] cannot be empty");
+                }
+                T parsed = jsonReader.read(parser);
+                if (parser.nextToken() != null) {
+                    // Reject "false true" rather than silently keeping the first value.
+                    throw new IllegalArgumentException("Setting [" + name + "] has trailing content after [" + raw + "]");
+                }
+                return parsed;
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Setting [" + name + "] could not be parsed from [" + raw + "]", e);
+            }
+        });
     }
 
     /** Direct entry point for a setting whose factory above doesn't fit. */
@@ -504,6 +523,8 @@ public final class QuerySettingDef<T> {
         private boolean clusterDefault = false;
         @Nullable
         private Setting<T> derivedClusterSetting;
+        @Nullable
+        private String declaredClusterDefault;
 
         private Builder(String name, @Nullable DataType type) {
             this.name = name;
@@ -585,6 +606,19 @@ public final class QuerySettingDef<T> {
          */
         public Builder<T> withClusterDefault() {
             this.clusterDefault = true;
+            return this;
+        }
+
+        /**
+         * As {@link #withClusterDefault()}, for a setting whose registry default is {@code null} because null is
+         * itself meaningful — {@code approximation} uses it for "not requested". A registered cluster setting must
+         * declare a default it can parse, so give it the string that means the same thing. {@code build()} checks
+         * that it folds back to the registry default: an operator who set nothing and one who set this string must
+         * be indistinguishable.
+         */
+        public Builder<T> withClusterDefault(String declaredDefault) {
+            this.clusterDefault = true;
+            this.declaredClusterDefault = declaredDefault;
             return this;
         }
 
@@ -701,12 +735,13 @@ public final class QuerySettingDef<T> {
          */
         private Setting<T> deriveClusterSetting() {
             String key = CLUSTER_SETTING_PREFIX + name;
-            if (defaultValue == null) {
+            if (defaultValue == null && declaredClusterDefault == null) {
                 throw new IllegalStateException(
                     "Setting ["
                         + name
                         + "] cannot have a cluster default: it has no registry default. The cluster setting declares the "
-                        + "registry default as its own, so there must be one — add withDefault(...) or drop withClusterDefault()"
+                        + "registry default as its own, so there must be one — add withDefault(...), or pass the string that "
+                        + "means the same thing to withClusterDefault(String) if null is itself meaningful"
                 );
             }
             if (clusterParser == null) {
@@ -737,7 +772,7 @@ public final class QuerySettingDef<T> {
             // queries actually get. That round trip is already load-bearing for the wire format (see fromString, which
             // writes value.toString() and reads it back through the same parser); assert it here so a default that
             // cannot survive it fails at boot rather than reporting a different value than the one in force.
-            String rendered = defaultValue.toString();
+            String rendered = declaredClusterDefault != null ? declaredClusterDefault : defaultValue.toString();
             T reparsed;
             try {
                 reparsed = clusterParser.parse(rendered);
@@ -747,7 +782,18 @@ public final class QuerySettingDef<T> {
                     e
                 );
             }
-            if (canonicalizer.apply(reparsed).equals(canonicalizer.apply(defaultValue)) == false) {
+            // Two different checks, because the two forms declare different things.
+            //
+            // An explicitly declared default stands in for a null registry default, and the property that matters is
+            // that it is a no-op layer: an operator who set nothing and one who set this string must resolve
+            // identically. So fold it and require the registry default back.
+            //
+            // A default rendered from the registry value only has to survive its own parser — folding it would
+            // double it for a reconciler that combines rather than replaces, which is legitimate.
+            T checked = declaredClusterDefault != null ? reconciler.reconcile(defaultValue, reparsed) : reparsed;
+            T checkedCanonical = checked == null ? null : canonicalizer.apply(checked);
+            T registryCanonical = defaultValue == null ? null : canonicalizer.apply(defaultValue);
+            if (Objects.equals(checkedCanonical, registryCanonical) == false) {
                 throw new IllegalStateException(
                     "Setting ["
                         + name

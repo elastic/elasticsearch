@@ -36,6 +36,14 @@ public final class AllocSizes {
 
     private AllocSizes() {}
 
+    /**
+     * Heap size of an iterator produced by {@code Iterable.iterator()}, or of the {@code ValueIterator} wrapper the {@code def}
+     * path builds for an array. Does not scale with the iterable's size, and is charged once per {@code for-each} loop rather
+     * than once per element. Sized for the largest common shape in the JDK collections, a few cursor {@code int}s plus a
+     * reference back to the collection, so it over-counts the leaner iterators rather than under-counting any of them.
+     */
+    public static final long ITERATOR_BYTES = pad8(OBJECT_HEADER + 3L * Integer.BYTES + REFERENCE_SIZE);
+
     /** Rounds {@code bytes} up to the nearest 8-byte alignment boundary, saturating rather than overflowing near {@link Long#MAX_VALUE}. */
     public static long pad8(long bytes) {
         return addSat(bytes, 7L) & ~7L;

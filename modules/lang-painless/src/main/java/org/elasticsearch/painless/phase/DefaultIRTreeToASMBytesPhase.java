@@ -859,9 +859,28 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         visit(irForEachSubIterableNode.getConditionNode(), writeScope);
 
         if (painlessMethod == null) {
+            // A def iterable resolves through DefBootstrap.ITERATOR, which carries no allocation metadata, so there is no
+            // estimator to replay. Charge the constant inline instead, mirroring how the def-'+' concat site is handled:
+            // whatever the runtime type turns out to be, it allocates either a collection iterator or the ValueIterator
+            // wrapper built for an array, and both are the same fixed shape.
+            writeAllocationCheck(writeScope, AllocSizes.ITERATOR_BYTES);
+
             Type methodType = Type.getMethodType(Type.getType(ValueIterator.class), Type.getType(Object.class));
             methodWriter.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
         } else {
+            java.lang.reflect.Method iteratorEstimator = irForEachSubIterableNode.getDecorationValue(IRDAllocationEstimator.class);
+
+            if (iteratorEstimator != null && isAllocationTrackingActive(writeScope)) {
+                Variable[] operands = writeDynamicAllocationCheck(
+                    writeScope,
+                    methodWriter,
+                    "iteratorOperand",
+                    painlessMethod.methodType().parameterArray(),
+                    iteratorEstimator
+                );
+                loadCallOperands(methodWriter, operands);
+            }
+
             methodWriter.invokeMethodCall(painlessMethod);
         }
 

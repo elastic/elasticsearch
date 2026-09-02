@@ -302,17 +302,17 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
     }
 
     /** Attaches the member's resolved estimator (when tracking is on) so the ASM phase emits from the decoration. */
-    protected static void attachAllocationEstimator(ExpressionNode irExpressionNode, ScriptScope scriptScope, PainlessMethod member) {
-        attachAllocationEstimator(irExpressionNode, scriptScope, member.allocationEstimator());
+    protected static void attachAllocationEstimator(IRNode irNode, ScriptScope scriptScope, PainlessMethod member) {
+        attachAllocationEstimator(irNode, scriptScope, member.allocationEstimator());
     }
 
-    protected static void attachAllocationEstimator(ExpressionNode irExpressionNode, ScriptScope scriptScope, PainlessConstructor member) {
-        attachAllocationEstimator(irExpressionNode, scriptScope, member.allocationEstimator());
+    protected static void attachAllocationEstimator(IRNode irNode, ScriptScope scriptScope, PainlessConstructor member) {
+        attachAllocationEstimator(irNode, scriptScope, member.allocationEstimator());
     }
 
-    private static void attachAllocationEstimator(ExpressionNode irExpressionNode, ScriptScope scriptScope, Method allocationEstimator) {
+    private static void attachAllocationEstimator(IRNode irNode, ScriptScope scriptScope, Method allocationEstimator) {
         if (allocationEstimator != null && scriptScope.getCompilerSettings().isAllocationTrackingEnabled()) {
-            irExpressionNode.attachDecoration(new IRDAllocationEstimator(allocationEstimator));
+            irNode.attachDecoration(new IRDAllocationEstimator(allocationEstimator));
         }
     }
 
@@ -815,10 +815,13 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irForEachSubIterableNode.attachDecoration(new IRDIterableName("#itr" + userEachNode.getLocation().getOffset()));
 
             if (iterableValueType != def.class) {
+                PainlessMethod iterablePainlessMethod = scriptScope.getDecoration(userEachNode, IterablePainlessMethod.class)
+                    .iterablePainlessMethod();
                 irForEachSubIterableNode.attachDecoration(new IRDIterableType(Iterator.class));
-                irForEachSubIterableNode.attachDecoration(
-                    new IRDMethod(scriptScope.getDecoration(userEachNode, IterablePainlessMethod.class).iterablePainlessMethod())
-                );
+                irForEachSubIterableNode.attachDecoration(new IRDMethod(iterablePainlessMethod));
+                // for-each calls iterator() straight from the loop's codegen rather than through an InvokeCallNode, so the
+                // charge cannot ride visitInvokeCall the way an explicit coll.iterator() call does.
+                attachAllocationEstimator(irForEachSubIterableNode, scriptScope, iterablePainlessMethod);
 
                 if (painlessCast != null) {
                     irForEachSubIterableNode.attachDecoration(new IRDCast(painlessCast));

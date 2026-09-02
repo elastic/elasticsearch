@@ -12,6 +12,7 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -112,6 +113,63 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
 
         // the data stream must be genuinely functional afterward, not just green: indexing through it exercises the write alias/routing
         // against the newly-restored backing index rather than any stale reference to the deleted one
+        indexDoc();
+        refresh(DATA_STREAM_NAME);
+        assertHitCount(prepareSearch(DATA_STREAM_NAME).setSize(0), docCount + 1);
+    }
+
+    /**
+     * The ordinary public restore API ({@link RestoreService#restoreSnapshot}) reaches the existing-data-stream path, but only when the
+     * caller explicitly opts in via {@link RestoreSnapshotRequest#restoreOverExisting()}; the default behavior (fail because the data
+     * stream's backing index already exists) must be unchanged.
+     */
+    public void testOrdinaryRestoreCanTargetExistingDataStreamWhenRequested() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        final int docCount = createRepositoryAndSnapshottedDataStream();
+        final Index oldBackingIndex = currentDataStream().getIndices().get(0);
+
+        // without opting in, restoring a snapshot whose data stream already exists must fail and leave the destination unchanged
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> rejected = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(DATA_STREAM_NAME),
+            rejected
+        );
+        expectThrows(SnapshotRestoreException.class, () -> rejected.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(
+            "the default (opted-out) behavior must leave the destination unchanged",
+            currentDataStream().getIndices().get(0),
+            equalTo(oldBackingIndex)
+        );
+
+        // opting in restores over the existing data stream in place: same name, new backing-index identity, data still queryable
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(DATA_STREAM_NAME)
+                .restoreOverExisting(true),
+            future
+        );
+        future.actionGet(TEST_REQUEST_TIMEOUT);
+        awaitRestoreCompleted();
+
+        final DataStream restored = currentDataStream();
+        assertThat(restored.getIndices(), hasSize(1));
+        assertThat(
+            "the restored backing index must keep the same name",
+            restored.getIndices().get(0).getName(),
+            equalTo(oldBackingIndex.getName())
+        );
+        assertThat(
+            "the restored backing index must be a new identity, not the deleted one",
+            restored.getIndices().get(0),
+            not(equalTo(oldBackingIndex))
+        );
+        assertHitCount(prepareSearch(DATA_STREAM_NAME).setSize(0), docCount);
+
+        // genuinely functional afterward: indexing goes to the newly-restored backing index
         indexDoc();
         refresh(DATA_STREAM_NAME);
         assertHitCount(prepareSearch(DATA_STREAM_NAME).setSize(0), docCount + 1);

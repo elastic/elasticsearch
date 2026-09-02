@@ -22,7 +22,10 @@ public class SourceModeLicenseUpgradeIT extends SourceModeLicenseChangeTestCase 
         startTrial();
     }
 
-    /** Builds one TestCase for each strict-columnar index mode (columnar, logsdb_columnar). */
+    /**
+     * Builds one TestCase for each strict-columnar index mode that has a source mode to fall back to. vectordb_columnar
+     * supports synthetic source only, so without a license it cannot be created at all rather than starting out stored.
+     */
     private List<TestCase> columnarCases() {
         return List.of(
             new SourceModeTestCase(

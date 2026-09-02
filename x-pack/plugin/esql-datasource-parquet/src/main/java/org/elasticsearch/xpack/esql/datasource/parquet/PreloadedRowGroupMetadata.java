@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -272,10 +273,16 @@ final class PreloadedRowGroupMetadata implements Releasable {
                     addRange(ranges, rangeMetas, ciRef.getOffset(), ciRef.getLength(), rgIdx, col, RangeKind.COLUMN_INDEX);
                 }
                 IndexReference oiRef = col.getOffsetIndexReference();
+                // Omitted dictionary_page_offset needs OffsetIndex[0] as the data-page bound.
+                // Include that index in the first batch even when the column is predicate-only.
+                boolean needOiForOmittedDict = fetchPreWarm
+                    && predicateColumnPaths.contains(path)
+                    && col.hasDictionaryPage()
+                    && col.getDictionaryPageOffset() <= 0;
                 if (oiRef != null
                     && oiRef.getLength() > 0
                     && rgIdx < offsetIndexRowGroupLimit
-                    && (offsetIndexPaths == null || offsetIndexPaths.contains(path))) {
+                    && (offsetIndexPaths == null || offsetIndexPaths.contains(path) || needOiForOmittedDict)) {
                     addRange(ranges, rangeMetas, oiRef.getOffset(), oiRef.getLength(), rgIdx, col, RangeKind.OFFSET_INDEX);
                 }
                 if (fetchPreWarm && predicateColumnPaths.contains(path)) {
@@ -311,6 +318,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
         Map<String, ColumnIndex> columnIndexes = new HashMap<>();
         Map<String, OffsetIndex> offsetIndexes = new HashMap<>();
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks = new TreeMap<>();
+        Releasable omittedDictRelease = () -> {};
 
         for (RangeMeta meta : rangeMetas) {
             ByteBuffer buf = fetched.get(meta.range());
@@ -363,12 +371,32 @@ final class PreloadedRowGroupMetadata implements Releasable {
             }
         }
 
+        if (fetchPreWarm) {
+            try {
+                omittedDictRelease = fetchOmittedDictionaryPages(
+                    rowGroups,
+                    predicateColumnPaths,
+                    offsetIndexes,
+                    preWarmedChunks,
+                    storageObject,
+                    breaker
+                );
+            } catch (Throwable e) {
+                try {
+                    readRelease.close();
+                } catch (Throwable closeFailure) {
+                    e.addSuppressed(closeFailure);
+                }
+                throw e;
+            }
+        }
+
         return new PreloadedRowGroupMetadata(
             columnIndexes,
             offsetIndexes,
             preWarmedChunks,
             reader.getFileMetaData().getSchema(),
-            readRelease
+            Releasables.wrap(readRelease, omittedDictRelease)
         );
     }
 
@@ -396,10 +424,9 @@ final class PreloadedRowGroupMetadata implements Releasable {
     }
 
     /**
-     * Adds the dictionary page byte range for {@code col} when one is present. The dictionary
-     * page sits at {@code [getDictionaryPageOffset(), getFirstDataPageOffset())} in the file.
-     * Skips columns without a dictionary, signalled by either {@code hasDictionaryPage()} returning
-     * false or by the offset/length being non-positive.
+     * Adds the dictionary page byte range for {@code col} when the Thrift offset is set and
+     * precedes {@code getFirstDataPageOffset()}. Omitted offsets ({@code 0}) are handled after
+     * OffsetIndex parse via {@link #fetchOmittedDictionaryPages}.
      */
     private static void addDictionaryRange(
         List<CoalescedRangeReader.ByteRange> ranges,
@@ -407,17 +434,96 @@ final class PreloadedRowGroupMetadata implements Releasable {
         int rowGroupIdx,
         ColumnChunkMetaData col
     ) {
-        if (col.hasDictionaryPage() == false) {
-            return;
+        CoalescedRangeReader.ByteRange dictRange = ColumnChunkPrefetcher.dictionaryPageRange(col, col.getFirstDataPageOffset());
+        if (dictRange != null) {
+            addRange(ranges, rangeMetas, dictRange.offset(), dictRange.length(), rowGroupIdx, col, RangeKind.DICTIONARY_PAGE);
         }
-        long dictOffset = col.getDictionaryPageOffset();
-        long firstDataPageOffset = col.getFirstDataPageOffset();
-        // Defensive guard: writers occasionally emit non-monotonic offsets when the column has
-        // no dictionary; treat the range as absent rather than fetching garbage bytes.
-        if (dictOffset <= 0 || firstDataPageOffset <= dictOffset) {
-            return;
+    }
+
+    /**
+     * Dictionary ranges for predicate columns whose {@code dictionary_page_offset} was omitted.
+     * Uses OffsetIndex page 0 as the first data-page bound. Empty when every dictionary was
+     * already collected in the first coalesced batch.
+     */
+    static List<CoalescedRangeReader.ByteRange> omittedDictionaryRanges(
+        List<BlockMetaData> rowGroups,
+        Set<String> predicateColumnPaths,
+        Map<String, OffsetIndex> offsetIndexes,
+        Set<Long> alreadyCoveredOffsets
+    ) {
+        List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
+        for (int rgIdx = 0; rgIdx < rowGroups.size(); rgIdx++) {
+            for (ColumnChunkMetaData col : rowGroups.get(rgIdx).getColumns()) {
+                if (predicateColumnPaths.contains(col.getPath().toDotString()) == false) {
+                    continue;
+                }
+                if (col.getDictionaryPageOffset() > 0) {
+                    continue;
+                }
+                OffsetIndex oi = offsetIndexes.get(key(rgIdx, col));
+                if (oi == null || oi.getPageCount() <= 0) {
+                    continue;
+                }
+                CoalescedRangeReader.ByteRange dictRange = ColumnChunkPrefetcher.dictionaryPageRange(col, oi.getOffset(0));
+                if (dictRange == null || alreadyCoveredOffsets.contains(dictRange.offset())) {
+                    continue;
+                }
+                ranges.add(dictRange);
+            }
         }
-        addRange(ranges, rangeMetas, dictOffset, firstDataPageOffset - dictOffset, rowGroupIdx, col, RangeKind.DICTIONARY_PAGE);
+        return ranges;
+    }
+
+    /**
+     * Second coalesced fetch for dictionaries that the first batch skipped because
+     * {@code dictionary_page_offset} was unset. No-op when {@link #omittedDictionaryRanges}
+     * is empty (the common case).
+     */
+    private static Releasable fetchOmittedDictionaryPages(
+        List<BlockMetaData> rowGroups,
+        Set<String> predicateColumnPaths,
+        Map<String, OffsetIndex> offsetIndexes,
+        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks,
+        StorageObject storageObject,
+        CircuitBreaker breaker
+    ) {
+        List<CoalescedRangeReader.ByteRange> ranges = omittedDictionaryRanges(
+            rowGroups,
+            predicateColumnPaths,
+            offsetIndexes,
+            preWarmedChunks.keySet()
+        );
+        if (ranges.isEmpty()) {
+            return () -> {};
+        }
+        logger.debug("Fetching [{}] omitted-offset dictionary pages after OffsetIndex parse", ranges.size());
+        PlainActionFuture<CoalescedRangeReader.CoalescedRangeResult> future = new PlainActionFuture<>();
+        CoalescedRangeReader.readCoalesced(
+            storageObject,
+            ranges,
+            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
+            breaker,
+            Runnable::run,
+            future
+        );
+        CoalescedRangeReader.CoalescedRangeResult fetchedResult = future.actionGet();
+        try {
+            for (CoalescedRangeReader.ByteRange range : ranges) {
+                ByteBuffer buf = fetchedResult.ranges().get(range);
+                if (buf == null) {
+                    continue;
+                }
+                preWarmedChunks.put(range.offset(), new ColumnChunkPrefetcher.PrefetchedChunk(range.offset(), range.length(), buf.slice()));
+            }
+            return fetchedResult.release();
+        } catch (Throwable t) {
+            try {
+                fetchedResult.release().close();
+            } catch (Throwable closeFailure) {
+                t.addSuppressed(closeFailure);
+            }
+            throw t;
+        }
     }
 
     /**

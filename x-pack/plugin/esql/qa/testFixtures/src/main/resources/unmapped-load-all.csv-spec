@@ -3111,6 +3111,274 @@ FROM partial_mapping_sample_data
 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | 43                       | 2                     | e                       | 1232383
 ;
 
+#########
+# VIEWS #
+#########
+
+loadAllViewPassthroughLoadsFromSource_KeepUnmapped
+required_capability: optional_fields_load_all_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_view
+| WHERE message == "42"
+| KEEP @timestamp, message, unmapped_message
+;
+
+@timestamp:datetime          | message:keyword | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 42              | 43
+;
+
+loadAllViewPassthroughLoadsFromSource_WithStatsUnmapped
+required_capability: optional_fields_load_all_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_view
+| STATS loaded = COUNT(unmapped_message), rows = COUNT(*)
+;
+
+loaded:long | rows:long
+7           | 7
+;
+
+loadAllViewPassthrough_OuterEvalMaterializesUnmapped
+required_capability: optional_fields_load_all_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_view
+| WHERE message == "Connected to 10.1.0.3!"
+| EVAL upper = TO_UPPER(unmapped_message), len = LENGTH(unmapped_message)
+| KEEP message, upper, len
+;
+
+message:keyword        | upper:keyword              | len:integer
+Connected to 10.1.0.3! | DISCONNECTED FROM 10.1.0.3 | 26
+;
+
+loadAllViewPassthroughNoKeepExpandsUnmappedFields
+required_capability: optional_fields_load_all_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_view
+| WHERE message == "42"
+;
+
+@timestamp:datetime          | client_ip:ip | event_duration:long | message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | 2                     | e                       | 1232383                         | 43
+;
+
+loadAllViewUnmappedFieldInOneBranch
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employees | KEEP emp_no)
+| WHERE unmapped_message IS NOT NULL
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+Connected to 10.1.0.3! | Disconnected from 10.1.0.3
+Connection error?      | Disconnection error
+Connection error?      | Disconnection error
+Connection error?      | Disconnection error
+;
+
+loadAllViewUnmappedFieldReferencedOnlyAboveUnion
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"), (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+loadAllViewOuterEvalFunction_MaterializesUnmapped_AllBranches
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| EVAL upper = TO_UPPER(unmapped_message)
+| KEEP message, unmapped_message, upper
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword   | upper:keyword
+42                     | 43                         | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | DISCONNECTED FROM 10.1.0.1
+;
+
+loadAllViewOuterStatsBy_MaterializesUnmapped_AllBranches
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| STATS c = COUNT(*) BY unmapped_message
+| SORT unmapped_message
+;
+
+c:long | unmapped_message:keyword
+1      | 43
+1      | Disconnected from 10.1.0.1
+;
+
+loadAllViewOuterSortDesc_MaterializesUnmapped_ThreeBranches
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.2!")
+| KEEP message, unmapped_message
+| SORT unmapped_message DESC
+;
+
+message:keyword        | unmapped_message:keyword
+Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+42                     | 43
+;
+
+loadAllViewDropUnmapped_InOneBranch_MaterializesUnmapped_Sibling
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | DROP unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+loadAllViewKeepUnmapped_InOneBranch_ScopesFieldToBranch
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!" | KEEP message)
+| EVAL has = unmapped_message IS NOT NULL
+| KEEP message, unmapped_message, has
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword | has:boolean
+42                     | 43                       | true
+Connected to 10.1.0.1! | null                     | false
+;
+
+loadAllViewEvalUnmappedInOneBranch_ScopesFieldToBranch
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | EVAL tag = unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, tag
+| SORT message
+;
+
+message:keyword        | tag:keyword
+42                     | 43
+Connected to 10.1.0.1! | null
+;
+
+loadAllViewRenameUnmapped_InOneBranch_OuterReferencesNewName
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, renamed
+| SORT message
+;
+
+message:keyword        | renamed:keyword
+42                     | 43
+Connected to 10.1.0.1! | null
+;
+
+loadAllViewMixedViewAndIndex_BranchesMaterializeUnmapped
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+loadAllViewNoKeepExpandsUnmappedFields
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| SORT @timestamp
+;
+
+@timestamp:datetime          | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+;
+
 ###########################################################
 # Object and array expansion: flatten to leaf columns     #
 ###########################################################

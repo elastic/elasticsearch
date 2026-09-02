@@ -528,6 +528,48 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertInSubqueryRightHasNoUnmappedFields(plan);
     }
 
+    public void testViewNoKeepAnnotatesRelation() {
+        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
+        LogicalPlan plan = test().addView("v", "FROM test").statement(setUnmappedLoadAll("FROM v"));
+        UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
+            CollectionUtils.collect(EsqlTestUtils.singleValue(plan.collect(EsRelation.class)).output(), UnmappedFieldsAttribute.class)
+        ).pattern();
+        assertKept(pattern, "unmapped_extra");
+        assertNotKept(pattern, excl());
+    }
+
+    public void testViewUnionAllSurfacesUnmappedFieldsAttribute() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = test().addView("v", "FROM test").statement(setUnmappedLoadAll("FROM test, v"));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        List<EsRelation> relations = plan.collect(EsRelation.class);
+        assertThat(relations, hasSize(2));
+        for (EsRelation relation : relations) {
+            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
+                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
+            ).pattern();
+            assertKept(pattern, "unmapped_extra");
+            assertNotKept(pattern, excl());
+        }
+    }
+
+    public void testViewKeepInOneBranchOmitsThatBranch() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = test().addView("kept", "FROM test | KEEP emp_no").statement(setUnmappedLoadAll("FROM test, kept"));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        int withAttribute = 0;
+        int withoutAttribute = 0;
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            if (CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class).isEmpty()) {
+                withoutAttribute++;
+            } else {
+                withAttribute++;
+            }
+        }
+        assertThat(withAttribute, is(1));
+        assertThat(withoutAttribute, is(1));
+    }
+
     public void testRenameUnmappedFieldsIsAnOrdinarySourceField() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | RENAME _unmapped_fields AS extras");
         assertKept(pattern, "unmapped_extra");

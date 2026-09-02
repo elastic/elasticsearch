@@ -1443,7 +1443,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // unmapped in every branch, so it is loaded from _source in all branches (#142033). Exercises the ViewUnionAll scope boundary.
     public void testViewBranchingLoadsUnmappedField() throws Exception {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM emp_lang_view
             | KEEP emp_no, language_code, does_not_exist
             """, Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code)"));
@@ -1453,7 +1453,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // loaded into that branch's source and null-filled in the employees branch (Decision A), mirroring the subquery case.
     public void testViewBranchingLoadsUnmappedFieldReferencedInOneBranch() throws Exception {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM emp_lang_view
             | KEEP emp_no, language_code, does_not_exist
             """, Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code, does_not_exist)"));

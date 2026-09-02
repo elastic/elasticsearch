@@ -249,19 +249,21 @@ public final class ReshardSearchFilters implements Closeable {
                 /// But if the summary is current, that only means that we *may* have to filter.
                 /// * When no resharding is in progress, the summary should usually match, but we have no need to filter.
                 /// * We do not need to filter shards that have moved to DONE, since they have already removed unowned documents.
-                if (reshardingMetadata == null || reshardingMetadata.isSplit() == false) {
+                if (reshardingMetadata == null) {
                     // This is a common case - the summary is current and there is no ongoing split, nothing to do.
                     yield false;
                 }
 
+                assert reshardingMetadata.isSplit();
                 IndexReshardingState.Split split = reshardingMetadata.getSplit();
+
                 if (split.isTargetShard(shardId.id())) {
                     /// We ensure that refresh happens between unowned data being deleted and target shard moving to DONE.
-                    /// So at this point we know that there is no unowned data and we can skip filtering.
+                    /// So at this point we know that there is no unowned data and we can skip filters as an optimization.
                     yield split.targetStateAtLeast(shardId.id(), IndexReshardingState.Split.TargetShardState.DONE) == false;
                 } else {
                     /// Similarly since we ensure the refresh is done after deleting unowned data we can skip filtering
-                    /// if the shard is DONE.
+                    /// if the shard is DONE as an optimization.
                     yield split.sourceStateAtLeast(shardId.id(), IndexReshardingState.Split.SourceShardState.DONE) == false;
                 }
             }

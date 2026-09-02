@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Incremental serializer for KEY_VALUE binary blobs ({@code key_length(i32) + key + type(u8) + data}).
@@ -37,6 +38,9 @@ public final class KeyValueWriter {
     }
 
     public byte[] toBytes() {
+        if (nestedOutDepth != 0) {
+            throw new IllegalStateException("unfinished nested object (depth=" + nestedOutDepth + ")");
+        }
         return BytesReference.toBytes(out.bytes());
     }
 
@@ -97,6 +101,9 @@ public final class KeyValueWriter {
     }
 
     public void endObjectField() {
+        if (nestedOutDepth == 0) {
+            throw new IllegalStateException("endObjectField called without matching beginObjectField");
+        }
         byte[] nested = BytesReference.toBytes(out.bytes());
         out = popNestedOut();
         writeNestedObjectValue(nested);
@@ -113,6 +120,7 @@ public final class KeyValueWriter {
     }
 
     void writeStringValue(byte[] buf, int off, int len) {
+        Objects.checkFromIndexSize(off, len, buf.length);
         try {
             out.writeByte(SourceValueType.STRING);
             out.writeIntLE(len);

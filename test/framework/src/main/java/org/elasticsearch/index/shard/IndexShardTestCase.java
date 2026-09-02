@@ -740,8 +740,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 MapperMetrics.NOOP,
                 new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
                 new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-                MergeMetrics.NOOP,
-                true
+                MergeMetrics.NOOP
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;

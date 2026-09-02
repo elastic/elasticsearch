@@ -198,7 +198,6 @@ public final class IndexModule {
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
     private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
-    private final SetOnce<Boolean> fieldUsageTrackingEnabled = new SetOnce<>(); // defaults to true
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -429,15 +428,6 @@ public final class IndexModule {
         this.mutableOperationGate.set(Objects.requireNonNull(gate));
     }
 
-    public void disableFieldUsageTracking() {
-        fieldUsageTrackingEnabled.set(false);
-    }
-
-    boolean isFieldUsageTrackingEnabled() {
-        Boolean enabled = fieldUsageTrackingEnabled.get();
-        return enabled == null || enabled;
-    }
-
     IndexEventListener freeze() { // pkg private for testing
         if (this.frozen.compareAndSet(false, true)) {
             return new CompositeIndexEventListener(indexSettings, indexEventListeners);
@@ -594,8 +584,7 @@ public final class IndexModule {
                 indexingStatsSettings,
                 searchStatsSettings,
                 mergeMetrics,
-                metricHolder,
-                isFieldUsageTrackingEnabled()
+                metricHolder
             );
             success = true;
             return indexService;

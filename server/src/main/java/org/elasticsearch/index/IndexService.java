@@ -142,7 +142,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final SimilarityService similarityService;
     private final EngineFactory engineFactory;
-    private final boolean fieldUsageTrackingEnabled;
     private final IndexWarmer warmer;
     private volatile Map<Integer, IndexShard> shards = Map.of();
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -217,8 +216,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexingStatsSettings indexingStatsSettings,
         SearchStatsSettings searchStatsSettings,
         MergeMetrics mergeMetrics,
-        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder,
-        boolean fieldUsageTrackingEnabled
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
     ) {
         super(indexSettings);
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
@@ -296,7 +294,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.directoryFactory = directoryFactory;
         this.recoveryStateFactory = recoveryStateFactory;
         this.engineFactory = Objects.requireNonNull(engineFactory);
-        this.fieldUsageTrackingEnabled = fieldUsageTrackingEnabled;
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.readerWrapper = wrapperFactory.apply(this);
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
@@ -614,8 +611,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 mapperMetrics,
                 indexingStatsSettings,
                 searchStatsSettings,
-                mergeMetrics,
-                fieldUsageTrackingEnabled
+                mergeMetrics
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

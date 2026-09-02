@@ -1523,7 +1523,6 @@ public class StatelessPlugin extends Plugin
     public void onIndexModule(IndexModule indexModule) {
         // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
         if (hasIndexRole) {
-            indexModule.disableFieldUsageTracking();
             final var statelessCommitService = commitService.get();
             final var localTranslogReplicator = translogReplicator.get();
             final var snapshotsCommitService = snapshotsCommitServiceRef.get();

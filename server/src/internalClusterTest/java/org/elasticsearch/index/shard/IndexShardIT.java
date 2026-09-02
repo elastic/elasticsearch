@@ -844,8 +844,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             MapperMetrics.NOOP,
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP,
-            true
+            MergeMetrics.NOOP
         );
     }
 

@@ -370,8 +370,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final MapperMetrics mapperMetrics,
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
-        final MergeMetrics mergeMetrics,
-        final boolean fieldUsageTrackingEnabled
+        final MergeMetrics mergeMetrics
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -450,7 +449,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             pendingReplicationActions
         );
         fieldUsageTracker = new ShardFieldUsageTracker();
-        this.fieldUsageTrackingEnabled = fieldUsageTrackingEnabled;
+        fieldUsageTrackingEnabled = DiscoveryNode.isStateless(indexSettings.getNodeSettings()) == false
+            || shardRouting.isPromotableToPrimary() == false;
         shardCreationTime = threadPool.absoluteTimeInMillis();
 
         // the query cache is a node-level thing, however we want the most popular filters

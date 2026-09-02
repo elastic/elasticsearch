@@ -49,14 +49,14 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
 
     public static final Setting<RatioValue> CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK = Setting.ratioSetting(
         "cluster.routing.allocation.estimated_heap.watermark.low",
-        "95%",
+        RatioValue.parseRatioValue("95%"),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     public static final Setting<RatioValue> CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK = Setting.ratioSetting(
         "cluster.routing.allocation.estimated_heap.watermark.high",
-        "100%",
+        RatioValue.parseRatioValue("100%"),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

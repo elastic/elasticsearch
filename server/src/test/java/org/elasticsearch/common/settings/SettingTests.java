@@ -38,6 +38,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.unit.RatioValue.parseRatioValue;
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -1624,7 +1625,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testRatioSetting() {
-        Setting<RatioValue> setting = Setting.ratioSetting("test.ratio", "0.5", Property.NodeScope);
+        Setting<RatioValue> setting = Setting.ratioSetting("test.ratio", parseRatioValue("0.5"), Property.NodeScope);
         // default value
         assertThat(setting.get(Settings.EMPTY).getAsRatio(), equalTo(0.5));
         // percentage override
@@ -1636,7 +1637,13 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testBoundedRatioSetting() {
-        Setting<RatioValue> pctSetting = Setting.ratioSetting("test.ratio", "50%", "10%", "90%", Property.NodeScope);
+        Setting<RatioValue> pctSetting = Setting.ratioSetting(
+            "test.ratio",
+            parseRatioValue("50%"),
+            parseRatioValue("10%"),
+            parseRatioValue("90%"),
+            Property.NodeScope
+        );
         // default
         assertThat(pctSetting.get(Settings.EMPTY).getAsPercent(), equalTo(50.0));
         // in range
@@ -1660,7 +1667,13 @@ public class SettingTests extends ESTestCase {
         assertThat(ePctHigh.getMessage(), equalTo("Failed to parse value [95%] for setting [test.ratio] must be in range [10.0, 90.0]"));
 
         // ratio form
-        Setting<RatioValue> ratioSetting = Setting.ratioSetting("test.ratio", "0.5", "0.1", "0.9", Property.NodeScope);
+        Setting<RatioValue> ratioSetting = Setting.ratioSetting(
+            "test.ratio",
+            parseRatioValue("0.5"),
+            parseRatioValue("0.1"),
+            parseRatioValue("0.9"),
+            Property.NodeScope
+        );
 
         // ratio below min
         var eRatioLow = expectThrows(
@@ -1678,6 +1691,15 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testBoundedRatioSettingRejectsOutOfBoundsDefault() {
-        expectThrows(IllegalArgumentException.class, () -> Setting.ratioSetting("test.ratio", "5%", "10%", "90%", Property.NodeScope));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.ratioSetting(
+                "test.ratio",
+                parseRatioValue("5%"),
+                parseRatioValue("10%"),
+                parseRatioValue("90%"),
+                Property.NodeScope
+            )
+        );
     }
 }

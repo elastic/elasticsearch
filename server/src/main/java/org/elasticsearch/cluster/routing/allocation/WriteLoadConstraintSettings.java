@@ -95,7 +95,7 @@ public class WriteLoadConstraintSettings {
      */
     public static final Setting<RatioValue> WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING = Setting.ratioSetting(
         SETTING_PREFIX + "allocation_utilization_threshold",
-        "90%",
+        RatioValue.parseRatioValue("90%"),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -118,7 +118,7 @@ public class WriteLoadConstraintSettings {
      */
     public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING = Setting.ratioSetting(
         SETTING_PREFIX + "hotspot_utilization_threshold",
-        "50%",
+        RatioValue.parseRatioValue("50%"),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

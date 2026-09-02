@@ -1521,8 +1521,8 @@ public class Setting<T> implements ToXContentObject {
     /**
      * Creates a new setting instance for a {@link RatioValue}
      */
-    public static Setting<RatioValue> ratioSetting(String key, String defaultValue, Property... properties) {
-        return new Setting<>(key, defaultValue, RatioValue::parseRatioValue, properties);
+    public static Setting<RatioValue> ratioSetting(String key, RatioValue defaultValue, Property... properties) {
+        return new Setting<>(key, defaultValue.toString(), RatioValue::parseRatioValue, properties);
     }
 
     /**
@@ -1530,17 +1530,15 @@ public class Setting<T> implements ToXContentObject {
      */
     public static Setting<RatioValue> ratioSetting(
         String key,
-        String defaultValue,
-        String minValueInclusive,
-        String maxValueInclusive,
+        RatioValue defaultValue,
+        RatioValue minValueInclusive,
+        RatioValue maxValueInclusive,
         Property... properties
     ) {
-        final var parsedMinimumValue = RatioValue.parseRatioValue(minValueInclusive);
-        final var parsedMaximumValue = RatioValue.parseRatioValue(maxValueInclusive);
-        return new Setting<>(key, defaultValue, sValue -> {
+        return new Setting<>(key, defaultValue.toString(), sValue -> {
             final var parsedValue = RatioValue.parseRatioValue(sValue);
-            if (parsedValue.getAsPercent() < parsedMinimumValue.getAsPercent()
-                || parsedValue.getAsPercent() > parsedMaximumValue.getAsPercent()) {
+            if (parsedValue.getAsPercent() < minValueInclusive.getAsPercent()
+                || parsedValue.getAsPercent() > maxValueInclusive.getAsPercent()) {
                 final Function<RatioValue, Double> rangeRenderer = sValue.endsWith("%") ? RatioValue::getAsPercent : RatioValue::getAsRatio;
                 throw new IllegalArgumentException(
                     "Failed to parse value ["
@@ -1548,9 +1546,9 @@ public class Setting<T> implements ToXContentObject {
                         + "] for setting ["
                         + key
                         + "] must be in range ["
-                        + (rangeRenderer.apply(parsedMinimumValue))
+                        + (rangeRenderer.apply(minValueInclusive))
                         + ", "
-                        + (rangeRenderer.apply(parsedMaximumValue))
+                        + (rangeRenderer.apply(maxValueInclusive))
                         + "]"
                 );
             }

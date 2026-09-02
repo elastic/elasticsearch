@@ -126,7 +126,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
      */
     public static final Setting<RatioValue> STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING = Setting.ratioSetting(
         "stateless.cache_boost_preference.eviction_policy_degradation.threshold",
-        "95%",
+        RatioValue.parseRatioValue("95%"),
         Setting.Property.NodeScope
     );
 

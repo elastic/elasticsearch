@@ -95,16 +95,10 @@ public class RatioValueTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> RatioValue.parseRatioValue("0.2", null, RatioValue.ofPercent(5)));
         expectThrows(
             IllegalArgumentException.class,
-            () -> RatioValue.parseRatioValue("0.2", RatioValue.ofPercent(-6), RatioValue.ofPercent(-5))
-        );
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> RatioValue.parseRatioValue("0.2", RatioValue.ofPercent(-6), RatioValue.ofPercent(5))
-        );
-        expectThrows(
-            IllegalArgumentException.class,
             () -> RatioValue.parseRatioValue("0.2", RatioValue.ofPercent(6), RatioValue.ofPercent(5))
         );
+        // equal lower and upper bound is OK because they're inclusive
+        RatioValue.parseRatioValue("0.05", RatioValue.ofPercent(5), RatioValue.ofPercent(5));
     }
 
     public void testInvalidRatio(String r) {

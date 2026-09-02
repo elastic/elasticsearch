@@ -1701,8 +1701,25 @@ public class InternalEngine extends Engine {
                 indexColumnRowSubBatch(colSlice, subBatch, plans, subBatchIdx, subBatchSize, assignedSeqNos, allResults);
             } else {
                 final FixedBitSet filter = buildColumnBatchFilter(plans, allResults, subBatchIdx, subBatchSize);
-                final MappedColumns batchSlice = filter != null ? colSlice.withFilter(filter) : colSlice;
-                indexColumnSubBatch(batchSlice, subBatch, plans, subBatchIdx, subBatchSize, assignedSeqNos, allResults);
+                if (filter != null && filter.cardinality() == 0) {
+                    // Every doc is excluded (all have preflight errors or indexIntoLucene == false).
+                    // No Lucene write is needed; set any remaining results directly.
+                    for (int i = 0; i < subBatchSize; i++) {
+                        if (allResults[subBatchIdx + i] == null) {
+                            final IndexingStrategy plan = plans[i];
+                            allResults[subBatchIdx + i] = new IndexResult(
+                                plan.versionForIndexing,
+                                subBatch.primaryTerm(),
+                                assignedSeqNos[i],
+                                plan.currentNotFoundOrDeleted,
+                                subBatch.id(i)
+                            );
+                        }
+                    }
+                } else {
+                    final MappedColumns batchSlice = filter != null ? colSlice.withFilter(filter) : colSlice;
+                    indexColumnSubBatch(batchSlice, subBatch, plans, subBatchIdx, subBatchSize, assignedSeqNos, allResults);
+                }
             }
 
             // Translog

@@ -229,12 +229,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
   method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
   issue: https://github.com/elastic/elasticsearch/issues/151402
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test {feature:SUBQUERIES}
-  issue: https://github.com/elastic/elasticsearch/issues/149681
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test {feature:SUBQUERIES}
-  issue: https://github.com/elastic/elasticsearch/issues/149681
 - class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
   method: testExplainFailuresLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/151602
@@ -589,9 +583,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecBucketIncludeEmptyBucketsIT
   method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
   issue: https://github.com/elastic/elasticsearch/issues/156356
-- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetricsTests
-  method: testDimensionsAreNotFiltered
-  issue: https://github.com/elastic/elasticsearch/issues/156380
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecChangePointIT
   method: test {csv-spec:change_point.null keys}
   issue: https://github.com/elastic/elasticsearch/issues/156397
@@ -616,9 +607,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationOrObjectStoreFailures
   issue: https://github.com/elastic/elasticsearch/issues/156569
-- class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectMetricsIT
-  method: testCpsGaugesPublishForRunningTransform
-  issue: https://github.com/elastic/elasticsearch/issues/156575
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecLookupJoinExpressionIT
   issue: https://github.com/elastic/elasticsearch/issues/156655
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecLookupJoinExpressionIT
@@ -638,24 +626,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:PARQUET_DATASET}
   issue: https://github.com/elastic/elasticsearch/issues/156789
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
-  method: testRowMainMultiColumnInSubqueryWithTsSource {historical}
-  issue: https://github.com/elastic/elasticsearch/issues/156832
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
-  method: testRowMainMultiColumnInSubqueryWithTsSource {current}
-  issue: https://github.com/elastic/elasticsearch/issues/156833
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
-  method: testTsMainMultiColumnInSubqueryWithRowSource {historical}
-  issue: https://github.com/elastic/elasticsearch/issues/156842
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
-  method: testTsMainMultiColumnInSubqueryWithRowSource {current}
-  issue: https://github.com/elastic/elasticsearch/issues/156843
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
-  method: testMultiColumnInSubqueryWithTsSource {current}
-  issue: https://github.com/elastic/elasticsearch/issues/156844
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
-  method: testMultiColumnInSubqueryWithTsSource {historical}
-  issue: https://github.com/elastic/elasticsearch/issues/156845
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecChangePointIT
   method: test {csv-spec:change_point.null keys}
   issue: https://github.com/elastic/elasticsearch/issues/156856
@@ -755,9 +725,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplit
   issue: https://github.com/elastic/elasticsearch/issues/157847
-- class: org.elasticsearch.index.codec.vectors.cluster.FloatLloydKMeansLocalTests
-  method: testComputeNeighbours
-  issue: https://github.com/elastic/elasticsearch/issues/157870
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDenseVectorIT
   method: test {csv-spec:dense_vector.limitByDenseVectorN2}
   issue: https://github.com/elastic/elasticsearch/issues/157875
@@ -824,9 +791,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexTests
   method: testEvaluateBlockWithoutNulls {TestCase=geo_shape with literal precision and bounds}
   issue: https://github.com/elastic/elasticsearch/issues/158128
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsdbFieldLevelSecurityChallengeRestIT
-  method: testFieldLevelSecuritySourceEquivalence
-  issue: https://github.com/elastic/elasticsearch/issues/158180
 - class: org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReaderStatusSnapshotTests
   method: testCountersPopulatedAfterDrain
   issue: https://github.com/elastic/elasticsearch/issues/158220
@@ -835,8 +799,17 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/158222
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   issue: https://github.com/elastic/elasticsearch/issues/158224
-- class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
-  issue: https://github.com/elastic/elasticsearch/issues/158226
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetNullListElementWarningIT
   method: testDroppedNullElementIsAnnouncedInEveryDistributionMode
   issue: https://github.com/elastic/elasticsearch/issues/158281
+- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
+  method: testPeerRecoveryTrimsLocalTranslog
+  issue: https://github.com/elastic/elasticsearch/issues/158303
+- class: org.elasticsearch.index.IndexModuleTests
+  method: testQueryCacheDisabledByDefaultForStrictlyColumnarMode
+  issue: https://github.com/elastic/elasticsearch/issues/158305
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackUnmappedLoadPunkIT
+  issue: https://github.com/elastic/elasticsearch/issues/158348
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+  method: testFetchTooManyBigFields
+  issue: https://github.com/elastic/elasticsearch/issues/158349

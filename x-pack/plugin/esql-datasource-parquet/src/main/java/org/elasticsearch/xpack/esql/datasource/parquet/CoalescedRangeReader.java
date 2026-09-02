@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -102,8 +103,9 @@ final class CoalescedRangeReader {
      * @param breaker circuit breaker charged for each merged-range buffer
      * @param executor executor for async dispatch
      * @param listener receives the per-range slices plus the composite {@link Releasable}
+     * @return a handle that cancels in-flight range GETs; no-op after the reads complete
      */
-    static void readCoalesced(
+    static Releasable readCoalesced(
         StorageObject storageObject,
         List<ByteRange> ranges,
         long maxCoalesceGap,
@@ -113,7 +115,7 @@ final class CoalescedRangeReader {
     ) {
         if (ranges.isEmpty()) {
             listener.onResponse(new CoalescedRangeResult(Map.of(), () -> {}));
-            return;
+            return () -> {};
         }
 
         List<MergedRange> merged = mergeRanges(ranges, maxCoalesceGap);
@@ -124,6 +126,7 @@ final class CoalescedRangeReader {
         // CoalescedRangeResult's release; on overall failure each successful buffer is closed
         // immediately so the failure path leaves no outstanding breaker reservation.
         List<Releasable> buffers = new ArrayList<>(merged.size());
+        List<Releasable> inflight = Collections.synchronizedList(new ArrayList<>(merged.size()));
         AtomicInteger remaining = new AtomicInteger(merged.size());
         AtomicReference<Exception> firstFailure = new AtomicReference<>();
 
@@ -132,7 +135,7 @@ final class CoalescedRangeReader {
         DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
 
         for (MergedRange mr : merged) {
-            storageObject.readBytesAsync(mr.offset, mr.length, factory, executor, new ActionListener<>() {
+            inflight.add(storageObject.startReadBytesAsync(mr.offset, mr.length, factory, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(DirectReadBuffer result) {
                     try {
@@ -181,8 +184,9 @@ final class CoalescedRangeReader {
                         }
                     }
                 }
-            });
+            }));
         }
+        return () -> Releasables.close(inflight);
     }
 
     /**

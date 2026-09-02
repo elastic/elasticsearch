@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -132,6 +133,45 @@ public class ParsedDocument {
                 document.add(IdFieldMapper.standardIdField(id));
             }
         }
+        return new ParsedDocument(
+            versionField,
+            seqIdFields,
+            id,
+            null,
+            Collections.singletonList(document),
+            new BytesArray("{}"),
+            XContentType.JSON,
+            null,
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
+        );
+    }
+
+    /**
+     * Binary doc-values field on an in-place-update history document, holding the serialized field updates and marking the document as an
+     * update-history document (not a tombstone).
+     */
+    public static final String DOC_VALUES_UPDATE_FIELD = "__dv_update";
+
+    /**
+     * Create the born-soft-deleted history document for an in-place doc-values update (see {@code doc_values.updatable}). The document
+     * itself carries none of the updated values — those are applied to the live document via {@code IndexWriter#updateDocValues}. It
+     * exists only so the operation is visible when history is reconstructed from Lucene: it holds {@code _id}, {@code _seq_no},
+     * {@code _primary_term}, {@code _version}, and the serialized field updates in {@link #DOC_VALUES_UPDATE_FIELD}.
+     */
+    public static ParsedDocument docValuesUpdateHistory(
+        SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions,
+        String id,
+        BytesRef updatesPayload
+    ) {
+        LuceneDocument document = new LuceneDocument();
+        // emptySeqID (not tombstone): no _tombstone field, so reconstruction does not mistake this for a delete/no-op.
+        SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(seqNoIndexOptions);
+        seqIdFields.addFields(document);
+        Field versionField = VersionFieldMapper.versionField();
+        document.add(versionField);
+        // No _id field: the uid rides in the payload instead, so a later updateDocValues by the _id term does not also rewrite this
+        // history document. It is found by sequence number when history is read back, and identified by DOC_VALUES_UPDATE_FIELD.
+        document.add(new BinaryDocValuesField(DOC_VALUES_UPDATE_FIELD, updatesPayload));
         return new ParsedDocument(
             versionField,
             seqIdFields,

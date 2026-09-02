@@ -9,6 +9,7 @@
 package org.elasticsearch.action;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.action.bulk.DocValuesUpdateRequest;
 import org.elasticsearch.action.bulk.TransportAbstractBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -274,6 +275,8 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable, Releasa
             docWriteRequest = new DeleteRequest(shardId, in);
         } else if (type == 2) {
             docWriteRequest = new UpdateRequest(shardId, in);
+        } else if (type == 3) {
+            docWriteRequest = new DocValuesUpdateRequest(shardId, in);
         } else {
             throw new IllegalStateException("invalid request type [" + type + " ]");
         }
@@ -291,6 +294,9 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable, Releasa
         } else if (request instanceof UpdateRequest) {
             out.writeByte((byte) 2);
             ((UpdateRequest) request).writeTo(out);
+        } else if (request instanceof DocValuesUpdateRequest) {
+            out.writeByte((byte) 3);
+            ((DocValuesUpdateRequest) request).writeTo(out);
         } else {
             throw new IllegalStateException("invalid request [" + request.getClass().getSimpleName() + " ]");
         }
@@ -307,6 +313,9 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable, Releasa
         } else if (request instanceof UpdateRequest) {
             out.writeByte((byte) 2);
             ((UpdateRequest) request).writeThin(out);
+        } else if (request instanceof DocValuesUpdateRequest) {
+            out.writeByte((byte) 3);
+            ((DocValuesUpdateRequest) request).writeThin(out);
         } else {
             throw new IllegalStateException("invalid request [" + request.getClass().getSimpleName() + " ]");
         }

@@ -13,7 +13,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.DocValuesUpdateRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -32,11 +34,14 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.UpdateNotSupportedException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.get.ShardGetService;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateCtxMap;
@@ -48,8 +53,11 @@ import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.LongSupplier;
 
 /**
@@ -78,6 +86,34 @@ public class UpdateHelper {
         if (indexShard.indexSettings().sequenceNumbersDisabled()) {
             throw new UpdateNotSupportedException(indexShard.shardId());
         }
+        // In-place doc-values fast path: when the partial document only sets doc_values.updatable scalar fields, the update needs
+        // nothing from the current _source and can skip the read-modify-write, whose synthetic-source reconstruction dominates an
+        // update on a columnar index. Only taken when no _source is echoed back and the index has no inference fields (both need the
+        // merged source), and the document exists; a missing document falls through to the upsert path.
+        final MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
+        if (sourceReturnRequested(request) == false && mappingLookup.inferenceFields().isEmpty()) {
+            List<Translog.DocValuesUpdate.FieldUpdate> updates = buildDocValuesFieldUpdates(request, mappingLookup);
+            if (updates != null) {
+                final GetResult getResult = indexShard.getService()
+                    .getForUpdate(
+                        request.id(),
+                        request.routing(),
+                        request.ifSeqNo(),
+                        request.ifPrimaryTerm(),
+                        FetchSourceContext.DO_NOT_FETCH_SOURCE,
+                        splitShardCountSummary
+                    );
+                if (getResult.isExists()) {
+                    String routing = calculateRouting(getResult, request.doc(), request.routing());
+                    return new Result(
+                        buildDocValuesUpdateRequest(request, getResult, routing, updates),
+                        DocWriteResponse.Result.UPDATED,
+                        null,
+                        null
+                    );
+                }
+            }
+        }
         final GetResult getResult = indexShard.getService()
             .getForUpdate(
                 request.id(),
@@ -88,6 +124,10 @@ public class UpdateHelper {
                 splitShardCountSummary
             );
         return prepare(indexShard, request, getResult, nowInMillis);
+    }
+
+    private static boolean sourceReturnRequested(UpdateRequest request) {
+        return request.fetchSource() != null && request.fetchSource().fetchSource();
     }
 
     /**
@@ -102,6 +142,14 @@ public class UpdateHelper {
         FetchSourceContext fetchSourceContext,
         SplitShardCountSummary splitShardCountSummary
     ) {
+        // The in-place doc-values fast path reads no _source, so skip pre-resolution (which prefetches stored fields) and let
+        // prepare() take that path directly.
+        final MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
+        if (sourceReturnRequested(request) == false
+            && mappingLookup.inferenceFields().isEmpty()
+            && buildDocValuesFieldUpdates(request, mappingLookup) != null) {
+            return null;
+        }
         final Engine.GetResult getResult = indexShard.getService()
             .preResolveForUpdate(request.id(), request.routing(), splitShardCountSummary);
         // a missing document has nothing to prefetch (the upsert path keeps today's semantics), and holding a
@@ -371,6 +419,10 @@ public class UpdateHelper {
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
             String index = request.index();
+            DocValuesUpdateRequest docValuesUpdate = tryBuildDocValuesUpdate(indexShard, request, getResult, routing);
+            if (docValuesUpdate != null) {
+                return new Result(docValuesUpdate, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
+            }
             IndexRequest finalIndexRequest = new IndexRequest(index).id(request.id())
                 .routing(routing)
                 .setRoutingFromSlice(routingFromSlice)
@@ -382,6 +434,104 @@ public class UpdateHelper {
                 .setRefreshPolicy(request.getRefreshPolicy());
             return new Result(finalIndexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
         }
+    }
+
+    /**
+     * If the partial document of this update touches only {@code doc_values.updatable} fields with scalar values, build the in-place
+     * doc-values update that replaces the read-modify-reindex. Returns {@code null} — falling back to a normal index update — whenever
+     * anything makes the fast path inapplicable (feature flag off, no updatable fields, a non-updatable or non-scalar field, a null
+     * value that would remove a value, etc.).
+     */
+    private static DocValuesUpdateRequest tryBuildDocValuesUpdate(
+        IndexShard indexShard,
+        UpdateRequest request,
+        GetResult getResult,
+        String routing
+    ) {
+        List<Translog.DocValuesUpdate.FieldUpdate> updates = buildDocValuesFieldUpdates(
+            request,
+            indexShard.mapperService().mappingLookup()
+        );
+        if (updates == null) {
+            return null;
+        }
+        return buildDocValuesUpdateRequest(request, getResult, routing, updates);
+    }
+
+    /**
+     * Encodes the partial document into in-place doc-values field updates, or {@code null} when the fast path does not apply. Derived
+     * purely from the request and mapping, so it can gate the fast path before the document is fetched.
+     */
+    private static List<Translog.DocValuesUpdate.FieldUpdate> buildDocValuesFieldUpdates(
+        UpdateRequest request,
+        MappingLookup mappingLookup
+    ) {
+        if (FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled() == false) {
+            return null;
+        }
+        Set<String> updatableFields = mappingLookup.updatableFields();
+        if (updatableFields.isEmpty()) {
+            return null;
+        }
+        // A scripted update or a bare upsert has no partial document to apply in place.
+        if (request.script() != null || request.doc() == null) {
+            return null;
+        }
+        // A user-supplied optimistic-concurrency precondition cannot be honored on the in-place path: a doc-values update does not change
+        // the document's seq_no, so it is invisible to seq_no-based CAS. Fall back to the read-modify-reindex update, which enforces it.
+        if (request.ifSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO || request.ifPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
+            return null;
+        }
+        Map<String, Object> partialDoc = request.doc().sourceAsMap();
+        if (partialDoc.isEmpty()) {
+            return null;
+        }
+        List<Translog.DocValuesUpdate.FieldUpdate> updates = new ArrayList<>(partialDoc.size());
+        FieldMapper.DocValuesUpdateSink sink = new FieldMapper.DocValuesUpdateSink() {
+            @Override
+            public void numeric(String field, long value) {
+                updates.add(new Translog.DocValuesUpdate.NumericFieldUpdate(field, value));
+            }
+
+            @Override
+            public void binary(String field, BytesRef value) {
+                updates.add(new Translog.DocValuesUpdate.BinaryFieldUpdate(field, value));
+            }
+        };
+        for (Map.Entry<String, Object> entry : partialDoc.entrySet()) {
+            String field = entry.getKey();
+            Object value = entry.getValue();
+            if (updatableFields.contains(field) == false) {
+                return null;
+            }
+            // Only scalar replacements can be applied in place: a null removes the value, a map/list is a nested or multi-valued update.
+            if (value == null || value instanceof Map || value instanceof Iterable) {
+                return null;
+            }
+            if (mappingLookup.getMapper(field) instanceof FieldMapper fieldMapper && fieldMapper.isDocValuesUpdatable()) {
+                fieldMapper.encodeDocValuesUpdate(value, sink);
+            } else {
+                return null;
+            }
+        }
+        return updates;
+    }
+
+    private static DocValuesUpdateRequest buildDocValuesUpdateRequest(
+        UpdateRequest request,
+        GetResult getResult,
+        String routing,
+        List<Translog.DocValuesUpdate.FieldUpdate> updates
+    ) {
+        DocValuesUpdateRequest docValuesUpdateRequest = new DocValuesUpdateRequest(request.index(), request.id(), updates).routing(routing)
+            .documentVersion(getResult.getVersion())
+            .setIfSeqNo(getResult.getSeqNo())
+            .setIfPrimaryTerm(getResult.getPrimaryTerm());
+        // Carry over the write parameters, exactly as the reindex path does for its IndexRequest, so e.g. the refresh policy of the
+        // single-document update API is honoured.
+        docValuesUpdateRequest.waitForActiveShards(request.waitForActiveShards()).timeout(request.timeout());
+        docValuesUpdateRequest.setRefreshPolicy(request.getRefreshPolicy());
+        return docValuesUpdateRequest;
     }
 
     /**
@@ -506,6 +656,10 @@ public class UpdateHelper {
         SourceFilter sourceFilter = request.fetchSource().filter();
         if (sourceFilter != null) {
             sourceFilteredAsBytes = Source.fromMap(source, sourceContentType).filter(sourceFilter).internalSourceRef();
+        } else if (sourceFilteredAsBytes == null && source != null) {
+            // Rebuild the source bytes from the merged map when the caller has none, e.g. an in-place doc-values update carries no
+            // full-document source of its own.
+            sourceFilteredAsBytes = Source.fromMap(source, sourceContentType).internalSourceRef();
         }
 
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)

@@ -1,0 +1,149 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.doc_values.updatable" ]
+      reason: "doc_values.updatable is a columnar-only mapping parameter behind a feature"
+
+---
+"in-place update of an updatable field is visible to get and search":
+  - do:
+      indices.create:
+        index: test_updatable
+        body:
+          settings:
+            index.mode: columnar
+            index.disable_sequence_numbers: false
+          mappings:
+            properties:
+              status: { type: keyword, index: false, doc_values: { updatable: true } }
+              count:  { type: long,    index: false, doc_values: { updatable: true } }
+              name:   { type: keyword }
+
+  - do:
+      index:
+        index: test_updatable
+        id: "1"
+        refresh: true
+        body: { status: "new", count: 1, name: "widget" }
+  - match: { _version: 1 }
+
+  - do:
+      update:
+        index: test_updatable
+        id: "1"
+        refresh: true
+        body:
+          doc: { status: "active", count: 42 }
+  - match: { result: updated }
+  # An in-place doc-values update does not bump the document's version.
+  - match: { _version: 1 }
+
+  - do:
+      get:
+        index: test_updatable
+        id: "1"
+  - match: { _source.status: "active" }
+  - match: { _source.count: 42 }
+  - match: { _source.name: "widget" }
+
+  - do:
+      search:
+        index: test_updatable
+        body:
+          query: { range: { count: { gte: 40 } } }
+  - match: { hits.total.value: 1 }
+
+---
+"in-place update is reflected in columnar_stored source":
+  - do:
+      indices.create:
+        index: test_updatable_stored
+        body:
+          settings:
+            index.mode: columnar
+            index.disable_sequence_numbers: false
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              status: { type: keyword, index: false, doc_values: { updatable: true } }
+              ratio:  { type: double,  index: false, doc_values: { updatable: true } }
+              name:   { type: keyword }
+
+  - do:
+      index:
+        index: test_updatable_stored
+        id: "1"
+        refresh: true
+        body: { status: "new", ratio: 0.5, name: "widget" }
+
+  - do:
+      update:
+        index: test_updatable_stored
+        id: "1"
+        refresh: true
+        body:
+          doc: { status: "active", ratio: 2.5 }
+  - match: { result: updated }
+  - match: { _version: 1 }
+
+  # columnar_stored source is a whole-document blob; the updated columns are overlaid on read.
+  - do:
+      get:
+        index: test_updatable_stored
+        id: "1"
+  - match: { _source.status: "active" }
+  - match: { _source.ratio: 2.5 }
+  - match: { _source.name: "widget" }
+
+---
+"a conditional update falls back to reindex and bumps the version":
+  - do:
+      indices.create:
+        index: test_updatable_cas
+        body:
+          settings:
+            index.mode: columnar
+            index.disable_sequence_numbers: false
+          mappings:
+            properties:
+              status: { type: keyword, index: false, doc_values: { updatable: true } }
+
+  - do:
+      index:
+        index: test_updatable_cas
+        id: "1"
+        refresh: true
+        body: { status: "new" }
+  - set: { _seq_no: seqno }
+  - set: { _primary_term: term }
+
+  - do:
+      update:
+        index: test_updatable_cas
+        id: "1"
+        if_seq_no: $seqno
+        if_primary_term: $term
+        refresh: true
+        body:
+          doc: { status: "active" }
+  - match: { result: updated }
+  # if_seq_no cannot be honored in place, so the update reindexes and the version becomes 2.
+  - match: { _version: 2 }
+
+---
+"doc_values.updatable requires index false":
+  - do:
+      catch: /requires \[index:false\]/
+      indices.create:
+        index: test_updatable_indexed
+        body:
+          settings:
+            index.mode: columnar
+            index.disable_sequence_numbers: false
+          mappings:
+            properties:
+              status: { type: keyword, index: true, doc_values: { updatable: true } }

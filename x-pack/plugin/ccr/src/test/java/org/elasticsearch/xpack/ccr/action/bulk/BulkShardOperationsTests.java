@@ -57,8 +57,8 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         for (int i = 0; i < numOps; i++) {
             final String id = Integer.toString(i);
             final long seqNo = i;
-            final Translog.Operation.Type type = randomValueOtherThan(
-                Translog.Operation.Type.CREATE,
+            final Translog.Operation.Type type = randomValueOtherThanMany(
+                t -> t == Translog.Operation.Type.CREATE || t == Translog.Operation.Type.DOC_VALUES_UPDATE,
                 () -> randomFrom(Translog.Operation.Type.values())
             );
             switch (type) {

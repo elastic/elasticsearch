@@ -365,6 +365,107 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testDocValuesUpdateAppliesInPlaceAndReconstructsFromLucene() throws Exception {
+        // Index a document with a doc-values-only numeric field, then update that field in place.
+        LuceneDocument document = testDocument();
+        document.add(new NumericDocValuesField("counter", 1));
+        ParsedDocument doc = testParsedDocument("1", null, document, new BytesArray("{}"));
+        Engine.IndexResult indexResult = engine.index(indexForDoc(doc));
+        assertThat(indexResult.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        engine.refresh("test");
+        assertThat(readCounterOfLiveDoc(engine), equalTo(1L));
+
+        Engine.DocValuesUpdate op = new Engine.DocValuesUpdate(
+            "1",
+            Uid.encodeId("1"),
+            UNASSIGNED_SEQ_NO,
+            primaryTerm.get(),
+            1L,
+            VersionType.INTERNAL,
+            PRIMARY,
+            System.nanoTime(),
+            List.of(new Translog.DocValuesUpdate.NumericFieldUpdate("counter", 42))
+        );
+        Engine.DocValuesUpdateResult result = engine.docValuesUpdate(op);
+        assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        // the update got its own sequence number, after the index (seqNo 0)
+        assertThat(result.getSeqNo(), equalTo(1L));
+        assertThat(result.getTranslogLocation(), notNullValue());
+        engine.refresh("test");
+
+        // The live document still exists (the history document is soft-deleted and excluded) and carries the new value.
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            assertThat(searcher.getIndexReader().numDocs(), equalTo(1));
+        }
+        assertThat(readCounterOfLiveDoc(engine), equalTo(42L));
+
+        // The operation is reconstructable from Lucene, so peer recovery and CCR can replay it.
+        List<Translog.Operation> ops = readAllOperationsInLucene(engine);
+        Translog.DocValuesUpdate reconstructed = ops.stream()
+            .filter(o -> o instanceof Translog.DocValuesUpdate)
+            .map(o -> (Translog.DocValuesUpdate) o)
+            .reduce((a, b) -> {
+                throw new AssertionError("expected a single doc values update, got more");
+            })
+            .orElseThrow(() -> new AssertionError("no doc values update reconstructed from " + ops));
+        assertThat(reconstructed.seqNo(), equalTo(1L));
+        assertThat(Uid.decodeId(reconstructed.uid()), equalTo("1"));
+        assertThat(reconstructed.updates(), equalTo(List.of(new Translog.DocValuesUpdate.NumericFieldUpdate("counter", 42))));
+    }
+
+    public void testDocValuesUpdateReplaysDuringTranslogRecovery() throws Exception {
+        Engine initialEngine = engine;
+        try {
+            LuceneDocument document = testDocument();
+            document.add(new NumericDocValuesField("counter", 1));
+            ParsedDocument doc = testParsedDocument("1", null, document, new BytesArray("{}"));
+            initialEngine.index(indexForDoc(doc));
+            initialEngine.docValuesUpdate(
+                new Engine.DocValuesUpdate(
+                    "1",
+                    Uid.encodeId("1"),
+                    UNASSIGNED_SEQ_NO,
+                    primaryTerm.get(),
+                    1L,
+                    VersionType.INTERNAL,
+                    PRIMARY,
+                    System.nanoTime(),
+                    List.of(new Translog.DocValuesUpdate.NumericFieldUpdate("counter", 42))
+                )
+            );
+        } finally {
+            IOUtils.close(initialEngine);
+        }
+
+        // Recover a fresh engine from the translog: the doc-values update is replayed and reproduces the updated value.
+        try (Engine recoveringEngine = new InternalEngine(initialEngine.config())) {
+            recoverFromTranslog(recoveringEngine, translogHandler, Long.MAX_VALUE);
+            recoveringEngine.refresh("test");
+            assertThat(readCounterOfLiveDoc(recoveringEngine), equalTo(42L));
+        }
+    }
+
+    private static long readCounterOfLiveDoc(Engine engine) throws IOException {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
+                NumericDocValues counter = leaf.reader().getNumericDocValues("counter");
+                if (counter == null) {
+                    continue;
+                }
+                Bits liveDocs = leaf.reader().getLiveDocs();
+                for (int docId = 0; docId < leaf.reader().maxDoc(); docId++) {
+                    if (liveDocs != null && liveDocs.get(docId) == false) {
+                        continue;
+                    }
+                    if (counter.advanceExact(docId)) {
+                        return counter.longValue();
+                    }
+                }
+            }
+        }
+        throw new AssertionError("no live document with a [counter] doc value");
+    }
+
     public void testVerboseSegments() throws Exception {
         try (Store store = createStore(); Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)) {
             List<Segment> segments = engine.segments();
@@ -5424,7 +5525,7 @@ public class InternalEngineTests extends EngineTestCase {
         for (int i = 0; i < numOps; i++) {
             String id = Integer.toString(randomIntBetween(1, 10));
             ParsedDocument doc = createParsedDoc(id, null);
-            Engine.Operation.TYPE type = randomFrom(Engine.Operation.TYPE.values());
+            Engine.Operation.TYPE type = randomFrom(Engine.Operation.TYPE.INDEX, Engine.Operation.TYPE.DELETE, Engine.Operation.TYPE.NO_OP);
             switch (type) {
                 case INDEX -> {
                     Engine.IndexResult index = indexDoc(engine, replicaIndexForDoc(doc, between(1, 100), i, randomBoolean()));

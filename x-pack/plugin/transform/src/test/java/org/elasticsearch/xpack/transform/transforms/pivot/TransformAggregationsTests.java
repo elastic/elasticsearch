@@ -23,9 +23,13 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
+import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder;
 
 import java.util.Arrays;
 import java.util.List;
@@ -423,6 +427,38 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("boxplot", outputTypes.get("boxplot.q3"));
         assertEquals("boxplot", outputTypes.get("boxplot.lower"));
         assertEquals("boxplot", outputTypes.get("boxplot.upper"));
+    }
+
+    public void testGetAggregationOutputTypesTopMetricsSizeOne() {
+        AggregationBuilder topMetrics = new TopMetricsAggregationBuilder(
+            "token",
+            List.of(SortBuilders.fieldSort("@timestamp").order(SortOrder.ASC)),
+            1,
+            List.of(new MultiValuesSourceFieldConfig.Builder().setFieldName("attributes.url.path.grouped").build())
+        );
+        Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(
+            topMetrics
+        );
+        assertThat(inputAndOutputTypes.v1(), hasEntry("token.attributes.url.path.grouped", "attributes.url.path.grouped"));
+        assertThat(inputAndOutputTypes.v2(), hasEntry("token.attributes.url.path.grouped", "top_metrics"));
+        assertThat(inputAndOutputTypes.v1(), hasEntry("token.top.metrics.attributes.url.path.grouped", "attributes.url.path.grouped"));
+        assertThat(inputAndOutputTypes.v2(), hasEntry("token.top.metrics.attributes.url.path.grouped", "top_metrics"));
+    }
+
+    public void testGetAggregationOutputTypesTopMetricsSizeGreaterThanOne() {
+        AggregationBuilder topMetrics = new TopMetricsAggregationBuilder(
+            "token",
+            List.of(SortBuilders.fieldSort("@timestamp").order(SortOrder.ASC)),
+            3,
+            List.of(new MultiValuesSourceFieldConfig.Builder().setFieldName("attributes.url.path.grouped").build())
+        );
+        Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(
+            topMetrics
+        );
+        assertThat(inputAndOutputTypes.v1(), hasEntry("token.attributes.url.path.grouped", "attributes.url.path.grouped"));
+        assertThat(inputAndOutputTypes.v2(), hasEntry("token.attributes.url.path.grouped", "top_metrics"));
+        assertThat(inputAndOutputTypes.v1(), hasEntry("token.top.metrics.attributes.url.path.grouped", "attributes.url.path.grouped"));
+        assertThat(inputAndOutputTypes.v2(), hasEntry("token.top.metrics.attributes.url.path.grouped", "top_metrics"));
     }
 
     public void testGenerateKeyForRange() {

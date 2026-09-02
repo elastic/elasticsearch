@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.InternalMultiValueAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetric;
+import org.elasticsearch.search.aggregations.metrics.MultiValueAggregation;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.test.ESTestCase;
@@ -60,6 +61,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -112,6 +114,40 @@ public class AggregationResultUtilsTests extends ESTestCase {
         @Override
         public Object getProperty(List<String> path) {
             return null;
+        }
+    }
+
+    /**
+     * Stand-in for {@code top_metrics} with {@code size > 1}. Production results come from
+     * {@code InternalTopMetrics}; this double only implements the dest-writer contract.
+     */
+    class TestRankedMultiValueAggregation extends TestMultiValueAggregation {
+        private final int rankedHitSize;
+        private final List<MultiValueAggregation.RankedHit> rankedHits;
+
+        TestRankedMultiValueAggregation(String name, int rankedHitSize, List<MultiValueAggregation.RankedHit> rankedHits) {
+            super(name, firstHitMetricsAsStrings(rankedHits));
+            this.rankedHitSize = rankedHitSize;
+            this.rankedHits = List.copyOf(rankedHits);
+        }
+
+        private static Map<String, String> firstHitMetricsAsStrings(List<MultiValueAggregation.RankedHit> rankedHits) {
+            if (rankedHits.isEmpty()) {
+                return Map.of();
+            }
+            Map<String, String> values = new LinkedHashMap<>();
+            rankedHits.get(0).metrics().forEach((key, value) -> values.put(key, value == null ? null : String.valueOf(value)));
+            return values;
+        }
+
+        @Override
+        public int getRankedHitSize() {
+            return rankedHitSize;
+        }
+
+        @Override
+        public List<MultiValueAggregation.RankedHit> getRankedHits() {
+            return rankedHits;
         }
     }
 
@@ -701,6 +737,149 @@ public class AggregationResultUtilsTests extends ESTestCase {
             AggregationResultUtils.getExtractor(agg).value(agg, Map.of("mv_metric.top_answer", "keyword", "mv_metric.ip", "ip"), ""),
             hasEqualEntriesInOrder(asOrderedMap("ip", "192.168.1.1", "top_answer", "fortytwo"))
         );
+    }
+
+    public void testMultiValueAggExtractorSizeOneWritesFlattenAndTopArray() {
+        Aggregation agg = new TestRankedMultiValueAggregation(
+            "token",
+            1,
+            List.of(
+                new MultiValueAggregation.RankedHit(
+                    List.of("2026-08-16T10:00:00.000Z"),
+                    asOrderedMap("attributes.url.path.grouped", "/home")
+                )
+            )
+        );
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Map.of(), ""),
+            equalTo(
+                Map.of(
+                    "attributes.url.path.grouped",
+                    "/home",
+                    "top",
+                    List.of(
+                        asOrderedMap(
+                            "sort",
+                            List.of("2026-08-16T10:00:00.000Z"),
+                            "metrics",
+                            asOrderedMap("attributes.url.path.grouped", "/home")
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    public void testMultiValueAggExtractorWithoutRankedHitsStaysFlatten() {
+        Aggregation agg = new TestMultiValueAggregation("token", Map.of("attributes.url.path.grouped", "/home"));
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Map.of(), ""),
+            equalTo(Map.of("attributes.url.path.grouped", "/home"))
+        );
+    }
+
+    public void testMultiValueAggExtractorSizeGreaterThanOneWritesFlattenAndTopArray() {
+        Aggregation agg = new TestRankedMultiValueAggregation(
+            "token",
+            3,
+            List.of(
+                new MultiValueAggregation.RankedHit(
+                    List.of("2026-08-16T10:00:00.000Z"),
+                    asOrderedMap("attributes.url.path.grouped", "/home")
+                ),
+                new MultiValueAggregation.RankedHit(
+                    List.of("2026-08-16T10:01:00.000Z"),
+                    asOrderedMap("attributes.url.path.grouped", "/shop")
+                ),
+                new MultiValueAggregation.RankedHit(
+                    List.of("2026-08-16T10:02:00.000Z"),
+                    asOrderedMap("attributes.url.path.grouped", "/checkout")
+                )
+            )
+        );
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Map.of(), ""),
+            equalTo(
+                Map.of(
+                    "attributes.url.path.grouped",
+                    "/home",
+                    "top",
+                    List.of(
+                        asOrderedMap(
+                            "sort",
+                            List.of("2026-08-16T10:00:00.000Z"),
+                            "metrics",
+                            asOrderedMap("attributes.url.path.grouped", "/home")
+                        ),
+                        asOrderedMap(
+                            "sort",
+                            List.of("2026-08-16T10:01:00.000Z"),
+                            "metrics",
+                            asOrderedMap("attributes.url.path.grouped", "/shop")
+                        ),
+                        asOrderedMap(
+                            "sort",
+                            List.of("2026-08-16T10:02:00.000Z"),
+                            "metrics",
+                            asOrderedMap("attributes.url.path.grouped", "/checkout")
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    public void testMultiValueAggExtractorSizeGreaterThanOneDoesNotPadHits() {
+        Aggregation agg = new TestRankedMultiValueAggregation(
+            "token",
+            10,
+            List.of(
+                new MultiValueAggregation.RankedHit(List.of("2026-08-16T10:00:00.000Z"), Map.of("path", "/home")),
+                new MultiValueAggregation.RankedHit(List.of("2026-08-16T10:01:00.000Z"), Map.of("path", "/shop"))
+            )
+        );
+        @SuppressWarnings("unchecked")
+        Map<String, Object> extracted = (Map<String, Object>) AggregationResultUtils.getExtractor(agg).value(agg, Map.of(), "");
+        assertThat(((List<?>) extracted.get("top")), hasSize(2));
+        assertThat(extracted.get("path"), equalTo("/home"));
+    }
+
+    public void testMultiValueAggExtractorSizeGreaterThanOneEmptyHits() {
+        Aggregation agg = new TestRankedMultiValueAggregation("token", 3, List.of());
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Map.of(), ""), equalTo(Map.of("top", List.of())));
+    }
+
+    public void testExtractCompositeAggregationResultsTopMetricsSizeDoesNotExplodeDocs() throws IOException {
+        GroupConfig groupBy = parseGroupConfig("""
+            { "session": {"terms" : {   "field" : "session.id"} } }
+            """);
+        TestRankedMultiValueAggregation token = new TestRankedMultiValueAggregation(
+            "token",
+            3,
+            List.of(
+                new MultiValueAggregation.RankedHit(List.of("t0"), Map.of("path", "/home")),
+                new MultiValueAggregation.RankedHit(List.of("t1"), Map.of("path", "/shop")),
+                new MultiValueAggregation.RankedHit(List.of("t2"), Map.of("path", "/checkout"))
+            )
+        );
+        InternalComposite input = createComposite(
+            List.of(createInternalCompositeBucket(asMap("session", "s1"), InternalAggregations.from(List.of(token)), 5L))
+        );
+        List<Map<String, Object>> result = runExtraction(
+            groupBy,
+            List.of(AggregationBuilders.max("token")),
+            List.of(),
+            input,
+            Map.of("session", "keyword"),
+            new TransformIndexerStats(),
+            new TransformProgress()
+        );
+        assertThat(result, hasSize(1));
+        assertThat(result.get(0).get("session"), equalTo("s1"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> tokenDoc = (Map<String, Object>) result.get(0).get("token");
+        assertThat(tokenDoc.get("path"), equalTo("/home"));
+        assertThat(((List<?>) tokenDoc.get("top")), hasSize(3));
     }
 
     public void testNumericMultiValueAggExtractor() {

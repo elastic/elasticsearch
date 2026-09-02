@@ -257,3 +257,19 @@ ROW input = "data:image/jpeg;base64,V2hvIGlzIFZpY3RvciBIdWdvPw=="
 input:keyword                                          | input_dense_vector:dense_vector
 data:image/jpeg;base64,V2hvIGlzIFZpY3RvciBIdWdvPw==    | [-56.0, -50.0, -48.0]
 ;
+
+
+// Embedding two fields but keeping only one: the unused field's embedding is pruned by the optimizer, and the kept
+// column is unchanged. This asserts output correctness under pruning (the savings are not observable in the output).
+dense_vector command keeps only the used generated column
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+ROW a = "be excellent to each other", b = "live long and prosper"
+| DENSE_VECTOR a, b WITH { "inference_id" : "test_dense_inference" }
+| KEEP a, a_dense_vector
+;
+
+a:keyword                  | a_dense_vector:dense_vector
+be excellent to each other | [45.0, 55.0, 54.0]
+;

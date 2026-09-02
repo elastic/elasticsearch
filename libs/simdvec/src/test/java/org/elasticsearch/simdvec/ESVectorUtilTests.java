@@ -1362,4 +1362,5 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
         assertArrayEqualsPercent(result1, result2, 0.15f);
     }
+
 }

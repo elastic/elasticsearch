@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -84,12 +85,14 @@ public class DataStreamLifecycleHealthInfoPublisher {
      * {@link DataStreamLifecycleErrorStore#DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING}
      */
     public void publishDslErrorEntries(ActionListener<AcknowledgedResponse> actionListener) {
-        DiscoveryNode currentHealthNode = HealthNode.findHealthNode(clusterService.state());
+        ClusterState clusterState = clusterService.state();
+        DiscoveryNode currentHealthNode = HealthNode.findHealthNode(clusterState);
         if (currentHealthNode != null) {
             String healthNodeId = currentHealthNode.getId();
             // fetching the entries that persist in the error store for more than the signalling retry interval
             // note that we're reporting this view into the error store on every publishing iteration
             List<DslErrorInfo> errorEntriesToSignal = errorStore.getErrorsInfo(
+                clusterState,
                 entry -> entry.retryCount() >= signallingErrorRetryInterval,
                 maxNumberOfErrorsToPublish
             );

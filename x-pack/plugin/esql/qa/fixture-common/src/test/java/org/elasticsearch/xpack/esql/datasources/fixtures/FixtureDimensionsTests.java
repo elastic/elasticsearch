@@ -425,10 +425,10 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testDirectiveExpressibleCountsPerFormat() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(675));
-        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(297));
-        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(81));
-        assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(31));
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(1439));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(1340));
+        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(232));
+        assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(197));
     }
 
     /**
@@ -465,7 +465,7 @@ public class FixtureDimensionsTests extends ESTestCase {
         // 10,997 rather than 11,685: the declared value-disjoint pair removes 688 vectors the reader
         // cannot be configured to run. A declared, counted removal of the unconstructible -- not lost
         // coverage, and not a number to adjust when it drifts.
-        assertThat(seen[0], equalTo(11547));
+        assertThat(seen[0], equalTo(31366));
     }
 
     /** No vector may survive carrying a combination the reader rejects outright. */
@@ -489,10 +489,10 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testDisjointRemovalLeavesEveryFormatsSelectionUntouched() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(675));
-        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(297));
-        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(81));
-        assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(31));
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(1439));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(1340));
+        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(232));
+        assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(197));
     }
 
     /** A hole nobody explained is indistinguishable from a forgotten line. */
@@ -640,8 +640,9 @@ public class FixtureDimensionsTests extends ESTestCase {
         // same three codecs, so the symmetry is the claim. They differ only in WHICH values are off
         // default (csv defaults to quoted, tsv to plain), never in how many. ndjson has the codecs and
         // no dialects, which is the 27.
-        Map<String, Integer> expectedGap = Map.of("csv", 603, "tsv", 243, "ndjson", 27); // dimension-copy-ok: a test that pins per-format
-                                                                                         // expectations must name the formats it pins
+        Map<String, Integer> expectedGap = Map.of("csv", 1333, "tsv", 1234, "ndjson", 126); // dimension-copy-ok: a test that pins
+                                                                                            // per-format
+                                                                                            // expectations must name the formats it pins
         for (String format : List.of("csv", "tsv", "ndjson")) { // dimension-copy-ok: a test that pins per-format expectations must name the
                                                                 // formats it pins
             assertThat(
@@ -651,13 +652,14 @@ public class FixtureDimensionsTests extends ESTestCase {
             );
         }
         // parquet has no text codec and no dialect, so this gap was zero for as long as every parquet
-        // codec was a gap. It is four because the four codecs whose bytes compressed-parquet-fixtures
-        // .gradle already wrote became selectable -- the seam measures reachability, not generation, and
-        // those bytes were generated all along while nothing could ask for them.
+        // codec was a gap. It counts VECTORS withdrawn, not cells -- those coincided while each codec
+        // produced exactly one vector, and stopped coinciding once t-way completion began emitting
+        // several vectors per codec. The claim that survives is the one that was always the point: the
+        // seam is load-bearing on parquet, and it is load-bearing because of the codec trees.
         assertThat(
-            "the four selectable parquet codecs are fixture-seam cells",
+            "the parquet codec trees make the fixture seam load-bearing there",
             d.expressibleVectors("parquet", both).size() - d.expressibleVectors("parquet", directiveOnly).size(),
-            equalTo(4)
+            equalTo(132)
         );
     }
 
@@ -665,7 +667,7 @@ public class FixtureDimensionsTests extends ESTestCase {
     public void testTheDefaultFormatNeedsNoCapabilityRow() {
         FixtureDimensions d = FixtureDimensions.get();
         assertThat(FixtureCapabilities.renders("format", "csv", "csv"), equalTo(false));
-        assertThat(d.expressibleVectors("csv", Set.of(FixtureDimensions.Seam.DIRECTIVE)).size(), equalTo(72));
+        assertThat(d.expressibleVectors("csv", Set.of(FixtureDimensions.Seam.DIRECTIVE)).size(), equalTo(106));
     }
 
     /**

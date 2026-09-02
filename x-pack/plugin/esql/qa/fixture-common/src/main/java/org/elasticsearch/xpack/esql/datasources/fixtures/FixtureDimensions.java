@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -864,6 +865,135 @@ public final class FixtureDimensions {
     }
 
     /** The formats a group can be exercised on: the intersection of its members' applicability. */
+    /**
+     * Emits whatever the clique crossing left uncovered, so every legal t-way COMBINATION is exercised.
+     *
+     * <p>The cliques cross fully INSIDE a group and not at all ACROSS groups -- redundant and incomplete
+     * at once. Measured: 3,265 vectors covering 88.3% of legal pairs and 87.4% of legal triples, with 256
+     * pairs and 2,868 triples never exercised. Two dimensions in different cliques never met, however much
+     * each was crossed at home.
+     *
+     * <p>The alternative is not the full cross: 20 dimensions is 1.05e10 vectors, which exhausts the heap
+     * rather than running. t-way coverage is the useful middle -- every combination of t values appears at
+     * least once, for a cost bounded by the number of uncombined t-tuples rather than by a product. t=2
+     * first because every finding so far came from a pair; t=3 after, because it is affordable here and
+     * catches the defects that need a third value present to appear.
+     *
+     * <p>Additive by construction: nothing the cliques produced is lost, each added vector sits at its
+     * format's baseline with exactly t slots pinned, and running t=2 before t=3 means the cheap
+     * combinations are covered by cheap vectors first.
+     */
+    private void completeTuples(int t, Set<Map<String, String>> seen, Consumer<Map<String, String>> consumer) {
+        Set<String> covered = new LinkedHashSet<>();
+        for (Map<String, String> vector : seen) {
+            recordTuples(t, vector, covered);
+        }
+        List<String> axes = new ArrayList<>(names);
+        axes.remove("format");
+        for (String format : values("format")) {
+            List<String> applicable = new ArrayList<>();
+            for (String axis : axes) {
+                if (appliesHere(axis, format)) {
+                    applicable.add(axis);
+                }
+            }
+            combine(applicable, t, 0, new ArrayList<>(), chosen -> emitForCombination(format, chosen, seen, covered, consumer, t));
+        }
+    }
+
+    /** Walks the value cross of one dimension combination, emitting a vector for each uncovered tuple. */
+    private void emitForCombination(
+        String format,
+        List<String> chosen,
+        Set<Map<String, String>> seen,
+        Set<String> covered,
+        Consumer<Map<String, String>> consumer,
+        int t
+    ) {
+        List<List<String>> choices = new ArrayList<>();
+        for (String axis : chosen) {
+            List<String> legal = new ArrayList<>();
+            for (String value : values(axis)) {
+                if (value.equals(defaultValue(axis, format)) || seamServesAnySeam(axis, value, format)) {
+                    legal.add(value);
+                }
+            }
+            choices.add(legal);
+        }
+        int[] index = new int[chosen.size()];
+        while (true) {
+            Map<String, String> pinned = new LinkedHashMap<>();
+            for (int i = 0; i < chosen.size(); i++) {
+                pinned.put(chosen.get(i), choices.get(i).get(index[i]));
+            }
+            String key = tupleKey(format, pinned);
+            if (covered.contains(key) == false) {
+                Map<String, String> vector = new LinkedHashMap<>();
+                for (String d : names) {
+                    vector.put(d, defaultValue(d, format));
+                }
+                vector.put("format", format);
+                vector.putAll(pinned);
+                if (carriesDisjointValues(vector) == false && seen.add(Map.copyOf(vector))) {
+                    recordTuples(t, vector, covered);
+                    consumer.accept(vector);
+                }
+            }
+            int at = chosen.size() - 1;
+            while (at >= 0 && ++index[at] >= choices.get(at).size()) {
+                index[at] = 0;
+                at--;
+            }
+            if (at < 0) {
+                return;
+            }
+        }
+    }
+
+    private boolean seamServesAnySeam(String dimension, String value, String format) {
+        return seamServes(dimension, value, format, EnumSet.allOf(Seam.class));
+    }
+
+    private static void combine(List<String> from, int t, int start, List<String> acc, Consumer<List<String>> sink) {
+        if (acc.size() == t) {
+            sink.accept(new ArrayList<>(acc));
+            return;
+        }
+        for (int i = start; i < from.size(); i++) {
+            acc.add(from.get(i));
+            combine(from, t, i + 1, acc, sink);
+            acc.remove(acc.size() - 1);
+        }
+    }
+
+    private boolean appliesHere(String dimension, String format) {
+        Set<String> scope = appliesTo(dimension);
+        return scope.isEmpty() || scope.contains(format);
+    }
+
+    private void recordTuples(int t, Map<String, String> vector, Set<String> into) {
+        String format = vector.get("format");
+        List<String> axes = new ArrayList<>(names);
+        axes.remove("format");
+        combine(axes, t, 0, new ArrayList<>(), chosen -> {
+            Map<String, String> pinned = new LinkedHashMap<>();
+            for (String axis : chosen) {
+                String value = vector.get(axis);
+                if (value == null) {
+                    return;
+                }
+                pinned.put(axis, value);
+            }
+            into.add(tupleKey(format, pinned));
+        });
+    }
+
+    private static String tupleKey(String format, Map<String, String> pinned) {
+        StringBuilder out = new StringBuilder(format);
+        pinned.forEach((k, v) -> out.append('|').append(k).append('=').append(v));
+        return out.toString();
+    }
+
     public Set<String> formatsFor(Set<String> group) {
         Set<String> formats = new LinkedHashSet<>(values("format"));
         for (String d : group) {
@@ -1121,6 +1251,8 @@ public final class FixtureDimensions {
                 }
             }
         }
+        completeTuples(2, seen, consumer);
+        completeTuples(3, seen, consumer);
     }
 
     /**
@@ -1148,12 +1280,22 @@ public final class FixtureDimensions {
             }
             acc = next;
         }
-        // A group not containing `format` still has to pin one the group is legal on.
+        // A group not containing `format` is legal on several, and has to be crossed with all of them.
+        // Pinning ONE -- preferring the global default -- meant every dimension whose clique happened not
+        // to include `format` was exercised on csv and nowhere else: quote, escape and partition_detection
+        // were reachable on tsv, ndjson and parquet by every other measure, and no vector ever carried
+        // them there. The audit called those cells covered because they ARE reachable; the crossing simply
+        // never asked for them, which is coverage claimed and not delivered.
         if (axes.contains("format") == false) {
-            String pinned = formats.contains(defaultValue("format")) ? defaultValue("format") : formats.iterator().next();
-            for (Map<String, String> vector : acc) {
-                vector.put("format", pinned);
+            List<Map<String, String>> spread = new ArrayList<>(acc.size() * formats.size());
+            for (String format : formats) {
+                for (Map<String, String> vector : acc) {
+                    Map<String, String> copy = new LinkedHashMap<>(vector);
+                    copy.put("format", format);
+                    spread.add(copy);
+                }
             }
+            return spread;
         }
         return acc;
     }

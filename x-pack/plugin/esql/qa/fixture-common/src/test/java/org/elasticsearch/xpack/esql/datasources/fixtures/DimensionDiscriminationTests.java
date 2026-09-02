@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.esql.datasources.fixtures;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -156,6 +159,53 @@ public class DimensionDiscriminationTests extends ESTestCase {
     }
 
     /** Read from the contract: the gate that guards copies caught this list being one of them. */
+    /**
+     * Every cell a seam can express must be carried by at least one vector.
+     *
+     * <p>Reachable and exercised are different claims, and the gap between them is silent: the audit
+     * reports a cell covered because a seam CAN express it, while the crossing may never ask for it.
+     * Eight cells sat in that gap -- quote and escape on tsv, partition_detection on tsv, ndjson and
+     * parquet -- because a clique that does not contain `format` was pinned to ONE format, preferring
+     * csv. Declared, capability rows present, seams serving them, and never run.
+     */
+    public void testEveryReachableCellIsCarriedByAVector() {
+        FixtureDimensions dimensions = FixtureDimensions.get();
+        Set<FixtureDimensions.Seam> all = EnumSet.allOf(FixtureDimensions.Seam.class);
+        List<String> unexercised = new ArrayList<>();
+        int reachable = 0;
+
+        for (String format : FORMATS) {
+            // Only formats a suite actually consumes. ORC's fixtures are generated in full and read by
+            // nothing (dimension.format.rule.orc), so its cells are reachable through a seam and correctly
+            // never run -- asking the crossing for them would be asking for vectors no suite can execute.
+            if (FixtureCapabilities.formatIsConsumed(dimensions, format) == false) {
+                continue;
+            }
+            Map<String, Set<String>> carried = new LinkedHashMap<>();
+            for (Map<String, String> vector : dimensions.expressibleVectors(format, all)) {
+                vector.forEach((slot, value) -> carried.computeIfAbsent(slot, k -> new LinkedHashSet<>()).add(value));
+            }
+            for (String dimension : dimensions.names()) {
+                Set<String> scope = dimensions.appliesTo(dimension);
+                if (scope.isEmpty() == false && scope.contains(format) == false) {
+                    continue;
+                }
+                String baseline = dimensions.defaultValue(dimension, format);
+                for (String value : dimensions.values(dimension)) {
+                    if (value.equals(baseline) || dimensions.seamServes(dimension, value, format, all) == false) {
+                        continue;
+                    }
+                    reachable++;
+                    if (carried.getOrDefault(dimension, Set.of()).contains(value) == false) {
+                        unexercised.add(dimension + "=" + value + "@" + format + " is reachable but no vector carries it");
+                    }
+                }
+            }
+        }
+        assertThat("no reachable cells were found -- the gate would pass vacuously", reachable, greaterThan(0));
+        assertTrue("reachable but never exercised:\n" + String.join("\n", unexercised), unexercised.isEmpty());
+    }
+
     private static final List<String> FORMATS = FixtureDimensions.get().values("format");
 
     private static Map<String, String> settingsFor(FixtureDimensions dimensions, String dimension, String value, String format) {

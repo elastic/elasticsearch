@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark.swisshash;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -57,7 +57,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @State(Scope.Thread)
 public class LongLongSwissHashBenchmark {
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     @Param({ "1000000", "10000000", "100000000" })

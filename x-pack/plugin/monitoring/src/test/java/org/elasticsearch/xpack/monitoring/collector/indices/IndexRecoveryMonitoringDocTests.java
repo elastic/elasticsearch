@@ -120,6 +120,8 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
         final RecoveryState recoveryState = new RecoveryState(shardRouting, discoveryNodeOne, discoveryNodeOne);
         shardRecoveryStates.put("_shard_0", singletonList(recoveryState));
 
+        // Start the recovery before stopping its timer, so we report and test a non-0 total time
+        recoveryState.setStage(RecoveryState.Stage.INIT);
         final RecoveryState.Timer timer = recoveryState.getTimer();
         timer.stop();
 

@@ -3070,6 +3070,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
         SourceMetadata metadata = reader.metadata(createStorageObject(orcData));
         assertTrue("expected source statistics", metadata.statistics().isPresent());
+        assertEquals("two stripes", 2L, metadata.statistics().get().readableUnitCount().orElse(-1));
         var optColStats = metadata.statistics().get().columnStatistics();
         assertTrue("expected per-column statistics", optColStats.isPresent());
         var colStats = optColStats.get();

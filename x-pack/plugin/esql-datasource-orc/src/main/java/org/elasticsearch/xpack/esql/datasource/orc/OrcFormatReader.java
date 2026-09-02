@@ -430,6 +430,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     private static SourceStatistics extractStatistics(Reader reader, TypeDescription schema) {
         long rowCount = reader.getNumberOfRows();
         long sizeInBytes = reader.getContentLength();
+        long unitCount = reader.getStripes().size();
         ColumnStatistics[] orcStats = reader.getStatistics();
 
         // Walk every dotted leaf the flattener emits, publishing stats at the same names the
@@ -456,6 +457,11 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             @Override
             public OptionalLong sizeInBytes() {
                 return OptionalLong.of(sizeInBytes);
+            }
+
+            @Override
+            public OptionalLong readableUnitCount() {
+                return OptionalLong.of(unitCount);
             }
 
             @Override

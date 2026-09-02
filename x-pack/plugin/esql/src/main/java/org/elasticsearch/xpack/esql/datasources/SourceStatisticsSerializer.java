@@ -40,6 +40,11 @@ public final class SourceStatisticsSerializer {
     public static final String STATS_ROW_COUNT = "_stats.row_count";
     public static final String STATS_SIZE_BYTES = "_stats.size_bytes";
     /**
+     * Per-file count of independently readable units (Parquet row groups, ORC stripes). Physical
+     * file shape, not a dataset total: {@link #mergeStatistics} does not fold it.
+     */
+    public static final String STATS_READABLE_UNIT_COUNT = "_stats.readable_unit_count";
+    /**
      * When set to {@code true} in sourceMetadata, indicates that the statistics are derived
      * from a single anchor file in a multi-file glob query ({@code FIRST_FILE_WINS} schema
      * resolution) and do not represent the full dataset. This flag is set by
@@ -121,6 +126,7 @@ public final class SourceStatisticsSerializer {
         Map<String, Object> result = new HashMap<>(sourceMetadata);
         statistics.rowCount().ifPresent(rc -> result.put(STATS_ROW_COUNT, rc));
         statistics.sizeInBytes().ifPresent(sb -> result.put(STATS_SIZE_BYTES, sb));
+        statistics.readableUnitCount().ifPresent(uc -> result.put(STATS_READABLE_UNIT_COUNT, uc));
         statistics.columnStatistics().ifPresent(cols -> {
             for (Map.Entry<String, SourceStatistics.ColumnStatistics> entry : cols.entrySet()) {
                 String prefix = STATS_COL_PREFIX + entry.getKey();
@@ -152,6 +158,11 @@ public final class SourceStatisticsSerializer {
             @Override
             public OptionalLong sizeInBytes() {
                 return toOptionalLong(asBoxedLong(sourceMetadata.get(STATS_SIZE_BYTES)));
+            }
+
+            @Override
+            public OptionalLong readableUnitCount() {
+                return toOptionalLong(asBoxedLong(sourceMetadata.get(STATS_READABLE_UNIT_COUNT)));
             }
 
             @Override

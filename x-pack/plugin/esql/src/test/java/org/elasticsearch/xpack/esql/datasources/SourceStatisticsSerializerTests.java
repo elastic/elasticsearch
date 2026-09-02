@@ -11,11 +11,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 
 public class SourceStatisticsSerializerTests extends ESTestCase {
@@ -945,6 +947,44 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertFalse(
             "one unlicensed input withdraws the licence from the sum",
             partly.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)
+        );
+    }
+
+    public void testEmbedAndExtractReadableUnitCount() {
+        SourceStatistics stats = new SourceStatistics() {
+            @Override
+            public OptionalLong rowCount() {
+                return OptionalLong.of(10L);
+            }
+
+            @Override
+            public OptionalLong sizeInBytes() {
+                return OptionalLong.of(100L);
+            }
+
+            @Override
+            public OptionalLong readableUnitCount() {
+                return OptionalLong.of(1L);
+            }
+        };
+        Map<String, Object> embedded = SourceStatisticsSerializer.embedStatistics(Map.of(), stats);
+        assertEquals(1L, embedded.get(SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT));
+        SourceStatistics extracted = SourceStatisticsSerializer.extractStatistics(embedded).orElseThrow();
+        assertEquals(1L, extracted.readableUnitCount().orElse(-1));
+    }
+
+    public void testMergeStatisticsDropsReadableUnitCount() {
+        Map<String, Object> a = new HashMap<>();
+        a.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+        a.put(SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT, 1L);
+        Map<String, Object> b = new HashMap<>();
+        b.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 20L);
+        b.put(SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT, 1L);
+        Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(List.of(a, b));
+        assertEquals(30L, merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertFalse(
+            "readable unit count is per-file shape and must not fold into a dataset total",
+            merged.containsKey(SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT)
         );
     }
 

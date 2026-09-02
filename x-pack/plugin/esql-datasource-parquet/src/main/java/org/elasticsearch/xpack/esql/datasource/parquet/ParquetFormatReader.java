@@ -1319,6 +1319,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
         final long rowCount = totalRows;
         final long sizeBytes = totalSize;
+        final long unitCount = rowGroups.size();
         Map<String, SourceStatistics.ColumnStatistics> columnStats = new HashMap<>();
         // Publish stats keyed by every dotted leaf the flattener produced an addressable
         // attribute for. Skip UNSUPPORTED — they will not bind to a planner attribute the
@@ -1388,6 +1389,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             @Override
             public OptionalLong sizeInBytes() {
                 return OptionalLong.of(sizeBytes);
+            }
+
+            @Override
+            public OptionalLong readableUnitCount() {
+                return OptionalLong.of(unitCount);
             }
 
             @Override

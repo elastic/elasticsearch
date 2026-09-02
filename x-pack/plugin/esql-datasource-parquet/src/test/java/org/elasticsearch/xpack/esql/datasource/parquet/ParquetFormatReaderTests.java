@@ -3687,6 +3687,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         var stats = metadata.statistics().get();
         assertTrue("Row count should be present", stats.rowCount().isPresent());
         assertEquals(100L, stats.rowCount().getAsLong());
+        assertEquals("default write is one row group", 1L, stats.readableUnitCount().orElse(-1));
 
         var enriched = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.embedStatistics(
             metadata.sourceMetadata(),
@@ -7060,6 +7061,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         SourceMetadata metadata = reader.metadata(so);
         assertTrue("expected source statistics", metadata.statistics().isPresent());
         assertEquals("two 5-row row groups", OptionalLong.of(10L), metadata.statistics().get().rowCount());
+        assertEquals(2L, metadata.statistics().get().readableUnitCount().orElse(-1));
         var colStats = metadata.statistics().get().columnStatistics().orElseThrow();
 
         assertEquals(

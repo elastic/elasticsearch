@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
@@ -426,8 +427,10 @@ public class FileSplitProvider implements SplitProvider {
                 ColumnMapping columnMapping = null;
                 List<Attribute> readSchema = null;
                 Map<String, DataType> inferredFileTypes = null;
+                SourceStatistics fileStatistics = null;
                 if (fileSchemaInfo != null) {
                     inferredFileTypes = fileSchemaInfo.inferredTypes();
+                    fileStatistics = fileSchemaInfo.statistics();
                     ColumnMapping mapping = fileSchemaInfo.mapping();
                     if (mapping != null && unifiedSchema != null && fileBackedQuerySchema.isEmpty() == false) {
                         // Fused narrowing: output dimension goes from Unified to Query, read
@@ -465,7 +468,8 @@ public class FileSplitProvider implements SplitProvider {
                         unifiedSchema != null ? attributesToTypeMap(unifiedSchema.attributes()) : null,
                         context.maxRecordBytes(),
                         context.declaredReadSpec(),
-                        inferredFileTypes
+                        inferredFileTypes,
+                        fileStatistics
                     )
                 );
             }
@@ -979,8 +983,12 @@ public class FileSplitProvider implements SplitProvider {
         int maxRecordBytes,
         DeclaredReadSpec declaredReadSpec,
         // PRE-overlay inferred file types (physical-keyed), or null when no declared overlay ran. The stats-type
-        // authority for normalizing footer range stats — NOT the overlaid readSchema types.
-        @Nullable Map<String, DataType> inferredFileTypes
+        // authority for normalizing footer range stats, not the overlaid readSchema types.
+        @Nullable Map<String, DataType> inferredFileTypes,
+        // File-level statistics harvested when this query's schema resolution parsed the file's footer, or null
+        // when resolution served the schema from cache or never saw the file. A harvest whose readableUnitCount
+        // is 1 lets tryRangeAwareSplits emit a whole-file split without opening the footer again.
+        @Nullable SourceStatistics statistics
     ) {}
 
     /**
@@ -1135,6 +1143,7 @@ public class FileSplitProvider implements SplitProvider {
             task.reconciledTypes(),
             task.declaredReadSpec(),
             task.inferredFileTypes(),
+            task.statistics(),
             fileSplits,
             hoistedProvider
         )) {
@@ -1413,6 +1422,7 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable Map<String, DataType> reconciledTypes,
         DeclaredReadSpec declaredReadSpec,
         @Nullable Map<String, DataType> inferredFileTypes,
+        @Nullable SourceStatistics fileStatistics,
         List<ExternalSplit> splits,
         @Nullable StorageProvider hoistedProvider
     ) {
@@ -1431,6 +1441,34 @@ public class FileSplitProvider implements SplitProvider {
             return false;
         }
         RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) reader;
+
+        // One independently readable unit (one Parquet row group / ORC stripe): discovery would
+        // reopen the same footer only to emit a single range. The file-level harvest is that
+        // unit's extrema, so emit the whole-file split and skip the open.
+        if (fileStatistics != null && fileStatistics.readableUnitCount().orElse(-1) == 1) {
+            Map<String, Object> stats = normalizeSplitStats(
+                SourceStatisticsSerializer.embedStatistics(Map.of(), fileStatistics),
+                readSchema,
+                reconciledTypes,
+                declaredReadSpec,
+                inferredFileTypes
+            );
+            splits.add(
+                FileSplit.withStatisticsAndReadSchema(
+                    "file",
+                    filePath,
+                    0,
+                    fileLength,
+                    format,
+                    wholeFileSplitConfig(config),
+                    partitionValues,
+                    columnMapping,
+                    stats,
+                    readSchema
+                )
+            );
+            return true;
+        }
 
         try {
             StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
@@ -1479,7 +1517,8 @@ public class FileSplitProvider implements SplitProvider {
      * Normalizes raw footer statistics (the {@code _stats.*} map) for stamping onto a split: applies the
      * declared-overlay rekey/poison when a declaration ran, then unit-normalizes values to the reconciled query
      * types. Returns {@code null} for absent/empty stats and the stats untouched when the read schema or
-     * reconciled types are unknown (nothing to normalize against).
+     * reconciled types are unknown (nothing to normalize against). Shared by the per-range path and the
+     * single-unit discovery skip in {@link #tryRangeAwareSplits} so both stamp identical stats for one unit.
      */
     @Nullable
     private static Map<String, Object> normalizeSplitStats(

@@ -43,6 +43,16 @@ public class RatioValue implements Writeable {
     }
 
     /**
+     * Creates a {@link RatioValue} from a percentage value (i.e., in [0,100]).
+     *
+     * @param percent the percentage value
+     * @return a {@link RatioValue} representing the given percentage
+     */
+    public static RatioValue ofPercent(double percent) {
+        return new RatioValue(percent);
+    }
+
+    /**
      * Parses the provided string as a {@link RatioValue}, the string can
      * either be in percentage format (eg. 73.5%), or a floating-point ratio
      * format (eg. 0.735)

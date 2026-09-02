@@ -99,7 +99,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
      */
     public static final Setting<RatioValue> LOW_WATERMARK_SETTING = Setting.ratioSetting(
         "cluster.routing.allocation.shared_cache_capacity.watermark.low",
-        RatioValue.parseRatioValue("99%"),
+        RatioValue.ofPercent(99),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -110,7 +110,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
      */
     public static final Setting<RatioValue> HIGH_WATERMARK_SETTING = Setting.ratioSetting(
         "cluster.routing.allocation.shared_cache_capacity.watermark.high",
-        RatioValue.parseRatioValue("100%"),
+        RatioValue.ofPercent(100),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

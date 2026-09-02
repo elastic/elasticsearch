@@ -506,6 +506,19 @@ public final class FixtureMatrix {
     }
 
     /** The layout named by a template's suffix, falling back to {@link #STANDALONE}. */
+    /**
+     * The column this layout derives from the path, or null when it derives none.
+     *
+     * <p>A case reading such a layout names that column in its query, so it only exists while partition
+     * detection is on. Exposed so the crossing can refuse the pair rather than enumerating every hive
+     * case in every suite -- the property belongs to the layout, not to a list of case names.
+     */
+    public String partitionColumnFor(String templateName) {
+        Layout layout = layoutFor(templateName);
+        String declared = declaration.getProperty("layout." + layout.name() + ".partition_column");
+        return declared == null ? null : declared.trim();
+    }
+
     public Layout layoutFor(String templateName) {
         for (Layout layout : layouts) {
             if (layout.isStandalone() == false && templateName.endsWith(layout.suffix())) {

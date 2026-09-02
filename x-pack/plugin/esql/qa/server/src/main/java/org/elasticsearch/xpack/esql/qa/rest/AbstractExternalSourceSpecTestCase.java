@@ -308,6 +308,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                     unrepresentable++;
                     continue;
                 }
+                if (partitionDetectionCannotCarry(baseTest, vector)) {
+                    unrepresentable++;
+                    continue;
+                }
                 if (declaredSchemaCannotCarry(baseTest, vector)) {
                     unrepresentable++;
                     continue;
@@ -355,6 +359,34 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * <p>And a closed declaration must name every column, so a dataset carrying a type outside
      * DECLARABLE_TYPES cannot be declared closed at all.
      */
+    /**
+     * Whether a partition_detection vector can carry this case at all.
+     *
+     * <p>A hive layout derives a column from the path -- lang, languages -- and the cases reading it name
+     * that column in their queries. Turn detection off and the column is never derived, so the query fails
+     * verification with "Unknown column [lang]". Correct on both sides, and not a defect: the case asks for
+     * something the configuration removes.
+     *
+     * <p>Keyed on the LAYOUT rather than a list of case names. The pair became reachable on parquet, ndjson
+     * and tsv only when the crossing stopped pinning format-less cliques to csv, and it produced 228 of 245
+     * parquet failures on the first run afterwards. Enumerating the twelve cases across four suites would
+     * need redoing for the next format or the next hive spec; asking the layout does not.
+     */
+    private static boolean partitionDetectionCannotCarry(Object[] baseTest, Map<String, String> vector) {
+        String detection = vector.get("partition_detection");
+        if ("none".equals(detection) == false) {
+            return false;
+        }
+        CsvTestCase testCase = (CsvTestCase) baseTest[4];
+        for (DatasetSource source : testCase.datasetSources) {
+            String template = templateNameIn(source.resource());
+            if (template != null && MATRIX.partitionColumnFor(template) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean declaredSchemaCannotCarry(Object[] baseTest, Map<String, String> vector) {
         String mode = vector.get("schema_mode");
         if (mode == null || mode.startsWith("declared") == false) {

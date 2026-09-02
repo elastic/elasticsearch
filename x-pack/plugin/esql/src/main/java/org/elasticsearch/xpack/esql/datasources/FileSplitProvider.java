@@ -888,7 +888,14 @@ public class FileSplitProvider implements SplitProvider {
                 }
                 List<RecordBoundaryProbe.Outcome> outcomes = BoundedParallelGather.gather(
                     probeTasks,
-                    probe -> runProbe(probe, probeWindowBytes, isCancelled),
+                    probe -> {
+                        long cpuStart = ThreadCpuTimer.currentNanos();
+                        try {
+                            return runProbe(probe, probeWindowBytes, isCancelled);
+                        } finally {
+                            if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
+                        }
+                    },
                     splitDiscoveryConcurrency(),
                     executor
                 );

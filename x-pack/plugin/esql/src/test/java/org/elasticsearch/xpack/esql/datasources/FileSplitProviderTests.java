@@ -1096,6 +1096,25 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * Verifies that Phase 3 (parallel boundary probing) accumulates CPU into {@link SplitDiscoveryResult#cpuNanos()}
+     * when multiple files are large enough to require newline boundary probing and an executor is available.
+     * The BPG lambda in {@code probeDeferredBoundaries} must wrap each probe with {@link ThreadCpuTimer}.
+     */
+    public void testMultiFileParallelProbeAccumulatesCpuNanos() throws Exception {
+        // Files ~3.5x stride → each file needs exactly one probe position in Phase 3.
+        long stride = 2 * CSV_MIN_SEGMENT_BYTES;
+        Map<String, byte[]> payloads = Map.of("one.csv", delimitedPayload("a,b,c\n"), "two.csv", delimitedPayload("d,e,f\n"));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        SplitDiscoveryResult result;
+        try {
+            result = discoverPlainCsvSplitsResult(payloads, stride, executor);
+        } finally {
+            executor.shutdown();
+        }
+        assertThat("Phase 3 BPG probe threads must accumulate cpuNanos", result.cpuNanos(), greaterThan(0L));
+    }
+
+    /**
      * Two files with different row widths produce different probe boundaries. Asserts each file's split offsets by
      * value so a cross-file misbind in {@code probeDeferredBoundaries} — swapping the outcome lists while the file
      * lengths stay the same — fails rather than passing silently. Every multi-file fixture that uses fixed-width rows

@@ -56,7 +56,6 @@ public final class SharedGlobalTopK extends SideChannel {
     private final SharedMinCompetitive minCompetitive;
     private final CircuitBreaker breaker;
 
-    private int mergeAttempts;
     private int publishCount;
 
     private SharedGlobalTopK(CircuitBreaker breaker, int topCount, SharedMinCompetitive minCompetitive, Supplier supplier) {
@@ -84,7 +83,6 @@ public final class SharedGlobalTopK extends SideChannel {
      * @return {@code true} if a new competitive bound was published to {@link SharedMinCompetitive}
      */
     public boolean mergeKeys(List<BytesRef> newKeys) {
-        mergeAttempts++;
         if (newKeys.isEmpty()) {
             return false;
         }
@@ -135,10 +133,6 @@ public final class SharedGlobalTopK extends SideChannel {
             return true;
         }
         return false;
-    }
-
-    int mergeAttempts() {
-        return mergeAttempts;
     }
 
     int publishCount() {

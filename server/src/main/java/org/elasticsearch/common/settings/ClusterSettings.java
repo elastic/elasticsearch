@@ -345,6 +345,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         HttpTransportSettings.SETTING_HTTP_PORT,
         HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT,
         HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS,
+        HttpTransportSettings.SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED,
         HttpTransportSettings.SETTING_HTTP_COMPRESSION,
         HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL,
         HttpTransportSettings.SETTING_CORS_ALLOW_METHODS,

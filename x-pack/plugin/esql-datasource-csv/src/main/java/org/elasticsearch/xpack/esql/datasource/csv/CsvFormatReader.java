@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
@@ -79,7 +80,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.BufferedReader;
@@ -1701,7 +1701,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     private static ExternalClientException failFastSamplingError(long row, Throwable cause) {
         Exception e = cause instanceof Exception ex ? ex : null;
-        return new ExternalClientException(e, "{}",
+        return new ExternalClientException(
+            e,
+            "{}",
             "CSV schema sampling failed at row ["
                 + row
                 + "]: "
@@ -6469,7 +6471,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 String hint = structural
                     ? "; set error_mode=skip_row (or null_field) to skip and warn instead of failing"
                     : "; set error_mode=null_field to null-fill the bad field instead of failing";
-                throw new ExternalClientException(cause, "{}",
+                throw new ExternalClientException(
+                    cause,
+                    "{}",
                     "CSV parse error at row [" + totalRowCount + "]: " + message + "; row: " + rowExcerpt + hint
                 );
             }
@@ -6528,7 +6532,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 );
                 // Budget exceeded is a client-data problem (the file has too many bad rows for the
                 // user-configured tolerance), not a server bug — surface as HTTP 400.
-                throw new ExternalClientException(cause, "CSV error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",
+                throw new ExternalClientException(
+                    cause,
+                    "CSV error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",
                     errorCount,
                     totalRowCount,
                     errorPolicy.maxErrors(),

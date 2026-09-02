@@ -164,10 +164,8 @@ public class IndexingSlowLogTests extends ESTestCase {
         assertNull(appender.getLastEventAndReset());
     }
 
-    /** The field-based message overload used by the batch hook carries id, routing and source. */
     public void testBatchSlowLogMessageFromBatchFields() {
         Index index = new Index("foo", "123");
-        SourceToParse.Source source = SourceToParse.Source.fromBytes(new BytesArray("{\"foo\":\"bar\"}"), XContentType.JSON);
 
         // 100ms average per document, expressed in nanos; ESLogMessage#get returns every field as a String
         ESLogMessage p = IndexingSlowLogMessage.ofBatch(Map.of(), index, 7L, 5, TimeUnit.MILLISECONDS.toNanos(100));

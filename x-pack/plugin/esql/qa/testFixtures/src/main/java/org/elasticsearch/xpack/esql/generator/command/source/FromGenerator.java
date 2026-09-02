@@ -44,10 +44,9 @@ public class FromGenerator implements CommandGenerator {
     public static final String HAS_UNION_ALL = "hasUnionAll";
 
     /**
-     * Context key for a {@code Map<String, Boolean>} that maps column names produced by any subquery
-     * in the FROM clause to their {@code indexMapped} flag. When the same column name appears in
-     * multiple subqueries the flags are AND-ed together. Only present when at least one subquery was
-     * generated; absent when FROM references only plain index patterns.
+     * Context key for a {@code Map<String, Boolean>} that maps column names produced by any subquery in the FROM clause to their
+     * {@code indexMapped} flag. When the same column name appears in multiple subqueries the flags are AND-ed together. Only present
+     * when at least one subquery was generated; absent when FROM references only plain index patterns.
      */
     public static final String SUBQUERY_COLUMNS = "subqueryColumns";
 
@@ -121,9 +120,9 @@ public class FromGenerator implements CommandGenerator {
         result.append("from ");
         List<String> availableIndices = schema.baseIndices();
         boolean canHaveSubquery = context.isFeatureEnabled(GenerativeFeature.SUBQUERIES) && context.isWithinASubquery() == false;
-        // When subqueries are enabled, always generate at least 2 sources and force the first to be a subquery
-        // so that the feature is exercised on every iteration. The subquery goes first so that hasSubquery=true
-        // before any index pattern is processed, preventing hasViewInFrom from being set.
+        // When subqueries are enabled, always generate at least 2 sources and force the first to be a subquery so that the feature is
+        // exercised on every iteration. The subquery goes first so that hasSubquery=true before any index pattern is processed, preventing
+        // hasViewInFrom from being set.
         int items = randomIntBetween(canHaveSubquery ? 2 : 1, 3);
         boolean hasSubquery = false;
         boolean hasViewInFrom = false;

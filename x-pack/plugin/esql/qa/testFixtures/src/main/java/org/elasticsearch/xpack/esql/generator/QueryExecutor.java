@@ -43,18 +43,9 @@ public interface QueryExecutor {
     }
 
     /**
-     * Recomputes the {@link Column#indexMapped()} flags for the output schema of a freshly executed command.
-     * <p>
-     * A schema returned by {@link #execute} only carries column names and types; every column defaults to
-     * {@code indexMapped=true}. This hook lets the executor mark columns that the command <em>derived</em>
-     * (e.g. {@code EVAL}, {@code GROK}, {@code DISSECT}, {@code RENAME}, {@code MV_EXPAND}, {@code STATS},
-     * {@code REGISTERED_DOMAIN}) as {@code indexMapped=false}, inheriting flags from {@code previousSchema} for
-     * surviving columns. Correct flags are what stop full-text functions from being generated against derived
-     * (non-index-mapped) fields, and what let a failure on such a field be recognized as a known bug.
-     * <p>
-     * Must be applied after every successful command so the flags thread forward. The default returns
-     * {@code newSchema} unchanged (i.e. no flag tracking), matching executors that don't distinguish
-     * index-mapped fields.
+     * Recomputes {@link Column#indexMapped()} on {@code newSchema} after a command executes. {@link #execute} defaults every column to
+     * {@code true}; implementations mark derived columns {@code false} and inherit flags from {@code previousSchema}. The default
+     * returns {@code newSchema} unchanged.
      */
     default List<Column> updateIndexMapped(
         List<Column> newSchema,

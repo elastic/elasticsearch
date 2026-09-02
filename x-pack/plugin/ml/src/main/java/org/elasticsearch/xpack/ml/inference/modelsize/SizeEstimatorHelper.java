@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.inference.modelsize;
 
+import org.elasticsearch.common.lucene.RamUsageEstimates;
+
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -39,7 +41,7 @@ final class SizeEstimatorHelper {
 
     static long sizeOfHashMap(List<Long> sizeOfKeys, List<Long> sizeOfValues) {
         assert sizeOfKeys.size() == sizeOfValues.size();
-        long mapsize = shallowSizeOfInstance(HashMap.class);
+        long mapsize = RamUsageEstimates.HASH_MAP_SHALLOW_SIZE;
         final long mapEntrySize = shallowSizeOfInstance(HashMap.Entry.class);
         mapsize += Stream.concat(sizeOfKeys.stream(), sizeOfValues.stream()).mapToLong(Long::longValue).sum();
         mapsize += mapEntrySize * sizeOfKeys.size();

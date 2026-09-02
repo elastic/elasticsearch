@@ -9,7 +9,7 @@
 
 package org.elasticsearch.benchmark.vector.quantization;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.simdvec.AshSphericalScalarQuantizer;
@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 public class AshSphericalScalarQuantizerBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     public enum Distribution {

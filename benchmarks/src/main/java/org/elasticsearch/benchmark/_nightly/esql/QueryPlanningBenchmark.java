@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark._nightly.esql;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
@@ -72,7 +72,7 @@ import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 public class QueryPlanningBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private Analyzer manyFieldsAnalyzer;

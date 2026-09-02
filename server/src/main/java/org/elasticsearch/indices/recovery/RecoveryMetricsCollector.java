@@ -149,7 +149,6 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
         try {
             if (indexShard.state() == IndexShardState.RECOVERING) {
                 final RecoveryState recoveryState = indexShard.recoveryState();
-                assert recoveryState != null;
                 if (recoveryState.getStage() == Stage.DONE) {
                     shardRecoveryTotalMetric.increment();
                     final Map<String, Object> metricLabels = recoveryTimeMetricLabels(indexShard);

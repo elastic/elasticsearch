@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.kibana.ElasticAiIndexImplicitPrivilegesProvider.COUNT_FIELD;
 import static org.elasticsearch.xpack.kibana.ElasticAiIndexImplicitPrivilegesProvider.ELASTIC_AI_INDEX;
 import static org.elasticsearch.xpack.kibana.ElasticAiIndexImplicitPrivilegesProvider.KIBANA_APPLICATION;
 import static org.elasticsearch.xpack.kibana.ElasticAiIndexImplicitPrivilegesProvider.NAME_FIELD;
@@ -81,10 +82,9 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
             resolve(role("sml_read", "space:marketing"), storedPrivileges)
         );
 
-        String query = result.iterator().next().getQuery().utf8ToString();
-        assertThat(query, containsString("\"must_not\""));
-        assertThat(query, containsString("\"match_all\""));
-        assertThat(query, not(containsString("\"exists\"")));
+        Map<String, Object> publicBranch = publicDocumentBranch(parseQuery(result.iterator().next().getQuery()));
+        assertThat("public branch must be must_not(nested(match_all)): " + publicBranch, isNestedMatchAll(publicBranch), is(true));
+        assertThat("public branch must not use exists: " + publicBranch, containsExistsQuery(publicBranch), is(false));
     }
 
     /**
@@ -432,6 +432,49 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(spacesOfClause(clauses.get(0)), containsInAnyOrder("marketing", ALL_SPACES));
     }
 
+    /**
+     * Every clause must admit elements that require no action at all ({@code count: 0}) — the shape the
+     * Kibana indexer writes for a type that opts out of privilege gating. {@code terms_set} alone cannot express this.
+     */
+    public void testEveryClauseAdmitsElementsRequiringNoActions() {
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "global_read", Set.of("ai_index:dashboard/read"), Map.of()),
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "space_read", Set.of("ai_index:workflow/read"), Map.of())
+        );
+        RoleDescriptor roleDescriptor = roleWithGrants(grant("global_read", "*"), grant("space_read", "space:marketing"));
+
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
+
+        List<Map<String, Object>> clauses = nestedSpaceClauses(parseQuery(result.iterator().next().getQuery()));
+        assertThat(clauses, hasSize(2));
+        for (Map<String, Object> clause : clauses) {
+            assertThat("clause must carry the count:0 escape: " + clause, hasZeroCountEscape(clause), is(true));
+        }
+    }
+
+    /**
+     * The {@code count: 0} escape must not become a way around space scoping: a space clause still
+     * filters on {@code .space}, so a zero-requirement element is public only within its own space.
+     * (The space-less clause has no such filter by design — a wildcard grant means the user is in every
+     * space, so a zero-requirement element anywhere is legitimately theirs to read.)
+     */
+    public void testZeroCountEscapeStaysInsideTheSpaceFilter() {
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of("ai_index:dashboard/read"), Map.of())
+        );
+
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(role("sml_read", "space:marketing"), storedPrivileges)
+        );
+
+        List<Map<String, Object>> clauses = nestedSpaceClauses(parseQuery(result.iterator().next().getQuery()));
+        assertThat(clauses, hasSize(1));
+        assertThat(hasZeroCountEscape(clauses.get(0)), is(true));
+        assertThat(spacesOfClause(clauses.get(0)), containsInAnyOrder("marketing", ALL_SPACES));
+    }
+
     /** Exact serialisation of the query built directly from a resource-to-actions map. */
     public void testBuildDlsQueryFormat() {
         String query = ElasticAiIndexImplicitPrivilegesProvider.buildDlsQuery(Map.of("space:a", Set.of("ai_index:x/read")));
@@ -456,8 +499,12 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         {"nested":{"query":{"bool":{"should":[{"bool":{"filter":[\
         {"bool":{"should":[{"terms":{"permissions.kibana.privileges.space":["marketing"],"boost":1.0}},\
         {"term":{"permissions.kibana.privileges.space":{"value":"*"}}}],"minimum_should_match":"1","boost":1.0}},\
+        {"bool":{"should":[{"bool":{"filter":[{"term":{"permissions.kibana.privileges.count":{"value":0}}},\
+        {"bool":{"must_not":[{"exists":{"field":"permissions.kibana.privileges.name","boost":1.0}}],"boost":1.0}}],\
+        "boost":1.0}},\
         {"terms_set":{"permissions.kibana.privileges.name":{"terms":["ai_index:dashboard/read"],\
-        "minimum_should_match_field":"permissions.kibana.privileges.count","boost":1.0}}}\
+        "minimum_should_match_field":"permissions.kibana.privileges.count","boost":1.0}}}],\
+        "minimum_should_match":"1","boost":1.0}}\
         ],"boost":1.0}}],"boost":1.0}},"path":"permissions.kibana.privileges","ignore_unmapped":false,\
         "score_mode":"none","boost":1.0}}],"boost":1.0}}""";
 
@@ -468,8 +515,12 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         {"nested":{"query":{"bool":{"should":[{"bool":{"filter":[\
         {"bool":{"should":[{"terms":{"permissions.kibana.privileges.space":["a"],"boost":1.0}},\
         {"term":{"permissions.kibana.privileges.space":{"value":"*"}}}],"minimum_should_match":"1","boost":1.0}},\
+        {"bool":{"should":[{"bool":{"filter":[{"term":{"permissions.kibana.privileges.count":{"value":0}}},\
+        {"bool":{"must_not":[{"exists":{"field":"permissions.kibana.privileges.name","boost":1.0}}],"boost":1.0}}],\
+        "boost":1.0}},\
         {"terms_set":{"permissions.kibana.privileges.name":{"terms":["ai_index:x/read"],\
-        "minimum_should_match_field":"permissions.kibana.privileges.count","boost":1.0}}}\
+        "minimum_should_match_field":"permissions.kibana.privileges.count","boost":1.0}}}],\
+        "minimum_should_match":"1","boost":1.0}}\
         ],"boost":1.0}}],"boost":1.0}},"path":"permissions.kibana.privileges","ignore_unmapped":false,\
         "score_mode":"none","boost":1.0}}],"boost":1.0}}""";
 
@@ -547,6 +598,45 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         return (List<Map<String, Object>>) innerBool.get("should");
     }
 
+    /** The top-level should-arm covering documents with no permission elements at all. */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> publicDocumentBranch(Map<String, Object> queryMap) {
+        List<Map<String, Object>> shoulds = (List<Map<String, Object>>) ((Map<String, Object>) queryMap.get("bool")).get("should");
+        return shoulds.stream()
+            .filter(should -> should.containsKey("nested") == false)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no public-document branch in " + queryMap));
+    }
+
+    /** True for {@code {"bool": {"must_not": [{"nested": {"query": {"match_all": ...}}}]}}}. */
+    @SuppressWarnings("unchecked")
+    private static boolean isNestedMatchAll(Map<String, Object> branch) {
+        if (branch.containsKey("bool") == false) {
+            return false;
+        }
+        Object mustNot = ((Map<String, Object>) branch.get("bool")).get("must_not");
+        if (mustNot instanceof List == false) {
+            return false;
+        }
+        return ((List<Map<String, Object>>) mustNot).stream().anyMatch(clause -> {
+            Object nested = clause.get("nested");
+            return nested instanceof Map && ((Map<String, Object>) ((Map<String, Object>) nested).get("query")).containsKey("match_all");
+        });
+    }
+
+    /** True when {@code exists} appears anywhere in the parsed subtree. */
+    @SuppressWarnings("unchecked")
+    private static boolean containsExistsQuery(Object node) {
+        if (node instanceof Map<?, ?> map) {
+            return map.containsKey("exists")
+                || map.values().stream().anyMatch(ElasticAiIndexImplicitPrivilegesProviderTests::containsExistsQuery);
+        }
+        if (node instanceof List<?> list) {
+            return list.stream().anyMatch(ElasticAiIndexImplicitPrivilegesProviderTests::containsExistsQuery);
+        }
+        return false;
+    }
+
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> filtersOfClause(Map<String, Object> clause) {
         return (List<Map<String, Object>>) ((Map<String, Object>) clause.get("bool")).get("filter");
@@ -559,33 +649,110 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     private static List<String> spacesOfClause(Map<String, Object> clause) {
+        // Both filters of a clause are bools (spaces, then required actions), so match on the field
+        // rather than on position: the actions bool carries no .space and must yield nothing here.
         for (Map<String, Object> filter : filtersOfClause(clause)) {
-            if (filter.containsKey("bool")) {
-                List<Map<String, Object>> shoulds = (List<Map<String, Object>>) ((Map<String, Object>) filter.get("bool")).get("should");
-                List<String> spaces = new ArrayList<>();
-                for (Map<String, Object> should : shoulds) {
-                    if (should.containsKey("terms")) {
-                        spaces.addAll((List<String>) ((Map<String, Object>) should.get("terms")).get(SPACE_FIELD));
-                    } else {
-                        Map<String, Object> field = (Map<String, Object>) ((Map<String, Object>) should.get("term")).get(SPACE_FIELD);
-                        spaces.add((String) field.get("value"));
-                    }
+            if (filter.containsKey("bool") == false) {
+                continue;
+            }
+            List<Map<String, Object>> shoulds = (List<Map<String, Object>>) ((Map<String, Object>) filter.get("bool")).get("should");
+            List<String> spaces = new ArrayList<>();
+            for (Map<String, Object> should : shoulds) {
+                if (should.containsKey("terms") && ((Map<String, Object>) should.get("terms")).containsKey(SPACE_FIELD)) {
+                    spaces.addAll((List<String>) ((Map<String, Object>) should.get("terms")).get(SPACE_FIELD));
+                } else if (should.containsKey("term") && ((Map<String, Object>) should.get("term")).containsKey(SPACE_FIELD)) {
+                    Map<String, Object> field = (Map<String, Object>) ((Map<String, Object>) should.get("term")).get(SPACE_FIELD);
+                    spaces.add((String) field.get("value"));
                 }
+            }
+            if (spaces.isEmpty() == false) {
                 return spaces;
             }
         }
         return List.of();
     }
 
+    /** The action terms of a clause's terms_set, which sits inside the clause's required-actions bool. */
     @SuppressWarnings("unchecked")
     private static List<String> termsOfClause(Map<String, Object> clause) {
-        for (Map<String, Object> filter : filtersOfClause(clause)) {
-            if (filter.containsKey("terms_set")) {
-                Map<String, Object> field = (Map<String, Object>) ((Map<String, Object>) filter.get("terms_set")).get(NAME_FIELD);
+        for (Map<String, Object> should : requiredActionsShouldsOfClause(clause)) {
+            if (should.containsKey("terms_set")) {
+                Map<String, Object> field = (Map<String, Object>) ((Map<String, Object>) should.get("terms_set")).get(NAME_FIELD);
                 return (List<String>) field.get("terms");
             }
         }
         throw new AssertionError("no terms_set in clause " + clause);
+    }
+
+    /**
+     * The should-arms of a clause's required-actions bool: the count:0 escape and the terms_set. Found
+     * by looking for the terms_set rather than by position, so a clause carrying a space filter and one
+     * carrying none are handled the same way.
+     */
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> requiredActionsShouldsOfClause(Map<String, Object> clause) {
+        for (Map<String, Object> filter : filtersOfClause(clause)) {
+            if (filter.containsKey("bool") == false) {
+                continue;
+            }
+            List<Map<String, Object>> shoulds = (List<Map<String, Object>>) ((Map<String, Object>) filter.get("bool")).get("should");
+            if (shoulds.stream().anyMatch(should -> should.containsKey("terms_set"))) {
+                return shoulds;
+            }
+        }
+        throw new AssertionError("no required-actions bool in clause " + clause);
+    }
+
+    /**
+     * True when a clause admits elements requiring no action at all, i.e. carries the zero-requirement
+     * escape. Asserts the whole pair — {@code count: 0} AND {@code must_not exists} on {@code .name} —
+     * rather than the count term alone: an escape that admitted a malformed {@code count: 0} element
+     * still naming actions would read as public, which is the regression this guards.
+     */
+    @SuppressWarnings("unchecked")
+    private static boolean hasZeroCountEscape(Map<String, Object> clause) {
+        return requiredActionsShouldsOfClause(clause).stream().anyMatch(should -> {
+            if (should.containsKey("bool") == false) {
+                return false;
+            }
+            Object filters = ((Map<String, Object>) should.get("bool")).get("filter");
+            if (filters instanceof List == false) {
+                return false;
+            }
+            List<Map<String, Object>> escapeFilters = (List<Map<String, Object>>) filters;
+            return escapeFilters.stream().anyMatch(ElasticAiIndexImplicitPrivilegesProviderTests::isZeroCountTerm)
+                && escapeFilters.stream().anyMatch(ElasticAiIndexImplicitPrivilegesProviderTests::isMissingNameFilter);
+        });
+    }
+
+    /** True for {@code {"term": {"...count": {"value": 0}}}}. */
+    @SuppressWarnings("unchecked")
+    private static boolean isZeroCountTerm(Map<String, Object> filter) {
+        if (filter.containsKey("term") == false) {
+            return false;
+        }
+        Map<String, Object> term = (Map<String, Object>) filter.get("term");
+        if (term.containsKey(COUNT_FIELD) == false) {
+            return false;
+        }
+        Object value = ((Map<String, Object>) term.get(COUNT_FIELD)).get("value");
+        return value instanceof Number number && number.intValue() == 0;
+    }
+
+    /** True for {@code {"bool": {"must_not": [{"exists": {"field": "...name"}}]}}}. */
+    @SuppressWarnings("unchecked")
+    private static boolean isMissingNameFilter(Map<String, Object> filter) {
+        if (filter.containsKey("bool") == false) {
+            return false;
+        }
+        Object mustNot = ((Map<String, Object>) filter.get("bool")).get("must_not");
+        if (mustNot instanceof List == false) {
+            return false;
+        }
+        return ((List<Map<String, Object>>) mustNot).stream().anyMatch(clause -> {
+            Object exists = clause.get("exists");
+            return exists instanceof Map && NAME_FIELD.equals(((Map<String, Object>) exists).get("field"));
+        });
     }
 
     private static List<String> termsOfClauseForSpace(List<Map<String, Object>> clauses, String spaceId) {

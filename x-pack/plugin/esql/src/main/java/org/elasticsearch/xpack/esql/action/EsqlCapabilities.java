@@ -1545,6 +1545,13 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL_DEEPLY_NESTED,
 
         /**
+         * Support IN subquery as a direct operand of the {@code ==} and {@code !=} operators, e.g.
+         * {@code WHERE (x IN (FROM sub)) == true}, in the {@code WHERE} and {@code EVAL} commands and in the
+         * {@code STATS} / {@code INLINE STATS} per-aggregate {@code WHERE} filters.
+         */
+        WHERE_IN_SUBQUERY_WITH_EQUALS_NOT_EQUALS,
+
+        /**
          * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
          */
         WHERE_IN_MULTI_COLUMN_SUBQUERY(Build.current().isSnapshot()),
@@ -1560,6 +1567,12 @@ public class EsqlCapabilities {
          * {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL}. INLINE STATS remains unsupported.
          */
         STATS_WHERE_IN_SUBQUERY,
+
+        /**
+         * Support IN non-correlated subqueries inside the INLINE STATS command's per-aggregate WHERE filter, e.g.
+         * {@code INLINE STATS c = COUNT(*) WHERE id IN (FROM other | KEEP id)}.
+         */
+        INLINE_STATS_WHERE_IN_SUBQUERY,
 
         /**
          * Support for views in cluster state (and REST API).
@@ -2980,6 +2993,18 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_EMPTY_STRING_NOT_NULL,
 
         /**
+         * External NDJSON resolves dotted field names correctly: {@code {"a":{"b":1}}} and {@code {"a.b":1}} both
+         * populate the column {@code a.b}; a scalar {@code a} alongside a dotted {@code a.b} yields two independent
+         * columns; duplicate spellings of one column within a record merge into a multivalue.
+         * <p>
+         * Gates the csv-spec tests that assert this, because it changes results for an ordinary NDJSON read: a
+         * pre-change node resolves dotted names by a schema heuristic instead. One of those cases lives in the
+         * shared cross-format {@code external-declared-schema.csv-spec}, which the mixed-cluster suite generates a
+         * per-file IT for in both coordinator directions, so the gate is what skips it against a pre-change node.
+         */
+        EXTERNAL_NDJSON_DOTTED_FIELD_RESOLUTION,
+
+        /**
          * Datasource file plugins (CSV, ORC, Parquet) no longer return {@code TEXT} types, only {@code KEYWORD}.
          * See <a href="https://github.com/elastic/elasticsearch/pull/145334">#145334</a>. Used to gate the affected
          * {@code external-basic.csv-spec} tests so they are skipped on mixed clusters where a pre-change coordinator
@@ -3698,6 +3723,13 @@ public class EsqlCapabilities {
         FIX_PROMQL_TOPK_OVER_AGGREGATE,
 
         /**
+         * Support for the PromQL {@code label_replace} and {@code label_join} metadata-manipulation functions, when the
+         * derived destination label is consumed by an enclosing {@code by(...)} aggregation. The destination may be a new
+         * label or may overwrite a stored label (a dimension or {@code __name__}).
+         */
+        PROMQL_LABEL_FUNCTIONS(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
          * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
          * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket
@@ -3786,6 +3818,15 @@ public class EsqlCapabilities {
          * Report in the response whether query approximation was applied.
          */
         APPROXIMATION_APPLIED_RESPONSE,
+
+        /**
+         * Fix for {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate} placing
+         * constant literal aggregates (e.g. {@code metric_type = "cost"}) in the inner {@code TimeSeriesAggregate}
+         * instead of the outer {@code Aggregate}. Without this fix the outer aggregate does not produce the literal
+         * column, causing {@code Plan [...] optimized incorrectly due to missing references} after
+         * {@code CombineProjections} drops it.
+         */
+        TS_STATS_LITERAL_AGG_FIX,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

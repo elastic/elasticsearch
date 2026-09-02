@@ -89,18 +89,6 @@ public class RatioValueTests extends ESTestCase {
         expectThrows(ElasticsearchParseException.class, () -> RatioValue.parseRatioValue("1.0", lower, upper));
     }
 
-    public void testParseRatioValueWithBoundsBoundsValidation() {
-        expectThrows(IllegalArgumentException.class, () -> RatioValue.parseRatioValue("0.2", null, null));
-        expectThrows(IllegalArgumentException.class, () -> RatioValue.parseRatioValue("0.2", RatioValue.ofPercent(5), null));
-        expectThrows(IllegalArgumentException.class, () -> RatioValue.parseRatioValue("0.2", null, RatioValue.ofPercent(5)));
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> RatioValue.parseRatioValue("0.2", RatioValue.ofPercent(6), RatioValue.ofPercent(5))
-        );
-        // equal lower and upper bound is OK because they're inclusive
-        RatioValue.parseRatioValue("0.05", RatioValue.ofPercent(5), RatioValue.ofPercent(5));
-    }
-
     public void testInvalidRatio(String r) {
         try {
             RatioValue.parseRatioValue(r);

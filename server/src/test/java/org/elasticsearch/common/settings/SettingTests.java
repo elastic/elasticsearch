@@ -1691,6 +1691,23 @@ public class SettingTests extends ESTestCase {
         assertThat(eRatioHigh.getMessage(), equalTo("Ratio should be in [0.1-0.9], got [0.95]"));
     }
 
+    public void testParseRatioValueWithBoundsBoundsValidation() {
+        // Negative values are not allowed
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.ratioSetting("test.ratio", RatioValue.ofPercent(50), RatioValue.ofPercent(-1), RatioValue.ofPercent(100))
+        );
+        // Min can't be greater than max
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.ratioSetting("test.ratio", RatioValue.ofPercent(50), RatioValue.ofPercent(51), RatioValue.ofPercent(50))
+        );
+        // equal lower and upper bound is OK because they're inclusive
+        Setting.ratioSetting("test.ratio", RatioValue.ofPercent(50), RatioValue.ofPercent(50), RatioValue.ofPercent(50));
+        // Over 100% is OK too now
+        Setting.ratioSetting("test.ratio", RatioValue.ofPercent(115), RatioValue.ofPercent(110), RatioValue.ofPercent(200));
+    }
+
     public void testBoundedRatioSettingRejectsOutOfBoundsDefault() {
         expectThrows(
             ElasticsearchParseException.class,

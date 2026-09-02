@@ -1535,12 +1535,22 @@ public class Setting<T> implements ToXContentObject {
         RatioValue maxValueInclusive,
         Property... properties
     ) {
+        validateRatioBounds(minValueInclusive, maxValueInclusive);
         return new Setting<>(
             key,
             defaultValue.formatNoTrailingZerosPercent(),
             sValue -> RatioValue.parseRatioValue(sValue, minValueInclusive, maxValueInclusive),
             properties
         );
+    }
+
+    private static void validateRatioBounds(RatioValue lowerBoundInclusive, RatioValue upperBoundInclusive) {
+        if (lowerBoundInclusive.getAsPercent() < 0) {
+            throw new IllegalArgumentException("lowerBoundInclusive must be non-negative");
+        }
+        if (lowerBoundInclusive.getAsPercent() > upperBoundInclusive.getAsPercent()) {
+            throw new IllegalArgumentException("lowerBoundInclusive must be less than or equal to upperBoundInclusive");
+        }
     }
 
     /**

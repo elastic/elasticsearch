@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
@@ -72,6 +73,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * Handles computes within a single cluster by dispatching {@link DataNodeRequest} to data nodes
@@ -81,6 +84,21 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     private static final TransportVersion ESQL_RETRY_ON_SHARD_LEVEL_FAILURE = TransportVersion.fromName(
         "esql_retry_on_shard_level_failure"
+    );
+    private static final DriverCompletionInfo PARTIAL_COMPLETION_INFO = new DriverCompletionInfo(
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        List.of(),
+        List.of(),
+        Map.of(),
+        true,
+        false,
+        Set.of()
     );
 
     private final ComputeService computeService;
@@ -129,6 +147,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
         Runnable runOnTaskFailure,
+        BooleanSupplier executionStopped,
         ActionListener<ComputeResponse> outListener
     ) {
         Integer maxConcurrentNodesPerCluster = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
@@ -153,7 +172,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 Map<Index, AliasFilter> aliasFilters,
                 NodeListener nodeListener
             ) {
-                if (exchangeSource.isFinished()) {
+                if (executionStopped.getAsBoolean() || exchangeSource.isFinished()) {
                     nodeListener.onSkip();
                     return;
                 }
@@ -178,6 +197,19 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     queryPragmas.exchangeBufferSize(),
                     searchExecutor,
                     listener.delegateFailureAndWrap((l, unused) -> {
+                        boolean cancelled = parentTask.isCancelled();
+                        if (cancelled || executionStopped.getAsBoolean() || exchangeSource.isFinished()) {
+                            var remoteSink = exchangeService.newRemoteSink(parentTask, childSessionId, transportService, connection);
+                            final var terminalListener = l;
+                            remoteSink.close(ActionListener.wrap(ignored -> {
+                                if (cancelled) {
+                                    terminalListener.onFailure(new TaskCancelledException(parentTask.getReasonCancelled()));
+                                } else {
+                                    nodeListener.onSkip();
+                                }
+                            }, terminalListener::onFailure));
+                            return;
+                        }
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
                         if (configuration.allowPartialResults()) {
@@ -261,13 +293,59 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ExternalDistributionPlan distributionPlan,
         ExchangeSourceHandler exchangeSource,
         Runnable runOnTaskFailure,
+        BooleanSupplier executionStopped,
+        boolean tolerateAllNodesFailure,
+        Consumer<Exception> allNodesFailureConsumer,
         ComputeListener parentComputeListener
     ) {
         var queryPragmas = configuration.pragmas();
         boolean allowPartial = configuration.allowPartialResults();
-        boolean sentAny = false;
-        int nodesWithSplits = 0;
-        AtomicInteger failedNodes = new AtomicInteger(0);
+        int nodesWithSplits = Math.toIntExact(
+            distributionPlan.nodeAssignments().values().stream().filter(splits -> splits.isEmpty() == false).count()
+        );
+        if (nodesWithSplits == 0) {
+            parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
+            return;
+        }
+        final int expectedNodes = nodesWithSplits;
+        final ActionListener<DriverCompletionInfo> distributionListener = parentComputeListener.acquireCompute();
+        class DistributionCompletion {
+            private final AtomicInteger completedNodes = new AtomicInteger();
+            private final AtomicInteger successfulNodes = new AtomicInteger();
+            private final AtomicInteger failedNodes = new AtomicInteger();
+            private final AtomicBoolean completed = new AtomicBoolean();
+
+            void nodeFinished(boolean successful) {
+                if (successful) {
+                    successfulNodes.incrementAndGet();
+                } else {
+                    failedNodes.incrementAndGet();
+                }
+                if (completedNodes.incrementAndGet() == expectedNodes && completed.compareAndSet(false, true)) {
+                    if (successfulNodes.get() == 0
+                        && executionStopped.getAsBoolean() == false
+                        && exchangeSource.isFinished() == false
+                        && parentTask.isCancelled() == false) {
+                        var failure = new IllegalStateException("all [" + failedNodes.get() + "] nodes assigned external splits failed");
+                        if (allowPartial && tolerateAllNodesFailure) {
+                            allNodesFailureConsumer.accept(failure);
+                            distributionListener.onResponse(PARTIAL_COMPLETION_INFO);
+                        } else {
+                            distributionListener.onFailure(failure);
+                        }
+                    } else {
+                        distributionListener.onResponse(failedNodes.get() > 0 ? PARTIAL_COMPLETION_INFO : DriverCompletionInfo.EMPTY);
+                    }
+                }
+            }
+
+            void fail(Exception failure) {
+                if (completed.compareAndSet(false, true)) {
+                    distributionListener.onFailure(failure);
+                }
+            }
+        }
+        DistributionCompletion distributionCompletion = new DistributionCompletion();
 
         final var keepAlive = new ExchangeSourceLinkKeepAlive(exchangeSource);
         try {
@@ -277,7 +355,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 if (nodeSplits.isEmpty()) {
                     continue;
                 }
-                nodesWithSplits++;
+                if (parentTask.isCancelled()) {
+                    distributionCompletion.fail(new TaskCancelledException(parentTask.getReasonCancelled()));
+                    return;
+                }
+                if (executionStopped.getAsBoolean() || exchangeSource.isFinished()) {
+                    distributionCompletion.nodeFinished(true);
+                    continue;
+                }
 
                 DiscoveryNode node = clusterService.state().nodes().get(nodeId);
                 if (node == null) {
@@ -290,8 +375,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             nodeId,
                             nodeSplits.size()
                         );
-                        failedNodes.incrementAndGet();
-                        parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
+                        distributionCompletion.nodeFinished(false);
                         continue;
                     }
                     LOGGER.warn(
@@ -299,7 +383,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         nodeId,
                         nodeSplits.size()
                     );
-                    parentComputeListener.acquireCompute().onFailure(nodeError);
+                    distributionCompletion.fail(nodeError);
                     return;
                 }
 
@@ -315,8 +399,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             nodeSplits.size(),
                             e
                         );
-                        failedNodes.incrementAndGet();
-                        parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
+                        distributionCompletion.nodeFinished(false);
                         continue;
                     }
                     LOGGER.warn(
@@ -326,21 +409,36 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         nodeSplits.size(),
                         e
                     );
-                    parentComputeListener.acquireCompute().onFailure(e);
+                    distributionCompletion.fail(e);
                     return;
                 }
 
-                sentAny = true;
                 var childSessionId = computeService.newChildSession(sessionId);
                 keepAlive.track();
                 final AtomicBoolean nodeDone = new AtomicBoolean(false);
+                final AtomicBoolean nodeSucceeded = new AtomicBoolean(false);
                 final Runnable finishNode = () -> {
                     if (nodeDone.compareAndSet(false, true)) {
                         keepAlive.done();
+                        distributionCompletion.nodeFinished(nodeSucceeded.get());
                     }
                 };
-                ActionListener<Void> openExchangeListener = parentComputeListener.acquireAvoid().delegateFailureAndWrap((l, unused) -> {
-                    l = ActionListener.runAfter(l, finishNode);
+                ActionListener<Void> openExchangeSlot = ActionListener.runAfter(parentComputeListener.acquireAvoid(), finishNode);
+                ActionListener<Void> openExchangeListener = openExchangeSlot.delegateFailureAndWrap((l, unused) -> {
+                    boolean cancelled = parentTask.isCancelled();
+                    if (cancelled || executionStopped.getAsBoolean() || exchangeSource.isFinished()) {
+                        var remoteSink = exchangeService.newRemoteSink(parentTask, childSessionId, transportService, connection);
+                        ActionListener<Void> terminalListener = l;
+                        remoteSink.close(ActionListener.wrap(ignored -> {
+                            if (cancelled) {
+                                terminalListener.onFailure(new TaskCancelledException(parentTask.getReasonCancelled()));
+                            } else {
+                                nodeSucceeded.set(true);
+                                terminalListener.onResponse(null);
+                            }
+                        }, terminalListener::onFailure));
+                        return;
+                    }
                     final Runnable onGroupFailure;
                     final CancellableTask groupTask;
                     if (allowPartial) {
@@ -366,15 +464,24 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     final ActionListener<Void> outerL = l;
                     try (var computeListener = new ComputeListener(onGroupFailure, ActionListener.wrap(info -> {
                         try {
+                            nodeSucceeded.set(true);
                             profileSlot.onResponse(info);
                         } finally {
                             outerL.onResponse(null);
                         }
                     }, e -> {
-                        try {
-                            profileSlot.onFailure(e);
-                        } finally {
-                            outerL.onFailure(e);
+                        if (allowPartial && EsqlCCSUtils.canAllowPartial(e)) {
+                            try {
+                                profileSlot.onResponse(PARTIAL_COMPLETION_INFO);
+                            } finally {
+                                outerL.onResponse(null);
+                            }
+                        } else {
+                            try {
+                                profileSlot.onFailure(e);
+                            } finally {
+                                outerL.onFailure(e);
+                            }
                         }
                     }))) {
                         var dataNodeRequest = new DataNodeRequest(
@@ -425,10 +532,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         }
                     }
                 }, e -> {
-                    try {
-                        openExchangeListener.onFailure(e);
-                    } finally {
+                    if (allowPartial && EsqlCCSUtils.canAllowPartial(e)) {
+                        openExchangeSlot.onResponse(null);
                         finishNode.run();
+                    } else {
+                        try {
+                            openExchangeListener.onFailure(e);
+                        } finally {
+                            finishNode.run();
+                        }
                     }
                 });
                 try {
@@ -442,19 +554,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     );
                 } catch (Exception e) {
                     openExchangeListenerWithNodeCompletion.onFailure(e);
-                    return;
-                }
-            }
-            if (sentAny == false) {
-                if (failedNodes.get() > 0 && failedNodes.get() >= nodesWithSplits) {
-                    parentComputeListener.acquireCompute()
-                        .onFailure(
-                            new IllegalStateException(
-                                "all [" + failedNodes.get() + "] nodes assigned external splits failed; cannot serve partial results"
-                            )
-                        );
-                } else {
-                    parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
+                    continue;
                 }
             }
         } finally {

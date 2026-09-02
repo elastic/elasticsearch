@@ -20,11 +20,15 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+
+import java.util.List;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -361,6 +365,19 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
                 "FROM test,remote:test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code | LIMIT 2"
             )
         );
+    }
+
+    public void testRemoteLookupJoinRejectsSourceFanIn() {
+        var testAnalyzer = analyzer().addIndex("test,remote:test", "mapping-default.json").addLanguagesLookup();
+        LogicalPlan plan = testAnalyzer.query(
+            "FROM test,remote:test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code"
+        );
+        plan = plan.transformUp(
+            EsRelation.class,
+            relation -> new SourceFanInUnionAll(relation.source(), List.of(relation, relation), relation.output())
+        );
+
+        assertThat(error(plan), containsString("LOOKUP JOIN with remote indices can't be executed after a multi-source dataset expansion"));
     }
 
     public void testRemoteEnrichAfterLookupJoinWithPipelineBreakerCCS() {

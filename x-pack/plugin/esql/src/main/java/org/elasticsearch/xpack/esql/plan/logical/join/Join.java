@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -369,6 +370,10 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     }
 
     private void checkRemoteJoin(Failures failures) {
+        if (left().anyMatch(plan -> plan instanceof SourceFanInUnionAll)) {
+            failures.add(fail(this, "LOOKUP JOIN with remote indices can't be executed after a multi-source dataset expansion"));
+            return;
+        }
         checkForRemoteJoinBlockers(this, failures);
     }
 

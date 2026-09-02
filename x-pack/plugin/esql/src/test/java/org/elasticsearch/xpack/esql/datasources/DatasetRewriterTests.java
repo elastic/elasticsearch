@@ -31,12 +31,16 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -129,11 +133,50 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("ds1,ds2"), project);
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
         assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
         assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
+    }
+
+    public void testViewUnionAllWithNestedSourceFanInFlattens() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        Dataset ds3 = new Dataset("ds3", new DataSourceReference("s3_parent"), "s3://c/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2, "ds3", ds3));
+
+        LogicalPlan inner = rewrite(relationOf("ds1,ds2"), project);
+        LogicalPlan sibling = rewrite(relationOf("ds3"), project);
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("view", inner);
+        children.put("other", sibling);
+        LogicalPlan composed = new ViewUnionAll(Source.EMPTY, children, List.of());
+
+        LogicalPlan flattened = DatasetRewriter.flattenViewUnionAllWithSourceFanIn(composed);
+        assertThat(flattened, instanceOf(SourceFanInUnionAll.class));
+        assertThat(flattened.children(), hasSize(3));
+    }
+
+    public void testViewUnionAllWithPipelineSiblingDoesNotFlatten() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        Dataset ds3 = new Dataset("ds3", new DataSourceReference("s3_parent"), "s3://c/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2, "ds3", ds3));
+
+        LogicalPlan inner = rewrite(relationOf("ds1,ds2"), project);
+        LogicalPlan pipeline = new Filter(Source.EMPTY, rewrite(relationOf("ds3"), project), Literal.TRUE);
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("view", inner);
+        children.put("other", pipeline);
+        LogicalPlan composed = new ViewUnionAll(Source.EMPTY, children, List.of());
+
+        LogicalPlan flattened = DatasetRewriter.flattenViewUnionAllWithSourceFanIn(composed);
+        assertSame(composed, flattened);
+        assertThat(flattened, instanceOf(ViewUnionAll.class));
+        assertThat(flattened.children(), hasSize(2));
     }
 
     public void testMixedDatasetsAndNonDatasetsProducesUnionAll() {
@@ -144,7 +187,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("some_idx,logs"), project);
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
         // Dataset branches precede the index branch under the unified rail.

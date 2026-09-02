@@ -43,6 +43,25 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
     public static final String FORK_FIELD = "_fork";
     public static final int MAX_BRANCHES = 8;
+
+    /**
+     * User {@code FORK} or a relational union. Dataset source expansion is a
+     * {@link Fork} subclass but is not a user FORK command.
+     */
+    public static boolean isUserWrittenFork(LogicalPlan plan) {
+        return plan instanceof Fork && plan instanceof SourceFanInUnionAll == false;
+    }
+
+    public static List<Fork> collectUserWrittenForks(LogicalPlan plan) {
+        List<Fork> forks = new ArrayList<>();
+        for (Fork fork : plan.collect(Fork.class)) {
+            if (isUserWrittenFork(fork)) {
+                forks.add(fork);
+            }
+        }
+        return forks;
+    }
+
     private final List<Attribute> output;
 
     public Fork(Source source, List<LogicalPlan> children, List<Attribute> output) {
@@ -269,6 +288,9 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
         forEachForkSkippingSubqueries(fork, otherFork -> {
             if (otherFork == fork) {
+                return;
+            }
+            if (otherFork instanceof SourceFanInUnionAll) {
                 return;
             }
 

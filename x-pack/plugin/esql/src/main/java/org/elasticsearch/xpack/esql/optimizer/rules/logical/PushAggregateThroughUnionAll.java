@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -98,6 +99,9 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
         if (!(aggregate.child() instanceof UnionAll unionAll)) {
+            return aggregate;
+        }
+        if (unionAll instanceof SourceFanInUnionAll) {
             return aggregate;
         }
         if (PushDownUtils.isLeafUnionAll(unionAll) == false) {
@@ -225,7 +229,7 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
                 );
             }
         }
-        UnionAll newUnionAll = new UnionAll(unionAll.source(), newBranches, unionOutput);
+        UnionAll newUnionAll = unionAll.replaceSubPlansAndOutput(newBranches, unionOutput);
 
         // Build the outer combiner Aggregate.
         // Groupings reference the shared grouping IDs from the UnionAll output.

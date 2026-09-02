@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.SourceFanInExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AggregateMapper;
 
@@ -139,6 +140,9 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
             // For fork: add sampling in every branch.
             case MergeExec merge -> merge.replaceChildren(
                 merge.children().stream().map(child -> addSample(child, sampleProbability)).toList()
+            );
+            case SourceFanInExec fanIn -> fanIn.replaceChildren(
+                fanIn.producers().stream().map(producer -> addSample(producer, sampleProbability)).toList()
             );
             case UnaryExec unary -> unary.replaceChild(addSample(unary.child(), sampleProbability));
             case LeafExec leaf -> new SampleExec(Source.EMPTY, leaf, sampleProbability);

@@ -157,6 +157,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
+import org.elasticsearch.xpack.esql.plan.physical.SourceFanInExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
@@ -3811,6 +3812,66 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             Project.class
         );
         assertThat(project.projections(), contains(some_field1));
+
+        var secondRelation = new EsRelation(
+            Source.EMPTY,
+            index.name(),
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            index.indexProperties(),
+            esField.stream().map(field -> (Attribute) new FieldAttribute(Source.EMPTY, null, null, field.getName(), field)).toList()
+        );
+        Attribute commonField1 = new ReferenceAttribute(Source.EMPTY, "some_field1", DataType.KEYWORD);
+        Attribute commonField2 = new ReferenceAttribute(Source.EMPTY, "some_field2", DataType.KEYWORD);
+        SourceFanInExec fanIn = new SourceFanInExec(
+            Source.EMPTY,
+            List.of(new FragmentExec(relation), new FragmentExec(secondRelation)),
+            List.of(commonField1, commonField2),
+            false
+        );
+        plan = rule.apply(new ProjectExec(Source.EMPTY, fanIn, List.of(commonField1)));
+        SourceFanInExec projectedFanIn = as(as(plan, ProjectExec.class).child(), SourceFanInExec.class);
+        assertThat(projectedFanIn.output(), contains(commonField1));
+        for (int i = 0; i < projectedFanIn.producers().size(); i++) {
+            FragmentExec projectedFragment = as(projectedFanIn.producers().get(i), FragmentExec.class);
+            Project producerProject = as(projectedFragment.fragment(), Project.class);
+            assertThat(producerProject.projections(), contains(i == 0 ? some_field1 : secondRelation.output().get(0)));
+        }
+
+        Count countFn = new Count(Source.EMPTY, new Literal(Source.EMPTY, 1, DataType.INTEGER));
+        Alias count = new Alias(Source.EMPTY, "count", countFn);
+        SourceFanInExec countFanInSource = new SourceFanInExec(
+            Source.EMPTY,
+            List.of(new FragmentExec(relation), new FragmentExec(secondRelation)),
+            List.of(commonField1, commonField2),
+            false
+        );
+        plan = rule.apply(
+            new AggregateExec(Source.EMPTY, countFanInSource, List.of(), List.of(count), AggregatorMode.SINGLE, List.of(), null)
+        );
+        SourceFanInExec countFanIn = as(as(plan, AggregateExec.class).child(), SourceFanInExec.class);
+        assertThat(countFanIn.output().get(0).name(), equalTo(ProjectAwayColumns.ALL_FIELDS_PROJECTED));
+        for (PhysicalPlan producer : countFanIn.producers()) {
+            Project producerProject = as(as(producer, FragmentExec.class).fragment(), Project.class);
+            assertThat(producerProject.projections().get(0).name(), equalTo(ProjectAwayColumns.ALL_FIELDS_PROJECTED));
+        }
+    }
+
+    public void testEstimateRowSizeIsolatedAcrossForkBranches() {
+        Attribute value = new ReferenceAttribute(Source.EMPTY, "value", DataType.KEYWORD);
+        LocalSourceExec localSource = new LocalSourceExec(Source.EMPTY, List.of(value), EmptyLocalSupplier.EMPTY);
+        EvalExec firstBranch = new EvalExec(
+            Source.EMPTY,
+            localSource,
+            List.of(new Alias(Source.EMPTY, "added", new Literal(Source.EMPTY, 1, DataType.INTEGER)))
+        );
+        FragmentExec secondBranch = new FragmentExec(new LocalRelation(Source.EMPTY, List.of(value), EmptyLocalSupplier.EMPTY));
+        MergeExec merge = new MergeExec(Source.EMPTY, List.of(firstBranch, secondBranch), List.of(value));
+
+        MergeExec estimated = as(EstimatesRowSize.estimateRowSize(0, merge), MergeExec.class);
+
+        assertThat(as(estimated.children().get(1), FragmentExec.class).estimatedRowSize(), equalTo(0));
     }
 
     /**

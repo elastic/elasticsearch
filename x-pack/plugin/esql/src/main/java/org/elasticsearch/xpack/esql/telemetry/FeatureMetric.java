@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -114,7 +116,7 @@ public enum FeatureMetric {
     CHANGE_POINT(ChangePoint.class::isInstance),
     INLINE_STATS(InlineStats.class::isInstance),
     RERANK(Rerank.class::isInstance),
-    FORK(Fork.class::isInstance),
+    FORK(plan -> plan instanceof Fork && plan instanceof SourceFanInUnionAll == false && plan instanceof ViewUnionAll == false),
     FUSE(Fuse.class::isInstance),
     COMPLETION(Completion.class::isInstance),
     DENSE_VECTOR(DenseVector.class::isInstance),
@@ -156,7 +158,9 @@ public enum FeatureMetric {
         TimeSeriesCollapse.class, // TS_COLLAPSE is rolled into the PROMQL counter via the wrapped PromqlCommand below it
         TopNBy.class, // produced by PROMQL `or` (union) translation for left-preferring dedup; otherwise only appears post-analysis
         InsertEmptyBuckets.class, // not a user command; produced by setting BUCKET(..., {"include_empty_buckets": true})
-        MarkJoin.class // MarkJoin's enclosing command(filter, eval) already records the telemetry.
+        MarkJoin.class, // MarkJoin's enclosing command(filter, eval) already records the telemetry.
+        SourceFanInUnionAll.class, // dataset source expansion; not a user FORK/subquery
+        ViewUnionAll.class // view-composed multi-source FROM; not a user FORK/subquery
     );
 
     private Predicate<LogicalPlan> planCheck;

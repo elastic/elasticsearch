@@ -315,7 +315,7 @@ public abstract class FullTextFunction extends Function
                 lp -> (lp instanceof Limit == false)
                     && (lp instanceof Aggregate == false)
                     && (lp instanceof MvExpand == false)
-                    && (lp instanceof Fork == false)
+                    && (Fork.isUserWrittenFork(lp) == false)
                     && (lp instanceof LimitBy == false)
                     && (lp instanceof TopNBy == false)
                     && (lp instanceof Dedup == false)

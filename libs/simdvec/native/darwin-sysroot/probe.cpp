@@ -8,10 +8,13 @@
  */
 
 /*
- * The contract for the assembled Darwin sysroot: the union of the system headers that
- * the native libraries built with it actually include (simdvec and simdjson today).
+ * This simple cpp program defines the "contract" for the assembled Darwin sysroot.
+ * The Darwin sysroot will include all of libc, libm, libpthread and libmalloc, but we
+ * want to avoid bringing in all the xnu kernel headers too; therefore, it will be
+ * the union of the system headers that the native libraries built with it actually
+ * include (simdvec and simdjson today).
  *
- * assemble.sh compiles this twice. First against the full xnu staging tree, using the
+ * assemble.sh compiles this program twice. First against the full xnu staging tree, using the
  * compiler's dependency output to compute the exact set of xnu headers reachable from
  * here. That computed closure is what lands in the sysroot. Then it compiles them again
  * on the reduced set to prove the sysroot is self-contained.
@@ -78,9 +81,13 @@
 #include <version>
 
 /*
- * Instantiate the pieces that pull in the most out-of-line runtime surface. Including a
- * header only proves it parses; the sysroot also has to support code that actually uses
- * the library, and the resulting import list is what the undefined-symbol audit inspects.
+ * This "probe" function instantiates classes and calls functions to exercise the runtime surface.
+ * This is OPTIONAL: including a header only proves it parses, but it is actually sufficient.
+ * The sysroot has to support code that actually uses the library, but on Darwin this is provided by system
+ * dynamic libraries.
+ * Adding function calls here will surface which library functions the C/C++ classes and functions actually
+ * call, as they will appear in the import list of the compiled binary (the resulting import list is what
+ * the undefined-symbol audit inspects).
  */
 extern "C" int probe(void) {
     std::vector<std::string> v;

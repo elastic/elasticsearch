@@ -298,6 +298,9 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
             }
         }
 
+        /**
+         * Returns {@code true} if every key was appended, allowing the caller to apply append-only optimizations.
+         */
         boolean mergeKeys(long[] keys, int[] ids, int len) {
             final int preSize = size;
             for (int i = 0; i < len; i++) {
@@ -662,6 +665,9 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
             size = len;
         }
 
+        /**
+         * Returns {@code true} if every key was appended, allowing the caller to apply append-only optimizations.
+         */
         boolean mergeKeys(long[] keys, int[] ids, int len) {
             final int preSize = size;
             if (preSize == 0) {

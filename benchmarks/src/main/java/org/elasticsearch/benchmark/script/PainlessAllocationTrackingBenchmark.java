@@ -43,6 +43,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Measures the per-execution overhead of Painless allocation tracking across three modes:
@@ -94,9 +96,25 @@ public class PainlessAllocationTrackingBenchmark {
      *       {@code String+int} concat, entrySet iterator, and {@code String+String} concat</li>
      *   <li>{@code def_alloc} – def-typed string concat (PR 7.5 MIC path) and def method
      *       dispatch to annotated targets (PR 7 PIC path)</li>
+     *   <li>{@code string_format} – {@code String.format}, bounded from the format and argument count</li>
+     *   <li>{@code string_join_small}/{@code string_join_large} – {@code String.join} over 3 then 300
+     *       elements; shows the overhead shrinking relative to a growing workload</li>
+     *   <li>{@code builder_substring} – the annotated {@code StringBuilder(CharSequence)} plus a
+     *       builder {@code substring}: two estimator sites in one script</li>
      * </ul>
      */
-    @Param({ "trivial", "allocating", "contains", "complex", "def_alloc" })
+    @Param(
+        {
+            "trivial",
+            "allocating",
+            "contains",
+            "complex",
+            "def_alloc",
+            "string_format",
+            "string_join_small",
+            "string_join_large",
+            "builder_substring" }
+    )
     private String script;
 
     /**
@@ -169,6 +187,23 @@ public class PainlessAllocationTrackingBenchmark {
                         joined = joined + item;
                     }
                     return joined.length() > 0""";
+                // String.format, whose estimator bounds the result from the format length and argument count.
+                case "string_format" -> """
+                    def[] args = params.args;
+                    return String.format('%s-%s', args).length() > 0""";
+                // String.join over 3 elements, then the same over 300. The pair shows the overhead shrinking in relative
+                // terms as the real work grows; it cannot resolve the estimator's own cost, which the join dwarfs.
+                case "string_join_small" -> """
+                    List items = params.small;
+                    return String.join(',', items).length() > 0""";
+                case "string_join_large" -> """
+                    List items = params.large;
+                    return String.join(',', items).length() > 0""";
+                // The annotated CharSequence constructor plus a builder substring: two estimator sites in one script.
+                case "builder_substring" -> """
+                    String text = params.text;
+                    StringBuilder b = new StringBuilder(text);
+                    return b.substring(4, 20).length() > 0""";
                 default -> throw new IllegalArgumentException("unknown script: " + script);
             };
 
@@ -188,6 +223,11 @@ public class PainlessAllocationTrackingBenchmark {
         public void setup(PainlessAllocationTrackingBenchmark benchmark) {
             Map<String, Object> params = new HashMap<>();
             params.put("word", "echo");
+            // Pre-built so the String workloads measure the annotated call, not the setup.
+            params.put("args", new Object[] { "alfa", "bravo" });
+            params.put("small", List.of("alfa", "bravo", "charlie"));
+            params.put("large", IntStream.range(0, 300).mapToObj(Integer::toString).collect(Collectors.toList()));
+            params.put("text", "the quick brown fox jumps over the lazy dog");
             Map<String, Object> context = new HashMap<>();
             context.put("message", "test");
 

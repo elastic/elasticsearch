@@ -4722,7 +4722,7 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [0.5, 0.4, 0.3, 0.2] on dense_embedding limit 10"
         );
-        analyzer().addDefaultIndex().addAnalysisTestsInferenceResolution().stripErrorPrefix(true).query("""
+        defaultAnalyzer().addAnalysisTestsInferenceResolution().query("""
             row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
             | mmr TEXT_EMBEDDING("some text", "%s") on dense_embedding limit 10
             """.formatted(TEXT_EMBEDDING_INFERENCE_ID));

@@ -323,8 +323,9 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
      * A comma-separated resource has no glob metacharacter, so its pattern prefix is the whole comma string
      * and no listed key starts with it. A compact encoding that prepends that base to each key reads objects
      * that do not exist; the round-trip guard discards such an encoding and keeps the raw listing, so the
-     * reads succeed. {@code first_file_wins} routes through the compactor (the default
-     * {@code union_by_name} never compacts).
+     * reads succeed. This method pins {@code first_file_wins} on the inferred compact path (shared with
+     * default {@code union_by_name}); comma lists fall back to the raw listing when the encoding does
+     * not round-trip.
      */
     public void testCommaSeparatedResourceFirstFileWinsRoundTrips() throws Exception {
         Path root = createTempDir().resolve("comma_ffw_csv");

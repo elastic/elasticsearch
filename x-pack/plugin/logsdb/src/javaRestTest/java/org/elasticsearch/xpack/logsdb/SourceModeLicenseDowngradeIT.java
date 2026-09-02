@@ -24,7 +24,10 @@ public class SourceModeLicenseDowngradeIT extends SourceModeLicenseChangeTestCas
         startBasic();
     }
 
-    /** Builds one TestCase for each strict-columnar index mode (columnar, logsdb_columnar). */
+    /**
+     * Builds one TestCase for each strict-columnar index mode that has a source mode to fall back to. vectordb_columnar
+     * supports synthetic source only, so a downgrade rejects new indices rather than switching their source mode.
+     */
     private List<TestCase> columnarCases() {
         return List.of(
             new SourceModeTestCase(

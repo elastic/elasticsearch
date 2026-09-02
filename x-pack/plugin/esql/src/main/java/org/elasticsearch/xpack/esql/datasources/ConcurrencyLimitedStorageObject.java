@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -127,18 +128,29 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         try {
             acquirePermit();
         } catch (Exception e) {
             listener.onFailure(e);
-            return;
+            return () -> {};
         }
         try {
             // We intentionally use a raw ActionListener instead of ActionListener.wrap so a
             // throw from listener.onResponse(result) does NOT get auto-routed to our onFailure
             // lambda — that would double-release the permit and double-fire the downstream
             // listener (onResponse + onFailure for the same I/O).
-            delegate.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
+            return delegate.startReadBytesAsync(position, length, factory, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(DirectReadBuffer result) {
                     limiter.release();
@@ -167,6 +179,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         } catch (Exception e) {
             limiter.release();
             listener.onFailure(e);
+            return () -> {};
         }
     }
 

@@ -21,13 +21,17 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import java.io.IOException;
+import java.lang.ref.Reference;
+import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -44,6 +48,9 @@ import static org.hamcrest.Matchers.instanceOf;
 public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
 
     private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+
+    /** Arbitrary non-zero slack, so a factory buffer that is larger than requested is not a rounding coincidence. */
+    private static final int EXTRA_CAPACITY = 17;
 
     public void testRejectsNegativeExpectedLength() {
         IllegalArgumentException ex = expectThrows(
@@ -100,6 +107,30 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
             assertFalse(result.buffer().isDirect());
             assertEquals(0, result.buffer().remaining());
         }
+    }
+
+    public void testOverAllocatedDestinationUsesExpectedLength() throws Exception {
+        byte[] payload = randomByteArrayOfLength(between(32, 512));
+        AtomicInteger closeCalls = new AtomicInteger();
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+            payload.length,
+            overAllocatingFactory(closeCalls)
+        );
+
+        try (DirectReadBuffer result = runTransformer(transformer, response(payload.length), List.of(ByteBuffer.wrap(payload)))) {
+            assertEquals(payload.length + EXTRA_CAPACITY, result.buffer().capacity());
+            assertEquals(payload.length, result.buffer().remaining());
+            assertArrayEquals(payload, toByteArray(result.buffer()));
+        }
+        assertEquals(1, closeCalls.get());
+    }
+
+    public void testRejectsUndersizedFactoryBufferAndCancels() {
+        assertInvalidFactoryBufferRejected(ByteBuffer.allocate(15), 16);
+    }
+
+    public void testRejectsReadOnlyFactoryBufferAndCancels() {
+        assertInvalidFactoryBufferRejected(ByteBuffer.allocateDirect(16).asReadOnlyBuffer(), 16);
     }
 
     public void testOverflowFailsFastAndCancelsSubscription() {
@@ -193,6 +224,79 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         assertSame(error, ex.getCause());
     }
 
+    public void testStreamAfterPreparedFutureFailedClosesAllocationAndCancels() {
+        AtomicInteger closeCalls = new AtomicInteger();
+        DirectBufferFactory factory = length -> new DirectReadBuffer(ByteBuffer.allocate(length), closeCalls::incrementAndGet);
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(16, factory);
+        CompletableFuture<DirectReadBuffer> future = transformer.prepare();
+        RuntimeException error = new RuntimeException("failed before stream");
+        transformer.exceptionOccurred(error);
+        RecordingSubscription subscription = new RecordingSubscription();
+
+        transformer.onStream(new SdkPublisher<>() {
+            @Override
+            public void subscribe(Subscriber<? super ByteBuffer> subscriber) {
+                subscriber.onSubscribe(subscription);
+            }
+        });
+
+        ExecutionException ex = expectThrows(ExecutionException.class, future::get);
+        assertSame(error, ex.getCause());
+        assertEquals(1, closeCalls.get());
+        assertTrue(subscription.cancelled.get());
+        assertEquals(0L, subscription.requested.get());
+    }
+
+    public void testExceptionOccurredAfterSuccessfulTransferDoesNotCloseResult() throws Exception {
+        CircuitBreaker breaker = new LimitedBreaker("successful-transfer-race", ByteSizeValue.ofMb(16));
+        byte[] payload = randomByteArrayOfLength(256);
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+            payload.length,
+            DirectBufferFactory.forBreaker(breaker)
+        );
+        CompletableFuture<DirectReadBuffer> future = transformer.prepare();
+        transformer.onResponse(response(payload.length));
+        transformer.onStream(new SdkPublisher<>() {
+            @Override
+            public void subscribe(Subscriber<? super ByteBuffer> subscriber) {
+                subscriber.onSubscribe(new TestSubscription());
+                subscriber.onNext(ByteBuffer.wrap(payload));
+                subscriber.onComplete();
+            }
+        });
+
+        DirectReadBuffer result = future.get();
+        transformer.exceptionOccurred(new IOException("late transport failure"));
+        assertArrayEquals(payload, toByteArray(result.buffer()));
+        assertEquals(payload.length, breaker.getUsed());
+        result.close();
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    public void testLateOnNextAfterCompletionIsIgnored() throws Exception {
+        byte[] payload = randomByteArrayOfLength(32);
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+            payload.length,
+            FACTORY
+        );
+        CompletableFuture<DirectReadBuffer> future = transformer.prepare();
+        transformer.onResponse(response(payload.length));
+
+        transformer.onStream(new SdkPublisher<>() {
+            @Override
+            public void subscribe(Subscriber<? super ByteBuffer> subscriber) {
+                subscriber.onSubscribe(new TestSubscription());
+                subscriber.onNext(ByteBuffer.wrap(payload));
+                subscriber.onComplete();
+                subscriber.onNext(ByteBuffer.wrap(new byte[] { 1 }));
+            }
+        });
+
+        try (DirectReadBuffer result = future.get()) {
+            assertArrayEquals(payload, toByteArray(result.buffer()));
+        }
+    }
+
     public void testRetryAllocatesFreshDestination() throws Exception {
         // The SDK invokes prepare() for every retry attempt; the result of the first attempt must
         // not contaminate the second.
@@ -258,6 +362,52 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         assertEquals("onComplete must release the buffer it could not hand off", 0L, breaker.getUsed());
     }
 
+    /**
+     * Reproduces the pooled-channel retention seen in the OOM heap dump. The AWS SDK keeps the
+     * future returned by {@link KnownLengthAsyncResponseTransformer#prepare()} in an
+     * {@code IdempotentAsyncResponseHandler} attached to an idle channel. Closing the delivered
+     * buffer returns its breaker charge, but the completed future and subscriber must not keep
+     * the backing bytes strongly reachable.
+     */
+    public void testClosedResultDoesNotRemainReachableThroughCompletedFuture() throws Exception {
+        CircuitBreaker breaker = new LimitedBreaker("completed-future-retention", ByteSizeValue.ofMb(16));
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
+        byte[] payload = randomByteArrayOfLength(1 << 20);
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+            payload.length,
+            factory
+        );
+        CompletableFuture<DirectReadBuffer> future = transformer.prepare();
+        transformer.onResponse(response(payload.length));
+        transformer.onStream(new SdkPublisher<>() {
+            @Override
+            public void subscribe(Subscriber<? super ByteBuffer> s) {
+                s.onSubscribe(new TestSubscription());
+                s.onNext(ByteBuffer.wrap(payload));
+                s.onComplete();
+            }
+        });
+
+        WeakReference<byte[]> destination = closeAndForgetDestination(future);
+        assertEquals("close must return the destination's breaker charge", 0L, breaker.getUsed());
+
+        // Models IdempotentAsyncResponseHandler.cachedPreparedFuture on a pooled channel.
+        AtomicReference<CompletableFuture<DirectReadBuffer>> cachedPreparedFuture = new AtomicReference<>(future);
+        try {
+            assertBusy(() -> {
+                System.gc();
+                assertTrue("the simulated channel must keep the completed future alive", cachedPreparedFuture.get().isDone());
+                assertNotNull("the retained transformer must remain usable", transformer.response());
+                assertNull(
+                    "a closed S3 destination must be collectable while the SDK retains the future and transformer",
+                    destination.get()
+                );
+            });
+        } finally {
+            Reference.reachabilityFence(transformer);
+        }
+    }
+
     public void testResponseObjectExposedViaGetter() throws Exception {
         byte[] payload = randomByteArrayOfLength(between(8, 256));
         GetObjectResponse expectedResponse = response(payload.length);
@@ -306,6 +456,45 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         return result;
     }
 
+    private void assertInvalidFactoryBufferRejected(ByteBuffer invalidBuffer, int expectedLength) {
+        AtomicInteger closeCalls = new AtomicInteger();
+        DirectBufferFactory factory = ignored -> new DirectReadBuffer(invalidBuffer, closeCalls::incrementAndGet);
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+            expectedLength,
+            factory
+        );
+        CompletableFuture<DirectReadBuffer> future = transformer.prepare();
+        RecordingSubscription subscription = new RecordingSubscription();
+        transformer.onStream(new SdkPublisher<>() {
+            @Override
+            public void subscribe(Subscriber<? super ByteBuffer> subscriber) {
+                subscriber.onSubscribe(subscription);
+            }
+        });
+
+        ExecutionException ex = expectThrows(ExecutionException.class, future::get);
+        assertThat(ex.getCause(), instanceOf(IOException.class));
+        assertThat(ex.getCause().getMessage(), containsString("DirectBufferFactory"));
+        assertEquals(1, closeCalls.get());
+        assertTrue(subscription.cancelled.get());
+        assertEquals(0L, subscription.requested.get());
+    }
+
+    private static DirectBufferFactory overAllocatingFactory(AtomicInteger closeCalls) {
+        return length -> {
+            ByteBuffer destination = ByteBuffer.allocate(length + EXTRA_CAPACITY);
+            destination.limit(1);
+            return new DirectReadBuffer(destination, closeCalls::incrementAndGet);
+        };
+    }
+
+    private static WeakReference<byte[]> closeAndForgetDestination(CompletableFuture<DirectReadBuffer> future) throws Exception {
+        DirectReadBuffer result = future.get();
+        WeakReference<byte[]> destination = new WeakReference<>(result.buffer().array());
+        result.close();
+        return destination;
+    }
+
     private static byte[] toByteArray(ByteBuffer buffer) {
         byte[] bytes = new byte[buffer.remaining()];
         buffer.get(bytes);
@@ -347,5 +536,20 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
 
         @Override
         public void cancel() {}
+    }
+
+    private static final class RecordingSubscription implements Subscription {
+        private final AtomicLong requested = new AtomicLong();
+        private final AtomicBoolean cancelled = new AtomicBoolean();
+
+        @Override
+        public void request(long n) {
+            requested.addAndGet(n);
+        }
+
+        @Override
+        public void cancel() {
+            cancelled.set(true);
+        }
     }
 }

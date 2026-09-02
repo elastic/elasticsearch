@@ -3828,13 +3828,12 @@ public class EsqlCapabilities {
          */
         TS_STATS_LITERAL_AGG_FIX,
 
-                /**
-         * Support for {@code MATCH}, {@code MATCH_PHRASE}, and the match operator in a {@code WHERE}
-         * clause after {@code INLINE STATS}.
-         * See <a href="https://github.com/elastic/elasticsearch/issues/144831">#144831</a>.
-         */
+        /**
+        * Support for {@code MATCH}, {@code MATCH_PHRASE}, and the match operator in a {@code WHERE}
+        * clause after {@code INLINE STATS}.
+        * See <a href="https://github.com/elastic/elasticsearch/issues/144831">#144831</a>.
+        */
         FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS(INLINE_STATS.enabled),
-
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

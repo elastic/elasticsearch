@@ -892,7 +892,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         try {
             return DateFormatter.forPattern(value.toString());
         } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid datetime format [" + value + "]", e);
+            throw new IllegalArgumentException("Invalid datetime format [" + value + "]: " + e.getMessage(), e);
         }
     }
 

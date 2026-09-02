@@ -548,9 +548,8 @@ public class ExternalSourceResolver {
             return new ExternalUnavailableException(
                 unavailable.throttling(),
                 unavailable,
-                "Failed to resolve external source [{}]: {}",
-                path,
-                unavailable.getMessage()
+                "{}",
+                ExternalFailures.locate("Failed to resolve external source", path, unavailable.getMessage())
             );
         }
         // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). The factory loop wraps it
@@ -603,7 +602,7 @@ public class ExternalSourceResolver {
             recordDiscoveryFailure();
             String detail = ExternalFailures.rootDetail(e);
             LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
-            return new ExternalClientException(e, "Failed to resolve external source [{}]: {}", path, detail);
+            return new ExternalClientException(e, "{}", ExternalFailures.locate("Failed to resolve external source", path, detail));
         }
         recordDiscoveryFailure();
         // rootDetail, not getMessage: the file-metadata rail raises a plain IOException that arrives inside the
@@ -611,7 +610,7 @@ public class ExternalSourceResolver {
         // print "java.io.IOException: Object not found: ..." at the user.
         String detail = ExternalFailures.rootDetail(e);
         LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
-        return new ExternalServerException(e, "Failed to resolve external source [{}]: {}", path, detail);
+        return new ExternalServerException(e, "{}", ExternalFailures.locate("Failed to resolve external source", path, detail));
     }
 
     private void resolveSource(

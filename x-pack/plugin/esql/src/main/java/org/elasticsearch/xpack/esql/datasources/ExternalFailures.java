@@ -203,8 +203,16 @@ public final class ExternalFailures {
      * here twice when the cause includes it.
      */
     public static String resolutionFailureMessage(String location, Throwable cause) {
-        String detail = detail(cause);
-        return detail.contains(location) ? detail : "Failed to resolve metadata for [" + location + "]: " + detail;
+        return locate("Failed to resolve metadata for", location, detail(cause));
+    }
+
+    /**
+     * Applies the same rule for any wrapper prefix: a detail that already names the location is returned as-is,
+     * so the path is not printed twice. Callers that have already resolved their own detail string use this
+     * directly rather than re-deriving it from the cause.
+     */
+    public static String locate(String prefix, String location, String detail) {
+        return detail.contains(location) ? detail : prefix + " [" + location + "]: " + detail;
     }
 
     /**

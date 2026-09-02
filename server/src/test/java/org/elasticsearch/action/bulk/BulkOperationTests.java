@@ -666,6 +666,19 @@ public class BulkOperationTests extends ESTestCase {
                 onBackingIndexWrite.accept(shardRequest, ActionListener.notifyOnce((ActionListener<BulkShardResponse>) listener));
                 return null;
             }
+
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                try {
+                    executeLocally(action, request, listener);
+                } catch (TaskCancelledException | IllegalArgumentException | IllegalStateException e) {
+                    listener.onFailure(e);
+                }
+            }
         };
 
         BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
@@ -1245,6 +1258,12 @@ public class BulkOperationTests extends ESTestCase {
                         onRolloverAction.accept((RolloverRequest) request, notifyOnceListener);
                     } catch (Exception responseException) {
                         notifyOnceListener.onFailure(responseException);
+                    }
+                } else if (TransportShardBulkAction.TYPE.equals(action)) {
+                    try {
+                        executeLocally(action, request, listener);
+                    } catch (TaskCancelledException | IllegalArgumentException | IllegalStateException e) {
+                        listener.onFailure(e);
                     }
                 } else {
                     fail("Unexpected client call to " + action.name());

@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Maps _uid value to its version information. */
-public final class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
+public class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
     private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
 
@@ -202,7 +202,12 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
          */
         Maps invalidateOldMap(LiveVersionMapArchive archive) {
             archive.afterRefresh(old);
-            return new Maps(current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);
+            Maps result = new Maps(current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);
+            // not JMM compatible, similar to beforeRefresh
+            if (needsSafeAccess) {
+                result.needsSafeAccess = true;
+            }
+            return result;
         }
 
         void put(BytesRef uid, VersionValue version) {
@@ -282,7 +287,15 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // map. While reopen is running, any lookup will first
         // try this new map, then fallback to old, then to the
         // current searcher:
-        maps = maps.buildTransitionMap();
+        Maps original = maps;
+        Maps transitionMap = original.buildTransitionMap();
+        maps = transitionMap;
+        // this is still not JMM safe, but makes the test pass. There are a few options:
+        // 1. Do read then modify instead of writing to it in enforceSafeAccess. The read can be non-volatile, the write volatile.
+        // 2. Make the field volatile (but the comment on it seems to indicate that it would be bad for perf).
+        if (original.needsSafeAccess) {
+            transitionMap.needsSafeAccess = true;
+        }
         assert (unsafeKeysMap = unsafeKeysMap.buildTransitionMap()) != null;
         // This is not 100% correct, since concurrent indexing ops can change these counters in between our execution of the previous
         // line and this one, but that should be minor, and the error won't accumulate over time:
@@ -345,7 +358,14 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     void enforceSafeAccess() {
-        maps.needsSafeAccess = true;
+        Maps copy = maps;
+        copy.needsSafeAccess = true;
+        Maps nextCopy;
+        // loop until we have the same maps after the assignment
+        while ((nextCopy = maps) != copy) {
+            nextCopy.needsSafeAccess = true;
+            copy = nextCopy;
+        }
     }
 
     boolean isSafeAccessRequired() {

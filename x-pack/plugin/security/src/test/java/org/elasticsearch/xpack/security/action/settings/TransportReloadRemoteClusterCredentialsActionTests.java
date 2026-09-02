@@ -37,7 +37,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.EnumSet;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptySet;
@@ -99,7 +98,7 @@ public class TransportReloadRemoteClusterCredentialsActionTests extends ESTestCa
         action = new TransportReloadRemoteClusterCredentialsAction(
             localTransportService,
             clusterService,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             DefaultProjectResolver.INSTANCE
         );
     }

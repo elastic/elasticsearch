@@ -19,6 +19,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.util.ArrayList;
@@ -58,6 +59,7 @@ public final class MappingLookup {
     private final Map<String, ObjectMapper> objectMappers;
     private final Map<String, InferenceFieldMetadata> inferenceFields;
     private final Set<String> syntheticVectorFields;
+    private final Set<String> vectorEmbeddingFields;
     private final Map<String, FieldMapper> dimensionFieldMappers;
     private final Map<String, FieldMapper> metricFieldMappers;
     private final int runtimeFieldMappersCount;
@@ -241,6 +243,7 @@ public final class MappingLookup {
 
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
         Set<String> syntheticVectorFields = new LinkedHashSet<>();
+        Set<String> vectorEmbeddingFields = new LinkedHashSet<>();
         for (FieldMapper mapper : mappers) {
             if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
                 inferenceFields.put(mapper.fullPath(), inferenceFieldMapper.getMetadata(fieldTypeLookup.sourcePaths(mapper.fullPath())));
@@ -248,9 +251,13 @@ public final class MappingLookup {
             if (mapper.syntheticVectorsLoader() != null) {
                 syntheticVectorFields.add(mapper.fullPath());
             }
+            if (mapper.fieldType().isVectorEmbedding()) {
+                vectorEmbeddingFields.add(mapper.fullPath());
+            }
         }
         this.inferenceFields = Collections.unmodifiableMap(inferenceFields);
         this.syntheticVectorFields = Collections.unmodifiableSet(syntheticVectorFields);
+        this.vectorEmbeddingFields = Collections.unmodifiableSet(vectorEmbeddingFields);
 
         if (runtimeFields.isEmpty()) {
             // without runtime fields this is the same as the field type lookup
@@ -515,6 +522,17 @@ public final class MappingLookup {
         return syntheticVectorFields;
     }
 
+    /**
+     * Returns the paths of every field holding a vector embedding, which are the candidates for being stripped from {@code _source}.
+     * <p>
+     * This is deliberately not the same as {@link #syntheticVectorFields()}, which only holds the fields whose mapper offers a synthetic
+     * vectors loader and is therefore empty unless {@code index.mapping.exclude_source_vectors} is enabled. Vectors can also be excluded
+     * per request, so the set of candidates has to be established independently of that index setting.
+     */
+    public Set<String> vectorEmbeddingFields() {
+        return vectorEmbeddingFields;
+    }
+
     public NestedLookup nestedLookup() {
         return nestedLookup;
     }
@@ -640,7 +658,11 @@ public final class MappingLookup {
     /**
      * Build something to load source {@code _source}.
      */
-    public SourceLoader newSourceLoader(@Nullable SourceFilter filter, SourceFieldMetrics metrics) {
+    public SourceLoader newSourceLoader(
+        @Nullable SourceFilter filter,
+        SourceFieldMetrics metrics,
+        @Nullable NestedDocuments nestedDocuments
+    ) {
         if (isSourceSynthetic() || isSourceColumnarStored()) {
             return new SourceLoader.Synthetic(
                 filter,
@@ -652,6 +674,9 @@ public final class MappingLookup {
         var syntheticVectorsLoader = mapping.syntheticVectorsLoader(filter);
         if (syntheticVectorsLoader != null) {
             return new SourceLoader.SyntheticVectors(removeExcludedSyntheticVectorFields(filter), syntheticVectorsLoader);
+        }
+        if (nestedDocuments != null && nestedLookup != NestedLookup.EMPTY) {
+            return new NestedStoredSourceLoader(filter, nestedDocuments);
         }
         return filter == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.Stored(filter);
     }

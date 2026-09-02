@@ -33,6 +33,45 @@ public final class NumberColumnTransform {
 
     private NumberColumnTransform() {}
 
+    /**
+     * Converts a LONG {@link EscfColumn} whose values are
+     * {@link HalfFloatPoint#halfFloatToSortableShort} encoded sortable shorts into a BINARY
+     * {@link EscfColumnData} containing the 2-byte {@link HalfFloatPoint} BKD point encoding for
+     * each value. Use the result with a {@link org.elasticsearch.escf.LuceneBinaryColumn} to emit
+     * the points column for an indexed {@code half_float} field.
+     */
+    public static EscfColumnData toHalfFloatPointBinaryColumn(EscfColumn source, Recycler<BytesRef> recycler) {
+        assert source.kind() == EscfColumnKind.LONG : "expected LONG, got " + EscfColumnKind.name(source.kind());
+        EscfColumnBuilder builder = newBytesBuilder(recycler);
+        final byte[] buf = new byte[Short.BYTES];
+        final BytesRef ref = new BytesRef(buf);
+        LongTupleCursor cursor = source.longCursor();
+        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+            HalfFloatPoint.encodeDimension(HalfFloatPoint.sortableShortToHalfFloat((short) cursor.longValue()), buf, 0);
+            builder.setBinary(doc, ref);
+        }
+        return builder.finish(source.docCount());
+    }
+
+    /**
+     * Converts a LONG {@link EscfColumn} whose values are
+     * {@link HalfFloatPoint#halfFloatToSortableShort} encoded sortable shorts into a LONG
+     * {@link EscfColumnData} containing {@link NumericUtils#floatToSortableInt} encoded sortable ints
+     * (widened to long). Use the result with a {@link org.elasticsearch.escf.LuceneLongColumn} and
+     * {@link org.apache.lucene.document.column.LongColumn.NumericKind#FLOAT} to emit the stored-fields
+     * column for a {@code half_float} field.
+     */
+    public static EscfColumnData toHalfFloatStoredLongColumn(EscfColumn source, Recycler<BytesRef> recycler) {
+        assert source.kind() == EscfColumnKind.LONG : "expected LONG, got " + EscfColumnKind.name(source.kind());
+        EscfColumnBuilder builder = newLongBuilder(recycler);
+        LongTupleCursor cursor = source.longCursor();
+        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+            float f = HalfFloatPoint.sortableShortToHalfFloat((short) cursor.longValue());
+            builder.setLong(doc, NumericUtils.floatToSortableInt(f));
+        }
+        return builder.finish(source.docCount());
+    }
+
     public static EscfColumnData toSortableLongColumn(
         EscfColumn source,
         NumberFieldMapper.NumberType type,
@@ -375,6 +414,12 @@ public final class NumberColumnTransform {
     private static EscfColumnBuilder newLongBuilder(Recycler<BytesRef> recycler) {
         EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.LONG);
+        return b;
+    }
+
+    private static EscfColumnBuilder newBytesBuilder(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
+        b.lockScalar(EscfColumnKind.BINARY);
         return b;
     }
 }

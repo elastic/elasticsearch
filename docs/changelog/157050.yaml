@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 157050
+summary: Fix search failures when a segment closes during a query cache stats update
+type: bug

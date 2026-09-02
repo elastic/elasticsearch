@@ -69,6 +69,10 @@ import java.util.function.Supplier;
  * coordinator-side path used by {@code TOP_SNIPPETS}. Unlike Query DSL highlighting, analyzed tokens are truncated at
  * the configured/default offset instead of throwing a "field too long" error.
  * <p>
+ * Truncating before indexing also bounds matching. Terms beyond {@code max_analyzed_offset} cannot match or exclude a
+ * row. Query DSL behaves the same when it re-analyzes a field. It can match beyond the limit only when offsets come from
+ * the index, which this operator does not use.
+ * <p>
  * TODO: use real index offsets and per-field analyzers when highlighting can run against shard data.
  */
 public class HighlightOperator extends AbstractPageMappingOperator {
@@ -140,6 +144,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             highlighters[i] = new CustomUnifiedHighlighter(
                 builder,
                 UnifiedHighlighter.OffsetSource.POSTINGS,
+                true, // memory index contains one row
                 null,
                 "",
                 fieldNames.get(i),
@@ -162,8 +167,10 @@ public class HighlightOperator extends AbstractPageMappingOperator {
      * never become a highlight, because the highlighter looks up postings per {@code field:term}.
      * <p>
      * {@code MUST_NOT} terms and automata must be kept because the query runs against the memory index.
+     * <p>
+     * Package-private for tests. Highlight output does not reveal whether filtering ran.
      */
-    private static TokenKeepSet buildKeepSet(Query query) {
+    static TokenKeepSet buildKeepSet(Query query) {
         TermCollector collector = new TermCollector();
         query.visit(collector);
         if (collector.unfilterable || (collector.terms.isEmpty() && collector.matchers.isEmpty())) {
@@ -202,8 +209,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         }
     }
 
-    /** Terms and multi-term matchers that a query can match. */
-    private record TokenKeepSet(CharArraySet terms, CharArrayMatcher[] matchers) {
+    /** Terms and multi-term matchers the query can match. */
+    record TokenKeepSet(CharArraySet terms, CharArrayMatcher[] matchers) {
         boolean accept(char[] buffer, int length) {
             if (terms.contains(buffer, 0, length)) {
                 return true;
@@ -475,8 +482,11 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         }
 
         private void loadRowText(int row, BytesRef scratch) {
-            int valueCount = values.getValueCount(row);
-            rowText = valueCount == 0 ? null : joinValues(values, row, valueCount, scratch);
+            if (values.isNull(row)) {
+                rowText = null;
+                return;
+            }
+            rowText = joinValues(values, row, values.getValueCount(row), scratch);
         }
 
         @Override

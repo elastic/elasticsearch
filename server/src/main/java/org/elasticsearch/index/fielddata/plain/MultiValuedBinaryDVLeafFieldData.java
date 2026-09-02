@@ -16,6 +16,7 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingArrayOrderBinaryDocValues;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
@@ -28,7 +29,7 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
     private final LeafReader leafReader;
     private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
     private final IndexVersion indexVersion;
-    private final boolean arrayOrder;
+    private final BinaryDocValuesFormat binaryFormat;
 
     protected MultiValuedBinaryDVLeafFieldData(
         String fieldName,
@@ -36,7 +37,7 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
         ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
         IndexVersion indexVersion
     ) {
-        this(fieldName, leafReader, toScriptFieldFactory, indexVersion, false);
+        this(fieldName, leafReader, toScriptFieldFactory, indexVersion, BinaryDocValuesFormat.SEPARATE_COUNT);
     }
 
     protected MultiValuedBinaryDVLeafFieldData(
@@ -44,14 +45,14 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
         LeafReader leafReader,
         ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
         IndexVersion indexVersion,
-        boolean arrayOrder
+        BinaryDocValuesFormat binaryFormat
     ) {
         super();
         this.fieldName = fieldName;
         this.leafReader = leafReader;
         this.toScriptFieldFactory = toScriptFieldFactory;
         this.indexVersion = indexVersion;
-        this.arrayOrder = arrayOrder;
+        this.binaryFormat = binaryFormat;
     }
 
     @Override
@@ -69,7 +70,7 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
         try {
             // Need to return a new instance each time this gets invoked,
             // otherwise a positioned or exhausted instance can be returned:
-            if (arrayOrder) {
+            if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
                 // High-cardinality columnar fields store values in document order with inline nulls (ArrayOrderInlineNull).
                 return SortingArrayOrderBinaryDocValues.from(leafReader, fieldName);
             }

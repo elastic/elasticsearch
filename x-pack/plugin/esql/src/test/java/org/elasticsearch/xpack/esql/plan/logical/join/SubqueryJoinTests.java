@@ -68,6 +68,10 @@ public class SubqueryJoinTests extends ESTestCase {
 
     private static final int HASH_JOIN_THRESHOLD = PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY);
     private static final BlockFactory BLOCK_FACTORY = TestBlockFactory.getNonBreakingInstance();
+    private static final String MV_WARNING =
+        "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value";
+    private static final String MV_WARNING_SUMMARY =
+        "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded";
 
     // -- inlineData tests --
 
@@ -638,6 +642,7 @@ public class SubqueryJoinTests extends ESTestCase {
         assertThat("only the SV positions contribute matchable values", nonNullValues, equalTo(new LinkedHashSet<>(List.of(10, 40))));
         assertFalse("MV element 20 must not become a matchable literal", nonNullValues.contains(20));
         assertFalse("MV element 30 must not become a matchable literal", nonNullValues.contains(30));
+        assertWarnings(MV_WARNING_SUMMARY, MV_WARNING);
     }
 
     /**
@@ -673,6 +678,7 @@ public class SubqueryJoinTests extends ESTestCase {
         }
         assertThat("BlockHash collapses every NULL/MV input into a single NULL group", nullCount, equalTo(1));
         assertThat(nonNullValues, equalTo(new LinkedHashSet<>(List.of(10, 40))));
+        assertWarnings(MV_WARNING_SUMMARY, MV_WARNING);
     }
 
     /**
@@ -692,6 +698,7 @@ public class SubqueryJoinTests extends ESTestCase {
 
         LogicalPlan inlined = AbstractSubqueryJoin.inlineData(semiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
         assertEmptyRelation(inlined, leftField, true);
+        assertWarnings(MV_WARNING_SUMMARY, MV_WARNING);
     }
 
     /**
@@ -711,6 +718,7 @@ public class SubqueryJoinTests extends ESTestCase {
 
         LogicalPlan inlined = AbstractSubqueryJoin.inlineData(antiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
         assertEmptyRelation(inlined, leftField, true);
+        assertWarnings(MV_WARNING_SUMMARY, MV_WARNING);
     }
 
     /**
@@ -738,6 +746,7 @@ public class SubqueryJoinTests extends ESTestCase {
         }
         assertThat(intValuesOf(dedup, 0), equalTo(new LinkedHashSet<>(List.of(10, 20))));
         assertSentinelAllTrue(dedup);
+        assertWarnings(MV_WARNING_SUMMARY, MV_WARNING);
     }
 
     // -- MarkJoin terminal-plan hook tests --

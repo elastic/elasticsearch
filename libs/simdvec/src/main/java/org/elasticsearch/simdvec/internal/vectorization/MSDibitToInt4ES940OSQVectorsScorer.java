@@ -48,12 +48,12 @@ final class MSDibitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVect
 
     private long quantizeScore256(byte[] q) throws IOException {
         int size = length / 2;
-        return IndexInputUtils.withSlice(in, size, scratch::get, segment -> fourStripeBitDotProduct256(q, segment, 0L, size));
+        return IndexInputUtils.withSlice(in, size, scratch, segment -> fourStripeBitDotProduct256(q, segment, 0L, size));
     }
 
     private long quantizeScore128(byte[] q) throws IOException {
         int size = length / 2;
-        return IndexInputUtils.withSlice(in, size, scratch::get, segment -> fourStripeBitDotProduct128(q, segment, 0L, size));
+        return IndexInputUtils.withSlice(in, size, scratch, segment -> fourStripeBitDotProduct128(q, segment, 0L, size));
     }
 
     @Override
@@ -99,7 +99,7 @@ final class MSDibitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVect
         if (length >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                 quantizeScore256Bulk(q, bulkSize, scores);
-                return applyCorrections256Bulk(
+                return applyCorrectionsBulk(
                     queryLowerInterval,
                     queryUpperInterval,
                     queryComponentSum,
@@ -113,7 +113,7 @@ final class MSDibitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVect
                 );
             } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
                 quantizeScore128Bulk(q, bulkSize, scores);
-                return applyCorrections128Bulk(
+                return applyCorrectionsBulk(
                     queryLowerInterval,
                     queryUpperInterval,
                     queryComponentSum,

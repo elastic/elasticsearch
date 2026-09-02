@@ -10,19 +10,33 @@
 package org.elasticsearch.columnar.numeric;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+
+import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
+import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
+import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
+import static org.elasticsearch.columnar.ColumnarTestUtils.readNumericMeta;
+import static org.elasticsearch.columnar.ColumnarTestUtils.singleValuedCursor;
 
 /**
  * Verifies that {@link NumericPipelineSelector} is called per field and that the pipeline it
@@ -31,13 +45,19 @@ import java.io.IOException;
  */
 public class NumericPipelineSelectorTests extends ESTestCase {
 
-    // NOTE: expected transform-id arrays are derived from the frozen IDs in each stage class.
-    // DeltaTransform.ID=0, OffsetTransform.ID=1, GcdTransform.ID=2,
-    // SplitDeltaTransform.ID=3, AlpDoubleTransform.ID=4.
-    private static final byte[] DEFAULT_TRANSFORM_IDS = { 0, 1, 2 };
-    private static final byte[] SPLIT_DELTA_TRANSFORM_IDS = { 3, 0, 1, 2 };
-    private static final byte[] ALP_GAUGE_TRANSFORM_IDS = { 4, 0, 1, 2 };
-    private static final byte[] ALP_COUNTER_TRANSFORM_IDS = { 4, 3, 0, 1, 2 };
+    private static final byte[] DEFAULT_TRANSFORM_IDS = { DeltaTransform.ID, OffsetTransform.ID, GcdTransform.ID };
+    private static final byte[] SPLIT_DELTA_TRANSFORM_IDS = {
+        SplitDeltaTransform.ID,
+        DeltaTransform.ID,
+        OffsetTransform.ID,
+        GcdTransform.ID };
+    private static final byte[] ALP_GAUGE_TRANSFORM_IDS = { AlpDoubleTransform.ID, DeltaTransform.ID, OffsetTransform.ID, GcdTransform.ID };
+    private static final byte[] ALP_COUNTER_TRANSFORM_IDS = {
+        AlpDoubleTransform.ID,
+        SplitDeltaTransform.ID,
+        DeltaTransform.ID,
+        OffsetTransform.ID,
+        GcdTransform.ID };
 
     public void testSelectorIsInvokedPerField() throws IOException {
         final NumericPipelineSelector selector = (fieldName, type) -> {
@@ -61,6 +81,32 @@ public class NumericPipelineSelectorTests extends ESTestCase {
 
     public void testAlpCounterPipelineTransformIds() throws IOException {
         assertTransformIds((f, t) -> NumericPipeline::doubleCounterPipeline, doubleBits(), ALP_COUNTER_TRANSFORM_IDS);
+    }
+
+    public void testConsumerPassesBlockSizeToTemplate() throws IOException {
+        final int blockSize = randomValidBlockSize();
+        final int[] capturedBlockSize = new int[1];
+
+        final NumericPipelineSelector capturingSelector = (fieldName, type) -> bs -> {
+            capturedBlockSize[0] = bs;
+            return NumericPipeline.defaultPipeline(bs);
+        };
+
+        final ColumNARDocValuesFormat format = new ColumNARDocValuesFormat(capturingSelector, blockSize);
+
+        final FieldType fieldType = columnarBinaryFieldType(ColumnarFieldType.LONG);
+        final BytesRefBuilder builder = new BytesRefBuilder();
+        try (
+            Directory dir = newDirectory();
+            IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec(format)))
+        ) {
+            final Document doc = new Document();
+            doc.add(new Field("value", BytesRef.deepCopyOf(NumericBinaryPayload.encode(new long[] { 42L }, 1, builder)), fieldType));
+            writer.addDocument(doc);
+            writer.commit();
+        }
+
+        assertEquals(blockSize, capturedBlockSize[0]);
     }
 
     public void testSelectorCanVaryPipelineByFieldName() throws IOException {
@@ -115,9 +161,14 @@ public class NumericPipelineSelectorTests extends ESTestCase {
 
         try (Directory dir = newDirectory()) {
             final NumericColumnMetadata written;
-            try (IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT)) {
-                ColumnarCodecUtil.writeHeader(out, "ColumnarNumericData", segmentId, "");
-                final NumericPipeline pipeline = selector.select(fieldName, ColumnarFieldType.LONG).build(randomValidBlockSize());
+            try (
+                IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT);
+                IndexOutput skip = dir.createOutput("num.cns", IOContext.DEFAULT)
+            ) {
+                ColumnarCodecUtil.writeHeader(out, "ColumNARData", FormatVersion.CURRENT, segmentId, "");
+                ColumnarCodecUtil.writeHeader(skip, "ColumNARSkipIndex", FormatVersion.CURRENT, segmentId, "");
+                final int blockSize = randomValidBlockSize();
+                final NumericPipeline pipeline = selector.select(fieldName, ColumnarFieldType.LONG).build(blockSize);
                 written = NumericColumnWriter.write(
                     values.length,
                     values.length,
@@ -128,71 +179,30 @@ public class NumericPipelineSelectorTests extends ESTestCase {
                     SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
                     dir,
                     IOContext.DEFAULT,
-                    out
+                    out,
+                    skip
                 );
                 ColumnarCodecUtil.writeFooter(out);
+                ColumnarCodecUtil.writeFooter(skip);
             }
             try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
-                ColumnarCodecUtil.writeHeader(meta, "ColumnarNumericMeta", segmentId, "");
+                ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
                 written.writeTo(meta);
                 ColumnarCodecUtil.writeFooter(meta);
             }
-            try (ChecksumIndexInput meta = dir.openChecksumInput("num.cnm")) {
-                ColumnarCodecUtil.checkHeader(meta, "ColumnarNumericMeta", segmentId, "");
-                final NumericColumnMetadata read = NumericColumnMetadata.readFrom(meta, values.length);
-                ColumnarCodecUtil.checkFooter(meta);
-                try (IndexInput data = dir.openInput("num.cnd", IOContext.DEFAULT)) {
-                    CodecUtil.checksumEntireFile(data);
-                    ColumnarCodecUtil.checkHeader(data, "ColumnarNumericData", segmentId, "");
-                    final NumericColumnReader reader = new NumericColumnReader(read, data);
-                    final ColumnIterator iterator = reader.iterator();
-                    int idx = 0;
-                    for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
-                        assertEquals(values[idx++], reader.valueForOrdinal(reader.firstOrdinal(iterator.index())));
-                    }
+            final NumericColumnMetadata read = readNumericMeta(dir, "num.cnm", segmentId, values.length);
+            try (IndexInput data = dir.openInput("num.cnd", IOContext.DEFAULT)) {
+                CodecUtil.checksumEntireFile(data);
+                ColumnarCodecUtil.checkHeader(data, "ColumNARData", segmentId, "");
+                final NumericColumnReader reader = new NumericColumnReader(read, data);
+                final ColumnIterator iterator = reader.iterator();
+                int idx = 0;
+                for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+                    assertEquals(values[idx++], reader.valueAt(reader.firstValueAddress(iterator.rank())));
                 }
-                return read;
             }
+            return read;
         }
     }
 
-    private static NumericColumnValues singleValuedCursor(final long[] values) {
-        return new NumericColumnValues() {
-            private int doc = -1;
-
-            @Override
-            public int valueCount() {
-                return 1;
-            }
-
-            @Override
-            public long nextValue() {
-                return values[doc];
-            }
-
-            @Override
-            public int docID() {
-                return doc;
-            }
-
-            @Override
-            public int nextDoc() {
-                return ++doc < values.length ? doc : (doc = DocIdSetIterator.NO_MORE_DOCS);
-            }
-
-            @Override
-            public int advance(int target) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public long cost() {
-                return values.length;
-            }
-        };
-    }
-
-    private static int randomValidBlockSize() {
-        return 128 << randomIntBetween(0, 6);
-    }
 }

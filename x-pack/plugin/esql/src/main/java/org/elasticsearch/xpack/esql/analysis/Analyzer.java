@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.logging.Logger;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
@@ -124,6 +126,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -142,6 +145,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -180,6 +184,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -194,7 +199,9 @@ import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -210,6 +217,7 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -1083,11 +1091,77 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
             LogicalPlan promqlPlan = promql.promqlPlan();
-            Function<UnresolvedAttribute, Expression> lambda = ua -> ResolveRefs.maybeResolveAttribute(ua, childrenOutput, log);
-            // resolve the nested plan
-            return promql.withPromqlPlan(promqlPlan.transformExpressionsDown(UnresolvedAttribute.class, lambda))
-                // but also any unresolved expressions
-                .transformExpressionsOnly(UnresolvedAttribute.class, lambda);
+            List<MetadataManipulationFunction> relabels = promqlPlan.collect(MetadataManipulationFunction.class);
+
+            // References against the stored labels (childrenOutput): a vector selector always matches on the labels as they
+            // are stored, regardless of any relabeling applied downstream.
+            Function<UnresolvedAttribute, Expression> storedScope = ua -> ResolveRefs.maybeResolveAttribute(ua, childrenOutput, log);
+
+            if (relabels.isEmpty()) {
+                return promql.withPromqlPlan(promqlPlan.transformExpressionsDown(UnresolvedAttribute.class, storedScope))
+                    .transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
+            }
+
+            // A label_replace/label_join derives a destination label that overwrites (shadows) any stored label of the same
+            // name (a dimension or __name__). Shadowing is positional: a reference sees a derived destination only when the
+            // relabel deriving it lies within the vector the reference consumes - i.e. strictly below the reference's node.
+            // So each node resolves against the stored labels shadowed by the destinations of the relabels in its own child
+            // subtree(s): a selector's matchers, and any reference below a relabel, bind to the stored label, while an
+            // enclosing by(dst) binds to the derived destination. When several relabels on one path derive the same label the
+            // outermost (last-applied) one wins, so same-named destinations are collapsed keeping the shallowest - which also
+            // keeps an enclosing by(dst) from seeing two same-named attributes. childrenOutput is a fresh per-call list, so
+            // this is local to this command.
+            LogicalPlan resolvedPlan = promqlPlan.transformDown(node -> {
+                if (node instanceof Selector) {
+                    return node.transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
+                }
+                List<Attribute> scope = PromqlAttributesTranslationContext.shadowedResolutionScope(
+                    childrenOutput,
+                    activeDestinations(node)
+                );
+                return node.transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, scope, log));
+            });
+
+            // The command's own output contract sees the full derived label set: every destination, same nearest-wins collapse.
+            List<Attribute> outputScope = PromqlAttributesTranslationContext.shadowedResolutionScope(
+                childrenOutput,
+                collapseByName(relabels)
+            );
+            return promql.withPromqlPlan(resolvedPlan)
+                .transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, outputScope, log));
+        }
+
+        /**
+         * The relabel destinations visible to {@code node}'s own expressions: the destinations derived within the vector the
+         * node consumes - the {@link MetadataManipulationFunction}s in its child subtree(s) - collapsed by label name keeping
+         * the shallowest (outermost, last-applied) match, so a destination derived more than once on a path resolves to the
+         * one that wins in PromQL.
+         */
+        private static List<Attribute> activeDestinations(LogicalPlan node) {
+            List<MetadataManipulationFunction> relabels = new ArrayList<>();
+            for (LogicalPlan child : node.children()) {
+                relabels.addAll(child.collect(MetadataManipulationFunction.class));
+            }
+            return collapseByName(relabels);
+        }
+
+        /**
+         * The relabels' destination attributes, collapsed to one per label name keeping the first. The input is in pre-order
+         * (ancestors before descendants), so "first" is the shallowest/outermost relabel - PromQL's "last relabel wins" when a
+         * destination is derived more than once on a path.
+         */
+        private static List<Attribute> collapseByName(List<MetadataManipulationFunction> relabels) {
+            List<Attribute> destinations = new ArrayList<>(relabels.size());
+            Set<String> seen = new HashSet<>();
+            for (MetadataManipulationFunction relabel : relabels) {
+                Attribute destination = relabel.destination();
+                // A destination is minted as a bare ReferenceAttribute named after the label (no passthrough prefix), so its
+                // attribute name is already the canonical label name used for shadowing.
+                if (seen.add(destination.name())) {
+                    destinations.add(destination);
+                }
+            }
+            return destinations;
         }
     }
 
@@ -1124,6 +1198,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case Row row -> resolveRow(row);
                 case MMR mmr -> resolveMMR(mmr, childrenOutput);
+                case DenseVector e -> resolveDenseVector(e, childrenOutput);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
 
@@ -1249,6 +1324,38 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return new Completion(p.source(), p.child(), p.inferenceId(), p.rowLimit(), prompt, targetField, p.taskSettings());
         }
 
+        private LogicalPlan resolveDenseVector(DenseVector p, List<Attribute> childrenOutput) {
+            // Resolve the input fields once. Re-running is a no-op and the plan converges: after the first pass
+            // generatedFields is populated (or the field list is empty), so later analyzer iterations return the same instance.
+            if (p.generatedAttributes().isEmpty() == false || p.fields().isEmpty()) {
+                return p;
+            }
+
+            List<NamedExpression> resolvedFields = new ArrayList<>();
+            // Dedupe on NameId: `title, title` resolves to the same attribute; embedding it twice would double the inference
+            // cost and generate shadowing duplicate output columns.
+            Set<NameId> seen = new HashSet<>();
+            for (NamedExpression field : p.fields()) {
+                if (field instanceof UnresolvedAttribute ua) {
+                    // explicitly-named field -> keep all matches; an unknown column or a non-text type fails verification
+                    for (Attribute resolved : resolveAgainstList(ua, childrenOutput)) {
+                        if (resolved.resolved()) {
+                            if (seen.add(resolved.id())) {
+                                resolvedFields.add(resolved);
+                            }
+                        } else {
+                            // keep unresolved results so verification can report the unknown column
+                            resolvedFields.add(resolved);
+                        }
+                    }
+                } else {
+                    resolvedFields.add(field);
+                }
+            }
+
+            return p.withResolvedFields(resolvedFields, DenseVector.generatedAttributesFor(p.source(), resolvedFields));
+        }
+
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
             if (p.target() instanceof UnresolvedAttribute ua) {
                 Attribute resolved = maybeResolveAttribute(ua, childrenOutput);
@@ -1267,7 +1374,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             resolved.dataType(),
                             resolved.nullable(),
                             null,
-                            false
+                            false,
+                            // the expanded values are the target's values, so a declared values analyzer carries over
+                            AnalyzedTextExpression.valuesAnalyzerOf(resolved)
                         )
                         : resolved
                 );
@@ -1554,8 +1663,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Skip when the right field failed to resolve (multi-column subquery, empty mapping)
             // since we have no concrete attribute to project.
             LogicalPlan right = subqueryJoin.right();
-            if (rightFields.size() == 1
-                && rightFields.get(0).resolved()
+            if (rightFields.stream().allMatch(Attribute::resolved)
                 && right.anyMatch(p -> p instanceof Project || p instanceof Aggregate) == false) {
                 right = new Project(subqueryJoin.source(), right, rightFields);
             }
@@ -1588,25 +1696,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // Re-resolve rightFields if they became stale (e.g. after ImplicitCasting recreated the right subtree)
                 if (rightFields.stream().anyMatch(a -> a.resolved() == false)) {
                     List<Attribute> rightOutput = semiJoin.right().output();
-                    if (rightOutput.size() == 1) {
-                        return singletonList(resolveSingleRightField(semiJoin, rightOutput.get(0)));
+                    int expectedCount2 = semiJoin.config().leftFields().size();
+                    if (rightOutput.size() == expectedCount2) {
+                        List<Attribute> reresolved = new ArrayList<>(expectedCount2);
+                        for (Attribute rightAttr : rightOutput) {
+                            reresolved.add(resolveSingleRightField(semiJoin, rightAttr));
+                        }
+                        return reresolved;
                     }
                 }
                 return rightFields;
             }
             List<Attribute> rightOutput = semiJoin.right().output();
-            if (rightOutput.size() != 1) {
-                return singletonList(
-                    new UnresolvedAttribute(
-                        semiJoin.source(),
-                        "*",
-                        "IN subquery must return exactly one column, found ["
-                            + rightOutput.stream().map(Attribute::name).collect(Collectors.joining(", "))
-                            + "]"
-                    )
-                );
+            int expectedCount = semiJoin.config().leftFields().size();
+            if (rightOutput.size() != expectedCount) {
+                String foundCols = rightOutput.stream().map(Attribute::name).collect(Collectors.joining(", "));
+                String msg = expectedCount == 1
+                    ? "IN subquery must return exactly one column, found [" + foundCols + "]"
+                    : "Multi-column IN subquery with ["
+                        + expectedCount
+                        + "] left fields must return exactly ["
+                        + expectedCount
+                        + "] columns, found ["
+                        + foundCols
+                        + "]";
+                return List.of(new UnresolvedAttribute(semiJoin.source(), "*", msg));
             }
-            return singletonList(resolveSingleRightField(semiJoin, rightOutput.get(0)));
+            List<Attribute> resolved = new ArrayList<>(expectedCount);
+            for (Attribute rightAttr : rightOutput) {
+                resolved.add(resolveSingleRightField(semiJoin, rightAttr));
+            }
+            return resolved;
         }
 
         /**
@@ -2104,11 +2224,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private List<Alias> resolveFields(List<Alias> fields, List<Attribute> initialInputs) {
+            Set<String> evalFieldNames = new HashSet<>(fields.size());
+            for (Alias f : fields) {
+                evalFieldNames.add(f.name());
+            }
             List<Attribute> allResolvedInputs = new ArrayList<>(initialInputs);
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
             for (Alias field : fields) {
-                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
+                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> {
+                    Attribute resolved = resolveAttribute(ua, allResolvedInputs);
+                    // If the unresolved attribute references another EVAL field, give it another opportunity to resolve
+                    // in the next pass (after implicit casting has run). If we set customMessage() it won't try to resolve again
+                    if (resolved instanceof UnresolvedAttribute u && u.customMessage() && evalFieldNames.contains(ua.name())) {
+                        return ua;
+                    }
+                    return resolved;
+                });
 
                 changed |= result != field;
                 newFields.add(result);
@@ -2506,7 +2638,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Set<String> names = new HashSet<>(attrList.size());
             for (var a : attrList) {
                 String nameCandidate = a.name();
-                if (DataType.isPrimitive(a.dataType())) {
+                if (a instanceof UnresolvedAttribute == false && DataType.isPrimitive(a.dataType())) {
                     names.add(nameCandidate);
                 }
             }
@@ -2594,22 +2726,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan.withInferenceResolutionError(inferenceId, error);
             }
 
-            if (resolvedInference.taskType() != plan.taskType()) {
+            EnumSet<TaskType> acceptedTaskTypes = plan.acceptedTaskTypes();
+            if (acceptedTaskTypes.contains(resolvedInference.taskType()) == false) {
                 String error = "cannot use inference endpoint ["
                     + inferenceId
                     + "] with task type ["
                     + resolvedInference.taskType()
                     + "] within a "
                     + plan.nodeName()
-                    + " command. Only inference endpoints with the task type ["
-                    + plan.taskType()
-                    + "] are supported.";
+                    + " command. Only inference endpoints with the task type "
+                    + acceptedTaskTypes
+                    + " are supported.";
                 return plan.withInferenceResolutionError(inferenceId, error);
             }
 
             if (plan.isFoldable()) {
                 // Transform foldable InferencePlan to Eval with function call
                 return transformToEval(plan, inferenceId);
+            }
+
+            // DENSE_VECTOR routes text inputs by the endpoint's task type, so record it on the node for the planner.
+            if (plan instanceof DenseVector denseVector) {
+                return denseVector.withEndpointTaskType(resolvedInference.taskType());
             }
 
             return plan;
@@ -3183,6 +3321,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ) {
             Expression convertExpression = (Expression) convert;
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
+                if (convert instanceof ToText toText && toText.valuesAnalyzer() != null) {
+                    // For to_text on a type-conflicted field, the analyzer option is rejected here in the same way the
+                    // post-analysis verifier rejects it on a single-typed field.
+                    return new UnresolvedAttribute(fa.source(), fa.name(), ToText.analyzerOnMappedFieldMessage(fa.name()));
+                }
                 // The field has an unresolved type conflict (TypeConflictedField), so we attempt to create UnionTypeEsField with
                 // index-specific conversions
                 Map<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
@@ -3459,13 +3602,58 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // unsupported / unresolved fields can be explicitly retained
             return cleanPlan.transformUp(
                 LogicalPlan.class,
-                p -> p.transformExpressionsOnly(
-                    FieldAttribute.class,
-                    fa -> fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk
-                        ? fallbackToMappedType(fa, punk)
-                        : fa.flagTypeConflicts()
-                )
+                p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::cleanTypeConflicts)
             );
+        }
+
+        private static Attribute cleanTypeConflicts(FieldAttribute fa) {
+            EsField field = fa.field();
+            FieldAttribute shipped;
+            if (field instanceof PotentiallyUnmappedSingleTypeEsField punk) {
+                // Falls back to its single mapped type; that mapped field may still carry a nested conflict to neutralize.
+                shipped = fallbackToMappedType(fa, punk);
+            } else if (field instanceof TypeConflictedField) {
+                // A top-level conflict is representable as an UnsupportedAttribute; its properties never ship.
+                return fa.flagTypeConflicts();
+            } else {
+                shipped = fa;
+            }
+            EsField cleaned = stripNestedConflicts(shipped.field());
+            return cleaned == shipped.field() ? shipped : shipped.withField(cleaned);
+        }
+
+        /**
+         * A conflict object nested in a healthy parent's {@code properties} throws when the parent serializes, so swap it for a
+         * transportable {@link UnsupportedEsField} instead of stripping the properties: a text parent resolves its exact keyword
+         * sub-field from this map on the data node ({@code TextEsField#getExactInfo}, used by Lucene pushdown), and the unsupported
+         * replacement keeps the conflict's original types for error messages. Healthy sub-fields are kept as-is (rebuilding the
+         * parent would downgrade an unsupported one and lose its original types), so the parent is rebuilt only when a nested
+         * conflict was actually replaced.
+         */
+        private static EsField stripNestedConflicts(EsField field) {
+            Map<String, EsField> properties = field.getProperties();
+            if (properties == null || properties.isEmpty()) {
+                return field;
+            }
+            Map<String, EsField> rewritten = new LinkedHashMap<>(properties.size());
+            boolean changed = false;
+            for (Map.Entry<String, EsField> entry : properties.entrySet()) {
+                EsField child = entry.getValue();
+                EsField cleanedChild = asTransportable(child);
+                rewritten.put(entry.getKey(), cleanedChild);
+                changed |= cleanedChild != child;
+            }
+            return changed ? field.withProperties(rewritten) : field;
+        }
+
+        private static EsField asTransportable(EsField field) {
+            if (field instanceof TypeConflictedField tcf) {
+                return new UnsupportedEsField(tcf.getName(), tcf.getTypesToIndices().keySet().stream().toList());
+            }
+            if (field instanceof InvalidMappedTsField imtf) {
+                return new UnsupportedEsField(imtf.getName(), List.of());
+            }
+            return stripNestedConflicts(field);
         }
 
         private static void warnObservedNonLoadablePunks(LogicalPlan plan, AnalyzerContext context) {

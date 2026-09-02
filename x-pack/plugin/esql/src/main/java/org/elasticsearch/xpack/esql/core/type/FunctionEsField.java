@@ -71,14 +71,14 @@ public class FunctionEsField extends EsField {
         return Objects.hash(super.hashCode(), functionConfig);
     }
 
-    @Override
-    public Exact getExactInfo() {
-        /*
-         * We force and "inexact" field info to prevent pushing
-         * expressions like `WHERE LENGTH(kwd) > 2`. `LENGTH(kwd)`
-         * is a `FunctionEsField` which *looks* pushable without
-         * the inexact match.
-         */
-        return new Exact(false, "merged with " + functionConfig.function());
-    }
+    /*
+     * Note on exactness: a FunctionEsField carries an exact, non-analyzed value produced by the block
+     * loader (e.g. the keyword extracted by field_extract, or the integer from LENGTH), so it reports
+     * itself as exact via the inherited getExactInfo(). That lets consuming functions which type-check
+     * their arguments with isStringAndExact (DATE_UNIT_COUNT, DATE_FORMAT, DATE_PARSE, CIDR_MATCH, ...)
+     * stay resolved after fusion. Pushdown eligibility is a separate concern: there is no indexed Lucene
+     * field behind a FunctionEsField, so predicates and TopN over it must not be pushed. That is enforced
+     * explicitly in LucenePushdownPredicates / BinarySpatialFunction by excluding FunctionEsField rather
+     * than by overloading exactness here.
+     */
 }

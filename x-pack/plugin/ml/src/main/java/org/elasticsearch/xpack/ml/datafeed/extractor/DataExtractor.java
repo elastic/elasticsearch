@@ -63,4 +63,18 @@ public interface DataExtractor {
      * @return the end time to which this extractor will search
      */
     long getEndTime();
+
+    /**
+     * Returns the per-cluster states from the most recent search attempt, including from
+     * failed attempts where the extractor threw rather than returning a {@link Result}.
+     * Used by {@link org.elasticsearch.xpack.ml.datafeed.DatafeedJob} to update
+     * {@link org.elasticsearch.xpack.ml.datafeed.CrossClusterSearchStats} even when
+     * extraction fails due to skipped remote clusters.
+     *
+     * @return immutable list of cluster states; empty for local-only datafeeds or if no
+     *         search has been attempted yet
+     */
+    default List<LinkedClusterState> getLinkedClusterStates() {
+        return List.of();
+    }
 }

@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -57,12 +56,6 @@ import java.util.Locale;
 import java.util.Set;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
-    public static final NodeFeature REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION = new NodeFeature(
-        "mapper.source.remove_synthetic_source_only_validation"
-    );
-    public static final NodeFeature SOURCE_MODE_FROM_INDEX_SETTING = new NodeFeature("mapper.source.mode_from_index_setting");
-    public static final NodeFeature SYNTHETIC_RECOVERY_SOURCE = new NodeFeature("mapper.synthetic_recovery_source");
-
     public static final String NAME = "_source";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
 
@@ -452,7 +445,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         // - storing the regular _source field (stored() == true), or
         // - storing the reduced _recovery_source field (recovery enabled, non-synthetic).
         // The recovery-disabled case needs nothing at all, and the synthetic-recovery case needs
-        // only a byte-size estimate, which the EIRF row can supply without re-serializing.
+        // only a byte-size estimate, which the batch row can supply without re-serializing.
         if (stored() == false && (recoverySourceEnabled == false || syntheticRecovery)) {
             if (syntheticRecovery) {
                 assert isSynthetic() : "Recovery source should not be disabled for non-synthetic sources";

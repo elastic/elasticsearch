@@ -39,6 +39,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -157,12 +158,12 @@ public class ReshardIndexServiceTests extends ESTestCase {
         final var indicesService = mock(IndicesService.class);
 
         final var svc = new ReshardIndexService(
-            mock(ClusterService.class),
-            null,
-            null,
             indicesService,
             mock(NodeClient.class),
-            ReshardMetrics.NOOP
+            ReshardMetrics.NOOP,
+            mock(ClusterService.class),
+            null,
+            null
         );
 
         final var badIndex = new Index("badindex", INDEX_UUID_NA_VALUE);
@@ -185,12 +186,12 @@ public class ReshardIndexServiceTests extends ESTestCase {
 
     public void testMaybeAwaitSplit() throws InterruptedException {
         final var svc = new ReshardIndexService(
-            mock(ClusterService.class),
-            null,
-            null,
             mock(IndicesService.class),
             mock(NodeClient.class),
-            ReshardMetrics.NOOP
+            ReshardMetrics.NOOP,
+            mock(ClusterService.class),
+            null,
+            null
         );
         final var index = new Index("index", INDEX_UUID_NA_VALUE);
         final var sourceShard = new ShardId(index, 0);
@@ -262,7 +263,11 @@ public class ReshardIndexServiceTests extends ESTestCase {
         var projectId = randomProjectIdOrDefault();
         var index = new Index("test-index", INDEX_UUID_NA_VALUE);
 
-        for (IndexMode indexMode : List.of(IndexMode.STANDARD, IndexMode.VECTORDB_DOCUMENT)) {
+        var reshardableModes = new ArrayList<>(List.of(IndexMode.STANDARD, IndexMode.VECTORDB_DOCUMENT));
+        if (IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            reshardableModes.add(IndexMode.VECTORDB_COLUMNAR);
+        }
+        for (IndexMode indexMode : reshardableModes) {
             var indexMetadata = indexMetadataWithMode(projectId, index, indexMode);
             IndexAbstraction indexAbstraction = projectMetadataWithIndex(projectId, indexMetadata).getIndicesLookup().get(index.getName());
             assertThat(ReshardIndexService.validateIndex(indexAbstraction, indexMetadata), nullValue());
@@ -319,12 +324,12 @@ public class ReshardIndexServiceTests extends ESTestCase {
         when(clusterService.createTaskQueue(argThat(name -> "reshard-index".equals(name) == false), any(), any())).thenReturn(mockQueue);
 
         var svc = new ReshardIndexService(
-            clusterService,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            null,
             mock(IndicesService.class),
             mock(NodeClient.class),
-            ReshardMetrics.NOOP
+            ReshardMetrics.NOOP,
+            clusterService,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            null
         );
 
         var request = new ReshardIndexClusterStateUpdateRequest(projectId, index, -1);

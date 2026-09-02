@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
@@ -76,10 +77,10 @@ public final class GlobExpander {
         String path,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
+        @Nullable Map<String, Object> config,
         StoragePath storagePath
     ) throws IOException {
-        return expandAndCompact(path, provider, hints, hivePartitioning, storagePath, Integer.MAX_VALUE, Integer.MAX_VALUE);
+        return expandAndCompact(path, provider, hints, config, storagePath, Integer.MAX_VALUE, Integer.MAX_VALUE);
     }
 
     /**
@@ -89,12 +90,12 @@ public final class GlobExpander {
         String path,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
+        @Nullable Map<String, Object> config,
         StoragePath storagePath,
         int maxDiscoveredFiles,
         int maxGlobExpansion
     ) throws IOException {
-        FileList expanded = expand(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
+        FileList expanded = expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
         if (expanded.isResolved() == false || expanded.fileCount() == 0) {
             return expanded;
         }
@@ -110,18 +111,23 @@ public final class GlobExpander {
      * every segment of a comma list) is expanded through {@link #expandGlobWithRewriteFallback}, which recovers the
      * files a glob rewrite can hide behind a value-spelling mismatch. A comma list is handled per segment so one
      * segment's rewrite-to-empty cannot be masked by another segment that still matches.
+     * Objects matching the dataset's {@code file_exclusions} patterns are excluded — by default names beginning
+     * with {@code _} or {@code .}, see {@link ExclusionConfig}. Directory placeholder keys (paths ending in
+     * {@code /}, and the prefix's own marker) are always skipped.
      */
     public static FileList expand(
         String path,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
+        @Nullable Map<String, Object> config,
         int maxDiscoveredFiles,
         int maxGlobExpansion
     ) throws IOException {
-        return path.indexOf(',') >= 0
-            ? doExpandCommaSeparated(path, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion)
-            : expandGlobWithRewriteFallback(path, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion);
+        PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
+        ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
+        return hasTopLevelComma(path)
+            ? doExpandCommaSeparated(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter)
+            : expandGlobWithRewriteFallback(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
     }
 
     /**
@@ -141,45 +147,26 @@ public final class GlobExpander {
         String pattern,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
-        @Nullable PartitionConfig partitionConfig,
-        @Nullable Map<String, Object> config,
+        PartitionConfig partitionConfig,
         int maxDiscoveredFiles,
-        int maxGlobExpansion
+        int maxGlobExpansion,
+        ExclusionConfig.NameFilter nameFilter
     ) throws IOException {
-        if (effectivePattern(pattern, hints, hivePartitioning, partitionConfig).equals(pattern)) {
-            return doExpandGlob(pattern, provider, hints, hivePartitioning, partitionConfig, config, maxDiscoveredFiles, maxGlobExpansion);
+        if (effectivePattern(pattern, hints, partitionConfig).equals(pattern)) {
+            return doExpandGlob(pattern, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
         }
         // The retry drops the rewrite but keeps the exact _file.* filters, so it can only come back empty when the
         // un-rewritten glob genuinely matches nothing.
         List<PartitionFilterHint> fileHintsOnly = fileMetadataHints(hints);
         FileList expanded;
         try {
-            expanded = doExpandGlob(
-                pattern,
-                provider,
-                hints,
-                hivePartitioning,
-                partitionConfig,
-                config,
-                maxDiscoveredFiles,
-                maxGlobExpansion
-            );
+            expanded = doExpandGlob(pattern, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
         } catch (IOException e) {
             // The rewritten prefix may name a folder that does not exist; the local filesystem throws where object
             // stores return empty. Both mean the rewrite, not the dataset, emptied the listing — retry either way.
             logger.debug(() -> "Rewritten listing of [" + pattern + "] failed; re-listing without the glob rewrite", e);
             try {
-                return doExpandGlob(
-                    pattern,
-                    provider,
-                    fileHintsOnly,
-                    hivePartitioning,
-                    partitionConfig,
-                    config,
-                    maxDiscoveredFiles,
-                    maxGlobExpansion
-                );
+                return doExpandGlob(pattern, provider, fileHintsOnly, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
             } catch (IOException retryFailure) {
                 retryFailure.addSuppressed(e);
                 throw retryFailure;
@@ -189,31 +176,28 @@ public final class GlobExpander {
             logger.debug("Rewrite of [{}] narrowed to an empty listing; re-listing without the glob rewrite", pattern);
             // A full re-list can exceed max_discovered_files and throw, exactly as the un-filtered query would; that
             // cap error is preserved deliberately — deciding spelling-miss vs genuinely-empty needs the full listing.
-            return doExpandGlob(
-                pattern,
-                provider,
-                fileHintsOnly,
-                hivePartitioning,
-                partitionConfig,
-                config,
-                maxDiscoveredFiles,
-                maxGlobExpansion
-            );
+            return doExpandGlob(pattern, provider, fileHintsOnly, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
         }
         return expanded;
     }
 
+    /**
+     * The single place that decides which detector a resolved {@link PartitionConfig} selects. Takes a non-null
+     * config: the listing boundary always resolves one, so a null here is a programming error rather than a
+     * user-reachable state.
+     */
     public static PartitionDetector resolveDetector(PartitionConfig config) {
-        if (config == null) {
-            return HivePartitionDetector.INSTANCE;
-        }
         return switch (config.strategy()) {
             case NONE -> null;
             case HIVE -> HivePartitionDetector.INSTANCE;
             case TEMPLATE -> {
                 String template = config.pathTemplate();
-                if (template == null || template.isEmpty()) {
-                    yield null;
+                // A template that names no columns cannot build a detector: parseTemplateColumns matches a segment
+                // in full, so `year={year}` contributes none, and TemplatePartitionDetector's constructor rejects
+                // that. Falling back to Hive is what such a dataset resolved to before the setting reached the read
+                // path, so a stored one keeps its columns instead of failing every query.
+                if (template == null || TemplatePartitionDetector.parseTemplateColumns(template).isEmpty()) {
+                    yield HivePartitionDetector.INSTANCE;
                 }
                 yield new TemplatePartitionDetector(template);
             }
@@ -233,7 +217,7 @@ public final class GlobExpander {
         if (path == null) {
             return false;
         }
-        if (path.indexOf(',') >= 0) {
+        if (hasTopLevelComma(path)) {
             return true;
         }
         // Only scan the path component for glob metacharacters, not the full URL string.
@@ -253,54 +237,44 @@ public final class GlobExpander {
     }
 
     public static FileList expandGlob(String pattern, StorageProvider provider) throws IOException {
-        return expandGlob(pattern, provider, null, true);
+        return expandGlob(pattern, provider, null, (Map<String, Object>) null);
     }
 
     public static FileList expandGlob(
         String pattern,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
-        @Nullable PartitionConfig partitionConfig,
         @Nullable Map<String, Object> config
     ) throws IOException {
-        return doExpandGlob(pattern, provider, hints, hivePartitioning, partitionConfig, config, Integer.MAX_VALUE, Integer.MAX_VALUE);
+        ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
+        return doExpandGlob(pattern, provider, hints, PartitionConfig.fromConfig(config), Integer.MAX_VALUE, Integer.MAX_VALUE, nameFilter);
     }
 
     public static FileList expandGlob(
         String pattern,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning
-    ) throws IOException {
-        return doExpandGlob(pattern, provider, hints, hivePartitioning, null, null, Integer.MAX_VALUE, Integer.MAX_VALUE);
-    }
-
-    public static FileList expandGlob(
-        String pattern,
-        StorageProvider provider,
-        @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
+        @Nullable Map<String, Object> config,
         int maxDiscoveredFiles,
         int maxGlobExpansion
     ) throws IOException {
-        return doExpandGlob(pattern, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion);
+        ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
+        return doExpandGlob(pattern, provider, hints, PartitionConfig.fromConfig(config), maxDiscoveredFiles, maxGlobExpansion, nameFilter);
     }
 
     static FileList doExpandGlob(
         String pattern,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
-        @Nullable PartitionConfig partitionConfig,
-        @Nullable Map<String, Object> config,
+        PartitionConfig partitionConfig,
         int maxDiscoveredFiles,
-        int maxGlobExpansion
+        int maxGlobExpansion,
+        ExclusionConfig.NameFilter nameFilter
     ) throws IOException {
         Check.notNull(pattern, "pattern cannot be null");
         Check.notNull(provider, "provider cannot be null");
 
-        String effectivePattern = effectivePattern(pattern, hints, hivePartitioning, partitionConfig);
+        String effectivePattern = effectivePattern(pattern, hints, partitionConfig);
 
         StoragePath storagePath = StoragePath.of(effectivePattern);
 
@@ -312,7 +286,7 @@ public final class GlobExpander {
             var obj = provider.newObject(storagePath);
             if (obj.exists()) {
                 StorageEntry entry = new StorageEntry(storagePath, obj.length(), obj.lastModified());
-                PartitionMetadata partitionMetadata = detectPartitions(List.of(entry), hivePartitioning, partitionConfig, config);
+                PartitionMetadata partitionMetadata = detectPartitions(List.of(entry), partitionConfig);
                 return new GenericFileList(List.of(entry), pattern, partitionMetadata);
             }
             return FileList.EMPTY;
@@ -321,38 +295,46 @@ public final class GlobExpander {
         StoragePath prefix = storagePath.patternPrefix();
         String glob = storagePath.globPart();
 
-        // Brace-only fast path: use exists()+newObject() instead of listing
-        if (BraceExpander.isBraceOnly(glob)) {
-            List<String> candidates = BraceExpander.expand(glob, maxGlobExpansion);
-            if (candidates != null) {
-                List<StorageEntry> matched = new ArrayList<>();
-                String prefixStr = prefix.toString();
-                for (String candidate : candidates) {
-                    StoragePath fullPath = StoragePath.of(prefixStr + candidate);
-                    var obj = provider.newObject(fullPath);
-                    if (obj.exists()) {
-                        matched.add(new StorageEntry(fullPath, obj.length(), obj.lastModified()));
-                    }
-                    checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
+        // One reader of the pattern. The matcher is built first, and it answers whether the pattern names a finite
+        // set of keys — which is a property of the parse, not something to rediscover by scanning the characters
+        // again. A second scan was a second opinion that had to agree with the matcher by hand; when the two drifted
+        // the only symptom was silently choosing the wrong strategy.
+        GlobMatcher matcher = new GlobMatcher(glob);
+
+        // Enumerable pattern: probe each key with exists() instead of listing a prefix that may hold millions.
+        List<String> candidates = matcher.enumerateKeys(maxGlobExpansion);
+        if (candidates != null) {
+            List<StorageEntry> matched = new ArrayList<>();
+            String prefixStr = prefix.toString();
+            for (String candidate : candidates) {
+                StoragePath fullPath = StoragePath.of(prefixStr + candidate);
+                var obj = provider.newObject(fullPath);
+                if (obj.exists()) {
+                    matched.add(new StorageEntry(fullPath, obj.length(), obj.lastModified()));
                 }
-                if (hints != null && hints.isEmpty() == false) {
-                    matched = applyFileFiltersRetainingAnchor(matched, hints);
-                }
-                if (matched.isEmpty()) {
-                    return FileList.EMPTY;
-                }
-                matched.sort(Comparator.comparing(e -> e.path().toString()));
-                PartitionMetadata partitionMetadata = detectPartitions(matched, hivePartitioning, partitionConfig, config);
-                return new GenericFileList(matched, pattern, partitionMetadata);
+                checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
             }
-            // candidates == null means expansion exceeded cap; fall through to listing
+            if (hints != null && hints.isEmpty() == false) {
+                matched = applyFileFiltersRetainingAnchor(matched, hints);
+            }
+            if (matched.isEmpty()) {
+                return FileList.EMPTY;
+            }
+            matched.sort(Comparator.comparing(e -> e.path().toString()));
+            PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig);
+            return new GenericFileList(matched, pattern, partitionMetadata);
         }
 
-        GlobMatcher matcher = new GlobMatcher(glob);
         boolean recursive = matcher.needsRecursion();
 
         List<StorageEntry> matched = new ArrayList<>();
         String prefixStr = prefix.toString();
+        // One warning per listing, however many objects it drops. The counts are the useful part: how many of the
+        // objects the resource selected were then dropped tells the user whether they are missing a stray marker or
+        // most of their data. Enumerating them would emit a header per partition on a prefix with a marker in each.
+        int excludedCount = 0;
+        String excludedExample = null;
+        String excludedExampleEntry = null;
 
         try (StorageIterator iterator = provider.listObjects(prefix, recursive)) {
             while (iterator.hasNext()) {
@@ -362,13 +344,60 @@ public final class GlobExpander {
                 if (entryPath.startsWith(prefixStr)) {
                     relativePath = entryPath.substring(prefixStr.length());
                 } else {
+                    // Defensive fallback: provider returned a path that does not begin with the listing prefix.
+                    // objectName() yields only the last component, so the exclusion check below will miss a hidden
+                    // intermediate directory (e.g. _delta_log/file.json → sees "file.json", not "_delta_log").
+                    // TODO: investigate which providers hit this branch and whether they can be fixed upstream.
                     relativePath = entry.path().objectName();
                 }
+                if (relativePath.isEmpty() || relativePath.endsWith("/")) {
+                    // Directory placeholder key (e.g. the S3 console "folder" object). These are not files, so they
+                    // are skipped as listing normalization rather than left to exclusion policy — a dataset should
+                    // not have to configure away an artefact of how a console represents a folder.
+                    //
+                    // The empty case is the placeholder for the listing prefix ITSELF — listing `s3://b/data/*`
+                    // returns the key `s3://b/data/`, whose path relative to the prefix is "". It is not caught by
+                    // the endsWith check, and a `*` glob matches the empty string, so without this the marker
+                    // reaches the reader and fails the query naming an object the user never referenced.
+                    continue;
+                }
                 if (matcher.matches(relativePath)) {
-                    matched.add(entry);
-                    checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
+                    String excludedBy = nameFilter.excludedBy(relativePath);
+                    if (excludedBy == null) {
+                        matched.add(entry);
+                        checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
+                    } else {
+                        // Matched what the user asked for and was dropped anyway. Keep the first one so the warning
+                        // can name a concrete file and the entry responsible; "some files were excluded" on its own
+                        // leaves the user with nothing to act on.
+                        excludedCount++;
+                        if (excludedExample == null) {
+                            excludedExample = relativePath;
+                            excludedExampleEntry = excludedBy;
+                        }
+                    }
                 }
             }
+        }
+
+        if (excludedCount > 0) {
+            // Fires for the default list too: a user who never configured exclusion is precisely the one who cannot
+            // guess why a file they can see in the bucket is missing from their results. Counted against everything
+            // the resource pattern selected, which is the kept objects plus the dropped ones.
+            HeaderWarning.addWarning(
+                excludedCount
+                    + " of "
+                    + (matched.size() + excludedCount)
+                    + " objects matching the resource under ["
+                    + prefixStr
+                    + (excludedCount == 1 ? "] was excluded by the [" : "] were excluded by the [")
+                    + ExclusionConfig.CONFIG_FILE_EXCLUSIONS
+                    + "] dataset setting, for example ["
+                    + excludedExample
+                    + "] which matched entry ["
+                    + excludedExampleEntry
+                    + "]"
+            );
         }
 
         // Apply file metadata filters from WHERE clause hints (e.g., _file.modified > X, _file.size > Y).
@@ -383,7 +412,7 @@ public final class GlobExpander {
 
         matched.sort(Comparator.comparing(e -> e.path().toString()));
 
-        PartitionMetadata partitionMetadata = detectPartitions(matched, hivePartitioning, partitionConfig, config);
+        PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig);
 
         return new GenericFileList(matched, pattern, partitionMetadata);
     }
@@ -400,29 +429,19 @@ public final class GlobExpander {
         return filtered.isEmpty() && matched.isEmpty() == false ? matched : filtered;
     }
 
-    static PartitionMetadata detectPartitions(
-        List<StorageEntry> files,
-        boolean hivePartitioning,
-        @Nullable PartitionConfig partitionConfig,
-        @Nullable Map<String, Object> config
-    ) {
-        if (hivePartitioning == false && partitionConfig == null) {
+    /**
+     * The partition columns a listing carries, decided entirely by the resolved {@link PartitionConfig}. One input,
+     * one decision: no separate enable flag and no raw settings map alongside it.
+     */
+    static PartitionMetadata detectPartitions(List<StorageEntry> files, PartitionConfig partitionConfig) {
+        if (PartitionConfig.Strategy.NONE == partitionConfig.strategy()) {
             return null;
         }
-        if (partitionConfig != null && PartitionConfig.Strategy.NONE == partitionConfig.strategy()) {
-            return null;
-        }
-
         PartitionDetector detector = resolveDetector(partitionConfig);
         if (detector == null) {
-            if (hivePartitioning) {
-                detector = HivePartitionDetector.INSTANCE;
-            } else {
-                return null;
-            }
+            return null;
         }
-
-        PartitionMetadata result = detector.detect(files, config);
+        PartitionMetadata result = detector.detect(files);
         if (result == null || result.isEmpty()) {
             return null;
         }
@@ -440,38 +459,53 @@ public final class GlobExpander {
     }
 
     public static FileList expandCommaSeparated(String pathList, StorageProvider provider) throws IOException {
-        return expandCommaSeparated(pathList, provider, null, true);
+        return expandCommaSeparated(pathList, provider, null, (Map<String, Object>) null);
     }
 
     public static FileList expandCommaSeparated(
         String pathList,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning
+        @Nullable Map<String, Object> config
     ) throws IOException {
-        return doExpandCommaSeparated(pathList, provider, hints, hivePartitioning, null, null, Integer.MAX_VALUE, Integer.MAX_VALUE);
+        return doExpandCommaSeparated(
+            pathList,
+            provider,
+            hints,
+            PartitionConfig.fromConfig(config),
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            ExclusionConfig.fromConfig(config).compile()
+        );
     }
 
     public static FileList expandCommaSeparated(
         String pathList,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
+        @Nullable Map<String, Object> config,
         int maxDiscoveredFiles,
         int maxGlobExpansion
     ) throws IOException {
-        return doExpandCommaSeparated(pathList, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion);
+        return doExpandCommaSeparated(
+            pathList,
+            provider,
+            hints,
+            PartitionConfig.fromConfig(config),
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            ExclusionConfig.fromConfig(config).compile()
+        );
     }
 
     private static FileList doExpandCommaSeparated(
         String pathList,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
-        @Nullable PartitionConfig partitionConfig,
-        @Nullable Map<String, Object> config,
+        PartitionConfig partitionConfig,
         int maxDiscoveredFiles,
-        int maxGlobExpansion
+        int maxGlobExpansion,
+        ExclusionConfig.NameFilter nameFilter
     ) throws IOException {
         Check.notNull(pathList, "pathList cannot be null");
         Check.notNull(provider, "provider cannot be null");
@@ -488,11 +522,10 @@ public final class GlobExpander {
                     trimmed,
                     provider,
                     hints,
-                    hivePartitioning,
                     partitionConfig,
-                    config,
                     remainingBudget,
-                    maxGlobExpansion
+                    maxGlobExpansion,
+                    nameFilter
                 );
                 if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {
                     allEntries.addAll(g.files());
@@ -512,7 +545,7 @@ public final class GlobExpander {
 
         allEntries.sort(Comparator.comparing(e -> e.path().toString()));
 
-        PartitionMetadata partitionMetadata = detectPartitions(allEntries, hivePartitioning, partitionConfig, config);
+        PartitionMetadata partitionMetadata = detectPartitions(allEntries, partitionConfig);
 
         return new GenericFileList(allEntries, pathList, partitionMetadata);
     }
@@ -522,21 +555,18 @@ public final class GlobExpander {
      * whether a hint reaches the glob at all; {@link #doExpandGlob} and {@link #listingCacheDiscriminator} both
      * route through it so that the listing cache key cannot drift from the listing it names.
      */
-    static String effectivePattern(
-        String pattern,
-        @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
-        @Nullable PartitionConfig partitionConfig
-    ) {
-        if (hints == null || hints.isEmpty() || hivePartitioning == false) {
+    static String effectivePattern(String pattern, @Nullable List<PartitionFilterHint> hints, PartitionConfig partitionConfig) {
+        if (hints == null || hints.isEmpty() || PartitionConfig.Strategy.NONE == partitionConfig.strategy()) {
             return pattern;
         }
         return rewriteGlobWithHints(pattern, hints, partitionConfig);
     }
 
     /**
-     * Everything about a query that determines which files a {@code path} lists: the {@code hivePartitioning} flag,
-     * the effective (post-rewrite) glob pattern, and the {@code _file.*} metadata filters. These are the inputs
+     * Everything about a query that determines which files a {@code path} lists: the resolved
+     * {@link PartitionConfig} (strategy AND path template),
+     * the effective (post-rewrite) glob pattern, the {@code _file.*} metadata filters, and the resolved
+     * {@link ExclusionConfig}. These are the inputs
      * {@link #doExpandGlob} consults beyond the storage contents themselves — the rewrite via {@link #effectivePattern}
      * and the file filters via {@link #applyFileMetadataFilters} — and this value shares those same helpers, so the
      * listing cache key it feeds cannot drift from the listing it names. Note this binds only the cache key: a new
@@ -548,23 +578,50 @@ public final class GlobExpander {
      * different filters onto one key. Equal encodings therefore genuinely mean equal listings. A new field added to
      * this record joins {@code equals} for free but must be added to {@code encode} by hand to stay in the key.
      */
-    private record ListingIdentity(boolean hivePartitioning, String effectivePattern, List<String> encodedFileHints) {
+    private record ListingIdentity(
+        PartitionConfig partitionConfig,
+        String effectivePattern,
+        List<String> encodedFileHints,
+        ExclusionConfig exclusionConfig
+    ) {
 
-        static ListingIdentity of(String path, @Nullable List<PartitionFilterHint> hints, boolean hivePartitioning) {
+        static ListingIdentity of(
+            String path,
+            @Nullable List<PartitionFilterHint> hints,
+            PartitionConfig partitionConfig,
+            ExclusionConfig exclusionConfig
+        ) {
             return new ListingIdentity(
-                hivePartitioning,
-                effectiveWholePathPattern(path, hints, hivePartitioning),
-                encodedFileMetadataHints(hints)
+                partitionConfig,
+                effectiveWholePathPattern(path, hints, partitionConfig),
+                encodedFileMetadataHints(hints),
+                exclusionConfig
             );
         }
 
         String encode() {
             StringBuilder sb = new StringBuilder();
-            sb.append(hivePartitioning ? '1' : '0');
+            // Strategy AND template both discriminate: the cached FileList carries its PartitionMetadata, and two
+            // datasets on one glob with the same strategy but different templates produce different partition
+            // columns from an identical effective pattern. The template is user-controlled free text, so it is
+            // length-prefixed like every other variable-length field; the null marker keeps a null template and an
+            // empty one distinct so injectivity stays trivially provable.
+            appendLengthPrefixed(sb, partitionConfig.strategy().name());
+            sb.append(partitionConfig.pathTemplate() == null ? '0' : '1');
+            appendLengthPrefixed(sb, partitionConfig.pathTemplate() == null ? "" : partitionConfig.pathTemplate());
             appendLengthPrefixed(sb, effectivePattern);
             sb.append(encodedFileHints.size()).append(':');
             for (String encodedHint : encodedFileHints) {
                 appendLengthPrefixed(sb, encodedHint);
+            }
+            // The exclusion list is framed like encodedFileHints above — a count, then that many
+            // length-prefixed entries — so no user-supplied glob can forge a field boundary. Entry order is
+            // preserved rather than sorted: order does not change semantics (any-match), so two same-set
+            // different-order configs merely get distinct keys, which is safe over-fragmentation and keeps
+            // encode() aligned with the record's equals.
+            sb.append(exclusionConfig.fileExclusions().size()).append(':');
+            for (String glob : exclusionConfig.fileExclusions()) {
+                appendLengthPrefixed(sb, glob);
             }
             return sb.toString();
         }
@@ -580,20 +637,28 @@ public final class GlobExpander {
      * guarantee equal listings, so it is safe to key the listing cache on it. See {@link ListingIdentity} for the
      * inputs it captures and why they are exhaustive; hints that reach none of them (an ordinary data column, say)
      * leave the discriminator untouched, so an incidentally-filtered query still shares the un-filtered entry.
+     * The exclusion settings resolve from {@code config} via {@link ExclusionConfig#fromConfig}.
      */
-    public static String listingCacheDiscriminator(String path, @Nullable List<PartitionFilterHint> hints, boolean hivePartitioning) {
-        return ListingIdentity.of(path, hints, hivePartitioning).encode();
+    public static String listingCacheDiscriminator(
+        String path,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config
+    ) {
+        return ListingIdentity.of(path, hints, PartitionConfig.fromConfig(config), ExclusionConfig.fromConfig(config)).encode();
     }
 
     /**
      * Mirrors {@link #expand}'s glob/comma dispatch: in a comma list only the pattern segments are rewritten, over
-     * the same {@link #commaSegments} decomposition the expansion walks. {@code partitionConfig} is fixed null to
-     * match {@link #expand}'s signature — the production listing paths carry no {@link PartitionConfig} (see
-     * {@link #expandAndCompact}), so neither does the identity that names their result.
+     * the same {@link #commaSegments} decomposition the expansion walks, against the same resolved
+     * {@link PartitionConfig} the expansion uses.
      */
-    private static String effectiveWholePathPattern(String path, @Nullable List<PartitionFilterHint> hints, boolean hive) {
-        if (path.indexOf(',') < 0) {
-            return effectivePattern(path, hints, hive, null);
+    private static String effectiveWholePathPattern(
+        String path,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig
+    ) {
+        if (hasTopLevelComma(path) == false) {
+            return effectivePattern(path, hints, partitionConfig);
         }
         List<String> segments = commaSegments(path);
         StringBuilder sb = new StringBuilder();
@@ -602,7 +667,7 @@ public final class GlobExpander {
                 sb.append(',');
             }
             String segment = segments.get(i);
-            sb.append(isPattern(segment) ? effectivePattern(segment, hints, hive, null) : segment);
+            sb.append(isPattern(segment) ? effectivePattern(segment, hints, partitionConfig) : segment);
         }
         return sb.toString();
     }
@@ -613,15 +678,50 @@ public final class GlobExpander {
      * so the two cannot disagree on which segments a path has.
      */
     private static List<String> commaSegments(String pathList) {
-        String[] raw = pathList.split(",");
-        List<String> segments = new ArrayList<>(raw.length);
-        for (String segment : raw) {
-            String trimmed = segment.trim();
-            if (trimmed.isEmpty() == false) {
-                segments.add(trimmed);
+        List<String> segments = new ArrayList<>();
+        int depth = 0;
+        int start = 0;
+        for (int i = 0; i < pathList.length(); i++) {
+            char c = pathList.charAt(i);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth = Math.max(0, depth - 1);
+            } else if (c == ',' && depth == 0) {
+                addSegment(segments, pathList.substring(start, i));
+                start = i + 1;
             }
         }
+        addSegment(segments, pathList.substring(start));
         return segments;
+    }
+
+    private static void addSegment(List<String> segments, String segment) {
+        String trimmed = segment.trim();
+        if (trimmed.isEmpty() == false) {
+            segments.add(trimmed);
+        }
+    }
+
+    /**
+     * Whether a path holds a top-level comma, i.e. is a list of resources rather than one. A comma inside a brace
+     * group belongs to the glob, not to the list: splitting on it blindly tore {@code s3://b/x.{csv,tsv}} into
+     * {@code s3://b/x.{csv} and {@code tsv}}, and the second fragment failed for having no scheme — so brace
+     * alternation, which the matcher has always supported, was unusable through the entry point datasets take.
+     */
+    private static boolean hasTopLevelComma(String path) {
+        int depth = 0;
+        for (int i = 0; i < path.length(); i++) {
+            char c = path.charAt(i);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth = Math.max(0, depth - 1);
+            } else if (c == ',' && depth == 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -684,11 +784,25 @@ public final class GlobExpander {
             return pattern;
         }
 
-        if (partitionConfig != null && partitionConfig.pathTemplate() != null) {
+        // Only a TEMPLATE strategy may drive the template rewrite. It narrows the glob to the template's spelling of
+        // the value — a bare segment — which is sound only when detection is certainly template-based. Under HIVE a
+        // coincidental bare folder (data/2024/) would be listed instead of the real data/year=2024/, and because that
+        // listing is non-empty the rewrite-to-empty fallback never fires, so the query returns the wrong rows rather
+        // than a superset. Under AUTO, detection may still resolve to Hive at detect time. HIVE and AUTO keep the
+        // key=value segment rewrite below, which is what they had before the setting reached the read path.
+        if (partitionConfig != null
+            && PartitionConfig.Strategy.TEMPLATE == partitionConfig.strategy()
+            && partitionConfig.pathTemplate() != null) {
             String templateRewritten = rewriteGlobWithTemplate(pattern, rewritableHints, partitionConfig.pathTemplate());
             if (templateRewritten != null) {
                 return templateRewritten;
             }
+            // Under TEMPLATE the column value is the WHOLE directory segment, so the key=value rewrite below would
+            // narrow on the wrong axis: for a template-bound value of "part=a" it would spell the segment
+            // "part=part=a" and list a sibling directory of that literal name instead. That listing is non-empty, so
+            // the rewrite-to-empty fallback would not fire. The rewrite is never useful under TEMPLATE anyway — the
+            // template rewrite above is the only one that matches how the value was bound.
+            return pattern;
         }
 
         String[] segments = pattern.split("/");
@@ -732,7 +846,11 @@ public final class GlobExpander {
             int segIdx = wildcardPositions.get(offset + t);
             List<Object> values = hint.values();
             if (hint.isSingleValue()) {
-                segments[segIdx] = escapeGlobMeta(String.valueOf(values.get(0)));
+                String value = String.valueOf(values.get(0));
+                if (globExpressible(value) == false) {
+                    continue; // leave the wildcard so the full set is listed (superset); the row filter narrows
+                }
+                segments[segIdx] = value;
             } else {
                 Set<String> spellings = partitionValueSpellings(values);
                 if (braceExpressible(spellings) == false) {
@@ -786,7 +904,8 @@ public final class GlobExpander {
 
         List<Object> values = hint.values();
         if (hint.isSingleValue()) {
-            return key + "=" + escapeGlobMeta(String.valueOf(values.get(0)));
+            String value = String.valueOf(values.get(0));
+            return globExpressible(value) ? key + "=" + value : segment;
         }
 
         // Multiple values: use glob brace syntax key={v1,v2,...}, each value in every on-disk spelling. If a value
@@ -873,18 +992,35 @@ public final class GlobExpander {
     }
 
     /**
-     * Whether a set of spellings can be expressed as glob brace alternatives. A value containing {@code ,} or
+     * Whether a set of spellings can be spliced into a glob as brace alternatives. A value containing {@code ,} or
      * {@code }} would be mis-split by the brace parser (into separate alternatives, or a truncated brace), turning
      * one value into several and dropping the folder that literally contains the delimiter — so when any spelling
      * holds one, the caller must skip the rewrite and list the full glob (a superset) rather than a wrong subset.
      */
     private static boolean braceExpressible(Set<String> spellings) {
         for (String spelling : spellings) {
-            if (spelling.indexOf(',') >= 0 || spelling.indexOf('}') >= 0) {
+            if (spelling.indexOf(',') >= 0 || spelling.indexOf('}') >= 0 || globExpressible(spelling) == false) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * Whether a partition value can be spliced into a glob as itself. A value holding a glob metacharacter cannot:
+     * spliced raw it would be read as a wildcard and widen the listing, which is a wrong answer.
+     *
+     * <p>It used to be escaped instead, by wrapping each metacharacter in a one-character class — {@code a*b}
+     * became {@code a[*]b}. That made the rewrite depend on class support, and it emitted {@code [[]} for a literal
+     * bracket, which the matcher then refused to parse; a filter as ordinary as {@code WHERE dept == 'a[b'} on a
+     * Hive dataset produced an uncaught parse failure at query time.
+     *
+     * <p>Declining is simply better. The rewrite is an optimisation — it narrows which prefix is listed, and the
+     * row filter still runs — so skipping it lists a superset, which is always correct. There is no reason to
+     * carry an escaping mechanism to save a listing on a partition value nobody writes.
+     */
+    private static boolean globExpressible(String value) {
+        return value.indexOf('*') < 0 && value.indexOf('?') < 0 && value.indexOf('[') < 0 && value.indexOf('{') < 0;
     }
 
     /** Joins glob-escaped spellings into a brace alternation {@code {a,b,c}}. */
@@ -895,26 +1031,10 @@ public final class GlobExpander {
             if (first == false) {
                 sb.append(',');
             }
-            sb.append(escapeGlobMeta(spelling));
+            sb.append(spelling);
             first = false;
         }
         return sb.append('}').toString();
-    }
-
-    private static String escapeGlobMeta(String value) {
-        if (value.indexOf('*') < 0 && value.indexOf('?') < 0 && value.indexOf('[') < 0 && value.indexOf('{') < 0) {
-            return value;
-        }
-        StringBuilder sb = new StringBuilder(value.length() + 4);
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (c == '*' || c == '?' || c == '[' || c == '{') {
-                sb.append('[').append(c).append(']');
-            } else {
-                sb.append(c);
-            }
-        }
-        return sb.toString();
     }
 
     public static List<StorageEntry> applyFileMetadataFilters(List<StorageEntry> entries, List<PartitionFilterHint> hints) {

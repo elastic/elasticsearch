@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
@@ -18,9 +19,10 @@ import java.util.function.Consumer;
  * Bundles all per-read execution parameters that were previously spread across 12+ method overloads.
  * <p>
  * Format-specific configuration (delimiter, encoding, etc.) lives on the reader instance via
- * {@link FormatReader#withConfig}. Per-query optimizer hints (pushed filters) live on the reader
- * instance via {@link FormatReader#withPushedFilter}. This context carries only the parameters
- * that may vary per file or per split within a single query execution.
+ * {@link FormatReader#withConfig}. Optimizer hints (pushed filters) live on the reader
+ * instance via {@link FormatReader#withPushedFilter} and are reminted per file. This context
+ * carries only the parameters that may vary per file or per split within a single query
+ * execution.
  *
  * @param projectedColumns columns to read. {@code null} means "no projection info available — read
  *                         every column" (backward compatibility default). An <em>empty</em> list
@@ -114,7 +116,8 @@ public record FormatReadContext(
     boolean statsFileFinal,
     StripeColumnScope statsColumnScope,
     @Nullable Consumer<String> informationalWarningSink,
-    @Nullable List<String> fileHeaderColumns
+    @Nullable List<String> fileHeaderColumns,
+    @Nullable CircuitBreaker breaker
 ) {
 
     public FormatReadContext {
@@ -160,7 +163,8 @@ public record FormatReadContext(
             statsFileFinal,
             statsColumnScope,
             informationalWarningSink,
-            fileHeaderColumns
+            fileHeaderColumns,
+            breaker
         );
     }
 
@@ -184,7 +188,8 @@ public record FormatReadContext(
             statsFileFinal,
             statsColumnScope,
             informationalWarningSink,
-            fileHeaderColumns
+            fileHeaderColumns,
+            breaker
         );
     }
 
@@ -208,7 +213,8 @@ public record FormatReadContext(
             statsFileFinal,
             statsColumnScope,
             informationalWarningSink,
-            fileHeaderColumns
+            fileHeaderColumns,
+            breaker
         );
     }
 
@@ -239,6 +245,8 @@ public record FormatReadContext(
         private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
         @Nullable
         private Consumer<String> informationalWarningSink = null;
+        @Nullable
+        private CircuitBreaker breaker = null;
 
         private Builder() {}
 
@@ -343,6 +351,17 @@ public record FormatReadContext(
             return this;
         }
 
+        /**
+         * Circuit breaker for the decompression codec's native footprint accounting. Set when the
+         * read path goes through a {@link DecompressionCodec} that supports per-stream breaker wiring.
+         * {@code null} (the default) means the codec's native footprint is not accounted by a breaker
+         * on this read path.
+         */
+        public Builder breaker(@Nullable CircuitBreaker breaker) {
+            this.breaker = breaker;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -363,7 +382,8 @@ public record FormatReadContext(
                 statsFileFinal,
                 statsColumnScope,
                 informationalWarningSink,
-                fileHeaderColumns
+                fileHeaderColumns,
+                breaker
             );
         }
     }

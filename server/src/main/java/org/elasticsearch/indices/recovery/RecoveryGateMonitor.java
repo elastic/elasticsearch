@@ -9,6 +9,8 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
@@ -31,6 +33,13 @@ public final class RecoveryGateMonitor {
 
     private static final Logger logger = LogManager.getLogger(RecoveryGateMonitor.class);
 
+    public static final Setting<Boolean> ENABLE_RECOVERY_GATES_SETTING = Setting.boolSetting(
+        "indices.recovery.gates.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     /// How often to re-evaluate the gates while a callback is waiting.
     // TODO: make this configurable via a node setting
     private static final TimeValue RECHECK_INTERVAL = TimeValue.timeValueSeconds(1);
@@ -39,21 +48,27 @@ public final class RecoveryGateMonitor {
     private final Supplier<List<RecoveryGate>> gates;
     private final ThreadPool threadPool;
 
+    private volatile boolean gatesEnabled;
+
     /// One-shot callbacks awaiting an outcome, fired and cleared by a [#check] that evaluates to it. Guarded by `this`.
     private final Map<RecoveryGate.Outcome, List<Runnable>> outcomeCallbacks = new EnumMap<>(RecoveryGate.Outcome.class);
 
     /// Whether a recheck is scheduled; at most one is pending at a time. Guarded by `this`.
     private boolean recheckScheduled;
 
-    public RecoveryGateMonitor(Supplier<Collection<RecoveryGate>> gatesSupplier, ThreadPool threadPool) {
+    public RecoveryGateMonitor(Supplier<Collection<RecoveryGate>> gatesSupplier, ThreadPool threadPool, ClusterSettings clusterSettings) {
         this.gates = CachedSupplier.wrap(() -> List.copyOf(gatesSupplier.get()));
         this.threadPool = threadPool;
+        clusterSettings.initializeAndWatchIfRegistered(ENABLE_RECOVERY_GATES_SETTING, enabled -> this.gatesEnabled = enabled);
     }
 
     /// The current node-wide decision, most-restrictive-wins: the first blocking gate's decision, else [RecoveryGate.Decision#RUN].
     /// A gate that throws is ignored (failing open, i.e. towards pre-gating behaviour) with a warning, so a buggy gate degrades to no
     /// gating rather than stalling recoveries indefinitely.
     public RecoveryGate.Decision evaluate() {
+        if (gatesEnabled == false) {
+            return RecoveryGate.Decision.RUN;
+        }
         for (RecoveryGate gate : gates.get()) {
             final RecoveryGate.Decision decision;
             try {

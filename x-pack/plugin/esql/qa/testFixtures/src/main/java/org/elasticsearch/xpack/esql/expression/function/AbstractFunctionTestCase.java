@@ -696,7 +696,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             Set<FunctionSignatures.ConcreteSignature> filteredDeclared = filterUnderConstruction(declaredSignatures);
             Set<FunctionSignatures.ConcreteSignature> filteredTested = filterUnderConstruction(testedSignatures);
             assertSignaturesMatchTests(filteredDeclared, filteredTested);
-            for (FunctionSignatures.ConcreteSignature entry : filteredDeclared) {
+            // Collect @Param coverage from every declared overload, including those filtered
+            // above because an argument or return type is still under construction.
+            for (FunctionSignatures.ConcreteSignature entry : declaredSignatures) {
                 collectPositionalTypes(args, entry.argTypes(), typesFromSignature);
                 if (DataType.UNDER_CONSTRUCTION.contains(entry.returnType()) == false) {
                     returnFromSignature.add(entry.returnType().esNameIfPossible());
@@ -1184,11 +1186,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     /**
      * Builds the {@link DocsV3Support.Param} used to render a type in the generated "Supported types"
-     * tables, normalizing the {@code {applies_to}} lifecycle annotation for tech-preview types that ship
-     * in 9.5.0 ({@link DataType#FLATTENED} and {@link DataType#DATE_RANGE}).
+     * tables, normalizing the {@code {applies_to}} lifecycle annotation for tech-preview types:
+     * {@link DataType#FLATTENED} and {@link DataType#DATE_RANGE} ship in 9.5.0, and
+     * {@link DataType#DOUBLE_RANGE} ships in 9.6.0.
      * <p>
-     * Both types ship as a tech preview in 9.5.0, so every signature that accepts them must be labeled
-     * exactly {@code stack: preview 9.5.0}. Test cases for these types are produced in many different
+     * These types ship as a tech preview, so every signature that accepts them must be labeled
+     * exactly {@code stack: preview <version>}. Test cases for these types are produced in many different
      * places (per-function suppliers, the multivalue base class, generic representable-type loops, ...),
      * and some of them additionally set the {@code serverless: preview} flag (e.g. via
      * {@code previewTransform}). To keep every row for these types identical across functions, the
@@ -1199,6 +1202,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (data.type() == DataType.FLATTENED || data.type() == DataType.DATE_RANGE) {
             List<FunctionAppliesTo> appliesTo = data.appliesTo() == null || data.appliesTo().isEmpty()
                 ? List.of(TestCaseSupplier.appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false))
+                : data.appliesTo();
+            return new DocsV3Support.Param(data.type(), appliesTo, false);
+        }
+        if (data.type() == DataType.DOUBLE_RANGE) {
+            List<FunctionAppliesTo> appliesTo = data.appliesTo() == null || data.appliesTo().isEmpty()
+                ? List.of(TestCaseSupplier.appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false))
                 : data.appliesTo();
             return new DocsV3Support.Param(data.type(), appliesTo, false);
         }

@@ -9,6 +9,11 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.FilterIndexInput;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -32,6 +37,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -51,6 +57,8 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.script.MockScriptEngine;
@@ -79,6 +87,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.doReturn;
@@ -194,6 +204,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
     private ClusterService clusterService;
     private MockTransportService transportService;
     private IndexShard primary;
+    private PrefetchCountingDirectory prefetchCountingDirectory;
 
     @Before
     public void createServices() throws IOException {
@@ -211,6 +222,13 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
     @After
     public void closeServices() throws IOException {
         IOUtils.close(() -> closeShards(primary), transportService, clusterService);
+    }
+
+    @Override
+    protected Store createStore(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+        var base = newFSDirectory(shardPath.resolveIndex());
+        prefetchCountingDirectory = new PrefetchCountingDirectory(base);
+        return createStore(shardPath.getShardId(), indexSettings, prefetchCountingDirectory);
     }
 
     @After
@@ -242,6 +260,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         // internally instead of reading the translog.
         assertEquals(3, updateHelper.preResolved().size());
         assertIdsArePreResolved("0", "1", "2");
+        assertThat(prefetchCountingDirectory.prefetchCount(), greaterThan(0));
 
         assertEquals(DocWriteResponse.Result.CREATED, response(request, 0).getResponse().getResult());
         assertEquals(DocWriteResponse.Result.UPDATED, response(request, 1).getResponse().getResult());
@@ -283,6 +302,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         assertEquals(1, updateHelper.livePrepareCount());
         assertIdsArePreparedLive("0");
         assertEquals(DocWriteResponse.Result.UPDATED, response(request, 0).getResponse().getResult());
+        assertEquals(0, prefetchCountingDirectory.prefetchCount());
     }
 
     public void testPreResolutionFailureFallsBackToLivePath() throws Exception {
@@ -300,6 +320,8 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         assertIdsArePreResolved("0");
         assertEquals("both updates must have prepared on the live path", 2, updateHelper.livePrepareCount());
         assertIdsArePreparedLive("0", "1");
+        // Prefetch is triggered per pre-resolved document, in this case the first update was pre-resolved correctly
+        assertThat(prefetchCountingDirectory.prefetchCount(), greaterThanOrEqualTo(1));
 
         assertEquals(DocWriteResponse.Result.UPDATED, response(request, 0).getResponse().getResult());
         assertEquals(DocWriteResponse.Result.UPDATED, response(request, 1).getResponse().getResult());
@@ -308,7 +330,6 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
     }
 
     public void testIfSeqNoValidatedAgainstPreResolvedGet() throws Exception {
-
         var indexed = indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         primary.refresh("test");
 
@@ -320,6 +341,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
 
         assertEquals(1, updateHelper.preResolved().size());
         assertIdsArePreResolved("0");
+        assertThat(prefetchCountingDirectory.prefetchCount(), greaterThan(0));
 
         BulkItemResponse response = response(request, 0);
         if (matching) {
@@ -340,6 +362,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
 
         assertEquals(1, updateHelper.preResolved().size());
         assertIdsArePreResolved("0");
+        assertThat(prefetchCountingDirectory.prefetchCount(), greaterThan(0));
 
         assertEquals(DocWriteResponse.Result.NOOP, response(request, 0).getResponse().getResult());
     }
@@ -357,6 +380,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         assertIdsArePreResolved("0");
         assertEquals("the conflict retry must have prepared on the live path", 1, updateHelper.livePrepareCount());
         assertIdsArePreparedLive("0");
+        assertThat(prefetchCountingDirectory.prefetchCount(), greaterThan(0));
 
         assertEquals(DocWriteResponse.Result.UPDATED, response(request, 0).getResponse().getResult());
         assertEquals("updated", source(primary, "0").get("foo"));
@@ -401,6 +425,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
 
         assertEquals(1, updateHelper.preResolved().size());
         assertIdsArePreResolved("0");
+        assertThat(prefetchCountingDirectory.prefetchCount(), greaterThan(0));
 
         assertEquals(DocWriteResponse.Result.UPDATED, response(request, 0).getResponse().getResult());
         assertEquals(true, source(primary, "0").get("scripted"));
@@ -420,6 +445,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
 
         assertEquals(2, updateHelper.preResolved().size());
         assertIdsArePreResolved("0", "1");
+        assertThat(prefetchCountingDirectory.prefetchCount(), greaterThan(0));
 
         assertEquals(DocWriteResponse.Result.DELETED, response(request, 0).getResponse().getResult());
         assertFalse(
@@ -444,6 +470,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
             .build();
         IndexShard seqNoDisabledPrimary = newStartedShard(true, settings);
         try {
+            indexDoc(seqNoDisabledPrimary, "0", "{\"foo\": \"bar\"}");
             BulkShardRequest request = request(seqNoDisabledPrimary, update("0"));
             assertSame(
                 PreResolvedUpdates.EMPTY,
@@ -455,6 +482,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
                     FetchSourceContext.FETCH_ALL_SOURCE
                 )
             );
+            assertEquals(0, prefetchCountingDirectory.prefetchCount());
         } finally {
             closeShards(seqNoDisabledPrimary);
         }
@@ -473,6 +501,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
             FetchSourceContext.FETCH_ALL_SOURCE
         );
         assertNotSame(PreResolvedUpdates.EMPTY, resolved);
+        assertThat(prefetchCountingDirectory.prefetchCount(), greaterThan(0));
         try (UpdateHelper.PreResolvedUpdate taken = resolved.take(0)) {
             assertNotNull(taken);
             assertNull("slots are consumed at most once", resolved.take(0));
@@ -500,6 +529,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
 
         assertEquals(1, updateHelper.preResolved().size());
         assertEquals("without retries nothing prepares on the live path", 0, updateHelper.livePrepareCount());
+        assertThat(prefetchCountingDirectory.prefetchCount(), greaterThan(0));
         BulkItemResponse response = response(request, 0);
         assertTrue(response.isFailed());
         assertThat(response.getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
@@ -525,6 +555,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
             assertNotSame(PreResolvedUpdates.EMPTY, resolved);
             assertNull("aborted items never execute", resolved.get(0));
             assertNotNull(resolved.get(1));
+            assertThat(prefetchCountingDirectory.prefetchCount(), greaterThan(0));
         }
     }
 
@@ -546,6 +577,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
             assertNotSame(PreResolvedUpdates.EMPTY, resolved);
             assertNull(resolved.get(0));
             assertNotNull(resolved.get(1));
+            assertThat(prefetchCountingDirectory.prefetchCount(), greaterThan(0));
         }
     }
 
@@ -559,6 +591,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         assertEquals("the duplicate op must not pre-resolve", 1, updateHelper.preResolved().size());
         assertEquals("the duplicate op must have prepared on the live path", 1, updateHelper.livePrepareCount());
         assertIdsArePreparedLive("0");
+        assertThat(prefetchCountingDirectory.prefetchCount(), greaterThan(0));
         assertFalse(response(request, 0).isFailed());
         assertFalse(response(request, 1).isFailed());
         Map<String, Object> source = source(primary, "0");
@@ -578,6 +611,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         assertEquals("the first attempt must have required a mapping update", 1, mappingUpdates.get());
         assertEquals("the retry must have prepared on the live path", 1, updateHelper.livePrepareCount());
         assertIdsArePreparedLive("0");
+        assertThat(prefetchCountingDirectory.prefetchCount(), greaterThan(0));
 
         assertFalse(response(request, 0).isFailed());
         assertEquals(DocWriteResponse.Result.UPDATED, response(request, 0).getResponse().getResult());
@@ -592,6 +626,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         executeBulk(primary, request);
 
         assertEquals(1, updateHelper.preResolved().size());
+        assertThat(prefetchCountingDirectory.prefetchCount(), greaterThan(0));
         assertEquals(DocWriteResponse.Result.UPDATED, response(request, 0).getResponse().getResult());
         GetResult get = primary.getService()
             .getForUpdate(
@@ -610,6 +645,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         executeBulk(primary, request);
 
         assertEquals(0, updateHelper.preResolved().size());
+        assertEquals(0, prefetchCountingDirectory.prefetchCount());
         assertEquals(DocWriteResponse.Result.CREATED, response(request, 0).getResponse().getResult());
     }
 
@@ -642,6 +678,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
 
         assertEquals(2, updateHelper.preResolved().size());
         assertIdsArePreResolved("0", "1");
+        assertThat(prefetchCountingDirectory.prefetchCount(), greaterThan(0));
         assertTrue(response(request, 0).isFailed());
         assertThat(response(request, 0).getFailure().getCause(), instanceOf(EsRejectedExecutionException.class));
         assertTrue(response(request, 1).isFailed());
@@ -732,11 +769,12 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
             null, // shard state action is unused: no replication or failure reporting in these tests
             new ShardMappingUpdatedAction(primary),
             updateHelper,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             new IndexingPressure(settings),
             EmptySystemIndices.INSTANCE,
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,
-            DocumentParsingProvider.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE,
+            BigArrays.NON_RECYCLING_INSTANCE
         );
         PlainActionFuture<TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse>> future = new PlainActionFuture<>();
         threadPool.executor(ThreadPool.Names.WRITE).execute(() -> action.shardOperationOnPrimary(request, primary, future));
@@ -758,5 +796,42 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
                 SplitShardCountSummary.IRRELEVANT
             );
         return XContentHelper.convertToMap(doc.sourceRef(), false, XContentType.JSON).v2();
+    }
+
+    private static class PrefetchCountingDirectory extends FilterDirectory {
+        private final AtomicInteger count = new AtomicInteger();
+
+        PrefetchCountingDirectory(Directory in) {
+            super(in);
+        }
+
+        @Override
+        public IndexInput openInput(String name, IOContext context) throws IOException {
+            return wrap(super.openInput(name, context));
+        }
+
+        private FilterIndexInput wrap(IndexInput delegate) {
+            return new FilterIndexInput("prefetch-counting(" + delegate + ")", delegate) {
+                @Override
+                public void prefetch(long offset, long length) throws IOException {
+                    count.incrementAndGet();
+                    super.prefetch(offset, length);
+                }
+
+                @Override
+                public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
+                    return wrap(super.slice(sliceDescription, offset, length));
+                }
+
+                @Override
+                public IndexInput slice(String sliceDescription, long offset, long length, IOContext context) throws IOException {
+                    return wrap(super.slice(sliceDescription, offset, length, context));
+                }
+            };
+        }
+
+        int prefetchCount() {
+            return count.get();
+        }
     }
 }

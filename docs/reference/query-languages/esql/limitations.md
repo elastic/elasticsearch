@@ -31,7 +31,9 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * The following functions don’t yet support date nanos: `bucket`, `date_format`, `date_parse`, `date_diff`, `date_extract`
     * You can use `to_datetime` to cast to millisecond dates to use unsupported functions
 
+* `date_range` [range family](/reference/elasticsearch/mapping-reference/range.md) {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
 * `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
+* `double_range` [range family](/reference/elasticsearch/mapping-reference/range.md) {applies_to}`stack: preview 9.6.0` {applies_to}`serverless: preview`
 * `dense_vector` {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
 * `flattened` {applies_to}`stack: preview 9.5.0`
 * `ip`
@@ -70,7 +72,6 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 
     * `binary`
     * `completion`
-    * `double_range`
     * `float_range`
     * `histogram`
     * `integer_range`
@@ -187,9 +188,13 @@ supports targeting `text` and `keyword` expressions in the same way, with the sa
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 When searching expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
-(match query options) are supported on `text` expressions; the `analyzer` option must name a
-registered analyzer (prebuilt or plugin-contributed), not a per-index custom analyzer. On other
-expression types options are not supported.
+(match query options) are supported on `text` expressions. As on an indexed field, the `analyzer`
+option applies to the query string only: how the expression's values are analyzed is declared where
+the column is created, through
+[`TO_TEXT`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_text.md)'s
+`analyzer` option, and the query analyzer defaults to that values analyzer (`standard` when none is
+declared). Analyzer names must name a registered analyzer (prebuilt or plugin-contributed), not a
+per-index custom analyzer. On other expression types options are not supported.
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 When using `METADATA _score`, `MATCH` on an expression contributes to the relevance score:

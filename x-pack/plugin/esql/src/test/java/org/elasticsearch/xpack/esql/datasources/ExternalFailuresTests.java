@@ -156,13 +156,13 @@ public class ExternalFailuresTests extends ESTestCase {
     }
 
     public void testSurfaceWrapsIoExceptionAsExternalClient() {
-        IOException ioe = new IOException("record exceeded max_record_size");
+        IOException ioe = new IOException("record exceeded external_max_record_size");
         RuntimeException surfaced = ExternalFailures.surface(ioe, "Streaming parallel parsing failed");
         assertThat(surfaced, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
         assertSame(ioe, surfaced.getCause());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(surfaced));
         assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("Streaming parallel parsing failed"));
-        assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("record exceeded max_record_size"));
+        assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("record exceeded external_max_record_size"));
     }
 
     public void testSurfaceWrapsUncheckedIoExceptionAsExternalClient() {

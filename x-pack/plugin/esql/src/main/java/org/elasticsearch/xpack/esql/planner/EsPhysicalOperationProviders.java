@@ -462,6 +462,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             UNMAPPED_FIELD_TYPE.setStored(false);
             UNMAPPED_FIELD_TYPE.freeze();
         }
+        /** The one field this context pretends is mapped; any other name behaves exactly as on the context it wraps. */
         private final String fullFieldName;
 
         DefaultShardContextForUnmappedField(DefaultShardContext ctx, String fullFieldName) {
@@ -478,10 +479,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return name.equals(fullFieldName) || super.isMappedField(name);
         }
 
+        /**
+         * Whether this context fabricates a keyword type for {@code name}: only for {@link #fullFieldName}, and only where
+         * {@code resolvedType} - what the real mapping resolves for it - is null. Callers pass that in so the mapping is walked once;
+         * {@link #fieldType} is unusable here because it returns the fabricated type.
+         */
+        private boolean fabricatesKeywordType(String name, @Nullable MappedFieldType resolvedType) {
+            return resolvedType == null && name.equals(fullFieldName);
+        }
+
         @Override
         public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
-            return superResult == null && name.equals(fullFieldName) ? createUnmappedFieldType(name, this) : superResult;
+            return fabricatesKeywordType(name, superResult) ? createUnmappedFieldType(name, this) : superResult;
         }
 
         @Override
@@ -498,7 +508,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // read _source directly - see UnmappedKeywordBlockLoader for the two broken paths and the issues (#156381, #156433).
             // TODO: consider fixing FallbackSyntheticSourceBlockLoader instead of working around it here. Rejected for now because it
             // only covers the synthetic-source half, and its constructor rejects the NO_IGNORED_SOURCE format stored source reports.
-            if (asUnsupportedSource == false && name.equals(fullFieldName) && super.fieldType(name) == null) {
+            if (asUnsupportedSource == false && fabricatesKeywordType(name, super.fieldType(name))) {
                 // Neither LOAD nor LOAD_ALL fuses a function into loading an unmapped field, and unmappedKeywordBlockLoader has
                 // nowhere to put one - so catch it here rather than let it be dropped and surface as a wrong value much later.
                 assert blockLoaderFunctionConfig == null

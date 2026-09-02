@@ -58,6 +58,7 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
         String index = "remote_fetch_topn_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         createTestIndex(index);
         indexDocs(index);
+        waitForIndexReady(index);
 
         try (RestClient currentClient = currentNodeClient()) {
             Map<String, Object> response = runEsql(
@@ -127,6 +128,14 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
     }
 
+    /**
+     * Mixed-cluster and serverless BWC tests can index on one tier while the coordinator runs on another.
+     * Wait until every shard copy is queryable before issuing {@code FROM} against a pinned coordinator.
+     */
+    private static void waitForIndexReady(String index) throws IOException {
+        ensureYellowAndNoInitializingShards(index, "120s");
+    }
+
     private static void fieldMapping(XContentBuilder builder, String field, String type) throws IOException {
         builder.startObject(field);
         builder.field("type", type);
@@ -152,24 +161,60 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
         return entityAsMap(restClient.performRequest(request));
     }
 
+    /**
+     * Build a REST client pinned to current-version nodes that support remote-fetch TopN.
+     * <p>
+     * Hosts are resolved from {@code GET /_nodes}, following the same live lookup pattern as the mixed-cluster
+     * csv-spec coordinator helpers. Among capable nodes, prefer ones that hold shard copies (stateful {@code data}
+     * nodes or stateless {@code index} tier nodes), mirroring the role split handled by
+     * {@link org.elasticsearch.xpack.esql.qa.rest.AllSupportedFieldsTestCase#supportsNodeAssignment()}.
+     * Search-only coordinators are kept as a fallback for stateless clusters whose sole current node is on the search tier.
+     */
     private RestClient currentNodeClient() throws IOException {
         ObjectPath nodes = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes")));
         Map<String, Object> nodesMap = nodes.evaluate("nodes");
-        List<HttpHost> currentNodes = new ArrayList<>();
+        List<HttpHost> preferred = new ArrayList<>();
+        List<HttpHost> fallback = new ArrayList<>();
         for (String id : nodesMap.keySet()) {
             TransportVersion transportVersion = getTransportVersionWithFallback(
                 nodes.evaluate("nodes." + id + ".version"),
                 nodes.evaluate("nodes." + id + ".transport_version"),
                 TransportVersion::minimumCompatible
             );
-            if (transportVersion.supports(REMOTE_FETCH_TOPN_TRANSPORT_VERSION)) {
-                currentNodes.add(HttpHost.create(nodes.evaluate("nodes." + id + ".http.publish_address")));
+            if (transportVersion.supports(REMOTE_FETCH_TOPN_TRANSPORT_VERSION) == false) {
+                continue;
+            }
+            HttpHost host = HttpHost.create(nodes.evaluate("nodes." + id + ".http.publish_address"));
+            List<?> roles = nodes.evaluate("nodes." + id + ".roles");
+            if (nodeHoldsShardCopies(roles)) {
+                preferred.add(host);
+            } else {
+                fallback.add(host);
             }
         }
-        if (currentNodes.isEmpty()) {
+        List<HttpHost> selected = preferred.isEmpty() ? fallback : preferred;
+        if (selected.isEmpty()) {
             throw new IllegalStateException("no nodes support remote-fetch TopN");
         }
-        return buildClient(restClientSettings(), currentNodes.toArray(HttpHost[]::new));
+        return buildClient(restClientSettings(), selected.toArray(HttpHost[]::new));
+    }
+
+    /**
+     * Whether a node is likely to host active shard copies for a freshly created index. Stateful data nodes qualify;
+     * stateless index-tier nodes hold {@code INDEX_ONLY} primaries; combined index+search nodes qualify as well.
+     */
+    private static boolean nodeHoldsShardCopies(List<?> roles) {
+        boolean hasData = false;
+        boolean hasIndex = false;
+        for (Object role : roles) {
+            String roleName = role.toString();
+            if ("data".equals(roleName)) {
+                hasData = true;
+            } else if ("index".equals(roleName)) {
+                hasIndex = true;
+            }
+        }
+        return hasData || hasIndex;
     }
 
     private static boolean containsRemoteFetchOperator(Object value) {

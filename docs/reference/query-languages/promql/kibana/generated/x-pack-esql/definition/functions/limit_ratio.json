@@ -1,0 +1,30 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "across_series_reduction",
+  "name" : "limit_ratio",
+  "description" : "Returns a ratio `r` of elements from the input vector in storage order, keeping their full label set.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "r",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Ratio value (0 ≤ r ≤ 1)."
+        },
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector input."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "limit_ratio(0.5, http_requests_total)"
+  ],
+  "snapshot_only" : false
+}

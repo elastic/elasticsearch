@@ -12,6 +12,7 @@ package org.elasticsearch.lucene.queries;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -29,8 +30,13 @@ public final class ScanningBinaryDocValuesPrefixQuery extends AbstractBinaryDocV
     private final String prefix;
     private final boolean caseInsensitive;
 
-    public ScanningBinaryDocValuesPrefixQuery(String fieldName, String prefix, boolean caseInsensitive, boolean arrayOrderInlineNull) {
-        super(fieldName, buildMatcher(Objects.requireNonNull(prefix), caseInsensitive), arrayOrderInlineNull);
+    public ScanningBinaryDocValuesPrefixQuery(
+        String fieldName,
+        String prefix,
+        boolean caseInsensitive,
+        BinaryDocValuesFormat binaryFormat
+    ) {
+        super(fieldName, buildMatcher(Objects.requireNonNull(prefix), caseInsensitive), binaryFormat);
         this.prefix = prefix;
         this.caseInsensitive = caseInsensitive;
     }
@@ -77,11 +83,14 @@ public final class ScanningBinaryDocValuesPrefixQuery extends AbstractBinaryDocV
             return false;
         }
         ScanningBinaryDocValuesPrefixQuery that = (ScanningBinaryDocValuesPrefixQuery) o;
-        return caseInsensitive == that.caseInsensitive && Objects.equals(fieldName, that.fieldName) && Objects.equals(prefix, that.prefix);
+        return caseInsensitive == that.caseInsensitive
+            && Objects.equals(fieldName, that.fieldName)
+            && Objects.equals(prefix, that.prefix)
+            && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, prefix, caseInsensitive);
+        return Objects.hash(classHash(), fieldName, prefix, caseInsensitive, binaryFormat);
     }
 }

@@ -122,6 +122,7 @@ public class SharedBlobCacheWarmingService {
         }
     }
 
+    static final String SEARCH_RECOVERY_LOG_FIELD_PREFIX = "elasticsearch.search_recovery.";
     public static final String BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC = "es.blob_cache_warming.page_aligned_bytes.total";
     public static final String BLOB_CACHE_WARMING_ID_LOOKUP_PREWARM_REQS_TOTAL_METRIC =
         "es.blob_cache_warming.id_lookup_prewarm_reqs.total";
@@ -807,8 +808,9 @@ public class SharedBlobCacheWarmingService {
         @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
         ActionListener<Void> resumeRecoveryListener
     ) {
-        SearchRecoveryTimeout plan = endTargetsToWarm != null
-            ? searchRecoveryTimeout(clusterState, indexShard, endTargetsToWarm)
+        final long totalBytesToWarm = totalBytesToWarm(endTargetsToWarm);
+        final SearchRecoveryTimeout plan = endTargetsToWarm != null
+            ? searchRecoveryTimeout(clusterState, indexShard, totalBytesToWarm)
             : SearchRecoveryTimeout.skip();
         if (plan.awaitWarming()) {
             assert endTargetsToWarm != null;
@@ -824,7 +826,7 @@ public class SharedBlobCacheWarmingService {
                     plan.timeoutContext(),
                     indexShard,
                     directory,
-                    sumBytesToWarm(endTargetsToWarm),
+                    totalBytesToWarm,
                     resumeRecoveryListener
                 )
             );
@@ -1014,13 +1016,12 @@ public class SharedBlobCacheWarmingService {
 
     /**
      * Total number of bytes that offline warming is going to fetch: each {@link WarmTarget#endOffset()} is the exclusive up-to offset of
-     * the prefix to warm in its blob. Reported by {@link #searchRecoveryWarmingListener} when warming times out, to distinguish a stalled
-     * object store from a shard that was simply too large to warm within the timeout.
-     *
-     * visible for testing
+     * the prefix to warm in its blob. Reported by {@link #searchRecoveryWarmingListener} when warming times out.
+     * <p>
+     * Visible for testing
      */
-    protected static long sumBytesToWarm(Map<BlobFile, WarmTarget> endTargetsToWarm) {
-        return endTargetsToWarm.values().stream().mapToLong(WarmTarget::endOffset).sum();
+    protected static long totalBytesToWarm(@Nullable Map<BlobFile, WarmTarget> endTargetsToWarm) {
+        return endTargetsToWarm == null ? 0L : endTargetsToWarm.values().stream().mapToLong(WarmTarget::endOffset).sum();
     }
 
     /**
@@ -1044,18 +1045,14 @@ public class SharedBlobCacheWarmingService {
      * a computed share when the source is shutting down. Non-relocation: wait only if another active search shard copy exists and there
      * is no cluster shutdown metadata, using {@link #SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING}.
      */
-    public SearchRecoveryTimeout searchRecoveryTimeout(
-        ClusterState state,
-        IndexShard indexShard,
-        Map<BlobFile, WarmTarget> endTargetsToWarm
-    ) {
+    public SearchRecoveryTimeout searchRecoveryTimeout(ClusterState state, IndexShard indexShard, long totalBytesToWarm) {
         final ShardRouting shardRouting = indexShard.routingEntry();
         assert shardRouting.isPromotableToPrimary() == false;
         if (isRelocationTarget(shardRouting)) {
             final String sourceNodeId = shardRouting.relocatingNodeId();
             assert sourceNodeId != null;
             if (state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceNodeId)) {
-                return computeRelocationSourceShutdownWarmingTimeout(state, sourceNodeId, shardRouting.currentNodeId(), endTargetsToWarm);
+                return computeRelocationSourceShutdownWarmingTimeout(state, sourceNodeId, shardRouting.currentNodeId(), totalBytesToWarm);
             }
             if (hasActiveShutdownForRemovalNodes(state)) {
                 return new SearchRecoveryTimeout(
@@ -1095,8 +1092,6 @@ public class SharedBlobCacheWarmingService {
     ) {
         assert timeout.millis() > 0;
         final long startedMillis = threadPool.relativeTimeInMillis();
-        // Baseline for the warming progress reported on timeout. This listener is built before warming is scheduled, so the delta only
-        // covers this warming run and excludes whatever the directory already warmed while reading the shard state.
         final long bytesWarmedAtStart = directory.totalBytesWarmedFromObjectStore();
         // First of the two events to complete `race` wins and decides the recorded outcome. The second event is discarded. Events:
         // - timeout: the scheduled task completes it with TIMEOUT
@@ -1133,12 +1128,12 @@ public class SharedBlobCacheWarmingService {
                             ByteSizeValue.ofBytes(dataSetSizeInBytes),
                             ByteSizeValue.ofBytes(bytesToWarm),
                             ByteSizeValue.ofBytes(bytesWarmed)
-                        ).field("elasticsearch.search_recovery.shard", indexShard.shardId().toString())
-                            .field("elasticsearch.search_recovery.warming_timeout_millis", timeout.millis())
-                            .field("elasticsearch.search_recovery.warming_timeout_context", context)
-                            .field("elasticsearch.search_recovery.data_set_size_in_bytes", dataSetSizeInBytes)
-                            .field("elasticsearch.search_recovery.bytes_to_warm", bytesToWarm)
-                            .field("elasticsearch.search_recovery.bytes_warmed", bytesWarmed)
+                        ).field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "shard", indexShard.shardId().toString())
+                            .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "warming_timeout_millis", timeout.millis())
+                            .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "warming_timeout_context", context)
+                            .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "data_set_size_bytes", dataSetSizeInBytes)
+                            .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "bytes_to_warm", bytesToWarm)
+                            .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "bytes_warmed", bytesWarmed)
                     );
                 }
                 recordSearchRecoveryWaitDuration(startedMillis, outcome);
@@ -1236,9 +1231,9 @@ public class SharedBlobCacheWarmingService {
      * <ol>
      *   <li><em>Equal-share</em>: {@code factor * (deadline - now) / shardsOnSource * relocationsFromSourceToTarget}, ensuring every
      *   shard on the shutting-down source gets a fair slice of the remaining grace period.</li>
-     *   <li><em>Data-volume-proportional</em> (only when {@code endTargetsToWarm} is non-null): the fraction of the node's warming
-     *   cache budget consumed by this shard's data multiplied by the remaining time, i.e.
-     *   {@code (totalBytesToWarm / (cacheSize * cacheRatio)) * remaining}.</li>
+     *   <li><em>Data-volume-proportional</em> (contributes only when {@code totalBytesToWarm} is greater than zero): the fraction of the
+     *   node's warming cache budget consumed by this shard's data multiplied by the remaining time,
+     *   i.e. {@code (totalBytesToWarm / (cacheSize * cacheRatio)) * remaining}.</li>
      * </ol>
      * with {@code deadline = start + min(metadata grace, cap)}.
      */
@@ -1246,7 +1241,7 @@ public class SharedBlobCacheWarmingService {
         ClusterState state,
         String sourceNodeId,
         String targetNodeId,
-        Map<BlobFile, WarmTarget> endTargetsToWarm
+        long totalBytesToWarm
     ) {
         final var shutdown = state.metadata().nodeShutdowns().get(sourceNodeId);
         assert shutdown != null;
@@ -1268,7 +1263,6 @@ public class SharedBlobCacheWarmingService {
         final double equalShareMs = (remaining / (double) shardsOnSource) * searchRecoveryWarmingSourceShutdownShareFactor;
 
         // Data-volume-proportional heuristic: scale remaining time by the fraction of the warming cache this shard occupies.
-        final long totalBytesToWarm = endTargetsToWarm.values().stream().mapToLong(WarmTarget::endOffset).sum();
         final long warmingCacheBytes = Math.round(cacheService.getCacheSize() * searchRecoveryWarmingCacheRatio);
         // TODO
         // We're looking at the "remaining" time, but not at the "remaining" bytes to populate.

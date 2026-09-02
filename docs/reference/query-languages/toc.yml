@@ -512,6 +512,7 @@ toc:
           - file: sql/sql-client-apps-microstrat.md
           - file: sql/sql-client-apps-qlik.md
           - file: sql/sql-client-apps-squirrel.md
+          - file: sql/sql-client-apps-superset.md
           - file: sql/sql-client-apps-workbench.md
           - file: sql/sql-client-apps-tableau-desktop.md
           - file: sql/sql-client-apps-tableau-server.md

@@ -1522,7 +1522,7 @@ public class Setting<T> implements ToXContentObject {
      * Creates a new setting instance for a {@link RatioValue}
      */
     public static Setting<RatioValue> ratioSetting(String key, RatioValue defaultValue, Property... properties) {
-        return new Setting<>(key, defaultValue.toString(), RatioValue::parseRatioValue, properties);
+        return new Setting<>(key, defaultValue.formatNoTrailingZerosPercent(), RatioValue::parseRatioValue, properties);
     }
 
     /**
@@ -1537,7 +1537,7 @@ public class Setting<T> implements ToXContentObject {
     ) {
         return new Setting<>(
             key,
-            defaultValue.toString(),
+            defaultValue.formatNoTrailingZerosPercent(),
             sValue -> RatioValue.parseRatioValue(sValue, minValueInclusive, maxValueInclusive),
             properties
         );

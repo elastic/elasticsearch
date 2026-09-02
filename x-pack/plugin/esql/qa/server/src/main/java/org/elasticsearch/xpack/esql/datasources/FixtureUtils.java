@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import net.jpountz.lz4.LZ4FrameOutputStream;
+
 import com.github.luben.zstd.ZstdOutputStream;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.xerial.snappy.SnappyFramedOutputStream;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -48,7 +51,7 @@ public class FixtureUtils {
     private static final String FIXTURES_RESOURCE_PATH_FOR_CLASS_LOADER = FIXTURES_RESOURCE_PATH.substring(1);
 
     /** Compressed extensions generated on the fly; skip loading from disk */
-    public static final Set<String> COMPRESSED_EXTENSIONS = Set.of(".gz", ".zst", ".zstd", ".bz2", ".bz");
+    public static final Set<String> COMPRESSED_EXTENSIONS = Set.of(".gz", ".zst", ".zstd", ".bz2", ".bz", ".lz4", ".snappy");
 
     /**
      * Iterate over all fixture entries in the iceberg-fixtures resource directory,
@@ -370,6 +373,25 @@ public class FixtureUtils {
             }
             case ".bz2", ".bz" -> {
                 try (BZip2CompressorOutputStream out = new BZip2CompressorOutputStream(baos)) {
+                    out.write(input);
+                }
+                yield baos.toByteArray();
+            }
+            case ".lz4" -> {
+                // Frame format, not raw blocks: the reader is Lz4DecompressionCodec, which decodes with
+                // lz4-java's LZ4FrameInputStream. A raw-block file would be a fixture that no shipped
+                // codec can read, which tests nothing.
+                try (LZ4FrameOutputStream out = new LZ4FrameOutputStream(baos)) {
+                    out.write(input);
+                }
+                yield baos.toByteArray();
+            }
+            case ".snappy" -> {
+                // Xerial/Google framing. SnappyDecompressionCodec accepts this AND Hadoop-framed snappy,
+                // sniffing the stream identifier to tell them apart; this writes the framing its javadoc
+                // names first. The Hadoop framing remains unwritten, so that arm of the sniff is still
+                // uncovered -- a narrower gap than the codec having no coverage at all.
+                try (SnappyFramedOutputStream out = new SnappyFramedOutputStream(baos)) {
                     out.write(input);
                 }
                 yield baos.toByteArray();

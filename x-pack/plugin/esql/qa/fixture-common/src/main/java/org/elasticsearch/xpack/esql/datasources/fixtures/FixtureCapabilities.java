@@ -41,7 +41,6 @@ public final class FixtureCapabilities {
         // Compressed variants of every text fixture are written at fixture-load time by
         // AbstractExternalSourceSpecTestCase.generateCompressedFixtures, so these bytes already exist for
         // all three text formats -- no generator work earned these rows, only the consumption that reads
-        // them. lz4 and snappy are absent because COMPRESSED_EXTENSIONS does not produce them yet.
         "text_codec=gzip@csv",
         "text_codec=gzip@tsv",
         "text_codec=gzip@ndjson",
@@ -51,6 +50,12 @@ public final class FixtureCapabilities {
         "text_codec=bzip2@csv",
         "text_codec=bzip2@tsv",
         "text_codec=bzip2@ndjson",
+        "text_codec=lz4@csv",
+        "text_codec=lz4@tsv",
+        "text_codec=lz4@ndjson",
+        "text_codec=snappy@csv",
+        "text_codec=snappy@tsv",
+        "text_codec=snappy@ndjson",
         // Dialect trees rendered by <Format>FixtureGenerator --vector-variants into vector/<slug>/, and
         // selected by AbstractExternalSourceSpecTestCase.fixturesBase. Both text generators now have a
         // vector mode and both are wired in esql-datasource-csv/qa, which hosts the Csv and Tsv suites

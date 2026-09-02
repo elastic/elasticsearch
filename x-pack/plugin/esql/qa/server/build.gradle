@@ -69,6 +69,11 @@ dependencies {
 
   // Compression libs for generating .gz, .zst, .bz2 fixtures on the fly
   implementation "com.github.luben:zstd-jni:${versions.zstdJni}"
+  // Writers for the lz4 and snappy fixture variants. The product READS both -- esql-datasource-lz4 and
+  // esql-datasource-snappy are shipping plugins -- so the codecs had no coverage only because nothing
+  // here could write them.
+  implementation project(':libs:lz4')
+  implementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
   implementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
 
   // OrcFixtureGenerator: ORC/Hadoop (separate from main to avoid jar hell)

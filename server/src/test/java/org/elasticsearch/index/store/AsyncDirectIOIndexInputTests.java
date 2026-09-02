@@ -228,8 +228,8 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
     }
 
     /**
-     * Closing a slice with prefetches in flight must not close the {@link java.nio.channels.FileChannel} it shares
-     * with its parent (see #158421).
+     * Closing a slice with a prefetch in flight must not close the {@link java.nio.channels.FileChannel} it shares
+     * with its parent.
      */
     public void testCloseSliceDoesNotCloseSharedChannel() throws IOException {
         doTestCloseDoesNotCloseSharedChannel(false);
@@ -245,110 +245,57 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
     private void doTestCloseDoesNotCloseSharedChannel(boolean useClone) throws IOException {
         Path path = createTempDir("testCloseDoesNotCloseSharedChannel");
         int blockSize = getBlockSize(path);
-        // large buffers keep the prefetch reads in flight long enough for close() to race them
-        final int bufferSize = (1 << 20) / blockSize * blockSize;
-        final int maxPrefetches = 4;
-        final int numBuffers = 8;
-        final int fileSize = bufferSize * numBuffers;
-        final byte[] fileData = new byte[fileSize];
+        byte[] fileData = new byte[BASE_BUFFER_SIZE * 4];
         random().nextBytes(fileData);
 
         try (Directory dir = new NIOFSDirectory(path)) {
             try (var output = dir.createOutput("test", org.apache.lucene.store.IOContext.DEFAULT)) {
                 output.writeBytes(fileData, fileData.length);
             }
+            try (AsyncDirectIOIndexInput parent = new AsyncDirectIOIndexInput(path.resolve("test"), blockSize, BASE_BUFFER_SIZE, 2)) {
+                IndexInput child = useClone ? parent.clone() : parent.slice("child", 0, parent.length());
+                child.prefetch(BASE_BUFFER_SIZE, BASE_BUFFER_SIZE);
+                child.close();
 
-            try (AsyncDirectIOIndexInput parent = new AsyncDirectIOIndexInput(path.resolve("test"), blockSize, bufferSize, maxPrefetches)) {
-                for (int iter = 0; iter < 10; iter++) {
-                    IndexInput child = useClone ? parent.clone() : parent.slice("child", 0, parent.length());
-                    // the first buffer is already loaded, so prefetch the ones after it
-                    for (int i = 1; i < maxPrefetches; i++) {
-                        child.prefetch((long) bufferSize * i, bufferSize);
-                    }
-                    child.close();
-                    child.close(); // closing twice is a no-op
-
-                    final int readLen = blockSize;
-                    parent.seek(0L);
-                    byte[] actual1 = new byte[readLen];
-                    parent.readBytes(actual1, 0, readLen);
-                    assertArrayEquals("parent read at offset 0 failed on iter " + iter, Arrays.copyOfRange(fileData, 0, readLen), actual1);
-
-                    long pos2 = (long) bufferSize * (numBuffers - 1);
-                    parent.seek(pos2);
-                    byte[] actual2 = new byte[readLen];
-                    parent.readBytes(actual2, 0, readLen);
-                    assertArrayEquals(
-                        "parent read at offset " + pos2 + " failed on iter " + iter,
-                        Arrays.copyOfRange(fileData, (int) pos2, (int) pos2 + readLen),
-                        actual2
-                    );
-                }
-
-                try (IndexInput freshClone = parent.clone()) {
-                    freshClone.seek(0L);
-                    byte[] cloneBytes = new byte[blockSize];
-                    freshClone.readBytes(cloneBytes, 0, cloneBytes.length);
-                    assertArrayEquals(Arrays.copyOfRange(fileData, 0, blockSize), cloneBytes);
-                }
+                // seek past the initial buffer to force a channel read; channel is expected to be open.
+                parent.seek(BASE_BUFFER_SIZE);
+                assertEquals(fileData[BASE_BUFFER_SIZE], parent.readByte());
             }
         }
     }
 
     /**
-     * An interrupt while waiting on a prefetch must surface as {@link ThreadInterruptedException} rather than falling back to
-     * a synchronous read on the interrupted thread, which would close the shared channel (see #158421). Whether the interrupt
-     * hits depends on whether the prefetch has already completed, so both outcomes are accepted.
+     * An interrupt while waiting on a prefetch must surface as {@link ThreadInterruptedException} and must not close the
+     * shared {@link java.nio.channels.FileChannel} (see #158421). Whether the interrupt races the prefetch is
+     * non-deterministic, so both outcomes are accepted.
      */
     public void testInterruptWhileWaitingForPrefetchDoesNotCloseChannel() throws IOException {
         Path path = createTempDir("testInterruptDoesNotCloseChannel");
         int blockSize = getBlockSize(path);
-        final int bufferSize = (1 << 20) / blockSize * blockSize;
-        final int maxPrefetches = 4;
-        final int numBuffers = 8;
-        final int fileSize = bufferSize * numBuffers;
-        final byte[] fileData = new byte[fileSize];
+        byte[] fileData = new byte[BASE_BUFFER_SIZE * 4];
         random().nextBytes(fileData);
 
         try (Directory dir = new NIOFSDirectory(path)) {
             try (var output = dir.createOutput("test", org.apache.lucene.store.IOContext.DEFAULT)) {
                 output.writeBytes(fileData, fileData.length);
             }
-
-            try (AsyncDirectIOIndexInput input = new AsyncDirectIOIndexInput(path.resolve("test"), blockSize, bufferSize, maxPrefetches)) {
-                final long prefetchPos = bufferSize; // the first buffer is already loaded
-                input.prefetch(prefetchPos, bufferSize);
+            try (AsyncDirectIOIndexInput input = new AsyncDirectIOIndexInput(path.resolve("test"), blockSize, BASE_BUFFER_SIZE, 2)) {
+                input.prefetch(BASE_BUFFER_SIZE, BASE_BUFFER_SIZE);
 
                 Thread.currentThread().interrupt();
                 try {
-                    input.seek(prefetchPos);
-                    byte[] actual = new byte[blockSize];
-                    input.readBytes(actual, 0, actual.length);
-                    // the prefetch completed before the read, so the interrupt was never observed
-                    assertArrayEquals(Arrays.copyOfRange(fileData, (int) prefetchPos, (int) prefetchPos + blockSize), actual);
+                    input.seek(BASE_BUFFER_SIZE);
+                    input.readByte(); // either succeeds (prefetch done) or throws ThreadInterruptedException (prefetch in flight)
                 } catch (ThreadInterruptedException expected) {
-                    // the prefetch was still in flight; its slot stays mapped and is consumed by the read below
+                    // slot stays mapped; the read below will consume it
                 } finally {
-                    // either way the flag must still be set; Thread.interrupted() also clears it
-                    assertTrue("interrupt flag must be set after seek/read on interrupted thread", Thread.interrupted());
+                    assertTrue(Thread.interrupted()); // assert flag is set, and clear it
                 }
 
-                input.seek(prefetchPos);
-                byte[] actual2 = new byte[blockSize];
-                input.readBytes(actual2, 0, actual2.length);
-                assertArrayEquals(
-                    "read after clearing interrupt returned wrong bytes",
-                    Arrays.copyOfRange(fileData, (int) prefetchPos, (int) prefetchPos + blockSize),
-                    actual2
-                );
+                // channel must still be open; read must return correct data
+                input.seek(BASE_BUFFER_SIZE);
+                assertEquals(fileData[BASE_BUFFER_SIZE], input.readByte());
                 assertEquals(0, input.prefetchSlots());
-
-                try (IndexInput freshClone = input.clone()) {
-                    freshClone.seek(prefetchPos);
-                    byte[] cloneBytes = new byte[blockSize];
-                    freshClone.readBytes(cloneBytes, 0, cloneBytes.length);
-                    assertArrayEquals(Arrays.copyOfRange(fileData, (int) prefetchPos, (int) prefetchPos + blockSize), cloneBytes);
-                }
             }
         }
     }

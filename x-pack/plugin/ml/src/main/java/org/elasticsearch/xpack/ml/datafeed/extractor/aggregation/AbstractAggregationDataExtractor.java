@@ -106,6 +106,7 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         if (aggregationToJsonProcessor == null) {
             InternalAggregations aggs = search();
             if (aggs == null) {
+                searchTelemetry.recordSearchResults(ExtractorType.AGGREGATION, 0, null);
                 hasNext = false;
                 return new Result(searchInterval, Optional.empty(), lastLinkedClusterStates);
             }
@@ -115,13 +116,13 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         outputStream.reset();
         // We can cancel immediately as we process whole date_histogram buckets at a time
         aggregationToJsonProcessor.writeAllDocsCancellable(_timestamp -> isCancelled, outputStream);
-        searchTelemetry.recordSearchResults(ExtractorType.AGGREGATION, aggregationToJsonProcessor.getKeyValueCount());
+        searchTelemetry.recordSearchResults(ExtractorType.AGGREGATION, aggregationToJsonProcessor.getWrittenDocumentCount(), null);
         // We process the whole search. So, if we are chunking or not, we have nothing more to process given the current query
         hasNext = false;
 
         return new Result(
             searchInterval,
-            aggregationToJsonProcessor.getKeyValueCount() > 0
+            aggregationToJsonProcessor.getWrittenDocumentCount() > 0
                 ? Optional.of(new ByteArrayInputStream(outputStream.toByteArray()))
                 : Optional.empty(),
             lastLinkedClusterStates

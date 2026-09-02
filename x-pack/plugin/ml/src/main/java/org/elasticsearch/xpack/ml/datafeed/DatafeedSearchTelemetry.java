@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -24,11 +26,12 @@ public final class DatafeedSearchTelemetry {
 
     public static final DatafeedSearchTelemetry NOOP = new DatafeedSearchTelemetry(MeterRegistry.NOOP);
 
-    public static final String RESULTS_METRIC = "es.ml.datafeeds.search.results.total";
+    public static final String RESPONSES_METRIC = "es.ml.datafeeds.search.responses.total";
     public static final String FULL_PAGE_METRIC = "es.ml.datafeeds.search.full_page.total";
 
-    static final String EXTRACTOR_TYPE_ATTRIBUTE = "extractor_type";
-    static final String RESULTS_BUCKET_ATTRIBUTE = "es_results_bucket";
+    public static final String EXTRACTOR_TYPE_ATTRIBUTE = "es_extractor_type";
+    public static final String RESULTS_BUCKET_ATTRIBUTE = "es_results_bucket";
+    public static final String PAGE_SIZE_BUCKET_ATTRIBUTE = "es_page_size_bucket";
 
     public enum ExtractorType {
         SCROLL("scroll"),
@@ -46,20 +49,36 @@ public final class DatafeedSearchTelemetry {
         }
     }
 
-    private final LongCounter searchResultsCounter;
+    public enum PageSizeBucket {
+        LT_1000("lt_1000"),
+        EQ_1000("eq_1000"),
+        GT_1000("gt_1000");
+
+        private final String attributeValue;
+
+        PageSizeBucket(String attributeValue) {
+            this.attributeValue = attributeValue;
+        }
+
+        public String attributeValue() {
+            return attributeValue;
+        }
+    }
+
+    private final LongCounter searchResponsesCounter;
     private final LongCounter fullPageCounter;
 
     public DatafeedSearchTelemetry(MeterRegistry meterRegistry) {
         Objects.requireNonNull(meterRegistry);
-        this.searchResultsCounter = meterRegistry.registerLongCounter(
-            RESULTS_METRIC,
-            "Count of datafeed searches by extractor type and result-size bucket.",
-            "searches"
+        this.searchResponsesCounter = meterRegistry.registerLongCounter(
+            RESPONSES_METRIC,
+            "Count of datafeed search responses by extractor type, result-size bucket, and page-size bucket.",
+            "responses"
         );
         this.fullPageCounter = meterRegistry.registerLongCounter(
             FULL_PAGE_METRIC,
-            "Count of datafeed searches that returned a full page of results (scroll/composite pagination pressure).",
-            "searches"
+            "Count of datafeed search responses that filled a page and were followed by another non-empty page.",
+            "responses"
         );
     }
 
@@ -73,15 +92,31 @@ public final class DatafeedSearchTelemetry {
         return ExtractorType.AGGREGATION;
     }
 
-    public void recordSearchResults(ExtractorType extractorType, long resultCount) {
-        searchResultsCounter.incrementBy(
-            1,
-            Map.of(EXTRACTOR_TYPE_ATTRIBUTE, extractorType.attributeValue(), RESULTS_BUCKET_ATTRIBUTE, resultsBucket(resultCount))
-        );
+    public static PageSizeBucket pageSizeBucket(int pageSize) {
+        if (pageSize < 1000) {
+            return PageSizeBucket.LT_1000;
+        }
+        if (pageSize == 1000) {
+            return PageSizeBucket.EQ_1000;
+        }
+        return PageSizeBucket.GT_1000;
     }
 
-    public void recordFullPage(ExtractorType extractorType) {
-        fullPageCounter.incrementBy(1, Map.of(EXTRACTOR_TYPE_ATTRIBUTE, extractorType.attributeValue()));
+    public void recordSearchResults(ExtractorType extractorType, long resultCount, @Nullable PageSizeBucket pageSizeBucket) {
+        Map<String, Object> attributes = new HashMap<>();
+        attributes.put(EXTRACTOR_TYPE_ATTRIBUTE, extractorType.attributeValue());
+        attributes.put(RESULTS_BUCKET_ATTRIBUTE, resultsBucket(resultCount));
+        if (pageSizeBucket != null) {
+            attributes.put(PAGE_SIZE_BUCKET_ATTRIBUTE, pageSizeBucket.attributeValue());
+        }
+        searchResponsesCounter.incrementBy(1, attributes);
+    }
+
+    public void recordFullPage(ExtractorType extractorType, PageSizeBucket pageSizeBucket) {
+        fullPageCounter.incrementBy(
+            1,
+            Map.of(EXTRACTOR_TYPE_ATTRIBUTE, extractorType.attributeValue(), PAGE_SIZE_BUCKET_ATTRIBUTE, pageSizeBucket.attributeValue())
+        );
     }
 
     static String resultsBucket(long resultCount) {

@@ -31,6 +31,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetryTestSupport;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.Term;
@@ -245,6 +247,78 @@ public class AggregationDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(false));
 
         verify(client).execute(eq(TransportSearchAction.TYPE), any());
+    }
+
+    public void testExtractionShouldRecordEmittedDocumentCountInTelemetry() throws IOException {
+        List<InternalHistogram.Bucket> histogramBuckets = Arrays.asList(
+            createHistogramBucket(
+                1000L,
+                3,
+                Arrays.asList(
+                    createMax("time", 1999),
+                    createTerms("airline", new Term("a", 1, "responsetime", 11.0), new Term("b", 2, "responsetime", 12.0))
+                )
+            ),
+            createHistogramBucket(2000L, 0, Collections.emptyList()),
+            createHistogramBucket(
+                3000L,
+                7,
+                Arrays.asList(
+                    createMax("time", 3999),
+                    createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0))
+                )
+            )
+        );
+
+        DatafeedSearchTelemetryTestSupport telemetrySupport = new DatafeedSearchTelemetryTestSupport();
+        AggregationDataExtractor extractor = new AggregationDataExtractor(
+            client,
+            createContext(1000L, 4000L),
+            timingStatsReporter,
+            telemetrySupport.telemetry
+        );
+
+        ActionFuture<SearchResponse> searchResponse = toActionFuture(createSearchResponse("time", histogramBuckets));
+        when(client.execute(eq(TransportSearchAction.TYPE), any())).thenReturn(searchResponse);
+
+        assertThat(extractor.hasNext(), is(true));
+        extractor.next();
+
+        verify(telemetrySupport.responsesCounter).incrementBy(
+            1,
+            Map.of(
+                DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE,
+                ExtractorType.AGGREGATION.attributeValue(),
+                DatafeedSearchTelemetry.RESULTS_BUCKET_ATTRIBUTE,
+                "1_99"
+            )
+        );
+    }
+
+    public void testExtractionGivenNullAggsShouldRecordZeroInTelemetry() throws IOException {
+        DatafeedSearchTelemetryTestSupport telemetrySupport = new DatafeedSearchTelemetryTestSupport();
+        AggregationDataExtractor extractor = new AggregationDataExtractor(
+            client,
+            createContext(1000L, 2000L),
+            timingStatsReporter,
+            telemetrySupport.telemetry
+        );
+
+        ActionFuture<SearchResponse> searchResponse = toActionFuture(createSearchResponse(null));
+        when(client.execute(eq(TransportSearchAction.TYPE), any())).thenReturn(searchResponse);
+
+        assertThat(extractor.hasNext(), is(true));
+        extractor.next();
+
+        verify(telemetrySupport.responsesCounter).incrementBy(
+            1,
+            Map.of(
+                DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE,
+                ExtractorType.AGGREGATION.attributeValue(),
+                DatafeedSearchTelemetry.RESULTS_BUCKET_ATTRIBUTE,
+                "0"
+            )
+        );
     }
 
     public void testExtractionGivenResponseHasMultipleTopLevelAggs() {

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.PageSizeBucket;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -63,6 +64,8 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     private volatile long nextBucketOnCancel;
     private boolean hasNext;
     private List<LinkedClusterState> lastLinkedClusterStates = List.of();
+    private boolean fullPagePending;
+    private final PageSizeBucket compositePageSizeBucket;
 
     CompositeAggregationDataExtractor(
         CompositeAggregationBuilder compositeAggregationBuilder,
@@ -80,6 +83,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         this.requestBuilder = Objects.requireNonNull(requestBuilder);
         this.interval = DatafeedConfigUtils.getHistogramIntervalMillis(compositeAggregationBuilder);
         this.hasNext = true;
+        this.compositePageSizeBucket = DatafeedSearchTelemetry.pageSizeBucket(compositeAggregationBuilder.size());
     }
 
     @Override
@@ -118,6 +122,8 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         InternalAggregations aggs = search();
         if (aggs == null) {
             LOGGER.trace("[{}] extraction finished", context.jobId);
+            searchTelemetry.recordSearchResults(ExtractorType.COMPOSITE, 0, compositePageSizeBucket);
+            fullPagePending = false;
             hasNext = false;
             afterKey = null;
             return new Result(searchInterval, Optional.empty(), lastLinkedClusterStates);
@@ -216,9 +222,8 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         aggregationToJsonProcessor.process(aggs);
         CompositeAggregation compositeAgg = aggs.get(compositeAggregationBuilder.getName());
         int bucketCount = compositeAgg.getBuckets().size();
-        searchTelemetry.recordSearchResults(ExtractorType.COMPOSITE, bucketCount);
-        if (bucketCount == compositeAggregationBuilder.size() && compositeAgg.afterKey() != null) {
-            searchTelemetry.recordFullPage(ExtractorType.COMPOSITE);
+        if (fullPagePending) {
+            searchTelemetry.recordFullPage(ExtractorType.COMPOSITE, compositePageSizeBucket);
         }
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         final Long afterKeyTimeBucket = afterKey != null ? (Long) afterKey.get(context.compositeAggDateHistogramGroupSourceName) : null;
@@ -251,6 +256,12 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             }
             return false;
         }, outputStream);
+        searchTelemetry.recordSearchResults(
+            ExtractorType.COMPOSITE,
+            aggregationToJsonProcessor.getWrittenDocumentCount(),
+            compositePageSizeBucket
+        );
+        fullPagePending = bucketCount == compositeAggregationBuilder.size();
         // If the process is canceled and cancelable, then we can indicate that there are no more buckets to process.
         if (isCancelled && cancellable) {
             LOGGER.debug(

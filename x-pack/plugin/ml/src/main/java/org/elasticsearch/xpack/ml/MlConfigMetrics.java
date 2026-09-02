@@ -219,7 +219,7 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
             observations.add(
                 new LongWithAttributes(
                     extractorTypeCounts.getOrDefault(extractorType, 0L),
-                    attributesWith("extractor_type", extractorType.attributeValue())
+                    attributesWith("es_extractor_type", extractorType.attributeValue())
                 )
             );
         }

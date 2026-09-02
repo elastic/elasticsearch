@@ -67,7 +67,7 @@ public final class HighlightQueryBuilders {
     /**
      * Checks that the expression contains only full-text functions supported by HIGHLIGHT.
      */
-    private static void verifyQueryStructure(Expression expr, List<String> onFields) {
+    private static void verifyQueryStructure(Expression expr, @Nullable List<String> onFields) {
         // TODO: Allow HIGHLIGHT queries to use expressions other than full-text functions.
         switch (expr) {
             case Match match -> requireOnField(fieldName(match.field()), onFields);
@@ -102,18 +102,18 @@ public final class HighlightQueryBuilders {
     }
 
     /**
-     * Verifies that a HIGHLIGHT query uses supported full-text forms, references its {@code onFields}, and translates
-     * with the {@code analyzer} that execution will use.
+     * Verifies that a HIGHLIGHT query uses supported full-text forms, references its {@code fields} (only when
+     * {@code enforceOnFields} is true), and translates with the {@code analyzer} that execution will use.
      */
-    public static void verify(Expression queryExpr, List<String> onFields, Analyzer analyzer) {
+    public static void verify(Expression queryExpr, List<String> fields, Analyzer analyzer, boolean enforceOnFields) {
         String literal = queryTextIfLiteral(queryExpr);
         // Pushdown accepts more expressions than the runtime context, so check the query shape first.
         if (literal == null) {
-            verifyQueryStructure(queryExpr, onFields);
+            verifyQueryStructure(queryExpr, enforceOnFields ? fields : null);
         }
         // Translate before planning to catch invalid options, syntax, and fields outside ON.
         try {
-            translate(queryExpr, onFields, runtimeContext(onFields, analyzer));
+            translate(queryExpr, fields, runtimeContext(fields, analyzer));
         } catch (RuntimeException e) {
             throw new IllegalArgumentException(
                 "Invalid query [" + (literal != null ? literal : queryExpr.sourceText()) + "] in HIGHLIGHT: " + e.getMessage(),
@@ -122,8 +122,8 @@ public final class HighlightQueryBuilders {
         }
     }
 
-    private static void requireOnField(String field, List<String> onFields) {
-        if (onFields.contains(field) == false) {
+    private static void requireOnField(String field, @Nullable List<String> onFields) {
+        if (onFields != null && onFields.contains(field) == false) {
             throw new IllegalArgumentException("HIGHLIGHT query field [" + field + "] is not in ON fields " + onFields);
         }
     }

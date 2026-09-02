@@ -773,19 +773,19 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
     }
 
     static final class LongLongPartitionedHashKeys implements PartitionedHashKeys {
-        final int[] lengths;
-        final long[][] subs;
+        final int[] partitionCounts;
+        final long[][] partitionKeys;
 
-        LongLongPartitionedHashKeys(CircuitBreaker breaker, int estimatePartitionSize) {
-            estimatePartitionSize = ArrayUtil.oversize(estimatePartitionSize, Long.BYTES * 2);
-            long usedBytes = (long) NUM_PARTITIONS * Integer.BYTES + (long) NUM_PARTITIONS * estimatePartitionSize * Long.BYTES * 2;
+        LongLongPartitionedHashKeys(CircuitBreaker breaker, int estimatePartitionCount) {
+            estimatePartitionCount = ArrayUtil.oversize(estimatePartitionCount, Long.BYTES * 2);
+            long usedBytes = (long) NUM_PARTITIONS * Integer.BYTES + (long) NUM_PARTITIONS * estimatePartitionCount * Long.BYTES * 2;
             breaker.addEstimateBytesAndMaybeBreak(usedBytes, "LongLongSwissHash#partition");
-            final long[][] subs = new long[NUM_PARTITIONS][];
+            final long[][] partitionKeys = new long[NUM_PARTITIONS][];
             for (int i = 0; i < NUM_PARTITIONS; i++) {
-                subs[i] = new long[estimatePartitionSize * 2];
+                partitionKeys[i] = new long[estimatePartitionCount * 2];
             }
-            this.subs = subs;
-            this.lengths = new int[NUM_PARTITIONS];
+            this.partitionKeys = partitionKeys;
+            this.partitionCounts = new int[NUM_PARTITIONS];
         }
 
         void splitKeys(CircuitBreaker breaker, byte[][] keyPages, int idOffset, short[] positions, int[] fills) {
@@ -795,9 +795,9 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
                 if (c == 0) {
                     continue;
                 }
-                int writeOffset = lengths[p] * 2;
+                int writeOffset = partitionCounts[p] * 2;
                 ensureCapacity(breaker, p, writeOffset + c * 2);
-                var sub = subs[p];
+                var sub = partitionKeys[p];
                 final int base = p * PARTITION_WRITE_BATCH;
                 for (int i = 0; i < c; i++) {
                     final int id = idOffset + (positions[base + i] & 0xFFFF);
@@ -813,7 +813,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
         }
 
         private void ensureCapacity(CircuitBreaker breaker, int p, int minLength) {
-            long[] sub = subs[p];
+            long[] sub = partitionKeys[p];
             final int currentLength = sub.length;
             if (currentLength >= minLength) {
                 return;
@@ -821,26 +821,26 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
             final int newLength = ArrayUtil.oversize(minLength, Long.BYTES);
             final long deltaBytes = (long) newLength * Long.BYTES;
             breaker.addEstimateBytesAndMaybeBreak(deltaBytes, "LongLongSwissHash#partition");
-            subs[p] = Arrays.copyOf(sub, newLength);
+            partitionKeys[p] = Arrays.copyOf(sub, newLength);
             breaker.addWithoutBreaking(-(long) currentLength * Long.BYTES);
         }
 
         @Override
         public void releasePartition(CircuitBreaker breaker, int partition) {
-            long bytes = (long) subs[partition].length * Long.BYTES;
-            subs[partition] = null;
+            long bytes = (long) partitionKeys[partition].length * Long.BYTES;
+            partitionKeys[partition] = null;
             breaker.addWithoutBreaking(-bytes);
         }
 
         @Override
         public int keysInPartition(int partition) {
-            return lengths[partition];
+            return partitionCounts[partition];
         }
 
         @Override
         public void releaseAll(CircuitBreaker breaker) {
             long bytes = (long) NUM_PARTITIONS * Integer.BYTES;
-            for (long[] sub : subs) {
+            for (long[] sub : partitionKeys) {
                 if (sub != null) {
                     bytes += (long) sub.length * Long.BYTES;
                 }
@@ -851,14 +851,14 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
 
     @Override
     public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
-        final int[] partitionCounts = new int[NUM_PARTITIONS];
+        final int[] batchPartitionCounts = new int[NUM_PARTITIONS];
         final short[] shiftedIds = new short[PARTITION_WRITE_BATCH * NUM_PARTITIONS];
         int batchStart = 0;
         int pageIndex = 0;
         byte[] keyPage = keyPages[0];
         int indexInPage = 0;
         var partitionedKeys = new LongLongPartitionedHashKeys(breaker, Math.max(Math.ceilDiv(size, NUM_PARTITIONS), 1));
-        final int[] partitionOffsets = partitionedKeys.lengths;
+        final int[] partitionOffsets = partitionedKeys.partitionCounts;
         boolean success = false;
         try {
             for (int id = 0; id < size; id++) {
@@ -871,23 +871,23 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
                 indexInPage += KEY_SIZE;
                 final long hash64 = hash(key1, key2);
                 final int p = partition(hash64);
-                if (partitionCounts[p] == PARTITION_WRITE_BATCH) {
-                    partitionedKeys.splitKeys(breaker, keyPages, batchStart, shiftedIds, partitionCounts);
-                    partitionSplitter.split(batchStart, shiftedIds, id - batchStart, partitionCounts, partitionOffsets);
+                if (batchPartitionCounts[p] == PARTITION_WRITE_BATCH) {
+                    partitionedKeys.splitKeys(breaker, keyPages, batchStart, shiftedIds, batchPartitionCounts);
+                    partitionSplitter.split(batchStart, shiftedIds, id - batchStart, batchPartitionCounts, partitionOffsets);
                     for (int i = 0; i < NUM_PARTITIONS; i++) {
-                        partitionOffsets[i] += partitionCounts[i];
+                        partitionOffsets[i] += batchPartitionCounts[i];
                     }
                     batchStart = id;
-                    Arrays.fill(partitionCounts, 0);
+                    Arrays.fill(batchPartitionCounts, 0);
                 }
-                int c = partitionCounts[p]++;
+                int c = batchPartitionCounts[p]++;
                 assert id - batchStart <= Short.MAX_VALUE : id - batchStart;
                 shiftedIds[p * PARTITION_WRITE_BATCH + c] = (short) (id - batchStart);
             }
-            partitionedKeys.splitKeys(breaker, keyPages, batchStart, shiftedIds, partitionCounts);
-            partitionSplitter.split(batchStart, shiftedIds, size - batchStart, partitionCounts, partitionOffsets);
+            partitionedKeys.splitKeys(breaker, keyPages, batchStart, shiftedIds, batchPartitionCounts);
+            partitionSplitter.split(batchStart, shiftedIds, size - batchStart, batchPartitionCounts, partitionOffsets);
             for (int i = 0; i < NUM_PARTITIONS; i++) {
-                partitionOffsets[i] += partitionCounts[i];
+                partitionOffsets[i] += batchPartitionCounts[i];
             }
             success = true;
         } finally {
@@ -902,15 +902,15 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
     public boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
         Objects.requireNonNull(resultIds);
         final LongLongPartitionedHashKeys subKeys = (LongLongPartitionedHashKeys) keys;
-        assert subKeys.subs[partitionIndex] != null : "partition [" + partitionIndex + "] was already released";
+        assert subKeys.partitionKeys[partitionIndex] != null : "partition [" + partitionIndex + "] was already released";
         final int keysInPartition = subKeys.keysInPartition(partitionIndex);
         assert keysInPartition <= resultIds.length : keysInPartition + " > " + resultIds.length;
         final int needed = Math.addExact(size, keysInPartition);
         ensureCapacity(needed);
         if (smallCore != null) {
-            return smallCore.mergeKeys(subKeys.subs[partitionIndex], resultIds, keysInPartition);
+            return smallCore.mergeKeys(subKeys.partitionKeys[partitionIndex], resultIds, keysInPartition);
         } else {
-            return bigCore.mergeKeys(subKeys.subs[partitionIndex], resultIds, keysInPartition);
+            return bigCore.mergeKeys(subKeys.partitionKeys[partitionIndex], resultIds, keysInPartition);
         }
     }
 

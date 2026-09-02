@@ -139,7 +139,7 @@ public class LongLongSwissHashBenchmark {
 
     static final PartitionedHashTable.PartitionSplitter NOOP_SPLITTER = new PartitionedHashTable.PartitionSplitter() {
         @Override
-        public void split(int firstId, short[] shiftedIds, int batchSize, int[] partitionCounts, int[] partitionOffsets) {
+        public void split(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
 
         }
 

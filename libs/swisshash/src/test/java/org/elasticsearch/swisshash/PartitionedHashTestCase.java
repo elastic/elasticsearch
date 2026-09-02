@@ -117,10 +117,10 @@ public abstract class PartitionedHashTestCase extends ESTestCase {
         PartitionedHashTable.PartitionSplitter splitter(CircuitBreaker breaker, PartitionedSum out) {
             return new PartitionedHashTable.PartitionSplitter() {
                 @Override
-                public void split(int firstId, short[] shiftedIds, int batchSize, int[] partitionCounts, int[] partitionOffsets) {
+                public void split(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
                     int[] src = sums;
-                    for (int p = 0; p < partitionCounts.length; p++) {
-                        int c = partitionCounts[p];
+                    for (int p = 0; p < batchPartitionCounts.length; p++) {
+                        int c = batchPartitionCounts[p];
                         if (c == 0) {
                             continue;
                         }

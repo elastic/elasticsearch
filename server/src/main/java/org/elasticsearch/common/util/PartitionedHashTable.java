@@ -81,16 +81,16 @@ public interface PartitionedHashTable {
      */
     interface PartitionSplitter {
         /**
-         * @param firstId          the id of the first key in this batch; the absolute id of an entry is
-         *                         {@code firstId + shiftedIds[i]}
-         * @param shiftedIds       the ids of the keys, relative to {@code firstId}; partition {@code p}'s ids are at
-         *                         {@code [p * PARTITION_WRITE_BATCH, p * PARTITION_WRITE_BATCH + partitionCounts[p])}
-         * @param batchSize        the total number of ids in this batch
-         * @param partitionCounts  the number of this batch's ids that fall into each partition
-         * @param partitionOffsets the number of ids each partition received in previous batches, i.e. the position
-         *                         within the partition where this batch's entries start
+         * @param firstId              the id of the first key in this batch; the absolute id of an entry is
+         *                             {@code firstId + shiftedIds[i]}
+         * @param shiftedIds           the ids of the keys, relative to {@code firstId}; partition {@code p}'s ids are at
+         *                             {@code [p * PARTITION_WRITE_BATCH, p * PARTITION_WRITE_BATCH + partitionCounts[p])}
+         * @param batchSize            the total number of ids in this batch
+         * @param batchPartitionCounts the number of this batch's ids that fall into each partition
+         * @param partitionOffsets     the number of ids each partition received in previous batches, i.e. the position
+         *                             within the partition where this batch's entries start
          */
-        void split(int firstId, short[] shiftedIds, int batchSize, int[] partitionCounts, int[] partitionOffsets);
+        void split(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets);
 
         /**
          * Releases the state held by this splitter.

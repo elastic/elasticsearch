@@ -117,7 +117,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         StorageObject raw = DrainSimulatingStorageObject.create(data, tracking);
         StorageObject failing = incompleteWindowStorage(raw);
 
-        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(failing, breaker);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(failing, footerByteCache, breaker);
         try (SeekableInputStream stream = adapter.newStream()) {
             expectThrows(IOException.class, () -> stream.readFully(new byte[1024]));
         }
@@ -140,7 +140,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject storage = DrainSimulatingStorageObject.create(data, tracking);
 
-        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, breaker);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, footerByteCache, breaker);
         try (SeekableInputStream stream = adapter.newStream()) {
             byte[] buf = new byte[1024];
             stream.readFully(buf);

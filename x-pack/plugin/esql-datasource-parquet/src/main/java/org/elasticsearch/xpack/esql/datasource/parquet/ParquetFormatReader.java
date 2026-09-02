@@ -462,7 +462,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 optimizedReader,
                 dynamicThreshold,
                 declaredDateFormats,
-                declaredTypeColumns
+                declaredTypeColumns,
+                footerBytes,
+                parsedFooters
             );
         }
         if (pushedFilter instanceof FilterCompat.Filter filter) {

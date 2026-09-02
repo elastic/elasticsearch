@@ -237,7 +237,16 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             if (this.pushedFilter == null && this.pushedExpressions == null) {
                 return this;
             }
-            return new OrcFormatReader(blockFactory, null, null, dynamicThreshold, declaredDateFormats, declaredTypeColumns);
+            return new OrcFormatReader(
+                blockFactory,
+                null,
+                null,
+                dynamicThreshold,
+                declaredDateFormats,
+                declaredTypeColumns,
+                parsedFooters,
+                footerBytes
+            );
         }
         if (pushedFilter instanceof SearchArgument sarg) {
             return new OrcFormatReader(

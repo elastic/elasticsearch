@@ -547,14 +547,20 @@ public class Verifier {
     /**
      * Neither loading mode yet supports PROMQL. This is checked separately from
      * {@link #checkLoadAllModeSupportedCommands}, which the PROMQL command escapes: it is rewritten into a {@code TS} before
-     * verification runs, so only its {@link TimeSeriesAggregate.Origin} still tells the two apart.
+     * verification runs, so only its {@link TimeSeriesAggregate.Origin} still tells the two apart. The command is gone
+     * by then and can translate to several time-series pipelines (one per vector-match operand), so report only the
+     * first PROMQL-origin aggregate rather than one failure per pipeline.
      */
     private static void checkLoadModeDisallowedCommands(LogicalPlan plan, Failures failures, UnmappedResolution unmappedResolution) {
-        plan.forEachDown(p -> {
-            if (p instanceof TimeSeriesAggregate ts && ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND) {
-                failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"{}\"", unmappedResolution.settingValue()));
+        var promql = new Holder<TimeSeriesAggregate>();
+        plan.forEachDown(TimeSeriesAggregate.class, ts -> {
+            if (ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND && promql.get() == null) {
+                promql.set(ts);
             }
         });
+        if (promql.get() != null) {
+            failures.add(fail(promql.get(), "PROMQL is not supported with unmapped_fields=\"{}\"", unmappedResolution.settingValue()));
+        }
     }
 
     /**

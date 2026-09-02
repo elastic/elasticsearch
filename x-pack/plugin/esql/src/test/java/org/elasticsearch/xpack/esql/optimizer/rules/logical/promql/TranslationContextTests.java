@@ -22,6 +22,7 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.Transl
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.newOpen;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -72,6 +73,14 @@ public class TranslationContextTests extends ESTestCase {
 
         assertThat(retained.labels(), contains("cluster"));
         assertThat(retained.skips(), contains(Set.of("pod")));
+    }
+
+    public void testFinitePartDropsSkipSets() {
+        Header header = newFinite(List.of("cluster")).union(newOpen());
+
+        assertThat(header.finitePart().labels(), contains("cluster"));
+        assertThat(header.finitePart().skips(), empty());
+        assertThat(newOpen().finitePart(), equalTo(Header.EMPTY));
     }
 
     public void testPackedNameDerivesFromTheSkipSet() {

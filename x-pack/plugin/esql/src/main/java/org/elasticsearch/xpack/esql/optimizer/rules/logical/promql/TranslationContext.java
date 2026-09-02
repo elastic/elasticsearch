@@ -96,6 +96,11 @@ public final class TranslationContext {
             return new Header(retained, skips);
         }
 
+        /** The labels only; a finite table such as a join result cannot carry packed columns. */
+        public Header finitePart() {
+            return new Header(labels, Set.of());
+        }
+
         /** The smallest skip set: the packed column fixing this table's grain; null when the table is unpacked. */
         public Set<String> finestSkip() {
             return skips.stream().min(Comparator.comparingInt(Set::size)).orElse(null);

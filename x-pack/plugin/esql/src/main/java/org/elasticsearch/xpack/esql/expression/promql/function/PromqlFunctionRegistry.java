@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Changes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Delta;
@@ -85,6 +86,7 @@ public class PromqlFunctionRegistry {
         //
         Delta.PROMQL_DEFINITION,
         Idelta.PROMQL_DEFINITION,
+        Changes.PROMQL_DEFINITION,
         Increase.PROMQL_DEFINITION,
         Irate.PROMQL_DEFINITION,
         Rate.PROMQL_DEFINITION,
@@ -191,7 +193,6 @@ public class PromqlFunctionRegistry {
         "group",
         "count_values",
         // Range vector functions (not yet implemented)
-        "changes",
         // Prometheus 3.x replacement for holt_winters; requires smoothing factors applied over a range vector.
         "double_exponential_smoothing",
         "holt_winters",

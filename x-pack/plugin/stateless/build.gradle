@@ -4,7 +4,6 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.stateless'
-apply plugin: 'elasticsearch.foreign-api'
 
 
 esplugin {
@@ -51,6 +50,12 @@ dependencies {
   internalClusterTestImplementation project(':x-pack:plugin:encryption')
   internalClusterTestImplementation project(':x-pack:plugin:encryption:spi')
   internalClusterTestImplementation 'com.google.cloud:google-cloud-storage:2.71.0'
+  // google-cloud-storage signatures carry checker-framework @NonNull annotations on Guava types
+  // (e.g. ImmutableMap). JDK 25 javac resolves both the annotation type and the annotated Guava
+  // type when compiling calls into the mocked GCS Storage API, so both must be on the
+  // internalClusterTest compile classpath (Guava is already present transitively at runtime).
+  internalClusterTestCompileOnly 'org.checkerframework:checker-qual:3.49.0'
+  internalClusterTestCompileOnly 'com.google.guava:guava:33.6.0-jre'
 
   javaRestTestImplementation project(':x-pack:test:stateless-test-framework')
   yamlRestTestImplementation project(':x-pack:test:stateless-test-framework')

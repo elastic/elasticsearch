@@ -38,8 +38,8 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Arena;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Charset;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayoutPathElement;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayoutVarHandles;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegment;
-import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegmentAdapter;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Object;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_String;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_StructLayout;
@@ -174,9 +174,9 @@ final class StructImplWriter {
                 clinit.invokestatic(CD_MemoryLayoutPathElement, "groupElement", MTD_groupElement, true);
                 if (field instanceof InlineArrayFieldModel) {
                     clinit.invokestatic(CD_MemoryLayoutPathElement, "sequenceElement", MTD_sequenceElement, true);
-                    clinit.invokestatic(CD_MemorySegmentAdapter, "varHandleSequenceWithoutOffset", MTD_varHandleSequenceWithoutOffset);
+                    clinit.invokestatic(CD_MemoryLayoutVarHandles, "varHandleSequenceWithoutOffset", MTD_varHandleSequenceWithoutOffset);
                 } else {
-                    clinit.invokestatic(CD_MemorySegmentAdapter, "varHandleWithoutOffset", MTD_varHandleWithoutOffset);
+                    clinit.invokestatic(CD_MemoryLayoutVarHandles, "varHandleWithoutOffset", MTD_varHandleWithoutOffset);
                 }
                 clinit.putstatic(structImplDesc, varHandleFieldName(field), CD_VarHandle);
             }
@@ -418,8 +418,8 @@ final class StructImplWriter {
     }
 
     /**
-     * Emits a getter for an inline string field: {@code return MemorySegmentAdapter.getString(segment, fieldOffset);}
-     * for a narrow (UTF-8) field, or the charset-aware overload with {@code StandardCharsets.UTF_16LE} when
+     * Emits a getter for an inline string field: {@code return segment.getString(fieldOffset);} for a narrow
+     * (UTF-8) field, or the charset-aware overload with {@code StandardCharsets.UTF_16LE} when
      * {@link InlineStringFieldModel#wide()}.
      */
     private static void emitInlineStringFieldGetter(
@@ -436,17 +436,9 @@ final class StructImplWriter {
             emitInlineStringOffset(code, structImplDesc, field, perPlatform, singleLayout);
             if (field.wide()) {
                 emitPushUtf16LEConstant(code);
-                code.invokestatic(
-                    CD_MemorySegmentAdapter,
-                    "getString",
-                    MethodTypeDesc.of(CD_String, CD_MemorySegment, ClassDesc.ofDescriptor("J"), CD_Charset)
-                );
+                code.invokeinterface(CD_MemorySegment, "getString", MethodTypeDesc.of(CD_String, CD_long, CD_Charset));
             } else {
-                code.invokestatic(
-                    CD_MemorySegmentAdapter,
-                    "getString",
-                    MethodTypeDesc.of(CD_String, CD_MemorySegment, ClassDesc.ofDescriptor("J"))
-                );
+                code.invokeinterface(CD_MemorySegment, "getString", MethodTypeDesc.of(CD_String, CD_long));
             }
             code.areturn();
         });
@@ -454,9 +446,8 @@ final class StructImplWriter {
 
     /**
      * Emits a setter for an inline string field:
-     * {@code void name(String v) { MemorySegmentAdapter.setString(segment, fieldOffset, v); }} for a narrow
-     * (UTF-8) field, or the charset-aware overload with {@code StandardCharsets.UTF_16LE} when
-     * {@link InlineStringFieldModel#wide()}.
+     * {@code void name(String v) { segment.setString(fieldOffset, v); }} for a narrow (UTF-8) field, or the
+     * charset-aware overload with {@code StandardCharsets.UTF_16LE} when {@link InlineStringFieldModel#wide()}.
      */
     private static void emitInlineStringFieldSetter(
         ClassBuilder cb,
@@ -473,17 +464,9 @@ final class StructImplWriter {
             code.aload(1);
             if (field.wide()) {
                 emitPushUtf16LEConstant(code);
-                code.invokestatic(
-                    CD_MemorySegmentAdapter,
-                    "setString",
-                    MethodTypeDesc.of(CD_void, CD_MemorySegment, ClassDesc.ofDescriptor("J"), CD_String, CD_Charset)
-                );
+                code.invokeinterface(CD_MemorySegment, "setString", MethodTypeDesc.of(CD_void, CD_long, CD_String, CD_Charset));
             } else {
-                code.invokestatic(
-                    CD_MemorySegmentAdapter,
-                    "setString",
-                    MethodTypeDesc.of(CD_void, CD_MemorySegment, ClassDesc.ofDescriptor("J"), CD_String)
-                );
+                code.invokeinterface(CD_MemorySegment, "setString", MethodTypeDesc.of(CD_void, CD_long, CD_String));
             }
             code.return_();
         });

@@ -1147,6 +1147,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
     // Verifies withMemorySegmentSlices returns correct data for multiple ranges within a single region.
     // Uses mmap-backed cache with 10 regions; file fits within a single region.
+    @SuppressWarnings("restricted") // MemorySegment.reinterpret is a restricted method; used to read back mapped slice contents.
     public void testWithMemorySegmentSlices() throws IOException {
         final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 64)));
         final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 10);
@@ -1211,6 +1212,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
     // Verifies withMemorySegmentSlices on a sliced BlobCacheIndexInput correctly translates offsets
     // by adding this.offset. Uses doSlice to bypass the buffer-based fast path.
+    @SuppressWarnings("restricted") // MemorySegment.reinterpret is a restricted method; used to read back mapped slice contents.
     public void testWithMemorySegmentSlicesOnSlice() throws IOException {
         final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 64)));
         final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 10);
@@ -1329,6 +1331,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
     // Verifies withMemorySegmentSlices returns false after the backing region has been evicted.
     // Uses a small mmap-backed cache with only 3 regions; populating additional files forces
     // eviction of file A's region.
+    @SuppressWarnings("restricted") // MemorySegment.reinterpret is a restricted method; used to read back mapped slice contents.
     public void testWithMemorySegmentSlicesReturnsFalseAfterEviction() throws IOException {
         // Decay runs in the background, so we want it to complete before populating the cache with the next file
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();

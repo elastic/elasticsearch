@@ -29,6 +29,14 @@ tasks.named("dependencyLicenses").configure {
 tasks.named('forbiddenApisMain').configure {
   enabled = false
 }
+
+// google-cloud-storage signatures carry checker-framework @NonNull type annotations on Guava types, and JDK 25
+// javac requires those classes on the compile classpath to attach the annotations. This module still must not
+// use Guava directly.
+forbiddenDependencies {
+  allowedGroups = ['com.google.guava']
+}
+
 repositories {
   mavenLocal()
   maven {
@@ -43,8 +51,16 @@ dependencies {
   implementation 'com.google.cloud:google-cloud-storage:2.71.0'
   implementation 'com.google.cloud:google-cloud-core:2.73.0'
   implementation 'com.google.cloud:google-cloud-core-http:2.73.0'
-  runtimeOnly 'com.google.guava:guava:33.6.0-jre'
-  runtimeOnly 'com.google.guava:failureaccess:1.0.3'
+  // google-cloud-storage exposes methods whose signatures carry checker-framework @NonNull type annotations on
+  // Guava types (ImmutableMap/ImmutableSet). JDK 25 javac needs those classes on the compile classpath to attach
+  // the annotations, so Guava is a normal compile+runtime dependency here rather than compileOnly. The Guava
+  // compile-classpath ban is relaxed for this module via the forbiddenDependencies block below; our own code must
+  // not use Guava. Keeping it off the compileOnly configuration lets dependencyLicenses still account for its license.
+  implementation 'com.google.guava:guava:33.6.0-jre'
+  // This project is modular, so Guava is resolved on the module path. Its module-info declares
+  // "requires com.google.common.util.concurrent.internal", which failureaccess provides, so
+  // failureaccess must be on the compile classpath too or the module graph fails to resolve.
+  implementation 'com.google.guava:failureaccess:1.0.3'
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}" // 2.0.16 in bom
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}" // 1.18.0 in bom
   implementation 'com.google.api:api-common:2.66.0'

@@ -9,7 +9,6 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 // Chunk decompression hands libzstd a MemorySegment view of the mapped file (java.lang.foreign).
-apply plugin: 'elasticsearch.foreign-api'
 
 dependencies {
   api "org.apache.lucene:lucene-core:${versions.lucene}"

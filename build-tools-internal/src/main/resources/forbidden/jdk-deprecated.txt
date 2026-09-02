@@ -7,6 +7,9 @@
 # $ ant generate-deprecated
 
 # This file contains all public, deprecated API signatures in Java version 17 (extracted from build 17).
+# A few entries that were present in Java 17 have since been removed from the JDK (e.g. Thread#countStackFrames,
+# ThreadGroup#suspend/resume/stop, java.lang.Compiler). They are dropped here because forbidden-apis fails to parse
+# signatures for members that no longer exist on the JDK 25 baseline, and code can no longer reference them anyway.
 
 @ignoreMissingClasses
 @defaultMessage Deprecated in Java 17
@@ -182,7 +185,6 @@ java.lang.Character$UnicodeBlock#SURROGATES_AREA
 java.lang.Class#newInstance()
 java.lang.ClassLoader#defineClass(byte[],int,int)
 java.lang.ClassLoader#getPackage(java.lang.String)
-java.lang.Compiler
 java.lang.Double#<init>(double)
 java.lang.Double#<init>(java.lang.String)
 java.lang.Float#<init>(double)
@@ -206,18 +208,12 @@ java.lang.String#getBytes(int,int,byte[],int)
 # java.lang.System#getSecurityManager()
 # java.lang.System#setSecurityManager(java.lang.SecurityManager)
 java.lang.Thread#checkAccess()
-java.lang.Thread#countStackFrames()
-java.lang.Thread#resume()
 java.lang.Thread#stop()
-java.lang.Thread#suspend()
 java.lang.ThreadGroup#checkAccess()
 java.lang.ThreadGroup#destroy()
 java.lang.ThreadGroup#isDaemon()
 java.lang.ThreadGroup#isDestroyed()
-java.lang.ThreadGroup#resume()
 java.lang.ThreadGroup#setDaemon(boolean)
-java.lang.ThreadGroup#stop()
-java.lang.ThreadGroup#suspend()
 java.lang.invoke.MethodHandles$Lookup#hasPrivateAccess()
 java.lang.ref.Reference#isEnqueued()
 java.lang.reflect.AccessibleObject#<init>()
@@ -466,8 +462,6 @@ javax.management.monitor.StringMonitorMBean#getDerivedGauge()
 javax.management.monitor.StringMonitorMBean#getDerivedGaugeTimeStamp()
 javax.management.openmbean.OpenType#ALLOWED_CLASSNAMES
 javax.management.relation.RoleStatus#<init>()
-javax.management.remote.rmi.RMIIIOPServerImpl
-javax.naming.Context#APPLET
 javax.naming.Name#serialVersionUID
 javax.naming.directory.Attribute#serialVersionUID
 javax.net.ssl.HandshakeCompletedEvent#getPeerCertificateChain()

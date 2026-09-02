@@ -21,4 +21,9 @@ module org.elasticsearch.test.knn {
     requires org.apache.lucene.misc;
     requires org.elasticsearch.gpu;
     requires google.cloud.storage;
+    // google-cloud-storage method signatures carry checker-framework @NonNull type annotations on Guava types. JDK 25
+    // javac must read both the annotation classes and the annotated Guava types to compile against the library, so
+    // the module needs them at compile time only.
+    requires static org.checkerframework.checker.qual;
+    requires static com.google.common;
 }

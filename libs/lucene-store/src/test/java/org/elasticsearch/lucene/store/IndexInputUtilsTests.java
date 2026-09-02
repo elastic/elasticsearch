@@ -237,6 +237,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("restricted") // MemorySegment.reinterpret is a restricted method; used to read back mapped slice contents.
     private void verifyWithSliceAddresses(IndexInput in, byte[] expectedData, int sliceLen) throws IOException {
         int count = 4;
         long[] offsets = new long[count];

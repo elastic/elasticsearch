@@ -413,6 +413,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
         assertThat(invoked.get(), equalTo(expectAvailable));
     }
 
+    @SuppressWarnings("restricted") // MemorySegment.reinterpret is a restricted method; used to read back zero-copy mapped contents.
     private static void assertRangeAddresses(MemorySegment addresses, byte[] expected, long[] offsets) {
         for (int i = 0; i < offsets.length; i++) {
             var address = addresses.getAtIndex(ValueLayout.ADDRESS, i);

@@ -7,15 +7,28 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import org.gradle.api.provider.ListProperty
+
 // we do not want any of these dependencies on the compilation classpath
 // because they could then be used within Elasticsearch
 List<String> FORBIDDEN_DEPENDENCY_GROUPS = [
   'com.google.guava'
 ]
 
-Closure checkDeps = { Configuration configuration ->
+// A project can relax the ban for specific groups via its own build.gradle:
+//   forbiddenDependencies {
+//     allowedGroups = ['com.google.guava']
+//   }
+// This is only needed in the rare case where a third-party API forces a forbidden
+// group onto the compile classpath (e.g. checker-framework @NonNull annotations on
+// Guava types in google-cloud-storage signatures under JDK 25 javac).
+abstract class ForbiddenDependenciesExtension {
+  abstract ListProperty<String> getAllowedGroups()
+}
+
+Closure checkDeps = { Configuration configuration, ListProperty<String> allowedGroups ->
   configuration.resolutionStrategy.eachDependency {
-    if (FORBIDDEN_DEPENDENCY_GROUPS.contains(it.target.group)) {
+    if (FORBIDDEN_DEPENDENCY_GROUPS.contains(it.target.group) && allowedGroups.get().contains(it.target.group) == false) {
       throw new GradleException("Dependency '${it.target.group}:${it.target.name}' on configuration '${configuration.name}' is not allowed. " +
         "If it is needed as a transitive dependency, try adding it to the runtime classpath")
     }
@@ -28,7 +41,9 @@ subprojects {
     return
   }
   pluginManager.withPlugin('java') {
-    checkDeps(configurations.compileClasspath)
-    checkDeps(configurations.testCompileClasspath)
+    def extension = extensions.create('forbiddenDependencies', ForbiddenDependenciesExtension)
+    extension.allowedGroups.convention([])
+    checkDeps(configurations.compileClasspath, extension.allowedGroups)
+    checkDeps(configurations.testCompileClasspath, extension.allowedGroups)
   }
 }

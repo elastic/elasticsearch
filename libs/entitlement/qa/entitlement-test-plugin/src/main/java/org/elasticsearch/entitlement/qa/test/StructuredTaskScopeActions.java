@@ -13,20 +13,27 @@ import java.util.concurrent.StructuredTaskScope;
 
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
-@SuppressWarnings({ "unused" /* called via reflection */, "removal" })
+@SuppressWarnings({ "unused" /* called via reflection */ })
 class StructuredTaskScopeActions {
     private StructuredTaskScopeActions() {}
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void java_util_concurrent_StructuredTaskScope$$init() {
-        try (var scope = new StructuredTaskScope<>()) {
+    static void java_util_concurrent_StructuredTaskScope$open() throws Exception {
+        try (var scope = StructuredTaskScope.open()) {
             // opening and closing is enough to test the entitlement check
         }
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void java_util_concurrent_StructuredTaskScope$$init_String_ThreadFactory() {
-        try (var scope = new StructuredTaskScope<>("test", Thread.ofVirtual().factory())) {
+    static void java_util_concurrent_StructuredTaskScope$open_Joiner() throws Exception {
+        try (var scope = StructuredTaskScope.open(StructuredTaskScope.Joiner.awaitAll())) {
+            // opening and closing is enough to test the entitlement check
+        }
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void java_util_concurrent_StructuredTaskScope$open_Joiner_Function() throws Exception {
+        try (var scope = StructuredTaskScope.open(StructuredTaskScope.Joiner.awaitAll(), cf -> cf)) {
             // opening and closing is enough to test the entitlement check
         }
     }

@@ -9,7 +9,6 @@
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
-apply plugin: 'elasticsearch.foreign-api'
 
 dependencies {
   api project(":client:rest")

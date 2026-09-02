@@ -160,10 +160,6 @@ gradlePlugin {
       id = 'elasticsearch.foreign-library'
       implementationClass = 'org.elasticsearch.gradle.internal.foreign.ForeignLibraryPlugin'
     }
-    foreignApi {
-      id = 'elasticsearch.foreign-api'
-      implementationClass = 'org.elasticsearch.gradle.internal.ForeignApiPlugin'
-    }
     embeddedProvider {
       id = 'elasticsearch.embedded-providers'
       implementationClass = 'org.elasticsearch.gradle.internal.EmbeddedProviderPlugin'
@@ -394,6 +390,16 @@ tasks.register("integTest", Test) {
   testClassesDirs = sourceSets.integTest.output.classesDirs
   classpath = sourceSets.integTest.runtimeClasspath
   useJUnitPlatform()
+  // build-tools-internal is a java-gradle-plugin project, so ElasticsearchJavaBasePlugin (and with it
+  // MutedTestPlugin) never applies to this integTest task. That means muted-tests.yml is not honored here,
+  // unlike the product build. InternalDistributionBwcSetupPluginFuncTest drives the BWC source-build
+  // fallback, which checks out old branches and compiles them with old JDK toolchains. The build-logic CI
+  // job lacks those toolchains and the required network access, so the class fails regardless of mutes.
+  // Its methods are already tracked as broken/flaky in muted-tests.yml (#154979, #154980, #154982, #154983)
+  // plus two untracked methods; see #158376. Exclude the whole class here until the BWC infra is fixed.
+  filter {
+    excludeTestsMatching "org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest"
+  }
   // ElasticsearchTestBasePlugin cannot apply itself, so java.io.tmpdir must be set manually here.
   // Without it, JUnit/Spock create temp dirs under /tmp (root fs) instead of the build dir (/dev/shm in CI).
   // The nested Gradle TestKit runners require an absolute path, so a relative value is not an option here.

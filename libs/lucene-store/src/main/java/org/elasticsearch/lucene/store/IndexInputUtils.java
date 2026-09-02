@@ -16,7 +16,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedToFloatFunction;
 import org.elasticsearch.core.DirectAccessInput;
-import org.elasticsearch.foreign.adapter.MemorySegmentUtils;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -345,11 +344,10 @@ public final class IndexInputUtils {
     }
 
     /**
-     * Reads bytes from the index input and applies the action to a memory
-     * segment containing the data. The segment is obtained from
-     * {@link MemorySegmentUtils#withDowncallSegment}, which encapsulates the
-     * difference between JDK 21, where heap segments cannot be passed to
-     * native downcalls, and JDK 22+, where they can.
+     * Reads bytes from the index input and applies the action to a heap {@link MemorySegment}
+     * wrapping the data. On JDK 22+ a heap segment can be passed directly to a native downcall
+     * (the linker copies it in when the target function is marked critical), so the segment is
+     * wrapped in place with no extra copy. The segment is valid only for the duration of the call.
      */
     private static <R> R copyAndApply(
         IndexInput in,
@@ -359,7 +357,7 @@ public final class IndexInputUtils {
     ) throws IOException {
         byte[] buf = scratchSupplier.apply(bytesToRead);
         in.readBytes(buf, 0, bytesToRead);
-        return MemorySegmentUtils.withDowncallSegment(buf, bytesToRead, action);
+        return action.apply(MemorySegment.ofArray(buf).asSlice(0, bytesToRead));
     }
 
     private static void copyAndAccept(
@@ -370,9 +368,6 @@ public final class IndexInputUtils {
     ) throws IOException {
         byte[] buf = scratchSupplier.apply(bytesToRead);
         in.readBytes(buf, 0, bytesToRead);
-        MemorySegmentUtils.withDowncallSegment(buf, bytesToRead, s -> {
-            action.accept(s);
-            return null;
-        });
+        action.accept(MemorySegment.ofArray(buf).asSlice(0, bytesToRead));
     }
 }

@@ -59,37 +59,4 @@ class ForbiddenApisPrecommitPluginFuncTest extends AbstractGradleInternalPluginF
         result.task(':forbiddenApisTest').outcome == TaskOutcome.SUCCESS
         result.task(':forbiddenApis').outcome == TaskOutcome.SUCCESS
     }
-
-    def "selects launcher when minimum runtime differs from current jvm"() {
-        given:
-        buildFile << """
-        import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
-        import org.gradle.api.JavaVersion
-
-        if (JavaVersion.current() != JavaVersion.VERSION_21) {
-            throw new GradleException('test requires current JVM to be Java 21')
-        }
-
-        def bp = project.getExtensions().getByType(org.elasticsearch.gradle.internal.info.BuildParameterExtension)
-        bp.setMinimumRuntimeVersion(JavaVersion.VERSION_22)
-
-        tasks.named('forbiddenApisMain', CheckForbiddenApisTask).configure {
-            bundledSignatures.set([] as Set)
-            replaceSignatureFiles('jdk-signatures')
-            doFirst {
-                assert javaLauncher.present
-                assert javaLauncher.get().metadata.languageVersion.asInt() == 22
-                assert targetCompatibility == '22'
-            }
-        }
-        """
-
-        clazz('org.acme.Main')
-
-        when:
-        def result = gradleRunner('forbiddenApisMain').build()
-
-        then:
-        result.task(':forbiddenApisMain').outcome == TaskOutcome.SUCCESS
-    }
 }

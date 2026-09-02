@@ -74,9 +74,9 @@ abstract class AbstractGradleFuncTest extends Specification {
 
             bundled_jdk_vendor = openjdk
             bundled_jdk = 24+36@1f9ff9062db4449d8ca828c504ffae90
-            minimumJdkVersion = 21
-            minimumRuntimeJava = 21
-            minimumCompilerJava = 21
+            minimumJdkVersion = 25
+            minimumRuntimeJava = 25
+            minimumCompilerJava = 25
         """
         propertiesFile <<
             "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME\n"
@@ -368,6 +368,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         file('build.versions.toml') << '''\
 [libraries]
 checkstyle = "com.puppycrawl.tools:checkstyle:13.11"
+forbiddenApis = "de.thetaphi:forbiddenapis:3.10"
 '''
         settingsFile << '''
             dependencyResolutionManagement {

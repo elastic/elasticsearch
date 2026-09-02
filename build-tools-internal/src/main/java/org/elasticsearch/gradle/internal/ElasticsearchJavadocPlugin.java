@@ -83,7 +83,13 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
             // command already adds -quiet, so we are just duplicating it
             // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
             javadoc.getOptions().setEncoding("UTF8");
-            ((StandardJavadocDocletOptions) javadoc.getOptions()).addStringOption("Xdoclint:all,-missing", "-quiet");
+            // -reference is excluded because JDK 23+ treats /// comments as Markdown documentation comments
+            // (JEP 467) and resolves their [Type] shorthand as links. The codebase has many such comments whose
+            // referents are not imported in the enclosing file (e.g. a low-level class referring to a higher-level
+            // one), which the pre-23 javadoc tool ignored entirely. Under the JDK 25 baseline these would fail the
+            // build as "reference not found". Fixing every reference is out of scope for the toolchain bump, so the
+            // reference group is disabled rather than rewriting comments repo-wide.
+            ((StandardJavadocDocletOptions) javadoc.getOptions()).addStringOption("Xdoclint:all,-missing,-reference", "-quiet");
 
             // ensure that modular dependencies can be found on the module path
             javadoc.doFirst(new Action<Task>() {

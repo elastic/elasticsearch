@@ -25,6 +25,13 @@ base {
   archivesName = 'esql-datasource-gcs'
 }
 
+// google-cloud-storage signatures carry checker-framework @NonNull type annotations on Guava types, and JDK 25
+// javac requires those classes on the compile classpath to attach the annotations. This module still must not
+// use Guava directly.
+forbiddenDependencies {
+  allowedGroups = ['com.google.guava']
+}
+
 dependencies {
   // SPI interfaces from ESQL core
   compileOnly project(path: xpackModule('esql'))
@@ -42,7 +49,12 @@ dependencies {
   implementation 'com.google.cloud:google-cloud-storage:2.71.0'
   implementation 'com.google.cloud:google-cloud-core:2.73.0'
   implementation 'com.google.cloud:google-cloud-core-http:2.73.0'
-  runtimeOnly 'com.google.guava:guava:33.6.0-jre'
+  // google-cloud-storage exposes methods whose signatures carry checker-framework @NonNull type annotations on
+  // Guava types (ImmutableMap/ImmutableSet). JDK 25 javac needs those classes on the compile classpath to attach
+  // the annotations, so Guava is a normal compile+runtime dependency here rather than compileOnly. The Guava
+  // compile-classpath ban is relaxed for this module via the forbiddenDependencies block below; our own code must
+  // not use Guava. Keeping it off the compileOnly configuration lets dependencyLicenses still account for its license.
+  implementation 'com.google.guava:guava:33.6.0-jre'
   runtimeOnly 'com.google.guava:failureaccess:1.0.3'
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
@@ -236,6 +248,10 @@ dependencies {
   javaRestTestImplementation 'com.google.http-client:google-http-client:2.2.0'
   javaRestTestImplementation 'com.google.api:api-common:2.66.0'
   javaRestTestImplementation 'com.google.api:gax:2.83.0'
+  // google-cloud-storage signatures carry checker-framework @NonNull annotations on Guava types
+  // (e.g. ImmutableMap). JDK 25 javac resolves those types when compiling calls into the API, and
+  // javaRestTestImplementation does not inherit the main implementation Guava, so it is added here.
+  javaRestTestImplementation 'com.google.guava:guava:33.6.0-jre'
 
   // The DEFAULT distribution already bundles repository-gcs, workload-identity, and every
   // esql-datasource-* module needed by GcsManagedIdentityAuthIT. Mapper plugins are not in

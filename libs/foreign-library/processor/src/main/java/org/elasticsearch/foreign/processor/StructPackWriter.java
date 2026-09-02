@@ -27,8 +27,8 @@ import javax.lang.model.element.TypeElement;
 
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayoutPathElement;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayoutVarHandles;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegment;
-import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegmentAdapter;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Object;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_StructLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_VarHandle;
@@ -134,12 +134,12 @@ final class StructPackWriter {
         clinit.putstatic(packDesc, field.name() + "$offset", CD_long);
     }
 
-    /** Initializes {@code <name>$vh} to {@code MemorySegmentAdapter.varHandleWithoutOffset(LAYOUT, groupElement(name))}. */
+    /** Initializes {@code <name>$vh} to {@code MemoryLayoutVarHandles.varHandleWithoutOffset(LAYOUT, groupElement(name))}. */
     private static void emitVarHandleInit(CodeBuilder clinit, ClassDesc packDesc, StructFieldModel field) {
         clinit.getstatic(packDesc, "LAYOUT", CD_StructLayout);
         clinit.ldc(field.name());
         clinit.invokestatic(CD_MemoryLayoutPathElement, "groupElement", MTD_groupElement, true);
-        clinit.invokestatic(CD_MemorySegmentAdapter, "varHandleWithoutOffset", MTD_varHandleWithoutOffset);
+        clinit.invokestatic(CD_MemoryLayoutVarHandles, "varHandleWithoutOffset", MTD_varHandleWithoutOffset);
         clinit.putstatic(packDesc, field.name() + "$vh", CD_VarHandle);
     }
 

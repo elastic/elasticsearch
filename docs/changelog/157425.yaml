@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157425
+summary: Let HIGHLIGHT derive its query from upstream WHERE and its fields from the query or ON *
+type: feature

@@ -1,0 +1,71 @@
+---
+setup:
+  - do:
+      snapshot.create_repository:
+        repository: health-test-repo
+        body:
+          type: fs
+          settings:
+            location: "health-test-repo-loc"
+
+---
+teardown:
+  - do:
+      snapshot.delete_repository:
+        repository: health-test-repo
+        ignore: 404
+
+  - do:
+      snapshot.delete_repository:
+        repository: health-test-repo-2
+        ignore: 404
+
+---
+"Repository integrity is green with a configured repository":
+  - do:
+      health_report:
+        feature: repository_integrity
+
+  - is_true: cluster_name
+  - match: { indicators.repository_integrity.status: "green" }
+  - match: { indicators.repository_integrity.symptom: "All repositories are healthy." }
+  - match: { indicators.repository_integrity.details.total_repositories: 1 }
+  - is_false: indicators.repository_integrity.details.corrupted_repositories
+  - is_false: indicators.repository_integrity.details.corrupted
+  - is_false: indicators.repository_integrity.details.unknown_repositories
+  - is_false: indicators.repository_integrity.details.invalid_repositories
+  - is_false: indicators.repository_integrity.impacts
+  - is_false: indicators.repository_integrity.diagnosis
+
+---
+"Repository integrity green omits details when verbose is false":
+  - do:
+      health_report:
+        feature: repository_integrity
+        verbose: false
+
+  - match: { indicators.repository_integrity.status: "green" }
+  - match: { indicators.repository_integrity.symptom: "All repositories are healthy." }
+  - is_false: indicators.repository_integrity.details
+  - is_false: indicators.repository_integrity.impacts
+  - is_false: indicators.repository_integrity.diagnosis
+
+---
+"Repository integrity totals repositories in the active project":
+  - do:
+      snapshot.create_repository:
+        repository: health-test-repo-2
+        body:
+          type: fs
+          settings:
+            location: "health-test-repo-2-loc"
+
+  - do:
+      health_report:
+        feature: repository_integrity
+
+  - match: { indicators.repository_integrity.status: "green" }
+  - match: { indicators.repository_integrity.symptom: "All repositories are healthy." }
+  - match: { indicators.repository_integrity.details.total_repositories: 2 }
+  - is_false: indicators.repository_integrity.impacts
+  - is_false: indicators.repository_integrity.diagnosis

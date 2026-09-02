@@ -5041,7 +5041,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * second boxing. Mirrors {@link #emitConvertedStringField} but targets the direct path's typed
          * staging instead of the shared {@code rowBuffer}.
          *
-         * @return {@code true} if the field was accepted, {@code false} if a row-level error was raised
+         * @return always {@code true}: a coercion failure is held for {@link #flushPendingErrors}, not raised here
          */
         /**
          * Coercion errors seen while walking the current row, held until the row's WIDTH has been accepted.
@@ -5875,9 +5875,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     } else {
                         if (isProjected) {
                             if (current.length() > 0) {
-                                if (emitConvertedField(current, bufIdx, dt, numericValid, numAcc, negative, numStarted, line) == false) {
-                                    return false;
-                                }
+                                emitConvertedField(current, bufIdx, dt, numericValid, numAcc, negative, numStarted);
                             } else {
                                 // Present-but-empty field (a delimiter closed it): empty string on
                                 // string columns, null otherwise.
@@ -5956,9 +5954,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (isProjected) {
                 if (trailingFieldHasContent) {
                     if (current.length() > 0) {
-                        if (emitConvertedField(current, bufIdx, dt, numericValid, numAcc, negative, numStarted, line) == false) {
-                            return false;
-                        }
+                        emitConvertedField(current, bufIdx, dt, numericValid, numAcc, negative, numStarted);
                     } else {
                         // Present-but-empty trailing field with the content flag set (e.g. a quoted
                         // empty `,""`): empty string on string columns, null otherwise.
@@ -5989,9 +5985,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * were successfully parsed inline (all digits, no overflow), the numeric value is used
          * directly; otherwise falls back to the standard string conversion path.
          *
-         * @param rawLine the raw CSV line, kept for error reporting
-         * @return {@code true} if the field was accepted, {@code false} if a row-level error
-         *         was raised (SKIP_ROW / FAIL_FAST)
+         * @return always {@code true}: a coercion failure is held for {@link #flushPendingErrors}, not raised here
          */
         private boolean emitConvertedField(
             StringBuilder current,
@@ -6000,8 +5994,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             boolean numericValid,
             long numAcc,
             boolean negative,
-            boolean numStarted,
-            String rawLine
+            boolean numStarted
         ) {
             if (numericValid && numStarted) {
                 long val = negative ? -numAcc : numAcc;
@@ -6015,14 +6008,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     return true;
                 }
             }
-            return emitConvertedStringField(emitField(current, options.trimSpaces()), bufIdx, dt, rawLine);
+            return emitConvertedStringField(emitField(current, options.trimSpaces()), bufIdx, dt);
         }
 
         /**
          * Converts a string field value (trimmed only when {@code trim_spaces} is set) and stores it in
-         * {@link #rowBuffer}, routing parse errors through the error policy.
+         * {@link #rowBuffer}, holding any parse error for {@link #flushPendingErrors} once the row's width is known.
+         *
+         * @return always {@code true}: a coercion failure is held, not raised here
          */
-        private boolean emitConvertedStringField(String value, int bufIdx, DataType dt, String rawLine) {
+        private boolean emitConvertedStringField(String value, int bufIdx, DataType dt) {
             Object result = tryConvertValue(value, dt, bufIdx);
             if (lastFieldError != null) {
                 String err = lastFieldError;

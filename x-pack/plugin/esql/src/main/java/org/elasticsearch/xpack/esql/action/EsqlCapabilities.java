@@ -3698,6 +3698,13 @@ public class EsqlCapabilities {
         FIX_PROMQL_TOPK_OVER_AGGREGATE,
 
         /**
+         * Support for the PromQL {@code label_replace} and {@code label_join} metadata-manipulation functions, when the
+         * derived destination label is consumed by an enclosing {@code by(...)} aggregation. The destination may be a new
+         * label or may overwrite a stored label (a dimension or {@code __name__}).
+         */
+        PROMQL_LABEL_FUNCTIONS(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
          * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
          * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket

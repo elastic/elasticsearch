@@ -1539,26 +1539,22 @@ public class Setting<T> implements ToXContentObject {
         final var parsedMaximumValue = RatioValue.parseRatioValue(maxValueInclusive);
         return new Setting<>(key, defaultValue, sValue -> {
             final var parsedValue = RatioValue.parseRatioValue(sValue);
-            if (parsedValue.getAsPercent() >= parsedMinimumValue.getAsPercent()
-                && parsedValue.getAsPercent() <= parsedMaximumValue.getAsPercent()) {
-                return parsedValue;
-            } else {
-                if (sValue.endsWith("%")) {
-                    throw new ElasticsearchParseException(
-                        "Percentage should be in [{}-{}], got [{}]",
-                        parsedMinimumValue.getAsPercent(),
-                        parsedMaximumValue.getAsPercent(),
-                        sValue
-                    );
-                } else {
-                    throw new ElasticsearchParseException(
-                        "Ratio should be in [{}-{}], got [{}]",
-                        parsedMinimumValue.getAsRatio(),
-                        parsedMaximumValue.getAsRatio(),
-                        sValue
-                    );
-                }
+            if (parsedValue.getAsPercent() < parsedMinimumValue.getAsPercent()
+                || parsedValue.getAsPercent() > parsedMaximumValue.getAsPercent()) {
+                final Function<RatioValue, Double> rangeRenderer = sValue.endsWith("%") ? RatioValue::getAsPercent : RatioValue::getAsRatio;
+                throw new IllegalArgumentException(
+                    "Failed to parse value ["
+                        + sValue
+                        + "] for setting ["
+                        + key
+                        + "] must be in range ["
+                        + (rangeRenderer.apply(parsedMinimumValue))
+                        + ", "
+                        + (rangeRenderer.apply(parsedMaximumValue))
+                        + "]"
+                );
             }
+            return parsedValue;
         }, properties);
     }
 

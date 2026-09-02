@@ -155,6 +155,7 @@ public class ElasticInferenceServiceAuthorizationModel {
     ) {
         try {
             return new EndpointMetadata(
+                Optional.ofNullable(authorizedEndpoint.modelIdentity()).orElse(EndpointMetadata.ModelIdentity.EMPTY_INSTANCE),
                 getHeuristics(authorizedEndpoint),
                 getInternalFields(authorizedEndpoint),
                 Optional.ofNullable(authorizedEndpoint.display()).orElse(EndpointMetadata.Display.EMPTY_INSTANCE),

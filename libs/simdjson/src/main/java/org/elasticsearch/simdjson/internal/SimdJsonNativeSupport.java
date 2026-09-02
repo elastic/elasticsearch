@@ -9,12 +9,11 @@
 
 package org.elasticsearch.simdjson.internal;
 
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.foreign.LibraryProvider;
+import org.elasticsearch.foreign.Platform;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-
-import java.util.Optional;
 
 /**
  * Loads and holds the {@link SimdJsonLibrary} singleton for stage 1 native indexing.
@@ -56,27 +55,12 @@ public final class SimdJsonNativeSupport {
     }
 
     static boolean isNativeLibSupported() {
-        return isMacOrLinuxAarch64() || isLinuxAmd64();
+        return Platform.current().equals(Platform.DARWIN_AARCH64)
+            || Platform.current().equals(Platform.LINUX_AARCH64)
+            || Platform.current().equals(Platform.LINUX_X64);
     }
 
-    /**
-     * Returns true iff the architecture is x64 (amd64) and the OS Linux (the OS we currently support for the native lib).
-     */
-    static boolean isLinuxAmd64() {
-        String name = System.getProperty("os.name");
-        return (name.startsWith("Linux")) && System.getProperty("os.arch").equals("amd64");
-    }
-
-    /** Returns true iff the OS is Mac or Linux, and the architecture is aarch64. */
-    static boolean isMacOrLinuxAarch64() {
-        String name = System.getProperty("os.name");
-        return (name.startsWith("Mac") || name.startsWith("Linux")) && System.getProperty("os.arch").equals("aarch64");
-    }
-
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     static boolean checkEnableSystemProperty() {
-        return Optional.ofNullable(System.getProperty(ENABLE_SIMD_JSON_LIBRARY)).map(Boolean::valueOf).orElse(Boolean.TRUE);
+        return Booleans.parseBoolean(System.getProperty(ENABLE_SIMD_JSON_LIBRARY), true);
     }
 }

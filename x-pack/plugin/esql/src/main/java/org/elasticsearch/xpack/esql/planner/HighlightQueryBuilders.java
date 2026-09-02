@@ -133,9 +133,9 @@ public final class HighlightQueryBuilders {
         return build(queryExpr);
     }
 
-    // This switch, verifyQueryStructure above, and HighlightSupport#deriveFields all walk the same full-text
-    // expression hierarchy and must stay in sync as new forms are added. This one is the most important to keep
-    // current: a missing case here throws IllegalStateException at runtime, not at verification.
+    // This switch, verifyQueryStructure above, and HighlightSupport#isSupportedImplicitPredicate/deriveFields all walk
+    // the same full-text expression hierarchy and must stay in sync as new forms are added. This one is the most
+    // important to keep current: a missing case here throws IllegalStateException at runtime, not at verification.
     private static QueryBuilder build(Expression expr) {
         return switch (expr) {
             case And and -> QueryBuilders.boolQuery().must(build(and.left())).must(build(and.right()));

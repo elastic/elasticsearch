@@ -942,7 +942,8 @@ public class ComputeService {
             l.onFailure(e);
         });
         Map<String, OriginalIndices> clusterToConcreteIndices = getIndices(resolvedPlan, EsRelation::concreteIndices);
-        var distributedPlan = DistributedPlanPlanner.plan(
+        boolean hasConcreteIndices = clusterToConcreteIndices.values().stream().anyMatch(indices -> indices.indices().length > 0);
+        var distributedPlan = DistributedPlanner.plan(
             plannerSettings.get(),
             flags,
             configuration,
@@ -964,7 +965,6 @@ public class ComputeService {
             return;
         }
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
-        boolean hasConcreteIndices = distributedPlan.hasConcreteIndices();
         if (dataNodePlan == null) {
             if (hasConcreteIndices) {
                 String error = "expected no concrete indices without data node plan; got " + clusterToConcreteIndices;

@@ -196,6 +196,7 @@ final class RemoteFetchReductionPlanner {
         if (updatedCoordinatorPlan.output().equals(originalCoordinatorOutput) == false) {
             updatedCoordinatorPlan = new ProjectExec(coordinatorPlan.source(), updatedCoordinatorPlan, originalCoordinatorOutput);
         }
+        updatedCoordinatorPlan = EstimatesRowSize.estimateRowSize(0, updatedCoordinatorPlan);
         return Optional.of(new CoordinatorPlan(updatedCoordinatorPlan, updatedDataPlan));
     }
 

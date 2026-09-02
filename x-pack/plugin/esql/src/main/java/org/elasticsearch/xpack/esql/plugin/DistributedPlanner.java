@@ -31,14 +31,9 @@ import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP
  * TODO: Move this phase out of {@link ComputeService} as part of a broader refactor that defines how
  * compute-time inputs are propagated to, and resolved by, planner stages.
  */
-final class DistributedPlanPlanner {
+final class DistributedPlanner {
 
-    record DistributedPlan(
-        PhysicalPlan coordinatorPlan,
-        @Nullable PhysicalPlan dataNodePlan,
-        boolean hasConcreteIndices,
-        boolean retainSearchContexts
-    ) {}
+    record DistributedPlan(PhysicalPlan coordinatorPlan, @Nullable PhysicalPlan dataNodePlan, boolean retainSearchContexts) {}
 
     static DistributedPlan plan(
         PlannerSettings plannerSettings,
@@ -56,6 +51,7 @@ final class DistributedPlanPlanner {
 
         boolean retainSearchContexts = false;
         if (configuration.pragmas().remoteFetchTopN()
+            && configuration.pragmas().nodeLevelReduction()
             && hasConcreteIndices
             && clusterToConcreteIndices.size() == 1
             && clusterToConcreteIndices.containsKey(LOCAL_CLUSTER_GROUP_KEY)
@@ -75,8 +71,8 @@ final class DistributedPlanPlanner {
             }
         }
 
-        return new DistributedPlan(coordinatorPlan, dataNodePlan, hasConcreteIndices, retainSearchContexts);
+        return new DistributedPlan(coordinatorPlan, dataNodePlan, retainSearchContexts);
     }
 
-    private DistributedPlanPlanner() {}
+    private DistributedPlanner() {}
 }

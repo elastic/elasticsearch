@@ -36,7 +36,7 @@ import java.util.Objects;
  * versioned transport representation then.
  */
 public record RemoteFetchHandle(String nodeId, String retainedSessionId, int shard, int segment, int doc) {
-    public static final String ATTRIBUTE_NAME = "_remote_fetch_handle";
+    public static final String ATTRIBUTE_NAME = Attribute.rawTemporaryName("remote_fetch_handle");
 
     public RemoteFetchHandle {
         Objects.requireNonNull(nodeId, "nodeId");

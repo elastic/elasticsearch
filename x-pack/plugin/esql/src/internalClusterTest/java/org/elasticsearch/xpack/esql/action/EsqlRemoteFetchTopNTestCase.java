@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.plugin.RemoteFetchHandle;
 import org.elasticsearch.xpack.esql.plugin.RemoteFetchOperator;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -64,7 +65,7 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
                 "type=keyword",
                 "metric",
                 "type=long",
-                "_remote_fetch_handle",
+                RemoteFetchHandle.ATTRIBUTE_NAME,
                 "type=keyword"
             )
             .get();
@@ -89,7 +90,7 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
                             "cat-" + (i % 5),
                             "metric",
                             i * 10L,
-                            "_remote_fetch_handle",
+                            RemoteFetchHandle.ATTRIBUTE_NAME,
                             "user-handle-" + i
                         )
                     )
@@ -248,7 +249,7 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
     public void testUserFieldNamedLikeRemoteFetchHandle() {
         try (
             EsqlQueryResponse response = runQuery(
-                "FROM " + indexName + " | SORT unique_sort + 1 DESC | LIMIT 3 | KEEP `_remote_fetch_handle`, payload",
+                "FROM " + indexName + " | SORT unique_sort + 1 DESC | LIMIT 3 | KEEP `" + RemoteFetchHandle.ATTRIBUTE_NAME + "`, payload",
                 true
             )
         ) {
@@ -264,7 +265,7 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
             );
             assertRemoteFetchRows(response, 3);
             assertFieldLoadedBeforeFetch(response, "unique_sort");
-            assertFieldNotLoadedBeforeFetch(response, "_remote_fetch_handle");
+            assertFieldNotLoadedBeforeFetch(response, RemoteFetchHandle.ATTRIBUTE_NAME);
             assertFieldNotLoadedBeforeFetch(response, "payload");
         }
     }

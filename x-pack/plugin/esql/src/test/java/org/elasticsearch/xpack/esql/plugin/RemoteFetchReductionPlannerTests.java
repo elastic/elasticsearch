@@ -59,11 +59,17 @@ import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class RemoteFetchReductionPlannerTests extends ESTestCase {
+    public void testRemoteFetchHandleUsesSyntheticAttributeName() {
+        assertThat(RemoteFetchHandle.ATTRIBUTE_NAME, startsWith(Attribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX));
+    }
+
     public void testDistributedPlannerOwnsCoordinatorRewrite() {
         Configuration configuration = EsqlTestUtils.configuration(
             new QueryPragmas(Settings.builder().put(QueryPragmas.REMOTE_FETCH_TOPN.getKey(), true).build())
@@ -73,7 +79,7 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
             configuration
         );
 
-        var planned = DistributedPlanPlanner.plan(
+        var planned = DistributedPlanner.plan(
             PlannerSettings.DEFAULTS,
             new EsqlFlags(false),
             configuration,
@@ -84,8 +90,35 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
         );
 
         assertThat(planned.coordinatorPlan().collect(RemoteFetchExec.class), hasSize(1));
-        assertTrue(planned.hasConcreteIndices());
         assertTrue(planned.retainSearchContexts());
+    }
+
+    public void testDistributedPlannerHonorsDisabledNodeLevelReduction() {
+        Configuration configuration = EsqlTestUtils.configuration(
+            new QueryPragmas(
+                Settings.builder()
+                    .put(QueryPragmas.REMOTE_FETCH_TOPN.getKey(), true)
+                    .put(QueryPragmas.NODE_LEVEL_REDUCTION.getKey(), false)
+                    .build()
+            )
+        );
+        PhysicalPlan physicalPlan = distributedQueryPlan(
+            "FROM employees | SORT hire_date | LIMIT 20 | KEEP hire_date, salary, emp_no",
+            configuration
+        );
+
+        var planned = DistributedPlanner.plan(
+            PlannerSettings.DEFAULTS,
+            new EsqlFlags(false),
+            configuration,
+            FoldContext.small(),
+            physicalPlan,
+            Map.of(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(new String[] { "employees" }, SearchRequest.DEFAULT_INDICES_OPTIONS)),
+            TransportVersion.current()
+        );
+
+        assertThat(planned.coordinatorPlan().collect(RemoteFetchExec.class), hasSize(0));
+        assertFalse(planned.retainSearchContexts());
     }
 
     public void testPlansCoordinatorTopNFromQueryText() {
@@ -104,6 +137,24 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
             planned.dataNodePlan().output().stream().map(Attribute::name).toList(),
             equalTo(List.of(RemoteFetchHandle.ATTRIBUTE_NAME, "hire_date"))
         );
+    }
+
+    public void testReestimatesCoordinatorTopNAfterRewrite() {
+        PhysicalPlan physicalPlan = distributedQueryPlan(
+            "FROM employees | SORT hire_date | LIMIT 20 | KEEP hire_date, salary, emp_no",
+            EsqlTestUtils.TEST_CFG
+        );
+        var coordinatorAndDataNode = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(physicalPlan, EsqlTestUtils.TEST_CFG);
+        TopNExec originalTopN = coordinatorAndDataNode.v1().collect(TopNExec.class).getFirst();
+
+        RemoteFetchReductionPlanner.CoordinatorPlan planned = RemoteFetchReductionPlanner.planCoordinatorTopN(
+            contextFactory(),
+            as(coordinatorAndDataNode.v2(), ExchangeSinkExec.class),
+            coordinatorAndDataNode.v1()
+        ).orElseThrow();
+
+        TopNExec rewrittenTopN = planned.coordinatorPlan().collect(TopNExec.class).getFirst();
+        assertThat(rewrittenTopN.estimatedRowSize(), greaterThan(originalTopN.estimatedRowSize()));
     }
 
     public void testPreservesCoordinatorOutputWithoutProject() {

@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.anonymizer.PlanAnonymizer;
 import org.elasticsearch.xpack.esql.approximation.ApproximationDriver;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -410,7 +411,7 @@ public class EsqlSession {
         if (explainContext == null) {
             gatherSettingsMetrics(request, statement);
         }
-        if (QuerySettings.APPROXIMATION.get(resolved) != null) {
+        if (ApproximationSettings.isOn(QuerySettings.APPROXIMATION.get(resolved))) {
             EsqlLicenseChecker.checkQueryApproximation(verifier.licenseState());
         }
 
@@ -588,7 +589,9 @@ public class EsqlSession {
                         })
                         .<Versioned<Result>>andThen((l, r) -> {
                             Boolean approximationApplied;
-                            if (QuerySettings.APPROXIMATION.get(finalConfiguration.resolvedSettings()) == null) {
+                            if (ApproximationSettings.isOn(
+                                QuerySettings.APPROXIMATION.get(finalConfiguration.resolvedSettings())
+                            ) == false) {
                                 approximationApplied = null;
                             } else {
                                 boolean approximationAppliedCoordinator = physicalPlanOptimizer.approximationApplied();

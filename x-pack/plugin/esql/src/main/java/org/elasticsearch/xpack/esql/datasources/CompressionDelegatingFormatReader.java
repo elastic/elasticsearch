@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -132,8 +133,21 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public boolean dropsRowsUnderPushedFilter() {
+        // Inert today (the text readers this wraps offer no filter pushdown), but forwarded so the wrapper stays
+        // transparent: wrapping a reader that had opted into the pushdown would otherwise silently answer the
+        // interface default and cost it every pushed filter.
+        return inner.dropsRowsUnderPushedFilter();
+    }
+
+    @Override
     public RowPositionStrategy rowPositionStrategy() {
         return inner.rowPositionStrategy();
+    }
+
+    @Override
+    public FormatReaderStatus statusSnapshot() {
+        return inner.statusSnapshot();
     }
 
     FormatReader unwrap() {

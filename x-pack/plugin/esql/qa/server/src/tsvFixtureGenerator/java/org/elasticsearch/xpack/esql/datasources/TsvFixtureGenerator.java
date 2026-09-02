@@ -86,10 +86,7 @@ public final class TsvFixtureGenerator {
             // the reader -- bytes written with one grammar, read as another, which parses cleanly and
             // means something else. The capability rows claimed these cells were rendered; they were not.
             char quoteChar = dimensions.charValue("quote", pinned.getOrDefault("quote", dimensions.defaultValue("quote", format)));
-            char escapeChar = dimensions.charValue(
-                "escape",
-                pinned.getOrDefault("escape", dimensions.defaultValue("escape", format))
-            );
+            char escapeChar = dimensions.charValue("escape", pinned.getOrDefault("escape", dimensions.defaultValue("escape", format)));
             TextRowRenderer renderer = new TextRowRenderer(delimiter, quoteChar, escapeChar, dialect, headerRow);
             Path slugRoot = outputRoot.resolve("vector").resolve(slug.getKey()).resolve("standalone");
             Files.createDirectories(slugRoot);

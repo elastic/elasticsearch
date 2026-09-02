@@ -1038,7 +1038,16 @@ public final class FixtureDimensions {
     }
 
     /** Whether one off-default slot can be made real by any of the seams on offer. */
-    private boolean seamServes(String dimension, String value, String format, Set<Seam> seams) {
+    /**
+     * Whether a seam in {@code seams} can express this cell.
+     *
+     * <p>Public because the audit must ask the same question the crossing asks. It used to answer with its
+     * own copy of this switch, and the copy was looser -- its directive arm omitted the derived-value
+     * condition, so it reported partition_detection=template reachable while the crossing refused it. A
+     * gate that reimplements the rule it is gating will eventually disagree with it, and the disagreement
+     * is silent in the direction that matters: the cell looks covered.
+     */
+    public boolean seamServes(String dimension, String value, String format, Set<Seam> seams) {
         return switch (binds(dimension)) {
             case "directive" -> seams.contains(Seam.DIRECTIVE)
                 && directiveKeyByName.containsKey(dimension)

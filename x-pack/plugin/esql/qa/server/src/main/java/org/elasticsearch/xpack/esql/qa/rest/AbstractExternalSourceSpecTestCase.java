@@ -308,7 +308,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                     unrepresentable++;
                     continue;
                 }
-                if (closedSchemaCannotDeclare(baseTest, vector)) {
+                if (declaredSchemaCannotCarry(baseTest, vector)) {
                     unrepresentable++;
                     continue;
                 }
@@ -341,15 +341,37 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      *
      * <p>Open mode has no such limit: it declares what it can and lets the reader infer the rest.
      */
-    private static boolean closedSchemaCannotDeclare(Object[] baseTest, Map<String, String> vector) {
-        if ("declared_closed".equals(vector.get("schema_mode")) == false) {
+    /**
+     * Whether a declared-schema vector can carry this case at all.
+     *
+     * <p>Two ways it cannot. The schema is built from a dataset's canonical header, so a source whose
+     * template resolves to NO dataset -- every sources-based layout: multifile, multifile_ubn,
+     * multifile_perm, multifile_temporal, multifile_type_drift, none of which declare derived_from --
+     * has no header to build one from. This used to `continue`, treating "nothing to inject" as
+     * "nothing to do": the pair registered, injectDeclaredSchema returned the JSON untouched, and the
+     * case ran the byte-identical INFERRED baseline while its name announced a declared schema. A pass
+     * that means nothing, which is worse than a failure because nothing downstream can tell them apart.
+     *
+     * <p>And a closed declaration must name every column, so a dataset carrying a type outside
+     * DECLARABLE_TYPES cannot be declared closed at all.
+     */
+    private static boolean declaredSchemaCannotCarry(Object[] baseTest, Map<String, String> vector) {
+        String mode = vector.get("schema_mode");
+        if (mode == null || mode.startsWith("declared") == false) {
             return false;
         }
         CsvTestCase testCase = (CsvTestCase) baseTest[4];
         for (DatasetSource source : testCase.datasetSources) {
             String template = templateNameIn(source.resource());
-            String dataset = template == null ? null : MATRIX.datasetForTemplate(template);
+            if (template == null) {
+                continue;
+            }
+            String dataset = MATRIX.datasetForTemplate(template);
             if (dataset == null) {
+                // No dataset, so no header, so no declaration can be injected for this source.
+                return true;
+            }
+            if ("declared_closed".equals(mode) == false) {
                 continue;
             }
             List<CsvFixtureParser.ColumnSpec> schema = DeclaredSchemas.headerSchema(

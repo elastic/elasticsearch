@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -204,23 +205,24 @@ public final class FixtureContractAudit {
     }
 
     /** The seam that can make this cell real, or null when none can. */
+    /**
+     * The seam that can make this cell real, or null when none can.
+     *
+     * <p>Delegates to {@link FixtureDimensions#seamServes} rather than restating it: this used to be a
+     * second copy of that switch, and being looser in one arm is what let a cell no vector runs pass the
+     * gate. Asking all seams is right here -- the audit's question is "can ANY suite express this", while
+     * a suite asks with the seams it declares.
+     */
     private static String reachableThrough(FixtureDimensions dimensions, String dimension, String value, String format) {
-        if (dimensions.derivedFrom(dimension) != null || dimensions.derivedFromForValue(dimension, value) != null) {
-            return "DERIVED";
+        Set<FixtureDimensions.Seam> all = EnumSet.allOf(FixtureDimensions.Seam.class);
+        if (dimensions.seamServes(dimension, value, format, all) == false) {
+            return null;
         }
-        return switch (dimensions.binds(dimension)) {
-            case "directive" -> dimensions.directiveKey(dimension) != null ? "DIRECTIVE" : null;
-            case "pragma" -> PRAGMA_SEAM_WIRED && dimensions.pragmaKey(dimension) != null ? "PRAGMA" : null;
-            case "backend" -> dimensions.backendFor(dimension, value) != null
-                ? "BACKEND(" + dimensions.backendFor(dimension, value) + ")"
-                : null;
-            case "resolver" -> FixtureCapabilities.resolverServes(dimension, value, format) ? "RESOLVER" : null;
-            // read_key presence is NOT enough: it describes how bytes would announce themselves, not
-            // whether anything writes them.
-            case "fixture" -> FixtureCapabilities.renders(dimension, value, format) ? "FIXTURE" : null;
-            case "cluster" -> null;
-            default -> throw new IllegalStateException("unhandled binds [" + dimensions.binds(dimension) + "]");
-        };
+        String binds = dimensions.binds(dimension);
+        if ("backend".equals(binds)) {
+            return "BACKEND(" + dimensions.backendFor(dimension, value) + ")";
+        }
+        return binds.toUpperCase(Locale.ROOT);
     }
 
     private static String cell(String dimension, String value, String format) {

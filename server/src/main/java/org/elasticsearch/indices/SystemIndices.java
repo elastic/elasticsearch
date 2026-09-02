@@ -276,7 +276,7 @@ public class SystemIndices {
                                 systemIndexDescriptor.getIndexPattern(),
                                 systemIndexDescriptor.getAliasName()
                             );
-                            return value == null ? automaton : Operations.union(value, automaton);
+                            return value == null ? automaton : Operations.union(List.of(value, automaton));
                         }));
                 }
             });
@@ -288,7 +288,7 @@ public class SystemIndices {
                                 dataStreamDescriptor.getBackingIndexPattern(),
                                 dataStreamDescriptor.getDataStreamName()
                             );
-                            return value == null ? automaton : Operations.union(value, automaton);
+                            return value == null ? automaton : Operations.union(List.of(value, automaton));
                         }));
                 }
             });
@@ -459,7 +459,7 @@ public class SystemIndices {
         Optional<Automaton> automaton = featureDescriptors.values()
             .stream()
             .map(SystemIndices::featureToIndexAutomaton)
-            .reduce(Operations::union);
+            .reduce((a, b) -> Operations.union(List.of(a, b)));
         return Operations.determinize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
@@ -489,7 +489,7 @@ public class SystemIndices {
             .filter(SystemIndexDescriptor::isAutomaticallyManaged)
             .filter(SystemIndexDescriptor::isNetNew)
             .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
-            .reduce(Operations::union);
+            .reduce((a, b) -> Operations.union(List.of(a, b)));
         return new CharacterRunAutomaton(Operations.determinize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
     }
 
@@ -497,7 +497,7 @@ public class SystemIndices {
         Optional<Automaton> systemIndexAutomaton = feature.getIndexDescriptors()
             .stream()
             .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
-            .reduce(Operations::union);
+            .reduce((a, b) -> Operations.union(List.of(a, b)));
 
         return systemIndexAutomaton.orElse(EMPTY);
     }
@@ -508,7 +508,7 @@ public class SystemIndices {
             .flatMap(feature -> feature.getDataStreamDescriptors().stream())
             .map(SystemDataStreamDescriptor::getDataStreamName)
             .map(dsName -> SystemIndexDescriptor.buildAutomaton(dsName, null))
-            .reduce(Operations::union);
+            .reduce((a, b) -> Operations.union(List.of(a, b)));
 
         return automaton.isPresent() ? Operations.determinize(automaton.get(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT) : EMPTY;
     }
@@ -522,7 +522,7 @@ public class SystemIndices {
         Optional<Automaton> automaton = featureDescriptors.values()
             .stream()
             .map(SystemIndices::featureToDataStreamBackingIndicesAutomaton)
-            .reduce(Operations::union);
+            .reduce((a, b) -> Operations.union(List.of(a, b)));
         return Operations.determinize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
@@ -530,7 +530,7 @@ public class SystemIndices {
         Optional<Automaton> systemDataStreamAutomaton = feature.getDataStreamDescriptors()
             .stream()
             .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getBackingIndexPattern(), null))
-            .reduce(Operations::union);
+            .reduce((a, b) -> Operations.union(List.of(a, b)));
         return systemDataStreamAutomaton.orElse(EMPTY);
     }
 

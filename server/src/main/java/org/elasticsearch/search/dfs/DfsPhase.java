@@ -10,13 +10,13 @@
 package org.elasticsearch.search.dfs;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
+import org.apache.lucene.search.FieldStats;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TermStats;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -79,18 +79,18 @@ public class DfsPhase {
     private static void collectStatistics(SearchContext context, Runnable timeoutRunnable) throws IOException {
         final DfsProfiler profiler = context.getProfilers() == null ? null : context.getProfilers().getDfsProfiler();
 
-        Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
-        Map<Term, TermStatistics> stats = new HashMap<>();
+        Map<String, FieldStats> fieldStatistics = new HashMap<>();
+        Map<Term, TermStats> stats = new HashMap<>();
 
         IndexSearcher searcher = new IndexSearcher(context.searcher().getIndexReader()) {
             @Override
-            public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
+            public TermStats termStats(Term term, int docFreq, long totalTermFreq) throws IOException {
                 if (context.isCancelled()) {
                     throw context.getTask().getTaskCancelledException();
                 }
                 Timer timer = maybeStartTimer(profiler, DfsTimingType.TERM_STATISTICS);
                 try {
-                    TermStatistics ts = super.termStatistics(term, docFreq, totalTermFreq);
+                    TermStats ts = super.termStats(term, docFreq, totalTermFreq);
                     if (ts != null) {
                         stats.put(term, ts);
                     }
@@ -103,13 +103,13 @@ public class DfsPhase {
             }
 
             @Override
-            public CollectionStatistics collectionStatistics(String field) throws IOException {
+            public FieldStats fieldStats(String field) throws IOException {
                 if (context.isCancelled()) {
                     throw context.getTask().getTaskCancelledException();
                 }
                 Timer timer = maybeStartTimer(profiler, DfsTimingType.COLLECTION_STATISTICS);
                 try {
-                    CollectionStatistics cs = super.collectionStatistics(field);
+                    FieldStats cs = super.fieldStats(field);
                     if (cs != null) {
                         fieldStatistics.put(field, cs);
                     }
@@ -178,7 +178,7 @@ public class DfsPhase {
         }
 
         Term[] terms = stats.keySet().toArray(new Term[0]);
-        TermStatistics[] termStatistics = new TermStatistics[terms.length];
+        TermStats[] termStatistics = new TermStats[terms.length];
         for (int i = 0; i < terms.length; i++) {
             termStatistics[i] = stats.get(terms[i]);
         }
@@ -201,7 +201,7 @@ public class DfsPhase {
     }
 
     private static void finalizeStatisticsAsTimedOut(SearchContext context) {
-        context.dfsResult().termsStatistics(new Term[0], new TermStatistics[0]).fieldStatistics(Collections.emptyMap()).maxDoc(0);
+        context.dfsResult().termsStatistics(new Term[0], new TermStats[0]).fieldStatistics(Collections.emptyMap()).maxDoc(0);
         handleDfsTimeout(context);
     }
 

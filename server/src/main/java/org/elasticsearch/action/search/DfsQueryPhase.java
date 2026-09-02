@@ -9,9 +9,9 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.FieldStats;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TermStats;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
@@ -187,24 +187,24 @@ class DfsQueryPhase extends SearchPhase {
     }
 
     private static AggregatedDfs aggregateDfs(Collection<DfsSearchResult> results) {
-        Map<Term, TermStatistics> termStatistics = new HashMap<>();
-        Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
+        Map<Term, TermStats> termStatistics = new HashMap<>();
+        Map<String, FieldStats> fieldStatistics = new HashMap<>();
         long aggMaxDoc = 0;
         for (DfsSearchResult lEntry : results) {
             final Term[] terms = lEntry.terms();
-            final TermStatistics[] stats = lEntry.termStatistics();
+            final TermStats[] stats = lEntry.termStatistics();
             assert terms.length == stats.length;
             for (int i = 0; i < terms.length; i++) {
                 assert terms[i] != null;
                 if (stats[i] == null) {
                     continue;
                 }
-                TermStatistics existing = termStatistics.get(terms[i]);
+                TermStats existing = termStatistics.get(terms[i]);
                 if (existing != null) {
                     assert terms[i].bytes().equals(existing.term());
                     termStatistics.put(
                         terms[i],
-                        new TermStatistics(
+                        new TermStats(
                             existing.term(),
                             existing.docFreq() + stats[i].docFreq(),
                             existing.totalTermFreq() + stats[i].totalTermFreq()
@@ -219,14 +219,14 @@ class DfsQueryPhase extends SearchPhase {
             assert lEntry.fieldStatistics().containsKey(null) == false;
             for (var entry : lEntry.fieldStatistics().entrySet()) {
                 String key = entry.getKey();
-                CollectionStatistics value = entry.getValue();
+                FieldStats value = entry.getValue();
                 if (value == null) {
                     continue;
                 }
                 assert key != null;
-                CollectionStatistics existing = fieldStatistics.get(key);
+                FieldStats existing = fieldStatistics.get(key);
                 if (existing != null) {
-                    CollectionStatistics merged = new CollectionStatistics(
+                    FieldStats merged = new FieldStats(
                         key,
                         existing.maxDoc() + value.maxDoc(),
                         existing.docCount() + value.docCount(),

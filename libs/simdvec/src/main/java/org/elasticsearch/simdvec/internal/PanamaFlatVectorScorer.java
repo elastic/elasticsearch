@@ -42,6 +42,8 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
         return switch (vectorValues.getEncoding()) {
             case FLOAT32 -> new FloatScoringSupplier((FloatVectorValues) vectorValues, similarityFunction);
             case BYTE -> new ByteScoringSupplier((ByteVectorValues) vectorValues, similarityFunction);
+            // No SIMD path for float16 vectors yet; fall back to Lucene's default scorer.
+            case FLOAT16 -> DefaultFlatVectorScorer.INSTANCE.getRandomVectorScorerSupplier(similarityFunction, vectorValues);
         };
     }
 
@@ -71,6 +73,16 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
             );
         }
         return createScorer(similarityFunction, target, (ByteVectorValues) vectorValues);
+    }
+
+    @Override
+    public RandomVectorScorer getRandomVectorScorer(
+        VectorSimilarityFunction similarityFunction,
+        KnnVectorValues vectorValues,
+        short[] target
+    ) throws IOException {
+        // No SIMD path for short vectors yet; fall back to Lucene's default scorer.
+        return DefaultFlatVectorScorer.INSTANCE.getRandomVectorScorer(similarityFunction, vectorValues, target);
     }
 
     private abstract static class AbstractPanamaScorer<V> extends RandomVectorScorer.AbstractRandomVectorScorer

@@ -302,10 +302,9 @@ public class XContentMapValues {
          * to match the trailing `.*` bits so we duplicate it only once.
          */
         Automaton tail = Operations.union(
-            Automata.makeEmptyString(),
-            Operations.concatenate(Automata.makeChar('.'), Automata.makeAnyString())
+            List.of(Automata.makeEmptyString(), Operations.concatenate(List.of(Automata.makeChar('.'), Automata.makeAnyString())))
         );
-        return Operations.concatenate(automaton, tail);
+        return Operations.concatenate(List.of(automaton, tail));
     }
 
     private static int step(CharacterRunAutomaton automaton, String key, int state) {

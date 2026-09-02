@@ -4800,12 +4800,32 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testHighlightQueryWithoutOnRequiresFields() {
+    public void testHighlightOnStarRequiresHighlightableFields() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         supportsHighlightImplicit(defaultAnalyzer()).error(
-            "FROM test | HIGHLIGHT \"fox\"",
+            "ROW i = 1 | HIGHLIGHT \"x\" ON *",
+            allOf(
+                containsString("HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause"),
+                not(containsString("Invalid query"))
+            )
+        );
+    }
+
+    public void testBarePureNegativeHighlightRequiresExplicitOn() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | HIGHLIGHT NOT MATCH(title, \"x\")",
             containsString("HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause")
         );
+    }
+
+    public void testHighlightImplicitRejectedOnOlderTransportVersion() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        defaultAnalyzer().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT)
+            .error(
+                "FROM test | HIGHLIGHT \"search\"",
+                containsString("HIGHLIGHT with a derived query or field list is not supported on every participating node")
+            );
     }
 
     public void testHighlightRejectsInvalidOptionEnums() {

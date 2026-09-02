@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -20,15 +21,19 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldEx
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -70,52 +75,29 @@ import java.util.function.Function;
 *      └── Filter [x > 10]
 *          └── EsRelation [index]
 *  </pre>
-*  Now even if there's a pushdown, the <i>final</i> plan would be:
+*  If there's a pushdown, the <i>final</i> plan would be:
 *  <pre>
-*  Project [_doc, foo, x]
+*  Project [_doc, foo]
 *  └── EsQuery [index with some TopN pushdown]
 *  </pre>
-*  The above actually reads the {@code x} field "unnecessarily", since it's only needed to conform to the output schema of the original
-*  plan. See #134363 for a way to optimize this little problem.
+*  Note the above does not project the {@code x} field anymore (this was an enhancement made by #137920)
 */
 class LateMaterializationPlanner {
+    /**
+     * Gates late materialization on the node-reduce driver for {@link TopNBy} and {@link LimitBy} queries.
+     * Enabled automatically in snapshot builds; override in release with
+     * {@code -Des.esql_node_late_materialization_limit_by_feature_flag_enabled=true}.
+     */
+    public static final FeatureFlag ESQL_LATE_MATERIALIZATION_LIMIT_BY_FEATURE_FLAG = new FeatureFlag(
+        "esql_node_late_materialization_limit_by"
+    );
+
     public static Optional<ReductionPlan> planReduceDriverTopN(
         Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory,
         ExchangeSinkExec originalPlan
     ) {
-        FragmentExec fragmentExec = originalPlan.child() instanceof FragmentExec fe ? fe : null;
-        if (fragmentExec == null) {
-            return Optional.empty();
-        }
-
-        Project topLevelProject = fragmentExec.fragment() instanceof Project p ? p : null;
-        if (topLevelProject == null) {
-            return Optional.empty();
-        }
-
-        TopN topN = topLevelProject.child() instanceof TopN tn ? tn : null;
-        if (topN == null) { // I'm getting go déjà vu
-            return Optional.empty();
-        }
-
-        LocalPhysicalOptimizerContext context = contextFactory.apply(SEARCH_STATS_TOP_N_REPLACEMENT);
-
-        List<Attribute> physicalPlanOutput = toNonOptimizedPhysicalDataPlan(topN, context).output();
-        Attribute doc = physicalPlanOutput.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
-        if (doc == null) {
-            return Optional.empty();
-        }
-
-        LogicalPlan withAddedDocToRelation = topN.transformUp(EsRelation.class, r -> {
-            if (r.indexMode() == IndexMode.LOOKUP) {
-                return r;
-            }
-            List<Attribute> attributes = CollectionUtils.prependToCopy(doc, r.output());
-            return r.withAttributes(attributes);
-        });
-        if (withAddedDocToRelation.output().stream().noneMatch(EsQueryExec::isDocAttribute)) {
-            // Defensive check: if any intermediate projects (or possibly another operator) removed the doc field, just abort this
-            // optimization altogether!
+        SetupContext ctx = buildSetupContext(contextFactory, originalPlan);
+        if (ctx == null || !(ctx.pipelineBreaker instanceof TopN topN)) {
             return Optional.empty();
         }
 
@@ -123,29 +105,170 @@ class LateMaterializationPlanner {
         // Get the output from the physical plan below the TopN, and filter it to only the attributes needed for the final output (either
         // because they are in the top-level Project's output, or because they are needed for ordering)
         List<Attribute> expectedDataOutput = new ArrayList<>();
-        for (Attribute a : physicalPlanOutput) {
-            if (topLevelProject.outputSet().contains(a) || orderRefsSet.contains(a) || EsQueryExec.isDocAttribute(a)) {
+        for (Attribute a : ctx.physicalPlanOutput) {
+            if (ctx.topLevelProject.outputSet().contains(a) || orderRefsSet.contains(a) || EsQueryExec.isDocAttribute(a)) {
                 expectedDataOutput.add(a);
             }
         }
-        var updatedFragment = new Project(Source.EMPTY, withAddedDocToRelation, expectedDataOutput);
-        FragmentExec updatedFragmentExec = fragmentExec.withFragment(updatedFragment);
-        ExchangeSinkExec updatedDataPlan = originalPlan.replaceChildAndUpdateOutput(updatedFragmentExec);
-
-        // Replace the TopN child with the data driver as the source.
-        PhysicalPlan reductionPlan = toNonOptimizedPhysicalDataPlan(fragmentExec.fragment(), context).transformDown(TopNExec.class, t -> {
-            PhysicalPlan exchangeExec = new ExchangeSourceExec(topN.source(), expectedDataOutput, false /* isIntermediateAgg */);
-            // If the fragment is already sorted, tell the node-reduce TopN that its input will be sorted already
-            boolean fragmentIsSorted = updatedFragment.child() instanceof TopN;
-            return fragmentIsSorted ? t.replaceChild(exchangeExec).withSortedInput() : t.replaceChild(exchangeExec);
-        });
-        PhysicalPlan sizedReductionPlan = EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), reductionPlan);
-        ExchangeSinkExec reductionPlanWithSize = originalPlan.replaceChild(sizedReductionPlan);
 
         // The TopN reduction plan should not be further optimized locally on the node reduce driver, since we took great pains to
         // preplan in advance, including all the necessary field extractions!
-        return Optional.of(new ReductionPlan(reductionPlanWithSize, updatedDataPlan));
+        return Optional.of(assembleReductionPlan(ctx, originalPlan, expectedDataOutput, plan -> plan.transformDown(TopNExec.class, t -> {
+            PhysicalPlan exchangeExec = new ExchangeSourceExec(topN.source(), expectedDataOutput, false /* isIntermediateAgg */);
+            // If the fragment is already sorted, tell the node-reduce TopN that its input will be sorted already
+            boolean fragmentIsSorted = ctx.withAddedDocToRelation instanceof TopN;
+            return fragmentIsSorted ? t.replaceChild(exchangeExec).withSortedInput() : t.replaceChild(exchangeExec);
+        })));
     }
+
+    /**
+     * Analogous to {@link #planReduceDriverTopN}, but for {@link TopNBy}.
+     *
+     * <p>For a query like:
+     * <pre>
+     * FROM index | WHERE x > 10 | SORT foo | LIMIT 10 BY grp | KEEP bar
+     * </pre>
+     * we defer reading {@code bar} until after the node-reduce driver has finished its own {@link TopNByExec}, so that
+     * {@code bar} is only fetched for the surviving rows (at most {@code 10 * distinct(grp)} rows rather than all rows).
+     * The grouping fields are included in the data-side output so the reduce-side {@link TopNByExec} can partition correctly.
+     */
+    public static Optional<ReductionPlan> planReduceDriverTopNBy(
+        Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory,
+        ExchangeSinkExec originalPlan
+    ) {
+        SetupContext ctx = buildSetupContext(contextFactory, originalPlan);
+        if (ctx == null || !(ctx.pipelineBreaker instanceof TopNBy topNBy)) {
+            return Optional.empty();
+        }
+
+        AttributeSet orderRefsSet = AttributeSet.of(topNBy.order().stream().flatMap(o -> o.references().stream()).toList());
+        AttributeSet groupingRefsSet = AttributeSet.of(topNBy.groupings().stream().flatMap(g -> g.references().stream()).toList());
+        List<Attribute> expectedDataOutput = new ArrayList<>();
+        for (Attribute a : ctx.physicalPlanOutput) {
+            if (ctx.topLevelProject.outputSet().contains(a)
+                || orderRefsSet.contains(a)
+                || groupingRefsSet.contains(a)
+                || EsQueryExec.isDocAttribute(a)) {
+                expectedDataOutput.add(a);
+            }
+        }
+
+        return Optional.of(assembleReductionPlan(ctx, originalPlan, expectedDataOutput, plan -> plan.transformDown(TopNByExec.class, t -> {
+            PhysicalPlan exchangeExec = new ExchangeSourceExec(topNBy.source(), expectedDataOutput, false);
+            // The reduce driver feeds an exchange that the coordinator's own TopNByExec consumes; sorted output is not required.
+            return t.replaceChild(exchangeExec).withNonSortedOutput();
+        })));
+    }
+
+    /**
+     * Analogous to {@link #planReduceDriverTopNBy}, but for {@link LimitBy} (no sort key).
+     *
+     * <p>For a query like:
+     * <pre>
+     * FROM index | LIMIT 10 BY grp | KEEP bar
+     * </pre>
+     * we defer reading {@code bar} until after the node-reduce driver has finished its own {@link LimitByExec}, so that
+     * {@code bar} is only fetched for the surviving rows (at most {@code 10 * distinct(grp)} rows rather than all rows sent by
+     * all shards).
+     */
+    public static Optional<ReductionPlan> planReduceDriverLimitBy(
+        Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory,
+        ExchangeSinkExec originalPlan
+    ) {
+        SetupContext ctx = buildSetupContext(contextFactory, originalPlan);
+        if (ctx == null || !(ctx.pipelineBreaker instanceof LimitBy limitBy)) {
+            return Optional.empty();
+        }
+
+        AttributeSet groupingRefsSet = AttributeSet.of(limitBy.groupings().stream().flatMap(g -> g.references().stream()).toList());
+        List<Attribute> expectedDataOutput = new ArrayList<>();
+        for (Attribute a : ctx.physicalPlanOutput) {
+            if (ctx.topLevelProject.outputSet().contains(a) || groupingRefsSet.contains(a) || EsQueryExec.isDocAttribute(a)) {
+                expectedDataOutput.add(a);
+            }
+        }
+
+        return Optional.of(
+            assembleReductionPlan(
+                ctx,
+                originalPlan,
+                expectedDataOutput,
+                plan -> plan.transformDown(
+                    LimitByExec.class,
+                    t -> t.replaceChild(new ExchangeSourceExec(limitBy.source(), expectedDataOutput, false))
+                )
+            )
+        );
+    }
+
+    /**
+     * Extracts the common setup shared by all three {@code planReduceDriver*} methods: fragment and project extraction,
+     * {@code _doc} attribute discovery, {@link EsRelation} patching, and the defensive doc-survives check.
+     * Returns {@code null} if any prerequisite is missing (callers must also check the {@code pipelineBreaker} type).
+     */
+    private static SetupContext buildSetupContext(
+        Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory,
+        ExchangeSinkExec originalPlan
+    ) {
+        if (!(originalPlan.child() instanceof FragmentExec fragmentExec)) {
+            return null;
+        }
+        if (!(fragmentExec.fragment() instanceof Project topLevelProject)) {
+            return null;
+        }
+
+        LogicalPlan pipelineBreaker = topLevelProject.child();
+        LocalPhysicalOptimizerContext context = contextFactory.apply(SEARCH_STATS_LATE_MATERIALIZATION_REPLACEMENT);
+
+        List<Attribute> physicalPlanOutput = toNonOptimizedPhysicalDataPlan(pipelineBreaker, context).output();
+        Attribute doc = physicalPlanOutput.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
+        if (doc == null) {
+            return null;
+        }
+
+        LogicalPlan withAddedDocToRelation = pipelineBreaker.transformUp(EsRelation.class, r -> {
+            if (r.indexMode() == IndexMode.LOOKUP) {
+                return r;
+            }
+            return r.withAttributes(CollectionUtils.prependToCopy(doc, r.output()));
+        });
+        // Defensive check: if any intermediate project removed the doc field, abort this optimization.
+        if (withAddedDocToRelation.output().stream().noneMatch(EsQueryExec::isDocAttribute)) {
+            return null;
+        }
+
+        return new SetupContext(fragmentExec, topLevelProject, pipelineBreaker, context, physicalPlanOutput, withAddedDocToRelation);
+    }
+
+    /**
+     * Builds the final {@link ReductionPlan} from the common context, the filtered {@code expectedDataOutput},
+     * and a caller-supplied function that wires the specific exec node (e.g. {@link TopNExec}) to the exchange source.
+     */
+    private static ReductionPlan assembleReductionPlan(
+        SetupContext ctx,
+        ExchangeSinkExec originalPlan,
+        List<Attribute> expectedDataOutput,
+        Function<PhysicalPlan, PhysicalPlan> reductionPlanTransformer
+    ) {
+        var updatedFragment = new Project(Source.EMPTY, ctx.withAddedDocToRelation, expectedDataOutput);
+        FragmentExec updatedFragmentExec = ctx.fragmentExec.withFragment(updatedFragment);
+        ExchangeSinkExec updatedDataPlan = originalPlan.replaceChildAndUpdateOutput(updatedFragmentExec);
+
+        PhysicalPlan reductionPlan = reductionPlanTransformer.apply(
+            toNonOptimizedPhysicalDataPlan(ctx.fragmentExec.fragment(), ctx.context)
+        );
+        PhysicalPlan sizedReductionPlan = EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), reductionPlan);
+        return new ReductionPlan(originalPlan.replaceChild(sizedReductionPlan), updatedDataPlan);
+    }
+
+    private record SetupContext(
+        FragmentExec fragmentExec,
+        Project topLevelProject,
+        LogicalPlan pipelineBreaker,
+        LocalPhysicalOptimizerContext context,
+        List<Attribute> physicalPlanOutput,
+        LogicalPlan withAddedDocToRelation
+    ) {}
 
     /**
      * A stripped-down version of {@link org.elasticsearch.xpack.esql.planner.PlannerUtils#localPlan}, doing just the bare minimum to
@@ -165,7 +288,7 @@ class LateMaterializationPlanner {
 
     // We don't have real search stats during the reduce planning phase, so we assume all fields exist and have no other meaningful stats.
     // The local data optimizer will use the real statistics.
-    private static final SearchStats SEARCH_STATS_TOP_N_REPLACEMENT = new SearchStats.UnsupportedSearchStats() {
+    private static final SearchStats SEARCH_STATS_LATE_MATERIALIZATION_REPLACEMENT = new SearchStats.UnsupportedSearchStats() {
         @Override
         public boolean exists(FieldAttribute.FieldName field) {
             return true;

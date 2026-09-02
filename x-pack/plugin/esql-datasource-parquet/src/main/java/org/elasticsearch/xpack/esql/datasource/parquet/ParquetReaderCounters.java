@@ -66,6 +66,7 @@ public final class ParquetReaderCounters {
     // Aggregate
     private final LongAdder rowsEmitted = new LongAdder();
     private final LongAdder totalReadNanos = new LongAdder();
+    private final LongAdder totalReadCpuNanos = new LongAdder();
 
     // Footer cache (JVM-wide ParsedFooterCache)
     private final LongAdder footerCacheHits = new LongAdder();
@@ -144,6 +145,12 @@ public final class ParquetReaderCounters {
         }
     }
 
+    public void addTotalReadCpuNanos(long nanos) {
+        if (nanos > 0) {
+            totalReadCpuNanos.add(nanos);
+        }
+    }
+
     /**
      * Records one footer-cache lookup: {@code hit == true} when the parsed footer was reused,
      * {@code false} when this caller parsed and inserted it.
@@ -195,6 +202,7 @@ public final class ParquetReaderCounters {
             lateMaterializationUsed,
             sortedPredicates,
             totalReadNanos.sum(),
+            totalReadCpuNanos.sum(),
             columnsSnap
         );
     }

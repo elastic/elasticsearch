@@ -1,0 +1,6 @@
+area: CRUD
+issues:
+ - 158212
+pr: 158235
+summary: Do not abort shard bulk on expansion rejection
+type: bug

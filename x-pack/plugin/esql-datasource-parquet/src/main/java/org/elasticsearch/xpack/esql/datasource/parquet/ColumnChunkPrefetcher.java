@@ -7,18 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.ArrowBuf;
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.datasources.spi.DirectMemoryDebug;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.nio.ByteBuffer;
@@ -36,14 +32,14 @@ import java.util.concurrent.CompletableFuture;
  * a wide byte range. For remote storage (S3, HTTP), issuing a single large GET is wasteful when
  * only a subset of columns is projected. Instead, this class computes the byte ranges for the
  * needed column chunks, merges nearby ranges (via {@link CoalescedRangeReader#mergeRanges}),
- * and fetches them concurrently using {@link StorageObject#readBytesAsync}.
+ * and fetches them using synchronous or asynchronous coalesced reads.
  *
  * <p>The prefetched data is stored in a position-indexed map that
  * {@link ParquetStorageObjectAdapter} can consult before issuing its own I/O.
  *
- * <p><b>Threading model:</b> {@link #prefetch} is called from the {@code esql_worker} thread.
- * For native async storage (S3), I/O runs on the SDK's event loop. For local/default storage,
- * the default {@link StorageObject#readBytesAsync} runs inline via {@code Runnable::run}.
+ * <p><b>Threading model:</b> {@link #fetchSync} runs on the {@code esql_worker} thread.
+ * {@link #prefetchAsync} dispatches native async storage I/O to the provider; for local/default
+ * storage, the default {@link StorageObject#readBytesAsync} runs inline via {@code Runnable::run}.
  */
 final class ColumnChunkPrefetcher {
 
@@ -53,60 +49,44 @@ final class ColumnChunkPrefetcher {
 
     /**
      * Result of a prefetch: the chunks indexed by file position, plus a {@link Releasable} that
-     * owns the underlying direct memory (one child allocator per merged range, plus any extras
-     * produced by {@link #promoteToDirect}). The caller must close {@link #release()} once the
+     * owns the underlying buffers. The caller must close {@link #release()} once the
      * chunks are no longer needed (typically at row-group rollover).
      */
     record PrefetchedChunks(NavigableMap<Long, PrefetchedChunk> chunks, Releasable release) {}
 
     /**
-     * Synchronous prefetch: blocks the caller until all I/O completes. Intended for tests and
-     * non-hot paths only — production code uses {@link #prefetchAsync} to overlap I/O with decode.
+     * Synchronously fetches all selected column chunks.
      *
      * @param storageObject the storage backend
      * @param block metadata for the row group to prefetch
      * @param projectedColumns column paths to include (null = all columns)
-     * @param allocator parent allocator from which per-merged-range child allocators are spawned
-     * @return a future that, on completion, holds the chunk index plus a {@link Releasable}
+     * @param breaker circuit breaker charged for each merged-range buffer
+     * @return the chunk index plus a {@link Releasable}
      */
-    static CompletableFuture<PrefetchedChunks> prefetch(
+    static PrefetchedChunks fetchSync(
         StorageObject storageObject,
         BlockMetaData block,
         Set<String> projectedColumns,
-        BufferAllocator allocator
+        CircuitBreaker breaker
     ) {
-        List<CoalescedRangeReader.ByteRange> ranges = computeColumnChunkRanges(block, projectedColumns);
-        if (ranges.isEmpty()) {
-            return CompletableFuture.completedFuture(new PrefetchedChunks(new TreeMap<>(), () -> {}));
-        }
-
-        logger.debug(
-            "Prefetching [{}] column chunk ranges for row group at [{}] ({} bytes)",
-            ranges.size(),
-            block.getStartingPos(),
-            block.getTotalByteSize()
-        );
-
-        CompletableFuture<PrefetchedChunks> result = new CompletableFuture<>();
-
-        PlainActionFuture<CoalescedRangeReader.CoalescedRangeResult> ioFuture = new PlainActionFuture<>();
-        CoalescedRangeReader.readCoalesced(
-            storageObject,
-            ranges,
-            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
-            allocator,
-            Runnable::run,
-            ioFuture
-        );
-
         try {
-            CoalescedRangeReader.CoalescedRangeResult fetched = ioFuture.actionGet();
-            result.complete(buildPrefetched(fetched, allocator));
-        } catch (Throwable e) {
-            result.completeExceptionally(e);
+            List<CoalescedRangeReader.ByteRange> ranges = computeColumnChunkRanges(block, projectedColumns);
+            if (ranges.isEmpty()) {
+                return new PrefetchedChunks(new TreeMap<>(), () -> {});
+            }
+            logger.debug(
+                "Synchronously fetching [{}] column chunk ranges for row group at [{}] ({} bytes)",
+                ranges.size(),
+                block.getStartingPos(),
+                block.getTotalByteSize()
+            );
+            validateSyncRanges(block, projectedColumns, ranges);
+            return buildPrefetched(
+                CoalescedRangeReader.readCoalescedSync(storageObject, ranges, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP, breaker)
+            );
+        } catch (Exception e) {
+            throw ParquetReadFailures.wrap(e, "Failed to fetch column chunks for row group at [" + block.getStartingPos() + "]");
         }
-
-        return result;
     }
 
     /**
@@ -117,7 +97,7 @@ final class ColumnChunkPrefetcher {
         StorageObject storageObject,
         BlockMetaData block,
         Set<String> projectedColumns,
-        BufferAllocator allocator
+        CircuitBreaker breaker
     ) {
         List<CoalescedRangeReader.ByteRange> ranges = computeColumnChunkRanges(block, projectedColumns);
         if (ranges.isEmpty()) {
@@ -131,42 +111,7 @@ final class ColumnChunkPrefetcher {
             block.getTotalByteSize()
         );
 
-        CompletableFuture<PrefetchedChunks> result = new CompletableFuture<>();
-
-        CoalescedRangeReader.readCoalesced(
-            storageObject,
-            ranges,
-            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
-            allocator,
-            Runnable::run,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(CoalescedRangeReader.CoalescedRangeResult fetched) {
-                    try {
-                        PrefetchedChunks chunks = buildPrefetched(fetched, allocator);
-                        if (result.complete(chunks) == false) {
-                            // The future was cancelled between I/O completion and here; release
-                            // the direct memory we just allocated so the breaker charge returns.
-                            chunks.release().close();
-                        }
-                    } catch (Throwable e) {
-                        // buildPrefetched failed mid-way; the helper has already released its
-                        // tracked buffers — surface the failure. Catching Throwable (not just
-                        // RuntimeException) is intentional: buildPrefetched re-throws Errors
-                        // such as OutOfMemoryError, and if those escaped here the future would
-                        // never complete, permanently hanging any caller that joins it.
-                        result.completeExceptionally(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    result.completeExceptionally(e);
-                }
-            }
-        );
-
-        return result;
+        return prefetchCoalesced(storageObject, ranges, breaker);
     }
 
     /**
@@ -215,9 +160,9 @@ final class ColumnChunkPrefetcher {
      * Pages whose row span does not overlap with {@code rowRanges} are excluded, reducing
      * the number of bytes fetched from remote storage.
      *
-     * <p>Dictionary pages (which sit before data pages) are always included since they are
-     * needed to decode any surviving page. Adjacent page ranges are merged by the caller
-     * via {@link CoalescedRangeReader#mergeRanges}.
+     * <p>Dictionary pages are included via {@link #dictionaryPageRange} when encodings
+     * advertise one and the OffsetIndex leaves a positive gap before the first data page.
+     * Adjacent page ranges are merged by the caller via {@link CoalescedRangeReader#mergeRanges}.
      *
      * @param block metadata for the row group
      * @param rowRanges selected row ranges (null = fall back to whole chunks)
@@ -255,13 +200,14 @@ final class ColumnChunkPrefetcher {
                 continue;
             }
 
-            long dictOffset = col.getDictionaryPageOffset();
-            long firstDataPageOffset = oi.getOffset(0);
-            if (dictOffset > 0 && dictOffset < firstDataPageOffset) {
-                ranges.add(new CoalescedRangeReader.ByteRange(dictOffset, firstDataPageOffset - dictOffset));
+            int pageCount = oi.getPageCount();
+            if (pageCount > 0) {
+                CoalescedRangeReader.ByteRange dictRange = dictionaryPageRange(col, oi.getOffset(0));
+                if (dictRange != null) {
+                    ranges.add(dictRange);
+                }
             }
 
-            int pageCount = oi.getPageCount();
             for (int p = 0; p < pageCount; p++) {
                 long pageStart = oi.getFirstRowIndex(p);
                 long pageEnd = (p + 1 < pageCount) ? oi.getFirstRowIndex(p + 1) : rowGroupRowCount;
@@ -286,9 +232,36 @@ final class ColumnChunkPrefetcher {
     }
 
     /**
-     * Synchronous filtered prefetch: blocks the caller. Test-only; see {@link #prefetchAsync}.
+     * Byte range covering the dictionary page of a filtered column chunk, or {@code null} when
+     * there is no dictionary to fetch.
+     *
+     * <p>{@code dictionary_page_offset == 0} means the Thrift field was omitted, not file offset
+     * 0 ({@code PAR1}). When encodings advertise a dictionary and that field is unset, the page
+     * sits in {@code [getStartingPos(), firstIndexedDataPageOffset)} — the same gap a sequential
+     * walk already consumes as {@code DICTIONARY_PAGE}. Writers may leave {@code data_page_offset}
+     * equal to the chunk start while the OffsetIndex points at the first real data page, so the
+     * offset-index bound is the one that locates the gap.
+     *
+     * @param column column chunk metadata
+     * @param firstIndexedDataPageOffset {@link OffsetIndex#getOffset(int) OffsetIndex.getOffset(0)} for this column
+     * @return range {@code [dictStart, firstIndexedDataPageOffset)}, or {@code null}
      */
-    static CompletableFuture<PrefetchedChunks> prefetch(
+    static CoalescedRangeReader.ByteRange dictionaryPageRange(ColumnChunkMetaData column, long firstIndexedDataPageOffset) {
+        if (column.hasDictionaryPage() == false) {
+            return null;
+        }
+        long dictOffset = column.getDictionaryPageOffset();
+        long dictStart = dictOffset > 0 ? dictOffset : column.getStartingPos();
+        if (dictStart > 0 && dictStart < firstIndexedDataPageOffset) {
+            return new CoalescedRangeReader.ByteRange(dictStart, firstIndexedDataPageOffset - dictStart);
+        }
+        return null;
+    }
+
+    /**
+     * Synchronously fetches the selected pages of the selected column chunks.
+     */
+    static PrefetchedChunks fetchSync(
         StorageObject storageObject,
         BlockMetaData block,
         Set<String> projectedColumns,
@@ -296,50 +269,34 @@ final class ColumnChunkPrefetcher {
         PreloadedRowGroupMetadata metadata,
         int rowGroupOrdinal,
         long rowGroupRowCount,
-        BufferAllocator allocator
+        CircuitBreaker breaker
     ) {
-        if (rowRanges == null || rowRanges.isAll()) {
-            return prefetch(storageObject, block, projectedColumns, allocator);
-        }
-
-        List<CoalescedRangeReader.ByteRange> ranges = computeFilteredPageRanges(
-            block,
-            rowRanges,
-            metadata,
-            rowGroupOrdinal,
-            projectedColumns,
-            rowGroupRowCount
-        );
-        if (ranges.isEmpty()) {
-            return CompletableFuture.completedFuture(new PrefetchedChunks(new TreeMap<>(), () -> {}));
-        }
-
-        logger.debug(
-            "Prefetching [{}] filtered page ranges for row group at [{}] (row ranges: {} selected of {})",
-            ranges.size(),
-            block.getStartingPos(),
-            rowRanges != null ? rowRanges.selectedRowCount() : rowGroupRowCount,
-            rowGroupRowCount
-        );
-
-        CompletableFuture<PrefetchedChunks> result = new CompletableFuture<>();
-        PlainActionFuture<CoalescedRangeReader.CoalescedRangeResult> ioFuture = new PlainActionFuture<>();
-        CoalescedRangeReader.readCoalesced(
-            storageObject,
-            ranges,
-            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
-            allocator,
-            Runnable::run,
-            ioFuture
-        );
-
         try {
-            CoalescedRangeReader.CoalescedRangeResult fetched = ioFuture.actionGet();
-            result.complete(buildPrefetched(fetched, allocator));
-        } catch (Throwable e) {
-            result.completeExceptionally(e);
+            List<CoalescedRangeReader.ByteRange> ranges = computeFilteredPageRanges(
+                block,
+                rowRanges,
+                metadata,
+                rowGroupOrdinal,
+                projectedColumns,
+                rowGroupRowCount
+            );
+            if (ranges.isEmpty()) {
+                return new PrefetchedChunks(new TreeMap<>(), () -> {});
+            }
+            logger.debug(
+                "Synchronously fetching [{}] filtered page ranges for row group at [{}] (row ranges: {} selected of {})",
+                ranges.size(),
+                block.getStartingPos(),
+                rowRanges != null ? rowRanges.selectedRowCount() : rowGroupRowCount,
+                rowGroupRowCount
+            );
+            validateSyncRanges(block, projectedColumns, ranges);
+            return buildPrefetched(
+                CoalescedRangeReader.readCoalescedSync(storageObject, ranges, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP, breaker)
+            );
+        } catch (Exception e) {
+            throw ParquetReadFailures.wrap(e, "Failed to fetch column chunks for row group at [" + block.getStartingPos() + "]");
         }
-        return result;
     }
 
     static CompletableFuture<PrefetchedChunks> prefetchAsync(
@@ -350,10 +307,10 @@ final class ColumnChunkPrefetcher {
         PreloadedRowGroupMetadata metadata,
         int rowGroupOrdinal,
         long rowGroupRowCount,
-        BufferAllocator allocator
+        CircuitBreaker breaker
     ) {
         if (rowRanges == null || rowRanges.isAll()) {
-            return prefetchAsync(storageObject, block, projectedColumns, allocator);
+            return prefetchAsync(storageObject, block, projectedColumns, breaker);
         }
 
         List<CoalescedRangeReader.ByteRange> ranges = computeFilteredPageRanges(
@@ -370,21 +327,32 @@ final class ColumnChunkPrefetcher {
 
         logger.debug("Async prefetching [{}] filtered page ranges for row group at [{}]", ranges.size(), block.getStartingPos());
 
+        return prefetchCoalesced(storageObject, ranges, breaker);
+    }
+
+    /**
+     * Dispatches a coalesced async read and wires wrapper-future cancel to the in-flight GETs.
+     */
+    private static CompletableFuture<PrefetchedChunks> prefetchCoalesced(
+        StorageObject storageObject,
+        List<CoalescedRangeReader.ByteRange> ranges,
+        CircuitBreaker breaker
+    ) {
         CompletableFuture<PrefetchedChunks> result = new CompletableFuture<>();
-        CoalescedRangeReader.readCoalesced(
+        Releasable cancelIo = CoalescedRangeReader.readCoalesced(
             storageObject,
             ranges,
             CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
-            allocator,
+            breaker,
             Runnable::run,
             new ActionListener<>() {
                 @Override
                 public void onResponse(CoalescedRangeReader.CoalescedRangeResult fetched) {
                     try {
-                        PrefetchedChunks chunks = buildPrefetched(fetched, allocator);
+                        PrefetchedChunks chunks = buildPrefetched(fetched);
                         if (result.complete(chunks) == false) {
                             // The future was cancelled between I/O completion and here; release
-                            // the direct memory we just allocated so the breaker charge returns.
+                            // the buffers we just allocated so the breaker charge returns.
                             chunks.release().close();
                         }
                     } catch (Throwable e) {
@@ -403,37 +371,68 @@ final class ColumnChunkPrefetcher {
                 }
             }
         );
+        result.whenComplete((ignored, error) -> {
+            if (result.isCancelled()) {
+                cancelIo.close();
+            }
+        });
         return result;
     }
 
+    private static void validateSyncRanges(BlockMetaData block, Set<String> projectedColumns, List<CoalescedRangeReader.ByteRange> ranges) {
+        for (CoalescedRangeReader.ByteRange range : ranges) {
+            if (range.length() <= Integer.MAX_VALUE) {
+                continue;
+            }
+            String column = columnForRangeOffset(block, projectedColumns, range.offset());
+            String subject = column == null ? "Range at offset [" + range.offset() + "]" : "Range for column [" + column + "]";
+            throw new IllegalArgumentException(
+                subject
+                    + " has length ["
+                    + range.length()
+                    + "], which exceeds the maximum supported synchronous read size ["
+                    + Integer.MAX_VALUE
+                    + "]"
+            );
+        }
+    }
+
+    private static String columnForRangeOffset(BlockMetaData block, Set<String> projectedColumns, long offset) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+            String path = column.getPath().toDotString();
+            if (projectedColumns != null && projectedColumns.contains(path) == false) {
+                continue;
+            }
+            if (column.getStartingPos() == offset || (column.getDictionaryPageOffset() > 0 && column.getDictionaryPageOffset() == offset)) {
+                return path;
+            }
+        }
+        return null;
+    }
+
     /**
-     * Assembles a {@link PrefetchedChunks} from the coalesced read result. Wraps the result's
-     * own {@link Releasable} together with any extra promote-to-direct allocations so the caller
-     * can close them all in one shot.
+     * Assembles a {@link PrefetchedChunks} from the coalesced read result. Heap buffers stay heap;
+     * {@link ByteBuffer#slice()} normalizes position so {@code PrefetchedSource} can treat
+     * {@code offsetInChunk} as 0-based.
      */
-    private static PrefetchedChunks buildPrefetched(CoalescedRangeReader.CoalescedRangeResult fetched, BufferAllocator allocator) {
+    private static PrefetchedChunks buildPrefetched(CoalescedRangeReader.CoalescedRangeResult fetched) {
         // Keyed by file offset. Column chunks in a valid Parquet file have unique start positions;
         // duplicate offsets would indicate a corrupt or pathological file.
         NavigableMap<Long, PrefetchedChunk> prefetched = new TreeMap<>();
-        List<Releasable> extra = new ArrayList<>();
         try {
             for (var entry : fetched.ranges().entrySet()) {
                 CoalescedRangeReader.ByteRange range = entry.getKey();
-                // promoteToDirect's fast-path (already-direct) returns the slice as delivered
-                // by CoalescedRangeReader: position == relativeOffset within the merged S3 range,
-                // not 0. PrefetchedSource.slice() treats offsetInChunk as a 0-based index into
-                // chunk.data(), so normalise position here via slice(). The heap→direct copy path
-                // already flips the buffer to position=0, so slice() is a no-op for that case.
-                ByteBuffer data = promoteToDirect(entry.getValue(), allocator, extra).slice();
+                // CoalescedRangeReader delivers slices with position == relativeOffset within the
+                // merged range, not 0. PrefetchedSource.slice() treats offsetInChunk as a 0-based
+                // index into chunk.data(), so normalise position here via slice().
+                ByteBuffer data = entry.getValue().slice();
                 prefetched.put(range.offset(), new PrefetchedChunk(range.offset(), range.length(), data));
             }
         } catch (Throwable t) {
-            // Release the read result and any extras we managed to create before re-throwing so
-            // the caller sees a clean failure with no outstanding breaker reservation. We catch
-            // Throwable (not just RuntimeException) so that Errors like OutOfMemoryError — which
-            // are a realistic outcome of allocating large direct buffers — also run the cleanup
-            // path; otherwise the breaker reservation would leak for the lifetime of the JVM.
-            Releasables.close(extra);
+            // Release the read result before re-throwing so the caller sees a clean failure with
+            // no outstanding breaker reservation. We catch Throwable (not just RuntimeException)
+            // so that Errors like OutOfMemoryError also run the cleanup path; otherwise the
+            // breaker reservation would leak for the lifetime of the JVM.
             try {
                 fetched.release().close();
             } catch (Throwable releaseFailure) {
@@ -441,42 +440,7 @@ final class ColumnChunkPrefetcher {
             }
             throw t;
         }
-        Releasable composite = () -> {
-            // Close the underlying coalesced-range child allocators first, then any extras created
-            // by promote-to-direct. Order is irrelevant for correctness but keeps allocator names
-            // visible in leak reports in the original allocation order.
-            try {
-                fetched.release().close();
-            } finally {
-                Releasables.close(extra);
-            }
-        };
-        return new PrefetchedChunks(prefetched, composite);
-    }
-
-    /**
-     * Returns a direct {@link ByteBuffer} view of {@code buffer}. If the input is already direct
-     * (the production path: every backend now returns ArrowBuf-backed direct memory), this is a
-     * no-op. Test stubs that return heap buffers fall through to an allocator-backed copy so the
-     * downstream JNI decompressors can still take their direct-to-direct fast path and the
-     * promoted bytes are also breaker-accounted.
-     */
-    private static ByteBuffer promoteToDirect(ByteBuffer buffer, BufferAllocator allocator, List<Releasable> extra) {
-        if (buffer.isDirect()) {
-            return buffer;
-        }
-        int length = buffer.remaining();
-        ArrowBuf promoted = allocator.buffer(length);
-        ByteBuffer direct = promoted.nioBuffer(0, length);
-        // Poison the region just before release (assertions only) so a page slice that aliases this
-        // promoted chunk and is read after free fails deterministically instead of flakily.
-        extra.add(() -> {
-            DirectMemoryDebug.poison(direct);
-            promoted.close();
-        });
-        direct.put(buffer);
-        direct.flip();
-        return direct;
+        return new PrefetchedChunks(prefetched, fetched.release());
     }
 
     /**

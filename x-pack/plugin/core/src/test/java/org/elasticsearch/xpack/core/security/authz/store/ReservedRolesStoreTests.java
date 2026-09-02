@@ -2097,6 +2097,23 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertViewIndexMetadata(kibanaRole, indexName);
         });
 
+        // Product aliases are not .entities.* names; ES authorizes aliases APIs against the alias name.
+        Arrays.asList(
+            "entities-latest-" + randomAlphaOfLength(randomIntBetween(1, 13)),
+            "entities-updates-" + randomAlphaOfLength(randomIntBetween(1, 13)),
+            "entities-metadata-" + randomAlphaOfLength(randomIntBetween(1, 13))
+        ).forEach(indexName -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndicesAliasesAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAliasesAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(false));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
+                is(false)
+            );
+        });
+
         Arrays.asList("metrics-logstash." + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((indexName) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));

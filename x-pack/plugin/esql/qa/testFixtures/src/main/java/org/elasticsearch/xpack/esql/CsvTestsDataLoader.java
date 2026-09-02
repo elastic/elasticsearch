@@ -255,6 +255,15 @@ public class CsvTestsDataLoader {
             .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
         new TestDataset("prom-metrics", "prom-metrics-mappings.json", "k8s-prometheus-remote-write.csv", "prom-metrics-settings.json")
             .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
+        new TestDataset(
+            "prom-metrics-name",
+            "prom-metrics-name-mappings.json",
+            "k8s-prometheus-name.csv",
+            "prom-metrics-name-settings.json"
+        ).withRequiredCapabilities(
+            EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING,
+            EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS
+        ),
         new TestDataset("distances"),
         new TestDataset("addresses"),
         new TestDataset("addresses").withIndex("addresses_no_continent")
@@ -304,6 +313,7 @@ public class CsvTestsDataLoader {
             .withDynamic("false")
             .withTypeMapping(removeFields("float_vector")),
         new TestDataset("dense_vector_coalesce").withRequiredCapabilities(EsqlCapabilities.Cap.COALESCE_DENSE_VECTOR),
+        new TestDataset("dense_vector_limit_by"),
         new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT),
         new TestDataset("dense_vector_arithmetic"),
         new TestDataset("web_logs"),
@@ -430,7 +440,11 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_in_subquery_disjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("view_partial_mapping_sample_data"),
-        new ViewConfig("view_sample_data")
+        new ViewConfig("view_sample_data"),
+        new ViewConfig(
+            "employees_stats_where_in_subquery_view",
+            List.of(WHERE_IN_SUBQUERY_WITH_VIEW, EsqlCapabilities.Cap.STATS_WHERE_IN_SUBQUERY)
+        )
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**
@@ -604,7 +618,7 @@ public class CsvTestsDataLoader {
         return (prop == null || prop.isBlank()) ? null : Set.of(prop.split(", *"));
     }
 
-    private static boolean isLookupDataset(TestDataset dataset) throws IOException {
+    static boolean isLookupDataset(TestDataset dataset) throws IOException {
         Settings settings = dataset.loadSettings();
         String mode = settings.get("index.mode");
         return (mode != null && mode.equalsIgnoreCase("lookup"));
@@ -619,7 +633,7 @@ public class CsvTestsDataLoader {
         return mappingNode.get("_source") != null;
     }
 
-    private static boolean isTimeSeries(TestDataset dataset) throws IOException {
+    static boolean isTimeSeries(TestDataset dataset) throws IOException {
         Settings settings = dataset.loadSettings();
         String mode = settings.get("index.mode");
         return (mode != null && mode.equalsIgnoreCase("time_series"));

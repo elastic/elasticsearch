@@ -7,15 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -27,6 +25,7 @@ import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -36,14 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class RetryableStorageProviderTests extends ESTestCase {
 
-    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
-    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
-    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
-    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
-        .build();
-    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
 
     public void testNewObjectWrapsWithRetry() throws IOException {
         AtomicInteger streamCalls = new AtomicInteger();
@@ -107,6 +99,58 @@ public class RetryableStorageProviderTests extends ESTestCase {
         StorageIterator iter = provider.listObjects(StoragePath.of("s3://bucket/prefix"), true);
         assertFalse(iter.hasNext());
         assertEquals(2, calls.get());
+    }
+
+    public void testLazyListObjectsRetriesPagesWithoutRecreatingOrDuplicatingIterator() throws IOException {
+        StorageEntry first = new StorageEntry(StoragePath.of("s3://bucket/prefix/first.csv"), 10, Instant.EPOCH);
+        StorageEntry second = new StorageEntry(StoragePath.of("s3://bucket/prefix/second.csv"), 20, Instant.EPOCH);
+        AtomicInteger listCalls = new AtomicInteger();
+        AtomicInteger nextCalls = new AtomicInteger();
+        StorageProvider delegate = new StubStorageProvider() {
+            @Override
+            public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+                listCalls.incrementAndGet();
+                return new StorageIterator() {
+                    private int index;
+                    private boolean firstPageFailed;
+                    private boolean secondPageFailed;
+
+                    @Override
+                    public boolean hasNext() {
+                        if (index == 0 && firstPageFailed == false) {
+                            firstPageFailed = true;
+                            throw new ExternalUnavailableException("first page unavailable", (Throwable) null);
+                        }
+                        if (index == 1 && secondPageFailed == false) {
+                            secondPageFailed = true;
+                            throw new ExternalUnavailableException("second page unavailable", (Throwable) null);
+                        }
+                        return index < 2;
+                    }
+
+                    @Override
+                    public StorageEntry next() {
+                        nextCalls.incrementAndGet();
+                        return index++ == 0 ? first : second;
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+            }
+        };
+        RetryableStorageProvider provider = new RetryableStorageProvider(delegate, new RetryPolicy(3, 1, 10));
+
+        List<StorageEntry> entries = new ArrayList<>();
+        try (StorageIterator iterator = provider.listObjects(StoragePath.of("s3://bucket/prefix"), true)) {
+            while (iterator.hasNext()) {
+                entries.add(iterator.next());
+            }
+        }
+
+        assertEquals(List.of(first, second), entries);
+        assertEquals("page retries must preserve the original iterator and continuation state", 1, listCalls.get());
+        assertEquals("each entry must be consumed exactly once", 2, nextCalls.get());
     }
 
     public void testExistsRetriesOnTransientFailure() throws IOException {

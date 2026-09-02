@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.cli;
 
 import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.ASN1OctetString;
 import org.bouncycastle.asn1.DERSequence;
 import org.bouncycastle.asn1.DERTaggedObject;
 import org.bouncycastle.asn1.DERUTF8String;
@@ -21,6 +22,7 @@ import org.bouncycastle.asn1.x509.ExtensionsGenerator;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.asn1.x509.KeyUsage;
+import org.bouncycastle.asn1.x509.SubjectKeyIdentifier;
 import org.bouncycastle.asn1.x509.Time;
 import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.cert.X509CertificateHolder;
@@ -238,7 +240,14 @@ public class CertGenUtils {
                 throw new IllegalArgumentException("ca certificate is not a CA!");
             }
             issuer = X500Name.getInstance(caCert.getSubjectX500Principal().getEncoded());
-            authorityKeyIdentifier = extUtils.createAuthorityKeyIdentifier(caCert.getPublicKey());
+            final byte[] subjectKeyIdentifierExtension = caCert.getExtensionValue(Extension.subjectKeyIdentifier.getId());
+            if (subjectKeyIdentifierExtension == null) {
+                throw new IllegalArgumentException("ca certificate does not contain a subject key identifier");
+            }
+            final SubjectKeyIdentifier subjectKeyIdentifier = SubjectKeyIdentifier.getInstance(
+                ASN1OctetString.getInstance(subjectKeyIdentifierExtension).getOctets()
+            );
+            authorityKeyIdentifier = new AuthorityKeyIdentifier(subjectKeyIdentifier.getKeyIdentifier());
         } else {
             issuer = subject;
             authorityKeyIdentifier = extUtils.createAuthorityKeyIdentifier(keyPair.getPublic());

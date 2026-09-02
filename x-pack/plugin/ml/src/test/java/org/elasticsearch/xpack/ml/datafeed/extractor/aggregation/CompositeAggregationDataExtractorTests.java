@@ -33,7 +33,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.PageSizeBucket;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetryTestSupport;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -412,16 +411,13 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
 
         extractor.next();
 
-        verify(telemetrySupport.responsesCounter).incrementBy(
-            1,
-            Map.of(
-                DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE,
-                ExtractorType.COMPOSITE.attributeValue(),
-                DatafeedSearchTelemetry.RESULTS_BUCKET_ATTRIBUTE,
-                "1_99",
-                DatafeedSearchTelemetry.PAGE_SIZE_BUCKET_ATTRIBUTE,
-                PageSizeBucket.LT_1000.attributeValue()
-            )
+        verify(telemetrySupport.resultCountHistogram).record(
+            4,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.COMPOSITE.attributeValue())
+        );
+        verify(telemetrySupport.pageSizeHistogram).record(
+            10,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.COMPOSITE.attributeValue())
         );
     }
 
@@ -488,12 +484,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
 
         verify(telemetrySupport.fullPageCounter, times(1)).incrementBy(
             1,
-            Map.of(
-                DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE,
-                ExtractorType.COMPOSITE.attributeValue(),
-                DatafeedSearchTelemetry.PAGE_SIZE_BUCKET_ATTRIBUTE,
-                PageSizeBucket.LT_1000.attributeValue()
-            )
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.COMPOSITE.attributeValue())
         );
     }
 

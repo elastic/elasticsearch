@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.PageSizeBucket;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -73,7 +72,7 @@ class ScrollDataExtractor implements DataExtractor {
     private List<LinkedClusterState> lastLinkedClusterStates = List.of();
     private final List<String> failedClearScrollIds = new ArrayList<>();
     private boolean fullPagePending;
-    private final PageSizeBucket scrollPageSizeBucket;
+    private final int scrollPageSize;
 
     ScrollDataExtractor(
         Client client,
@@ -89,7 +88,7 @@ class ScrollDataExtractor implements DataExtractor {
         this.factory = Objects.requireNonNull(factory);
         hasNext = true;
         searchHasShardFailure = false;
-        this.scrollPageSizeBucket = DatafeedSearchTelemetry.pageSizeBucket(dataExtractorContext.scrollSize);
+        this.scrollPageSize = dataExtractorContext.scrollSize;
     }
 
     @Override
@@ -260,7 +259,7 @@ class ScrollDataExtractor implements DataExtractor {
     private InputStream processAndConsumeSearchHits(SearchHits hits) throws IOException {
 
         if (hits.getHits().length == 0) {
-            searchTelemetry.recordSearchResults(ExtractorType.SCROLL, 0, scrollPageSizeBucket);
+            searchTelemetry.recordSearchResults(ExtractorType.SCROLL, 0, scrollPageSize);
             fullPagePending = false;
             hasNext = false;
             clearScroll();
@@ -268,11 +267,11 @@ class ScrollDataExtractor implements DataExtractor {
         }
 
         if (fullPagePending) {
-            searchTelemetry.recordFullPage(ExtractorType.SCROLL, scrollPageSizeBucket);
+            searchTelemetry.recordFullPage(ExtractorType.SCROLL);
         }
 
         int hitCount = hits.getHits().length;
-        searchTelemetry.recordSearchResults(ExtractorType.SCROLL, hitCount, scrollPageSizeBucket);
+        searchTelemetry.recordSearchResults(ExtractorType.SCROLL, hitCount, scrollPageSize);
         fullPagePending = hitCount == context.scrollSize;
 
         BytesStreamOutput outputStream = new BytesStreamOutput();

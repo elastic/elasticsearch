@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.PageSizeBucket;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetryTestSupport;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
@@ -788,16 +787,13 @@ public class ScrollDataExtractorTests extends ESTestCase {
         TestDataExtractor extractor = new TestDataExtractor(createContext(1000L, 2000L, null, 1000), telemetrySupport.telemetry);
         extractor.setNextResponse(createEmptySearchResponse());
         extractor.next();
-        verify(telemetrySupport.responsesCounter).incrementBy(
-            1,
-            Map.of(
-                DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE,
-                ExtractorType.SCROLL.attributeValue(),
-                DatafeedSearchTelemetry.RESULTS_BUCKET_ATTRIBUTE,
-                "0",
-                DatafeedSearchTelemetry.PAGE_SIZE_BUCKET_ATTRIBUTE,
-                PageSizeBucket.EQ_1000.attributeValue()
-            )
+        verify(telemetrySupport.resultCountHistogram).record(
+            0,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.SCROLL.attributeValue())
+        );
+        verify(telemetrySupport.pageSizeHistogram).record(
+            1000,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.SCROLL.attributeValue())
         );
     }
 
@@ -822,30 +818,22 @@ public class ScrollDataExtractorTests extends ESTestCase {
         extractor.next();
         verify(telemetrySupport.fullPageCounter, times(1)).incrementBy(
             1,
-            Map.of(
-                DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE,
-                ExtractorType.SCROLL.attributeValue(),
-                DatafeedSearchTelemetry.PAGE_SIZE_BUCKET_ATTRIBUTE,
-                PageSizeBucket.LT_1000.attributeValue()
-            )
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.SCROLL.attributeValue())
         );
     }
 
-    public void testPageSizeBucketShouldReflectScrollSizeLessThanCap() throws IOException {
+    public void testScrollSizeShouldRecordRawPageSizeInTelemetry() throws IOException {
         DatafeedSearchTelemetryTestSupport telemetrySupport = new DatafeedSearchTelemetryTestSupport();
         TestDataExtractor extractor = new TestDataExtractor(createContext(1000L, 2000L, null, 500), telemetrySupport.telemetry);
         extractor.setNextResponse(createSearchResponseWithHitCount(1));
         extractor.next();
-        verify(telemetrySupport.responsesCounter).incrementBy(
+        verify(telemetrySupport.resultCountHistogram).record(
             1,
-            Map.of(
-                DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE,
-                ExtractorType.SCROLL.attributeValue(),
-                DatafeedSearchTelemetry.RESULTS_BUCKET_ATTRIBUTE,
-                "1_99",
-                DatafeedSearchTelemetry.PAGE_SIZE_BUCKET_ATTRIBUTE,
-                PageSizeBucket.LT_1000.attributeValue()
-            )
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.SCROLL.attributeValue())
+        );
+        verify(telemetrySupport.pageSizeHistogram).record(
+            500,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.SCROLL.attributeValue())
         );
     }
 

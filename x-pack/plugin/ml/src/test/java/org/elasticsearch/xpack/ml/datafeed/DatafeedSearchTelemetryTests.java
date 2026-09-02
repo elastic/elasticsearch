@@ -8,89 +8,64 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.PageSizeBucket;
 
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class DatafeedSearchTelemetryTests extends ESTestCase {
 
-    public void testResultsBucketShouldClassifyCountsAroundEsqlDefaultCap() {
-        assertThat(DatafeedSearchTelemetry.resultsBucket(0), equalTo("0"));
-        assertThat(DatafeedSearchTelemetry.resultsBucket(1), equalTo("1_99"));
-        assertThat(DatafeedSearchTelemetry.resultsBucket(99), equalTo("1_99"));
-        assertThat(DatafeedSearchTelemetry.resultsBucket(100), equalTo("100_499"));
-        assertThat(DatafeedSearchTelemetry.resultsBucket(499), equalTo("100_499"));
-        assertThat(DatafeedSearchTelemetry.resultsBucket(500), equalTo("500_999"));
-        assertThat(DatafeedSearchTelemetry.resultsBucket(999), equalTo("500_999"));
-        assertThat(DatafeedSearchTelemetry.resultsBucket(1000), equalTo("1000"));
-        assertThat(DatafeedSearchTelemetry.resultsBucket(1001), equalTo("1001_9999"));
-        assertThat(DatafeedSearchTelemetry.resultsBucket(9999), equalTo("1001_9999"));
-        assertThat(DatafeedSearchTelemetry.resultsBucket(10000), equalTo("10000"));
-        assertThat(DatafeedSearchTelemetry.resultsBucket(10001), equalTo("10001_1000000"));
-        assertThat(DatafeedSearchTelemetry.resultsBucket(1000000), equalTo("10001_1000000"));
-        assertThat(DatafeedSearchTelemetry.resultsBucket(1000001), equalTo("gt_1000000"));
-        assertThat(DatafeedSearchTelemetry.resultsBucket(Integer.MAX_VALUE), equalTo("gt_1000000"));
-    }
-
-    public void testPageSizeBucketShouldClassifyAroundEsqlDefaultAndCeiling() {
-        assertThat(DatafeedSearchTelemetry.pageSizeBucket(1), equalTo(PageSizeBucket.LT_1000));
-        assertThat(DatafeedSearchTelemetry.pageSizeBucket(999), equalTo(PageSizeBucket.LT_1000));
-        assertThat(DatafeedSearchTelemetry.pageSizeBucket(1000), equalTo(PageSizeBucket.EQ_1000));
-        assertThat(DatafeedSearchTelemetry.pageSizeBucket(1001), equalTo(PageSizeBucket.GT_1000_LT_10000));
-        assertThat(DatafeedSearchTelemetry.pageSizeBucket(9999), equalTo(PageSizeBucket.GT_1000_LT_10000));
-        assertThat(DatafeedSearchTelemetry.pageSizeBucket(10000), equalTo(PageSizeBucket.EQ_10000));
-        assertThat(DatafeedSearchTelemetry.pageSizeBucket(10001), equalTo(PageSizeBucket.GT_10000_LE_1000000));
-        assertThat(DatafeedSearchTelemetry.pageSizeBucket(1000000), equalTo(PageSizeBucket.GT_10000_LE_1000000));
-        assertThat(DatafeedSearchTelemetry.pageSizeBucket(1000001), equalTo(PageSizeBucket.GT_1000000));
-    }
-
-    public void testRecordSearchResultsShouldIncrementCounterWithAttributes() {
+    public void testRecordSearchResultsShouldRecordResultCountAndPageSizeHistograms() {
         MeterRegistry meterRegistry = mock(MeterRegistry.class);
-        LongCounter searchResponsesCounter = mock(LongCounter.class);
+        LongHistogram resultCountHistogram = mock(LongHistogram.class);
+        LongHistogram pageSizeHistogram = mock(LongHistogram.class);
         LongCounter fullPageCounter = mock(LongCounter.class);
-        when(meterRegistry.registerLongCounter(eq(DatafeedSearchTelemetry.RESPONSES_METRIC), anyString(), anyString())).thenReturn(
-            searchResponsesCounter
-        );
+        when(meterRegistry.registerLongHistogram(eq(DatafeedSearchTelemetry.RESULT_COUNT_METRIC), anyString(), anyString(), anyList()))
+            .thenReturn(resultCountHistogram);
+        when(meterRegistry.registerLongHistogram(eq(DatafeedSearchTelemetry.PAGE_SIZE_METRIC), anyString(), anyString(), anyList()))
+            .thenReturn(pageSizeHistogram);
         when(meterRegistry.registerLongCounter(eq(DatafeedSearchTelemetry.FULL_PAGE_METRIC), anyString(), anyString())).thenReturn(
             fullPageCounter
         );
 
         DatafeedSearchTelemetry telemetry = new DatafeedSearchTelemetry(meterRegistry);
-        telemetry.recordSearchResults(ExtractorType.SCROLL, 1000, PageSizeBucket.EQ_1000);
+        telemetry.recordSearchResults(ExtractorType.SCROLL, 1000, 1000);
 
-        verify(searchResponsesCounter).incrementBy(
-            1,
-            Map.of(
-                DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE,
-                ExtractorType.SCROLL.attributeValue(),
-                DatafeedSearchTelemetry.RESULTS_BUCKET_ATTRIBUTE,
-                "1000",
-                DatafeedSearchTelemetry.PAGE_SIZE_BUCKET_ATTRIBUTE,
-                "1000"
-            )
+        verify(resultCountHistogram).record(
+            1000,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.SCROLL.attributeValue())
+        );
+        verify(pageSizeHistogram).record(
+            1000,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.SCROLL.attributeValue())
         );
     }
 
-    public void testRecordSearchResultsGivenAggregationShouldOmitPageSizeAttribute() {
+    public void testRecordSearchResultsGivenAggregationShouldOmitPageSizeHistogram() {
         MeterRegistry meterRegistry = mock(MeterRegistry.class);
-        LongCounter searchResponsesCounter = mock(LongCounter.class);
+        LongHistogram resultCountHistogram = mock(LongHistogram.class);
+        LongHistogram pageSizeHistogram = mock(LongHistogram.class);
         LongCounter fullPageCounter = mock(LongCounter.class);
-        when(meterRegistry.registerLongCounter(eq(DatafeedSearchTelemetry.RESPONSES_METRIC), anyString(), anyString())).thenReturn(
-            searchResponsesCounter
-        );
+        when(meterRegistry.registerLongHistogram(eq(DatafeedSearchTelemetry.RESULT_COUNT_METRIC), anyString(), anyString(), anyList()))
+            .thenReturn(resultCountHistogram);
+        when(meterRegistry.registerLongHistogram(eq(DatafeedSearchTelemetry.PAGE_SIZE_METRIC), anyString(), anyString(), anyList()))
+            .thenReturn(pageSizeHistogram);
         when(meterRegistry.registerLongCounter(eq(DatafeedSearchTelemetry.FULL_PAGE_METRIC), anyString(), anyString())).thenReturn(
             fullPageCounter
         );
@@ -98,15 +73,11 @@ public class DatafeedSearchTelemetryTests extends ESTestCase {
         DatafeedSearchTelemetry telemetry = new DatafeedSearchTelemetry(meterRegistry);
         telemetry.recordSearchResults(ExtractorType.AGGREGATION, 4, null);
 
-        verify(searchResponsesCounter).incrementBy(
-            1,
-            Map.of(
-                DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE,
-                ExtractorType.AGGREGATION.attributeValue(),
-                DatafeedSearchTelemetry.RESULTS_BUCKET_ATTRIBUTE,
-                "1_99"
-            )
+        verify(resultCountHistogram).record(
+            4,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.AGGREGATION.attributeValue())
         );
+        verify(pageSizeHistogram, never()).record(anyLong(), anyMap());
     }
 
     public void testClassifyExtractorTypeShouldDistinguishScrollAggregationAndComposite() {
@@ -130,26 +101,23 @@ public class DatafeedSearchTelemetryTests extends ESTestCase {
 
     public void testRecordFullPageShouldIncrementFullPageCounter() {
         MeterRegistry meterRegistry = mock(MeterRegistry.class);
-        LongCounter searchResponsesCounter = mock(LongCounter.class);
+        LongHistogram resultCountHistogram = mock(LongHistogram.class);
+        LongHistogram pageSizeHistogram = mock(LongHistogram.class);
         LongCounter fullPageCounter = mock(LongCounter.class);
-        when(meterRegistry.registerLongCounter(eq(DatafeedSearchTelemetry.RESPONSES_METRIC), anyString(), anyString())).thenReturn(
-            searchResponsesCounter
-        );
+        when(meterRegistry.registerLongHistogram(eq(DatafeedSearchTelemetry.RESULT_COUNT_METRIC), anyString(), anyString(), anyList()))
+            .thenReturn(resultCountHistogram);
+        when(meterRegistry.registerLongHistogram(eq(DatafeedSearchTelemetry.PAGE_SIZE_METRIC), anyString(), anyString(), anyList()))
+            .thenReturn(pageSizeHistogram);
         when(meterRegistry.registerLongCounter(eq(DatafeedSearchTelemetry.FULL_PAGE_METRIC), anyString(), anyString())).thenReturn(
             fullPageCounter
         );
 
         DatafeedSearchTelemetry telemetry = new DatafeedSearchTelemetry(meterRegistry);
-        telemetry.recordFullPage(ExtractorType.COMPOSITE, PageSizeBucket.EQ_1000);
+        telemetry.recordFullPage(ExtractorType.COMPOSITE);
 
         verify(fullPageCounter).incrementBy(
             1,
-            Map.of(
-                DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE,
-                ExtractorType.COMPOSITE.attributeValue(),
-                DatafeedSearchTelemetry.PAGE_SIZE_BUCKET_ATTRIBUTE,
-                "1000"
-            )
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.COMPOSITE.attributeValue())
         );
     }
 }

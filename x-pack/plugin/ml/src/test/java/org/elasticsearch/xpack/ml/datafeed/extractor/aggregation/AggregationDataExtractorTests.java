@@ -63,8 +63,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.stringContainsInOrder;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -284,15 +287,11 @@ public class AggregationDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         extractor.next();
 
-        verify(telemetrySupport.responsesCounter).incrementBy(
-            1,
-            Map.of(
-                DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE,
-                ExtractorType.AGGREGATION.attributeValue(),
-                DatafeedSearchTelemetry.RESULTS_BUCKET_ATTRIBUTE,
-                "1_99"
-            )
+        verify(telemetrySupport.resultCountHistogram).record(
+            4,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.AGGREGATION.attributeValue())
         );
+        verify(telemetrySupport.pageSizeHistogram, never()).record(anyLong(), anyMap());
     }
 
     public void testExtractionGivenNullAggsShouldRecordZeroInTelemetry() throws IOException {
@@ -310,15 +309,11 @@ public class AggregationDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         extractor.next();
 
-        verify(telemetrySupport.responsesCounter).incrementBy(
-            1,
-            Map.of(
-                DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE,
-                ExtractorType.AGGREGATION.attributeValue(),
-                DatafeedSearchTelemetry.RESULTS_BUCKET_ATTRIBUTE,
-                "0"
-            )
+        verify(telemetrySupport.resultCountHistogram).record(
+            0,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.AGGREGATION.attributeValue())
         );
+        verify(telemetrySupport.pageSizeHistogram, never()).record(anyLong(), anyMap());
     }
 
     public void testExtractionGivenResponseHasMultipleTopLevelAggs() {

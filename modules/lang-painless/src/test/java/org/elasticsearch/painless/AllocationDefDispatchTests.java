@@ -79,9 +79,10 @@ public class AllocationDefDispatchTests extends AllocationTestCase {
     }
 
     public void testDefSameNameUnannotatedTargetChargesNothing() {
-        // "substring"/2 is annotated on String, so the receiver is pushed, but StringBuilder.substring(int, int) is not
-        // annotated — resolving to it must charge nothing.
-        assertEquals(0L, allocatedBytes("def sb = new StringBuilder(\"hello\"); sb.substring(0, 5); return \"x\";"));
+        // constantAllocating/0 is annotated on AllocationEstimatorTestObject, so the receiver is pushed, but the copy on
+        // AllocationInheritanceObject is not annotated. Resolving to it must charge nothing. Both live in the test fixture
+        // so that annotating more of the JDK cannot invalidate this.
+        assertEquals(0L, allocatedBytes("def o = new AllocationInheritanceObject(); o.constantAllocating(); return \"x\";"));
     }
 
     public void testDefDynamicEstimatorSanitizedAndTrips() {

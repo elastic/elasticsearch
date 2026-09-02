@@ -1,0 +1,5 @@
+pr: 158389
+summary: Build the BBQ merge scorer's query-side records while writing the merged vectors
+area: Vector Search
+type: enhancement
+issues: []

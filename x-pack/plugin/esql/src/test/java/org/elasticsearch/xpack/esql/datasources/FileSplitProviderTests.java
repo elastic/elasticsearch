@@ -93,6 +93,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
@@ -1125,6 +1126,43 @@ public class FileSplitProviderTests extends ESTestCase {
             release.countDown();
             io.shutdownNow();
         }
+    }
+
+    /**
+     * Default {@link RangeAwareFormatReader#discoverSplitRangesAsync} runs blocking
+     * {@code discoverSplitRanges} on the fan-out executor. That thread must see
+     * {@link StorageRetryCancellation} so retry backoff aborts on cancel.
+     */
+    public void testBlockingRangeFallbackInstallsStorageRetryCancellation() {
+        AtomicInteger cancelPolls = new AtomicInteger();
+        AtomicBoolean sawScope = new AtomicBoolean();
+        RangeAwareFormatReader reader = createMockRangeReader(List.of(new SplitRange(0, 2000)), () -> {
+            int before = cancelPolls.get();
+            StorageRetryCancellation.isCancelled();
+            sawScope.set(cancelPolls.get() > before);
+        });
+        FileSplitProvider provider = rangeAwareProvider(reader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        SplitDiscoveryContext base = rangeAwareContext(1);
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            base.metadata(),
+            base.fileList(),
+            base.schemaMap(),
+            base.config(),
+            base.partitionInfo(),
+            base.filterHints(),
+            base.querySchema(),
+            base.unifiedSchema(),
+            base.maxRecordBytes(),
+            () -> {
+                cancelPolls.incrementAndGet();
+                return false;
+            },
+            base.declaredReadSpec()
+        );
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        provider.discoverSplitsAsync(ctx, EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        assertEquals(1, future.actionGet(30, TimeUnit.SECONDS).splits().size());
+        assertTrue("blocking discoverSplitRanges must run inside StorageRetryCancellation", sawScope.get());
     }
 
     /**
@@ -3848,6 +3886,10 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     private static RangeAwareFormatReader createMockRangeReader(List<SplitRange> ranges) {
+        return createMockRangeReader(ranges, () -> {});
+    }
+
+    private static RangeAwareFormatReader createMockRangeReader(List<SplitRange> ranges, Runnable onDiscover) {
         return new RangeAwareFormatReader() {
 
             @Override
@@ -3857,6 +3899,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
             @Override
             public List<SplitRange> discoverSplitRanges(StorageObject object) {
+                onDiscover.run();
                 return ranges;
             }
 

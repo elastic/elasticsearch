@@ -740,15 +740,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             length,
             cacheKey,
             executor,
-            listener.map(footer -> buildFooterMetadata(object, footer)),
+            listener.map(footer -> seedParsedFooter(cacheKey, footer, buildFooterMetadata(object, footer))),
             () -> parseFooterOnExecutor(object, executor, listener)
         );
     }
 
     /**
      * Prefetches the Parquet footer tail via {@link StorageObject#readBytesAsync} and parses it on
-     * {@code executor}. Completes {@code listener} with the parsed {@link ParquetMetadata} (and seeds
-     * {@link #PARSED_FOOTERS}). Anomalies fall back to {@code blockingFallback}, which may pin {@code executor}.
+     * {@code executor}. Completes {@code listener} with the parsed {@link ParquetMetadata}. Callers
+     * seed {@link #PARSED_FOOTERS} after a successful metadata convert or range extract. Anomalies
+     * fall back to {@code blockingFallback}, which may pin {@code executor}.
      */
     private void prefetchAndParseFooterAsync(
         StorageObject object,
@@ -815,9 +816,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * and the parse (a wide concurrent discovery could otherwise evict the tail against the cache's
      * byte budget and force a blocking re-read on the executor thread). The bytes are additionally
      * offered to the cache best-effort so a later split-discovery pass can reuse them, but correctness
-     * never depends on that. The parsed footer is also seeded into {@link #PARSED_FOOTERS} so
-     * {@link #loadFooter} can skip a second Thrift deserialize for the same file while the
-     * 32-entry LRU still holds it.
+     * never depends on that. Callers of this listener seed {@link #PARSED_FOOTERS} after a successful
+     * metadata convert or range extract.
      */
     private void parseTailOnExecutor(
         StorageObject object,
@@ -830,7 +830,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         executor.execute(() -> {
             try {
                 FooterByteCache.getInstance().put(cacheKey, tailBytes);
-                listener.onResponse(parseParsedFooterFromTail(object, length, tailBytes, cacheKey));
+                listener.onResponse(parseParsedFooterFromTail(object, length, tailBytes));
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -839,13 +839,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
     /**
      * Parses a Parquet {@link ParquetMetadata} footer from an in-memory suffix of the file
-     * ({@code tailBytes} covering {@code [length - tailBytes.length, length)}) and seeds
-     * {@link #PARSED_FOOTERS} under {@code cacheKey} (same key {@link #loadFooter} uses).
-     * The 32-entry LRU may evict the seed on wide globs. Malformed footers surface as the same
-     * invalid-Parquet {@link IllegalArgumentException} the synchronous path produces.
+     * ({@code tailBytes} covering {@code [length - tailBytes.length, length)}). Callers seed
+     * {@link #PARSED_FOOTERS} after a successful {@link #buildFooterMetadata} or
+     * {@link #rangesFromFooter} so a convert/extract failure does not occupy an LRU slot.
+     * Malformed footers surface as the same invalid-Parquet {@link IllegalArgumentException}
+     * the synchronous path produces.
      */
-    private ParquetMetadata parseParsedFooterFromTail(StorageObject object, long length, byte[] tailBytes, FooterByteCache.Key cacheKey)
-        throws IOException {
+    private ParquetMetadata parseParsedFooterFromTail(StorageObject object, long length, byte[] tailBytes) throws IOException {
         TailBackedInputFile inputFile = new TailBackedInputFile(length, tailBytes);
         ParquetReadOptions options = readOptionsBuilder().build();
         try (SeekableInputStream stream = inputFile.newStream()) {
@@ -856,12 +856,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 throw newInvalidParquetFileException(object.path().toString(), e);
             }
             validateFooterIntegrity(object.path().toString(), footer.getFileMetaData().getSchema(), footer.getBlocks());
-            // Seed only after a successful integrity check so a failed file does not occupy
-            // an LRU slot. Same key as loadFooter. Do not record footer_cache_misses here;
-            // that counter is a loadFooter lookup metric.
-            PARSED_FOOTERS.put(cacheKey, footer);
             return footer;
         }
+    }
+
+    /**
+     * Seeds {@link #PARSED_FOOTERS} only after {@code value} was produced successfully, so a thrown
+     * convert/extract does not cache the footer.
+     */
+    private static <T> T seedParsedFooter(FooterByteCache.Key cacheKey, ParquetMetadata footer, T value) {
+        PARSED_FOOTERS.put(cacheKey, footer);
+        return value;
     }
 
     /**
@@ -870,7 +875,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      */
     private SourceMetadata parseFooterFromTail(StorageObject object, long length, byte[] tailBytes, FooterByteCache.Key cacheKey)
         throws IOException {
-        return buildFooterMetadata(object, parseParsedFooterFromTail(object, length, tailBytes, cacheKey));
+        ParquetMetadata footer = parseParsedFooterFromTail(object, length, tailBytes);
+        return seedParsedFooter(cacheKey, footer, buildFooterMetadata(object, footer));
     }
 
     /** Runs the synchronous {@link #metadata(StorageObject)} on {@code executor}, completing {@code listener}. */
@@ -1410,7 +1416,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             length,
             cacheKey,
             executor,
-            listener.map(ParquetFormatReader::rangesFromFooter),
+            listener.map(footer -> seedParsedFooter(cacheKey, footer, rangesFromFooter(footer))),
             () -> parseSplitRangesOnExecutor(object, executor, listener)
         );
     }

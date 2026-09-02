@@ -299,37 +299,39 @@ public class ComputeService {
         BooleanSupplier isCancelled,
         ActionListener<PhysicalPlan> listener
     ) {
-        if (operatorFactoryRegistry == null) {
-            listener.onResponse(plan);
-            return;
-        }
-        Executor ioExecutor = threadPool.executor(EsqlPlugin.externalBlobStorePool());
-        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
-            plan,
-            operatorFactoryRegistry.sourceFactories(),
-            maxRecordBytes(configuration),
-            isCancelled,
-            List.of(),
-            ioExecutor,
-            ActionListener.wrap(result -> {
-                try {
-                    recordExternalScanStats(execInfo, result);
-                    listener.onResponse(coalesceSplits(result.plan(), () -> externalCoalesceFloor(configuration)));
-                } catch (TaskCancelledException e) {
-                    listener.onFailure(e);
-                } catch (Exception e) {
+        ActionListener.run(listener, l -> {
+            if (operatorFactoryRegistry == null) {
+                l.onResponse(plan);
+                return;
+            }
+            Executor ioExecutor = threadPool.executor(EsqlPlugin.externalBlobStorePool());
+            SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+                plan,
+                operatorFactoryRegistry.sourceFactories(),
+                maxRecordBytes(configuration),
+                isCancelled,
+                List.of(),
+                ioExecutor,
+                ActionListener.wrap(result -> {
+                    try {
+                        recordExternalScanStats(execInfo, result);
+                        l.onResponse(coalesceSplits(result.plan(), () -> externalCoalesceFloor(configuration)));
+                    } catch (TaskCancelledException e) {
+                        l.onFailure(e);
+                    } catch (Exception e) {
+                        LOGGER.warn("split discovery failed for external source", e);
+                        l.onFailure(e);
+                    }
+                }, e -> {
+                    if (e instanceof TaskCancelledException) {
+                        l.onFailure(e);
+                        return;
+                    }
                     LOGGER.warn("split discovery failed for external source", e);
-                    listener.onFailure(e);
-                }
-            }, e -> {
-                if (e instanceof TaskCancelledException) {
-                    listener.onFailure(e);
-                    return;
-                }
-                LOGGER.warn("split discovery failed for external source", e);
-                listener.onFailure(e);
-            })
-        );
+                    l.onFailure(e);
+                })
+            );
+        });
     }
 
     /**

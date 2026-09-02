@@ -216,17 +216,19 @@ public final class SplitDiscoveryPhase {
         Executor executor,
         ActionListener<Result> listener
     ) {
-        ScanStats stats = new ScanStats();
-        resolveRecursiveAsync(
-            plan,
-            seedFilters,
-            sourceFactories,
-            maxRecordBytes,
-            stats,
-            isCancelled,
-            executor,
-            listener.map(resolved -> new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned))
-        );
+        ActionListener.run(listener, l -> {
+            ScanStats stats = new ScanStats();
+            resolveRecursiveAsync(
+                plan,
+                seedFilters,
+                sourceFactories,
+                maxRecordBytes,
+                stats,
+                isCancelled,
+                executor,
+                l.map(resolved -> new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned))
+            );
+        });
     }
 
     private static void resolveRecursiveAsync(

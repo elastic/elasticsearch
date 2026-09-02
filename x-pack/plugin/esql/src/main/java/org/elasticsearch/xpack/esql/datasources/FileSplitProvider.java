@@ -450,9 +450,10 @@ public class FileSplitProvider implements SplitProvider {
             return;
         }
 
-        StorageProvider sharedProvider = hoistSharedProvider(fileList, config);
+        StorageProvider sharedProvider = null;
         boolean asyncStarted = false;
         try {
+            sharedProvider = hoistSharedProvider(fileList, config);
             throwIfCancelled(context);
             FileTaskBatch batch = buildFileTasks(context, requestedStrideBytes);
             List<FileTask> tasks = batch.tasks();
@@ -466,10 +467,10 @@ public class FileSplitProvider implements SplitProvider {
             final BooleanSupplier isCancelled = context.isCancelled();
             final long strideBytes = strideBoundedByProbeBudget(requestedStrideBytes, batch.probedFileBytes(), maxSplitProbes);
             warnIfStrideWidened(requestedStrideBytes, strideBytes, maxSplitProbes, batch.probedFileBytes());
-            Executor fanOut = discoveryFanOutExecutor(requestedExecutor);
+            Executor fanOut = withStorageRetryCancellation(discoveryFanOutExecutor(requestedExecutor), isCancelled);
             ActionListener<SplitDiscoveryResult> completion = ActionListener.runAfter(
                 listener,
-                () -> StorageProviderCache.closeLease(sharedProvider)
+                () -> StorageProviderCache.closeLease(hoistedProvider)
             );
             gatherAsync(tasks, (FileTask task, ActionListener<PlanResult> itemListener) -> {
                 try {
@@ -639,6 +640,15 @@ public class FileSplitProvider implements SplitProvider {
             return executor;
         }
         return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+    }
+
+    /**
+     * Installs {@link StorageRetryCancellation} on every task {@code executor} runs so blocking
+     * {@code discoverSplitRanges} (ORC / Parquet parse-on-executor fallback) aborts retry backoff
+     * the same way sync {@link #processFileForSplits} wraps {@link #computeFileSplits}.
+     */
+    private static Executor withStorageRetryCancellation(Executor executor, BooleanSupplier isCancelled) {
+        return command -> executor.execute(() -> StorageRetryCancellation.runWithCancellation(isCancelled, command::run));
     }
 
     private static <T, R> void gatherAsync(

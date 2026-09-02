@@ -160,9 +160,19 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         };
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> HighlightQueryBuilders.verify(of("fox"), TITLE, analyzer)
+            () -> HighlightQueryBuilders.verify(of("fox"), TITLE, analyzer, true)
         );
         assertThat(e.getMessage(), containsString("test analyzer was used"));
+    }
+
+    public void testVerifyCanSkipExplicitOnFieldEnforcement() {
+        Expression query = match("body", "fox", null);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightQueryBuilders.verify(query, TITLE, Lucene.STANDARD_ANALYZER, true)
+        );
+        assertThat(e.getMessage(), containsString("HIGHLIGHT query field [body] is not in ON fields [title]"));
+        HighlightQueryBuilders.verify(query, TITLE, Lucene.STANDARD_ANALYZER, false);
     }
 
     // The registry hands plugin analyzers (AnalysisPlugin#getAnalyzers) back as bare Lucene analyzers with no position

@@ -9,32 +9,56 @@
 
 package org.elasticsearch.index.reindex.remote;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.index.reindex.AbstractReindexIT;
+import org.elasticsearch.test.fixtures.oldelasticsearch.OldElasticsearchContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * Reindex-from-remote against Elasticsearch 7.9.x (remote scroll) and 7.10.0 (remote PIT when supported).
+ * Reindex-from-remote against Elasticsearch 7.9.3 (remote scroll) and 7.10.0 (remote PIT when supported),
+ * each run as a real cluster in a Testcontainers-managed Docker container (see
+ * {@link OldElasticsearchContainer}). Docker images bundle the JDK the corresponding release ships,
+ * so these run on every architecture the fixture publishes images for, including darwin-aarch64.
  */
-public class ReindexFromRemote7xIT extends ESRestTestCase {
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
+public class ReindexFromRemote7xIT extends AbstractReindexIT {
 
     private static final int DOCS = 10;
 
-    private void reindexFromRemote7x(String portProperty, String remoteIndex, String destIndex) throws IOException {
-        boolean enabled = Booleans.parseBoolean(System.getProperty("tests.fromRemote7x"));
-        assumeTrue("test is disabled (windows, path with spaces, or fixtures not wired)", enabled);
+    @ClassRule
+    public static OldElasticsearchContainer es79 = new OldElasticsearchContainer("7.9.3", repoLocation("7.9.3"));
 
-        int remotePort = Integer.parseInt(System.getProperty(portProperty));
+    @ClassRule
+    public static OldElasticsearchContainer es710 = new OldElasticsearchContainer("7.10.0", repoLocation("7.10.0"));
+
+    /**
+     * The old-ES fixture doesn't use its snapshot repository directory for these tests, but the
+     * container's entrypoint always requires and manages one (see {@code ES_PATH_REPO} in
+     * {@code entrypoint.sh}), so each version gets its own scratch subdirectory.
+     */
+    private static String repoLocation(String version) {
+        return PathUtils.get(System.getProperty("java.io.tmpdir"), "reindex-old-es-repo", version).toString();
+    }
+
+    private void reindexFromRemote7x(OldElasticsearchContainer container, String remoteIndex, String destIndex) throws IOException {
+        // Use the loopback address explicitly (not container.getHost(), which testcontainers may
+        // resolve to "localhost") since only 127.0.0.1/[::1] are covered by reindex.remote.whitelist.
+        String remoteHost = "127.0.0.1";
+        int remotePort = container.getHttpPort();
         boolean success = false;
-        try (RestClient remote = RestClient.builder(new HttpHost("127.0.0.1", remotePort)).build()) {
+        try (RestClient remote = RestClient.builder(new HttpHost(remoteHost, remotePort)).build()) {
             try {
                 Request createIndex = new Request("PUT", "/" + remoteIndex);
                 createIndex.setJsonEntity("""
@@ -75,13 +99,13 @@ public class ReindexFromRemote7xIT extends ESRestTestCase {
                         "index": "%s",
                         "size": 2,
                         "remote": {
-                          "host": "http://127.0.0.1:%s"
+                          "host": "http://%s:%s"
                         }
                       },
                       "dest": {
                         "index": "%s"
                       }
-                    }""", remoteIndex, remotePort, destIndex));
+                    }""", remoteIndex, remoteHost, remotePort, destIndex));
                 assertOK(client().performRequest(reindex));
 
                 Request search = new Request("POST", "/" + destIndex + "/_search");
@@ -108,21 +132,13 @@ public class ReindexFromRemote7xIT extends ESRestTestCase {
         }
     }
 
-    /** Remote is 7.9.0, so the reindex client uses scroll search */
+    /** Remote is 7.9.3, so the reindex client uses scroll search */
     public void testReindexFromRemote79() throws IOException {
-        assumeTrue(
-            "remote 7.9 fixture not run on this platform (e.g. darwin-aarch64 has no 7.9 archive)",
-            Booleans.parseBoolean(System.getProperty("tests.fromRemote7xEs79", "true"))
-        );
-        reindexFromRemote7x("es79.port", "reindex_remote_79_src", "reindex_remote_79_dest");
+        reindexFromRemote7x(es79, "reindex_remote_79_src", "reindex_remote_79_dest");
     }
 
     /** Remote is 7.10.0, so the reindex client uses PIT search */
     public void testReindexFromRemote710() throws IOException {
-        assumeTrue(
-            "remote 7.10.0 fixture not run on this platform (e.g. darwin-aarch64 has no 7.10 archive)",
-            Booleans.parseBoolean(System.getProperty("tests.fromRemote7xEs710", "true"))
-        );
-        reindexFromRemote7x("es710.port", "reindex_remote_710_src", "reindex_remote_710_dest");
+        reindexFromRemote7x(es710, "reindex_remote_710_src", "reindex_remote_710_dest");
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
+import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -19,9 +20,11 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashBoundedPredicate;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -36,6 +39,8 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
@@ -43,9 +48,10 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile.fromRectangle;
 
 /**
- * Calculates the geohash of geo_point geometries.
+ * Calculates the geohash of geo_point or geo_shape geometries.
+ * For geo_shape, all intersecting geohash cells are returned as multi-values.
  */
-public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
+public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StGeohash",
@@ -119,9 +125,10 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         returnType = "geohash",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        briefSummary = "Calculates the geohash of the supplied geo_point at the specified precision.",
+        briefSummary = "Calculates the geohash of the supplied geo_point or geo_shape at the specified precision.",
         description = """
-            Calculates the `geohash` of the supplied geo_point at the specified precision.
+            Calculates the `geohash` of the supplied `geo_point` or `geo_shape` at the specified precision.
+            For `geo_shape` inputs, all intersecting geohash cells are returned as multi-values.
             The result is long encoded.
             Use [`TO_STRING`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_string.md)
             to convert the result to a string,
@@ -139,8 +146,9 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         Source source,
         @Param(
             name = "geometry",
-            type = { "geo_point" },
-            description = "Expression of type `geo_point`. If `null`, the function returns `null`."
+            type = { "geo_point", "geo_shape" },
+            description = "Expression of type `geo_point` or `geo_shape`. If `null`, the function returns `null`."
+                + " For `geo_shape` inputs all intersecting geohash cells are returned as multi-values."
         ) Expression field,
         @Param(name = "precision", type = { "integer" }, hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT), description = """
             Expression of type `integer`. If `null`, the function returns `null`.
@@ -204,45 +212,70 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             GeoBoundingBox bbox = asGeoBoundingBox(boundsValue);
             int precision = (int) parameter.fold(toEvaluator.foldCtx());
             GeoHashBoundedGrid.Factory bounds = new GeoHashBoundedGrid.Factory(precision, bbox);
+            GeoShapeCellsComputer shapeTiler = wkb -> computeGeohashCells(wkb, precision, bbox);
             return spatialDocValues
                 ? new StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
                     source(),
                     toEvaluator.apply(spatialField()),
                     bounds::get
                 )
-                : new StGeohashFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds::get);
+                : new StGeohashFromFieldAndLiteralAndLiteralEvaluator.Factory(
+                    source(),
+                    toEvaluator.apply(spatialField),
+                    bounds::get,
+                    shapeTiler
+                );
         } else {
             int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
+            GeoShapeCellsComputer shapeTiler = wkb -> computeGeohashCells(wkb, precision, null);
             return spatialDocValues
                 ? new StGeohashFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
-                : new StGeohashFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
+                : new StGeohashFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision, shapeTiler);
         }
     }
 
     @Override
     public Object fold(FoldContext ctx) {
-        var point = (BytesRef) spatialField().fold(ctx);
-        if (point == null) {
+        var wkb = (BytesRef) spatialField().fold(ctx);
+        if (wkb == null) {
             return null;
         }
-        int precision = (int) parameter().fold(ctx);
-        if (bounds() == null) {
-            return unboundedGrid.calculateGridId(GEO.wkbAsPoint(point), precision);
-        } else {
-            Object boundsValue = bounds().fold(ctx);
-            if (boundsValue == null) {
-                return null;
+        int precision = checkPrecisionRange((int) parameter().fold(ctx));
+        try {
+            if (bounds() == null) {
+                Geometry geometry = GEO.wkbToGeometry(wkb);
+                if (geometry instanceof Point point) {
+                    return unboundedGrid.calculateGridId(point, precision);
+                }
+                return foldMultiValue(computeGeohashCells(wkb, precision, null));
+            } else {
+                Object boundsValue = bounds().fold(ctx);
+                if (boundsValue == null) {
+                    return null;
+                }
+                GeoBoundingBox bbox = asGeoBoundingBox(boundsValue);
+                Geometry geometry = GEO.wkbToGeometry(wkb);
+                if (geometry instanceof Point point) {
+                    GeoHashBoundedGrid bounds = new GeoHashBoundedGrid(precision, bbox);
+                    long gridId = bounds.calculateGridId(point);
+                    return gridId < 0 ? null : gridId;
+                }
+                return foldMultiValue(computeGeohashCells(wkb, precision, bbox));
             }
-            GeoBoundingBox bbox = asGeoBoundingBox(boundsValue);
-            GeoHashBoundedGrid bounds = new GeoHashBoundedGrid(precision, bbox);
-            long gridId = bounds.calculateGridId(GEO.wkbAsPoint(point));
-            return gridId < 0 ? null : gridId;
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to compute geohash for geo_shape", e);
         }
     }
 
     @Evaluator(extraName = "FromFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndLiteral(LongBlock.Builder results, @Position int p, BytesRefBlock wkbBlock, @Fixed int precision) {
-        fromWKB(results, p, wkbBlock, precision, unboundedGrid);
+    static void fromFieldAndLiteral(
+        LongBlock.Builder results,
+        @Position int p,
+        BytesRefBlock wkbBlock,
+        @Fixed int precision,
+        @Fixed(includeInToString = false) GeoShapeCellsComputer shapeTiler
+    ) {
+        fromWKB(results, p, wkbBlock, precision, unboundedGrid, shapeTiler);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndLiteral", warnExceptions = { IllegalArgumentException.class })
@@ -255,9 +288,10 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         LongBlock.Builder results,
         @Position int p,
         BytesRefBlock in,
-        @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoHashBoundedGrid bounds
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoHashBoundedGrid bounds,
+        @Fixed(includeInToString = false) GeoShapeCellsComputer shapeTiler
     ) {
-        fromWKB(results, p, in, bounds);
+        fromWKB(results, p, in, bounds, shapeTiler);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
@@ -272,5 +306,113 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
 
     public static BytesRef toBounds(long gridId) {
         return fromRectangle(Geohash.toBoundingBox(Geohash.stringEncode(gridId)));
+    }
+
+    // ---- Geohash cell computation for geo_shape ----
+
+    /**
+     * Computes all geohash cells at the given precision that intersect the WKB-encoded geometry.
+     * Optionally filtered by a bounding box.
+     * <p>
+     * The algorithm and the brute-force vs. rasterization heuristic ({@code dX * dY <= 32 * precision})
+     * are adapted from {@code GeoHashGridTiler.setValues} in the spatial module.
+     * Both thresholds should be reviewed together if either is changed.
+     */
+    static List<Long> computeGeohashCells(BytesRef wkb, int precision, GeoBoundingBox bbox) throws IOException {
+        GeoShapeDocValues shape = GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER);
+        GeoHashBoundedPredicate predicate = (bbox == null || bbox.isUnbounded()) ? null : new GeoHashBoundedPredicate(precision, bbox);
+        List<Long> cells = new ArrayList<>();
+        long dX = (long) Math.ceil((shape.maxLon - shape.minLon) / Geohash.lonWidthInDegrees(precision));
+        long dY = (long) Math.ceil((shape.maxLat - shape.minLat) / Geohash.latHeightInDegrees(precision));
+        if (dX * dY <= 32L * precision) {
+            geohashBruteForceScan(shape, precision, predicate, cells);
+        } else {
+            rasterizeGeohash(shape, "", precision, predicate, cells);
+        }
+        return cells;
+    }
+
+    /**
+     * Iterates all geohash cells in the shape bounding box west-to-east and south-to-north,
+     * adding those that intersect the shape (and pass the optional bounds filter).
+     * Adapted from {@code GeoHashGridTiler.setValuesByBruteForceScan} in the spatial module.
+     */
+    private static void geohashBruteForceScan(GeoShapeDocValues shape, int precision, GeoHashBoundedPredicate predicate, List<Long> cells)
+        throws IOException {
+        final String stop = Geohash.stringEncode(shape.maxLon, shape.maxLat, precision);
+        String firstInRow = null;
+        String lastInRow = null;
+        do {
+            lastInRow = (lastInRow == null)
+                ? Geohash.stringEncode(shape.maxLon, shape.minLat, precision)
+                : Geohash.getNeighbor(lastInRow, precision, 0, 1);
+            String current = null;
+            do {
+                if (current == null) {
+                    firstInRow = (firstInRow == null)
+                        ? Geohash.stringEncode(shape.minLon, shape.minLat, precision)
+                        : Geohash.getNeighbor(firstInRow, precision, 0, 1);
+                    current = firstInRow;
+                } else {
+                    current = Geohash.getNeighbor(current, precision, 1, 0);
+                }
+                if (geohashCellIntersectsShape(shape, current, predicate)) {
+                    if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
+                        throw new IllegalArgumentException(
+                            "ST_GEOHASH generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells"
+                        );
+                    }
+                    cells.add(Geohash.longEncode(current));
+                }
+            } while (current.equals(lastInRow) == false);
+        } while (lastInRow.equals(stop) == false);
+    }
+
+    /**
+     * Recursively enumerates geohash sub-cells, descending until target precision is reached,
+     * adding cells that intersect the shape.
+     * Adapted from {@code GeoHashGridTiler.setValuesByRasterization} in the spatial module.
+     */
+    private static void rasterizeGeohash(
+        GeoShapeDocValues shape,
+        String hash,
+        int precision,
+        GeoHashBoundedPredicate predicate,
+        List<Long> cells
+    ) throws IOException {
+        for (String sub : Geohash.getSubGeohashes(hash)) {
+            if (geohashCellIntersectsShape(shape, sub, predicate)) {
+                if (sub.length() == precision) {
+                    if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
+                        throw new IllegalArgumentException(
+                            "ST_GEOHASH generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells"
+                        );
+                    }
+                    cells.add(Geohash.longEncode(sub));
+                } else {
+                    rasterizeGeohash(shape, sub, precision, predicate, cells);
+                }
+            }
+        }
+    }
+
+    /**
+     * Tests whether the given geohash cell intersects the shape (and passes the optional bounds filter).
+     * Replaces {@code GeoHashGridTiler.relateTile} using {@link GeoShapeDocValues#intersects} with a
+     * Lucene {@link LatLonGeometry} rectangle instead of encoded-integer coordinates.
+     */
+    private static boolean geohashCellIntersectsShape(GeoShapeDocValues shape, String hash, GeoHashBoundedPredicate predicate)
+        throws IOException {
+        if (predicate != null && predicate.validHash(hash) == false) {
+            return false;
+        }
+        org.elasticsearch.geometry.Rectangle esRect = Geohash.toBoundingBox(hash);
+        org.apache.lucene.geo.Rectangle luceneRect = new org.apache.lucene.geo.Rectangle(
+            esRect.getMinLat(),
+            esRect.getMaxLat(),
+            esRect.getMinLon(),
+            esRect.getMaxLon()
+        );
+        return shape.intersects(LatLonGeometry.create(luceneRect));
     }
 }

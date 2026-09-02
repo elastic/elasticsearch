@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,9 +22,8 @@ public class FooterByteCacheTests extends ESTestCase {
 
     private FooterByteCache cache;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initCache() {
         FooterByteCache.getInstance().invalidateAll();
         cache = new FooterByteCache(1024 * 1024, 512 * 1024);
     }

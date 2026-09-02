@@ -90,6 +90,10 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BU
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
+@TestIssueLogging(
+    value = "fixture.gcs.GoogleCloudStorageHttpHandler:DEBUG",
+    issueUrl = "https://github.com/elastic/elasticsearch/issues/151474"
+)
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     private static final Logger gcpTestLogger = LogManager.getLogger(GoogleCloudStorageBlobStoreRepositoryTests.class);
@@ -435,16 +439,12 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             storageService.get(),
                             bigArrays,
                             randomIntBetween(1, 8) * 1024,
+                            ByteSizeUnit.MB.toBytes(1),
                             BackoffPolicy.noBackoff(),
                             this.statsCollector(),
                             null,
                             null
-                        ) {
-                            @Override
-                            long getLargeBlobThresholdInBytes() {
-                                return ByteSizeUnit.MB.toBytes(1);
-                            }
-                        };
+                        );
                     }
                 }
             );

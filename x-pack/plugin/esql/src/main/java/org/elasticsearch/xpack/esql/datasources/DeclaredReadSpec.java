@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 
 import java.io.IOException;
 import java.util.Map;
@@ -41,6 +43,11 @@ import java.util.Set;
  *       inferred one null-fills whenever the file type is not widening-compatible. Physicalized to file-column names at
  *       the reader boundary ({@code FileSourceFactory}); the text readers ignore it (they parse straight into the
  *       target). Empty when the mapping declares no column types.</li>
+ *   <li>{@code provenance} — whether the {@code readSchema} this spec accompanies is a
+ *       {@link SchemaProvenance#DECLARED} claim (bind by name, report absent columns) or was
+ *       {@link SchemaProvenance#INFERRED} from the file (bind by position). The axis {@code dynamic} actually
+ *       selects; the data node reads provenance, never the mode. Defaults to {@code INFERRED} — the identity a
+ *       pre-gate peer and every non-declared read carry.</li>
  * </ul>
  * A plain {@link Writeable}: its wire gate lives on the enclosing plan nodes, which only read/write it when the
  * {@code dataset_declared_schema} transport version is supported (mirrors how {@code DatasetMapping.Mappings} is gated
@@ -50,16 +57,28 @@ public record DeclaredReadSpec(
     Map<String, String> renames,
     @Nullable String idPath,
     Map<String, String> dateFormats,
-    Set<String> declaredTypeColumns
+    Set<String> declaredTypeColumns,
+    SchemaProvenance provenance
 ) implements Writeable {
 
+    /**
+     * Wire gate for {@link #provenance}; a pre-gate peer reads/writes the four original fields and defaults INFERRED.
+     * During a rolling upgrade a peer that predates this version therefore binds a strict read positionally — the
+     * pre-fix behaviour. That is TOLERATED by design, not failed loud: this is a read path (nothing is persisted or
+     * corrupted — the worst case is a transient wrong query result), the degraded behaviour equals what that peer
+     * already ships, and it self-heals once every node supports the version. Failing loud would break every running
+     * strict query for the upgrade window to prevent a transient, non-durable result — a worse trade.
+     */
+    private static final TransportVersion DECLARED_READ_SPEC_PROVENANCE = TransportVersion.fromName("declared_read_spec_provenance");
+
     /** The empty spec — nothing declared. The default carried on every non-declared read. */
-    public static final DeclaredReadSpec NONE = new DeclaredReadSpec(Map.of(), null, Map.of(), Set.of());
+    public static final DeclaredReadSpec NONE = new DeclaredReadSpec(Map.of(), null, Map.of(), Set.of(), SchemaProvenance.INFERRED);
 
     public DeclaredReadSpec {
         renames = renames != null ? Map.copyOf(renames) : Map.of();
         dateFormats = dateFormats != null ? Map.copyOf(dateFormats) : Map.of();
         declaredTypeColumns = declaredTypeColumns != null ? Set.copyOf(declaredTypeColumns) : Set.of();
+        provenance = provenance != null ? provenance : SchemaProvenance.INFERRED;
     }
 
     /**
@@ -71,20 +90,63 @@ public record DeclaredReadSpec(
         @Nullable Map<String, String> renames,
         @Nullable String idPath,
         @Nullable Map<String, String> dateFormats,
+        @Nullable Set<String> declaredTypeColumns,
+        @Nullable SchemaProvenance provenance
+    ) {
+        DeclaredReadSpec spec = new DeclaredReadSpec(renames, idPath, dateFormats, declaredTypeColumns, provenance);
+        return spec.isEmpty() ? NONE : spec;
+    }
+
+    /** Convenience for a spec over an inferred schema ({@link SchemaProvenance#INFERRED}). */
+    public static DeclaredReadSpec of(
+        @Nullable Map<String, String> renames,
+        @Nullable String idPath,
+        @Nullable Map<String, String> dateFormats,
         @Nullable Set<String> declaredTypeColumns
     ) {
-        DeclaredReadSpec spec = new DeclaredReadSpec(renames, idPath, dateFormats, declaredTypeColumns);
-        return spec.isEmpty() ? NONE : spec;
+        return of(renames, idPath, dateFormats, declaredTypeColumns, SchemaProvenance.INFERRED);
     }
 
     /** Convenience for a spec with no declared date formats and no declared column types. */
     public static DeclaredReadSpec of(@Nullable Map<String, String> renames, @Nullable String idPath) {
-        return of(renames, idPath, Map.of(), Set.of());
+        return of(renames, idPath, Map.of(), Set.of(), SchemaProvenance.INFERRED);
     }
 
-    /** True when the mapping declared nothing for the data node to apply — no rename, {@code _id.path}, format, or type. */
+    /**
+     * True when the mapping declared nothing for the data node to apply — no rename, {@code _id.path}, format, or type,
+     * and {@link SchemaProvenance#INFERRED} provenance. A DECLARED provenance is itself an instruction, so it
+     * keeps the spec from collapsing to {@link #NONE} (whose provenance is INFERRED) and being lost on the wire.
+     */
     public boolean isEmpty() {
-        return renames.isEmpty() && idPath == null && dateFormats.isEmpty() && declaredTypeColumns.isEmpty();
+        return renames.isEmpty()
+            && idPath == null
+            && dateFormats.isEmpty()
+            && declaredTypeColumns.isEmpty()
+            && provenance == SchemaProvenance.INFERRED;
+    }
+
+    /**
+     * True when reading this spec under {@code policy} can drop a whole row: the read asked for
+     * {@link ErrorPolicy.Mode#SKIP_ROW} <em>and</em> declares column types that a value can fail to coerce into.
+     * With no declared types there is nothing to coerce, so no row is ever dropped and {@code skip_row} is
+     * indistinguishable from {@code fail_fast} on the columnar readers.
+     * <p>
+     * This is the single predicate for that combination. It gates three independent decisions that must agree for
+     * one read — whether {@code PushFiltersToSource} pushes the filter, whether {@code InsertExternalFieldExtraction}
+     * inserts an {@code ExternalFieldExtractExec}, and whether the operator factory enables deferred extraction —
+     * because each of those moves the page's shape away from the point where the reader drops rows. Two of them are
+     * plan-time and one is execution-time, so any drift between them shows up as a plan the factory cannot honour.
+     * <p>
+     * Footer statistics need no such gate: {@code FileSplitProvider} already poisons declared-retyped and
+     * date-format columns out of the published stats (their pre-coercion extrema are untrustworthy), and the
+     * surviving {@code row_count} is what a {@code COUNT(*)} scan returns anyway — that scan projects no column, so
+     * nothing is decoded and no row can be dropped.
+     * <p>
+     * Keyed on the <b>logical</b> {@code declaredTypeColumns}; {@code FileSourceFactory} physicalizes the same set
+     * through the {@code path} renames for the by-name readers, which is a 1:1 map and so cannot change emptiness.
+     */
+    public boolean dropsRowsOnCoercionFailure(ErrorPolicy policy) {
+        return policy.mode() == ErrorPolicy.Mode.SKIP_ROW && declaredTypeColumns.isEmpty() == false;
     }
 
     @Override
@@ -93,6 +155,9 @@ public record DeclaredReadSpec(
         out.writeOptionalString(idPath);
         out.writeMap(dateFormats, StreamOutput::writeString, StreamOutput::writeString);
         out.writeCollection(declaredTypeColumns, StreamOutput::writeString);
+        if (out.getTransportVersion().supports(DECLARED_READ_SPEC_PROVENANCE)) {
+            out.writeEnum(provenance);
+        }
     }
 
     public static DeclaredReadSpec readFrom(StreamInput in) throws IOException {
@@ -100,6 +165,9 @@ public record DeclaredReadSpec(
         String idPath = in.readOptionalString();
         Map<String, String> dateFormats = in.readMap(StreamInput::readString);
         Set<String> declaredTypeColumns = in.readCollectionAsSet(StreamInput::readString);
-        return of(renames, idPath, dateFormats, declaredTypeColumns);
+        SchemaProvenance provenance = in.getTransportVersion().supports(DECLARED_READ_SPEC_PROVENANCE)
+            ? in.readEnum(SchemaProvenance.class)
+            : SchemaProvenance.INFERRED;
+        return of(renames, idPath, dateFormats, declaredTypeColumns, provenance);
     }
 }

@@ -13,7 +13,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.eirf.EirfEncoder;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -102,7 +102,7 @@ public class RoutingPathExtractorTests extends ESTestCase {
         doc.put("dim.tags", new String[] { "a", "b", "c" });
         doc.put("metric", "x");
         IndexRouting.ExtractFromSource.ForRoutingPath strategy = forRoutingPath("dim.*");
-        try (EirfEncoder encoder = new EirfEncoder()) {
+        try (EscfEncoder encoder = new EscfEncoder()) {
             RoutingPathExtractor extractor = new RoutingPathExtractor(strategy);
             expectThrows(RoutingExtractionException.class, () -> encoder.parseToScratch(toJson(doc), XContentType.JSON, extractor));
         }
@@ -115,7 +115,7 @@ public class RoutingPathExtractorTests extends ESTestCase {
         doc.put("dim.host", "node-1");
         doc.put("tags", new String[] { "a", "b" });
         IndexRouting.ExtractFromSource.ForRoutingPath strategy = forRoutingPath("dim.*");
-        try (EirfEncoder encoder = new EirfEncoder()) {
+        try (EscfEncoder encoder = new EscfEncoder()) {
             RoutingPathExtractor extractor = new RoutingPathExtractor(strategy);
             // Should complete normally — no exception even though the document contains an array.
             encoder.parseToScratch(toJson(doc), XContentType.JSON, extractor);
@@ -127,7 +127,7 @@ public class RoutingPathExtractorTests extends ESTestCase {
         // the same shard ids as fresh extractors.
         IndexRouting.ExtractFromSource.ForRoutingPath strategyA = forRoutingPath("dim.*");
         IndexRouting.ExtractFromSource.ForRoutingPath strategyB = forRoutingPath("dim.*");
-        try (EirfEncoder encoderShared = new EirfEncoder(); EirfEncoder encoderFresh = new EirfEncoder()) {
+        try (EscfEncoder encoderShared = new EscfEncoder(); EscfEncoder encoderFresh = new EscfEncoder()) {
             RoutingPathExtractor sharedExtractor = new RoutingPathExtractor(strategyA);
 
             Map<String, Object> docA = Map.of("dim.host", "alpha");
@@ -153,7 +153,7 @@ public class RoutingPathExtractorTests extends ESTestCase {
     }
 
     /**
-     * Asserts that the source-parser routing path and the EIRF-encoder routing extractor produce
+     * Asserts that the source-parser routing path and the ESCF-encoder routing extractor produce
      * the same shard id for the given document.
      */
     private void assertExtractorMatchesSourceParser(Map<String, Object> doc, String routingPath) throws IOException {
@@ -171,7 +171,7 @@ public class RoutingPathExtractorTests extends ESTestCase {
         IndexRequest extractorReq = new IndexRequest("test").id("doc-1").source(json, XContentType.JSON);
         strategyExtractor.preProcess(extractorReq);
         int extractorShardId;
-        try (EirfEncoder encoder = new EirfEncoder()) {
+        try (EscfEncoder encoder = new EscfEncoder()) {
             RoutingPathExtractor extractor = new RoutingPathExtractor(strategyExtractor);
             encoder.parseToScratch(json, XContentType.JSON, extractor);
             // parseToScratch returning normally implies the extractor didn't throw on any field.

@@ -12,15 +12,16 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Evaluates scores for a ExpressionScorer. The scores are added to the existing scores in the input page
+ * Adds the scores produced by a score {@link ExpressionEvaluator} (an evaluator yielding a {@link DoubleBlock}
+ * of per-row scores) to the existing scores in the input page.
  */
 public class ScoreOperator extends AbstractPageMappingOperator {
 
-    public record ScoreOperatorFactory(ExpressionScorer.Factory scorerFactory, int scoreBlockPosition) implements OperatorFactory {
+    public record ScoreOperatorFactory(ExpressionEvaluator.Factory scorerFactory, int scoreBlockPosition) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
@@ -34,10 +35,10 @@ public class ScoreOperator extends AbstractPageMappingOperator {
     }
 
     private final BlockFactory blockFactory;
-    private final ExpressionScorer scorer;
+    private final ExpressionEvaluator scorer;
     private final int scoreBlockPosition;
 
-    public ScoreOperator(BlockFactory blockFactory, ExpressionScorer scorer, int scoreBlockPosition) {
+    public ScoreOperator(BlockFactory blockFactory, ExpressionEvaluator scorer, int scoreBlockPosition) {
         this.blockFactory = blockFactory;
         this.scorer = scorer;
         this.scoreBlockPosition = scoreBlockPosition;
@@ -62,7 +63,7 @@ public class ScoreOperator extends AbstractPageMappingOperator {
     }
 
     private Block calculateScoresBlock(Page page) {
-        try (DoubleBlock evalScores = scorer.score(page); DoubleBlock existingScores = page.getBlock(scoreBlockPosition)) {
+        try (DoubleBlock evalScores = (DoubleBlock) scorer.eval(page); DoubleBlock existingScores = page.getBlock(scoreBlockPosition)) {
             // TODO Optimize for constant scores?
             int rowCount = page.getPositionCount();
             DoubleVector.Builder builder = blockFactory.newDoubleVectorFixedBuilder(rowCount);
@@ -81,21 +82,5 @@ public class ScoreOperator extends AbstractPageMappingOperator {
     @Override
     public void close() {
         Releasables.closeExpectNoException(scorer, super::close);
-    }
-
-    /**
-     * Evaluates the score of an expression one {@link Page} at a time.
-     */
-    public interface ExpressionScorer extends Releasable {
-        /** A Factory for creating ExpressionScorers. */
-        interface Factory {
-            ExpressionScorer get(DriverContext context);
-        }
-
-        /**
-         * Scores the expression.
-         * @return the returned Block has its own reference and the caller is responsible for releasing it.
-         */
-        DoubleBlock score(Page page);
     }
 }

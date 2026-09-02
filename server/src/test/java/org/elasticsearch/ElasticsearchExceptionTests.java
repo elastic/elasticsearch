@@ -923,7 +923,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         ElasticsearchException cause = (ElasticsearchException) parsed.getCause();
         assertEquals(
             cause.getMessage(),
-            "Elasticsearch exception [type=slice_missing_exception, reason=_slice is required for [_test]/[_id]]"
+            "Elasticsearch exception [type=slice_missing_exception, reason=slice is required for [_test]/[_id]]"
         );
         assertThat(cause.getMetadata("es.index"), hasItem("_test"));
         assertThat(cause.getMetadata("es.index_uuid"), hasItem("_na_"));

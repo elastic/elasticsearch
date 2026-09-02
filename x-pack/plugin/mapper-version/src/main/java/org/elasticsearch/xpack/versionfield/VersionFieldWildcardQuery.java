@@ -11,15 +11,18 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.UTF32ToUTF8;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * A variation of the {@link WildcardQuery} than skips over meta characters introduced using {@link VersionEncoder}.
+ * Raw byte-level automaton (marker bytes aren't valid codepoints) — built isBinary=true, skipping Lucene's implicit UTF32ToUTF8.
  */
 class VersionFieldWildcardQuery extends AutomatonQuery {
 
@@ -33,6 +36,9 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
             Automata.makeChar(VersionEncoder.NO_PRERELEASE_SEPARATOR_BYTE)
         )
     );
+
+    // '?' as UTF-8 bytes: one full char, not one raw byte
+    private static final Automaton ANY_UTF8_CHAR = new UTF32ToUTF8().convert(Automata.makeAnyChar());
 
     private static final byte WILDCARD_STRING = '*';
 
@@ -51,10 +57,13 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
 
         BytesRef wildcardText = wildcardquery.bytes();
         boolean containsPreReleaseSeparator = false;
+        UnicodeUtil.UTF8CodePoint reusableCodePoint = new UnicodeUtil.UTF8CodePoint();
+        UTF32ToUTF8 utf32ToUtf8 = new UTF32ToUTF8();
 
         for (int i = 0; i < wildcardText.length;) {
             final byte c = wildcardText.bytes[wildcardText.offset + i];
-            int length = Character.charCount(c);
+            // set below for multi-byte chars
+            int length = 1;
 
             switch (c) {
                 case WILDCARD_STRING:
@@ -64,7 +73,7 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
                     // this should also match leading digits, which have optional leading numeric marker and length bytes
                     automata.add(OPTIONAL_NUMERIC_CHARPREFIX);
                     automata.add(OPTIONAL_RELEASE_SEPARATOR);
-                    automata.add(Automata.makeAnyChar());
+                    automata.add(ANY_UTF8_CHAR);
                     break;
 
                 case '-':
@@ -101,10 +110,20 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
                     automata.add(Automata.makeChar(c));
                     break;
                 default:
-                    if (caseInsensitive == false) {
-                        automata.add(Automata.makeChar(c));
+                    if (c >= 0) {
+                        // ASCII: byte value == codepoint. Still needs UTF32ToUTF8 conversion when case-insensitive, since
+                        // Lucene's Unicode case folding can map an ASCII char to multi-byte equivalents (e.g. 'K' <-> KELVIN SIGN).
+                        automata.add(caseInsensitive ? utf32ToUtf8.convert(Automata.makeCaseInsensitiveChar(c)) : Automata.makeChar(c));
                     } else {
-                        automata.add(Automata.makeCaseInsensitiveChar(c));
+                        // multi-byte lead byte: decode full codepoint
+                        UnicodeUtil.codePointAt(wildcardText.bytes, wildcardText.offset + i, reusableCodePoint);
+                        length = reusableCodePoint.numBytes;
+                        int codepoint = reusableCodePoint.codePoint;
+                        Automaton charAutomaton = caseInsensitive
+                            ? Automata.makeCaseInsensitiveChar(codepoint)
+                            : Automata.makeChar(codepoint);
+                        // convert codepoint automaton to UTF-8 bytes
+                        automata.add(utf32ToUtf8.convert(charAutomaton));
                     }
             }
             i += length;

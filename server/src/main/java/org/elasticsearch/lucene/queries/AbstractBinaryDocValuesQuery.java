@@ -11,9 +11,11 @@ package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreScorerSupplier;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -24,8 +26,11 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueArrayOrderInlineNullBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -37,28 +42,46 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
 
     protected final String fieldName;
     protected final Predicate<BytesRef> matcher;
-    // Whether the field stores its multi-valued binary doc values in the ArrayOrderInlineNull format rather than the SeparateCount format.
-    // The two encodings are not interchangeable, so the decoder must be chosen up front.
-    final boolean arrayOrderInlineNull;
+    protected final BinaryDocValuesFormat binaryFormat;
 
-    AbstractBinaryDocValuesQuery(String fieldName, Predicate<BytesRef> matcher, boolean arrayOrderInlineNull) {
+    AbstractBinaryDocValuesQuery(String fieldName, Predicate<BytesRef> matcher, BinaryDocValuesFormat binaryFormat) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.matcher = Objects.requireNonNull(matcher);
-        this.arrayOrderInlineNull = arrayOrderInlineNull;
+        this.binaryFormat = Objects.requireNonNull(binaryFormat);
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         float matchCost = matchCost();
+        // Captured for the binary doc values decode checkpoint below. These are full-column scans, so every surviving decoder actually
+        // decodes and allocates its buffer - the circuit breaker is the primary guard here.
+        final CircuitBreaker breaker = ContextIndexSearcher.circuitBreakerOrNull(searcher);
         return new ConstantScoreWeight(this, boost) {
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                final DocIdSetIterator iterator = getDocIdSetIterator(context, matchCost);
-                if (iterator == null) {
+                final FieldInfo fi = context.reader().getFieldInfos().fieldInfo(fieldName);
+                if (fi == null || fi.getDocValuesType() != DocValuesType.BINARY) {
                     return null;
                 }
-                return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
+                return new ConstantScoreScorerSupplier(score(), scoreMode, context.reader().maxDoc()) {
+                    @Override
+                    public long cost() {
+                        return context.reader().maxDoc();
+                    }
+
+                    @Override
+                    public DocIdSetIterator iterator(long leadCost) throws IOException {
+                        // Checkpoint before opening: the probe is 0-byte heap sampling, so
+                        // checking before the allocation skips it entirely when under pressure.
+                        ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
+                        final DocIdSetIterator disi = getDocIdSetIterator(context, matchCost);
+                        if (disi == null) {
+                            return DocIdSetIterator.empty();
+                        }
+                        return disi;
+                    }
+                };
             }
 
             @Override
@@ -74,17 +97,17 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
             return null;
         }
         final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
-        if (arrayOrderInlineNull) {
-            // ArrayOrderInlineNull always writes the .counts field (even for an all-null or empty array, which writes no blob), so when
-            // this flag is set the counts column drives iteration and count==1 is handled inside the inline-null reader as the raw case.
-            assert counts != null : "ArrayOrderInlineNull field [" + fieldName + "] must have a " + COUNT_FIELD_SUFFIX + " companion";
-            return arrayOrderInlineNullIterator(values, counts, matcher, matchCost);
-        }
-        if (counts != null) {
-            return multiValuedIterator(values, counts, matcher, matchCost);
-        } else {
-            return singleValuedIterator(values, matcher, matchCost);
-        }
+        return switch (binaryFormat) {
+            case ARRAY_ORDER_INLINE_NULL -> {
+                // ArrayOrderInlineNull always writes the .counts field (even for an all-null or empty array, which writes no blob), so
+                // the counts column drives iteration and count==1 is handled inside the inline-null reader as the raw case.
+                assert counts != null : "ArrayOrderInlineNull field [" + fieldName + "] must have a " + COUNT_FIELD_SUFFIX + " companion";
+                yield arrayOrderInlineNullIterator(values, counts, matcher, matchCost);
+            }
+            case SEPARATE_COUNT -> counts != null
+                ? multiValuedIterator(values, counts, matcher, matchCost)
+                : singleValuedIterator(values, matcher, matchCost);
+        };
     }
 
     protected abstract float matchCost();

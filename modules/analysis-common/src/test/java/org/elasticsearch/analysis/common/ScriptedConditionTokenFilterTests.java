@@ -33,6 +33,7 @@ import org.junit.Before;
 import java.util.Collections;
 
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
+import static org.hamcrest.Matchers.containsString;
 
 public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
     private TestThreadPool threadPool;
@@ -96,5 +97,49 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
             assertNotNull(analyzer);
             assertAnalyzesTo(analyzer, "Vorsprung Durch Technik", new String[] { "Vorsprung", "Durch", "TECHNIK" });
         }
+    }
+
+    public void testSelfReferentialConditionIsRejected() throws Exception {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.filter.cond.type", "condition")
+            .put("index.analysis.filter.cond.script.source", "token.getPosition() > 1")
+            .putList("index.analysis.filter.cond.filter", "cond")
+            .put("index.analysis.analyzer.myAnalyzer.type", "custom")
+            .put("index.analysis.analyzer.myAnalyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.myAnalyzer.filter", "cond")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+        AnalysisPredicateScript.Factory factory = () -> new AnalysisPredicateScript() {
+            @Override
+            public boolean execute(Token token) {
+                return token.getPosition() > 1;
+            }
+        };
+        @SuppressWarnings("unchecked")
+        ScriptService scriptService = new ScriptService(
+            indexSettings,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        ) {
+            @Override
+            public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+                return (FactoryType) factory;
+            }
+        };
+        CommonAnalysisPlugin plugin = new TestCommonAnalysisPluginBuilder(threadPool).scriptService(scriptService).build();
+        AnalysisModule module = new AnalysisModule(
+            TestEnvironment.newEnvironment(settings),
+            Collections.singletonList(plugin),
+            new StablePluginsRegistry()
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> module.getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings)
+        );
+        assertThat(e.getMessage(), containsString("Token filter [cond] refers to itself"));
     }
 }

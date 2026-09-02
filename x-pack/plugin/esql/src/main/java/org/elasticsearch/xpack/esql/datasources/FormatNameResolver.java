@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
@@ -16,7 +15,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Single source of truth for resolving format names from EXTERNAL query configuration.
+ * Single source of truth for resolving format names from dataset configuration.
  * <p>
  * Both the optimizer ({@code PushFiltersToSource}) and execution ({@code FileSourceFactory})
  * need to resolve which format reader to use for a given query. This class centralises that
@@ -29,6 +28,11 @@ import java.util.Set;
  *       and an empty value mean "no override" and fall through to the extension)</li>
  *   <li>File extension extracted from the source path</li>
  * </ol>
+ * <p>
+ * An explicit {@code reader}/{@code format} override selects the format but does not opt the resource out
+ * of compression detection: {@link #resolveReader} still composes the named format with the resource's
+ * outer compression suffix (e.g. {@code format: csv} over {@code hits.csv.gz} still decompresses), routing
+ * through {@link FormatReaderRegistry#byNameForObject} rather than a bare name lookup.
  */
 public final class FormatNameResolver {
 
@@ -38,36 +42,17 @@ public final class FormatNameResolver {
     /**
      * Sentinel {@code format} value meaning "no explicit override, infer from the resource
      * extension". Shared with the dataset CRUD validator so the create path and this read path
-     * treat {@code auto} identically. Without this, a stored or EXTERNAL {@code format=auto} would
-     * reach {@code registry.byName("auto")} and throw.
+     * treat {@code auto} identically. Without this, a stored {@code format=auto} would reach
+     * {@code registry.byName("auto")} and throw.
      */
     public static final String FORMAT_AUTO = "auto";
 
-    /** Reader alias accepted in {@code WITH {"reader": "..."}} for the parquet-rs native reader. */
-    public static final String READER_PARQUET_RS = "parquet-rs";
-    /** Reader alias accepted in {@code WITH {"reader": "..."}} for the Java parquet reader. */
+    /** Reader alias accepted via the {@code reader} dataset setting for the Java parquet reader. */
     public static final String READER_JAVA = "java";
     /** Format name registered by the Java parquet reader. */
     public static final String FORMAT_PARQUET = "parquet";
-    /** Format name registered by the parquet-rs native reader. */
-    public static final String FORMAT_PARQUET_RS = "parquet-rs";
 
-    /**
-     * Gates the prototype parquet-rs native reader and its public {@code reader=parquet-rs} selector.
-     * Snapshot-on, release-off; override in release with {@code -Des.esql_external_parquet_rs_feature_flag_enabled=true}.
-     * Lives here (and not in the parquet-rs plugin module) so this esql-core resolver can gate the alias while
-     * {@code ParquetRsPlugin} — which already depends on this class — reuses the same flag for format registration.
-     */
-    public static final FeatureFlag ESQL_EXTERNAL_PARQUET_RS_FEATURE_FLAG = new FeatureFlag("esql_external_parquet_rs");
-
-    private static final Map<String, String> READER_ALIAS_TO_FORMAT = parquetRsEnabled()
-        ? Map.of(READER_PARQUET_RS, FORMAT_PARQUET_RS, READER_JAVA, FORMAT_PARQUET)
-        : Map.of(READER_JAVA, FORMAT_PARQUET);
-
-    /** The parquet-rs reader is live iff the parquet-rs sub-flag is on. */
-    public static boolean parquetRsEnabled() {
-        return ESQL_EXTERNAL_PARQUET_RS_FEATURE_FLAG.isEnabled();
-    }
+    private static final Map<String, String> READER_ALIAS_TO_FORMAT = Map.of(READER_JAVA, FORMAT_PARQUET);
 
     private FormatNameResolver() {}
 
@@ -113,7 +98,7 @@ public final class FormatNameResolver {
      * path ({@code FileSourceFactory} passes an empty source path); {@code PushFiltersToSource} still calls it over the
      * exec source path and so misses filter pushdown on compressed text — migrating that caller is tracked separately.
      *
-     * @return the format name (e.g. "parquet", "parquet-rs", "orc"), or null if undetermined
+     * @return the format name (e.g. "parquet", "orc"), or null if undetermined
      */
     public static String resolve(Map<String, Object> config, String sourcePath) {
         if (config != null) {
@@ -163,9 +148,12 @@ public final class FormatNameResolver {
     /**
      * Resolves the format reader using config and source path, looking up the result in the registry.
      * <p>
-     * Config-based overrides ({@code reader}, {@code format}) are resolved via {@link #resolve} and
-     * looked up by name. Extension-based resolution delegates to {@link FormatReaderRegistry#byExtension}
-     * which handles compound extensions (e.g. {@code .ndjson.bz}) and compression codecs.
+     * Config-based overrides ({@code reader}, {@code format}) are resolved via {@link #resolve} and looked
+     * up by name through {@link FormatReaderRegistry#byNameForObject}, which composes the named format with
+     * {@code objectName}'s outer compression suffix (if any) exactly like the extension-based path — an
+     * explicit override selects the format but does not opt the resource out of compression detection.
+     * Extension-based resolution delegates to {@link FormatReaderRegistry#byExtension} which handles
+     * compound extensions (e.g. {@code .ndjson.bz}) and compression codecs.
      */
     public static FormatReader resolveReader(Map<String, Object> config, String objectName, FormatReaderRegistry registry) {
         if (config != null) {
@@ -176,11 +164,11 @@ public final class FormatNameResolver {
                 if (formatName == null) {
                     throw new IllegalArgumentException("Unknown reader [" + alias + "]; supported values: " + supportedReaderAliases());
                 }
-                return registry.byName(formatName);
+                return registry.byNameForObject(formatName, objectName);
             }
             String name = parseExplicitFormat(config.get(CONFIG_FORMAT));
             if (name != null) {
-                return registry.byName(name);
+                return registry.byNameForObject(name, objectName);
             }
         }
         return registry.byExtension(objectName);

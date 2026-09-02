@@ -84,7 +84,7 @@ public class CancelTests extends ReindexTestCase {
         Matcher<String> taskDescriptionMatcher
     ) throws Exception {
         createIndex(INDEX);
-        // Scroll by 1 so that cancellation is easier to control
+        // Batch by 1 so that cancellation is easier to control
         builder.source().setSize(1);
         AbstractBulkByPaginatedSearchRequest<?> request = builder.request();
         // Total number of documents created for this test (~10 per primary shard per slice)

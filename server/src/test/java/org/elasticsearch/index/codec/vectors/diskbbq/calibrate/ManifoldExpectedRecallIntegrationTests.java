@@ -72,12 +72,12 @@ public class ManifoldExpectedRecallIntegrationTests extends ESTestCase {
         assertThat(euclideanRecall, greaterThan(0.0));
         assertThat(euclideanRecall, lessThan(1.01));
 
-        double[] dotManifold = estimateManifold(fixture, VectorSimilarityFunction.DOT_PRODUCT);
+        ManifoldModel.ManifoldParams dotManifold = estimateManifold(fixture, VectorSimilarityFunction.DOT_PRODUCT, numVectors);
         double dotRecall = ExpectedRecall.expectedRecallAtK(
             VectorSimilarityFunction.DOT_PRODUCT,
             numVectors,
-            dotManifold[0],
-            dotManifold[1],
+            dotManifold.alpha(),
+            dotManifold.invDim(),
             conservativePlaceholderErrorStd(numVectors),
             CALIBRATION_K,
             ExpectedRecall.rerankN(CALIBRATION_K, RERANK_DEPTH)
@@ -113,14 +113,26 @@ public class ManifoldExpectedRecallIntegrationTests extends ESTestCase {
         int dbits,
         int numVectors
     ) throws IOException {
-        double[] manifold = estimateManifold(fixture, similarityFunction);
+        ManifoldModel.ManifoldParams manifold = estimateManifold(fixture, similarityFunction, numVectors);
         QuantizationErrorStdModel errorModel = estimateErrorStdModel(fixture, similarityFunction, qbits, dbits);
         double errorStd = errorModel.errorStd(VECTORS_PER_CLUSTER, numVectors);
         int rerank = ExpectedRecall.rerankN(CALIBRATION_K, RERANK_DEPTH);
-        return ExpectedRecall.expectedRecallAtK(similarityFunction, numVectors, manifold[0], manifold[1], errorStd, CALIBRATION_K, rerank);
+        return ExpectedRecall.expectedRecallAtK(
+            similarityFunction,
+            numVectors,
+            manifold.alpha(),
+            manifold.invDim(),
+            errorStd,
+            CALIBRATION_K,
+            rerank
+        );
     }
 
-    private static double[] estimateManifold(CalibrationFixture fixture, VectorSimilarityFunction similarityFunction) throws IOException {
+    private static ManifoldModel.ManifoldParams estimateManifold(
+        CalibrationFixture fixture,
+        VectorSimilarityFunction similarityFunction,
+        int numVectors
+    ) throws IOException {
         CalibrationSource source = new CalibrationSource(
             similarityFunction,
             fixture.dim(),
@@ -131,7 +143,8 @@ public class ManifoldExpectedRecallIntegrationTests extends ESTestCase {
             false,
             null,
             fixture.corpusOrdinals(),
-            CALIBRATION_K
+            CALIBRATION_K,
+            numVectors
         );
         return ManifoldModel.estimateManifoldParameters(source);
     }

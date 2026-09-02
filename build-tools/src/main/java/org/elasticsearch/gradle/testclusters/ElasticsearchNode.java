@@ -321,6 +321,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.modules.add(module.map(RegularFile::getAsFile));
     }
 
+    /**
+     * Adds a module directory directly from a plain file provider.
+     * Used by {@link ElasticsearchCluster} when wiring a {@link org.gradle.api.tasks.Sync} task output,
+     * where the destination directory is already resolved as a {@link java.io.File} and does not need
+     * to go through the {@code Provider<RegularFile>} abstraction.
+     */
+    void addModuleDirectory(Provider<File> moduleDir) {
+        checkFrozen();
+        this.modules.add(moduleDir);
+    }
+
     public void module(TaskProvider<Sync> module) {
         throw new IllegalStateException("Not Supported API");
     }
@@ -874,6 +885,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Override the system hostname variables for testing
         defaultEnv.put("HOSTNAME", HOSTNAME_OVERRIDE);
         defaultEnv.put("COMPUTERNAME", COMPUTERNAME_OVERRIDE);
+
+        // Propagate PATH so shell scripts (e.g. elasticsearch-keystore) can locate standard utilities
+        // such as `dirname`. This is essential on systems like NixOS where PATH is non-standard.
+        String systemPath = System.getenv("PATH");
+        if (systemPath != null) {
+            defaultEnv.put("PATH", systemPath);
+        }
 
         Set<String> commonKeys = new HashSet<>(environment.keySet());
         commonKeys.retainAll(defaultEnv.keySet());

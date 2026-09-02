@@ -14,17 +14,27 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramFraction;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -41,6 +51,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
 import static org.elasticsearch.test.ReadableMatchers.matchesDateNanos;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTruncTests.makeTruncDurationTestCases;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTruncTests.makeTruncPeriodTestCases;
 import static org.hamcrest.Matchers.contains;
@@ -84,6 +95,8 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
         dateCases(suppliers, "fixed date", () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"));
         dateRoundingHandlesNonNestedCalendarUnits(suppliers);
         dateNanosCases(suppliers, "fixed date nanos", () -> DateUtils.toLong(Instant.parse("2023-02-17T09:00:00.00Z")));
+        largeBucketCountCase(suppliers, "fixed date very large bucket count", 8_000_000_000L, 10);
+        largeBucketCountCase(suppliers, "fixed date max long bucket count", Long.MAX_VALUE, 1);
         // Span cases — one per branch of expectedDateMetadataForSpan, registered for both DATETIME and DATE_NANOS.
         // The dates below are picked so BUCKET's rounded value equals the day-of-month rounding used by resultsMatcher
         // (i.e. the input lies on a span boundary AND on a midnight UTC), so the existing helper can validate the
@@ -214,61 +227,82 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             Duration.ofMillis(13),
             "[13 in Z][fixed]"
         );
-        dateTruncCases(suppliers);
         numberCases(suppliers, "fixed long", DataType.LONG, () -> 100L);
         numberCasesWithSpan(suppliers, "fixed long with span", DataType.LONG, () -> 100L);
         numberCases(suppliers, "fixed int", DataType.INTEGER, () -> 100);
         numberCasesWithSpan(suppliers, "fixed int with span", DataType.INTEGER, () -> 100);
         numberCases(suppliers, "fixed double", DataType.DOUBLE, () -> 100.0);
         numberCasesWithSpan(suppliers, "fixed double with span", DataType.DOUBLE, () -> 100.);
-        return parameterSuppliersFromTypedData(
-            anyNullIsNull(
-                suppliers,
-                (nullPosition, nullValueDataType, original) -> nullPosition == 0 && nullValueDataType == DataType.NULL
-                    ? DataType.NULL
-                    : original.expectedType(),
-                (nullPosition, nullData, original) -> nullPosition == 0 ? original : equalTo("LiteralsEvaluator[lit=null]")
-            )
+        histogramCases(suppliers);
+        suppliers = anyNullIsNull(
+            suppliers,
+            (nullPosition, nullValueDataType, original) -> nullPosition == 0 && nullValueDataType == DataType.NULL
+                ? DataType.NULL
+                : original.expectedType(),
+            (nullPosition, nullData, original) -> nullPosition == 0 ? original : equalTo("LiteralsEvaluator[lit=null]")
         );
+        dateTruncCases(suppliers);
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     // TODO once we cast above the functions we can drop these
     private static final DataType[] DATE_BOUNDS_TYPE = new DataType[] { DataType.DATETIME, DataType.KEYWORD, DataType.TEXT };
+    private static final DataType[] BUCKETS_TYPE = new DataType[] { DataType.INTEGER, DataType.LONG };
 
     private static void dateCases(List<TestCaseSupplier> suppliers, String name, LongSupplier date) {
         for (DataType fromType : DATE_BOUNDS_TYPE) {
             for (DataType toType : DATE_BOUNDS_TYPE) {
-                suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, DataType.INTEGER, fromType, toType), () -> {
-                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
-                    args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATETIME, "field"));
-                    // TODO more "from" and "to" and "buckets"
-                    args.add(new TestCaseSupplier.TypedData(50, DataType.INTEGER, "buckets").forceLiteral());
-                    args.add(dateBound("from", fromType, "2023-02-01T00:00:00.00Z"));
-                    args.add(dateBound("to", toType, "2023-03-01T09:00:00.00Z"));
-                    return new TestCaseSupplier.TestCase(
-                        args,
-                        "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], "
-                            + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
-                        DataType.DATETIME,
-                        resultsMatcher(args)
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
-                }));
-                // same as above, but a low bucket count and datetime bounds that match it (at hour span)
-                suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, DataType.INTEGER, fromType, toType), () -> {
-                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
-                    args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATETIME, "field"));
-                    args.add(new TestCaseSupplier.TypedData(4, DataType.INTEGER, "buckets").forceLiteral());
-                    args.add(dateBound("from", fromType, "2023-02-17T09:00:00Z"));
-                    args.add(dateBound("to", toType, "2023-02-17T12:00:00Z"));
-                    return new TestCaseSupplier.TestCase(
-                        args,
-                        "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
-                        DataType.DATETIME,
-                        equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
-                }));
+                for (DataType bucketsType : BUCKETS_TYPE) {
+                    suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, bucketsType, fromType, toType), () -> {
+                        List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                        args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATETIME, "field"));
+                        // TODO more "from" and "to" and "buckets"
+                        args.add(new TestCaseSupplier.TypedData(50, bucketsType, "buckets").forceLiteral());
+                        args.add(dateBound("from", fromType, "2023-02-01T00:00:00.00Z"));
+                        args.add(dateBound("to", toType, "2023-03-01T09:00:00.00Z"));
+                        return new TestCaseSupplier.TestCase(
+                            args,
+                            "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], "
+                                + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
+                            DataType.DATETIME,
+                            resultsMatcher(args)
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
+                    }));
+                    // same as above, but a low bucket count and datetime bounds that match it (at hour span)
+                    suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, bucketsType, fromType, toType), () -> {
+                        List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                        args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATETIME, "field"));
+                        args.add(new TestCaseSupplier.TypedData(4, bucketsType, "buckets").forceLiteral());
+                        args.add(dateBound("from", fromType, "2023-02-17T09:00:00Z"));
+                        args.add(dateBound("to", toType, "2023-02-17T12:00:00Z"));
+                        return new TestCaseSupplier.TestCase(
+                            args,
+                            "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
+                            DataType.DATETIME,
+                            equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
+                    }));
+                }
             }
         }
+    }
+
+    private static void largeBucketCountCase(List<TestCaseSupplier> suppliers, String name, long bucketCount, int expectedMillis) {
+        long date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-10-23T12:15:03.360Z");
+        suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, DataType.LONG, DataType.DATETIME, DataType.DATETIME), () -> {
+            List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+            args.add(new TestCaseSupplier.TypedData(date, DataType.DATETIME, "field"));
+            args.add(new TestCaseSupplier.TypedData(bucketCount, DataType.LONG, "buckets").forceLiteral());
+            args.add(dateBound("from", DataType.DATETIME, "2023-01-01T00:00:00.00Z"));
+            args.add(dateBound("to", DataType.DATETIME, "2024-01-01T00:00:00.00Z"));
+            return new TestCaseSupplier.TestCase(
+                args,
+                "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[" + expectedMillis + " in Z][fixed]]",
+                DataType.DATETIME,
+                equalTo(Rounding.builder(TimeValue.timeValueMillis(expectedMillis)).build().prepareForUnknown().round(date))
+            ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+                .withExtra(Map.of("bucket", Map.of("interval", (long) expectedMillis, "unit", "millisecond")));
+        }));
     }
 
     private static void dateRoundingHandlesNonNestedCalendarUnits(List<TestCaseSupplier> suppliers) {
@@ -524,35 +558,37 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
     private static void dateNanosCases(List<TestCaseSupplier> suppliers, String name, LongSupplier date) {
         for (DataType fromType : DATE_BOUNDS_TYPE) {
             for (DataType toType : DATE_BOUNDS_TYPE) {
-                suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, DataType.INTEGER, fromType, toType), () -> {
-                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
-                    args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATE_NANOS, "field"));
-                    // TODO more "from" and "to" and "buckets"
-                    args.add(new TestCaseSupplier.TypedData(50, DataType.INTEGER, "buckets").forceLiteral());
-                    args.add(dateBound("from", fromType, "2023-02-01T00:00:00.00Z"));
-                    args.add(dateBound("to", toType, "2023-03-01T09:00:00.00Z"));
-                    return new TestCaseSupplier.TestCase(
-                        args,
-                        "DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], "
-                            + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
-                        DataType.DATE_NANOS,
-                        resultsMatcher(args)
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
-                }));
-                // same as above, but a low bucket count and datetime bounds that match it (at hour span)
-                suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, DataType.INTEGER, fromType, toType), () -> {
-                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
-                    args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATE_NANOS, "field"));
-                    args.add(new TestCaseSupplier.TypedData(4, DataType.INTEGER, "buckets").forceLiteral());
-                    args.add(dateBound("from", fromType, "2023-02-17T09:00:00Z"));
-                    args.add(dateBound("to", toType, "2023-02-17T12:00:00Z"));
-                    return new TestCaseSupplier.TestCase(
-                        args,
-                        "DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
-                        DataType.DATE_NANOS,
-                        equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
-                }));
+                for (DataType bucketsType : BUCKETS_TYPE) {
+                    suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, bucketsType, fromType, toType), () -> {
+                        List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                        args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATE_NANOS, "field"));
+                        // TODO more "from" and "to" and "buckets"
+                        args.add(new TestCaseSupplier.TypedData(50, bucketsType, "buckets").forceLiteral());
+                        args.add(dateBound("from", fromType, "2023-02-01T00:00:00.00Z"));
+                        args.add(dateBound("to", toType, "2023-03-01T09:00:00.00Z"));
+                        return new TestCaseSupplier.TestCase(
+                            args,
+                            "DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], "
+                                + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
+                            DataType.DATE_NANOS,
+                            resultsMatcher(args)
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
+                    }));
+                    // same as above, but a low bucket count and datetime bounds that match it (at hour span)
+                    suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, bucketsType, fromType, toType), () -> {
+                        List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                        args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATE_NANOS, "field"));
+                        args.add(new TestCaseSupplier.TypedData(4, bucketsType, "buckets").forceLiteral());
+                        args.add(dateBound("from", fromType, "2023-02-17T09:00:00Z"));
+                        args.add(dateBound("to", toType, "2023-02-17T12:00:00Z"));
+                        return new TestCaseSupplier.TestCase(
+                            args,
+                            "DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
+                            DataType.DATE_NANOS,
+                            equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
+                    }));
+                }
             }
         }
     }
@@ -634,6 +670,195 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
 
     }
 
+    /**
+     * Cases for histogram fields ({@code exponential_histogram} and {@code tdigest}), which are bucketed like
+     * numbers but return the non-empty {@code double_range} buckets. Covers both the explicit span form and the
+     * bucket-count-with-range form.
+     */
+    private static void histogramCases(List<TestCaseSupplier> suppliers) {
+        List<TestCaseSupplier.TypedDataSupplier> histogramSuppliers = new ArrayList<>();
+        histogramSuppliers.addAll(TestCaseSupplier.exponentialHistogramCases());
+        histogramSuppliers.addAll(TestCaseSupplier.tdigestCases());
+        histogramSuppliers.replaceAll(s -> s.withAppliesTo(appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false)));
+        for (TestCaseSupplier.TypedDataSupplier histogramSupplier : histogramSuppliers) {
+            for (Number span : List.of(50, 50L, 50.0)) {
+                DataType spanType = DataType.fromJava(span);
+                String name = histogramSupplier.name() + " with " + spanType.typeName() + " span";
+                suppliers.add(new TestCaseSupplier(name, List.of(histogramSupplier.type(), spanType), () -> {
+                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                    TestCaseSupplier.TypedData histogram = histogramSupplier.get();
+                    args.add(histogram);
+                    args.add(new TestCaseSupplier.TypedData(span, spanType, "span").forceLiteral());
+                    span.doubleValue();
+                    return new TestCaseSupplier.TestCase(
+                        args,
+                        histogramEvaluatorMatcher(histogramSupplier.type()),
+                        DataType.DOUBLE_RANGE,
+                        histogramResultsMatcher(histogram.data())
+                    ).withExtra(Map.of("bucket", Map.of("interval", span.doubleValue())));
+                }));
+            }
+            for (DataType fromType : NUMBER_BOUNDS_TYPES) {
+                for (DataType toType : NUMBER_BOUNDS_TYPES) {
+                    String name = histogramSupplier.name()
+                        + " with random bucket count and "
+                        + fromType.typeName()
+                        + "/"
+                        + toType.typeName()
+                        + " bounds";
+                    suppliers.add(new TestCaseSupplier(name, List.of(histogramSupplier.type(), DataType.INTEGER, fromType, toType), () -> {
+                        List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                        TestCaseSupplier.TypedData histogram = histogramSupplier.get();
+                        int bucketCount = randomIntBetween(1, 10_000);
+                        // Expand to integral boundaries so casting to any supported bound type preserves
+                        // a non-empty range containing the histogram. Empty histograms have no finite
+                        // extrema, so use an arbitrary valid range for them.
+                        double rangeFrom = Math.floor(histogramMin(histogram.data())) - 1;
+                        double rangeTo = Math.ceil(histogramMax(histogram.data())) + 1;
+                        if (Double.isFinite(rangeFrom) == false || Double.isFinite(rangeTo) == false) {
+                            rangeFrom = 0.0;
+                            rangeTo = 1000.0;
+                        }
+                        args.add(histogram);
+                        args.add(new TestCaseSupplier.TypedData(bucketCount, DataType.INTEGER, "buckets").forceLiteral());
+                        args.add(numericBound("from", fromType, rangeFrom));
+                        args.add(numericBound("to", toType, rangeTo));
+                        return new TestCaseSupplier.TestCase(
+                            args,
+                            histogramEvaluatorMatcher(histogramSupplier.type()),
+                            DataType.DOUBLE_RANGE,
+                            histogramResultsMatcher(histogram.data())
+                        );
+                    }));
+                }
+            }
+        }
+    }
+
+    private static double histogramMin(Object histogram) {
+        return switch (histogram) {
+            case ExponentialHistogram exponentialHistogram -> exponentialHistogram.min();
+            case TDigestHolder tdigest -> tdigest.getMin();
+            default -> throw new AssertionError("unexpected histogram [" + histogram + "]");
+        };
+    }
+
+    private static double histogramMax(Object histogram) {
+        return switch (histogram) {
+            case ExponentialHistogram exponentialHistogram -> exponentialHistogram.max();
+            case TDigestHolder tdigest -> tdigest.getMax();
+            default -> throw new AssertionError("unexpected histogram [" + histogram + "]");
+        };
+    }
+
+    private static Matcher<String> histogramEvaluatorMatcher(DataType histogramType) {
+        return Matchers.startsWith(
+            "Bucket"
+                + (histogramType == DataType.TDIGEST ? "TDigest" : "ExponentialHistogram")
+                + "Evaluator[histogram=Attribute[channel=0], roundTo="
+        );
+    }
+
+    /**
+     * Verifies BUCKET's contract on histograms without recomputing the expected bucket list: after sorting the
+     * returned ranges, each of them must be populated according to {@link HistogramFraction}, while the gaps
+     * between them and the ranges before the first and after the last bucket must be empty.
+     */
+    private static Matcher<Object> histogramResultsMatcher(Object histogram) {
+        long histoSize = switch (histogram) {
+            case ExponentialHistogram eh -> eh.valueCount();
+            case TDigestHolder td -> td.size();
+            default -> throw new AssertionError("unexpected histogram [" + histogram + "]");
+        };
+        if (histoSize == 0) {
+            return nullValue();
+        }
+        return new BaseMatcher<>() {
+            private String mismatch;
+
+            @Override
+            public boolean matches(Object actual) {
+                List<DoubleRangeBlockBuilder.DoubleRange> buckets = new ArrayList<>();
+                if (actual instanceof DoubleRangeBlockBuilder.DoubleRange bucket) {
+                    buckets.add(bucket);
+                } else if (actual instanceof List<?> list) {
+                    for (Object value : list) {
+                        if (value instanceof DoubleRangeBlockBuilder.DoubleRange bucket) {
+                            buckets.add(bucket);
+                        } else {
+                            mismatch = "contained the non-double_range value [" + value + "]";
+                            return false;
+                        }
+                    }
+                } else {
+                    mismatch = "was not a double_range or a list of double_ranges";
+                    return false;
+                }
+                if (buckets.isEmpty()) {
+                    mismatch = "contained no buckets for a non-empty histogram";
+                    return false;
+                }
+                buckets.sort(null);
+                if (checkEmpty("before the first bucket", -Double.MAX_VALUE, buckets.getFirst().from()) == false) {
+                    return false;
+                }
+                if (checkEmpty("after the last bucket", buckets.getLast().to(), Double.MAX_VALUE) == false) {
+                    return false;
+                }
+                for (int i = 0; i < buckets.size(); i++) {
+                    DoubleRangeBlockBuilder.DoubleRange bucket = buckets.get(i);
+                    if (i > 0) {
+                        DoubleRangeBlockBuilder.DoubleRange previous = buckets.get(i - 1);
+                        if (bucket.from() < previous.to()) {
+                            mismatch = "buckets " + previous + " and " + bucket + " overlap";
+                            return false;
+                        }
+                        if (checkEmpty("between " + previous + " and " + bucket, previous.to(), bucket.from()) == false) {
+                            return false;
+                        }
+                    }
+                    if (fraction(bucket.from(), bucket.to()) <= 0) {
+                        mismatch = "returned the empty bucket " + bucket;
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            private boolean checkEmpty(String description, double from, double to) {
+                if (from < to && fraction(from, to) != 0) {
+                    mismatch = "the range [" + from + ", " + to + ") " + description + " is not empty";
+                    return false;
+                }
+                return true;
+            }
+
+            private double fraction(double from, double to) {
+                DoubleRangeBlockBuilder.DoubleRange range = new DoubleRangeBlockBuilder.DoubleRange(from, to);
+                return switch (histogram) {
+                    case ExponentialHistogram eh -> HistogramFraction.process(eh, range, null);
+                    case TDigestHolder td -> HistogramFraction.process(
+                        td,
+                        range,
+                        null,
+                        new MemoryTrackingTDigestArrays(new NoopCircuitBreaker("noop"))
+                    );
+                    default -> throw new AssertionError("unexpected histogram [" + histogram + "]");
+                };
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("exactly the non-empty double_range buckets of ").appendValue(histogram);
+            }
+
+            @Override
+            public void describeMismatch(Object item, Description description) {
+                description.appendValue(item).appendText(" ").appendText(mismatch == null ? "did not match" : mismatch);
+            }
+        };
+    }
+
     private static TestCaseSupplier.TypedData keywordDateLiteral(String name, DataType type, String date) {
         return new TestCaseSupplier.TypedData(date, type, name).forceLiteral();
     }
@@ -666,7 +891,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             from = args.get(2);
             to = args.get(3);
         }
-        return new Bucket(source, args.get(0), args.get(1), from, to, configuration);
+        return new Bucket(source, args.get(0), args.get(1), from, to, null, configuration);
     }
 
     /**
@@ -722,13 +947,18 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             assertThat(inner.get("interval"), instanceOf(Long.class));
             assertThat(inner, hasKey("unit"));
             assertThat(inner.get("unit"), instanceOf(String.class));
-        } else if (fieldType.isNumeric()) {
+        } else if (fieldType.isNumeric() || fieldType == DataType.EXPONENTIAL_HISTOGRAM || fieldType == DataType.TDIGEST) {
             assertThat(inner.get("interval"), instanceOf(Double.class));
             assertThat(inner.containsKey("unit"), equalTo(false));
         } else {
             fail("BUCKET supports field type [" + fieldType + "] but getIntervalMetadata has no branch for it");
         }
 
+        if ((fieldType == DataType.EXPONENTIAL_HISTOGRAM || fieldType == DataType.TDIGEST) && testCase.getData().size() == 4) {
+            // The bucket-count form chooses a "nice" interval internally. Its exact value is an implementation
+            // detail; the structural assertions above are enough here.
+            return;
+        }
         Object expected = testCase.extra();
         assertThat("test case is missing expected metadata in withExtra(...)", expected, instanceOf(Map.class));
         assertThat(metadata, equalTo(expected));

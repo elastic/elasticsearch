@@ -298,9 +298,7 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
             );
         }
 
-        TermsQueryBuilder builder = new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName);
-
-        return builder;
+        return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName);
     }
 
     static List<Object> parseValues(XContentParser parser) throws IOException {

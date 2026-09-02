@@ -32,15 +32,19 @@ public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements Ex
 
   private final StGeohash.GeoHashBoundedGrid bounds;
 
+  private final SpatialGridFunction.GeoShapeCellsComputer shapeTiler;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StGeohashFromFieldAndLiteralAndLiteralEvaluator(Source source, ExpressionEvaluator in,
-      StGeohash.GeoHashBoundedGrid bounds, DriverContext driverContext) {
+      StGeohash.GeoHashBoundedGrid bounds, SpatialGridFunction.GeoShapeCellsComputer shapeTiler,
+      DriverContext driverContext) {
     this.source = source;
     this.in = in;
     this.bounds = bounds;
+    this.shapeTiler = shapeTiler;
     this.driverContext = driverContext;
   }
 
@@ -70,7 +74,7 @@ public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements Ex
           continue position;
         }
         try {
-          StGeohash.fromFieldAndLiteralAndLiteral(result, p, inBlock, this.bounds);
+          StGeohash.fromFieldAndLiteralAndLiteral(result, p, inBlock, this.bounds, this.shapeTiler);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -92,7 +96,7 @@ public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements Ex
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
@@ -104,16 +108,20 @@ public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements Ex
 
     private final Function<DriverContext, StGeohash.GeoHashBoundedGrid> bounds;
 
+    private final SpatialGridFunction.GeoShapeCellsComputer shapeTiler;
+
     public Factory(Source source, ExpressionEvaluator.Factory in,
-        Function<DriverContext, StGeohash.GeoHashBoundedGrid> bounds) {
+        Function<DriverContext, StGeohash.GeoHashBoundedGrid> bounds,
+        SpatialGridFunction.GeoShapeCellsComputer shapeTiler) {
       this.source = source;
       this.in = in;
       this.bounds = bounds;
+      this.shapeTiler = shapeTiler;
     }
 
     @Override
     public StGeohashFromFieldAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohashFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds.apply(context), context);
+      return new StGeohashFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds.apply(context), shapeTiler, context);
     }
 
     @Override

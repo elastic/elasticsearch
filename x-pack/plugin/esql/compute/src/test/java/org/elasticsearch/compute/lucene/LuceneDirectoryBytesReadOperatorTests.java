@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
@@ -85,8 +86,8 @@ public class LuceneDirectoryBytesReadOperatorTests extends ComputeTestCase {
             assertThat(operatorBytes, greaterThan(0L));
 
             long planningBytes = 12_345L;
-            DriverCompletionInfo withPlanning = DriverCompletionInfo.excludingProfiles(List.of(driver), planningBytes);
-            DriverCompletionInfo withoutPlanning = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L);
+            DriverCompletionInfo withPlanning = DriverCompletionInfo.excludingProfiles(List.of(driver), planningBytes, false);
+            DriverCompletionInfo withoutPlanning = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L, false);
 
             assertThat(withPlanning.bytesRead(), equalTo(planningBytes + operatorBytes));
             assertThat(withoutPlanning.bytesRead(), equalTo(operatorBytes));
@@ -180,7 +181,8 @@ public class LuceneDirectoryBytesReadOperatorTests extends ComputeTestCase {
             LuceneOperator.NO_LIMIT,
             false,
             directoryBytesRead,
-            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
         );
     }
 

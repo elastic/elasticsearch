@@ -75,6 +75,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
         registerDimensionChecks(checker);
         checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "gauge"));
+        checker.registerIgnoredParameter("index_terms");
     }
 
     @Override
@@ -535,6 +536,11 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsOnFailureParameter() {
         return true;
     }
 

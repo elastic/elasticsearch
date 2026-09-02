@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetim
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDoubleRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
@@ -129,6 +130,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -139,6 +142,7 @@ public class ExpressionWritables {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
 
         entries.addAll(allExpressions());
+        entries.add(UnmappedFieldsPattern.ENTRY);
         entries.addAll(aggregates());
         entries.addAll(scalars());
         entries.addAll(spatials());
@@ -159,6 +163,7 @@ public class ExpressionWritables {
     public static List<NamedWriteableRegistry.Entry> attributes() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(ExpressionCoreWritables.attributes());
+        entries.add(UnmappedFieldsAttribute.ENTRY);
         entries.add(UnsupportedAttribute.ENTRY);
         return entries;
     }
@@ -166,6 +171,7 @@ public class ExpressionWritables {
     public static List<NamedWriteableRegistry.Entry> namedExpressions() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(ExpressionCoreWritables.namedExpressions());
+        entries.add(UnmappedFieldsAttribute.NAMED_EXPRESSION_ENTRY);
         entries.add(UnsupportedAttribute.NAMED_EXPRESSION_ENTRY);
         return entries;
     }
@@ -173,6 +179,7 @@ public class ExpressionWritables {
     public static List<NamedWriteableRegistry.Entry> expressions() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(ExpressionCoreWritables.expressions());
+        entries.add(UnmappedFieldsAttribute.EXPRESSION_ENTRY);
         entries.add(UnsupportedAttribute.EXPRESSION_ENTRY);
         entries.add(Order.ENTRY);
         return entries;
@@ -250,6 +257,7 @@ public class ExpressionWritables {
         entries.add(ToDateNanos.ENTRY);
         entries.add(ToDateRange.ENTRY);
         entries.add(ToDegrees.ENTRY);
+        entries.add(ToDoubleRange.ENTRY);
         entries.add(ToDenseVector.ENTRY);
         entries.add(ToDouble.ENTRY);
         entries.add(ToExponentialHistogram.ENTRY);

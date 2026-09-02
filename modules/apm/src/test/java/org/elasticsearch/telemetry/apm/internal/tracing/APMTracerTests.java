@@ -242,6 +242,39 @@ public class APMTracerTests extends ESTestCase {
     }
 
     /**
+     * Check that when a trace is started for a request carrying the {@link Task#X_ELASTIC_PROJECT_ID_HTTP_HEADER}
+     * header, the project id is stamped on the span as the {@code project.id} attribute.
+     */
+    public void test_whenTraceStarted_projectIdHeaderIsSetAsSpanAttribute() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer apmTracer = buildTracer(settings);
+
+        String projectId = randomAlphaOfLength(16);
+        ThreadContext threadContext = new ThreadContext(settings);
+        threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);
+        apmTracer.startTrace(threadContext, TRACEABLE1, "name1", null);
+
+        Span span = Span.fromContextOrNull(apmTracer.getSpans().get(TRACEABLE1.getSpanId()));
+        assertThat(span, notNullValue());
+        Mockito.verify(span).setAttribute("project.id", projectId);
+    }
+
+    /**
+     * Check that when a trace is started for a request without the {@link Task#X_ELASTIC_PROJECT_ID_HTTP_HEADER}
+     * header (e.g. a non multi-project request), no {@code project.id} attribute is added to the span.
+     */
+    public void test_whenTraceStarted_withoutProjectIdHeader_noProjectIdSpanAttribute() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer apmTracer = buildTracer(settings);
+
+        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
+
+        Span span = Span.fromContextOrNull(apmTracer.getSpans().get(TRACEABLE1.getSpanId()));
+        assertThat(span, notNullValue());
+        Mockito.verify(span, never()).setAttribute(eq("project.id"), anyString());
+    }
+
+    /**
      * Check that when a tracer has a list of include names configured, then those
      * names are used to filter spans.
      */
@@ -670,6 +703,8 @@ public class APMTracerTests extends ESTestCase {
 
             @Override
             public SpanBuilder setAttribute(String key, String value) {
+                // Record string attributes on the mock span so tests can Mockito.verify(span).setAttribute(...)
+                span.setAttribute(key, value);
                 return this;
             }
 

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -141,11 +142,35 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         return blobFileRanges != null ? blobFileRanges.getPosition(pos, length) : pos;
     }
 
+    /**
+     * Returns the raw data timestamp for a file: the owning compound commit's midpoint, or
+     * {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} when the file is unknown or carries no timestamp range.
+     */
     public long getTimestampMillis(String fileName) {
         var blobFileRanges = currentMetadata.get(fileName);
         return blobFileRanges != null
             ? BlobFileRanges.midpointMillisOrUnknownForCache(blobFileRanges.timestampRange())
             : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+    }
+
+    /**
+     * Resolves a raw compound-commit timestamp range into a stampable cache-region timestamp.
+     */
+    public long resolveRegionTimestampMillis(@Nullable StatelessCompoundCommit.TimestampFieldValueRange range) {
+        return resolveRegionTimestampMillis(BlobFileRanges.midpointMillisOrUnknownForCache(range));
+    }
+
+    public long resolveRegionTimestampMillis(long rawMillis) {
+        assert rawMillis >= SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP || rawMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP
+            : "raw region timestamp must be epoch millis or UNKNOWN, got " + rawMillis;
+        return rawMillis != SharedBlobCacheService.UNKNOWN_TIMESTAMP ? rawMillis : fallbackRegionTimestampMillis();
+    }
+
+    /**
+     * Timestamp to stamp on a cache region whose content carries no known data timestamp.
+     */
+    protected long fallbackRegionTimestampMillis() {
+        return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
     }
 
     StatelessSharedBlobCacheService getCacheService() {
@@ -321,6 +346,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     }
 
     private SharedBlobCacheService<FileCacheKey>.CacheFile getCacheFile(BlobFileRanges blobFileRanges) {
+        long timestampMillis = resolveRegionTimestampMillis(blobFileRanges.timestampRange());
         return cacheService.getCacheFile(
             new FileCacheKey(shardId, blobFileRanges.primaryTerm(), blobFileRanges.blobName()),
             // this length is a lower bound on the length of the blob, used to assert that the cache file does not try to read
@@ -331,7 +357,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             blobFileRanges.fileOffset() + blobFileRanges.fileLength(),
             // todo: time-source
             new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime),
-            BlobFileRanges.midpointMillisOrUnknownForCache(blobFileRanges.timestampRange())
+            timestampMillis
         );
     }
 
@@ -398,6 +424,13 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      * Note: the bytes read using this instance are always added to {@link #totalBytesWarmedFromObjectStore}.
      */
     public abstract BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForWarming();
+
+    /**
+     * @return the {@link BlobStoreCacheDirectory} for a single BCC metadata read through cache.
+     */
+    public BlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
+        return createNewBlobStoreCacheDirectoryForWarming();
+    }
 
     private static UnsupportedOperationException unsupportedException() {
         assert false : "this operation is not supported and should have not be called";

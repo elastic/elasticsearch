@@ -24,7 +24,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -112,10 +111,11 @@ public class ExternalFileMetadataPruningIT extends AbstractExternalDataSourceIT 
     }
 
     /**
-     * Variant: filter excludes ALL files → resolver rejects with "no files" error,
-     * proving that the listing-time prune removed all candidates before any read.
+     * Variant: filter excludes ALL files. The metadata hint prunes the listing to nothing, but a filter excluding
+     * every file returns zero rows, not an error — the listing prune is only an optimization and the {@code WHERE}
+     * still runs on the rows, which yields zero.
      */
-    public void testFileModifiedFilterExcludesAllFiles() throws Exception {
+    public void testFileModifiedFilterExcludesAllFilesReturnsZeroRows() throws Exception {
         Path dir = createTempDir();
         Path fileA = writeParquetFile(dir, "a.parquet");
         Path fileB = writeParquetFile(dir, "b.parquet");
@@ -136,10 +136,11 @@ public class ExternalFileMetadataPruningIT extends AbstractExternalDataSourceIT 
             + " | WHERE `_file.modified` > \"2024-01-01T00:00:00.000Z\""
             + " | STATS c = COUNT(*)";
 
-        var request = syncEsqlQueryRequest(query);
-
-        Exception e = expectThrows(Exception.class, () -> { run(request).close(); });
-        assertThat(e.getMessage(), containsString("matched no files"));
+        try (var response = run(syncEsqlQueryRequest(query))) {
+            List<List<Object>> rows = getValuesList(response);
+            long count = ((Number) rows.get(0).get(0)).longValue();
+            assertThat("an all-excluding _file.modified filter returns zero rows, not an error", count, equalTo(0L));
+        }
     }
 
     /**

@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 144884
+summary: Update Tika to 3.3.2
+type: upgrade

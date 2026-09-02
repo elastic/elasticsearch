@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 
@@ -47,12 +48,13 @@ public class EsFieldTestUtils {
      * to keep the unrestricted behavior.
      */
     public static EsField randomSerializableEsField(int maxDepth, TransportVersion supportedOn) {
-        return switch (between(0, 4)) {
+        return switch (between(0, 5)) {
             case 0 -> randomEsField(maxDepth, supportedOn);
             case 1 -> randomDateEsField(maxDepth, supportedOn);
             case 2 -> randomKeywordEsField(maxDepth, supportedOn);
             case 3 -> randomTextEsField(maxDepth, supportedOn);
-            case 4 -> randomUnsupportedEsField(maxDepth, supportedOn);
+            case 4 -> randomPotentiallyUnmappedKeywordEsField(maxDepth, supportedOn);
+            case 5 -> randomUnsupportedEsField(maxDepth, supportedOn);
             default -> throw new IllegalArgumentException();
         };
     }
@@ -140,6 +142,13 @@ public class EsFieldTestUtils {
         boolean isAlias = randomBoolean();
         EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
         return new TextEsField(name, properties, hasDocValues, isAlias, tsType);
+    }
+
+    public static PotentiallyUnmappedKeywordEsField randomPotentiallyUnmappedKeywordEsField(
+        int maxPropertiesDepth,
+        TransportVersion supportedOn
+    ) {
+        return new PotentiallyUnmappedKeywordEsField(randomAlphaOfLength(4), randomProperties(maxPropertiesDepth, supportedOn));
     }
 
     /**

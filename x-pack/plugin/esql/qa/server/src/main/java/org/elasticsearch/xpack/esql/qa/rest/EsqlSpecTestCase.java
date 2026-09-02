@@ -68,8 +68,10 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEnd
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteViews;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewsIntoEs;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.KNN_FUNCTION_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
@@ -120,9 +122,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
      * Intended for use by generated per-spec-file test classes.
      */
     protected static List<Object[]> readScriptSpec(String specFile) throws Exception {
-        List<URL> urls = classpathResources(specFile);
-        assertEquals("Expected exactly one resource for " + specFile + " but found " + urls, 1, urls.size());
-        return SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
+        URL url = classpathResource(specFile);
+        assertNotNull("No resource found for " + specFile, url);
+        return SpecReader.readScriptSpec(List.of(url), CsvSpecReader::specParser);
     }
 
     protected EsqlSpecTestCase(
@@ -198,6 +200,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     public void setup() throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);
         INGEST.protectedBlock(() -> {
+            ensureRemoteClustersConnected();
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
             // If multiple clusters are used, only create endpoints on the local cluster if it supports the inference test service.
             createInferenceEndpointsIfSupported();
@@ -210,6 +213,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 this::clusterHasCapability,
                 indicesToLoad()
             );
+            // wait until the newly created indices are ready to search
+            ensureHealth(client(), "", request -> {
+                request.addParameter("wait_for_status", "yellow");
+                request.addParameter("wait_for_no_initializing_shards", "true");
+                request.addParameter("wait_for_no_relocating_shards", "true");
+                request.addParameter("timeout", "60s");
+                request.addParameter("level", "shards");
+            });
             return null;
         });
         // Views can be created before or after ingest, since index resolution is currently only done on the combined query.
@@ -234,6 +245,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             VIEWS.reset();
         }
     }
+
+    /**
+     * Hook, run once per JVM at the start of data ingestion, for suites that need a remote cluster to be connected before
+     * any data load or query is issued.
+     */
+    protected void ensureRemoteClustersConnected() throws Exception {}
 
     public boolean logResults() {
         return false;
@@ -353,7 +370,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             COMPLETION.capabilityName(),
             KNN_FUNCTION_V5.capabilityName(),
             TEXT_EMBEDDING_FUNCTION.capabilityName(),
-            EMBEDDING_FUNCTION.capabilityName()
+            EMBEDDING_FUNCTION.capabilityName(),
+            DENSE_VECTOR_COMMAND.capabilityName()
         ).anyMatch(testCase.requiredCapabilities::contains);
     }
 
@@ -496,6 +514,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 clusterHasCapability(EsqlCapabilities.Cap.DOCUMENTS_FOUND_AND_VALUES_LOADED)
             );
             CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, (int) answer.get("documents_found"));
+        }
+        if (testCase.expectedApproximationApplied != null && clusterHasCapability(EsqlCapabilities.Cap.APPROXIMATION_APPLIED_RESPONSE)) {
+            CsvAssert.assertApproximationApplied(testCase.expectedApproximationApplied, (Boolean) answer.get("approximation_applied"));
         }
 
         if (checkTook) {

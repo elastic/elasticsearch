@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.DataFormat;
@@ -31,7 +32,7 @@ import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestRerankingServiceExtension;
@@ -56,6 +57,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -66,6 +69,24 @@ public final class Utils {
 
     private Utils() {
         throw new UnsupportedOperationException("Utils is a utility class and should not be instantiated");
+    }
+
+    /**
+     * Returns an {@link InferenceIndexMappingManager} stub whose {@code withUpToDateMappings}
+     * immediately notifies the listener with success. Tests that construct a {@link
+     * org.elasticsearch.xpack.inference.registry.ModelRegistry} (or the region policy actions)
+     * without exercising real index I/O must use this instead of a bare Mockito mock: an unstubbed
+     * mock never invokes the listener, so any code path that reaches a write would hang forever
+     * instead of failing.
+     */
+    @SuppressWarnings("unchecked")
+    public static InferenceIndexMappingManager noopInferenceIndexMappingManager() {
+        var manager = mock(InferenceIndexMappingManager.class);
+        doAnswer(invocation -> {
+            ((ActionListener<Void>) invocation.getArgument(1)).onResponse(null);
+            return null;
+        }).when(manager).withUpToDateMappings(any(), any());
+        return manager;
     }
 
     public static ClusterService mockClusterServiceEmpty() {
@@ -288,8 +309,8 @@ public final class Utils {
 
     public static Map<String, Object> buildExpectationCompletions(List<String> completions) {
         return Map.of(
-            ChatCompletionResults.COMPLETION,
-            completions.stream().map(completion -> Map.of(ChatCompletionResults.Result.RESULT, completion)).collect(Collectors.toList())
+            CompletionResults.COMPLETION,
+            completions.stream().map(completion -> Map.of(CompletionResults.Result.RESULT, completion)).collect(Collectors.toList())
         );
     }
 
@@ -312,5 +333,9 @@ public final class Utils {
 
     public static <K, V> Map<K, V> modifiableMap(Map<K, V> aMap) {
         return new HashMap<>(aMap);
+    }
+
+    public static Releasable noopReleasable() {
+        return () -> {/* no op */};
     }
 }

@@ -60,7 +60,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
             public void process(HitContext hitContext) throws IOException {
                 SearchHit hit = hitContext.hit();
                 Source rootSource = searchContext.getRootSource(hitContext);
-                hitExecute(innerHits, hit, rootSource);
+                hitExecute(searchContext, innerHits, hit, rootSource);
             }
         };
     }
@@ -75,8 +75,12 @@ public final class InnerHitsPhase implements FetchSubPhase {
         return requiresSource;
     }
 
-    private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits, SearchHit hit, Source rootSource)
-        throws IOException {
+    private void hitExecute(
+        FetchContext parentContext,
+        Map<String, InnerHitsContext.InnerHitSubContext> innerHits,
+        SearchHit hit,
+        Source rootSource
+    ) throws IOException {
         Map<String, SearchHits> results = Maps.newMapWithExpectedSize(innerHits.size());
         for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : innerHits.entrySet()) {
             InnerHitsContext.InnerHitSubContext innerHitsContext = entry.getValue();
@@ -92,6 +96,13 @@ public final class InnerHitsPhase implements FetchSubPhase {
 
             fetchPhase.execute(innerHitsContext, docIdsToLoad, null);
             FetchSearchResult fetchResult = innerHitsContext.fetchResult();
+
+            long innerHitsBreakerBytes = fetchResult.getSearchHitsSizeBytes();
+            if (innerHitsBreakerBytes > 0L) {
+                fetchResult.releaseCircuitBreakerBytes(innerHitsContext.circuitBreaker());
+                parentContext.chargeScriptFieldsBytes(innerHitsBreakerBytes);
+            }
+
             SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
             for (int j = 0; j < internalHits.length; j++) {
                 ScoreDoc scoreDoc = topDoc.topDocs.scoreDocs[j];

@@ -110,6 +110,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -574,7 +575,7 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     public void testQueryCacheDisabledByDefaultForStrictlyColumnarMode() {
-        IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        IndexMode mode = randomFrom(Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
         assertFalse(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.get(settings));
     }
@@ -628,6 +629,11 @@ public class IndexModuleTests extends ESTestCase {
             @Override
             public AnalyzerScope scope() {
                 return AnalyzerScope.INDEX;
+            }
+
+            @Override
+            public Object sharingKey() {
+                return this;
             }
 
             @Override
@@ -715,7 +721,10 @@ public class IndexModuleTests extends ESTestCase {
 
         ShardRouting shard = createInitializedShardRouting();
 
-        assertThat(indexService.createRecoveryState(shard, mock(DiscoveryNode.class), mock(DiscoveryNode.class)), is(recoveryState));
+        assertThat(
+            indexService.getRecoveryStateFactory().newRecoveryState(shard, mock(DiscoveryNode.class), mock(DiscoveryNode.class)),
+            is(recoveryState)
+        );
 
         closeIndexService(indexService);
     }
@@ -769,15 +778,22 @@ public class IndexModuleTests extends ESTestCase {
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-                ShardRouting.Role.DEFAULT
+                ShardRouting.Role.DEFAULT,
+                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             ).initialize("_node_id", null, -1);
 
             IndexService indexService = newIndexService(module);
             closeables.add(() -> closeIndexService(indexService));
 
-            IndexShard indexShard = indexService.createShard(shardRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
+            IndexShard indexShard = indexService.createShard(
+                shardRouting,
+                DiscoveryNodeUtils.create("_node_id", "_node_id"),
+                null,
+                IndexShardTestCase.NOOP_GCP_SYNCER,
+                RetentionLeaseSyncer.EMPTY
+            );
             closeables.add(() -> flushAndCloseShardNoCheck(indexShard));
-            indexShard.markAsRecovering("test", new RecoveryState(shardRouting, DiscoveryNodeUtils.create("_node_id", "_node_id"), null));
+            indexShard.markAsRecovering("test");
 
             final PlainActionFuture<Boolean> recoveryFuture = new PlainActionFuture<>();
             indexShard.recoverFromStore(recoveryFuture);
@@ -817,7 +833,8 @@ public class IndexModuleTests extends ESTestCase {
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         shard = shard.initialize("node1", null, -1);
         return shard;

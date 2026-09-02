@@ -27,7 +27,6 @@ import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
@@ -37,8 +36,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
@@ -96,9 +94,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
     private final Queue<Throwable> failureQueue = new LinkedBlockingQueue<>();
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initThreadPool() throws Exception {
         threadPool = new TestThreadPool(getTestName()) {
             @Override
             public ExecutorService executor(String name) {
@@ -119,9 +115,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void cleanup() throws Exception {
         terminate(threadPool);
     }
 
@@ -385,9 +379,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
         ).then(new Answer<Future<HttpResponse>>() {
             @Override
             public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) {
-                HeapBufferedAsyncResponseConsumer consumer = (HeapBufferedAsyncResponseConsumer) invocationOnMock.getArguments()[1];
                 FutureCallback callback = (FutureCallback) invocationOnMock.getArguments()[3];
-                assertEquals(ByteSizeValue.of(100, ByteSizeUnit.MB).bytesAsInt(), consumer.getBufferLimit());
                 callback.failed(tooLong);
                 return null;
             }
@@ -451,6 +443,38 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
         paginatedHitSource.cleanup(() -> cleanupCallbackCalled.set(true));
         verify(client).close();
         assertTrue(cleanupCallbackCalled.get());
+    }
+
+    /**
+     * Verifies cleanup and close shut down the (search-scoped) RestClient but do not close the (request-scoped) RemoteInfo credentials.
+     * Ownership of the RemoteInfo lifecycle belongs to {@code Reindexer}, so the credentials must remain usable afterwards (they need to
+     * survive a relocation handoff serialization).
+     */
+    public void testCleanupDoesNotCloseRemoteInfoCredentials() throws Exception {
+        RestClient client = mock(RestClient.class);
+        SecureString password = new SecureString(randomAlphaOfLength(12).toCharArray());
+        RemoteInfo remoteInfo = new RemoteInfo(
+            "http",
+            randomAlphaOfLength(8),
+            randomIntBetween(4000, 9000),
+            null,
+            new BytesArray("{}"),
+            randomAlphaOfLength(8),
+            password,
+            Map.of(),
+            TimeValue.timeValueSeconds(randomIntBetween(5, 30)),
+            TimeValue.timeValueSeconds(randomIntBetween(5, 30))
+        );
+        try {
+            TestRemoteScrollablePaginatedHitSource paginatedHitSource = new TestRemoteScrollablePaginatedHitSource(client, remoteInfo);
+            AtomicBoolean closeCallbackCalled = new AtomicBoolean();
+            paginatedHitSource.close(() -> closeCallbackCalled.set(true));
+            assertTrue(closeCallbackCalled.get());
+            verify(client).close();
+            assertArrayEquals(password.getChars(), remoteInfo.getPassword().getChars());
+        } finally {
+            remoteInfo.close();
+        }
     }
 
     /** When scroll ID is empty or null, close runs cleanup immediately without calling clearScroll. */

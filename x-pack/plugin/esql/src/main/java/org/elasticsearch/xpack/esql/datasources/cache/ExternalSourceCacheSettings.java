@@ -25,28 +25,78 @@ public final class ExternalSourceCacheSettings {
 
     private ExternalSourceCacheSettings() {}
 
-    public static final Setting<ByteSizeValue> CACHE_SIZE = Setting.memorySizeSetting(
+    /**
+     * Deprecated former key for {@link #CACHE_SIZE}, from before the external-dataset settings were unified
+     * under {@code esql.external.*}. It shipped in released versions, so it stays registered — a node
+     * carrying it in {@code elasticsearch.yml} would otherwise fail startup on an unregistered setting. It
+     * emits a deprecation warning when set and is the fallback {@link #CACHE_SIZE} resolves through.
+     */
+    public static final Setting<ByteSizeValue> CACHE_SIZE_OLD = Setting.memorySizeSetting(
         "esql.source.cache.size",
         "0.4%",
+        Setting.Property.DeprecatedWarning,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> CACHE_SIZE = Setting.memorySizeSetting(
+        "esql.external.cache.size",
+        CACHE_SIZE_OLD,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Deprecated former key for {@link #CACHE_ENABLED} — see {@link #CACHE_SIZE_OLD} for why it stays
+     * registered. Deliberately NOT Dynamic: no consumer observes this key (the live consumer in
+     * {@code EsqlPlugin.createComponents} is wired to {@link #CACHE_ENABLED}), so a dynamic update through
+     * it is rejected with a clear error, pointing the operator at the new key, instead of being silently
+     * ignored. Set in {@code elasticsearch.yml}, it still takes effect through the fallback resolution.
+     */
+    public static final Setting<Boolean> CACHE_ENABLED_OLD = Setting.boolSetting(
+        "esql.source.cache.enabled",
+        true,
+        Setting.Property.DeprecatedWarning,
         Setting.Property.NodeScope
     );
 
     public static final Setting<Boolean> CACHE_ENABLED = Setting.boolSetting(
-        "esql.source.cache.enabled",
-        true,
+        "esql.external.cache.enabled",
+        CACHE_ENABLED_OLD,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
+    /**
+     * Deprecated no-op. The schema (per-file) and dataset-aggregate caches are invalidated by identity
+     * (mtime / file-set fingerprint in the key) and bounded by CACHE_SIZE + LRU, never by a clock — see
+     * {@link ExternalSourceCacheService}. This setting formerly capped the schema cache with a hard TTL;
+     * it is retained, registered, and ignored so a node that carries it in {@code elasticsearch.yml} from
+     * an earlier version still starts (removing a released node setting would fail startup). It is wired to
+     * nothing and emits a deprecation warning when set.
+     */
     public static final Setting<TimeValue> SCHEMA_TTL = Setting.positiveTimeSetting(
         "esql.source.cache.schema.ttl",
         TimeValue.timeValueMinutes(5),
+        Setting.Property.DeprecatedWarning,
         Setting.Property.NodeScope
     );
 
-    public static final Setting<TimeValue> LISTING_TTL = Setting.positiveTimeSetting(
+    /**
+     * Deprecated former key for {@link #LISTING_TTL} — see {@link #CACHE_SIZE_OLD} for why it stays
+     * registered.
+     */
+    public static final Setting<TimeValue> LISTING_TTL_OLD = Setting.positiveTimeSetting(
         "esql.source.cache.listing.ttl",
         TimeValue.timeValueSeconds(30),
+        Setting.Property.DeprecatedWarning,
+        Setting.Property.NodeScope
+    );
+
+    // Only the listing cache carries a time-based refresh: it discovers file identity and has no per-file
+    // key to invalidate on. The schema and dataset-aggregate caches invalidate by identity, not by a clock.
+    public static final Setting<TimeValue> LISTING_TTL = Setting.positiveTimeSetting(
+        "esql.external.cache.listing.ttl",
+        LISTING_TTL_OLD,
+        TimeValue.timeValueMillis(0),
         Setting.Property.NodeScope
     );
 
@@ -68,7 +118,7 @@ public final class ExternalSourceCacheSettings {
      * pruning. 8 MB is the knee.
      */
     public static final Setting<ByteSizeValue> STRIPE_SIZE = Setting.byteSizeSetting(
-        "esql.source.cache.stripe.size",
+        "esql.external.cache.stripe.size",
         ByteSizeValue.ofMb(8),
         ByteSizeValue.ofKb(64),
         ByteSizeValue.ofGb(1),
@@ -99,12 +149,22 @@ public final class ExternalSourceCacheSettings {
      */
     public static final Setting<StripeColumnScope> STRIPE_COLUMNS = Setting.enumSetting(
         StripeColumnScope.class,
-        "esql.source.cache.stripe.columns",
+        "esql.external.cache.stripe.columns",
         StripeColumnScope.PROJECTED,
         Setting.Property.NodeScope
     );
 
     public static List<Setting<?>> settings() {
-        return List.of(CACHE_SIZE, CACHE_ENABLED, SCHEMA_TTL, LISTING_TTL, STRIPE_SIZE, STRIPE_COLUMNS);
+        return List.of(
+            CACHE_SIZE,
+            CACHE_SIZE_OLD,
+            CACHE_ENABLED,
+            CACHE_ENABLED_OLD,
+            SCHEMA_TTL,
+            LISTING_TTL,
+            LISTING_TTL_OLD,
+            STRIPE_SIZE,
+            STRIPE_COLUMNS
+        );
     }
 }

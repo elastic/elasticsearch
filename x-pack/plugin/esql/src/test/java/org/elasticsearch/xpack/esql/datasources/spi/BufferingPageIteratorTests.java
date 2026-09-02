@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -30,7 +31,7 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Contract tests for {@link BufferingPageIterator} — the one place where the external-format page
- * iterators (NDJSON / CSV / parquet-rs) release the single buffered look-ahead {@link Page} on
+ * iterators (NDJSON / CSV) release the single buffered look-ahead {@link Page} on
  * {@code close()}. The reader-level regressions live next to each reader; here we pin the base
  * class's invariants directly with a fake subclass so a future refactor of any one reader can't
  * silently reintroduce the leak the base class was created to kill.
@@ -41,9 +42,8 @@ public class BufferingPageIteratorTests extends ESTestCase {
     private CircuitBreaker breaker;
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
         breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         blockFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser.promql;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.parser.PromqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -29,11 +30,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramsAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
@@ -661,6 +664,107 @@ public class PromqlParserTests extends ESTestCase {
             () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m (avg(foo)) | LIMIT 1 | TS_COLLAPSE")
         );
         assertThat(e.getMessage(), containsString("TS_COLLAPSE can only appear directly after a PROMQL command"));
+    }
+
+    // ---- label list identifier parameter tests ----
+
+    public void testNamedIdentifierParamInByLabelList() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery(
+                "PROMQL index=test step=5m sum by (cluster, ??_group) (foo)",
+                paramsAsConstant("_group", "k8s.pod.name")
+            ),
+            PromqlCommand.class
+        );
+        UnresolvedPromqlFunction function = as(promql.promqlPlan(), UnresolvedPromqlFunction.class);
+        assertThat(function.grouping(), equalTo(AcrossSeriesAggregate.Grouping.BY));
+        assertThat(function.groupingKeys().stream().map(key -> key.name()).toList(), equalTo(List.of("cluster", "k8s.pod.name")));
+    }
+
+    public void testPositionalIdentifierParamInWithoutLabelList() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m sum without (??1) (foo)", paramsAsConstant(null, "pod")),
+            PromqlCommand.class
+        );
+        UnresolvedPromqlFunction function = as(promql.promqlPlan(), UnresolvedPromqlFunction.class);
+        assertThat(function.grouping(), equalTo(AcrossSeriesAggregate.Grouping.WITHOUT));
+        assertThat(function.groupingKeys().stream().map(key -> key.name()).toList(), equalTo(List.of("pod")));
+    }
+
+    public void testNamedIdentifierParamsInOnAndGroupLeftLabelLists() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery(
+                "PROMQL index=test step=5m foo + on(cluster, ??_on) group_left(??_include) bar",
+                new QueryParams(List.of(paramAsConstant("_on", "job"), paramAsConstant("_include", "pod")))
+            ),
+            PromqlCommand.class
+        );
+        VectorMatch match = as(promql.promqlPlan(), VectorBinaryArithmetic.class).match();
+        assertThat(match.filter(), equalTo(VectorMatch.Filter.ON));
+        assertThat(match.filterLabels(), equalTo(Set.of("cluster", "job")));
+        assertThat(match.grouping(), equalTo(VectorMatch.Joining.LEFT));
+        assertThat(match.groupingLabels(), equalTo(Set.of("pod")));
+    }
+
+    public void testPositionalIdentifierParamsInIgnoringAndGroupRightLabelLists() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery(
+                "PROMQL index=test step=5m foo / ignoring(??1) group_right(??2) bar",
+                new QueryParams(List.of(paramAsConstant(null, "instance"), paramAsConstant(null, "zone")))
+            ),
+            PromqlCommand.class
+        );
+        VectorMatch match = as(promql.promqlPlan(), VectorBinaryArithmetic.class).match();
+        assertThat(match.filter(), equalTo(VectorMatch.Filter.IGNORING));
+        assertThat(match.filterLabels(), equalTo(Set.of("instance")));
+        assertThat(match.grouping(), equalTo(VectorMatch.Joining.RIGHT));
+        assertThat(match.groupingLabels(), equalTo(Set.of("zone")));
+    }
+
+    public void testUnknownIdentifierParamInLabelList() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m sum by (??_missing) (foo)", new QueryParams())
+        );
+        assertThat(e.getMessage(), containsString("Parameter [??_missing] value not found"));
+    }
+
+    public void testUnknownIdentifierParamInStandalonePromqlParser() {
+        ParsingException e = assertThrows(ParsingException.class, () -> new PromqlParser().createStatement("sum by (??_missing) (foo)"));
+        assertThat(e.getMessage(), containsString("Parameter [??_missing] value not found"));
+    }
+
+    public void testNullIdentifierParamInLabelList() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m sum by (??_group) (foo)", paramsAsConstant("_group", null))
+        );
+        assertThat(e.getMessage(), containsString("Query parameter [??_group] is null"));
+    }
+
+    public void testListIdentifierParamInLabelList() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery(
+                "PROMQL index=test step=5m sum by (??_group) (foo)",
+                paramsAsConstant("_group", List.of("pod", "cluster"))
+            )
+        );
+        assertThat(e.getMessage(), containsString("Query parameter [??_group] is a list; expected a single label name"));
+    }
+
+    public void testPatternParamCannotBeUsedAsLabelListIdentifier() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery(
+                "PROMQL index=test step=5m sum by (??_group) (foo)",
+                new QueryParams(List.of(paramAsPattern("_group", "pod*")))
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("Query parameter [??_group][_group] declared as a pattern, cannot be used as an identifier")
+        );
     }
 
     // ---- label matcher parameter tests ----

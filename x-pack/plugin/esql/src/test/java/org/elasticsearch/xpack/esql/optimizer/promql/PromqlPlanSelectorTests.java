@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -289,7 +290,7 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
                 "container_cpu_usage_seconds_total",
                 new EsField("container_cpu_usage_seconds_total", DataType.COUNTER_LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
             ),
-            Map.of("metrics", IndexMode.TIME_SERIES),
+            Map.of("metrics", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             Map.of(),
             Map.of()
         );
@@ -316,7 +317,7 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
                     EsField.TimeSeriesFieldType.METRIC
                 )
             ),
-            Map.of("histograms", IndexMode.TIME_SERIES),
+            Map.of("histograms", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             Map.of(),
             Map.of()
         );

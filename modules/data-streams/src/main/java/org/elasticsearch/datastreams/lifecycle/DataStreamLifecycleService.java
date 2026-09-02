@@ -80,6 +80,7 @@ import org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLM
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -449,7 +450,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             // These are the pre-rollover write indices. They may or may not be the write index after maybeExecuteRollover has executed,
             // depending on rollover criteria, for this reason we exclude them for the remaining run.
-            indicesToExcludeForRemainingRun.add(maybeExecuteRollover(project, dataStream, dataRetention, false));
+            // Note: rollover is applied on data stream level, this is why we still need to check the index mode of the data stream
+            // and skip it if the mode is lookup.
+            if (dataStream.getIndexMode() != IndexMode.LOOKUP) {
+                indicesToExcludeForRemainingRun.add(maybeExecuteRollover(project, dataStream, dataRetention, false));
+            }
             Index failureStoreWriteIndex = maybeExecuteRollover(project, dataStream, failuresRetention, true);
             if (failureStoreWriteIndex != null) {
                 indicesToExcludeForRemainingRun.add(failureStoreWriteIndex);
@@ -598,6 +603,35 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     /**
+     * Returns true if the index has already completed its frozen tier transition, purely from cluster state.
+     * {@link #DLM_CREATED_SETTING} alone is not sufficient because it is also set on the intermediate clone
+     * index created while a transition is still in progress; requiring a searchable-snapshot store as well
+     * distinguishes the completed, mounted result from that still-converting clone.
+     */
+    public static boolean frozenTransitionCompleted(IndexMetadata indexMetadata) {
+        return DLM_CREATED_SETTING.get(indexMetadata.getSettings())
+            && SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings());
+    }
+
+    /**
+     * Returns the backing indices of the given data stream that are past its `frozen_after` age. This is the same age check
+     * DLM itself uses to decide which indices are old enough to be frozen, so it is also used to report per-index eligibility
+     * in the lifecycle explain API.
+     *
+     * @param projectMetadata the project the data stream belongs to
+     * @param dataStream the data stream whose backing indices are checked
+     * @param nowSupplier supplies the current time used to compute index age
+     * @return the backing indices past `frozen_after`, or an empty set if the lifecycle does not configure `frozen_after`
+     */
+    public static Set<Index> indicesPastFrozenAfter(ProjectMetadata projectMetadata, DataStream dataStream, LongSupplier nowSupplier) {
+        DataStreamLifecycle lifecycle = dataStream.getDataLifecycle();
+        if (lifecycle == null || lifecycle.frozenAfter() == null) {
+            return Set.of();
+        }
+        return dataStream.getIndicesOlderThan(projectMetadata::index, nowSupplier, lifecycle.frozenAfter(), BACKING_INDICES);
+    }
+
+    /**
      * Return a set of indices that are past the `frozen_after` date and are also candidates in the supplied list of available indices.
      */
     static Set<Index> candidatesForFrozen(
@@ -606,21 +640,15 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         LongSupplier nowSupplier,
         List<Index> availableIndices
     ) {
-        if (dataStream.getDataLifecycle() == null || dataStream.getDataLifecycle().frozenAfter() == null) {
-            return Set.of();
-        }
-
-        TimeValue frozenAfterTime = dataStream.getDataLifecycle().frozenAfter();
         Set<Index> candidates = new HashSet<>();
-
-        for (Index index : dataStream.getIndicesOlderThan(projectMetadata::index, nowSupplier, frozenAfterTime, BACKING_INDICES)) {
+        for (Index index : indicesPastFrozenAfter(projectMetadata, dataStream, nowSupplier)) {
             if (availableIndices.contains(index) == false) {
                 // If it's not in the available candidates (where no other DLM action is working on it), then skip it
                 continue;
             }
             Optional.ofNullable(projectMetadata.index(index))
                 .filter(indexMeta -> indexMarkedForFrozen(indexMeta) == false)
-                .filter(indexMeta -> DLM_CREATED_SETTING.get(indexMeta.getSettings()) == false)
+                .filter(indexMeta -> frozenTransitionCompleted(indexMeta) == false)
                 .ifPresent(metadata -> candidates.add(metadata.getIndex()));
         }
         return candidates;
@@ -1108,7 +1136,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     private static boolean isLifecycleSkipped(ProjectMetadata project, Index index) {
         IndexMetadata indexMetadata = project.index(index);
-        return indexMetadata != null && IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings());
+        return indexMetadata != null
+            && (IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())
+                || IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP);
     }
 
     /**

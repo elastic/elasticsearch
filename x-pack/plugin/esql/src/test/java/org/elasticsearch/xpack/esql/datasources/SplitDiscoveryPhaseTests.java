@@ -223,6 +223,162 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertEquals(0L, result.bytesScanned());
     }
 
+    /**
+     * Exhaustive prune: a resolved, non-empty fileList whose split discovery yields nothing (every file pruned) must
+     * have its {@link ExternalSourceExec} swapped to read {@link FileList#EMPTY}, so the read path scans nothing
+     * instead of reading the whole dataset only to drop every row in a downstream filter. Stats stay honestly zero.
+     */
+    public void testExhaustivelyPrunedResolvedFileListSwappedToEmpty() {
+        FileList fileList = createFileList(3); // resolved, non-empty
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        // A provider that exhaustively prunes: zero splits out, reported as a row-count-safe prune.
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, true)))
+        );
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        assertTrue(result.plan() instanceof ExternalSourceExec);
+        ExternalSourceExec resolved = (ExternalSourceExec) result.plan();
+        assertSame("an exhaustively-pruned resolved fileList must be swapped to FileList.EMPTY", FileList.EMPTY, resolved.fileList());
+        assertTrue(resolved.splits().isEmpty());
+        assertEquals(0, result.filesScanned());
+        assertEquals(0, result.splitsScanned());
+        assertEquals(0L, result.bytesScanned());
+    }
+
+    /**
+     * Empty splits are NOT enough to swap: when the provider reports the empty result is not an exhaustive prune
+     * (unresolved glob, empty file list, or a provider that cannot certify a filter contradiction), the source
+     * must fall through unchanged to the whole read so the row filter runs.
+     */
+    public void testEmptySplitsNotExhaustivelyPrunedNotSwapped() {
+        FileList fileList = createFileList(3); // resolved, non-empty
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        // Zero splits, but explicitly NOT an exhaustive prune.
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false)))
+        );
+
+        PhysicalPlan result = SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+
+        assertSame("a non-exhaustive empty result must fall through unchanged, not be swapped to EMPTY", exec, result);
+        assertSame("the resolved fileList must be preserved for the whole read", fileList, ((ExternalSourceExec) result).fileList());
+    }
+
+    public void testNonExhaustiveEmptyResultAccountsWholeRead() {
+        FileList fileList = createFileList(3);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false)))
+        );
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        assertSame("a non-exhaustive empty result must fall through unchanged, not be swapped to EMPTY", exec, result.plan());
+        assertEquals("the whole read that follows scans every file in the resolved list", 3, result.filesScanned());
+        assertEquals("the whole read processes each file as one unit", 3, result.splitsScanned());
+        assertEquals("the whole read scans the listed bytes", 600L, result.bytesScanned());
+    }
+
+    public void testNonExhaustiveEmptyResultSkipsUnknownSizes() {
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(
+                new StorageEntry(StoragePath.of("s3://bucket/data/a.parquet"), 100, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://bucket/data/b.parquet"), 0, Instant.EPOCH)
+            ),
+            "s3://bucket/data/*.parquet"
+        );
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false)))
+        );
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        assertSame(exec, result.plan());
+        assertEquals(2, result.filesScanned());
+        assertEquals(2, result.splitsScanned());
+        assertEquals("only the known size contributes to the byte sum", 100L, result.bytesScanned());
+    }
+
+    /**
+     * An unresolved fileList (glob not yet expanded — resolved and read at runtime) must NOT be swapped when discovery
+     * returns no splits: there is nothing to prune yet, and swapping to EMPTY would make the source read nothing at
+     * all. It falls through unchanged to the runtime whole-fileList read.
+     */
+    public void testUnresolvedFileListNotSwappedOnEmptySplits() {
+        ExternalSourceExec exec = createExternalSourceExec(FileList.UNRESOLVED, "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new RecordingSplitProvider()));
+
+        PhysicalPlan result = SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+
+        assertSame("an unresolved fileList must fall through unchanged, not be swapped to EMPTY", exec, result);
+        assertSame(FileList.UNRESOLVED, ((ExternalSourceExec) result).fileList());
+    }
+
+    /**
+     * A non-splitting SINGLE/connector source (no resolved fileList, carries {@link FileList#UNRESOLVED} in
+     * production) returns empty splits by design and must be left untouched — the whole-read at runtime is the
+     * intended behavior, not an exhaustive prune.
+     */
+    public void testSingleProviderLeavesUnresolvedFileListUnchanged() {
+        ExternalSourceExec exec = createExternalSourceExec(FileList.UNRESOLVED, "unknown_type");
+
+        PhysicalPlan result = SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of());
+
+        assertSame("SINGLE provider on an unresolved fileList must not be swapped to EMPTY", exec, result);
+    }
+
+    /**
+     * An already-empty glob ({@link FileList#EMPTY}, {@code fileCount() == 0}) reads nothing regardless, so the
+     * {@code fileCount() > 0} guard leaves it untouched — no redundant swap.
+     */
+    public void testAlreadyEmptyFileListNotReswapped() {
+        ExternalSourceExec exec = createExternalSourceExec(FileList.EMPTY, "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new RecordingSplitProvider()));
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        assertSame("an already-empty glob needs no swap", exec, result.plan());
+        assertEquals("an already-empty glob reads nothing", 0, result.filesScanned());
+        assertEquals(0, result.splitsScanned());
+        assertEquals(0L, result.bytesScanned());
+    }
+
+    /** {@link ExternalRelation#withFileList} swaps only the fileList, preserving the rest of the relation. */
+    public void testExternalRelationWithFileListSwapsOnlyFileList() {
+        ExternalRelation relation = externalRelation();
+        assertSame(FileList.UNRESOLVED, relation.fileList());
+
+        ExternalRelation swapped = relation.withFileList(FileList.EMPTY);
+
+        assertSame(FileList.EMPTY, swapped.fileList());
+        assertEquals(relation.sourcePath(), swapped.sourcePath());
+        assertEquals(relation.output(), swapped.output());
+        assertEquals(relation.metadata(), swapped.metadata());
+    }
+
     public void testFilterExecAboveExternalSourceCollectsFilters() {
         FileList fileList = createFileList(2);
         ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
@@ -508,6 +664,20 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
             this.lastContext = context;
             return SplitDiscoveryResult.EMPTY;
+        }
+    }
+
+    /** Returns a fixed {@link SplitDiscoveryResult}, so a test can pin the phase's reaction to a specific result. */
+    private static class FixedSplitProvider implements SplitProvider {
+        private final SplitDiscoveryResult result;
+
+        FixedSplitProvider(SplitDiscoveryResult result) {
+            this.result = result;
+        }
+
+        @Override
+        public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
+            return result;
         }
     }
 }

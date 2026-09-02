@@ -1,0 +1,9 @@
+products:
+- product: cloud-serverless
+  target: 2026-07-28
+  repo: elasticsearch
+  owner: elastic
+exclude-entries:
+- file:
+    name: 154422.yaml
+    checksum: e7454f0b2dd300f98900e6d4c22184622ee789dc

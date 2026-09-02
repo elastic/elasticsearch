@@ -1,0 +1,184 @@
+version: 9.3.8
+released: true
+generated: 2026-07-21T13:36:16.468159628Z
+changelogs:
+  - pr: 2841
+    summary: Better messaging regarding OOM process termination
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2846
+    summary: Report the actual memory usage of the autodetect process
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2848
+    summary: Improve adherence to memory limits for the bucket gatherer
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2851
+    summary: Restrict file system access for pytorch models
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2863
+    summary: Update the PyTorch library to version 2.7.1
+    area: Machine Learning
+    type: upgrade
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 147688
+    summary: Automatically repair ML anomaly results aliases pointing at a .reindexed-v7 index
+    area: Machine Learning
+    type: bug
+    issues:
+      - 147686
+  - pr: 148179
+    summary: Fix data stream privilege checking
+    area: Authorization
+    type: bug
+    issues: []
+  - pr: 149555
+    summary: Roll reindexed ML state indices in daily maintenance
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 150362
+    summary: Fix ML jobs stuck in starting state on Serverless trial projects
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 151968
+    summary: Upgrade OpenTelemetry in ms-graph-authz
+    area: Authentication
+    type: upgrade
+    issues: []
+  - pr: 151979
+    summary: Fix non-monotonic T-Digest centroids caused by floating-point errors
+    area: Aggregations
+    type: bug
+    issues: []
+  - pr: 152035
+    summary: Avoid dense run-length allocation in HyperLogLog
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 152092
+    summary: "Update the commons-text library version to match commons.lang3"
+    area: Inference
+    type: upgrade
+    issues: []
+  - pr: 152096
+    summary: Fix infinite loop in `GeoLineDecomposer` dateline crossing checks
+    area: Geo
+    type: bug
+    issues:
+      - 152066
+  - pr: 152148
+    summary: Improve authorization for the simulate bulk action
+    area: Authorization
+    type: bug
+    issues: []
+  - pr: 152152
+    summary: Fix null pointer exception when aggregation parameter scripts return null
+    area: Aggregations
+    type: bug
+    issues:
+      - 136639
+  - pr: 152163
+    summary: Upgrade Jackson
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 152385
+    summary: Add defensive protections when parsing `query_string`
+    area: Search
+    type: bug
+    issues: []
+  - pr: 152427
+    summary: Translate `tools` and `tool_choice` to Anthropic format for Google Model Garden Anthropic chat completion
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 152476
+    summary: Return a 400 (Bad Request) for invalid tokens in a `script` query
+    area: Search
+    type: bug
+    issues: []
+  - pr: 152509
+    summary: Fork `ensureShardSearchActive` callbacks off the refresh thread
+    area: Search
+    type: bug
+    issues:
+      - 97280
+  - pr: 152552
+    summary: Trip request breaker on large completion suggest size/shardSize
+    area: Search
+    type: bug
+    issues: []
+  - pr: 152733
+    summary: Ignore OTLP number data points without a value
+    area: TSDB
+    type: bug
+    issues: []
+  - pr: 152773
+    summary: "Avoid out-of-memory errors by accounting for memory during the cardinality aggregation reduction phase"
+    area: Aggregations
+    type: bug
+    issues:
+      - 150290
+  - pr: 152803
+    summary: Tighten retry startup logic
+    area: Transform
+    type: bug
+    issues: []
+  - pr: 152851
+    summary: Implement watchdog timeout for `GROK`
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 152932
+    summary: Include ingest metadata in self-reference checks
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 153082
+    summary: Apply search timeout to the query rewrite step
+    area: Search
+    type: bug
+    issues:
+      - 104187
+  - pr: 153219
+    summary: Fix snapshot creation on CIFS shares when an access-denied exception occurs
+    area: Snapshot/Restore
+    type: bug
+    issues:
+      - 152053
+  - pr: 153309
+    summary: "Prevent overriding `secret_parameters` in the Inference API"
+    area: Inference
+    type: breaking
+    issues: []
+    breaking:
+      area: REST API
+      title: "Prevent overriding `secret_parameters` in the Inference API"
+      details: "The Inference API incorrectly allowed users to override values within `secret_parameters` with the contents of `task_settings.parameters` during a POST request. This change prevents that behavior, ensuring that `secret_parameters` cannot be overridden."
+      impact: Users who relied on the previous behavior to override `secret_parameters` will need to create a new inference endpoint with the `secret_parameters` moved to `task_settings` or no longer rely on the ability to override the `secret_parameters` within a POST request.
+      notable: false
+      essSettingChange: false
+  - pr: 153479
+    summary: Apply search timeout to the DFS phase query rewrite
+    area: Search
+    type: bug
+    issues: []
+  - pr: 153755
+    summary: Extend the anomaly detection results template for reindexed indices and generalize healing beyond `job_id` mapping
+    area: Machine Learning
+    type: bug
+    issues:
+      - 147686

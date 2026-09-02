@@ -440,7 +440,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
                     copy.pushdownPlan() instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof RemoteFetchSource,
                     equalTo(true)
                 );
-                assertThat(copy.configuration(), equalTo(configuration));
+                assertThat(copy.configuration(), equalTo(configuration.withoutTables()));
                 assertThat(copy.clientToServerId(), equalTo("clientToServer-1"));
                 assertThat(copy.serverToClientId(), equalTo("serverToClient-1"));
             }

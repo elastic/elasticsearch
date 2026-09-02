@@ -42,6 +42,7 @@ import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.HighlightConfig;
 import org.elasticsearch.compute.operator.HighlightOperator;
+import org.elasticsearch.compute.operator.InsertEmptyBucketsOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
@@ -52,6 +53,7 @@ import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
+import org.elasticsearch.compute.operator.PackDimsOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.SampleOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
@@ -64,6 +66,7 @@ import org.elasticsearch.compute.operator.SparklineGenerateEmptyBucketsOperator;
 import org.elasticsearch.compute.operator.StringExtractOperator;
 import org.elasticsearch.compute.operator.TimeSeriesCollapseOperator;
 import org.elasticsearch.compute.operator.TsInfoOperator;
+import org.elasticsearch.compute.operator.UnpackDimsOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
@@ -91,6 +94,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.iplocation.api.IpDataLookup;
 import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.iplocation.api.IpLocationService;
@@ -124,6 +128,7 @@ import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFacto
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
@@ -144,9 +149,13 @@ import org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
+import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
+import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -156,6 +165,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
+import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
@@ -172,6 +182,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
+import org.elasticsearch.xpack.esql.plan.physical.InsertEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -181,8 +192,10 @@ import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
+import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
@@ -193,11 +206,14 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnpackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
@@ -206,11 +222,13 @@ import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.SequencedMap;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
@@ -330,7 +348,9 @@ public class LocalExecutionPlanner {
             timeSeries,
             settings,
             shardContexts,
-            physicalOperationProviders.analysisRegistry()
+            physicalOperationProviders.analysisRegistry(),
+            new Holder<>(),
+            new Holder<>()
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -366,6 +386,12 @@ public class LocalExecutionPlanner {
             return planAggregation(aggregate, context);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractNode(fieldExtractExec, context);
+        } else if (node instanceof ReadDimsExec readDimsExec) {
+            return planReadDimsNode(readDimsExec, context);
+        } else if (node instanceof PackDimsExec packDims) {
+            return planPackDims(packDims, context);
+        } else if (node instanceof UnpackDimsExec unpackDims) {
+            return planUnpackDims(unpackDims, context);
         } else if (node instanceof ExternalFieldExtractExec extExtract) {
             return planExternalFieldExtract(extExtract, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
@@ -384,6 +410,8 @@ public class LocalExecutionPlanner {
             return planProject(project, context);
         } else if (node instanceof FilterExec filter) {
             return planFilter(filter, context);
+        } else if (node instanceof InsertEmptyBucketsExec insertEmptyBuckets) {
+            return planInsertEmptyBuckets(insertEmptyBuckets, context);
         } else if (node instanceof LimitByExec limitBy) {
             return planLimitBy(limitBy, context);
         } else if (node instanceof LimitExec limit) {
@@ -400,6 +428,8 @@ public class LocalExecutionPlanner {
             return planChangePoint(changePoint, context);
         } else if (node instanceof CompletionExec completion) {
             return planCompletion(completion, context);
+        } else if (node instanceof DenseVectorExec denseVector) {
+            return planDenseVector(denseVector, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
         } else if (node instanceof IpLocationExec ipLoc) {
@@ -437,6 +467,8 @@ public class LocalExecutionPlanner {
             return planEnrich(enrich, context);
         } else if (node instanceof HashJoinExec join) {
             return planHashJoin(join, context);
+        } else if (node instanceof DistinctByExec distinctBy) {
+            return planDistinctBy(distinctBy, context);
         } else if (node instanceof LookupJoinExec join) {
             return planLookupJoin(join, context);
         }
@@ -564,6 +596,57 @@ public class LocalExecutionPlanner {
         );
     }
 
+    private PhysicalOperation planDenseVector(DenseVectorExec denseVector, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(denseVector.child(), context);
+        String inferenceId = BytesRefs.toString(denseVector.inferenceId().fold(context.foldCtx()));
+
+        List<NamedExpression> fields = denseVector.fields();
+        List<Attribute> generatedFields = denseVector.generatedFields();
+        org.elasticsearch.inference.DataType inputType = denseVector.inputType();
+        TaskType endpointTaskType = denseVector.endpointTaskType();
+        assert endpointTaskType != null : "endpoint task type must be resolved during analysis before planning DENSE_VECTOR";
+
+        // One embedding operator per input field: each embeds its field and appends its <field>_dense_vector column.
+        // Chained so the page accumulates all generated columns. Evaluators read from the growing layout; the original
+        // input fields are never removed, so appending output columns doesn't disturb earlier channels.
+        // The request shape follows the endpoint's task type: a text_embedding endpoint takes a text embedding request; an
+        // embedding endpoint takes an embedding request carrying the typed input. Both warn, null the row, and continue on a
+        // per-row inference failure.
+        PhysicalOperation operation = source;
+        for (int i = 0; i < fields.size(); i++) {
+            ExpressionEvaluator.Factory inputEvaluatorFactory = EvalMapper.toEvaluator(
+                context.foldCtx(),
+                fields.get(i),
+                operation.layout,
+                context.analysisRegistry()
+            );
+            Layout outputLayout = operation.layout.builder().append(generatedFields.get(i)).build();
+            // Only an embedding endpoint takes the multimodal request shape; every other task type, including an
+            // unresolved one, takes the plain text embedding request.
+            Operator.OperatorFactory operatorFactory = endpointTaskType == TaskType.EMBEDDING
+                ? new EmbeddingOperator.Factory(
+                    inferenceService,
+                    inferenceId,
+                    inputEvaluatorFactory,
+                    inputType,
+                    denseVector.timeout(),
+                    denseVector.source(),
+                    true
+                )
+                : new TextEmbeddingOperator.Factory(
+                    inferenceService,
+                    inferenceId,
+                    inputEvaluatorFactory,
+                    denseVector.timeout(),
+                    denseVector.source(),
+                    true
+                );
+            operation = operation.with(operatorFactory, outputLayout);
+        }
+
+        return operation;
+    }
+
     private PhysicalOperation planFuseScoreEvalExec(FuseScoreEvalExec fuse, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(fuse.child(), context);
         Layout layout = source.layout;
@@ -604,7 +687,7 @@ public class LocalExecutionPlanner {
 
         EsPhysicalOperationProviders esProvider = (EsPhysicalOperationProviders) physicalOperationProviders;
         var queryFunction = switch (stat) {
-            case EsStatsQueryExec.BasicStat basic -> esProvider.querySupplier(basic.filter(statsQuery.query()));
+            case EsStatsQueryExec.BasicStat basic -> esProvider.querySupplierForField(basic.filter(statsQuery.query()), basic.name());
             case EsStatsQueryExec.ByStat byStat -> esProvider.querySupplier(byStat.queryBuilderAndTags());
         };
         final LuceneOperator.Factory luceneFactory = esProvider.countSource(context, queryFunction, stat.tagTypes(), statsQuery.limit());
@@ -618,6 +701,34 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planFieldExtractNode(FieldExtractExec fieldExtractExec, LocalExecutionPlannerContext context) {
         return physicalOperationProviders.fieldExtractPhysicalOperation(fieldExtractExec, plan(fieldExtractExec.child(), context), context);
+    }
+
+    private PhysicalOperation planReadDimsNode(ReadDimsExec readDimsExec, LocalExecutionPlannerContext context) {
+        return physicalOperationProviders.readDimsPhysicalOperation(readDimsExec, plan(readDimsExec.child(), context), context);
+    }
+
+    private PhysicalOperation planPackDims(PackDimsExec packDimsExec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(packDimsExec.child(), context);
+        int[] channels = new int[packDimsExec.dims().size()];
+        for (int i = 0; i < channels.length; i++) {
+            channels[i] = source.layout.get(packDimsExec.dims().get(i).id()).channel();
+        }
+        Layout layout = source.layout.builder().append(packDimsExec.packed()).build();
+        return source.with(new PackDimsOperator.Factory(channels), layout);
+    }
+
+    private PhysicalOperation planUnpackDims(UnpackDimsExec unpackDimsExec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(unpackDimsExec.child(), context);
+        List<Attribute> dims = unpackDimsExec.dims();
+        ElementType[] types = new ElementType[dims.size()];
+        Layout.Builder layout = source.layout.builder();
+        for (int i = 0; i < dims.size(); i++) {
+            Attribute attr = dims.get(i);
+            layout.append(attr);
+            types[i] = PlannerUtils.toElementType(attr.dataType());
+        }
+        var packedChannel = source.layout.get(unpackDimsExec.packed().id()).channel();
+        return source.with(new UnpackDimsOperator.Factory(packedChannel, types), layout.build());
     }
 
     /**
@@ -780,52 +891,68 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
+        context.lastVisitedTopN.set(topNExec);
         final Integer rowSize = topNExec.estimatedRowSize();
-        PhysicalOperation source = plan(topNExec.child(), context);
-        // Specialisation: a single-key sort over an ExternalSourceExec narrowed by
-        // InsertExternalFieldExtraction to {@code [sortKey, _rowPosition]} can run on the
-        // primitive {@link NumericTopNOperator} instead of the generic byte-encoding one. We
-        // make the decision here — rather than as a separate plan node + optimizer rule — because
-        // the choice is purely an implementation detail (same TopN semantics, different operator)
-        // and every input we need is already on hand at translation time. If the predicate
-        // doesn't match we fall through to the generic factory below; the rule predicate and the
-        // generic fallback share the same plan node.
-        NumericTopNOperator.NumericTopNOperatorFactory numericFactory = tryBuildNumericTopN(topNExec, source, context);
-        if (numericFactory != null) {
-            return source.with(numericFactory, source.layout);
+        LuceneMinCompetitiveTimestampTopN luceneMinCompetitivePilot = context.plannerSettings().minCompetitiveTimestampOptimizationEnabled()
+            ? tryBuildLuceneMinCompetitiveTimestampTopN(topNExec, context.blockFactory)
+            : null;
+        if (luceneMinCompetitivePilot != null) {
+            context.luceneMinCompetitivePilot.set(luceneMinCompetitivePilot);
         }
-        var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
-        TopNOperator.ParallelWorkerConfig parallelWorkerConfig = null;
-        if (parallelWorkerExecutor != null && TopNOperator.PARALLEL_TOPN_FEATURE_FLAG.isEnabled()) {
-            int workerCount = Math.max(1, Math.min(context.plannerSettings.parallelTopNMaxWorkers(), esqlWorkerPoolSize / 2));
-            parallelWorkerConfig = new TopNOperator.ParallelWorkerConfig(
-                parallelWorkerExecutor,
-                workerCount,
-                2 * workerCount,
-                context.plannerSettings.parallelTopNPromotionThresholdRows()
+        try {
+            PhysicalOperation source = plan(topNExec.child(), context);
+            // Specialisation: a single-key sort over an ExternalSourceExec narrowed by
+            // InsertExternalFieldExtraction to {@code [sortKey, _rowPosition]} can run on the
+            // primitive {@link NumericTopNOperator} instead of the generic byte-encoding one. We
+            // make the decision here — rather than as a separate plan node + optimizer rule — because
+            // the choice is purely an implementation detail (same TopN semantics, different operator)
+            // and every input we need is already on hand at translation time. If the predicate
+            // doesn't match we fall through to the generic factory below; the rule predicate and the
+            // generic fallback share the same plan node.
+            NumericTopNOperator.NumericTopNOperatorFactory numericFactory = tryBuildNumericTopN(topNExec, source, context);
+            if (numericFactory != null) {
+                return source.with(numericFactory, source.layout);
+            }
+            var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
+            TopNOperator.ParallelWorkerConfig parallelWorkerConfig = null;
+            if (parallelWorkerExecutor != null) {
+                int workerCount = Math.max(1, Math.min(context.plannerSettings.parallelTopNMaxWorkers(), esqlWorkerPoolSize / 2));
+                parallelWorkerConfig = new TopNOperator.ParallelWorkerConfig(
+                    parallelWorkerExecutor,
+                    workerCount,
+                    2 * workerCount,
+                    context.plannerSettings.parallelTopNPromotionThresholdRows()
+                );
+            }
+            // For a single keyword/text sort key directly over an external source, publish the generic
+            // TopNOperator's competitive BytesRef bound to DynamicThresholdAware format readers so they
+            // can skip row groups/stripes that cannot contain a globally competitive row. This is the
+            // BYTES_REF counterpart to the numeric NumericTopNOperator + SharedNumericThreshold path.
+            // Wiring the readers and obtaining the supplier are done together so a pre-set supplier on
+            // the TopNExec can never reach the operator without the readers also being wired to it.
+            SharedMinCompetitive.Supplier minCompetitive = tryBuildExternalMinCompetitive(topNExec, source, topNExec.minCompetitive());
+            if (minCompetitive == null && luceneMinCompetitivePilot != null) {
+                minCompetitive = luceneMinCompetitivePilot.supplier();
+            }
+            return source.with(
+                new TopNOperatorFactory(
+                    common.limit,
+                    asList(common.elementTypes),
+                    asList(common.encoders),
+                    common.orders,
+                    context.pageSize(topNExec, rowSize),
+                    context.plannerSettings.valuesLoadingJumboSize().getBytes(),
+                    topNExec.inputOrdering(),
+                    minCompetitive,
+                    parallelWorkerConfig
+                ),
+                source.layout
             );
+        } finally {
+            if (luceneMinCompetitivePilot != null) {
+                context.luceneMinCompetitivePilot.set(null);
+            }
         }
-        // For a single keyword/text sort key directly over an external source, publish the generic
-        // TopNOperator's competitive BytesRef bound to DynamicThresholdAware format readers so they
-        // can skip row groups/stripes that cannot contain a globally competitive row. This is the
-        // BYTES_REF counterpart to the numeric NumericTopNOperator + SharedNumericThreshold path.
-        // Wiring the readers and obtaining the supplier are done together so a pre-set supplier on
-        // the TopNExec can never reach the operator without the readers also being wired to it.
-        SharedMinCompetitive.Supplier minCompetitive = tryBuildExternalMinCompetitive(topNExec, source, topNExec.minCompetitive());
-        return source.with(
-            new TopNOperatorFactory(
-                common.limit,
-                asList(common.elementTypes),
-                asList(common.encoders),
-                common.orders,
-                context.pageSize(topNExec, rowSize),
-                context.plannerSettings.valuesLoadingJumboSize().getBytes(),
-                topNExec.inputOrdering(),
-                minCompetitive,
-                parallelWorkerConfig
-            ),
-            source.layout
-        );
     }
 
     /**
@@ -921,8 +1048,8 @@ public class LocalExecutionPlanner {
      * <ul>
      *     <li>Exactly one sort {@link Order} (Tier 1 is single-key).</li>
      *     <li>The sort attribute is a plain {@link Attribute} (no expressions over the field) of
-     *         a fixed-width numeric type — currently LONG, INTEGER, DOUBLE, BOOLEAN, DATETIME, or
-     *         DATE_NANOS. FLOAT, UNSIGNED_LONG, HALF_FLOAT, and SCALED_FLOAT are deferred to a
+     *         a fixed-width numeric type — currently LONG, INTEGER, DOUBLE, BOOLEAN, DATETIME,
+     *         DATE_NANOS, or UNSIGNED_LONG. FLOAT, HALF_FLOAT, and SCALED_FLOAT are deferred to a
      *         follow-up PR; they need a tiny encoding addition but no operator surface change.</li>
      *     <li>The limit is a literal foldable to a positive {@code int}. Non-literal limits go
      *         to the generic operator (the bytes-encoding path doesn't need a literal).</li>
@@ -1020,18 +1147,75 @@ public class LocalExecutionPlanner {
     }
 
     /**
+     * Path B pilot: wire {@link SharedMinCompetitive} between engine {@code TopNOperator} and
+     * {@code LuceneSourceOperator} for {@code TopN → (Project|Filter|FieldExtract)* → EsQuery}
+     * with a single {@code @timestamp}-like sort key.
+     */
+    @Nullable
+    private static LuceneMinCompetitiveTimestampTopN tryBuildLuceneMinCompetitiveTimestampTopN(
+        TopNExec topNExec,
+        BlockFactory blockFactory
+    ) {
+        List<Order> orders = topNExec.order();
+        if (orders.size() != 1) {
+            return null;
+        }
+        Order order = orders.get(0);
+        if (order.child() instanceof FieldAttribute fa == false) {
+            return null;
+        }
+        FieldAttribute sortField = (FieldAttribute) order.child();
+        if (PlannerUtils.toElementType(sortField.dataType()) != ElementType.LONG) {
+            return null;
+        }
+        if (topNExec.limit() == null || topNExec.limit().foldable() == false) {
+            return null;
+        }
+        EsQueryExec esQuery = findEsQueryExecForMinCompetitivePilot(topNExec.child());
+        if (esQuery == null) {
+            return null;
+        }
+        if (esQuery.sorts() != null && esQuery.sorts().isEmpty() == false) {
+            return null;
+        }
+        if (esQuery.queryBuilderAndTags().size() != 1) {
+            return null;
+        }
+        SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(
+            blockFactory.breaker(),
+            topNExec.minCompetitiveKeyConfig()
+        );
+        return new LuceneMinCompetitiveTimestampTopN(supplier, sortField.qualifiedName());
+    }
+
+    @Nullable
+    private static EsQueryExec findEsQueryExecForMinCompetitivePilot(PhysicalPlan plan) {
+        PhysicalPlan current = plan;
+        while (current instanceof UnaryExec unary) {
+            if (current instanceof FilterExec || current instanceof ProjectExec || current instanceof FieldExtractExec) {
+                current = unary.child();
+                continue;
+            }
+            break;
+        }
+        return current instanceof EsQueryExec esQueryExec ? esQueryExec : null;
+    }
+
+    /**
      * Sort-key element types the specialised {@link NumericTopNOperator} can rank. Mirrors the
      * operator's own {@code assertSupportedType} — DATETIME and DATE_NANOS collapse to
      * {@link ElementType#LONG} at planning time (see {@link PlannerUtils#toElementType}), so they
      * go through the LONG path. Keeping the predicate here rather than on the operator lets the
      * planner cleanly skip the optimisation without instantiating the factory.
      *
+     * <p>{@code UNSIGNED_LONG} is included: ESQL stores it sign-flip-encoded
+     * ({@code raw ^ Long.MIN_VALUE}) so that signed-long ordering over the encoded form already
+     * matches unsigned ordering over the true value. The operator's own
+     * {@code ~raw} ASC/DESC bit flip then applies on top of that encoding exactly as it does for
+     * a plain {@code LONG} sort key — no operator change needed.
+     *
      * <p>Deliberately excluded:
      * <ul>
-     *     <li>{@code UNSIGNED_LONG}: maps to {@link ElementType#LONG} but the operator's
-     *         {@code ~raw} encoding does not preserve unsigned ordering. Supporting it needs a
-     *         different encoding ({@code raw ^ Long.MIN_VALUE}, sign-bit flip) and is parked for
-     *         a follow-up.</li>
      *     <li>{@code FLOAT}, {@code HALF_FLOAT}, {@code SCALED_FLOAT}: ESQL widens these to
      *         {@link DataType#DOUBLE} at load time, so a sort attribute with one of these data
      *         types never reaches this predicate in practice — {@link PlannerUtils#toElementType}
@@ -1045,7 +1229,8 @@ public class LocalExecutionPlanner {
             || dataType == DataType.DOUBLE
             || dataType == DataType.BOOLEAN
             || dataType == DataType.DATETIME
-            || dataType == DataType.DATE_NANOS;
+            || dataType == DataType.DATE_NANOS
+            || dataType == DataType.UNSIGNED_LONG;
     }
 
     /**
@@ -1314,12 +1499,21 @@ public class LocalExecutionPlanner {
 
         Expression queryExpr = highlight.query();
         if (queryExpr == null) {
-            throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query string");
+            throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query");
         }
-        String queryText = BytesRefs.toString(queryExpr.fold(context.foldCtx));
+        // TODO: Merge HighlightOptions and HighlightConfig so we don't have to copy every option here.
         HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
+        List<String> fieldNames = highlight.fields().stream().map(NamedExpression::name).toList();
+        String analyzerName = options.analyzerName();
+
+        HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
+            queryExpr,
+            fieldNames,
+            analyzerName,
+            context.analysisRegistry()
+        );
         HighlightConfig config = new HighlightConfig(
-            queryText,
+            translated.queryText(),
             options.preTag(),
             options.postTag(),
             options.encoder(),
@@ -1329,18 +1523,20 @@ public class LocalExecutionPlanner {
             HighlightOptions.BOUNDARY_SCANNER_WORD.equals(options.boundaryScanner()),
             options.boundaryScannerLocale(),
             HighlightOptions.ORDER_SCORE.equals(options.order()),
+            analyzerName,
             options.maxAnalyzedOffset()
-        );
+            // The query and MemoryIndex must use the same analyzer.
+        ).withExecutionContext(translated.analyzer(), translated.query(), fieldNames);
 
         List<ExpressionEvaluator.Factory> fieldEvaluators = highlight.fields()
             .stream()
             .map(field -> EvalMapper.toEvaluator(context.foldCtx(), field, source.layout, context.analysisRegistry()))
             .toList();
 
+        Layout.Builder layoutBuilder = source.layout.builder();
         // Append one keyword column per highlighted field.
         // The generated attributes are appended in the same order as the ON fields,
         // so the operator's appended blocks line up with these layout channels.
-        Layout.Builder layoutBuilder = source.layout.builder();
         layoutBuilder.append(highlight.generatedFields());
 
         return source.with(new HighlightOperator.Factory(config, fieldEvaluators), layoutBuilder.build());
@@ -1349,17 +1545,29 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planHashJoin(HashJoinExec join, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(join.left(), context);
         int positionsChannel = source.layout.numberOfChannels();
+        LocalSourceExec localSourceExec = (LocalSourceExec) join.joinData();
+        Page localData = localSourceExec.supplier().get();
+
+        // see {@link Mapper#JOIN_MARKER_PREFIX}
+        Attribute marker = null;
+        for (Attribute f : join.addedFields()) {
+            if (Mapper.isJoinMarker(f) && localSourceExec.outputSet().contains(f) == false) {
+                marker = f;
+                break;
+            }
+        }
 
         Layout.Builder layoutBuilder = source.layout.builder();
+        if (marker != null) {
+            layoutBuilder.append(marker);
+        }
         for (Attribute f : join.output()) {
-            if (join.left().outputSet().contains(f)) {
+            if (join.left().outputSet().contains(f) || f.equals(marker)) {
                 continue;
             }
             layoutBuilder.append(f);
         }
         Layout layout = layoutBuilder.build();
-        LocalSourceExec localSourceExec = (LocalSourceExec) join.joinData();
-        Page localData = localSourceExec.supplier().get();
 
         RowInTableLookupOperator.Key[] keys = new RowInTableLookupOperator.Key[join.leftFields().size()];
         int[] blockMapping = new int[join.leftFields().size()];
@@ -1386,8 +1594,12 @@ public class LocalExecutionPlanner {
         source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping), layout);
 
         // Load the "values" from each match
+        int loadedFields = 0;
         var joinDataOutput = join.joinData().output();
         for (Attribute f : join.addedFields()) {
+            if (f.equals(marker)) {
+                continue;
+            }
             Block localField = null;
             for (int l = 0; l < joinDataOutput.size(); l++) {
                 if (joinDataOutput.get(l).name().equals(f.name())) {
@@ -1401,13 +1613,28 @@ public class LocalExecutionPlanner {
                 new ColumnLoadOperator.Factory(new ColumnLoadOperator.Values(f.name(), localField), positionsChannel),
                 layout
             );
+            loadedFields++;
         }
 
+        if (marker != null) {
+            // The "positions" channel is requested as an added field; nothing to drop.
+            return source;
+        }
         // Drop the "positions" of the match
         List<Integer> projection = new ArrayList<>();
         IntStream.range(0, positionsChannel).boxed().forEach(projection::add);
-        IntStream.range(positionsChannel + 1, positionsChannel + 1 + join.addedFields().size()).boxed().forEach(projection::add);
+        IntStream.range(positionsChannel + 1, positionsChannel + 1 + loadedFields).boxed().forEach(projection::add);
         return source.with(new ProjectOperatorFactory(projection), layout);
+    }
+
+    private PhysicalOperation planDistinctBy(DistinctByExec distinctBy, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(distinctBy.child(), context);
+        var key = source.layout.get(distinctBy.key().id());
+        if (key == null || PlannerUtils.toElementType(key.type()) != ElementType.INT) {
+            throw new IllegalStateException("distinct-by requires non-null integer key, got [" + distinctBy.key() + "]");
+        }
+
+        return source.with(new DistinctByOperator.OrdinalIntKeyFactory(key.channel(), distinctBy.failOnDuplicate()), source.layout);
     }
 
     private PhysicalOperation planLookupJoin(LookupJoinExec join, LocalExecutionPlannerContext context) {
@@ -1426,11 +1653,11 @@ public class LocalExecutionPlanner {
         // After enabling remote joins, we can have one of the two situations here:
         // 1. We've just got one entry - this should be the one relevant to the join, and it should be for this cluster
         // 2. We have got multiple entries - this means each cluster has its own one, and we should extract one relevant for this cluster
-        Map.Entry<String, IndexMode> entry;
-        if (esRelation.indexNameWithModes().size() == 1) {
-            entry = esRelation.indexNameWithModes().entrySet().iterator().next();
+        Map.Entry<String, IndexProperties> entry;
+        if (esRelation.indexProperties().size() == 1) {
+            entry = esRelation.indexProperties().entrySet().iterator().next();
         } else {
-            var maybeEntry = esRelation.indexNameWithModes()
+            var maybeEntry = esRelation.indexProperties()
                 .entrySet()
                 .stream()
                 .filter(e -> RemoteClusterAware.splitIndexName(e.getKey()).getClusterGroupingKey().equals(clusterAlias))
@@ -1442,8 +1669,8 @@ public class LocalExecutionPlanner {
             );
         }
 
-        if (entry.getValue() != IndexMode.LOOKUP) {
-            throw new IllegalStateException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
+        if (entry.getValue().indexMode() != IndexMode.LOOKUP) {
+            throw new IllegalStateException("can't plan [" + join + "], found index with mode [" + entry.getValue().indexMode() + "]");
         }
         var indexSplit = RemoteClusterAware.splitIndexName(entry.getKey());
         // No prefix is ok, prefix with this cluster is ok, something else is not
@@ -1609,7 +1836,7 @@ public class LocalExecutionPlanner {
 
         // Step 2: Dedup by _tsid
         int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
-        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.Factory(tsidChannel), tsidSource.layout);
+        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.BytesRefKeyFactory(tsidChannel), tsidSource.layout);
 
         // Step 3: Extract _timeseries metadata (dimensions + metrics) from synthetic source
         FieldAttribute metadataSourceAttr = new FieldAttribute(
@@ -1716,7 +1943,7 @@ public class LocalExecutionPlanner {
 
         // Step 2: Dedup by _tsid
         int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
-        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.Factory(tsidChannel), tsidSource.layout);
+        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.BytesRefKeyFactory(tsidChannel), tsidSource.layout);
 
         // Step 3: Extract _timeseries metadata and _index
         FieldAttribute metadataSourceAttr = new FieldAttribute(
@@ -1837,6 +2064,17 @@ public class LocalExecutionPlanner {
      * @return the physical operation
      */
     private PhysicalOperation planExternalSource(ExternalSourceExec externalSource, LocalExecutionPlannerContext context) {
+        // Federation gate, operator-build backstop. This is where an external source becomes a running operator, so
+        // enforcing here refuses any already-rewritten ExternalSourceExec that reaches a node without federation
+        // regardless of who planned the query: an enabled coordinator, a remote cluster in CCS/CPS, or an enabled
+        // coordinator during a rolling restart that has not yet reached this node. An external request arriving at a
+        // data node is already refused earlier, in DataNodeComputeHandler.handleExternalSourceRequest, which also
+        // covers the plans this backstop cannot see because local planning folded the source away. The coordinator
+        // FROM <dataset> path is closed earlier by the DatasetResolver gate; the snapshot-only inline EXTERNAL command
+        // bypasses that gate and is stopped only here, after its planning-time source resolution and split discovery
+        // have run.
+        Federation.ensureEnabled(settings);
+
         Layout.Builder layout = new Layout.Builder();
         layout.append(externalSource.output());
 
@@ -1931,6 +2169,9 @@ public class LocalExecutionPlanner {
             .path(path)
             .projectedColumns(projectedColumns)
             .attributes(externalSource.output())
+            // Projection-independent, unlike attributes(): a read-configuration identity must not vary with what the query
+            // selects, or a coordinator and a data node would derive different identities for the same read.
+            .unifiedSchema(externalSource.unifiedSchema())
             .batchSize(pageSize)
             .maxBufferSize(effectiveBufferSize)
             .rowLimit(pushedLimit)
@@ -2016,11 +2257,88 @@ public class LocalExecutionPlanner {
 
             int scoreBlock = filterOperation.layout.get(scoreAttribute.id()).channel();
             filterOperation = filterOperation.with(
-                new ScoreOperator.ScoreOperatorFactory(ScoreMapper.toScorer(filter.condition(), context.shardContexts), scoreBlock),
+                new ScoreOperator.ScoreOperatorFactory(
+                    ScoreMapper.toScorer(
+                        filter.condition(),
+                        context.shardContexts,
+                        EvalMapper.toEvaluatorContext(
+                            context.foldCtx(),
+                            filterOperation.layout,
+                            context.shardContexts,
+                            context.analysisRegistry()
+                        )
+                    ),
+                    scoreBlock
+                ),
                 filterOperation.layout
             );
         }
         return filterOperation;
+    }
+
+    private PhysicalOperation planInsertEmptyBuckets(InsertEmptyBucketsExec insertEmptyBuckets, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(insertEmptyBuckets.child(), context);
+
+        SequencedMap<Integer, InsertEmptyBucketsOperator.BucketCursorFactory> bucketChannels = new LinkedHashMap<>();
+        insertEmptyBuckets.buckets().forEach((attribute, bucket) -> {
+            Layout.ChannelAndType channelAndType = source.layout().get(attribute.id());
+            if (channelAndType != null) {
+                bucketChannels.put(channelAndType.channel(), bucketCursorFactory(bucket, context.foldCtx));
+            }
+        });
+
+        List<Integer> groupChannels = insertEmptyBuckets.groups()
+            .stream()
+            .map(group -> getAttributeChannel(group, source.layout(), "InsertEmptyBuckets group must be an attribute"))
+            .toList();
+
+        // One entry per value channel (= every input channel that is neither a bucket nor a group).
+        Map<Integer, InsertEmptyBucketsOperator.DefaultValue> defaultValues = new HashMap<>();
+        if (insertEmptyBuckets.defaultValues() != null) {
+            insertEmptyBuckets.defaultValues().forEach((attribute, defaultValue) -> {
+                Layout.ChannelAndType channelAndType = source.layout().get(attribute.id());
+                if (channelAndType != null) {
+                    defaultValues.put(channelAndType.channel(), defaultValue);
+                }
+            });
+        }
+        List<Layout.ChannelSet> inverse = source.layout.inverse();
+        for (int channel = 0; channel < source.layout.numberOfChannels(); channel++) {
+            if (bucketChannels.containsKey(channel) || groupChannels.contains(channel) || defaultValues.containsKey(channel)) {
+                continue;
+            }
+            defaultValues.put(
+                channel,
+                new InsertEmptyBucketsOperator.DefaultValue(PlannerUtils.toElementType(inverse.get(channel).type()), null)
+            );
+        }
+
+        return source.with(
+            new InsertEmptyBucketsOperator.Factory(
+                bucketChannels,
+                groupChannels,
+                defaultValues,
+                context.pageSize(insertEmptyBuckets, insertEmptyBuckets.estimatedRowSize())
+            ),
+            source.layout
+        );
+    }
+
+    private static InsertEmptyBucketsOperator.BucketCursorFactory bucketCursorFactory(Bucket bucket, FoldContext foldCtx) {
+        return switch (bucket.dataType()) {
+            case DATETIME, DATE_NANOS -> new InsertEmptyBucketsOperator.DateCursorFactory(
+                bucket.getDateRoundingOrNull(foldCtx),
+                bucket.rangeFromMillis(foldCtx),
+                bucket.rangeToMillis(foldCtx),
+                bucket.dataType() == DataType.DATE_NANOS
+            );
+            case DOUBLE -> new InsertEmptyBucketsOperator.NumericCursorFactory(
+                bucket.getNumberRoundTo(foldCtx),
+                ((Number) Foldables.valueOf(foldCtx, bucket.from())).doubleValue(),
+                ((Number) Foldables.valueOf(foldCtx, bucket.to())).doubleValue()
+            );
+            default -> throw new EsqlIllegalArgumentException("unexpected data type [{}]", bucket.dataType());
+        };
     }
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
@@ -2267,7 +2585,9 @@ public class LocalExecutionPlanner {
         boolean timeSeries,
         Settings settings,
         IndexedByShardId<? extends ShardContext> shardContexts,
-        @Nullable AnalysisRegistry analysisRegistry
+        @Nullable AnalysisRegistry analysisRegistry,
+        Holder<TopNExec> lastVisitedTopN,
+        Holder<LuceneMinCompetitiveTimestampTopN> luceneMinCompetitivePilot
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

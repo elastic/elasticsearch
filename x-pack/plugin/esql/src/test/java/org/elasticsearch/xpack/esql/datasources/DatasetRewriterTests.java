@@ -88,6 +88,30 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(paramValue(out, "format"), equalTo("parquet"));
     }
 
+    public void testRemovedParquetDatasetSettingsAreStrippedOnRewrite() {
+        // Stored kill-switch keys from before they were removed must not reach config validation:
+        // mergeSettings strips them; the parent _datasource map is left alone.
+        DataSource parent = dataSource("s3_parent", Map.of("region", new DataSourceSetting("us-east-1", false)));
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        for (String key : RemovedParquetDatasetSettings.KEYS) {
+            settings.put(key, false);
+        }
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/*.parquet", null, settings);
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        LogicalPlan rewritten = rewrite(relationOf("logs"), project);
+
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        assertThat(tablePathString(out), equalTo("s3://logs/*.parquet"));
+        assertThat(datasourceParamValue(out, "region"), equalTo("us-east-1"));
+        assertThat(paramValue(out, "format"), equalTo("parquet"));
+        for (String key : RemovedParquetDatasetSettings.KEYS) {
+            assertFalse(out.config().containsKey(key));
+        }
+    }
+
     public void testDatasetSettingsOverrideParentOnKeyCollision() {
         DataSource parent = dataSource("s3_parent", Map.of("region", new DataSourceSetting("us-east-1", false)));
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of("region", "eu-west-2"));
@@ -790,7 +814,7 @@ public class DatasetRewriterTests extends ESTestCase {
     public void testResolveEmptyWithoutDatasets() {
         // No datasets registered: an explicit name resolves to no authorized datasets and no non-dataset targets.
         DatasetRewriter.DatasetResolution r = resolve("logs", projectWith(Map.of(), Map.of()), Set.of());
-        assertThat(r.authorizedDatasets(), equalTo(Set.of()));
+        assertThat(r.resolvedExternalDatasets(), equalTo(Set.of()));
         assertTrue(r.nonDatasetNames().isEmpty());
     }
 
@@ -801,13 +825,16 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
 
         // Explicit single dataset.
-        assertThat(resolve("logs_a", project, Set.of("logs_a")).authorizedDatasets(), equalTo(Set.of("logs_a")));
+        assertThat(resolve("logs_a", project, Set.of("logs_a")).resolvedExternalDatasets(), equalTo(Set.of("logs_a")));
         // Wildcard, all authorized.
-        assertThat(resolve("logs_*", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), containsInAnyOrder("logs_a", "logs_b"));
+        assertThat(
+            resolve("logs_*", project, Set.of("logs_a", "logs_b")).resolvedExternalDatasets(),
+            containsInAnyOrder("logs_a", "logs_b")
+        );
         // Wildcard with exclusion, applied within the relation.
-        assertThat(resolve("logs_*,-logs_b", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), equalTo(Set.of("logs_a")));
+        assertThat(resolve("logs_*,-logs_b", project, Set.of("logs_a", "logs_b")).resolvedExternalDatasets(), equalTo(Set.of("logs_a")));
         // No pattern can match a dataset name → empty.
-        assertThat(resolve("metrics", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), equalTo(Set.of()));
+        assertThat(resolve("metrics", project, Set.of("logs_a", "logs_b")).resolvedExternalDatasets(), equalTo(Set.of()));
     }
 
     public void testResolveExclusionStaysPerRelation() {
@@ -818,8 +845,11 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
 
-        assertThat(resolve("logs_*", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), containsInAnyOrder("logs_a", "logs_b"));
-        assertThat(resolve("logs_*,-logs_a", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), equalTo(Set.of("logs_b")));
+        assertThat(
+            resolve("logs_*", project, Set.of("logs_a", "logs_b")).resolvedExternalDatasets(),
+            containsInAnyOrder("logs_a", "logs_b")
+        );
+        assertThat(resolve("logs_*,-logs_a", project, Set.of("logs_a", "logs_b")).resolvedExternalDatasets(), equalTo(Set.of("logs_b")));
     }
 
     public void testResolveFlagsNonDatasetTargets() {
@@ -829,7 +859,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_dataset", ds), Set.of("logs_index"));
 
         DatasetRewriter.DatasetResolution r = resolve("logs_*", project, Set.of("logs_dataset"));
-        assertThat(r.authorizedDatasets(), equalTo(Set.of("logs_dataset")));
+        assertThat(r.resolvedExternalDatasets(), equalTo(Set.of("logs_dataset")));
         assertFalse(r.nonDatasetNames().isEmpty());
     }
 

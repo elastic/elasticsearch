@@ -302,6 +302,9 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
          * Returns {@code true} if every key was appended, allowing the caller to apply append-only optimizations.
          */
         boolean mergeKeys(long[] keys, int[] ids, int len) {
+            Objects.checkFromIndexSize(0, len, keys.length / 2);
+            Objects.checkFromIndexSize(0, len, ids.length);
+
             final int preSize = size;
             for (int i = 0; i < len; i++) {
                 long k1 = keys[i * 2];
@@ -669,6 +672,9 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
          * Returns {@code true} if every key was appended, allowing the caller to apply append-only optimizations.
          */
         boolean mergeKeys(long[] keys, int[] ids, int len) {
+            Objects.checkFromIndexSize(0, len, keys.length / 2);
+            Objects.checkFromIndexSize(0, len, ids.length);
+
             final int preSize = size;
             if (preSize == 0) {
                 appendKeys(keys, ids, len);

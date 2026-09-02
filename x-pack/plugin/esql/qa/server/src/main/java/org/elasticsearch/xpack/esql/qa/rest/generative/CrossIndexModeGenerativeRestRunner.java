@@ -254,7 +254,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
 
     /**
      * Matches numbers (including negatives and scientific notation) inside WKT geometry strings.
-     * Used by {@link #normalizeSpatialCoords} to round coordinates to 6 significant figures so
+     * Used by {@link #normalizeSpatialCoords} to round coordinates to 5 significant figures so
      * that doc-values reconstruction precision loss ({@code POINT (5.0 5.0)} vs
      * {@code POINT (4.999999953... 4.999999995...)}) does not produce false value divergences.
      */
@@ -920,17 +920,18 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     /**
      * Renders a single cell value as a canonical string.
      *
-     * <p>Doubles are rounded to 6 significant figures to absorb tiny floating-point differences
-     * that arise when re-encoding values through doc values in columnar mode. Additionally, values
-     * whose absolute magnitude is below {@code 1e-9} are snapped to {@code 0.0} to absorb the
-     * Welford parallel-merge residual that can leave one side at {@code 0.0} and the other at
-     * {@code ~1e-32} when the true result is zero (see
+     * <p>Doubles are rounded to 5 significant figures to absorb tiny floating-point differences
+     * that arise when re-encoding values through doc values in columnar mode, and from Welford-style
+     * variance / std_dev merges whose residuals can differ by ~1 ULP across index layouts (e.g.
+     * {@code -1.43178} vs {@code -1.43177}). Additionally, values whose absolute magnitude is below
+     * {@code 1e-9} are snapped to {@code 0.0} to absorb the residual that can leave one side at
+     * {@code 0.0} and the other at {@code ~1e-32} when the true result is zero (see
      * <a href="https://github.com/elastic/elasticsearch/issues/156988">#156988</a>). The threshold
      * is many orders of magnitude above the residual ({@code ~1e-32}) and many orders of magnitude
      * below any meaningful small result in the CSV test datasets.
      *
      * <p>Strings that look like WKT geometry ({@code POINT (…)}, {@code POLYGON (…)}, etc.) have
-     * their coordinate numbers rounded to the same 6 significant figures. Doc-values-based
+     * their coordinate numbers rounded to the same 5 significant figures. Doc-values-based
      * reconstruction of geo/cartesian points introduces ~1e-7 relative precision loss — for
      * example a stored {@code POINT (5.0 5.0)} can come back as
      * {@code POINT (4.999999953433871 4.999999995343387)} in columnar mode.
@@ -944,7 +945,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
             if (Math.abs(d) < 1e-9) {
                 return "0.0";
             }
-            return String.valueOf(new BigDecimal(d).round(new MathContext(6, RoundingMode.HALF_DOWN)).doubleValue());
+            return String.valueOf(new BigDecimal(d).round(new MathContext(5, RoundingMode.HALF_DOWN)).doubleValue());
         }
         String s = String.valueOf(val);
         if (isWktString(s)) {
@@ -994,7 +995,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     }
 
     /**
-     * Rounds every numeric coordinate within a WKT geometry string to 6 significant figures,
+     * Rounds every numeric coordinate within a WKT geometry string to 5 significant figures,
      * absorbing doc-values reconstruction precision loss for geo/cartesian point types.
      */
     private static String normalizeSpatialCoords(String wkt) {
@@ -1002,7 +1003,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
             String coord = mr.group();
             try {
                 double d = Double.parseDouble(coord);
-                return String.valueOf(new BigDecimal(d).round(new MathContext(6, RoundingMode.HALF_DOWN)).doubleValue());
+                return String.valueOf(new BigDecimal(d).round(new MathContext(5, RoundingMode.HALF_DOWN)).doubleValue());
             } catch (NumberFormatException e) {
                 return coord;
             }

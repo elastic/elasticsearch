@@ -16,16 +16,22 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -223,25 +229,7 @@ public final class DataSourceModule implements Closeable {
             // Format readers: register a delegating factory per declared format,
             // and pre-register extensions so hasExtension() works without triggering lazy init.
             for (FormatSpec spec : plugin.formatSpecs()) {
-                String format = spec.format();
-                FormatReaderFactory delegating = (s, bf) -> {
-                    Map<String, FormatReaderFactory> factories = state.formatFactories();
-                    FormatReaderFactory real = factories.get(format);
-                    if (real == null) {
-                        throw new IllegalArgumentException(
-                            "Plugin "
-                                + plugin.getClass().getName()
-                                + " declared format ["
-                                + format
-                                + "] but formatReaders() did not return it"
-                        );
-                    }
-                    return real.create(s, bf);
-                };
-                formatReaderRegistry.registerLazy(format, delegating, settings, blockFactory);
-                for (String ext : spec.extensions()) {
-                    formatReaderRegistry.registerExtension(ext, format);
-                }
+                formatReaderRegistry.registerLazy(spec, new LazyFormatReaderFactory(state, spec.format(), plugin.getClass().getName()));
             }
 
             // Connectors: register lazy wrappers only for explicitly declared connector schemes
@@ -649,6 +637,136 @@ public final class DataSourceModule implements Closeable {
                 }
             }
             return delegate;
+        }
+    }
+
+    /**
+     * Loads the plugin's real factory on first inspect, create, or capability probe.
+     */
+    private static final class LazyFormatReaderFactory implements FormatReaderFactory {
+        private final LazyPluginState state;
+        private final String format;
+        private final String pluginName;
+        private volatile FormatReaderFactory resolved;
+
+        private LazyFormatReaderFactory(LazyPluginState state, String format, String pluginName) {
+            this.state = state;
+            this.format = format;
+            this.pluginName = pluginName;
+        }
+
+        private FormatReaderFactory real() {
+            FormatReaderFactory cached = resolved;
+            if (cached != null) {
+                return cached;
+            }
+            synchronized (this) {
+                if (resolved == null) {
+                    FormatReaderFactory real = state.formatFactories().get(format);
+                    if (real == null) {
+                        throw new IllegalArgumentException(
+                            "Plugin " + pluginName + " declared format [" + format + "] but formatReaders() did not return it"
+                        );
+                    }
+                    resolved = real;
+                }
+                return resolved;
+            }
+        }
+
+        @Override
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return real().create(settings, blockFactory);
+        }
+
+        @Override
+        public FormatReader create(
+            Settings settings,
+            BlockFactory blockFactory,
+            @Nullable Map<String, Object> config,
+            @Nullable FormatReadContext.Binding binding
+        ) {
+            return real().create(settings, blockFactory, config, binding);
+        }
+
+        @Override
+        public Configured<Void> inspect(Map<String, Object> config) {
+            return real().inspect(config);
+        }
+
+        @Override
+        public String formatName() {
+            return format;
+        }
+
+        @Override
+        public ErrorPolicy defaultErrorPolicy() {
+            return real().defaultErrorPolicy();
+        }
+
+        @Override
+        public AggregatePushdownSupport aggregatePushdownSupport() {
+            return real().aggregatePushdownSupport();
+        }
+
+        @Override
+        public FilterPushdownSupport filterPushdownSupport() {
+            return real().filterPushdownSupport();
+        }
+
+        @Override
+        public boolean dropsRowsUnderPushedFilter() {
+            return real().dropsRowsUnderPushedFilter();
+        }
+
+        @Override
+        public boolean supportsNativeAsync() {
+            return real().supportsNativeAsync();
+        }
+
+        @Override
+        public boolean supportsWholeFileCompression() {
+            return real().supportsWholeFileCompression();
+        }
+
+        @Override
+        public boolean rangeAware() {
+            return real().rangeAware();
+        }
+
+        @Override
+        public boolean supportsBatchRead() {
+            return real().supportsBatchRead();
+        }
+
+        @Override
+        public boolean segmentable() {
+            return real().segmentable();
+        }
+
+        @Override
+        public boolean columnExtractor() {
+            return real().columnExtractor();
+        }
+
+        @Override
+        public boolean acceptsDynamicThreshold() {
+            return real().acceptsDynamicThreshold();
+        }
+
+        @Override
+        public boolean headerRow(@Nullable Map<String, Object> config) {
+            return real().headerRow(config);
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(@Nullable Map<String, Object> config, int maxRecordBytes) {
+            return real().recordSplitter(config, maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize(@Nullable Map<String, Object> config) {
+            return real().minimumSegmentSize(config);
         }
     }
 }

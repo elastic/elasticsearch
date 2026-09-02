@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -110,11 +109,11 @@ public class DataSourceModuleTests extends ESTestCase {
         public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
             return Map.of(
                 "csv",
-                (s, bf) -> new MockCsvFormatReader("csv", List.of(".csv")),
+                new MockCsvFormatReaderFactory("csv", List.of(".csv")),
                 "tsv",
-                (s, bf) -> new MockTsvFormatReader(),
+                new MockTsvFormatReaderFactory(),
                 "ndjson",
-                (s, bf) -> new MockCsvFormatReader("ndjson", List.of(".ndjson"))
+                new MockCsvFormatReaderFactory("ndjson", List.of(".ndjson"))
             );
         }
     }
@@ -196,7 +195,7 @@ public class DataSourceModuleTests extends ESTestCase {
     /**
      * Mock CSV format reader for testing.
      */
-    private static class MockCsvFormatReader implements NoConfigFormatReader {
+    private static class MockCsvFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -221,23 +220,33 @@ public class DataSourceModuleTests extends ESTestCase {
         }
 
         @Override
+        public void close() {}
+    }
+
+    private static class MockCsvFormatReaderFactory implements FormatReaderFactory {
+        private final String format;
+        private final List<String> extensions;
+
+        MockCsvFormatReaderFactory(String format, List<String> extensions) {
+            this.format = format;
+            this.extensions = extensions;
+        }
+
+        @Override
         public String formatName() {
             return format;
         }
 
         @Override
-        public List<String> fileExtensions() {
-            return extensions;
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return new MockCsvFormatReader(format, extensions);
         }
-
-        @Override
-        public void close() {}
     }
 
     /**
      * Mock TSV format reader for testing.
      */
-    private static class MockTsvFormatReader implements NoConfigFormatReader {
+    private static class MockTsvFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -254,17 +263,19 @@ public class DataSourceModuleTests extends ESTestCase {
         }
 
         @Override
+        public void close() {}
+    }
+
+    private static class MockTsvFormatReaderFactory implements FormatReaderFactory {
+        @Override
         public String formatName() {
             return "tsv";
         }
 
         @Override
-        public List<String> fileExtensions() {
-            return List.of(".tsv");
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return new MockTsvFormatReader();
         }
-
-        @Override
-        public void close() {}
     }
 
     /**
@@ -295,7 +306,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         @Override
         public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-            return Map.of("ndjson", (s, bf) -> new SegmentableTestNdjsonReader());
+            return Map.of("ndjson", new SegmentableTestNdjsonReaderFactory());
         }
     }
 
@@ -381,7 +392,7 @@ public class DataSourceModuleTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class SegmentableTestNdjsonReader implements SegmentableFormatReader, NoConfigFormatReader {
+    private static class SegmentableTestNdjsonReader implements SegmentableFormatReader, FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -398,17 +409,11 @@ public class DataSourceModuleTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "ndjson";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".ndjson");
-        }
-
-        @Override
         public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return newRecordSplitter(maxRecordBytes);
+        }
+
+        private static RecordSplitter newRecordSplitter(int maxRecordBytes) {
             return new RecordSplitter() {
                 @Override
                 public long findNextRecordBoundary(InputStream stream) throws java.io.IOException {
@@ -445,6 +450,33 @@ public class DataSourceModuleTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    private static class SegmentableTestNdjsonReaderFactory implements FormatReaderFactory {
+        @Override
+        public String formatName() {
+            return "ndjson";
+        }
+
+        @Override
+        public boolean segmentable() {
+            return true;
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(Map<String, Object> config, int maxRecordBytes) {
+            return SegmentableTestNdjsonReader.newRecordSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize(Map<String, Object> config) {
+            return 64;
+        }
+
+        @Override
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return new SegmentableTestNdjsonReader();
+        }
     }
 
     /**
@@ -549,27 +581,34 @@ public class DataSourceModuleTests extends ESTestCase {
 
         // Verify CSV reader is registered by name
         assertTrue("CSV format reader should be registered by name", registry.hasFormat("csv"));
-        FormatReader csvReader = registry.byName("csv");
-        assertNotNull("CSV format reader should be retrievable by name", csvReader);
-        assertTrue("CSV reader should be MockCsvFormatReader", csvReader instanceof MockCsvFormatReader);
+        FormatReaderFactory csvFactory = registry.findFactoryByName("csv");
+        assertNotNull("CSV format reader factory should be retrievable by name", csvFactory);
+        assertEquals("csv", csvFactory.formatName());
+        assertTrue(csvFactory.create(Settings.EMPTY, blockFactory) instanceof MockCsvFormatReader);
 
-        // Verify CSV reader can be found by extension
         assertTrue("CSV reader should be registered for .csv extension", registry.hasExtension(".csv"));
-        FormatReader csvByExtension = registry.byExtension("data.csv");
-        assertNotNull("CSV reader should be found by .csv extension", csvByExtension);
-        assertTrue("CSV reader by extension should be MockCsvFormatReader", csvByExtension instanceof MockCsvFormatReader);
+        ResolvedFormat csvByExtension = registry.resolveByExtension("data.csv");
+        assertNotNull("CSV reader factory should be found by .csv extension", csvByExtension);
+        assertEquals("csv", csvByExtension.formatName());
+        assertNull(csvByExtension.codec());
+        assertTrue(
+            csvByExtension.create(Settings.EMPTY, blockFactory, null, FormatReadContext.Binding.empty()) instanceof MockCsvFormatReader
+        );
 
-        // Verify TSV reader is registered separately
         assertTrue("TSV format reader should be registered by name", registry.hasFormat("tsv"));
-        FormatReader tsvReader = registry.byName("tsv");
-        assertNotNull("TSV format reader should be retrievable by name", tsvReader);
-        assertTrue("TSV reader should be MockTsvFormatReader", tsvReader instanceof MockTsvFormatReader);
+        FormatReaderFactory tsvFactory = registry.findFactoryByName("tsv");
+        assertNotNull("TSV format reader factory should be retrievable by name", tsvFactory);
+        assertEquals("tsv", tsvFactory.formatName());
+        assertTrue(tsvFactory.create(Settings.EMPTY, blockFactory) instanceof MockTsvFormatReader);
 
-        // Verify TSV extension maps to the TSV reader
         assertTrue("TSV reader should be registered for .tsv extension", registry.hasExtension(".tsv"));
-        FormatReader tsvByExtension = registry.byExtension("data.tsv");
-        assertNotNull("TSV reader should be found by .tsv extension", tsvByExtension);
-        assertTrue("TSV reader by extension should be MockTsvFormatReader", tsvByExtension instanceof MockTsvFormatReader);
+        ResolvedFormat tsvByExtension = registry.resolveByExtension("data.tsv");
+        assertNotNull("TSV reader factory should be found by .tsv extension", tsvByExtension);
+        assertEquals("tsv", tsvByExtension.formatName());
+        assertNull(tsvByExtension.codec());
+        assertTrue(
+            tsvByExtension.create(Settings.EMPTY, blockFactory, null, FormatReadContext.Binding.empty()) instanceof MockTsvFormatReader
+        );
     }
 
     /**
@@ -710,9 +749,22 @@ public class DataSourceModuleTests extends ESTestCase {
             super("parq", List.of(".parq"));
         }
 
+    }
+
+    private static class MockNoWholeFileCompressionReaderFactory implements FormatReaderFactory {
+        @Override
+        public String formatName() {
+            return "parq";
+        }
+
         @Override
         public boolean supportsWholeFileCompression() {
             return false;
+        }
+
+        @Override
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return new MockNoWholeFileCompressionReader();
         }
     }
 
@@ -737,7 +789,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         @Override
         public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-            return Map.of("parq", (s, bf) -> new MockNoWholeFileCompressionReader());
+            return Map.of("parq", new MockNoWholeFileCompressionReaderFactory());
         }
     }
 
@@ -762,14 +814,14 @@ public class DataSourceModuleTests extends ESTestCase {
         List<String> compressedExtensions = List.of("gz", "zst", "bz2", "snappy", "lz4", "br");
         for (String comp : compressedExtensions) {
             String objectName = "data.parq." + comp;
-            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byExtension(objectName));
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.resolveByExtension(objectName));
             assertThat("Expected rejection for " + objectName, ex.getMessage(), containsString("does not support whole-file compression"));
             assertThat(ex.getMessage(), containsString("parq"));
         }
 
         // Sequential formats must still be wrappable
-        assertNotNull(registry.byExtension("data.csv.gz"));
-        assertNotNull(registry.byExtension("data.tsv.gz"));
+        assertNotNull(registry.resolveByExtension("data.csv.gz"));
+        assertNotNull(registry.resolveByExtension("data.tsv.gz"));
     }
 
     /**
@@ -803,7 +855,7 @@ public class DataSourceModuleTests extends ESTestCase {
         DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
         FormatReaderRegistry registry = module.formatReaderRegistry();
 
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byName("nope"));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.factoryByName("nope"));
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ex));
         assertThat(ex.getMessage(), containsString("No reader registered for format [nope]"));
@@ -824,7 +876,7 @@ public class DataSourceModuleTests extends ESTestCase {
         DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
         FormatReaderRegistry registry = module.formatReaderRegistry();
 
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byExtension("data.log.gz"));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.resolveByExtension("data.log.gz"));
 
         assertThat(ex.getMessage(), containsString("[data.log.gz]"));
         assertThat(ex.getMessage(), containsString("extension [.log.gz]"));
@@ -834,7 +886,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         // Mixed case must report the same normalised extension. Every other fixture here is lowercase, so without
         // this the normalisation could be dropped and the suite would stay green.
-        IllegalArgumentException mixed = expectThrows(IllegalArgumentException.class, () -> registry.byExtension("DATA.LOG.GZ"));
+        IllegalArgumentException mixed = expectThrows(IllegalArgumentException.class, () -> registry.resolveByExtension("DATA.LOG.GZ"));
         assertThat(mixed.getMessage(), containsString("[DATA.LOG.GZ]"));
         assertThat(mixed.getMessage(), containsString("extension [.log.gz]"));
     }
@@ -867,7 +919,7 @@ public class DataSourceModuleTests extends ESTestCase {
         rejected.put("data.csv.br", "brotli");
         for (Map.Entry<String, String> entry : rejected.entrySet()) {
             String objectName = entry.getKey();
-            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byExtension(objectName));
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.resolveByExtension(objectName));
             assertThat(
                 "Expected rejection for " + objectName,
                 ex.getMessage(),
@@ -877,14 +929,14 @@ public class DataSourceModuleTests extends ESTestCase {
         }
 
         // The benchmarked codecs still resolve across the text formats.
-        assertNotNull(registry.byExtension("data.csv.gz"));
-        assertNotNull(registry.byExtension("data.tsv.zst"));
-        assertNotNull(registry.byExtension("data.ndjson.gz"));
+        assertNotNull(registry.resolveByExtension("data.csv.gz"));
+        assertNotNull(registry.resolveByExtension("data.tsv.zst"));
+        assertNotNull(registry.resolveByExtension("data.ndjson.gz"));
     }
 
     /**
      * On snapshot builds the codec gate is bypassed: every registered codec — including bzip2, snappy, lz4, and
-     * brotli — resolves to a {@code CompressionDelegatingFormatReader} for text formats. See elastic/esql-planning#938.
+     * brotli resolves to a {@link ResolvedFormat} with a codec for text formats.
      */
     public void testTextCodecsAllowedOnSnapshotBuilds() {
         assumeTrue("release builds gate the text-format codec surface", Build.current().isSnapshot());
@@ -911,12 +963,9 @@ public class DataSourceModuleTests extends ESTestCase {
             "data.csv.br"
         );
         for (String objectName : compressed) {
-            FormatReader reader = registry.byExtension(objectName);
-            assertNotNull("Expected " + objectName + " to resolve on snapshot builds", reader);
-            assertTrue(
-                objectName + " should resolve to a CompressionDelegatingFormatReader",
-                reader.getClass().getSimpleName().contains("CompressionDelegating")
-            );
+            ResolvedFormat resolved = registry.resolveByExtension(objectName);
+            assertNotNull("Expected " + objectName + " to resolve on snapshot builds", resolved);
+            assertTrue(objectName + " should attach a compression codec", resolved.codec() != null);
         }
     }
 
@@ -958,7 +1007,7 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     /**
-     * Test that with gzip plugin, byExtension returns delegating reader for compound extensions.
+     * Test that the gzip plugin resolves compound extensions to a composed ResolvedFormat.
      */
     public void testFormatReaderRegistryCompressedExtension() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
@@ -968,20 +1017,14 @@ public class DataSourceModuleTests extends ESTestCase {
         assertTrue("Should have compressed extension for data.csv.gz", registry.hasCompressedExtension("data.csv.gz"));
         assertFalse("Should not have compressed extension for data.csv", registry.hasCompressedExtension("data.csv"));
 
-        FormatReader reader = registry.byExtension("data.csv.gz");
-        assertNotNull(reader);
-        assertEquals("csv", reader.formatName());
-        assertTrue(
-            "Reader should be CompressionDelegatingFormatReader",
-            reader.getClass().getSimpleName().contains("CompressionDelegating")
-        );
+        ResolvedFormat resolved = registry.resolveByExtension("data.csv.gz");
+        assertNotNull(resolved);
+        assertEquals("csv", resolved.formatName());
+        assertTrue("compressed extension should attach a codec", resolved.codec() != null);
     }
 
     /**
-     * Regression test for the compressed-read-under-explicit-format fix: an explicit {@code format}
-     * override composes with the resource's outer compression suffix instead of bypassing it.
-     * {@code FormatNameResolver.resolveReader} is the exact chokepoint {@code FileSourceFactory} and
-     * {@code FileSplitProvider} use for the real read path.
+     * An explicit {@code format} override composes with the resource's outer compression suffix at the factory boundary.
      */
     public void testExplicitFormatComposesWithCompressionSuffix() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
@@ -989,31 +1032,25 @@ public class DataSourceModuleTests extends ESTestCase {
         FormatReaderRegistry registry = module.formatReaderRegistry();
 
         // Mirrors the reported scenario: settings.format = "csv" over a resource that ends in .csv.gz.
-        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "hits_00.csv.gz", registry);
-        assertEquals("csv", reader.formatName());
-        assertTrue(
-            "An explicit format over a compressed resource should still wrap in CompressionDelegatingFormatReader",
-            reader.getClass().getSimpleName().contains("CompressionDelegating")
-        );
+        ResolvedFormat resolved = FormatNameResolver.resolveFormat(Map.of("format", "csv"), "hits_00.csv.gz", registry);
+        assertEquals("csv", resolved.formatName());
+        assertTrue("An explicit format over a compressed resource should still attach a codec", resolved.codec() != null);
     }
 
     /**
      * Same fix, via the {@code reader} alias override rather than {@code format}: {@code reader=java} maps
      * to the {@code parquet} format name ({@link FormatNameResolver#READER_JAVA}), so a mock {@code parquet}
      * format (unlike the real Parquet reader, this stand-in supports whole-file compression) is registered
-     * to exercise the alias branch of {@link FormatNameResolver#resolveReader} against a compressed object.
+     * to exercise the alias branch of {@link FormatNameResolver#resolveFormat} against a compressed object.
      */
     public void testExplicitReaderAliasComposesWithCompressionSuffix() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new MockParquetFormatPlugin(), new GzipDataSourcePlugin());
         DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
         FormatReaderRegistry registry = module.formatReaderRegistry();
 
-        FormatReader reader = FormatNameResolver.resolveReader(Map.of("reader", "java"), "hits_00.parquet.gz", registry);
-        assertEquals("parquet", reader.formatName());
-        assertTrue(
-            "reader=java over a compressed resource should still wrap in CompressionDelegatingFormatReader",
-            reader.getClass().getSimpleName().contains("CompressionDelegating")
-        );
+        ResolvedFormat resolved = FormatNameResolver.resolveFormat(Map.of("reader", "java"), "hits_00.parquet.gz", registry);
+        assertEquals("parquet", resolved.formatName());
+        assertTrue("reader=java over a compressed resource should still attach a codec", resolved.codec() != null);
     }
 
     /**
@@ -1039,28 +1076,27 @@ public class DataSourceModuleTests extends ESTestCase {
 
         @Override
         public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-            return Map.of("parquet", (s, bf) -> new MockCsvFormatReader("parquet", List.of(".parquet")));
+            return Map.of("parquet", new MockCsvFormatReaderFactory("parquet", List.of(".parquet")));
         }
     }
 
     /**
-     * An explicit {@code format} override over an uncompressed resource (the common case) must be
-     * unaffected by the fix: no compression suffix means no wrapping, same reader instance as before.
+     * An explicit {@code format} override over an uncompressed resource resolves a plain factory without wrapping.
      */
     public void testExplicitFormatWithNoCompressionSuffixIsUnchanged() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
         DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
         FormatReaderRegistry registry = module.formatReaderRegistry();
 
-        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "hits_00.csv", registry);
-        assertFalse("An uncompressed resource must not be wrapped", reader.getClass().getSimpleName().contains("CompressionDelegating"));
-        assertTrue(reader instanceof MockCsvFormatReader);
+        ResolvedFormat resolved = FormatNameResolver.resolveFormat(Map.of("format", "csv"), "hits_00.csv", registry);
+        assertNull("An uncompressed resource must not attach a codec", resolved.codec());
+        assertEquals("csv", resolved.formatName());
     }
 
     /**
      * An explicit {@code format} naming a format that cannot be wrapped in a whole-file decompressor
-     * (e.g. Parquet/ORC) must be rejected up front — the same error {@link FormatReaderRegistry#byExtension}
-     * already raises for the equivalent extension-inferred case — rather than silently ignoring the
+     * (e.g. Parquet/ORC) must be rejected up front, with the same error {@link FormatReaderRegistry#resolveByExtension}
+     * raises for the equivalent extension-inferred case, rather than silently ignoring the
      * resource's compression suffix and failing later with a confusing parse error.
      */
     public void testExplicitFormatRejectsWholeFileCompressionForIncompatibleFormats() {
@@ -1074,7 +1110,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> FormatNameResolver.resolveReader(Map.of("format", "parq"), "data.parq.gz", registry)
+            () -> FormatNameResolver.resolveFormat(Map.of("format", "parq"), "data.parq.gz", registry)
         );
         assertThat(ex.getMessage(), containsString("does not support whole-file compression"));
         assertThat(ex.getMessage(), containsString("parq"));
@@ -1094,13 +1130,13 @@ public class DataSourceModuleTests extends ESTestCase {
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> FormatNameResolver.resolveReader(Map.of("format", "csv"), "data.csv.bz2", registry)
+            () -> FormatNameResolver.resolveFormat(Map.of("format", "csv"), "data.csv.bz2", registry)
         );
         assertThat(ex.getMessage(), containsString("is not supported; supported: uncompressed, gzip, zstd"));
 
         // The benchmarked codec still resolves and still composes with the explicit format.
-        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "data.csv.gz", registry);
-        assertTrue(reader.getClass().getSimpleName().contains("CompressionDelegating"));
+        ResolvedFormat resolved = FormatNameResolver.resolveFormat(Map.of("format", "csv"), "data.csv.gz", registry);
+        assertTrue(resolved.codec() != null);
     }
 
     /**
@@ -1189,22 +1225,20 @@ public class DataSourceModuleTests extends ESTestCase {
         assertTrue("File provider should support file scheme", fileProvider.supportedSchemes().contains("file"));
     }
 
-    /**
-     * Test that format readers report correct format names and extensions.
-     */
+    /** Test that format factories and registered specs report the expected metadata. */
     public void testFormatReaderMetadata() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
         DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         FormatReaderRegistry registry = module.formatReaderRegistry();
 
-        FormatReader csvReader = registry.byName("csv");
-        assertEquals("CSV reader should report 'csv' as format name", "csv", csvReader.formatName());
-        assertTrue("CSV reader should support .csv extension", csvReader.fileExtensions().contains(".csv"));
+        FormatReaderFactory csvFactory = registry.factoryByName("csv");
+        assertEquals("CSV factory should report 'csv' as format name", "csv", csvFactory.formatName());
+        assertTrue("CSV format should support .csv extension", registry.specByName("csv").extensions().contains(".csv"));
 
-        FormatReader tsvReader = registry.byName("tsv");
-        assertEquals("TSV reader should report 'tsv' as format name", "tsv", tsvReader.formatName());
-        assertTrue("TSV reader should support .tsv extension", tsvReader.fileExtensions().contains(".tsv"));
+        FormatReaderFactory tsvFactory = registry.factoryByName("tsv");
+        assertEquals("TSV factory should report 'tsv' as format name", "tsv", tsvFactory.formatName());
+        assertTrue("TSV format should support .tsv extension", registry.specByName("tsv").extensions().contains(".tsv"));
     }
 
     /**

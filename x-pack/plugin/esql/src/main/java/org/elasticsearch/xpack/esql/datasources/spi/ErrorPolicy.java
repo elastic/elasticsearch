@@ -118,8 +118,8 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     /**
      * Null-fill unparseable fields without limit, keeping the row for every per-value failure — the opt-in
      * leniency for a declared-type coercion failure (a bad per-value token nulls the cell and emits a response
-     * {@code Warning} header) via {@code error_mode: null_field}. No format defaults to this: every
-     * reader inherits the base {@link FormatReader#defaultErrorPolicy()} == {@link #STRICT}.
+     * {@code Warning} header) via {@code error_mode: null_field}. No format defaults to this:
+     * {@link FormatReaderFactory#defaultErrorPolicy()} returns {@link #STRICT}.
      * <p>
      * {@link Mode#NULL_FIELD} degrades to a row drop where a row-oriented reader cannot null-fill a failure
      * it cannot attribute to one value (a whole-line JSON failure, a structural CSV row error). Columnar
@@ -199,18 +199,9 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
         return false;
     }
 
-    /**
-     * {@link #fromConfig} against the policy {@code reader} defaults to, or {@link #STRICT} when the reader is
-     * unknown (unregistered format, no registry in the optimizer context).
-     * <p>
-     * Every caller that resolves a policy for a read served by a specific reader must go through here rather than
-     * hard-coding {@link #STRICT} as the fallback. Plan-time rules and the operator factory both decide whether a
-     * read drops rows, and they must reach the same verdict for the same read: a rule that assumed {@link #STRICT}
-     * while the factory honoured a lenient {@link FormatReader#defaultErrorPolicy()} override would plan for one
-     * mode and execute the other.
-     */
-    public static ErrorPolicy forReader(Map<String, Object> config, @Nullable FormatReader reader) {
-        return fromConfig(config, reader != null ? reader.defaultErrorPolicy() : STRICT);
+    /** Resolves an error policy using a format factory's default. */
+    public static ErrorPolicy forReader(Map<String, Object> config, @Nullable FormatReaderFactory factory) {
+        return fromConfig(config, factory != null ? factory.defaultErrorPolicy() : STRICT);
     }
 
     /**

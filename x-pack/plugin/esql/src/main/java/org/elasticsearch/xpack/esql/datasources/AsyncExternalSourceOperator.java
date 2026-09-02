@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Source operator that retrieves data from external sources (Iceberg tables, Parquet files, etc.).
@@ -49,6 +50,9 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     private final ExternalSourceMetrics externalSourceMetrics;
     /** Low-cardinality storage scheme dimension for this scan's histograms; {@code null} when unknown (connector path). */
     private final String scheme;
+    private final Runnable starter;
+    private final Runnable closeBeforeStart;
+    private final AtomicBoolean startedOrClosed;
     /**
      * Reference point for the time-to-first-row measurement, captured when this SCAN OPERATOR is constructed
      * (per driver, after planning and discovery) — NOT at query start. The measurement is therefore a per-scan
@@ -65,13 +69,33 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     }
 
     public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, ExternalSourceMetrics externalSourceMetrics, String scheme) {
+        this(buffer, externalSourceMetrics, scheme, null, null);
+    }
+
+    AsyncExternalSourceOperator(
+        AsyncExternalSourceBuffer buffer,
+        ExternalSourceMetrics externalSourceMetrics,
+        String scheme,
+        Runnable starter,
+        Runnable closeBeforeStart
+    ) {
         this.buffer = buffer;
         this.externalSourceMetrics = externalSourceMetrics == null ? ExternalSourceMetrics.NOOP : externalSourceMetrics;
         this.scheme = scheme;
+        this.starter = starter;
+        this.closeBeforeStart = closeBeforeStart;
+        this.startedOrClosed = new AtomicBoolean(starter == null);
+    }
+
+    private void startIfNeeded() {
+        if (startedOrClosed.compareAndSet(false, true)) {
+            starter.run();
+        }
     }
 
     @Override
     public Page getOutput() {
+        startIfNeeded();
         long startNanos = System.nanoTime();
         try {
             final var page = buffer.pollPage();
@@ -106,6 +130,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public boolean isFinished() {
+        startIfNeeded();
         // Keep "not finished" while a failure is pending so the driver calls getOutput() and the
         // exception propagates instead of treating the source as a clean EOF.
         return buffer.isFinished() && buffer.failure() == null;
@@ -113,11 +138,13 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public void finish() {
+        closeWithoutStarting();
         buffer.finish(true);
     }
 
     @Override
     public IsBlockedResult isBlocked() {
+        startIfNeeded();
         if (isBlocked.listener().isDone()) {
             isBlocked = buffer.waitForReading();
             if (isBlocked.listener().isDone()) {
@@ -129,9 +156,16 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public void close() {
+        closeWithoutStarting();
         emitPendingWarnings();
         recordParseAndSplits();
         finish();
+    }
+
+    private void closeWithoutStarting() {
+        if (startedOrClosed.compareAndSet(false, true) && closeBeforeStart != null) {
+            closeBeforeStart.run();
+        }
     }
 
     /**

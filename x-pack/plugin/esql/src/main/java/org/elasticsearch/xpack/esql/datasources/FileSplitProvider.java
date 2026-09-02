@@ -13,6 +13,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -29,7 +30,9 @@ import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FrameIndex;
 import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
@@ -270,6 +273,8 @@ public class FileSplitProvider implements SplitProvider {
     private final Settings settings;
     @Nullable
     private final Executor executor;
+    @Nullable
+    private final BlockFactory blockFactory;
 
     public FileSplitProvider() {
         this(DEFAULT_TARGET_SPLIT_SIZE, null, null, null, Settings.EMPTY, null);
@@ -306,12 +311,25 @@ public class FileSplitProvider implements SplitProvider {
         Settings settings,
         @Nullable Executor executor
     ) {
+        this(targetSplitSizeBytes, codecRegistry, storageRegistry, formatRegistry, settings, executor, null);
+    }
+
+    public FileSplitProvider(
+        long targetSplitSizeBytes,
+        DecompressionCodecRegistry codecRegistry,
+        StorageProviderRegistry storageRegistry,
+        FormatReaderRegistry formatRegistry,
+        Settings settings,
+        @Nullable Executor executor,
+        @Nullable BlockFactory blockFactory
+    ) {
         this.targetSplitSizeBytes = targetSplitSizeBytes;
         this.codecRegistry = codecRegistry;
         this.storageRegistry = storageRegistry;
         this.formatRegistry = formatRegistry;
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.executor = executor;
+        this.blockFactory = blockFactory;
     }
 
     @Override
@@ -1088,19 +1106,16 @@ public class FileSplitProvider implements SplitProvider {
         // declared-name binding bit rides the typed DeclaredReadSpec (NOT the config map), so it must be applied
         // here too, or the split-side reader's declaredNameBindingNeedsFileStart() is silently false and the gate
         // below never fires — the read-side reader would then hit a chunk with no header line to bind against.
-        ResolvedReader resolved = resolveConfiguredReader(task.filePath(), task.config());
-        FormatReader configuredReader = resolved.configured();
-        if (configuredReader != null && task.declaredReadSpec().provenance() == SchemaProvenance.DECLARED) {
-            configuredReader = configuredReader.withDeclaredProvenanceBinding(true);
-        }
+        ResolvedFormat configuredFormat = resolveConfiguredFormat(task.filePath(), task.config());
+        boolean declaredProvenanceBinding = task.declaredReadSpec().provenance() == SchemaProvenance.DECLARED;
 
-        try {
+        {
             // Quoted or escaped CSV/TSV cannot be probed at arbitrary offsets (an in-quote newline, or a
             // backslash-escaped raw newline, would be misread as a record terminator), so no start-anywhere
             // splitting is safe: not newline-aligned macro-splits, nor compressed block/frame-aligned splits.
             // Emit a single whole-file split (identical to the fallback below); the reader consumes it as one
             // sequential stream and finds boundaries quote/escape-aware.
-            if (requiresSequentialWholeFileRead(configuredReader)) {
+            if (requiresSequentialWholeFileRead(configuredFormat, task.config(), declaredProvenanceBinding)) {
                 fileSplits.add(
                     wholeFileSplit(
                         task.filePath(),
@@ -1116,7 +1131,7 @@ public class FileSplitProvider implements SplitProvider {
             }
 
             // Try block-aligned splitting for splittable compressed files (e.g. .ndjson.bz2).
-            // This is independent of targetSplitSizeBytes — compressed files with splittable
+            // This is independent of targetSplitSizeBytes. Compressed files with splittable
             // codecs are always split at block boundaries when possible.
             if (tryBlockAlignedSplits(
                 task.filePath(),
@@ -1149,7 +1164,7 @@ public class FileSplitProvider implements SplitProvider {
                 return new PlanResult.Splits(fileSplits);
             }
 
-            DeferredNewlineSplits deferred = newlineMacroSplitCandidate(task, strideBytes, hoistedProvider, configuredReader);
+            DeferredNewlineSplits deferred = newlineMacroSplitCandidate(task, strideBytes, hoistedProvider, configuredFormat);
             if (deferred == null) {
                 // Whole-file split when macro splitting does not apply: small files, unsupported formats, or a file
                 // with no stride offset far enough from end-of-file to be worth cutting at.
@@ -1174,14 +1189,6 @@ public class FileSplitProvider implements SplitProvider {
             }
             RecordBoundaryProbe.ProvenWalk walk = provenMacroSplitStarts(deferred, isCancelled);
             return new PlanResult.Walked(deferred, walk.boundaries(), walk.stoppedBeforeEndOfFile());
-        } finally {
-            // Planning-scoped: this reader is minted only to ask the format which record splitter and minimum
-            // segment size apply. Nothing past planning reads through it — a candidate carries the RecordSplitter
-            // itself, which the DeferredNewlineSplits contract already requires to be immutable and free of reader
-            // state — so it is released here, on every exit path. Closing the tail covers the whole chain (the
-            // intermediate was configured, never read through), and closeIfDerived leaves the registry's own
-            // instance alone when no with* call minted anything.
-            FormatReaderOwnership.closeIfDerived(configuredReader, resolved.base());
         }
     }
 
@@ -1226,31 +1233,20 @@ public class FileSplitProvider implements SplitProvider {
      * {@link FormatReader} ownership contract {@code withConfig} hands the caller a new instance to close only when
      * it actually minted one, and closing {@code base} would close the registry's node-level singleton.
      */
-    private ResolvedReader resolveConfiguredReader(StoragePath filePath, Map<String, Object> config) {
+    private ResolvedFormat resolveConfiguredFormat(StoragePath filePath, Map<String, Object> config) {
         if (formatRegistry == null) {
-            return ResolvedReader.UNRESOLVED;
+            return null;
         }
         String objectName = filePath.objectName();
         if (objectName == null) {
-            return ResolvedReader.UNRESOLVED;
+            return null;
         }
         try {
-            FormatReader base = FormatNameResolver.resolveReader(config, objectName, formatRegistry);
-            FormatReader configured = base.withConfig(config);
-            return new ResolvedReader(configured != null ? configured : base, base);
+            return FormatNameResolver.resolveFormat(config, objectName, formatRegistry);
         } catch (RuntimeException e) {
             LOGGER.debug(() -> Strings.format("Cannot resolve reader for [%s]; treating it as non-segmentable", objectName), e);
-            return ResolvedReader.UNRESOLVED;
+            return null;
         }
-    }
-
-    /**
-     * A file's config-aware reader paired with the registry instance {@code withConfig} was applied to. Both fields
-     * are {@code null} when the reader could not be resolved at all (see {@link #resolveConfiguredReader}), which
-     * the caller reads as "treat this file as non-segmentable".
-     */
-    private record ResolvedReader(@Nullable FormatReader configured, @Nullable FormatReader base) {
-        static final ResolvedReader UNRESOLVED = new ResolvedReader(null, null);
     }
 
     /**
@@ -1262,24 +1258,28 @@ public class FileSplitProvider implements SplitProvider {
      * against compressed bytes). Returns {@code false} (splitting allowed) when the reader could not be resolved,
      * so an unresolvable reader is treated as splittable.
      */
-    private boolean requiresSequentialWholeFileRead(@Nullable FormatReader reader) {
-        if (reader == null) {
+    private boolean requiresSequentialWholeFileRead(
+        @Nullable ResolvedFormat resolved,
+        @Nullable Map<String, Object> config,
+        boolean declaredProvenanceBinding
+    ) {
+        if (resolved == null) {
             return false;
         }
-        if (reader.declaredNameBindingNeedsFileStart()) {
+        FormatReaderFactory factory = resolved.factory();
+        if (declaredProvenanceBinding && factory.headerRow(config)) {
             // Binding is resolved against the header, which only a split starting at byte 0 can read.
             return true;
         }
-        SegmentableFormatReader seg = AsyncExternalSourceOperatorFactory.resolveSegmentableReader(reader);
-        if (seg == null) {
+        if (factory.segmentable() == false) {
             return false;
         }
-        RecordSplitter splitter = seg.recordSplitter();
+        RecordSplitter splitter = factory.recordSplitter(config, SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
         // A null splitter (only reachable from mocks) keeps the strided default: splitting stays enabled.
         if (splitter == null || splitter.supportsStridedProbing()) {
             return false;
         }
-        boolean provenMacroSplittable = splitter.supportsProvenProbing() && reader instanceof CompressionDelegatingFormatReader == false;
+        boolean provenMacroSplittable = splitter.supportsProvenProbing() && resolved.codec() == null;
         return provenMacroSplittable == false;
     }
 
@@ -1449,25 +1449,25 @@ public class FileSplitProvider implements SplitProvider {
             return false;
         }
 
-        FormatReader base;
-        FormatReader reader;
+        ResolvedFormat resolved;
         try {
-            base = FormatNameResolver.resolveReader(config, filePath.objectName(), formatRegistry);
-            reader = base.withConfig(config);
+            resolved = FormatNameResolver.resolveFormat(config, filePath.objectName(), formatRegistry);
         } catch (Exception e) {
             return false;
         }
 
-        if (reader instanceof RangeAwareFormatReader == false) {
-            // Nothing was read through the reader on this arm, but a with* mint still changed hands — release it
-            // rather than leave the one non-range format on this path holding a configured instance nobody closes.
-            FormatReaderOwnership.closeIfDerived(reader, base);
+        if (resolved.factory().rangeAware() == false) {
             return false;
         }
-        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) reader;
+        FormatReader created = resolved.create(settings, blockFactory, config, FormatReadContext.Binding.empty());
+        if (created instanceof RangeAwareFormatReader == false) {
+            ReaderReleasingIterator.closeReader(created);
+            return false;
+        }
+        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) created;
 
         // Range discovery below reads the file's footer through this reader, so it is the instance that acquires
-        // and the instance this method has to release — on the fall-through-to-single-split paths too.
+        // and the instance this method has to release, including on the fall-through-to-single-split paths.
         try {
             StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
             StorageObject object = provider.newObject(filePath, fileLength);
@@ -1547,7 +1547,7 @@ public class FileSplitProvider implements SplitProvider {
             LOGGER.warn("Failed to discover split ranges for [{}], falling back to single split", filePath, e);
             return false;
         } finally {
-            FormatReaderOwnership.closeIfDerived(reader, base);
+            ReaderReleasingIterator.closeReader(rangeReader);
         }
     }
 
@@ -1567,7 +1567,7 @@ public class FileSplitProvider implements SplitProvider {
         FileTask task,
         long targetStrideBytes,
         @Nullable StorageProvider hoistedProvider,
-        @Nullable FormatReader reader
+        @Nullable ResolvedFormat resolved
     ) throws IOException {
         long fileLength = task.fileLength();
         if (formatRegistry == null || storageRegistry == null || targetStrideBytes <= 0 || fileLength <= targetStrideBytes) {
@@ -1576,19 +1576,21 @@ public class FileSplitProvider implements SplitProvider {
         if (isNewlineMacroSplitCandidateExtension(task.format()) == false) {
             return null;
         }
-        // Reuses the reader resolved once in processFileForSplits (config-aware; see resolveConfiguredReader).
-        if (reader == null) {
+        // Reuses the factory resolved once in computeFileSplits (config-aware; see resolveConfiguredFormat).
+        if (resolved == null) {
             return null;
         }
-        if (reader instanceof CompressionDelegatingFormatReader) {
+        if (resolved.codec() != null) {
             return null;
         }
-        if (reader instanceof SegmentableFormatReader == false) {
+        if (resolved.factory().segmentable() == false) {
             return null;
         }
-        SegmentableFormatReader segmentableReader = (SegmentableFormatReader) reader;
-        RecordSplitter splitter = segmentableReader.recordSplitter(task.maxRecordBytes());
-        long minSegment = segmentableReader.minimumSegmentSize();
+        RecordSplitter splitter = resolved.factory().recordSplitter(task.config(), task.maxRecordBytes());
+        if (splitter == null) {
+            return null;
+        }
+        long minSegment = resolved.factory().minimumSegmentSize(task.config());
         boolean strided = splitter.supportsStridedProbing();
         // A strided splitter probes fixed offsets, so its positions are known here without reading anything.
         // The sequential walk chooses its own as it goes, so it carries none.

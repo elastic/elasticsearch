@@ -29,6 +29,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -125,11 +126,11 @@ public class TwoPhaseReaderTests extends ESTestCase {
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
 
         CountingStorageObject syncObj = new CountingStorageObject(parquetData, false);
-        ParquetFormatReader syncReader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader syncReader = readerWithPushedFilter(blockFactory, pushed);
         List<Page> singlePhasePages = readAllPages(syncReader, syncObj);
 
         CountingStorageObject asyncObj = new CountingStorageObject(parquetData, true);
-        ParquetFormatReader asyncReader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader asyncReader = readerWithPushedFilter(blockFactory, pushed);
         List<Page> twoPhasePages = readAllPages(asyncReader, asyncObj);
 
         // Both paths should produce the same number of surviving rows and the same id values.
@@ -159,17 +160,14 @@ public class TwoPhaseReaderTests extends ESTestCase {
             List.of(new LessThan(Source.EMPTY, id, new Literal(Source.EMPTY, 50L, DataType.LONG), null))
         );
 
-        List<Page> expected = readAllPages(
-            new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed),
-            new CountingStorageObject(parquetData, false)
-        );
+        List<Page> expected = readAllPages(readerWithPushedFilter(blockFactory, pushed), new CountingStorageObject(parquetData, false));
         FailingChunkPrefetchStorageObject failing = new FailingChunkPrefetchStorageObject(
             parquetData,
             false,
             columnChunkRanges(parquetData),
             1
         );
-        List<Page> actual = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), failing);
+        List<Page> actual = readAllPages(readerWithPushedFilter(blockFactory, pushed), failing);
         try {
             assertEquals(collectIds(expected), collectIds(actual));
             assertEquals(50, actual.stream().mapToInt(Page::getPositionCount).sum());
@@ -225,7 +223,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         assertTrue("fixture must contain several row groups", chunkRanges.size() >= 6);
         FailingChunkPrefetchStorageObject storage = new FailingChunkPrefetchStorageObject(parquetData, true, chunkRanges, 1);
 
-        List<Page> pages = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), storage);
+        List<Page> pages = readAllPages(readerWithPushedFilter(blockFactory, pushed), storage);
         try {
             assertEquals(matchingRows, pages.stream().mapToInt(Page::getPositionCount).sum());
             assertEquals(1, storage.failedChunkReads.get());
@@ -255,17 +253,14 @@ public class TwoPhaseReaderTests extends ESTestCase {
             List.of(new LessThan(Source.EMPTY, id, new Literal(Source.EMPTY, upperBound, DataType.LONG), null))
         );
 
-        List<Page> expected = readAllPages(
-            new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed),
-            new CountingStorageObject(parquetData, true)
-        );
+        List<Page> expected = readAllPages(readerWithPushedFilter(blockFactory, pushed), new CountingStorageObject(parquetData, true));
         FailingChunkPrefetchStorageObject failing = new FailingChunkPrefetchStorageObject(
             parquetData,
             true,
             columnChunkRanges(parquetData),
             1
         );
-        List<Page> actual = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), failing);
+        List<Page> actual = readAllPages(readerWithPushedFilter(blockFactory, pushed), failing);
         try {
             assertEquals(collectIds(expected), collectIds(actual));
             assertEquals(triviallyPasses ? rowCount : 50, actual.stream().mapToInt(Page::getPositionCount).sum());
@@ -287,15 +282,12 @@ public class TwoPhaseReaderTests extends ESTestCase {
         byte[] parquetData = fixture.parquetData();
         ParquetPushedExpressions pushed = fixture.pushed();
 
-        List<Page> expected = readAllPages(
-            new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed),
-            new CountingStorageObject(parquetData, true)
-        );
+        List<Page> expected = readAllPages(readerWithPushedFilter(blockFactory, pushed), new CountingStorageObject(parquetData, true));
         List<long[]> projectionRanges = columnChunkRanges(parquetData, Set.of("label"));
         assertEquals("single-row-group fixture must have one projection chunk", 1, projectionRanges.size());
         long[] projectionRange = projectionRanges.getFirst();
         FailingChunkPrefetchStorageObject failing = new FailingChunkPrefetchStorageObject(parquetData, true, projectionRanges, 1);
-        List<Page> actual = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), failing);
+        List<Page> actual = readAllPages(readerWithPushedFilter(blockFactory, pushed), failing);
         try {
             assertEquals(collectIds(expected), collectIds(actual));
             assertEquals(Math.min(upperBound, rowCount), actual.stream().mapToInt(Page::getPositionCount).sum());
@@ -350,7 +342,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         PhaseTwoFixture fixture = createPhaseTwoFixture(500, 50L);
         AlwaysFailingAsyncStorageObject storage = new AlwaysFailingAsyncStorageObject(fixture.parquetData());
 
-        List<Page> pages = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(fixture.pushed()), storage);
+        List<Page> pages = readAllPages(readerWithPushedFilter(blockFactory, fixture.pushed()), storage);
         try {
             assertEquals(50, pages.stream().mapToInt(Page::getPositionCount).sum());
             assertEquals(50, collectIds(pages).size());
@@ -369,7 +361,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         FailingChunkPrefetchStorageObject storage = new FailingChunkPrefetchStorageObject(fixture.parquetData(), true, projectionRanges, 1);
 
         try (
-            ParquetFormatReader reader = new ParquetFormatReader(trackingBlockFactory, true).withPushedFilter(fixture.pushed());
+            ParquetFormatReader reader = readerWithPushedFilter(trackingBlockFactory, fixture.pushed());
             CloseableIterator<Page> iterator = reader.read(storage, FormatReadContext.builder().batchSize(1024).build())
         ) {
             long afterOpen = trackingBreaker.storageReadReservations.get();
@@ -395,7 +387,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         FailingChunkPrefetchStorageObject storage = new FailingChunkPrefetchStorageObject(fixture.parquetData(), true, projectionRanges, 1);
 
         try (
-            ParquetFormatReader reader = new ParquetFormatReader(trackingBlockFactory, true).withPushedFilter(fixture.pushed());
+            ParquetFormatReader reader = readerWithPushedFilter(trackingBlockFactory, fixture.pushed());
             CloseableIterator<Page> iterator = reader.read(storage, FormatReadContext.builder().batchSize(1024).build())
         ) {
             trackingBreaker.rejectStorageReads = true;
@@ -417,7 +409,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         );
 
         try (
-            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(fixture.pushed());
+            ParquetFormatReader reader = readerWithPushedFilter(blockFactory, fixture.pushed());
             CloseableIterator<Page> iterator = reader.read(storage, FormatReadContext.builder().batchSize(1024).build())
         ) {
             AssertionError actual = expectThrows(AssertionError.class, iterator::hasNext);
@@ -437,7 +429,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         );
 
         try (
-            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(fixture.pushed());
+            ParquetFormatReader reader = readerWithPushedFilter(blockFactory, fixture.pushed());
             CloseableIterator<Page> iterator = reader.read(storage, FormatReadContext.builder().batchSize(1024).build())
         ) {
             IllegalStateException actual = expectThrows(IllegalStateException.class, iterator::hasNext);
@@ -496,11 +488,11 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         // Single-phase: pretend storage is local (no native async) so two-phase is bypassed.
         CountingStorageObject singlePhaseObj = new CountingStorageObject(parquetData, false);
-        readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), singlePhaseObj).forEach(Page::releaseBlocks);
+        readAllPages(readerWithPushedFilter(blockFactory, pushed), singlePhaseObj).forEach(Page::releaseBlocks);
 
         // Two-phase: storage advertises native async, enabling the two-phase path.
         CountingStorageObject twoPhaseObj = new CountingStorageObject(parquetData, true);
-        readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), twoPhaseObj).forEach(Page::releaseBlocks);
+        readAllPages(readerWithPushedFilter(blockFactory, pushed), twoPhaseObj).forEach(Page::releaseBlocks);
 
         // Two-phase should fetch strictly fewer bytes (Phase 1 saves predicate-only data, Phase 2
         // saves only surviving label pages). The exact ratio depends on dictionary + page layout
@@ -565,7 +557,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
 
         CountingStorageObject twoPhaseObj = new CountingStorageObject(parquetData, true);
-        List<Page> pages = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), twoPhaseObj);
+        List<Page> pages = readAllPages(readerWithPushedFilter(blockFactory, pushed), twoPhaseObj);
 
         List<Long> survivingIds = new ArrayList<>();
         try {
@@ -608,7 +600,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
 
         StorageObject obj = new CountingStorageObject(parquetData, true);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
         List<Page> pages = readAllPages(reader, obj);
 
         int total = pages.stream().mapToInt(Page::getPositionCount).sum();
@@ -654,7 +646,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
 
         CountingStorageObject asyncObj = new CountingStorageObject(parquetData, true);
-        List<Page> asyncPages = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), asyncObj);
+        List<Page> asyncPages = readAllPages(readerWithPushedFilter(blockFactory, pushed), asyncObj);
 
         int asyncRows = asyncPages.stream().mapToInt(Page::getPositionCount).sum();
         assertThat("late-mat must fire and retain only matching rows", asyncRows, equalTo(5));
@@ -679,7 +671,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         // fails clearly if two-phase ever engages here, while tolerating small async/sync wrapper
         // overhead asymmetries.
         CountingStorageObject syncObj = new CountingStorageObject(parquetData, false);
-        readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), syncObj).forEach(Page::releaseBlocks);
+        readAllPages(readerWithPushedFilter(blockFactory, pushed), syncObj).forEach(Page::releaseBlocks);
 
         long async = asyncObj.totalBytesRead.get();
         long sync = syncObj.totalBytesRead.get();
@@ -714,7 +706,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
 
         StorageObject obj = new CountingStorageObject(parquetData, true);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
         List<Page> pages = readAllPages(reader, obj);
         int total = pages.stream().mapToInt(Page::getPositionCount).sum();
         assertThat("expect zero rows after impossible filter", total, equalTo(0));
@@ -758,7 +750,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         // nativeAsync=true triggers the two-phase path
         CountingStorageObject asyncObj = new CountingStorageObject(parquetData, true);
-        ParquetFormatReader asyncReader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader asyncReader = readerWithPushedFilter(blockFactory, pushed);
         List<Page> twoPhasePages = readAllPages(asyncReader, asyncObj);
 
         int twoPhaseRows = twoPhasePages.stream().mapToInt(Page::getPositionCount).sum();
@@ -772,7 +764,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         // Cross-check against single-phase
         CountingStorageObject syncObj = new CountingStorageObject(parquetData, false);
-        ParquetFormatReader syncReader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader syncReader = readerWithPushedFilter(blockFactory, pushed);
         List<Page> singlePhasePages = readAllPages(syncReader, syncObj);
         int singlePhaseRows = singlePhasePages.stream().mapToInt(Page::getPositionCount).sum();
         assertThat("single-phase and two-phase row counts must match", twoPhaseRows, equalTo(singlePhaseRows));
@@ -833,7 +825,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         // Two-phase path (native async) must not throw and must produce every survivor, with the
         // null-leading projection column faithfully preserving its nulls and values.
         CountingStorageObject asyncObj = new CountingStorageObject(parquetData, true);
-        List<Page> asyncPages = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), asyncObj);
+        List<Page> asyncPages = readAllPages(readerWithPushedFilter(blockFactory, pushed), asyncObj);
         int asyncRows = asyncPages.stream().mapToInt(Page::getPositionCount).sum();
         int asyncLabelNulls = countLabelNulls(asyncPages);
         Set<String> asyncLabels = collectNonNullLabels(asyncPages);
@@ -843,7 +835,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         // Cross-check against the single-phase path on the same data and filter.
         CountingStorageObject syncObj = new CountingStorageObject(parquetData, false);
-        List<Page> syncPages = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), syncObj);
+        List<Page> syncPages = readAllPages(readerWithPushedFilter(blockFactory, pushed), syncObj);
         int syncRows = syncPages.stream().mapToInt(Page::getPositionCount).sum();
         int syncLabelNulls = countLabelNulls(syncPages);
         assertThat("single-phase and two-phase row counts must match", asyncRows, equalTo(syncRows));
@@ -929,7 +921,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         // when filterPredicate is null regardless of storage type
         for (boolean nativeAsync : new boolean[] { false, true }) {
             CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
-            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
             List<Page> pages = readAllPages(reader, obj);
 
             int totalRows = pages.stream().mapToInt(Page::getPositionCount).sum();
@@ -973,7 +965,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         // The reader must augment the projection to include 'url' for filter evaluation.
         for (boolean nativeAsync : new boolean[] { false, true }) {
             CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
-            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
             FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id")).build();
             try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
                 int engineCount = 0;
@@ -1033,7 +1025,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         for (boolean nativeAsync : new boolean[] { false, true }) {
             CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
-            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
             List<Page> pages = readAllPages(reader, obj);
             int engineCount = pages.stream().mapToInt(Page::getPositionCount).sum();
 
@@ -1084,7 +1076,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         for (boolean nativeAsync : new boolean[] { false, true }) {
             CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
-            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
             List<Page> pages = readAllPages(reader, obj);
             int engineCount = pages.stream().mapToInt(Page::getPositionCount).sum();
 
@@ -1126,7 +1118,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         for (boolean nativeAsync : new boolean[] { false, true }) {
             CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
-            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
             List<Page> pages = readAllPages(reader, obj);
             Set<Long> engineIds = collectIds(pages);
 
@@ -1175,7 +1167,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         for (boolean nativeAsync : new boolean[] { false, true }) {
             CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
-            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
             FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id", "title")).build();
             try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
                 int engineCount = 0;
@@ -1239,7 +1231,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         for (boolean nativeAsync : new boolean[] { false, true }) {
             CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
-            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
             FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id", "status")).build();
             try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
                 int engineCount = 0;
@@ -1302,7 +1294,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         for (boolean nativeAsync : new boolean[] { false, true }) {
             CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
-            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
             FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("url", "status")).build();
             try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
                 int engineCount = 0;
@@ -1359,7 +1351,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         for (boolean nativeAsync : new boolean[] { false, true }) {
             CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
-            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
             FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id")).build();
             try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
                 int engineCount = 0;
@@ -1423,7 +1415,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         for (boolean nativeAsync : new boolean[] { false, true }) {
             CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
-            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
             FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id", "title")).build();
             try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
                 int engineCount = 0;
@@ -1478,7 +1470,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         for (boolean nativeAsync : new boolean[] { false, true }) {
             CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
-            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
             FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id", "url")).build();
             try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
                 int engineCount = 0;
@@ -1537,7 +1529,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         for (boolean nativeAsync : new boolean[] { false, true }) {
             CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
-            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
             FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id", "url")).build();
             try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
                 int engineCount = 0;
@@ -1594,7 +1586,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         for (boolean nativeAsync : new boolean[] { false, true }) {
             CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
-            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
             FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id", "url")).build();
             try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
                 int engineCount = 0;
@@ -1643,7 +1635,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         for (boolean nativeAsync : new boolean[] { false, true }) {
             CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
-            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
             List<Page> pages = readAllPages(reader, obj);
             int engineCount = pages.stream().mapToInt(Page::getPositionCount).sum();
 
@@ -1679,7 +1671,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
 
         CountingStorageObject obj = new CountingStorageObject(parquetData, true);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
 
         try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(1024).build())) {
             long readNanosAfterOpen = reader.statusSnapshot().readNanos();
@@ -2161,4 +2153,14 @@ public class TwoPhaseReaderTests extends ESTestCase {
             return position >= range[0] && position + length <= range[1];
         }
     }
+
+    private static ParquetFormatReader readerWithPushedFilter(BlockFactory blockFactory, Object pushed) {
+        return (ParquetFormatReader) new ParquetFormatReaderFactory().create(
+            Settings.EMPTY,
+            blockFactory,
+            null,
+            FormatReadContext.Binding.empty().withPushedFilter(pushed)
+        );
+    }
+
 }

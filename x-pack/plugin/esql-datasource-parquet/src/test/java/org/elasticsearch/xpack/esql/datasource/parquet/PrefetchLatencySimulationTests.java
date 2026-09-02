@@ -111,7 +111,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         readAll(new ParquetFormatReader(blockFactory, false), baselineStorage);
         int baselineSyncReads = baselineStorage.syncReadCount.get();
 
-        readAll(new ParquetFormatReader(blockFactory, true), optimizedStorage);
+        readAll(new ParquetFormatReader(blockFactory), optimizedStorage);
         int optimizedSyncReads = optimizedStorage.syncReadCount.get();
         int optimizedAsyncReads = optimizedStorage.asyncReadCount.get();
 
@@ -151,7 +151,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         CountingStorageObject delayedStorage = new CountingStorageObject(parquetData, asyncIoExecutor);
 
         int baselineRows = countRows(new ParquetFormatReader(blockFactory, false), plainStorage);
-        int optimizedRows = countRows(new ParquetFormatReader(blockFactory, true), delayedStorage);
+        int optimizedRows = countRows(new ParquetFormatReader(blockFactory), delayedStorage);
 
         assertEquals("Row count mismatch between baseline and optimized with async storage", baselineRows, optimizedRows);
         assertTrue("Should have read some rows", optimizedRows > 0);
@@ -168,7 +168,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         byte[] parquetData = createMultiRowGroupFile(schema, 5000, 4096);
         CountingStorageObject storage = new CountingStorageObject(parquetData, asyncIoExecutor);
 
-        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory).read(storage, FormatReadContext.of(null, 1024))) {
             OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
             int initialDepth = opi.prefetchDepth();
 
@@ -199,7 +199,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         byte[] parquetData = createMultiRowGroupFile(schema, 5000, 4096);
         CountingStorageObject storage = new CountingStorageObject(parquetData, asyncIoExecutor);
 
-        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory).read(storage, FormatReadContext.of(null, 1024))) {
             OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
             int floor = opi.prefetchDepth();
 
@@ -254,7 +254,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             new IOException("injected prefetch failure")
         );
 
-        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory).read(storage, FormatReadContext.of(null, 1024))) {
             OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
             int floor = opi.prefetchDepth();
             assertTrue("fixture must produce a nontrivial byte-based prefetch floor", floor > 1);
@@ -286,7 +286,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             new CompletionException(new CompletionException(injected))
         );
 
-        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory).read(storage, FormatReadContext.of(null, 1024))) {
             int syncReadBaseline = storage.syncReadCount.get();
             AssertionError actual = expectThrows(AssertionError.class, iter::hasNext);
             assertSame(injected, actual);
@@ -446,7 +446,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
      */
     public void testTinyBudgetScanDrainsQueue() throws Exception {
         byte[] parquetData = smallInt64MultiRowGroupFile();
-        int unconstrained = countRows(new ParquetFormatReader(blockFactory, true), new CountingStorageObject(parquetData, asyncIoExecutor));
+        int unconstrained = countRows(new ParquetFormatReader(blockFactory), new CountingStorageObject(parquetData, asyncIoExecutor));
         try (CloseableIterator<Page> iter = openOptimized(parquetData)) {
             OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
             opi.setPrefetchByteBudget(1);
@@ -467,7 +467,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
     }
 
     private CloseableIterator<Page> openOptimized(byte[] parquetData) throws IOException {
-        return new ParquetFormatReader(blockFactory, true).read(
+        return new ParquetFormatReader(blockFactory).read(
             new CountingStorageObject(parquetData, asyncIoExecutor),
             FormatReadContext.of(null, 1024)
         );

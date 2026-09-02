@@ -15,6 +15,7 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Unified interface for storage object access.
@@ -126,9 +127,11 @@ public interface StorageObject {
      *
      * <p>
      * <b>Buffer ownership:</b> the storage object obtains exactly one {@link DirectReadBuffer} of
-     * {@code length} bytes from {@code factory}. The caller must invoke {@link DirectReadBuffer#close()}
-     * once the bytes have been consumed; closing releases the buffer (breaker charge for heap,
-     * native memory for Arrow-backed factories). See {@link DirectReadBuffer} for the contract.
+     * {@code length} bytes from {@code factory}. Ownership transfers to the caller immediately before
+     * {@code listener.onResponse()} is invoked, even if that callback throws. The caller must invoke
+     * {@link DirectReadBuffer#close()} once the bytes have been consumed; closing releases the buffer
+     * (breaker charge for heap, native memory for Arrow-backed factories). See {@link DirectReadBuffer}
+     * for the contract.
      *
      * <p>
      * <b>Implementation contract:</b> if the read fails, implementations must close the
@@ -170,32 +173,24 @@ public interface StorageObject {
             listener.onFailure(e);
             return;
         }
+        AtomicBoolean bufferReleasedOrTransferred = new AtomicBoolean();
         try {
             executor.execute(() -> {
                 try {
                     int read = Math.max(0, readBytes(position, drb.buffer()));
                     drb.buffer().position(0).limit(read);
                 } catch (Exception e) {
+                    bufferReleasedOrTransferred.set(true);
                     drb.close();
                     listener.onFailure(e);
                     return;
                 }
-                // Deliver outside the I/O catch so a throw from onResponse does not
-                // double-close drb or invoke listener.onFailure after listener.onResponse.
-                try {
-                    listener.onResponse(drb);
-                } catch (Exception e) {
-                    try {
-                        drb.close();
-                    } catch (Exception closeEx) {
-                        e.addSuppressed(closeEx);
-                    }
-                    throw e;
-                }
+                bufferReleasedOrTransferred.set(true);
+                listener.onResponse(drb);
             });
             submitted = true;
         } finally {
-            if (submitted == false) {
+            if (submitted == false && bufferReleasedOrTransferred.compareAndSet(false, true)) {
                 // Executor rejected (saturated queue, shutdown) — release the buffer eagerly so it
                 // does not stay charged against the breaker for the lifetime of the JVM.
                 drb.close();

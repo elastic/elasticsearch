@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -1866,7 +1867,7 @@ public class ExternalSourceResolver {
      * fail resolution (the data node rejects it at scan time), and dropping only forces a safe re-scan.
      */
     public boolean resolvesToSkipRow(String sourceType, Map<String, Object> config) {
-        FormatReader reader = dataSourceModule.formatReaderRegistry().findByName(sourceType);
+        FormatReaderFactory reader = dataSourceModule.formatReaderRegistry().findFactoryByName(sourceType);
         ErrorPolicy defaultPolicy = reader != null ? reader.defaultErrorPolicy() : ErrorPolicy.STRICT;
         try {
             return ErrorPolicy.fromConfig(config, defaultPolicy).mode() == ErrorPolicy.Mode.SKIP_ROW;
@@ -1884,7 +1885,7 @@ public class ExternalSourceResolver {
      * the footer default (no behavior change).
      */
     private boolean foldsAbsentColumnAsImplicitNull(String sourceType) {
-        FormatReader reader = dataSourceModule.formatReaderRegistry().findByName(sourceType);
+        FormatReaderFactory reader = dataSourceModule.formatReaderRegistry().findFactoryByName(sourceType);
         return reader == null || reader.aggregatePushdownSupport().appliesImplicitNullsForAbsentColumn();
     }
 
@@ -2658,7 +2659,7 @@ public class ExternalSourceResolver {
      * it is format-agnostic (and catches the implicit {@code SKIP_ROW} a bare {@code max_errors} selects).
      */
     private boolean warmsRowCountSafely(String sourceType, Map<String, Object> config) {
-        FormatReader reader = dataSourceModule.formatReaderRegistry().findByName(sourceType);
+        FormatReaderFactory reader = dataSourceModule.formatReaderRegistry().findFactoryByName(sourceType);
         ErrorPolicy defaultPolicy = reader != null ? reader.defaultErrorPolicy() : ErrorPolicy.STRICT;
         try {
             return ErrorPolicy.fromConfig(config, defaultPolicy).isStrict();

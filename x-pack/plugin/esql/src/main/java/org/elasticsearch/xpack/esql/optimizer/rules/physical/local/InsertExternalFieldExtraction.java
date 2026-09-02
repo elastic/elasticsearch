@@ -18,9 +18,8 @@ import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
-import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
@@ -50,8 +49,8 @@ import java.util.Set;
  * Bail-out conditions (rule returns the plan unchanged):
  * <ul>
  *     <li>No {@link ExternalSourceExec} reachable below the TopN through a {@link UnaryExec} spine.</li>
- *     <li>{@link #resolveReader(String, ExternalOptimizerContext)} yields no reader for the source's format, or
- *         one that does not implement {@link ColumnExtractorAware}.</li>
+ *     <li>{@link #resolveReader(String, ExternalOptimizerContext)} yields no factory for the source's
+ *         format, or a factory whose {@link FormatReaderFactory#columnExtractor()} is false.</li>
  *     <li>The read drops rows on a coercion failure ({@code error_mode: skip_row} over declared column types):
  *         the extract operator runs after the page shape is fixed and cannot drop rows, so the columnar iterator
  *         has to do the filtering itself — see {@code DeclaredReadSpec#dropsRowsOnCoercionFailure}.</li>
@@ -107,8 +106,8 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
             return topN;
         }
 
-        FormatReader reader = resolveReader(externalSource.sourceType(), ctx == null ? null : ctx.external());
-        if (reader instanceof ColumnExtractorAware == false) {
+        FormatReaderFactory reader = resolveReader(externalSource.sourceType(), ctx == null ? null : ctx.external());
+        if (reader == null || reader.columnExtractor() == false) {
             return topN;
         }
 
@@ -239,16 +238,16 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
      * up (no external context, no registry, source type unregistered) — every such case makes the rule bail out.
      * <p>
      * Encapsulating the lookup here keeps the rule body free of {@link FormatReaderRegistry} mechanics. The rule
-     * needs the reader itself rather than a single capability predicate: it asks both whether the reader is
-     * {@link ColumnExtractorAware} and what its {@link FormatReader#defaultErrorPolicy()} is.
+     * needs the factory itself rather than a single capability predicate: it asks both whether the factory
+     * supports column extraction and what its default error policy is.
      */
     @Nullable
-    static FormatReader resolveReader(String sourceType, ExternalOptimizerContext external) {
+    static FormatReaderFactory resolveReader(String sourceType, ExternalOptimizerContext external) {
         if (external == null || sourceType == null) {
             return null;
         }
         FormatReaderRegistry registry = external.formatReaderRegistry();
-        return registry != null ? registry.findByName(sourceType) : null;
+        return registry != null ? registry.findFactoryByName(sourceType) : null;
     }
 
     private static Integer limitOf(TopNExec topN, LocalPhysicalOptimizerContext ctx) {

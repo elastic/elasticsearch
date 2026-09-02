@@ -113,6 +113,43 @@ public class StreamingSegmentatorAdmissionTests extends ESTestCase {
         assertEquals(0, admission.pending());
     }
 
+    public void testCancellingPendingTicketRemovesTaskAndRunsCleanupOnce() {
+        StreamingSegmentatorAdmission admission = new StreamingSegmentatorAdmission(1);
+        AtomicInteger cleanup = new AtomicInteger();
+        AtomicInteger ran = new AtomicInteger();
+        Executor parked = command -> {};
+        admission.submit(() -> {}, parked, e -> fail("unexpected rejection"));
+
+        StreamingSegmentatorAdmission.Ticket ticket = admission.submit(
+            ran::incrementAndGet,
+            parked,
+            e -> fail("unexpected rejection"),
+            cleanup::incrementAndGet
+        );
+
+        assertEquals(1, admission.pending());
+        assertTrue(ticket.cancel());
+        assertFalse(ticket.cancel());
+        assertEquals(0, admission.pending());
+        assertEquals(1, cleanup.get());
+        assertEquals(0, ran.get());
+    }
+
+    public void testCancellingPromotedTicketDoesNotRunPendingCleanup() {
+        StreamingSegmentatorAdmission admission = new StreamingSegmentatorAdmission(1);
+        AtomicInteger cleanup = new AtomicInteger();
+
+        StreamingSegmentatorAdmission.Ticket ticket = admission.submit(
+            () -> {},
+            Runnable::run,
+            e -> fail("unexpected rejection"),
+            cleanup::incrementAndGet
+        );
+
+        assertFalse(ticket.cancel());
+        assertEquals(0, cleanup.get());
+    }
+
     /** The unbounded controller dispatches every segmentator immediately and never queues. */
     public void testUnboundedDispatchesImmediately() throws Exception {
         int submissions = 16;

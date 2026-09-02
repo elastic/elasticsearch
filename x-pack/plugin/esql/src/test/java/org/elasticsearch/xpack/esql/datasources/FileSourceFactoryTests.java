@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -150,8 +151,8 @@ public class FileSourceFactoryTests extends ESTestCase {
      * An explicit `format` is authoritative: it names the reader directly, so the factory must claim the
      * resource regardless of whether the location has an object name to infer an extension from. Detection
      * (extension-based inference) is only for `auto`/absent, which still require an object name. This mirrors
-     * resolveReader, which honors an explicit format unconditionally; canHandle must not reject what
-     * resolveReader would resolve.
+     * {@link FormatNameResolver#resolveFormat}, which honors an explicit format unconditionally; canHandle must not
+     * reject what the resolver would resolve.
      */
     public void testCanHandleWithExplicitFormatIsAuthoritativeRegardlessOfObjectName() {
         FileSourceFactory fileSourceFactory = newFileSourceFactory();
@@ -191,9 +192,8 @@ public class FileSourceFactoryTests extends ESTestCase {
     }
 
     private static FileSourceFactory newFileSourceFactory() {
-        FormatReader stubReader = new StubFormatReader();
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        formatRegistry.registerLazy("test-parquet", (s, bf) -> stubReader, Settings.EMPTY, null);
+        formatRegistry.registerLazy("test-parquet", new StubFormatReaderFactory());
         formatRegistry.registerExtension(".parquet", "test-parquet");
 
         StorageProviderRegistry storageRegistry = new StorageProviderRegistry(Settings.EMPTY);
@@ -206,8 +206,20 @@ public class FileSourceFactoryTests extends ESTestCase {
         return new FileSourceFactory(storageRegistry, formatRegistry, new DecompressionCodecRegistry(), Settings.EMPTY);
     }
 
+    private static final class StubFormatReaderFactory implements FormatReaderFactory {
+        @Override
+        public String formatName() {
+            return "test-parquet";
+        }
+
+        @Override
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return new StubFormatReader();
+        }
+    }
+
     /** Stub reader: no-op {@code read}, claims {@code .parquet} so the factory registry resolves. */
-    private static final class StubFormatReader implements NoConfigFormatReader {
+    private static final class StubFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -224,16 +236,6 @@ public class FileSourceFactoryTests extends ESTestCase {
             FormatReadContext context
         ) {
             throw new UnsupportedOperationException("operator is not driven in these tests");
-        }
-
-        @Override
-        public String formatName() {
-            return "test-parquet";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
         }
 
         @Override

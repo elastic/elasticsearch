@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -136,7 +135,7 @@ public class AsyncExternalSourceOperatorRealDriverTests extends ESTestCase {
         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             new StubStorageProvider(),
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             StoragePath.of("s3://bucket/slow.parquet"),
             singleIntAttribute(),
             100,
@@ -189,7 +188,7 @@ public class AsyncExternalSourceOperatorRealDriverTests extends ESTestCase {
             DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
             AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                 storageProvider,
-                formatReader,
+                TestFormatReaderFactory.of(formatReader),
                 StoragePath.of("s3://bucket/rg0.parquet"),
                 singleIntAttribute(),
                 100,
@@ -278,7 +277,7 @@ public class AsyncExternalSourceOperatorRealDriverTests extends ESTestCase {
      * {@code next()} call so the consumer Driver is forced to park on
      * {@link AsyncExternalSourceBuffer#waitForReading()} between pages.
      */
-    private static class SlowMultiPageFormatReader implements NoConfigFormatReader {
+    private static class SlowMultiPageFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -330,16 +329,6 @@ public class AsyncExternalSourceOperatorRealDriverTests extends ESTestCase {
                 @Override
                 public void close() {}
             };
-        }
-
-        @Override
-        public String formatName() {
-            return "test-slow-multi-page";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
         }
 
         @Override

@@ -29,7 +29,7 @@ public class NdJsonDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     /**
      * Per-dataset configuration keys accepted by the NDJSON format reader.
-     * Must stay in sync with {@code NdJsonFormatReader.RECOGNIZED_KEYS}; verified
+     * Must stay in sync with {@code NdJsonFormatReaderFactory.RECOGNIZED_KEYS}; verified
      * by {@code NdJsonFormatReaderRecognizedKeysTests.testFormatSpecConfigKeysMatchRecognizedKeys}.
      */
     static final Set<String> FORMAT_CONFIG_KEYS = Set.of("schema_sample_size", "segment_size", "datetime_format");
@@ -41,7 +41,7 @@ public class NdJsonDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-        return Map.of("ndjson", NdJsonFormatReader::new);
+        return Map.of("ndjson", new NdJsonFormatReaderFactory(settings));
     }
 
     @Override

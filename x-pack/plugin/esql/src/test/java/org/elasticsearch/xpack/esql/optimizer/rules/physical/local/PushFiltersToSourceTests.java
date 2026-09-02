@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
@@ -24,7 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -116,11 +118,9 @@ public class PushFiltersToSourceTests extends ESTestCase {
     /**
      * The stub above reaches {@code false} by saying nothing, which is the point: the SPI default is the conservative
      * answer, so a reader written without a thought for {@code skip_row} loses the pushdown rather than the row-drop.
-     * Pinned separately from the rule so a flip of the default is a failure here and not only a silent correctness
-     * regression in whichever reader forgot to opt out.
      */
     public void testReaderSilentAboutRowDropTakesTheConservativeDefault() {
-        assertFalse(new StubReader().dropsRowsUnderPushedFilter());
+        assertFalse(new StubFactory(false).dropsRowsUnderPushedFilter());
     }
 
     /** The same read on a reader that does drop rows on its filtered path (ORC) keeps the pushdown. */
@@ -193,25 +193,44 @@ public class PushFiltersToSourceTests extends ESTestCase {
 
     private static FormatReaderRegistry registry(boolean dropsRowsUnderPushedFilter) {
         FormatReaderRegistry registry = new FormatReaderRegistry(null);
-        FormatReader reader = dropsRowsUnderPushedFilter ? new DroppingStubReader() : new StubReader();
-        registry.registerLazy("parquet", (settings, blockFactory) -> reader, null, null);
+        registry.registerLazy("parquet", new StubFactory(dropsRowsUnderPushedFilter));
         return registry;
     }
 
     /**
-     * Reader stub whose only interesting behaviour is the pair the rule consults: it always offers pushdown (via a
+     * Factory stub whose only interesting behaviour is the pair the rule consults: it always offers pushdown (via a
      * support object that swallows every conjunct) and says nothing at all about
-     * {@link FormatReader#dropsRowsUnderPushedFilter()} — the shape a newly written reader has, so it takes the SPI
-     * default. The remaining {@link NoConfigFormatReader} methods stay unimplemented so accidental use during a rule
-     * pass is loud.
+     * row dropping unless explicitly configured. The runtime reader throws if optimizer code crosses the factory boundary.
      */
-    private static class StubReader implements NoConfigFormatReader {
+    private static class StubFactory implements FormatReaderFactory {
+        private final boolean dropsRowsUnderPushedFilter;
+
+        StubFactory(boolean dropsRowsUnderPushedFilter) {
+            this.dropsRowsUnderPushedFilter = dropsRowsUnderPushedFilter;
+        }
 
         @Override
         public FilterPushdownSupport filterPushdownSupport() {
             return filters -> new FilterPushdownSupport.PushdownResult("opaque", filters, List.of());
         }
 
+        @Override
+        public boolean dropsRowsUnderPushedFilter() {
+            return dropsRowsUnderPushedFilter;
+        }
+
+        @Override
+        public String formatName() {
+            return "parquet";
+        }
+
+        @Override
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return new StubReader();
+        }
+    }
+
+    private static class StubReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -228,24 +247,6 @@ public class PushFiltersToSourceTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "parquet";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
-        }
-
-        @Override
         public void close() {}
-    }
-
-    /** The opt-in half: a reader that does declare the row-drop on its filtered path, as ORC does. */
-    private static final class DroppingStubReader extends StubReader {
-        @Override
-        public boolean dropsRowsUnderPushedFilter() {
-            return true;
-        }
     }
 }

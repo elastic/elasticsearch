@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
 import java.util.Locale;
 import java.util.Map;
@@ -30,9 +29,9 @@ import java.util.Set;
  * </ol>
  * <p>
  * An explicit {@code reader}/{@code format} override selects the format but does not opt the resource out
- * of compression detection: {@link #resolveReader} still composes the named format with the resource's
+ * of compression detection: {@link #resolveFormat} still composes the named format with the resource's
  * outer compression suffix (e.g. {@code format: csv} over {@code hits.csv.gz} still decompresses), routing
- * through {@link FormatReaderRegistry#byNameForObject} rather than a bare name lookup.
+ * through {@link FormatReaderRegistry#resolveByNameForObject} rather than a bare name lookup.
  */
 public final class FormatNameResolver {
 
@@ -77,7 +76,7 @@ public final class FormatNameResolver {
      *
      * <p>This is the single source of truth for {@code format} sentinel handling. Both the CRUD
      * validator ({@code FileDataSourceValidator.explicitFormat}) and the query-time resolvers
-     * ({@link #resolve}, {@link #resolveReader}) delegate here so new sentinels only need one edit.
+     * ({@link #resolve}, {@link #resolveFormat}) delegate here so new sentinels only need one edit.
      */
     @Nullable
     public static String parseExplicitFormat(Object raw) {
@@ -94,7 +93,7 @@ public final class FormatNameResolver {
      * <b>Not compound-extension aware:</b> the extension fallback here is a naive last-dot, so a compound name like
      * {@code hits.csv.gz} resolves to the codec suffix {@code "gz"}, not {@code "csv"}. A caller that keys operator
      * dispatch or reader lookup on the format over a possibly-compressed resource must use {@link #resolveFormatName}
-     * (or {@link #resolveReader}), which routes through the compound-aware registry. Kept for the config-override-only
+     * (or {@link #resolveFormat}), which routes through the compound-aware registry. Kept for the config-override-only
      * path ({@code FileSourceFactory} passes an empty source path); {@code PushFiltersToSource} still calls it over the
      * exec source path and so misses filter pushdown on compressed text — migrating that caller is tracked separately.
      *
@@ -135,27 +134,27 @@ public final class FormatNameResolver {
      * Resolves the format <em>name</em> (e.g. {@code "csv"}, {@code "parquet"}) using config and source path, routed
      * through the registry so it is compound-extension aware. Unlike {@link #resolve}, which last-dots the path and
      * would yield the compression codec suffix ({@code "gz"}) for a compound name like {@code hits.csv.gz}, this
-     * delegates to {@link #resolveReader} and reads back {@link FormatReader#formatName()} —
-     * {@link CompressionDelegatingFormatReader#formatName()} returns the wrapped format, so the result equals the
+     * delegates to {@link #resolveFormat} and reads back {@link ResolvedFormat#formatName()}.
+     * The composed lookup returns the wrapped format, so the result equals the
      * format name the inferred read path ({@code FileSourceFactory}) would produce. The strict resolver keys
      * operator-factory dispatch on the result, so it uses this rather than {@link #resolve} to avoid diverging from the
      * read path over a compressed resource.
      */
     public static String resolveFormatName(Map<String, Object> config, String objectName, FormatReaderRegistry registry) {
-        return resolveReader(config, objectName, registry).formatName();
+        return resolveFormat(config, objectName, registry).formatName();
     }
 
     /**
-     * Resolves the format reader using config and source path, looking up the result in the registry.
+     * Resolves the format factory and optional whole-file compression codec using config and source path.
      * <p>
      * Config-based overrides ({@code reader}, {@code format}) are resolved via {@link #resolve} and looked
-     * up by name through {@link FormatReaderRegistry#byNameForObject}, which composes the named format with
-     * {@code objectName}'s outer compression suffix (if any) exactly like the extension-based path — an
+     * up by name through {@link FormatReaderRegistry#resolveByNameForObject}, which composes the named format with
+     * {@code objectName}'s outer compression suffix (if any) exactly like the extension-based path. An
      * explicit override selects the format but does not opt the resource out of compression detection.
-     * Extension-based resolution delegates to {@link FormatReaderRegistry#byExtension} which handles
+     * Extension-based resolution delegates to {@link FormatReaderRegistry#resolveByExtension} which handles
      * compound extensions (e.g. {@code .ndjson.bz}) and compression codecs.
      */
-    public static FormatReader resolveReader(Map<String, Object> config, String objectName, FormatReaderRegistry registry) {
+    public static ResolvedFormat resolveFormat(Map<String, Object> config, String objectName, FormatReaderRegistry registry) {
         if (config != null) {
             Object readerOverride = config.get(CONFIG_READER);
             if (readerOverride != null) {
@@ -164,14 +163,14 @@ public final class FormatNameResolver {
                 if (formatName == null) {
                     throw new IllegalArgumentException("Unknown reader [" + alias + "]; supported values: " + supportedReaderAliases());
                 }
-                return registry.byNameForObject(formatName, objectName);
+                return registry.resolveByNameForObject(formatName, objectName);
             }
             String name = parseExplicitFormat(config.get(CONFIG_FORMAT));
             if (name != null) {
-                return registry.byNameForObject(name, objectName);
+                return registry.resolveByNameForObject(name, objectName);
             }
         }
-        return registry.byExtension(objectName);
+        return registry.resolveByExtension(objectName);
     }
 
     private static String formatFromExtension(String sourcePath) {

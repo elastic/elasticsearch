@@ -17,8 +17,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * Mutable, thread-safe counter struct for a {@link ParquetFormatReader}. One instance is held per
- * reader; instrumentation sites bump fields around footer reads, row-group filtering, page-index
+ * Mutable, thread-safe counter struct shared by the {@link ParquetFormatReader} instances built for
+ * one query. Instrumentation sites bump fields around footer reads, row-group filtering, page-index
  * narrowing, late materialization, per-column reads, the {@code read} / {@code readRange} entry
  * points, and the row-group transitions / per-batch decode of the returned column iterators
  * ({@code ParquetColumnIterator}, {@link OptimizedParquetColumnIterator}). {@link #snapshot()}

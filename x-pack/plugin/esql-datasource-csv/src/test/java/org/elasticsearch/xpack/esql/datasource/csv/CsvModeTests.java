@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions.Mode;
 
@@ -109,35 +106,35 @@ public class CsvModeTests extends ESTestCase {
     // ---- Permissive overrides: a character the preset wouldn't use is no longer rejected ----
 
     public void testPlainAcceptsExplicitQuoteOverride() {
-        assertNotNull(tsvReader().withConfigTrackingConsumedKeys(Map.of("mode", "plain", "quote", "\"")));
+        assertNotNull(tsvFactory().inspect(Map.of("mode", "plain", "quote", "\"")));
     }
 
     public void testEscapedAcceptsExplicitQuoteOverride() {
-        assertNotNull(tsvReader().withConfigTrackingConsumedKeys(Map.of("mode", "escaped", "quote", "'")));
+        assertNotNull(tsvFactory().inspect(Map.of("mode", "escaped", "quote", "'")));
         // escaped+quote is accepted, and emits the deterministic decode-disabled config warning; clear
         // it so it doesn't trip ESTestCase's unexpected-response-header check at teardown.
         threadContext.stashContext();
     }
 
     public void testPlainAcceptsExplicitEscapeOverride() {
-        assertNotNull(csvReader().withConfigTrackingConsumedKeys(Map.of("mode", "plain", "escape", "\\\\")));
+        assertNotNull(csvFactory().inspect(Map.of("mode", "plain", "escape", "\\\\")));
     }
 
     public void testQuoteNoneAndEscapeNoneAccepted() {
-        assertNotNull(csvReader().withConfigTrackingConsumedKeys(Map.of("mode", "quoted", "quote", "none")));
-        assertNotNull(csvReader().withConfigTrackingConsumedKeys(Map.of("mode", "quoted", "escape", "none")));
+        assertNotNull(csvFactory().inspect(Map.of("mode", "quoted", "quote", "none")));
+        assertNotNull(csvFactory().inspect(Map.of("mode", "quoted", "escape", "none")));
     }
 
     /** An empty string means "use the default", not an explicit character. */
     public void testEmptyCharacterValueIsNotExplicit() {
-        assertNotNull(csvReader().withConfigTrackingConsumedKeys(Map.of("mode", "plain", "quote", "")));
-        assertNotNull(csvReader().withConfigTrackingConsumedKeys(Map.of("mode", "plain", "escape", "")));
+        assertNotNull(csvFactory().inspect(Map.of("mode", "plain", "quote", "")));
+        assertNotNull(csvFactory().inspect(Map.of("mode", "plain", "escape", "")));
     }
 
     public void testBracketsRequireQuoting() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> csvReader().withConfigTrackingConsumedKeys(Map.of("mode", "plain", "multi_value_syntax", "brackets"))
+            () -> csvFactory().inspect(Map.of("mode", "plain", "multi_value_syntax", "brackets"))
         );
         assertEquals(
             "multi_value_syntax [brackets] requires quoting (mode [quoted] or an explicit quote character); "
@@ -145,25 +142,22 @@ public class CsvModeTests extends ESTestCase {
             ex.getMessage()
         );
         // ... but an explicit quote override re-enables quoting, so brackets are then accepted.
-        assertNotNull(csvReader().withConfigTrackingConsumedKeys(Map.of("mode", "plain", "quote", "\"", "multi_value_syntax", "brackets")));
+        assertNotNull(csvFactory().inspect(Map.of("mode", "plain", "quote", "\"", "multi_value_syntax", "brackets")));
     }
 
     public void testInvalidModeValueRejected() {
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> csvReader().withConfigTrackingConsumedKeys(Map.of("mode", "tabbed"))
-        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> csvFactory().inspect(Map.of("mode", "tabbed")));
         assertEquals("Invalid mode [tabbed]. Accepted values: \"quoted\", \"escaped\", \"plain\"", ex.getMessage());
     }
 
     // ---- Acceptance: configurations resolve ----
 
     public void testConfigsAccepted() {
-        assertNotNull(tsvReader().withConfigTrackingConsumedKeys(Map.of("mode", "plain")));
-        assertNotNull(tsvReader().withConfigTrackingConsumedKeys(Map.of("mode", "escaped")));
-        assertNotNull(tsvReader().withConfigTrackingConsumedKeys(Map.of("mode", "escaped", "escape", "\\\\")));
-        assertNotNull(csvReader().withConfigTrackingConsumedKeys(Map.of("mode", "quoted", "quote", "'")));
-        assertNotNull(csvReader().withConfigTrackingConsumedKeys(Map.of("mode", "plain", "delimiter", "|")));
+        assertNotNull(tsvFactory().inspect(Map.of("mode", "plain")));
+        assertNotNull(tsvFactory().inspect(Map.of("mode", "escaped")));
+        assertNotNull(tsvFactory().inspect(Map.of("mode", "escaped", "escape", "\\\\")));
+        assertNotNull(csvFactory().inspect(Map.of("mode", "quoted", "quote", "'")));
+        assertNotNull(csvFactory().inspect(Map.of("mode", "plain", "delimiter", "|")));
     }
 
     // ---- helpers ----
@@ -187,15 +181,11 @@ public class CsvModeTests extends ESTestCase {
         );
     }
 
-    private static CsvFormatReader csvReader() {
-        return new CsvFormatReader(blockFactory(), "csv", List.of(".csv"));
+    private static CsvFormatReaderFactory csvFactory() {
+        return new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true);
     }
 
-    private static CsvFormatReader tsvReader() {
-        return new CsvFormatReader(blockFactory(), CsvFormatOptions.TSV, "tsv", List.of(".tsv"));
-    }
-
-    private static BlockFactory blockFactory() {
-        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+    private static CsvFormatReaderFactory tsvFactory() {
+        return new CsvFormatReaderFactory("tsv", List.of(".tsv"), CsvFormatOptions.TSV, true);
     }
 }

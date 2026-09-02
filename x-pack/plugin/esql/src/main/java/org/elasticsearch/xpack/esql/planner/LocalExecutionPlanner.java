@@ -755,7 +755,7 @@ public class LocalExecutionPlanner {
                 "ExternalFieldExtractExec planned above source factory ["
                     + source.sourceOperatorFactory.getClass().getName()
                     + "] which does not implement DeferredExtractionCapable; "
-                    + "InsertExternalFieldExtraction must only fire above ColumnExtractorAware sources"
+                    + "InsertExternalFieldExtraction must only fire above FormatReaderFactory.columnExtractor() sources"
             );
         }
         DeferredExtractionCapable capable = (DeferredExtractionCapable) source.sourceOperatorFactory;
@@ -917,7 +917,7 @@ public class LocalExecutionPlanner {
             );
         }
         // For a single keyword/text sort key directly over an external source, publish the generic
-        // TopNOperator's competitive BytesRef bound to DynamicThresholdAware format readers so they
+        // TopNOperator's competitive BytesRef bound to dynamic-threshold format-reader builders so they
         // can skip row groups/stripes that cannot contain a globally competitive row. This is the
         // BYTES_REF counterpart to the numeric NumericTopNOperator + SharedNumericThreshold path.
         // Wiring the readers and obtaining the supplier are done together so a pre-set supplier on
@@ -942,7 +942,8 @@ public class LocalExecutionPlanner {
     /**
      * Builds and wires a {@link SharedMinCompetitive} side-channel so the generic
      * {@code TopNOperator} can publish a competitive {@code BYTES_REF} bound to the external source's
-     * {@code DynamicThresholdAware} format readers, or returns {@code null} when the plan shape does
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory#acceptsDynamicThreshold()
+     * FormatReaderFactory.acceptsDynamicThreshold()} source, or returns {@code null} when the plan shape does
      * not qualify. The same supplier is handed back to the caller so the operator and the readers
      * share one channel.
      *

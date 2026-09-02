@@ -18,7 +18,7 @@ import java.util.List;
 
 /**
  * NDJSON binding of the standard-metadata matrix. The NDJSON reader is not
- * {@code ColumnExtractorAware}; schema is inferred from the rows (small ints to {@code emp_no}:int,
+ * a column-extracting format; schema is inferred from the rows (small ints to {@code emp_no}:int,
  * quoted strings to keyword).
  */
 public class NdjsonExternalMetadataMatrixIT extends AbstractExternalMetadataMatrixIT {

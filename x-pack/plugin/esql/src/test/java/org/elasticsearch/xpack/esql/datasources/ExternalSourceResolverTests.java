@@ -36,14 +36,14 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
-import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
-import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -1074,7 +1073,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-                return Map.of("parquet", (s, bf) -> formatReader);
+                return Map.of("parquet", TestFormatReaderFactory.basic(() -> formatReader).withFormatName("parquet"));
             }
         };
 
@@ -1398,21 +1397,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
     ) {
         StubFormatReaderWithStats reader = new StubFormatReaderWithStats(schemasByPath, rowCountsByPath) {
             @Override
-            public String formatName() {
-                return "ndjson";
-            }
-
-            @Override
-            public List<String> fileExtensions() {
-                return List.of(".ndjson");
-            }
-
-            @Override
-            public AggregatePushdownSupport aggregatePushdownSupport() {
-                return new TextAggregatePushdownSupport();
-            }
-
-            @Override
             public SourceMetadata metadata(StorageObject object) {
                 SourceMetadata inner = super.metadata(object);
                 return new SourceMetadata() {
@@ -1456,7 +1440,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-                return Map.of("ndjson", (s, bf) -> reader);
+                return Map.of(
+                    "ndjson",
+                    TestFormatReaderFactory.basic(() -> reader)
+                        .withFormatName("ndjson")
+                        .withAggregatePushdownSupport(new TextAggregatePushdownSupport())
+                );
             }
         };
         List<DataSourcePlugin> plugins = List.of(plugin);
@@ -1477,24 +1466,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     private ExternalSourceResolver datasetGateResolver(ExternalSourceCacheService cacheService) {
         StubFormatReaderWithStats footerReader = new StubFormatReaderWithStats(Map.of(), Map.of());
         // Same stub, but named ndjson and declaring the text contract: an absent column stat safe-misses
-        // to a re-scan. formatName() must round-trip through the registry back to THIS reader — the gate
-        // resolves reader -> formatName -> findByName, exactly like the read path.
-        StubFormatReaderWithStats textReader = new StubFormatReaderWithStats(Map.of(), Map.of()) {
-            @Override
-            public String formatName() {
-                return "ndjson";
-            }
-
-            @Override
-            public List<String> fileExtensions() {
-                return List.of(".ndjson");
-            }
-
-            @Override
-            public AggregatePushdownSupport aggregatePushdownSupport() {
-                return new TextAggregatePushdownSupport();
-            }
-        };
+        // to a re-scan.
+        StubFormatReaderWithStats textReader = new StubFormatReaderWithStats(Map.of(), Map.of()) {};
         DataSourcePlugin plugin = new DataSourcePlugin() {
             @Override
             public Set<FormatSpec> formatSpecs() {
@@ -1503,7 +1476,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-                return Map.of("parquet", (s, bf) -> footerReader, "ndjson", (s, bf) -> textReader);
+                return Map.of(
+                    "parquet",
+                    TestFormatReaderFactory.basic(() -> footerReader).withFormatName("parquet"),
+                    "ndjson",
+                    TestFormatReaderFactory.basic(() -> textReader)
+                        .withFormatName("ndjson")
+                        .withAggregatePushdownSupport(new TextAggregatePushdownSupport())
+                );
             }
         };
         List<DataSourcePlugin> plugins = List.of(plugin);
@@ -1831,19 +1811,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     // ===== Default schema resolution strategy =====
 
-    /**
-     * Both the SPI default ({@link FormatReader#defaultSchemaResolution()}) and the resolver's
-     * config-parse fallback ({@code parseSchemaResolution(null/missing)}) must derive from the
-     * same constant — keeping them in lockstep is the whole point of
-     * {@link FormatReader#DEFAULT_SCHEMA_RESOLUTION}. This test catches a drift between the two
-     * (which previously had to be kept in sync by convention).
-     */
+    /** The resolver's config fallback must derive from {@link FormatReader#DEFAULT_SCHEMA_RESOLUTION}. */
     public void testDefaultSchemaResolutionIsSingleSourceOfTruth() {
         FormatReader reader = new StubFormatReader(Map.of());
         assertEquals(
             "SPI default must equal the FormatReader.DEFAULT_SCHEMA_RESOLUTION constant",
             FormatReader.DEFAULT_SCHEMA_RESOLUTION,
-            reader.defaultSchemaResolution()
+            FormatReader.DEFAULT_SCHEMA_RESOLUTION
         );
         assertEquals(
             "Resolver's null-config fallback must equal the FormatReader.DEFAULT_SCHEMA_RESOLUTION constant",
@@ -3558,7 +3532,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-                return Map.of("parquet", (s, bf) -> formatReader);
+                return Map.of("parquet", TestFormatReaderFactory.basic(() -> formatReader).withFormatName("parquet"));
             }
         };
 
@@ -3649,7 +3623,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-                return Map.of("parquet", (s, bf) -> formatReader);
+                return Map.of("parquet", TestFormatReaderFactory.basic(() -> formatReader).withFormatName("parquet"));
             }
         };
 
@@ -3731,7 +3705,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-                return Map.of("parquet", (s, bf) -> formatReader);
+                return Map.of("parquet", TestFormatReaderFactory.basic(() -> formatReader).withFormatName("parquet"));
             }
 
             /**
@@ -3811,7 +3785,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         BooleanSupplier isCancelled,
         AtomicInteger readCounter
     ) {
-        NoConfigFormatReader formatReader = new NoConfigFormatReader() {
+        FormatReader formatReader = new FormatReader() {
             @Override
             public RowPositionStrategy rowPositionStrategy() {
                 return PassThroughRowPositionStrategy.INSTANCE;
@@ -3831,16 +3805,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
             @Override
             public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
                 throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public String formatName() {
-                return "parquet";
-            }
-
-            @Override
-            public List<String> fileExtensions() {
-                return List.of(".parquet");
             }
 
             @Override
@@ -3866,7 +3830,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-                return Map.of("parquet", (s, bf) -> formatReader);
+                return Map.of("parquet", TestFormatReaderFactory.basic(() -> formatReader).withFormatName("parquet"));
             }
         };
 
@@ -3900,7 +3864,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Supplier<? extends Exception> failure,
         @Nullable ExternalSourceCacheService cacheService
     ) {
-        NoConfigFormatReader formatReader = new NoConfigFormatReader() {
+        FormatReader formatReader = new FormatReader() {
             @Override
             public RowPositionStrategy rowPositionStrategy() {
                 return PassThroughRowPositionStrategy.INSTANCE;
@@ -3920,16 +3884,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
             @Override
             public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
                 throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public String formatName() {
-                return formatName;
-            }
-
-            @Override
-            public List<String> fileExtensions() {
-                return List.of(extension);
             }
 
             @Override
@@ -3955,7 +3909,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-                return Map.of(formatName, (s, bf) -> formatReader);
+                return Map.of(formatName, TestFormatReaderFactory.basic(() -> formatReader).withFormatName(formatName));
             }
         };
 
@@ -3989,7 +3943,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         AtomicInteger readCounter,
         String failOnPathSuffix
     ) {
-        NoConfigFormatReader formatReader = new NoConfigFormatReader() {
+        FormatReader formatReader = new FormatReader() {
             @Override
             public RowPositionStrategy rowPositionStrategy() {
                 return PassThroughRowPositionStrategy.INSTANCE;
@@ -4050,16 +4004,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
             }
 
             @Override
-            public String formatName() {
-                return "parquet";
-            }
-
-            @Override
-            public List<String> fileExtensions() {
-                return List.of(".parquet");
-            }
-
-            @Override
             public void close() {}
         };
         StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
@@ -4082,7 +4026,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-                return Map.of("parquet", (s, bf) -> formatReader);
+                return Map.of("parquet", TestFormatReaderFactory.basic(() -> formatReader).withFormatName("parquet"));
             }
         };
 
@@ -4126,7 +4070,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-                return Map.of("parquet", (s, bf) -> formatReader);
+                return Map.of("parquet", TestFormatReaderFactory.basic(() -> formatReader).withFormatName("parquet"));
             }
         };
 
@@ -4440,7 +4384,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-                return Map.of("parquet", (s, bf) -> formatReader);
+                return Map.of("parquet", TestFormatReaderFactory.basic(() -> formatReader).withFormatName("parquet"));
             }
         };
 
@@ -4467,7 +4411,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * {@code null} reads complete without rendezvous. A configured {@code failPath} fails that file's
      * read with an {@link IOException}.
      */
-    private static class AsyncStubFormatReader implements NoConfigFormatReader {
+    private static class AsyncStubFormatReader implements FormatReader {
         private final Map<String, List<Attribute>> schemasByPath;
         private final ExecutorService readPool;
         private final CountDownLatch gate;
@@ -4533,16 +4477,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "parquet";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
-        }
-
-        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -4553,7 +4487,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     // ===== Stub implementations =====
 
-    private static class StubFormatReader implements NoConfigFormatReader {
+    private static class StubFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -4578,16 +4512,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String formatName() {
-            return "parquet";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
         }
 
         @Override
@@ -4623,7 +4547,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * A StubFormatReader that also returns per-file row counts as statistics.
      * Used to test the aggregated stats path in multi-file resolution.
      */
-    private static class StubFormatReaderWithStats implements NoConfigFormatReader {
+    private static class StubFormatReaderWithStats implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -4702,16 +4626,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String formatName() {
-            return "parquet";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
         }
 
         @Override
@@ -5042,8 +4956,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     ) {
         StubStorageProvider storageProvider = new StubStorageProvider(Map.of(), schemasByPath);
         FormatReaderFactory readerFactory = "csv".equals(formatName)
-            ? (s, bf) -> new CsvFormatReader(bf, "csv", List.of(".csv"))
-            : (s, bf) -> new NdJsonFormatReader(s, bf, null);
+            ? new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true)
+            : new NdJsonFormatReaderFactory(Settings.EMPTY);
 
         DataSourcePlugin plugin = new DataSourcePlugin() {
             @Override
@@ -5106,7 +5020,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-                return Map.of("parquet", (s, bf) -> formatReader);
+                return Map.of("parquet", TestFormatReaderFactory.basic(() -> formatReader).withFormatName("parquet"));
             }
         };
 

@@ -68,8 +68,8 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
  * {@code ColumnReader} path to verify they produce identical results.
  * <p>
  * For each test, an in-memory Parquet file is written and read by two readers:
- * the default (optimized) reader and a {@link ParquetFormatReader#withBaselinePath() baseline}
- * reader. Pages from both are compared block-by-block, position-by-position.
+ * the default (optimized) reader and {@link ParquetFormatReader#forcedBaseline(BlockFactory)}.
+ * Pages from both are compared block-by-block, position-by-position.
  * <p>
  * Explicit tests cover the V1/V2 x compression matrix. A randomized test generates schemas
  * with random column counts and null patterns, catching edge cases in buffer management
@@ -704,7 +704,7 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
 
     private void assertOptimizedMatchesBaseline(byte[] data, List<String> columns) throws IOException {
         List<Page> optimized = readAll(new ParquetFormatReader(blockFactory), data, columns);
-        List<Page> baseline = readAll(new ParquetFormatReader(blockFactory).withBaselinePath(), data, columns);
+        List<Page> baseline = readAll(ParquetFormatReader.forcedBaseline(blockFactory), data, columns);
 
         try {
             assertEquals("page count", baseline.size(), optimized.size());

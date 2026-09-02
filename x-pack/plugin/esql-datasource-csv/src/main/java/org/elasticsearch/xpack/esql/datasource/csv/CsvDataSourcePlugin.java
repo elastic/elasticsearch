@@ -105,13 +105,9 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
         return Map.of(
             "csv",
-            (s, blockFactory) -> new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withDirectBlockEnabled(
-                CSV_DIRECT_BLOCK_ENABLED.get(s)
-            ),
+            new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, CSV_DIRECT_BLOCK_ENABLED.get(settings)),
             "tsv",
-            (s, blockFactory) -> new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv")).withDirectBlockEnabled(
-                CSV_DIRECT_BLOCK_ENABLED.get(s)
-            )
+            new CsvFormatReaderFactory("tsv", List.of(".tsv"), CsvFormatOptions.TSV, CSV_DIRECT_BLOCK_ENABLED.get(settings))
         );
     }
 

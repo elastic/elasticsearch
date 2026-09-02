@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.junit.Before;
@@ -56,7 +57,8 @@ public class NdJsonDottedPrefixChunkConsistencyTests extends ESTestCase {
 
     public void testSiblingColumnAbsentFromLaterChunksStillDecodesFlatKey() throws Exception {
         Settings settings = segmentSize64Kb();
-        long chunkSize = new NdJsonFormatReader(settings, blockFactory).minimumSegmentSize();
+        NdJsonFormatReaderFactory factory = new NdJsonFormatReaderFactory(settings);
+        long chunkSize = factory.minimumSegmentSize(null);
 
         StringBuilder ndjson = new StringBuilder();
         int rows = 0;
@@ -72,7 +74,6 @@ public class NdJsonDottedPrefixChunkConsistencyTests extends ESTestCase {
         assertTrue("fixture must span several chunks", ndjson.length() > chunkSize * 2);
 
         List<Attribute> bound = List.of(new ReferenceAttribute(Source.EMPTY, "languages.long", DataType.LONG));
-        NdJsonFormatReader reader = new NdJsonFormatReader(settings, blockFactory).withSchema(bound);
 
         InputStream stream = new ByteArrayInputStream(ndjson.toString().getBytes(StandardCharsets.UTF_8));
         ExecutorService executor = Executors.newFixedThreadPool(4);
@@ -81,7 +82,11 @@ public class NdJsonDottedPrefixChunkConsistencyTests extends ESTestCase {
         long sum = 0;
         try (
             CloseableIterator<Page> pages = StreamingParallelParsingCoordinator.parallelRead(
-                (SegmentableFormatReader) reader,
+                factory,
+                settings,
+                blockFactory,
+                null,
+                FormatReadContext.Binding.empty().withBoundSchema(bound),
                 stream,
                 null,
                 List.of("languages.long"),

@@ -21,6 +21,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -494,7 +495,9 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
             .errorPolicy(ErrorPolicy.PERMISSIVE)
             .informationalWarningSink(ignored -> {})
             .build();
-        ParquetFormatReader reader = (ParquetFormatReader) reader(threshold).withDeclaredTypeColumns(Set.of("id"));
+        ParquetFormatReader reader = readerWithBinding(
+            FormatReadContext.Binding.empty().withDynamicThreshold(threshold).withDeclaredTypeColumns(Set.of("id"))
+        );
         try (threshold; CloseableIterator<Page> iterator = reader.read(storageObject(data), context)) {
             List<Long> values = new ArrayList<>();
             while (iterator.hasNext()) {
@@ -518,8 +521,11 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
 
     /** @param declaredFormat a declared date format on the sort column, or {@code null} for an inferred read. */
     private ParquetFormatReader reader(DynamicThreshold threshold, @Nullable String declaredFormat) {
-        ParquetFormatReader base = (ParquetFormatReader) new ParquetFormatReader(blockFactory, true).withDynamicThreshold(threshold);
-        return declaredFormat == null ? base : (ParquetFormatReader) base.withDeclaredDateFormats(Map.of("id", declaredFormat));
+        FormatReadContext.Binding binding = FormatReadContext.Binding.empty().withDynamicThreshold(threshold);
+        if (declaredFormat != null) {
+            binding = binding.withDeclaredDateFormats(Map.of("id", declaredFormat));
+        }
+        return readerWithBinding(binding);
     }
 
     private byte[] writeLongParquet(MessageType schema, long rowGroupSize, int pageSize, int rows, ValueForPosition valueForPosition)
@@ -664,4 +670,9 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
     private interface StringForPosition {
         String value(int position);
     }
+
+    private ParquetFormatReader readerWithBinding(FormatReadContext.Binding binding) {
+        return (ParquetFormatReader) new ParquetFormatReaderFactory().create(Settings.EMPTY, blockFactory, null, binding);
+    }
+
 }

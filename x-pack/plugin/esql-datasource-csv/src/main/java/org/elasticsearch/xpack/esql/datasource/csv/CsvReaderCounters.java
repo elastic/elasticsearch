@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * Thread-safe counter struct for {@link CsvFormatReader}; {@link #snapshot()} yields the immutable
- * typed {@link CsvReaderStatus}. The {@code format} field reflects the owning reader's
- * {@link CsvFormatReader#formatName()} so that a CSV instance reports {@code "csv"} and a TSV
- * instance reports {@code "tsv"}.
+ * Thread-safe counter struct for one {@link CsvFormatReader} and the iterators it opens.
+ * {@link #snapshot()} yields the immutable typed {@link CsvReaderStatus}. The {@code format} field
+ * reflects the reader's format identity so that CSV reports {@code "csv"} and TSV reports
+ * {@code "tsv"}.
  */
 public final class CsvReaderCounters {
 

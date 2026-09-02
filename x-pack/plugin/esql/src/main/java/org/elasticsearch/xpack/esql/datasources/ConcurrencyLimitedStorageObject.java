@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Decorates a {@link StorageObject} with concurrency limiting. Each I/O operation
@@ -133,6 +134,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
             listener.onFailure(e);
             return;
         }
+        AtomicBoolean completionStarted = new AtomicBoolean();
         try {
             // We intentionally use a raw ActionListener instead of ActionListener.wrap so a
             // throw from listener.onResponse(result) does NOT get auto-routed to our onFailure
@@ -141,32 +143,25 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
             delegate.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(DirectReadBuffer result) {
+                    completionStarted.set(true);
                     limiter.release();
-                    try {
-                        listener.onResponse(result);
-                    } catch (Exception e) {
-                        // listener.onResponse was already invoked; routing via listener.onFailure
-                        // here would violate the single-completion contract. Close the buffer to
-                        // free the breaker reservation and propagate so the caller observes the
-                        // failure instead of a silent swallow.
-                        try {
-                            result.close();
-                        } catch (Exception closeFailure) {
-                            e.addSuppressed(closeFailure);
-                        }
-                        throw ExceptionsHelper.convertToRuntime(e);
-                    }
+                    listener.onResponse(result);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
+                    completionStarted.set(true);
                     limiter.release();
                     listener.onFailure(e);
                 }
             });
         } catch (Exception e) {
-            limiter.release();
-            listener.onFailure(e);
+            if (completionStarted.compareAndSet(false, true)) {
+                limiter.release();
+                listener.onFailure(e);
+            } else {
+                throw ExceptionsHelper.convertToRuntime(e);
+            }
         }
     }
 
@@ -178,29 +173,32 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
             listener.onFailure(e);
             return;
         }
+        AtomicBoolean completionStarted = new AtomicBoolean();
         try {
             // Raw ActionListener (see overload above) so a throw from listener.onResponse does
             // not get auto-routed and double-release the permit / double-fire the listener.
             delegate.readBytesAsync(position, target, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(Integer result) {
+                    completionStarted.set(true);
                     limiter.release();
-                    try {
-                        listener.onResponse(result);
-                    } catch (Exception e) {
-                        throw ExceptionsHelper.convertToRuntime(e);
-                    }
+                    listener.onResponse(result);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
+                    completionStarted.set(true);
                     limiter.release();
                     listener.onFailure(e);
                 }
             });
         } catch (Exception e) {
-            limiter.release();
-            listener.onFailure(e);
+            if (completionStarted.compareAndSet(false, true)) {
+                limiter.release();
+                listener.onFailure(e);
+            } else {
+                throw ExceptionsHelper.convertToRuntime(e);
+            }
         }
     }
 

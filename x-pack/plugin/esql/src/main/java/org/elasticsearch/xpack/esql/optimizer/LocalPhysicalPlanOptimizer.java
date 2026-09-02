@@ -122,7 +122,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             // Sibling injection: when _id is referenced on an external source, add the
             // synthetic _rowPosition column so the producer pipeline can compose
             // the opaque (location, mtime, rowPosition) hash id per row. Idempotent and independent of deferred
-            // extraction (no TopN/ColumnExtractorAware preconditions).
+            // extraction (no TopN or column-extractor builder preconditions).
             new InjectRowPositionForExternalId()
         );
 

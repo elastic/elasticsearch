@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
@@ -25,10 +26,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
-import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -62,7 +62,7 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
     );
 
     public void testCachedThresholdIsSharedAcrossConcurrentNativeReads() {
-        ManualAsyncReader reader = new ManualAsyncReader();
+        ManualAsyncFactory reader = new ManualAsyncFactory();
         AsyncExternalSourceOperatorFactory factory = baseFactory(reader).build();
         installThreshold(factory, false);
 
@@ -77,7 +77,7 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
     }
 
     public void testSetNumericThresholdSupplierAfterOperatorCreationThrows() {
-        ManualAsyncReader reader = new ManualAsyncReader();
+        ManualAsyncFactory reader = new ManualAsyncFactory();
         AsyncExternalSourceOperatorFactory factory = baseFactory(reader).build();
 
         SourceOperator operator = factory.get(driverContext());
@@ -89,7 +89,7 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
     }
 
     public void testNoFurtherCandidatesShortCircuitsSyncWrapperRead() {
-        CountingReader reader = new CountingReader(false);
+        CountingFactory reader = new CountingFactory();
         AsyncExternalSourceOperatorFactory factory = baseFactory(reader).build();
         SharedNumericThreshold threshold = installExhaustedThreshold(factory);
 
@@ -102,7 +102,7 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
     }
 
     public void testNoFurtherCandidatesShortCircuitsNativeAsyncRead() {
-        ManualAsyncReader reader = new ManualAsyncReader();
+        ManualAsyncFactory reader = new ManualAsyncFactory();
         AsyncExternalSourceOperatorFactory factory = baseFactory(reader).build();
         SharedNumericThreshold threshold = installExhaustedThreshold(factory);
 
@@ -115,7 +115,7 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
     }
 
     public void testNoFurtherCandidatesShortCircuitsMultiFileProducer() {
-        CountingReader reader = new CountingReader(false);
+        CountingFactory reader = new CountingFactory();
         List<StorageEntry> entries = List.of(
             new StorageEntry(StoragePath.of("s3://bucket/data/f1.parquet"), 100, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 100, Instant.EPOCH)
@@ -134,7 +134,7 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
     }
 
     public void testNoFurtherCandidatesShortCircuitsSliceQueueProducer() {
-        CountingReader reader = new CountingReader(false);
+        CountingFactory reader = new CountingFactory();
         FileSplit split = new FileSplit("test", PATH, 0, 100, "parquet", Map.of(FileSplitProvider.LAST_SPLIT_KEY, "true"), Map.of());
         AsyncExternalSourceOperatorFactory factory = baseFactory(reader).sliceQueue(new ExternalSliceQueue(List.of(split))).build();
         SharedNumericThreshold threshold = installExhaustedThreshold(factory);
@@ -147,7 +147,7 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
         threshold.close();
     }
 
-    private static AsyncExternalSourceOperatorFactory.Builder baseFactory(FormatReader reader) {
+    private static AsyncExternalSourceOperatorFactory.Builder baseFactory(FormatReaderFactory reader) {
         return AsyncExternalSourceOperatorFactory.builder(new TestStorageProvider(), reader, PATH, ATTRIBUTES, 100, 10, Runnable::run);
     }
 
@@ -189,7 +189,37 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
         };
     }
 
-    private static class CountingReader implements NoConfigFormatReader, DynamicThresholdAware {
+    private static class CountingFactory implements FormatReaderFactory {
+        final AtomicInteger reads = new AtomicInteger();
+
+        @Override
+        public String formatName() {
+            return "counting";
+        }
+
+        @Override
+        public boolean acceptsDynamicThreshold() {
+            return true;
+        }
+
+        @Override
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return create(settings, blockFactory, null, FormatReadContext.Binding.empty());
+        }
+
+        @Override
+        public FormatReader create(
+            Settings settings,
+            BlockFactory blockFactory,
+            Map<String, Object> config,
+            FormatReadContext.Binding binding
+        ) {
+            DynamicThreshold threshold = binding == null ? null : binding.dynamicThreshold();
+            return new CountingReader(reads, threshold);
+        }
+    }
+
+    private static class CountingReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -198,18 +228,9 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
         private final AtomicInteger reads;
         private final DynamicThreshold threshold;
 
-        CountingReader(boolean ignored) {
-            this(new AtomicInteger(), null);
-        }
-
         private CountingReader(AtomicInteger reads, DynamicThreshold threshold) {
             this.reads = reads;
             this.threshold = threshold;
-        }
-
-        @Override
-        public FormatReader withDynamicThreshold(DynamicThreshold threshold) {
-            return new CountingReader(reads, threshold);
         }
 
         @Override
@@ -225,55 +246,73 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
         }
 
         @Override
-        public String formatName() {
-            return "counting";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
-        }
-
-        @Override
         public void close() {}
     }
 
-    private static class ManualAsyncReader implements NoConfigFormatReader, DynamicThresholdAware {
-        @Override
-        public RowPositionStrategy rowPositionStrategy() {
-            return PassThroughRowPositionStrategy.INSTANCE;
-        }
-
-        private final AtomicInteger asyncReads;
-        private final List<DynamicThreshold> thresholds;
-        private final List<ActionListener<CloseableIterator<Page>>> listeners;
-        private final DynamicThreshold threshold;
-
-        ManualAsyncReader() {
-            this(new AtomicInteger(), new ArrayList<>(), new ArrayList<>(), null);
-        }
-
-        private ManualAsyncReader(
-            AtomicInteger asyncReads,
-            List<DynamicThreshold> thresholds,
-            List<ActionListener<CloseableIterator<Page>>> listeners,
-            DynamicThreshold threshold
-        ) {
-            this.asyncReads = asyncReads;
-            this.thresholds = thresholds;
-            this.listeners = listeners;
-            this.threshold = threshold;
-        }
+    private static class ManualAsyncFactory implements FormatReaderFactory {
+        final AtomicInteger asyncReads = new AtomicInteger();
+        final List<DynamicThreshold> thresholds = new ArrayList<>();
+        private final List<ActionListener<CloseableIterator<Page>>> listeners = new ArrayList<>();
 
         @Override
-        public FormatReader withDynamicThreshold(DynamicThreshold threshold) {
-            thresholds.add(threshold);
-            return new ManualAsyncReader(asyncReads, thresholds, listeners, threshold);
+        public String formatName() {
+            return "manual-async";
         }
 
         @Override
         public boolean supportsNativeAsync() {
             return true;
+        }
+
+        @Override
+        public boolean acceptsDynamicThreshold() {
+            return true;
+        }
+
+        @Override
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return create(settings, blockFactory, null, FormatReadContext.Binding.empty());
+        }
+
+        @Override
+        public FormatReader create(
+            Settings settings,
+            BlockFactory blockFactory,
+            Map<String, Object> config,
+            FormatReadContext.Binding binding
+        ) {
+            DynamicThreshold threshold = binding == null ? null : binding.dynamicThreshold();
+            thresholds.add(threshold);
+            return new ManualAsyncReader(asyncReads, listeners, threshold);
+        }
+
+        void completeAll() {
+            List<ActionListener<CloseableIterator<Page>>> pending = List.copyOf(listeners);
+            listeners.clear();
+            for (ActionListener<CloseableIterator<Page>> listener : pending) {
+                listener.onResponse(emptyIterator());
+            }
+        }
+    }
+
+    private static class ManualAsyncReader implements FormatReader {
+        private final AtomicInteger asyncReads;
+        private final List<ActionListener<CloseableIterator<Page>>> listeners;
+        private final DynamicThreshold threshold;
+
+        private ManualAsyncReader(
+            AtomicInteger asyncReads,
+            List<ActionListener<CloseableIterator<Page>>> listeners,
+            DynamicThreshold threshold
+        ) {
+            this.asyncReads = asyncReads;
+            this.listeners = listeners;
+            this.threshold = threshold;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
         }
 
         @Override
@@ -287,14 +326,6 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
             listeners.add(listener);
         }
 
-        void completeAll() {
-            List<ActionListener<CloseableIterator<Page>>> pending = List.copyOf(listeners);
-            listeners.clear();
-            for (ActionListener<CloseableIterator<Page>> listener : pending) {
-                listener.onResponse(emptyIterator());
-            }
-        }
-
         @Override
         public SourceMetadata metadata(StorageObject object) {
             return null;
@@ -302,17 +333,8 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
 
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            assertNotNull(threshold);
             return emptyIterator();
-        }
-
-        @Override
-        public String formatName() {
-            return "manual-async";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
         }
 
         @Override

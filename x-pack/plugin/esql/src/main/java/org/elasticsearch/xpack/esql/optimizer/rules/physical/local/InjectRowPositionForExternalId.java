@@ -38,8 +38,9 @@ import java.util.List;
  * <p>
  * Sibling of {@link InsertExternalFieldExtraction}, which also injects {@code _rowPosition} but for
  * the deferred-extraction late-materialization path (it additionally requires a TopN above the
- * source) and only for {@link org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware}
- * (Parquet-class) readers, which encode an extractor id into the high bits; the composition path
+ * source) and only for factories with
+ * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory#columnExtractor()}
+ * true. Their readers encode an extractor id into the high bits; the composition path
  * masks that off, so a raw (unencoded) position from a non-deferred reader composes identically.
  * <p>
  * No-ops when the source's output already contains a {@code _rowPosition} attribute (deferred

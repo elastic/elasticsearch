@@ -14,6 +14,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -105,9 +106,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testCsvBareNumericDateNanosRejectsNegative() throws Exception {
         StorageObject object = createStorageObject("-1\n");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.DATE_NANOS));
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("header_row", false, "error_mode", "null_field")
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false, "error_mode", "null_field"));
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -142,7 +141,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      */
     public void testInferredDateNanosKeepsNanoPrecisionTsv() throws Exception {
         String tsv = "id\tts\n1\t2023-10-23T12:15:03.360103847Z\n2\t2023-10-23T12:15:03.360Z\n";
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("delimiter", "\t"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("delimiter", "\t"));
         assertInferredDateNanosRoundTrips(reader, tsv);
     }
 
@@ -234,7 +233,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      */
     public void testRaggedHeaderlessFileInfersFromTheWidestRow() throws Exception {
         StorageObject object = createStorageObject("a\nb,c\n");
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false));
         List<Attribute> schema = reader.metadata(object).schema();
         assertEquals("the widest row decides the column count", 2, schema.size());
         for (Attribute a : schema) {
@@ -277,7 +276,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      */
     public void testHeaderlessInferenceKeepsPaddedQuotedColumnCount() throws IOException {
         StorageObject object = createStorageObject("x, \"a,b\",z\n");
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false));
         assertEquals(3, reader.schema(object).size());
     }
 
@@ -289,7 +288,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      */
     public void testCustomNullValueInferenceUnderNoTrim() throws IOException {
         StorageObject object = createStorageObject("id,score\n1,NA\n2,7\n");
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("null_value", "NA"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("null_value", "NA"));
         List<Attribute> schema = reader.schema(object);
         assertEquals("score", schema.get(1).name());
         assertEquals(DataType.INTEGER, schema.get(1).dataType());
@@ -351,7 +350,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // must NOT be treated as a field separator. Untyped header so schema inference runs (mixed
         // typed/untyped would be a format error unrelated to this check).
         StorageObject object = createStorageObject("a\\,b,c\nval1,val2\n");
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "escaped"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("mode", "escaped"));
         List<String> names = reader.schema(object).stream().map(Attribute::name).toList();
         assertEquals("escaped delimiter in header must not split the column name", List.of("a\\,b", "c"), names);
     }
@@ -359,9 +358,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     /** The same quote-aware header rules apply for a tab delimiter (TSV with quoting on). */
     public void testTabDelimitedQuotedHeaderNames() throws IOException {
         StorageObject object = createStorageObject("\"i\td\"\t\"c\"\n1\t2\n");
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("delimiter", "\t", "mode", "quoted")
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("delimiter", "\t", "mode", "quoted"));
         // The quoted first name contains a tab; it must stay one column.
         assertEquals(List.of("i\td", "c"), reader.schema(object).stream().map(Attribute::name).toList());
     }
@@ -625,16 +622,20 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testFormatName() {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        assertEquals("csv", reader.formatName());
+        assertEquals("csv", csvFactory().formatName());
     }
 
     public void testFileExtensions() {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        List<String> extensions = reader.fileExtensions();
-        assertEquals(2, extensions.size());
-        assertTrue(extensions.contains(".csv"));
-        assertTrue(extensions.contains(".tsv"));
+        assertTrue(
+            new CsvDataSourcePlugin().formatSpecs()
+                .stream()
+                .anyMatch(spec -> spec.format().equals("csv") && spec.extensions().contains(".csv"))
+        );
+        assertTrue(
+            new CsvDataSourcePlugin().formatSpecs()
+                .stream()
+                .anyMatch(spec -> spec.format().equals("tsv") && spec.extensions().contains(".tsv"))
+        );
     }
 
     public void testPlainHeaderTreatedAsColumnName() throws IOException {
@@ -699,7 +700,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // column keeps today's behavior; here `ts` is the only column and it carries a declared format.
         String csv = "ts:datetime\n10/Oct/2000:13:55:36 -0700\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withDeclaredDateFormats(Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"));
+        CsvFormatReader reader = declaredDateReader(blockFactory, Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -714,8 +715,11 @@ public class CsvFormatReaderTests extends ESTestCase {
         // `10/Oct/2000:...` and `11/Oct/2000:...` are parsed zone-aware with the declared pattern, one day apart.
         String csv = "id:integer,ts:datetime\n1,\"[10/Oct/2000:13:55:36 -0700,11/Oct/2000:13:55:36 -0700]\"\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = ((CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets")))
-            .withDeclaredDateFormats(Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"));
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("multi_value_syntax", "brackets"),
+            FormatReadContext.Binding.empty().withDeclaredDateFormats(Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"))
+        );
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -880,7 +884,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -1120,7 +1124,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // delimiter; the commas inside the cell are not separators of anything under NONE.
         String tsv = "pkg:keyword\ttags:keyword\n1\t[a,b,c]\n";
         StorageObject object = createStorageObject(tsv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        CsvFormatReader reader = optionsReader(blockFactory, CsvFormatOptions.TSV);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -1152,7 +1156,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         String tsv = "pkg:keyword\ttags:keyword\n1\t[a,b,c]\n";
         StorageObject object = createStorageObject(tsv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -1171,9 +1175,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Fused fast path (splitAndConvertProjected) with a tab delimiter: projected read, typed long
         // column, multi-value keyword column. The element split inside [..] is comma-based regardless
         // of the field delimiter, so [hello,world] yields two values even though fields are tab-separated.
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("delimiter", "\t", "multi_value_syntax", "brackets")
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("delimiter", "\t", "multi_value_syntax", "brackets"));
         String tsv = "id:long\ttags:keyword\n1\t[hello,world]\n2\t[foo]\n";
         StorageObject object = createStorageObject(tsv);
 
@@ -1192,9 +1194,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // The bracket-aware record-boundary scanner must work for tab-delimited input too: a newline
         // inside a [..] cell does not end the record. Exercises findNextRecordBoundaryBracketMvc with
         // a tab field delimiter.
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("delimiter", "\t", "multi_value_syntax", "brackets")
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("delimiter", "\t", "multi_value_syntax", "brackets"));
         byte[] data = "before\t[line1\nline2\nline3]\tafter\nnext\n".getBytes(StandardCharsets.UTF_8);
         long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("before\t[line1\nline2\nline3]\tafter\n".length(), boundary);
@@ -1204,9 +1204,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // TSV counterpart to testFindNextRecordBoundaryNestedBracketMvcWithEmbeddedNewlines: nested
         // brackets across a tab delimiter with newlines inside. The depth-tracking state machine
         // must not bail at the inner closing bracket.
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("delimiter", "\t", "multi_value_syntax", "brackets")
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("delimiter", "\t", "multi_value_syntax", "brackets"));
         byte[] data = "a\t[[cell\ninner]]\tb\nz\n".getBytes(StandardCharsets.UTF_8);
         long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("a\t[[cell\ninner]]\tb\n".length(), boundary);
@@ -1215,9 +1213,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testTsvFindNextRecordBoundaryMultiValueSyntaxNoneDoesNotTreatBracketsAsMvc() throws IOException {
         // TSV counterpart to the CSV version: under multi_value_syntax: none with a tab delimiter,
         // brackets are literal and a newline inside [..] terminates the record at the first newline.
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("delimiter", "\t", "multi_value_syntax", "none")
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("delimiter", "\t", "multi_value_syntax", "none"));
         byte[] data = "before\t[not\nmvc]\tafter\nnext\n".getBytes(StandardCharsets.UTF_8);
         long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("before\t[not\n".length(), boundary);
@@ -1226,9 +1222,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testTsvFindNextRecordBoundaryTwoRecordsStateMachineReset() throws IOException {
         // Cross-call statelessness: the same reader invoked on two separate streams must scan each
         // independently — no carry-over of bracket-depth / quoted-state from a prior call.
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("delimiter", "\t", "multi_value_syntax", "brackets")
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("delimiter", "\t", "multi_value_syntax", "brackets"));
         byte[] data = "a\t[x\ny]\tb\nc\t[m\nn]\td\n".getBytes(StandardCharsets.UTF_8);
         long firstBoundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("a\t[x\ny]\tb\n".length(), firstBoundary);
@@ -1243,9 +1237,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // yields three values ("a", "[b", "c]"). The point of the test isn't to validate a parser
         // design choice; it's to confirm the fused path on TSV behaves identically to CSV on this
         // edge case (no delimiter-coupled divergence introduced by the refactor).
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("delimiter", "\t", "multi_value_syntax", "brackets")
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("delimiter", "\t", "multi_value_syntax", "brackets"));
         String tsv = "id:long\ttags:keyword\n1\t[a,[b,c]]\n";
         StorageObject object = createStorageObject(tsv);
 
@@ -1351,9 +1343,9 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testDefaultErrorPolicyIsStrict() {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        assertEquals(ErrorPolicy.STRICT, reader.defaultErrorPolicy());
-        assertTrue(reader.defaultErrorPolicy().isStrict());
+        CsvFormatReaderFactory factory = csvFactory();
+        assertEquals(ErrorPolicy.STRICT, factory.defaultErrorPolicy());
+        assertTrue(factory.defaultErrorPolicy().isStrict());
     }
 
     public void testStrictPolicyFailsOnMalformedRow() {
@@ -1748,7 +1740,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testTrimSpacesTrueRestoresLegacyTrimming() throws IOException {
         String csv = "id:long,name:keyword\n 1 , Alice \n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("trim_spaces", "true"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("trim_spaces", "true"));
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             Page page = iterator.next();
             assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
@@ -1831,7 +1823,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Rows 1-2 are numeric (inferred as INTEGER from sample). Row 3 is text — contradicts INTEGER.
         String csv = "id\n1\n2\nhello\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 2));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("schema_sample_size", 2));
 
         List<Attribute> schema = reader.schema(object);
         assertEquals(1, schema.size());
@@ -1913,7 +1905,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testPaddedCustomNullOnTypedCellIsNull() throws IOException {
         String csv = "id:integer,name:keyword\n\" NA \",\" NA \"\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("null_value", "NA"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("null_value", "NA"));
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             Page page = iterator.next();
             assertEquals(1, page.getPositionCount());
@@ -1926,7 +1918,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testBracketQuotedPaddedElementParses() throws IOException {
         String csv = "vals:integer\n[\" 5 \", 6]\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             Page page = iterator.next();
             assertEquals(1, page.getPositionCount());
@@ -1945,9 +1937,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testMultiValueKeywordPreservesElementWhitespace() throws IOException {
         String csv = "vals:keyword\n[ a , b ]\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("multi_value_syntax", "brackets", "trim_spaces", "false")
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets", "trim_spaces", "false"));
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             Page page = iterator.next();
             BytesRefBlock vals = (BytesRefBlock) page.getBlock(0);
@@ -1962,9 +1952,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testMultiValueKeywordTrimsElementsWhenTrimSpacesTrue() throws IOException {
         String csv = "vals:keyword\n[ a , b ]\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("multi_value_syntax", "brackets", "trim_spaces", "true")
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets", "trim_spaces", "true"));
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             Page page = iterator.next();
             BytesRefBlock vals = (BytesRefBlock) page.getBlock(0);
@@ -2018,9 +2006,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testTrimSpacesFalsePreservesUnquotedWhitespace() throws IOException {
         String csv = "a:keyword,b:keyword\n x , y \n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.<String, Object>of("trim_spaces", "false")
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.<String, Object>of("trim_spaces", "false"));
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             Page page = iterator.next();
             // Trailing whitespace of every column, and leading whitespace of every column past the first,
@@ -2035,9 +2021,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testTrimSpacesFalsePreservesUnquotedWhitespaceFusedPath() throws IOException {
         String csv = "val:keyword\n a \n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("multi_value_syntax", "brackets", "trim_spaces", "false")
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets", "trim_spaces", "false"));
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("val"), 10)) {
             Page page = iterator.next();
             assertEquals(new BytesRef(" a "), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
@@ -2048,7 +2032,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testTrimSpacesTrueTrimsUnquotedWhitespace() throws IOException {
         String csv = "name:keyword\n a \n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("trim_spaces", "true"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("trim_spaces", "true"));
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             Page page = iterator.next();
             assertEquals(new BytesRef("a"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
@@ -2180,7 +2164,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testTsvPreset() throws IOException {
         String tsv = "id:long\tname:keyword\tvalue:integer\n1\tAlice\t100\n2\tBob\t200\n";
         StorageObject object = createStorageObject(tsv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        CsvFormatReader reader = optionsReader(blockFactory, CsvFormatOptions.TSV);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2198,7 +2182,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     /** Mid-field literal quotes (odd counts) must not suppress the boundary — pre-fix this returned -1. */
     public void testTsvFindLastRecordBoundaryWithLiteralMidFieldQuotes() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        CsvFormatReader reader = optionsReader(blockFactory, CsvFormatOptions.TSV);
         // one mid-field quote in row 1, three in row 2; none at field start
         String data = "1\ta\"b\tc\n2\td\"e\"f\"g\th\n";
         byte[] buf = data.getBytes(StandardCharsets.UTF_8);
@@ -2210,7 +2194,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     /** Same, on a 105-column ClickBench-shaped row with dense literal quotes. */
     public void testTsvFindLastRecordBoundaryClickBenchShaped() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        CsvFormatReader reader = optionsReader(blockFactory, CsvFormatOptions.TSV);
         String row = clickBenchShapedTsvRow();
         byte[] buf = (row + row).getBytes(StandardCharsets.UTF_8);
 
@@ -2221,7 +2205,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     /** The streaming sibling findNextRecordBoundary applies the same field-start rule. */
     public void testTsvFindNextRecordBoundaryWithLiteralMidFieldQuotes() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        CsvFormatReader reader = optionsReader(blockFactory, CsvFormatOptions.TSV);
         String row1 = "1\ta\"b\tc\n";
         String data = row1 + "2\td\te\n";
         byte[] buf = data.getBytes(StandardCharsets.UTF_8);
@@ -2235,7 +2219,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * {@code "} closes the field. Pins the doubled-quote peek (the {@code peekByte} window) in both scanners.
      */
     public void testTsvDoubledQuoteInQuotedFieldIsLiteral() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        CsvFormatReader reader = optionsReader(blockFactory, CsvFormatOptions.TSV);
         String row1 = "\"a\"\"b\"\tc\n"; // quoted field a"b (doubled quote), then c
         byte[] buf = (row1 + "d\te\n").getBytes(StandardCharsets.UTF_8);
 
@@ -2247,7 +2231,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testRecordBoundaryCountAgreesWithReadCsvRecord() throws IOException {
         for (boolean tsv : new boolean[] { true, false }) {
             CsvFormatOptions options = tsv ? CsvFormatOptions.TSV : CsvFormatOptions.DEFAULT;
-            CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+            CsvFormatReader reader = optionsReader(blockFactory, options);
             char delim = options.delimiter();
             boolean bracketAware = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && delim == ',';
 
@@ -2297,7 +2281,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     /** Fuzz: the scanner never returns -1 for a buffer ending on a complete record, at any quote count. */
     public void testTsvBoundaryNeverMinusOneWhenCompleteRecordPresent() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        CsvFormatReader reader = optionsReader(blockFactory, CsvFormatOptions.TSV);
         for (int iter = 0; iter < 200; iter++) {
             StringBuilder sb = new StringBuilder();
             int rows = randomIntBetween(1, 6);
@@ -2384,7 +2368,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2412,7 +2396,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2456,7 +2440,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(schema.append(data).toString());
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         int totalRows = 0;
         try (CloseableIterator<Page> iterator = reader.read(object, null, between(2, 10))) {
@@ -2490,7 +2474,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2517,7 +2501,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2544,7 +2528,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2580,7 +2564,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2614,7 +2598,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2643,7 +2627,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2670,7 +2654,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2826,7 +2810,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2844,11 +2828,11 @@ public class CsvFormatReaderTests extends ESTestCase {
      */
     public void testDatetimeFormatConfigAcceptance() {
         for (String pattern : List.of("yyyy-MM-dd HH:mm:ssXXX", "yyyy-MM-dd", "epoch_second", "basic_date", "yyyy-MM-dd||epoch_millis")) {
-            new CsvFormatReader(blockFactory).withConfig(Map.of("datetime_format", pattern));
+            configuredReader(blockFactory, Map.of("datetime_format", pattern));
         }
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new CsvFormatReader(blockFactory).withConfig(Map.of("datetime_format", "not-a-valid-!!format!!"))
+            () -> configuredReader(blockFactory, Map.of("datetime_format", "not-a-valid-!!format!!"))
         );
         assertThat(e.getMessage(), Matchers.containsString("Invalid datetime format [not-a-valid-!!format!!]"));
     }
@@ -2858,8 +2842,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testWithConfigDelimiter() throws IOException {
         String csv = "id:long|name:keyword\n1|Alice\n2|Bob\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader baseReader = new CsvFormatReader(blockFactory);
-        FormatReader configured = baseReader.withConfig(Map.of("delimiter", "|"));
+        FormatReader configured = configuredReader(blockFactory, Map.of("delimiter", "|"));
 
         try (CloseableIterator<Page> iterator = configured.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2873,8 +2856,12 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testTsvWithConfigHeaderRowFalseKeepsTabDelimiter() throws IOException {
         String tsv = "a\tb\tc\n1\t2\t3\n";
         StorageObject object = createStorageObject(tsv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv"))
-            .withConfig(Map.of("header_row", false));
+        CsvFormatReader reader = (CsvFormatReader) tsvFactory().create(
+            Settings.EMPTY,
+            blockFactory,
+            Map.of("header_row", false),
+            FormatReadContext.Binding.empty()
+        );
 
         List<Attribute> schema = reader.schema(object);
         assertEquals(3, schema.size());
@@ -2890,7 +2877,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testCsvWithConfigHeaderRowFalseKeepsCommaDelimiter() throws IOException {
         String csv = "10,20\n30,40\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false));
 
         List<Attribute> schema = reader.schema(object);
         assertEquals(2, schema.size());
@@ -2915,7 +2902,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             "9110818468285196903","1","baz"
             """;
         StorageObject object = createStorageObject(csv);
-        var reader = new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        var reader = configuredReader(blockFactory, Map.of("header_row", false));
 
         int rowCount = 0;
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
@@ -2954,7 +2941,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Same as testQuotedFieldWithLoneCrPreserved but via the Jackson (non-fused) path.
         String csv = "id:keyword,val:keyword,end:keyword\n\"a\",\"b\rc\",\"d\"\n\"e\",\"f\",\"g\"\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "NONE"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "NONE"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -3040,8 +3027,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testWithConfigMultipleOptions() throws IOException {
         String csv = "id:long;name:keyword\n1;N/A\n2;Bob\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader baseReader = new CsvFormatReader(blockFactory);
-        FormatReader configured = baseReader.withConfig(Map.of("delimiter", ";", "null_value", "N/A", "comment", "#"));
+        FormatReader configured = configuredReader(blockFactory, Map.of("delimiter", ";", "null_value", "N/A", "comment", "#"));
 
         try (CloseableIterator<Page> iterator = configured.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -3052,23 +3038,20 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
-    public void testWithConfigEmptyReturnsSameReader() {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        FormatReader result = reader.withConfig(Map.of());
-        assertSame(reader, result);
+    public void testEmptyConfigIsAccepted() {
+        assertTrue(csvFactory().inspect(Map.of()).consumedKeys().isEmpty());
+        csvFactory().create(Settings.EMPTY, blockFactory, Map.of(), FormatReadContext.Binding.empty());
     }
 
-    public void testWithConfigNullReturnsSameReader() {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        FormatReader result = reader.withConfig(null);
-        assertSame(reader, result);
+    public void testNullConfigIsAccepted() {
+        assertTrue(csvFactory().inspect(null).consumedKeys().isEmpty());
+        csvFactory().create(Settings.EMPTY, blockFactory, null, FormatReadContext.Binding.empty());
     }
 
     public void testWithConfigMultiValueSyntax() throws IOException {
         String csv = "id:integer,values:integer\n1,\"[1,2,3]\"\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader baseReader = new CsvFormatReader(blockFactory);
-        FormatReader configured = baseReader.withConfig(Map.of("multi_value_syntax", "brackets"));
+        FormatReader configured = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = configured.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -3085,8 +3068,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testWithConfigMultiValueSyntaxNone() {
         String csv = "id:integer,values:integer\n1,\"[1,2]\"\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader baseReader = new CsvFormatReader(blockFactory);
-        FormatReader configured = baseReader.withConfig(Map.of("multi_value_syntax", "none"));
+        FormatReader configured = configuredReader(blockFactory, Map.of("multi_value_syntax", "none"));
 
         ParsingException e = expectThrows(ParsingException.class, () -> {
             try (CloseableIterator<Page> iterator = configured.read(object, null, 10)) {
@@ -3105,8 +3087,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             csv.append(i).append(",text_").append(i).append("\n");
         }
         StorageObject object = createStorageObject(csv.toString());
-        CsvFormatReader baseReader = new CsvFormatReader(blockFactory);
-        FormatReader configured = baseReader.withConfig(Map.of("schema_sample_size", "50"));
+        FormatReader configured = configuredReader(blockFactory, Map.of("schema_sample_size", "50"));
         try (CloseableIterator<Page> iterator = configured.read(object, null, 1000)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
@@ -3115,31 +3096,28 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testWithConfigSchemaSampleSizeZeroIsRejected() {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> reader.withConfig(Map.of("schema_sample_size", "0"))
+            () -> csvFactory().inspect(Map.of("schema_sample_size", "0"))
         );
         assertThat(e.getMessage(), containsString("schema_sample_size must be positive"));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
     }
 
     public void testWithConfigSchemaSampleSizeNegativeIsRejected() {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> reader.withConfig(Map.of("schema_sample_size", "-1"))
+            () -> csvFactory().inspect(Map.of("schema_sample_size", "-1"))
         );
         assertThat(e.getMessage(), containsString("schema_sample_size must be positive"));
     }
 
     public void testWithConfigSchemaSampleSizeInvalidIsRejected() {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
         // Distinct from the out-of-range cases above: both are now IllegalArgumentException, so only the
         // message separates "unparseable" from "parsed but rejected".
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> reader.withConfig(Map.of("schema_sample_size", "abc"))
+            () -> csvFactory().inspect(Map.of("schema_sample_size", "abc"))
         );
         assertThat(e.getMessage(), containsString("Invalid integer value [abc]"));
     }
@@ -3162,7 +3140,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -3195,7 +3173,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -3225,7 +3203,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -3256,7 +3234,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -3285,7 +3263,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -3314,7 +3292,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -3342,7 +3320,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -3370,7 +3348,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -3436,7 +3414,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -3465,7 +3443,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             true,
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         ParsingException e = expectThrows(ParsingException.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
@@ -3755,7 +3733,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -3788,7 +3766,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
         ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
 
         try (
@@ -3822,7 +3800,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
         ErrorPolicy skipRow = new ErrorPolicy(10, true);
 
         try (
@@ -3873,7 +3851,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
         StorageObject object = createStorageObject(schema.append(data).toString());
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+        CsvFormatReader reader = optionsReader(blockFactory, options);
 
         int totalRows = 0;
         try (CloseableIterator<Page> iterator = reader.read(object, null, batchSize)) {
@@ -4101,7 +4079,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testFindNextRecordBoundaryMultiValueSyntaxNoneDoesNotTreatBracketsAsMvc() throws IOException {
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "none"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "none"));
         byte[] data = "before,[not\nmvc],after\nnext\n".getBytes(StandardCharsets.UTF_8);
         long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("before,[not\n".length(), boundary);
@@ -4188,16 +4166,70 @@ public class CsvFormatReaderTests extends ESTestCase {
     // --- findLastRecordBoundary tests for the QuotedFieldsOnly override path (TSV / non-bracket-MVC CSV) ---
 
     private static CsvFormatReader tsvReader(BlockFactory bf) {
-        return (CsvFormatReader) new CsvFormatReader(bf).withConfig(Map.of("delimiter", "\t"));
+        return configuredReader(bf, Map.of("delimiter", "\t"));
     }
 
     private static CsvFormatReader noMvcReader(BlockFactory bf) {
-        return (CsvFormatReader) new CsvFormatReader(bf).withConfig(Map.of("multi_value_syntax", "none"));
+        return configuredReader(bf, Map.of("multi_value_syntax", "none"));
     }
 
     /** Comma-delimited reader with bracket multi-value parsing enabled (no longer the default). */
     private static CsvFormatReader mvcReader(BlockFactory bf) {
-        return (CsvFormatReader) new CsvFormatReader(bf).withConfig(Map.of("multi_value_syntax", "brackets"));
+        return configuredReader(bf, Map.of("multi_value_syntax", "brackets"));
+    }
+
+    private static CsvFormatReader configuredReader(BlockFactory blockFactory, Map<String, Object> config) {
+        return configuredReader(blockFactory, config, FormatReadContext.Binding.empty());
+    }
+
+    private static CsvFormatReader configuredReader(
+        BlockFactory blockFactory,
+        Map<String, Object> config,
+        FormatReadContext.Binding binding
+    ) {
+        return configuredReader(blockFactory, config, binding, true);
+    }
+
+    private static CsvFormatReader configuredReader(
+        BlockFactory blockFactory,
+        Map<String, Object> config,
+        FormatReadContext.Binding binding,
+        boolean directBlockEnabled
+    ) {
+        return (CsvFormatReader) csvFactory(directBlockEnabled).create(Settings.EMPTY, blockFactory, config, binding);
+    }
+
+    private static CsvFormatReader optionsReader(BlockFactory blockFactory, CsvFormatOptions options) {
+        return new CsvFormatReader(blockFactory, options, "csv", List.of(".csv"));
+    }
+
+    private static CsvFormatReader optionsReader(BlockFactory blockFactory, CsvFormatOptions options, List<Attribute> schema) {
+        return (CsvFormatReader) new CsvFormatReaderFactory("csv", List.of(".csv"), options, true).create(
+            Settings.EMPTY,
+            blockFactory,
+            null,
+            FormatReadContext.Binding.empty().withBoundSchema(schema)
+        );
+    }
+
+    private static CsvFormatReader declaredDateReader(BlockFactory blockFactory, Map<String, String> declaredDateFormats) {
+        return configuredReader(blockFactory, null, FormatReadContext.Binding.empty().withDeclaredDateFormats(declaredDateFormats));
+    }
+
+    private static CsvFormatReader schemaBoundReader(BlockFactory blockFactory, List<Attribute> schema) {
+        return configuredReader(blockFactory, null, FormatReadContext.Binding.empty().withBoundSchema(schema));
+    }
+
+    private static CsvFormatReaderFactory csvFactory() {
+        return csvFactory(true);
+    }
+
+    private static CsvFormatReaderFactory csvFactory(boolean directBlockEnabled) {
+        return new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, directBlockEnabled);
+    }
+
+    private static CsvFormatReaderFactory tsvFactory() {
+        return new CsvFormatReaderFactory("tsv", List.of(".tsv"), CsvFormatOptions.TSV, true);
     }
 
     public void testFindLastRecordBoundaryQuotedFieldsOnlyTsvSimpleTwoLines() throws IOException {
@@ -4733,9 +4765,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         List<String> fusedWarnings = drainWarnings();
 
         // Non-fused Jackson path (multi_value_syntax=NONE bypasses bracket-aware parsing)
-        CsvFormatReader nonFusedReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("multi_value_syntax", "NONE")
-        );
+        CsvFormatReader nonFusedReader = configuredReader(blockFactory, Map.of("multi_value_syntax", "NONE"));
         try (
             CloseableIterator<Page> iterator = nonFusedReader.read(
                 object,
@@ -4951,7 +4981,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testTsvDeclaredBooleanRejectsNonBooleanToken() throws IOException {
         String tsv = "active:boolean\tname:keyword\nyes\tAlice\n";
         StorageObject object = createStorageObject(tsv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        CsvFormatReader reader = optionsReader(blockFactory, CsvFormatOptions.TSV);
         ParsingException e = expectThrows(ParsingException.class, () -> {
             try (
                 CloseableIterator<Page> iterator = reader.read(
@@ -5407,7 +5437,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String csv = "9110818468285196899,0,\"\",1,2013-07-14T20:38:47Z,42.5,true\n"
             + "9110818468285196900,0,\"\",0,2013-07-14T20:38:48Z,17.0,false\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false));
 
         List<Attribute> schema = reader.schema(object);
 
@@ -5428,9 +5458,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testTsvFirstRowWithDatetimeFallsToInferenceNotTypedSchema() throws IOException {
         String tsv = "2021-01-01T00:00:00Z\t42\n2021-01-01T00:00:01Z\t43\n";
         StorageObject object = createStorageObject(tsv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("delimiter", "\t", "header_row", false)
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("delimiter", "\t", "header_row", false));
 
         List<Attribute> schema = reader.schema(object);
         assertEquals(2, schema.size());
@@ -5446,9 +5474,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             1234567890\t0\tWorld\t2013-07-15 10:47:34\t15901
             """;
         StorageObject object = createStorageObject(tsv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("delimiter", "\t", "header_row", false)
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("delimiter", "\t", "header_row", false));
 
         List<Attribute> schema = reader.schema(object);
 
@@ -5468,9 +5494,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testHeaderlessSchemaUsesCustomPrefix() throws IOException {
         String csv = "1,2\n3,4\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("header_row", false, "column_prefix", "f_")
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false, "column_prefix", "f_"));
 
         List<Attribute> schema = reader.schema(object);
 
@@ -5484,9 +5508,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // in ES|QL. The reader does not reject this, so verify the names are exactly the digits.
         String csv = "1,2\n3,4\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("header_row", false, "column_prefix", "")
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false, "column_prefix", ""));
 
         List<Attribute> schema = reader.schema(object);
         assertEquals(2, schema.size());
@@ -5498,7 +5520,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Without header_row=false this would have lost row 0 to the header.
         String csv = "10,20\n30,40\n50,60\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false));
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -5518,7 +5540,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testHeaderlessSkipsCommentLines() throws IOException {
         String csv = "// a comment header\n1,2\n3,4\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false));
 
         List<Attribute> schema = reader.schema(object);
         assertEquals(2, schema.size());
@@ -5528,7 +5550,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     public void testHeaderlessEmptyInputThrows() {
         StorageObject object = createStorageObject("");
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false));
 
         IOException ex = expectThrows(IOException.class, () -> reader.schema(object));
         assertThat(ex.getMessage().toLowerCase(Locale.ROOT), Matchers.containsString("no data rows"));
@@ -5537,7 +5559,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testHeaderlessCommentsOnlyInputThrows() {
         // Filtered by comment prefix so no data rows remain — must surface the same clean IOException.
         StorageObject object = createStorageObject("// only comments\n// another\n");
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false));
 
         IOException ex = expectThrows(IOException.class, () -> reader.schema(object));
         assertThat(ex.getMessage().toLowerCase(Locale.ROOT), Matchers.containsString("no data rows"));
@@ -5547,7 +5569,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Bad value rejected at config parse time, not deferred to read.
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", "not_a_bool"))
+            () -> configuredReader(blockFactory, Map.of("header_row", "not_a_bool"))
         );
         assertThat(ex.getMessage(), Matchers.containsString("Invalid boolean value"));
         assertThat(ex.getMessage(), Matchers.containsString("header_row"));
@@ -5557,7 +5579,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // With header_row=false, a row that LOOKS like a typed header (name:type) is data, not schema.
         String csv = "id:long,age:int\n1,30\n2,25\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false));
 
         List<Attribute> schema = reader.schema(object);
         assertEquals(2, schema.size());
@@ -5586,7 +5608,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             csv.append(i).append(',').append(i * 10).append('\n');
         }
         StorageObject object = createStorageObject(csv.toString());
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false));
 
         int totalRows = 0;
         try (CloseableIterator<Page> iterator = reader.read(object, null, 7)) {
@@ -5607,7 +5629,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testHeaderlessProjectedColumns() throws IOException {
         String csv = "10,20,30\n40,50,60\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false));
 
         // Project col2 first then col0 to exercise reordering.
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("col2", "col0"), 10)) {
@@ -5627,9 +5649,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testHeaderlessCustomPrefixViaReadPath() throws IOException {
         String csv = "1,2\n3,4\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("header_row", false, "column_prefix", "f_")
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false, "column_prefix", "f_"));
 
         // Project by the synthesized name to confirm the runtime path uses the same prefix.
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("f_1"), 10)) {
@@ -5653,9 +5673,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         csv.append("not_a_number,42\n");
         csv.append("99,9900\n");
         StorageObject object = createStorageObject(csv.toString());
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("header_row", false, "schema_sample_size", 10)
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false, "schema_sample_size", 10));
         ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
 
         int totalRows = 0;
@@ -5760,7 +5778,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject(csv);
         // Jackson path requires bracketMultiValues=false: use NONE multi-value syntax.
         Map<String, Object> config = Map.of("multi_value_syntax", "NONE");
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        CsvFormatReader reader = configuredReader(blockFactory, config);
         ErrorPolicy lenient = new ErrorPolicy(10, true);
 
         List<Long> ids = new ArrayList<>();
@@ -5793,7 +5811,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
         StorageObject object = createStorageObject(csv);
         Map<String, Object> config = Map.of("multi_value_syntax", "NONE");
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        CsvFormatReader reader = configuredReader(blockFactory, config);
 
         ParsingException e = expectThrows(ParsingException.class, () -> {
             try (
@@ -5848,7 +5866,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
         StorageObject object = createStorageObject(csv.toString());
         Map<String, Object> config = Map.of("multi_value_syntax", "NONE");
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        CsvFormatReader reader = configuredReader(blockFactory, config);
         ErrorPolicy budgetOf2 = new ErrorPolicy(2, false);
 
         ParsingException e = expectThrows(ParsingException.class, () -> {
@@ -5960,9 +5978,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // The wider row exceeds the inferred schema width and is rejected via onRowError.
         String csv = "1,Alice\n2,Bob\n3,Charlie,extra\n4,Dina\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("header_row", false, "schema_sample_size", 2)
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false, "schema_sample_size", 2));
         ErrorPolicy lenient = new ErrorPolicy(10, true);
 
         try (
@@ -6024,7 +6040,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false),
             new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD, Nullability.TRUE, null, false)
         );
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withSchema(schema);
+        CsvFormatReader reader = schemaBoundReader(blockFactory, schema);
 
         FormatReadContext ctx = FormatReadContext.builder().batchSize(10).firstSplit(false).recordAligned(true).build();
         try (CloseableIterator<Page> iterator = reader.read(object, ctx)) {
@@ -6050,7 +6066,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false),
             new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD, Nullability.TRUE, null, false)
         );
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withSchema(schema);
+        CsvFormatReader reader = schemaBoundReader(blockFactory, schema);
 
         // recordAligned defaults to false, matching legacy macro-split semantics.
         FormatReadContext ctx = FormatReadContext.builder().batchSize(10).firstSplit(false).build();
@@ -6090,7 +6106,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             true,
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(opts).withSchema(schema);
+        CsvFormatReader reader = optionsReader(blockFactory, opts, schema);
 
         FormatReadContext ctx = FormatReadContext.builder().batchSize(10).firstSplit(false).build();
         try (CloseableIterator<Page> iterator = reader.read(object, ctx)) {
@@ -6127,8 +6143,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
         );
-        FormatReader baseReader = new CsvFormatReader(blockFactory);
-        FormatReader boundReader = baseReader.withSchema(bound);
+        FormatReader boundReader = schemaBoundReader(blockFactory, bound);
 
         try (
             CloseableIterator<Page> iterator = boundReader.read(
@@ -6157,8 +6172,11 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD)
         );
-        FormatReader headerless = new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
-        FormatReader bound2 = headerless.withSchema(bound);
+        FormatReader bound2 = configuredReader(
+            blockFactory,
+            Map.of("header_row", false),
+            FormatReadContext.Binding.empty().withBoundSchema(bound)
+        );
 
         try (
             CloseableIterator<Page> iterator = bound2.read(
@@ -6203,7 +6221,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
         );
-        FormatReader boundReader = new CsvFormatReader(blockFactory).withSchema(projectedAttrs);
+        FormatReader boundReader = schemaBoundReader(blockFactory, projectedAttrs);
 
         try (
             CloseableIterator<Page> iterator = boundReader.read(
@@ -6239,7 +6257,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Row 2 has an unclosed quote — Jackson throws on it.
         String csv = "1,Alice\n2,\"Bob\n3,Charlie\n4,Dave\n";
         StorageObject object = createStorageObject(csv);
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
+        FormatReader reader = configuredReader(
+            blockFactory,
             Map.of("header_row", false, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 100)
         );
 
@@ -6264,7 +6283,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             csv.append(i).append(",\"unterminated\n");
         }
         StorageObject object = createStorageObject(csv.toString());
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false, "multi_value_syntax", "NONE"));
+        FormatReader reader = configuredReader(blockFactory, Map.of("header_row", false, "multi_value_syntax", "NONE"));
 
         ParsingException e = expectThrows(ParsingException.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
@@ -6292,7 +6311,8 @@ public class CsvFormatReaderTests extends ESTestCase {
             csv.append(i).append(",\"unterminated\n");
         }
         StorageObject object = createStorageObject(csv.toString());
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
+        FormatReader reader = configuredReader(
+            blockFactory,
             Map.of("header_row", false, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 5)
         );
 
@@ -6318,7 +6338,8 @@ public class CsvFormatReaderTests extends ESTestCase {
             csv.append(i).append(",\"unterminated\n");
         }
         StorageObject object = createStorageObject(csv.toString());
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
+        FormatReader reader = configuredReader(
+            blockFactory,
             Map.of("header_row", false, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", Long.MAX_VALUE)
         );
 
@@ -6375,7 +6396,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             """;
         StorageObject object = createStorageObject(csv);
         // Bracket parsing disabled so the Jackson tokeniser fires the structural error.
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "NONE"));
+        FormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "NONE"));
 
         ParsingException e = expectThrows(ParsingException.class, () -> {
             try (
@@ -6420,7 +6441,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * The end-to-end repro for the ClickBench failure: a chunk-0 split with a malformed row
      * deep inside the schema sample window. With the previous code, the parser thread would
      * call {@code inferSchemaHeaderlessFromBatchReader} on chunk 0 even though
-     * {@link FormatReader#withSchema} had already bound the schema upstream, hit the bad row,
+     * the factory had already bound the schema upstream, hit the bad row,
      * and crash the query with a 500. With the fix, chunk-0 uses the bound schema and emits
      * pages even when sampling on the same bytes would fail.
      */
@@ -6440,8 +6461,11 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD)
         );
-        FormatReader headerless = new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false, "multi_value_syntax", "NONE"));
-        FormatReader bound2 = headerless.withSchema(bound);
+        FormatReader bound2 = configuredReader(
+            blockFactory,
+            Map.of("header_row", false, "multi_value_syntax", "NONE"),
+            FormatReadContext.Binding.empty().withBoundSchema(bound)
+        );
 
         // SKIP_ROW so the malformed row is dropped and the rest of the file flows through.
         ErrorPolicy lenient = new ErrorPolicy(100, true);
@@ -6644,8 +6668,11 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD)
         );
         for (boolean binding : List.of(false, true)) {
-            CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
-                .withDeclaredProvenanceBinding(binding);
+            CsvFormatReader reader = configuredReader(
+                blockFactory,
+                Map.of("header_row", false),
+                FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(binding)
+            );
             try (
                 CloseableIterator<Page> it = reader.read(
                     object,
@@ -6668,9 +6695,11 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.DATETIME),
             new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG)
         );
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("header_row", true, "datetime_format", "yyyy-MM-dd HH:mm:ss")
-        ).withDeclaredProvenanceBinding(true);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", true, "datetime_format", "yyyy-MM-dd HH:mm:ss"),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true)
+        );
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -6696,8 +6725,11 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "first_name", DataType.KEYWORD),
             new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG)
         );
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withDeclaredProvenanceBinding(true);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", true),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true)
+        );
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -6728,9 +6760,11 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG)
         );
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withDeclaredProvenanceBinding(true)
-            .withSchema(declared);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", true),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true).withBoundSchema(declared)
+        );
 
         List<String> names = reader.metadata(object).schema().stream().map(Attribute::name).toList();
         assertEquals("metadata must describe the file, not the declaration", List.of("first_name", "emp_no", "salary"), names);
@@ -6748,8 +6782,11 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "first_name", DataType.KEYWORD),
             new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG)
         );
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withDeclaredProvenanceBinding(true);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", true),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true)
+        );
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -6782,8 +6819,11 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testCarriedHeaderColumnsAreNormalisedLikeTheFirstChunk() throws Exception {
         StorageObject object = createStorageObject("1\n");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "value", DataType.LONG));
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withDeclaredProvenanceBinding(true);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", true),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true)
+        );
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -6817,8 +6857,11 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, null, "first_name", DataType.KEYWORD)
         );
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withDeclaredProvenanceBinding(true);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", true),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true)
+        );
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -6845,8 +6888,11 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testNonFirstChunkWithoutCarriedHeaderColumnsFailsLoudly() throws Exception {
         StorageObject object = createStorageObject("1,Alice\n");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG));
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withDeclaredProvenanceBinding(true);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", true),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true)
+        );
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> reader.read(
@@ -6861,8 +6907,11 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testDeclaredPathBindsColumnBeyondDeclarationWidth() throws Exception {
         StorageObject object = createStorageObject("a,b,c,d,e,f,g,h,i,999\n");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "col9", DataType.LONG));
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
-            .withDeclaredProvenanceBinding(true);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", false),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true)
+        );
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -6881,8 +6930,11 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject("id,ts\n42,7\n");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "nope", DataType.LONG));
         List<String> warnings = new ArrayList<>();
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withDeclaredProvenanceBinding(true);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", true),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true)
+        );
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -6908,8 +6960,11 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject("42,7\n");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "EventTime", DataType.LONG));
         List<String> warnings = new ArrayList<>();
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
-            .withDeclaredProvenanceBinding(true);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", false),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true)
+        );
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -6935,8 +6990,11 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject("a,b,c,d,e,f,g,h\n");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "col007", DataType.KEYWORD));
         List<String> warnings = new ArrayList<>();
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
-            .withDeclaredProvenanceBinding(true);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", false),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true)
+        );
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -6960,8 +7018,11 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testHeaderlessIndexBeyondCapReadsNull() throws Exception {
         StorageObject object = createStorageObject("42,7\n");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "col500000000", DataType.LONG));
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
-            .withDeclaredProvenanceBinding(true);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", false),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true)
+        );
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -6978,8 +7039,11 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testDuplicateHeaderNameRejected() {
         StorageObject object = createStorageObject("id,ts,id\n1,2,3\n");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withDeclaredProvenanceBinding(true);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", true),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true)
+        );
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> reader.read(
@@ -6996,17 +7060,10 @@ public class CsvFormatReaderTests extends ESTestCase {
      * splittable — that is the shape throughput-sensitive reads use.
      */
     public void testDeclaredNameBindingNeedsFileStartOnlyWhenHeadered() {
-        CsvFormatReader headered = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true));
-        CsvFormatReader headerless = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
-        assertFalse("no declared path -> nothing to bind by name", headered.declaredNameBindingNeedsFileStart());
-        assertTrue(
-            "headered + declared path binds against the header line",
-            headered.withDeclaredProvenanceBinding(true).declaredNameBindingNeedsFileStart()
-        );
-        assertFalse(
-            "headerless names encode their own positions, so any split can bind",
-            headerless.withDeclaredProvenanceBinding(true).declaredNameBindingNeedsFileStart()
-        );
+        CsvFormatReaderFactory factory = csvFactory();
+        // The coordinator needs the file start only when declared provenance is set and the format has a header row.
+        assertTrue("headered + declared path binds against the header line", factory.headerRow(Map.of("header_row", true)));
+        assertFalse("headerless names encode their own positions, so any split can bind", factory.headerRow(Map.of("header_row", false)));
     }
 
     public void testStrictHeaderlessPathBindsByColumnIndex() throws Exception {
@@ -7017,9 +7074,11 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.DATETIME),  // declared ts, path: col2
             new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG)       // declared id, path: col0
         );
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("header_row", false, "datetime_format", "yyyy-MM-dd HH:mm:ss")
-        ).withDeclaredProvenanceBinding(true);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", false, "datetime_format", "yyyy-MM-dd HH:mm:ss"),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true)
+        );
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7052,9 +7111,11 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD), // declared first, names raw field 1
             new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG)      // declared second, names raw field 0
         );
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("header_row", false, "multi_value_syntax", "brackets")
-        ).withDeclaredProvenanceBinding(true);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", false, "multi_value_syntax", "brackets"),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true)
+        );
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7081,8 +7142,11 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.DOUBLE),  // declared first, raw field 2
             new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG)      // declared second, raw field 0
         );
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
-            .withDeclaredProvenanceBinding(true);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", false),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true)
+        );
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7114,8 +7178,11 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, null, "col5", DataType.KEYWORD)   // absent: file has 3 fields
         );
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
-            .withDeclaredProvenanceBinding(true);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", false),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true)
+        );
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7144,9 +7211,12 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD), // declared first, raw field 1
             new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG)      // declared second, raw field 0
         );
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withDirectBlockEnabled(true)
-            .withConfig(Map.of("header_row", false, "multi_value_syntax", "none"))
-            .withDeclaredProvenanceBinding(true);
+        CsvFormatReader reader = configuredReader(
+            blockFactory,
+            Map.of("header_row", false, "multi_value_syntax", "none"),
+            FormatReadContext.Binding.empty().withDeclaredProvenanceBinding(true),
+            true
+        );
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7179,7 +7249,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // reflect the bound types, not the inferred ones.
         String csv = "10,20\n30,40\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false));
 
         List<Attribute> boundSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD, Nullability.TRUE, null, false),
@@ -7209,7 +7279,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // slot is opt-in: existing call sites that don't set readSchema get the existing behavior.
         String csv = "10,20\n30,40\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false));
 
         FormatReadContext ctx = FormatReadContext.builder().batchSize(10).build();
         assertNull("readSchema must default to null", ctx.readSchema());
@@ -7235,7 +7305,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // the type-mismatch crash that TopN otherwise catches goes away.
         String fileB = "10,20\n30,40\n"; // would infer col1 as INTEGER without a bound read schema
         StorageObject fileBObject = createStorageObject(fileB);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("header_row", false));
 
         List<Attribute> readSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD, Nullability.TRUE, null, false),
@@ -7373,7 +7443,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             2,Bob,25,false
             """;
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("id", "age"), 10)) {
             assertTrue(iterator.hasNext());
@@ -7394,7 +7464,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             0,0
             """;
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("a", "b"), 10)) {
             assertTrue(iterator.hasNext());
@@ -7414,7 +7484,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             2,Bob,87.3
             """;
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("name", "score"), 10)) {
             assertTrue(iterator.hasNext());
@@ -7432,7 +7502,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             2,Bob,
             """;
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("id", "name", "age"), 10)) {
             assertTrue(iterator.hasNext());
@@ -7628,7 +7698,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testEmptyVsNull_customNullValueToken_defaultPath() throws IOException {
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("null_value", "N/A"));
+        FormatReader reader = configuredReader(blockFactory, Map.of("null_value", "N/A"));
         withFirstPage(reader, """
             id:long,phrase:keyword,n:integer
             1,apple,10
@@ -7641,7 +7711,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testEmptyVsNull_emptyUnderCustomNullValue_defaultPath() throws IOException {
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("null_value", "N/A"));
+        FormatReader reader = configuredReader(blockFactory, Map.of("null_value", "N/A"));
         withFirstPage(reader, """
             id:long,phrase:keyword,n:integer
             1,apple,10
@@ -7656,7 +7726,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     // --- TSV / plain mode (Jackson bulk iterator, tab delimiter, no quoting) ---
 
     public void testEmptyVsNull_interiorEmptyString_tsvPlain() throws IOException {
-        FormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        FormatReader reader = optionsReader(blockFactory, CsvFormatOptions.TSV);
         withFirstPage(reader, "id:long\tphrase:keyword\tn:integer\n1\tapple\t10\n2\t\t20\n3\tbanana\t30\n", page -> {
             assertEquals(3, page.getPositionCount());
             assertKeyword(page, 1, 1, ""); // interior empty -> empty string
@@ -7664,7 +7734,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testEmptyVsNull_trailingEmptyString_tsvPlain() throws IOException {
-        FormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        FormatReader reader = optionsReader(blockFactory, CsvFormatOptions.TSV);
         withFirstPage(reader, "id:long\tn:integer\tphrase:keyword\n1\t10\tapple\n2\t20\t\n3\t30\tbanana\n", page -> {
             assertEquals(3, page.getPositionCount());
             assertKeyword(page, 2, 1, ""); // trailing empty -> empty string
@@ -7685,7 +7755,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             .batchSize(100)
             .statsColumnScope(StripeColumnScope.PROJECTED)
             .build();
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withDirectBlockEnabled(true);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
         try (CloseableIterator<Page> iterator = reader.read(object, ctx)) {
             assertTrue("expected at least one page", iterator.hasNext());
             asserts.accept(iterator.next());
@@ -7759,7 +7829,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     // --- Fused bracket path (multi_value_syntax=brackets, comma delimiter) ---
 
     public void testEmptyVsNull_interiorEmptyString_fusedBrackets() throws IOException {
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        FormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
         withFirstPage(reader, """
             id:long,phrase:keyword,n:integer
             1,apple,10
@@ -7772,7 +7842,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testEmptyVsNull_trailingEmptyString_fusedBrackets() throws IOException {
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        FormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
         withFirstPage(reader, """
             id:long,n:integer,phrase:keyword
             1,10,apple
@@ -7785,7 +7855,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testEmptyVsNull_quotedEmptyString_fusedBrackets() throws IOException {
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        FormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
         withFirstPage(reader, """
             id:long,phrase:keyword,n:integer
             1,apple,10
@@ -7803,9 +7873,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // convertRowInPlace), not the fused walker. schema_sample_size=2 keeps rows 3 and 4 on that
         // route. Both bracket routes must agree: an interior empty and a trailing empty keyword cell
         // read as the empty string, not null.
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
-            Map.of("multi_value_syntax", "brackets", "schema_sample_size", "2")
-        );
+        FormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets", "schema_sample_size", "2"));
         withFirstPage(reader, """
             id,phrase,tail
             1,apple,x
@@ -7824,9 +7892,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // splitCommaDelimiterBracketAwareFields). A quoted empty `""` field yields no text; it must still
         // read as the empty string, matching the fused walker and the Jackson path rather than collapsing
         // to a missing field. schema_sample_size=1 pushes row 2 onto the split-then-convert route.
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
-            Map.of("multi_value_syntax", "brackets", "schema_sample_size", "1")
-        );
+        FormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets", "schema_sample_size", "1"));
         withFirstPage(reader, """
             phrase
             apple
@@ -7848,8 +7914,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testEmptyVsNull_presentEmptyElement_bracketMultiValue() throws IOException {
         String csv = "id:integer,phrase:keyword\n1,\"[a,,c]\"\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader baseReader = new CsvFormatReader(blockFactory);
-        FormatReader configured = baseReader.withConfig(Map.of("multi_value_syntax", "brackets"));
+        FormatReader configured = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = configured.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -7872,8 +7937,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testEmptyVsNull_presentEmptyElement_bracketMultiValueNumeric() throws IOException {
         String csv = "id:integer,n:integer\n1,\"[10,,30]\"\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader baseReader = new CsvFormatReader(blockFactory);
-        FormatReader configured = baseReader.withConfig(Map.of("multi_value_syntax", "brackets"));
+        FormatReader configured = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = configured.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -7894,7 +7958,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             w1,w2,w3,w4,w5
             """;
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("c"), 10)) {
             assertTrue(iterator.hasNext());
@@ -7913,7 +7977,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             2,[foo]
             """;
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("id", "tags"), 10)) {
             assertTrue(iterator.hasNext());
@@ -7932,7 +7996,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             2,"Bob ""B"" Smith"
             """;
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("name"), 10)) {
             assertTrue(iterator.hasNext());
@@ -7949,9 +8013,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             9999999999999999999
             """;
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("multi_value_syntax", "brackets", "error_mode", "null_field")
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets", "error_mode", "null_field"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("val"), 10)) {
             assertTrue(iterator.hasNext());
@@ -7970,7 +8032,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             2,Bob
             """;
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("id", "name"), 10)) {
             assertTrue(iterator.hasNext());
@@ -7987,7 +8049,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             1,Alice,extra
             """;
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         ParsingException ex = expectThrows(ParsingException.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(object, List.of("id", "name"), 10)) {
@@ -8006,7 +8068,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             3,4,5
             """;
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("a", "c"), 10)) {
             assertTrue(iterator.hasNext());
@@ -8031,7 +8093,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             4,5
             """;
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("a", "c"), 10)) {
             assertTrue(iterator.hasNext());
@@ -8053,7 +8115,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testFusedPathLongMinValueFallback() throws IOException {
         String csv = "val:long\n" + Long.MIN_VALUE + "\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("val"), 10)) {
             assertTrue(iterator.hasNext());
@@ -8073,7 +8135,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             +5
             """;
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("val"), 10)) {
             assertTrue(iterator.hasNext());
@@ -8090,7 +8152,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testFusedPathTrailingSpaceFallback() throws IOException {
         String csv = "val:long\n123 \n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("val"), 10)) {
             assertTrue(iterator.hasNext());
@@ -8110,7 +8172,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             "123"
             """;
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("val"), 10)) {
             assertTrue(iterator.hasNext());
@@ -8127,7 +8189,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testFusedPathMultiLineQuotedField() throws IOException {
         String csv = "id:long,text:keyword\n1,\"hello\nworld\"\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("text"), 10)) {
             assertTrue(iterator.hasNext());
@@ -8363,9 +8425,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testRowPositionNotSplitByEscapedNewlineInQuotedEscapingMode() throws IOException {
         String csv = "id:long,name:keyword\n1,a\\\nb\n2,Bob\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("quote", "\"", "escape", "\\", "trim_spaces", true)
-        );
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("quote", "\"", "escape", "\\", "trim_spaces", true));
         FormatReadContext ctx = FormatReadContext.builder()
             .batchSize(64)
             .errorPolicy(ErrorPolicy.STRICT)
@@ -8403,7 +8463,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject(csv);
         // schema_sample_size = 2: rows 1-2 sampled+replayed, rows 3-5 read post-sample. Un-typed
         // header (id,name — no :type) routes through type inference, exercising the sample boundary.
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 2));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("schema_sample_size", 2));
         FormatReadContext context = FormatReadContext.builder()
             .batchSize(64)
             .errorPolicy(ErrorPolicy.STRICT)
@@ -8474,7 +8534,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                     false
                 )
             );
-            reader = reader.withSchema(schema);
+            reader = schemaBoundReader(blockFactory, schema);
         }
         FormatReadContext.Builder ctxBuilder = FormatReadContext.builder()
             .batchSize(64)
@@ -8558,7 +8618,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject(csv);
         // Pin the Jackson bulk path explicitly; the analogous direct-to-block behaviour (recoverable
         // per-row cap) is covered by testDirectPathSkipsOversizedRecordUnderLenientPolicy.
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withDirectBlockEnabled(false);
+        CsvFormatReader reader = configuredReader(blockFactory, null, FormatReadContext.Binding.empty(), false);
 
         FormatReadContext context = FormatReadContext.builder()
             .batchSize(10)
@@ -8599,10 +8659,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         // per-record path on CsvLogicalRecordReader) intentionally treat the per-record cap as recoverable
         // (matching the bracket-aware path), so default CSV would otherwise recover under a lenient policy
         // instead of aborting. trim_spaces keeps Jackson's grammar applicable so the read stays on the bulk
-        // path (with its stream-fatal CsvRecordCappingInputStream); withDirectBlockEnabled(false) forces the
+        // path (with its stream-fatal CsvRecordCappingInputStream); a factory with directBlockEnabled=false forces the
         // bulk arm over the direct one. See read() for the rationale.
-        CsvFormatReader reader = ((CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("trim_spaces", true)))
-            .withDirectBlockEnabled(false);
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("trim_spaces", true), FormatReadContext.Binding.empty(), false);
 
         FormatReadContext context = FormatReadContext.builder()
             .batchSize(10)
@@ -8630,7 +8689,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     /**
      * No-trim sibling of {@link #testJacksonBulkPathAbortsOnCapTooLargeEvenUnderLenientPolicy}: with the
-     * direct-block kill-switch off ({@code withDirectBlockEnabled(false)}) AND the no-trim default,
+     * direct-block kill-switch off (factory {@code directBlockEnabled=false}) AND the no-trim default,
      * {@code jacksonGrammarApplies()} is false, so a non-direct read reroutes onto the house per-record path
      * ({@code newCsvIterator} on {@link CsvLogicalRecordReader}) rather than the stream-fatal Jackson bulk
      * path. That path enforces {@code external_max_record_size} via {@link CsvLogicalRecordReader#addBytes}, an exact
@@ -8643,7 +8702,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject(csv);
         // No trim_spaces (default no-trim) keeps Jackson's grammar inapplicable; the kill-switch forces the
         // non-direct arm, which reroutes to the house per-record path (see read()'s useRecordReaderPath).
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withDirectBlockEnabled(false);
+        CsvFormatReader reader = configuredReader(blockFactory, null, FormatReadContext.Binding.empty(), false);
 
         FormatReadContext context = FormatReadContext.builder()
             .batchSize(10)
@@ -8785,7 +8844,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         csv.append("2,[").append("x".repeat(maxRecordBytes)).append("]\n");
         csv.append("3,[c,d]\n");
         StorageObject object = createStorageObject(csv.toString());
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
 
         FormatReadContext context = FormatReadContext.builder()
             .batchSize(10)
@@ -8878,7 +8937,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         FormatReader failFast = new CsvFormatReader(blockFactory);
         expectThrows(Exception.class, () -> readOneUnsignedLongColumn(failFast, csv));
 
-        FormatReader lenient = new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "null_field", "max_errors", 100));
+        FormatReader lenient = configuredReader(blockFactory, Map.of("error_mode", "null_field", "max_errors", 100));
         LongBlock block = readOneUnsignedLongColumn(lenient, csv);
         assertEquals(4, block.getPositionCount());
         assertTrue("negative must null the cell", block.isNull(0));
@@ -8889,7 +8948,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     /** Multivalue unsigned_long cells parse element-by-element through the same coercer. */
     public void testDeclaredUnsignedLongMultivalue() throws IOException {
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        FormatReader reader = configuredReader(blockFactory, Map.of("multi_value_syntax", "brackets"));
         LongBlock block = readOneUnsignedLongColumn(reader, "v\n[1,18446744073709551615]\n");
         assertEquals(2, block.getValueCount(0));
         int first = block.getFirstValueIndex(0);
@@ -8907,7 +8966,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testDeclaredUnsignedLongExoticExponentIsAPerCellFailure() throws IOException {
         String csv = "v\n1e999999999\n1e-999999999\n5\n";
 
-        FormatReader lenient = new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "null_field", "max_errors", 100));
+        FormatReader lenient = configuredReader(blockFactory, Map.of("error_mode", "null_field", "max_errors", 100));
         LongBlock block = readOneUnsignedLongColumn(lenient, csv);
         assertTrue("huge positive exponent nulls the cell", block.isNull(0));
         assertTrue("huge negative exponent nulls the cell", block.isNull(1));
@@ -8929,7 +8988,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, null, "v", DataType.UNSIGNED_LONG)
         );
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "skip_row", "max_errors", 100));
+        FormatReader reader = configuredReader(blockFactory, Map.of("error_mode", "skip_row", "max_errors", 100));
         try (CloseableIterator<Page> it = reader.read(createStorageObject("id,v\n1,5\n2,-1\n3,7\n"), declaredCtx(schema))) {
             assertTrue(it.hasNext());
             Page page = it.next();
@@ -8944,7 +9003,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     /** TSV rides the same reader; a declared unsigned_long must read identically there. */
     public void testDeclaredUnsignedLongReadsFromTsv() throws IOException {
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("delimiter", "\t"));
+        FormatReader reader = configuredReader(blockFactory, Map.of("delimiter", "\t"));
         LongBlock block = readOneUnsignedLongColumn(reader, "v\n18446744073709551615\n");
         assertEquals(encoded("18446744073709551615"), block.getLong(0));
     }
@@ -8952,7 +9011,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     /** The typed-header intake is the second schema surface; it must know unsigned_long under both spellings. */
     public void testTypedHeaderAcceptsUnsignedLongAliases() throws IOException {
         for (String spelling : List.of("unsigned_long", "UNSIGNED_LONG", "ul", "UL")) {
-            CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("typed_header", true));
+            CsvFormatReader reader = configuredReader(blockFactory, Map.of("typed_header", true));
             List<Attribute> schema = reader.metadata(createStorageObject("v:" + spelling + "\n18446744073709551615\n")).schema();
             assertEquals("spelling [" + spelling + "]", DataType.UNSIGNED_LONG, schema.get(0).dataType());
         }

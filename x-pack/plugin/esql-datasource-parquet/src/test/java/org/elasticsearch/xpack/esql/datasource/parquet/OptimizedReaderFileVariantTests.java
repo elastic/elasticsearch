@@ -168,7 +168,7 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
 
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader baseline = new ParquetFormatReader(blockFactory, false);
-        ParquetFormatReader optimized = new ParquetFormatReader(blockFactory, true);
+        ParquetFormatReader optimized = new ParquetFormatReader(blockFactory);
 
         List<Page> baselinePages;
         try (CloseableIterator<Page> iter = baseline.read(storageObject, FormatReadContext.of(null, 1024))) {

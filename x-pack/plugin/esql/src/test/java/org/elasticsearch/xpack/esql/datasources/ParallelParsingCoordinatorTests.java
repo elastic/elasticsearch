@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -35,16 +36,19 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -91,7 +95,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         StorageObject obj = new InMemoryStorageObject(content.getBytes(StandardCharsets.UTF_8));
         NewlineSegmentableReader reader = new NewlineSegmentableReader(1);
 
-        List<long[]> segments = ParallelParsingCoordinator.computeSegments(reader, obj, content.length(), 3, 1);
+        List<long[]> segments = ParallelParsingCoordinator.computeSegments(fixtureFactory(reader), obj, content.length(), 3, 1);
 
         assertTrue("Should have multiple segments", segments.size() > 1);
 
@@ -111,7 +115,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         StorageObject obj = new InMemoryStorageObject(content.getBytes(StandardCharsets.UTF_8));
         NewlineSegmentableReader reader = new NewlineSegmentableReader(64 * 1024);
 
-        List<long[]> segments = ParallelParsingCoordinator.computeSegments(reader, obj, content.length(), 4, 64 * 1024);
+        List<long[]> segments = ParallelParsingCoordinator.computeSegments(fixtureFactory(reader), obj, content.length(), 4, 64 * 1024);
 
         assertEquals("Small file should produce single segment", 1, segments.size());
         assertEquals(0, segments.get(0)[0]);
@@ -151,7 +155,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         byte[] payload = text.toString().getBytes(StandardCharsets.UTF_8);
 
         List<long[]> segments = ParallelParsingCoordinator.computeSegments(
-            new NewlineSegmentableReader(minSegment),
+            fixtureFactory(new NewlineSegmentableReader(minSegment)),
             new InMemoryStorageObject(payload),
             payload.length,
             parallelism,
@@ -192,7 +196,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         byte[] shortRowsOnly = row.repeat(payload.length / row.length()).getBytes(StandardCharsets.UTF_8);
         assertEquals(payload.length, shortRowsOnly.length);
         List<long[]> unobstructed = ParallelParsingCoordinator.computeSegments(
-            new NewlineSegmentableReader(minSegment),
+            fixtureFactory(new NewlineSegmentableReader(minSegment)),
             new InMemoryStorageObject(shortRowsOnly),
             shortRowsOnly.length,
             parallelism,
@@ -229,7 +233,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         // Every probe offset is a whole number of records in, so each one lands on a record start and has to
         // read that entire record to reach a newline. That is what makes the record width the binding term.
         List<long[]> segments = ParallelParsingCoordinator.computeSegments(
-            new NewlineSegmentableReader(1),
+            fixtureFactory(new NewlineSegmentableReader(1)),
             new InMemoryStorageObject(payload),
             payload.length,
             parallelism,
@@ -276,7 +280,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         assertEquals(fileLength, payload.length);
 
         List<long[]> segments = ParallelParsingCoordinator.computeSegments(
-            new NewlineSegmentableReader(1),
+            fixtureFactory(new NewlineSegmentableReader(1)),
             new InMemoryStorageObject(payload),
             payload.length,
             parallelism,
@@ -314,7 +318,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             TaskCancelledException.class,
             () -> StorageRetryCancellation.runWithCancellation(
                 () -> true,
-                () -> ParallelParsingCoordinator.computeSegments(new NewlineSegmentableReader(1), obj, payload.length, 3, 1)
+                () -> ParallelParsingCoordinator.computeSegments(fixtureFactory(new NewlineSegmentableReader(1)), obj, payload.length, 3, 1)
             )
         );
         assertEquals(RecordBoundaryProbe.CANCELLED_MESSAGE, thrown.getMessage());
@@ -338,7 +342,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             TaskCancelledException.class,
             () -> StorageRetryCancellation.runWithCancellation(
                 cancelled::get,
-                () -> ParallelParsingCoordinator.computeSegments(new NewlineSegmentableReader(1), obj, payload.length, 3, 1)
+                () -> ParallelParsingCoordinator.computeSegments(fixtureFactory(new NewlineSegmentableReader(1)), obj, payload.length, 3, 1)
             )
         );
         assertEquals("probes after the first must not read", 1, opens.get());
@@ -364,7 +368,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             TaskCancelledException.class,
             () -> StorageRetryCancellation.runWithCancellation(
                 () -> true,
-                () -> ParallelParsingCoordinator.computeSegments(csvReader, obj, payload.length, 4, 1)
+                () -> ParallelParsingCoordinator.computeSegments(fixtureFactory(csvReader), obj, payload.length, 4, 1)
             )
         );
         assertEquals("the proven walk must stop after the step that sees cancel", 1, opens.get());
@@ -375,7 +379,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         StorageObject obj = new InMemoryStorageObject(content.getBytes(StandardCharsets.UTF_8));
         NewlineSegmentableReader reader = new NewlineSegmentableReader(1);
 
-        List<long[]> segments = ParallelParsingCoordinator.computeSegments(reader, obj, content.length(), 2, 1);
+        List<long[]> segments = ParallelParsingCoordinator.computeSegments(fixtureFactory(reader), obj, content.length(), 2, 1);
 
         for (int i = 1; i < segments.size(); i++) {
             long offset = segments.get(i)[0];
@@ -407,16 +411,19 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         // Plain mode: the drain contract is format-agnostic, but computeSegments now refuses non-strided
         // splitters (default/quoted CSV), which are read whole-file instead. Plain CSV keeps strided probing.
-        SegmentableFormatReader csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
+        CsvFormatReaderFactory csvFactory = new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true);
+        Map<String, Object> plainConfig = Map.of("mode", "plain");
         List<long[]> segments = ParallelParsingCoordinator.computeSegments(
-            csvReader,
+            csvFactory,
+            plainConfig,
             object,
             fileLength,
             4,
-            csvReader.minimumSegmentSize()
+            csvFactory.minimumSegmentSize(plainConfig),
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
         );
 
-        long stride = Math.max(fileLength / 4, csvReader.minimumSegmentSize());
+        long stride = Math.max(fileLength / 4, csvFactory.minimumSegmentSize(plainConfig));
         assertThat(
             "a probe here must be left with more than the drain threshold to transfer, or it is no longer testing the abort path",
             RecordBoundaryProbe.probeWindow(
@@ -458,15 +465,15 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
         StorageObject obj = new InMemoryStorageObject(payload);
         // Default construction => quoting on => CsvRecordSplitter: non-strided but proven-capable.
-        CsvFormatReader csvReader = new CsvFormatReader(blockFactory());
-        Set<Long> trueStarts = trueRecordStarts(csvReader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES), payload);
+        CsvFormatReaderFactory csvFactory = new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true);
+        Set<Long> trueStarts = trueRecordStarts(csvFactory.recordSplitter(null, SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES), payload);
 
         List<long[]> segments = ParallelParsingCoordinator.computeSegments(
-            csvReader,
+            csvFactory,
             obj,
             payload.length,
             4,
-            csvReader.minimumSegmentSize()
+            csvFactory.minimumSegmentSize(null)
         );
 
         assertThat("expected multiple proven segments", segments.size(), Matchers.greaterThan(1));
@@ -521,7 +528,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         LineFormatReader reader = new LineFormatReader(blockFactory);
 
         // Verify segments cover the full file
-        List<long[]> segments = ParallelParsingCoordinator.computeSegments(reader, obj, contentBytes.length, 4, 1);
+        List<long[]> segments = ParallelParsingCoordinator.computeSegments(fixtureFactory(reader), obj, contentBytes.length, 4, 1);
         long totalCoverage = 0;
         for (long[] seg : segments) {
             totalCoverage += seg[1];
@@ -531,7 +538,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, 4, exec);
+            CloseableIterator<Page> iter = parallelRead(fixtureFactory(reader), obj, List.of("line"), 50, 4, exec);
 
             List<String> allLines = new ArrayList<>();
             try (iter) {
@@ -570,7 +577,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService exec = Executors.newSingleThreadExecutor();
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 100, 1, exec);
+            CloseableIterator<Page> iter = parallelRead(fixtureFactory(reader), obj, List.of("line"), 100, 1, exec);
 
             List<String> allLines = new ArrayList<>();
             try (iter) {
@@ -621,14 +628,14 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         // Guard: the test only exercises AsReadyParallelIterator if the file actually splits.
         assertThat(
             "test needs a genuinely multi-segment file or it would hit the single-stream fallback",
-            ParallelParsingCoordinator.computeSegments(reader, obj, contentBytes.length, 4, 1).size(),
+            ParallelParsingCoordinator.computeSegments(fixtureFactory(reader), obj, contentBytes.length, 4, 1).size(),
             Matchers.greaterThan(1)
         );
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
             // Small batch + many lines => several pages produced; a hasNext() parks one in `buffered`.
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 8, 4, exec);
+            CloseableIterator<Page> iter = parallelRead(fixtureFactory(reader), obj, List.of("line"), 8, 4, exec);
             assertTrue("workers should produce at least one page", iter.hasNext());
             assertThat("hasNext must have parked a buffered page", breaker.getUsed(), Matchers.greaterThan(0L));
 
@@ -678,7 +685,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         // Sanity: this fixture must actually exercise the multi-segment path, otherwise the bug
         // is masked by the single-segment fast path that runs inline on the caller thread.
         List<long[]> segments = ParallelParsingCoordinator.computeSegments(
-            reader,
+            fixtureFactory(reader),
             obj,
             contentBytes.length,
             4,
@@ -692,8 +699,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             // Use the explicit-sink overload: the coordinator binds `sink` on each worker around
             // the per-segment reader.read(...).close() so the close hook's record() call lands in
             // the same map the consumer's StatsCapturingIterator binds for the outer finalize marker.
-            CloseableIterator<Page> outer = ParallelParsingCoordinator.parallelRead(
-                reader,
+            CloseableIterator<Page> outer = parallelRead(
+                fixtureFactory(reader),
                 obj,
                 List.of("line"),
                 50,
@@ -741,7 +748,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService exec = Executors.newFixedThreadPool(2);
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 100, 4, exec);
+            CloseableIterator<Page> iter = parallelRead(fixtureFactory(reader), obj, List.of("line"), 100, 4, exec);
 
             try (iter) {
                 assertFalse("Empty file should produce no pages", iter.hasNext());
@@ -795,7 +802,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         exec.shutdown();
 
         RuntimeException ex = expectThrows(RuntimeException.class, () -> {
-            try (CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, 4, exec)) {
+            try (CloseableIterator<Page> iter = parallelRead(fixtureFactory(reader), obj, List.of("line"), 50, 4, exec)) {
                 while (iter.hasNext()) {
                     Page page = iter.next();
                     page.releaseBlocks();
@@ -836,7 +843,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     public void testUncappedReproducesCongestion() throws Exception {
         byte[] content = repeatedLines(1200);
         int segmentCount = ParallelParsingCoordinator.computeSegments(
-            new LineFormatReader(blockFactory()),
+            fixtureFactory(new LineFormatReader(blockFactory())),
             new StreamCountingStorageObject(content),
             content.length,
             REPRO_PARALLELISM,
@@ -863,8 +870,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         ExecutorService exec = Executors.newFixedThreadPool(poolSize);
         try {
             try (
-                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
-                    reader,
+                CloseableIterator<Page> iter = parallelRead(
+                    fixtureFactory(reader),
                     obj,
                     List.of("line"),
                     50,
@@ -917,8 +924,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         ExecutorService exec = Executors.newFixedThreadPool(parallelism);
         try {
             try (
-                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
-                    reader,
+                CloseableIterator<Page> iter = parallelRead(
+                    fixtureFactory(reader),
                     obj,
                     List.of("line"),
                     50,
@@ -969,8 +976,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService exec = Executors.newFixedThreadPool(parallelism);
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
-                reader,
+            CloseableIterator<Page> iter = parallelRead(
+                fixtureFactory(reader),
                 obj,
                 List.of("line"),
                 50,
@@ -1021,7 +1028,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         // that never submits to the executor (and so never rejects).
         assertThat(
             "test needs a multi-segment file to reach the executor submission path",
-            ParallelParsingCoordinator.computeSegments(reader, obj, contentBytes.length, 4, 1).size(),
+            ParallelParsingCoordinator.computeSegments(fixtureFactory(reader), obj, contentBytes.length, 4, 1).size(),
             Matchers.greaterThan(1)
         );
 
@@ -1030,8 +1037,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         // An executor that refuses every submission, exactly as a saturated / shutting-down parser pool would.
         Executor rejecting = command -> { throw new RejectedExecutionException("parser pool saturated"); };
 
-        CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
-            reader,
+        CloseableIterator<Page> iter = parallelRead(
+            fixtureFactory(reader),
             obj,
             List.of("line"),
             50,
@@ -1079,7 +1086,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 10, 4, exec);
+            CloseableIterator<Page> iter = parallelRead(fixtureFactory(reader), obj, List.of("line"), 10, 4, exec);
 
             RuntimeException ex = expectThrows(RuntimeException.class, () -> {
                 try (iter) {
@@ -1115,7 +1122,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 10, 4, exec);
+            CloseableIterator<Page> iter = parallelRead(fixtureFactory(reader), obj, List.of("line"), 10, 4, exec);
 
             RuntimeException ex = expectThrows(RuntimeException.class, () -> {
                 try (iter) {
@@ -1167,7 +1174,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, 4, exec);
+            CloseableIterator<Page> iter = parallelRead(fixtureFactory(reader), obj, List.of("line"), 50, 4, exec);
             try (iter) {
                 while (iter.hasNext()) {
                     iter.next().releaseBlocks();
@@ -1210,17 +1217,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
-                reader,
-                obj,
-                List.of("line"),
-                50,
-                4,
-                exec,
-                null,
-                true,
-                false
-            );
+            CloseableIterator<Page> iter = parallelRead(fixtureFactory(reader), obj, List.of("line"), 50, 4, exec, null, true, false);
             try (iter) {
                 while (iter.hasNext()) {
                     iter.next().releaseBlocks();
@@ -1265,7 +1262,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 100, 4, exec);
+            CloseableIterator<Page> iter = parallelRead(fixtureFactory(reader), obj, List.of("line"), 100, 4, exec);
             try (iter) {
                 while (iter.hasNext()) {
                     iter.next().releaseBlocks();
@@ -1301,11 +1298,12 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         StorageObject obj = new InMemoryStorageObject(bytes);
         // Plain mode: the parallel-segment path applies to strided-safe CSV. Default/quoted CSV is now routed
         // to the whole-file sequential reader and would be rejected by computeSegments' strided-probing guard.
-        SegmentableFormatReader reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory()).withConfig(Map.of("mode", "plain"));
+        CsvFormatReaderFactory csvFactory = new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true);
+        Map<String, Object> plainConfig = Map.of("mode", "plain");
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of(), 500, 4, exec);
+            CloseableIterator<Page> iter = parallelReadWithConfig(csvFactory, plainConfig, obj, List.of(), 500, 4, exec);
             long rows = 0;
             try (iter) {
                 while (iter.hasNext()) {
@@ -1335,14 +1333,21 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         // Plain mode: non-leading macro-splits only exist for strided-safe CSV. Default/quoted CSV is read
         // whole-file and would be rejected by computeSegments' strided-probing guard.
-        SegmentableFormatReader base = (SegmentableFormatReader) new CsvFormatReader(blockFactory()).withConfig(Map.of("mode", "plain"));
-        SourceMetadata meta = base.metadata(full);
-        SegmentableFormatReader withSchema = (SegmentableFormatReader) base.withSchema(meta.schema());
+        CsvFormatReaderFactory csvFactory = new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true);
+        Map<String, Object> plainConfig = Map.of("mode", "plain");
+        SourceMetadata meta;
+        try (
+            FormatReader metadataReader = csvFactory.create(Settings.EMPTY, blockFactory(), plainConfig, FormatReadContext.Binding.empty())
+        ) {
+            meta = metadataReader.metadata(full);
+        }
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
-                withSchema,
+            CloseableIterator<Page> iter = parallelReadWithBinding(
+                csvFactory,
+                plainConfig,
+                FormatReadContext.Binding.empty().withBoundSchema(meta.schema()),
                 nonLeadingRange,
                 List.of(),
                 500,
@@ -1385,9 +1390,17 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         long bodyLength = bytes.length - headerBytes;
         StorageObject nonLeadingRange = new RangeStorageObject(full, headerBytes, bodyLength);
 
-        CsvFormatReader base = new CsvFormatReader(blockFactory());
-        SourceMetadata meta = base.metadata(full);
-        CsvFormatReader withSchema = base.withSchema(meta.schema());
+        CsvFormatReaderFactory csvFactory = new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true);
+        SourceMetadata meta;
+        try (FormatReader metadataReader = csvFactory.create(Settings.EMPTY, blockFactory(), null, FormatReadContext.Binding.empty())) {
+            meta = metadataReader.metadata(full);
+        }
+        CsvFormatReader withSchema = (CsvFormatReader) csvFactory.create(
+            Settings.EMPTY,
+            blockFactory(),
+            null,
+            FormatReadContext.Binding.empty().withBoundSchema(meta.schema())
+        );
 
         long rowsWithRecordAligned = countCsvRows(withSchema, nonLeadingRange, List.of("a", "b", "c"), false, true);
         long rowsWithoutRecordAligned = countCsvRows(withSchema, nonLeadingRange, List.of("a", "b", "c"), false, false);
@@ -1416,9 +1429,17 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         long headerBytes = header.getBytes(StandardCharsets.UTF_8).length;
         StorageObject nonLeadingRange = new RangeStorageObject(full, headerBytes, bytes.length - headerBytes);
 
-        CsvFormatReader base = new CsvFormatReader(blockFactory());
-        SourceMetadata meta = base.metadata(full);
-        CsvFormatReader withSchema = base.withSchema(meta.schema());
+        CsvFormatReaderFactory csvFactory = new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true);
+        SourceMetadata meta;
+        try (FormatReader metadataReader = csvFactory.create(Settings.EMPTY, blockFactory(), null, FormatReadContext.Binding.empty())) {
+            meta = metadataReader.metadata(full);
+        }
+        CsvFormatReader withSchema = (CsvFormatReader) csvFactory.create(
+            Settings.EMPTY,
+            blockFactory(),
+            null,
+            FormatReadContext.Binding.empty().withBoundSchema(meta.schema())
+        );
 
         long rowsAligned = countCsvRows(withSchema, nonLeadingRange, List.of("x", "y"), false, true);
         assertEquals("all data rows must be read with recordAligned=true", dataRows, rowsAligned);
@@ -1465,9 +1486,17 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         long headerBytes = header.getBytes(StandardCharsets.UTF_8).length;
         StorageObject nonLeadingRange = new RangeStorageObject(full, headerBytes, bytes.length - headerBytes);
 
-        CsvFormatReader base = new CsvFormatReader(blockFactory());
-        SourceMetadata meta = base.metadata(full);
-        CsvFormatReader withSchema = base.withSchema(meta.schema());
+        CsvFormatReaderFactory csvFactory = new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true);
+        SourceMetadata meta;
+        try (FormatReader metadataReader = csvFactory.create(Settings.EMPTY, blockFactory(), null, FormatReadContext.Binding.empty())) {
+            meta = metadataReader.metadata(full);
+        }
+        CsvFormatReader withSchema = (CsvFormatReader) csvFactory.create(
+            Settings.EMPTY,
+            blockFactory(),
+            null,
+            FormatReadContext.Binding.empty().withBoundSchema(meta.schema())
+        );
 
         FormatReadContext ctx = FormatReadContext.builder()
             .projectedColumns(List.of("b"))
@@ -1507,7 +1536,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of(), 50, 4, exec, null, true, false);
+            CloseableIterator<Page> iter = parallelRead(fixtureFactory(reader), obj, List.of(), 50, 4, exec, null, true, false);
             long rows = 0;
             try (iter) {
                 while (iter.hasNext()) {
@@ -1538,8 +1567,13 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         InMemoryStorageObject obj = new InMemoryStorageObject(content);
 
         // Sanity: confirm the fixture is genuinely multi-segment so "later segment" is meaningful.
-        int segmentCount = ParallelParsingCoordinator.computeSegments(new LineFormatReader(blockFactory()), obj, content.length, 4, 1)
-            .size();
+        int segmentCount = ParallelParsingCoordinator.computeSegments(
+            fixtureFactory(new LineFormatReader(blockFactory())),
+            obj,
+            content.length,
+            4,
+            1
+        ).size();
         assertThat("test needs multiple segments", segmentCount, Matchers.greaterThan(1));
 
         // Segment 0 (the file-leader split) blocks before emitting any page until the consumer has already
@@ -1553,8 +1587,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         String firstLineEmitted = null;
         try {
             try (
-                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
-                    reader,
+                CloseableIterator<Page> iter = parallelRead(
+                    fixtureFactory(reader),
                     obj,
                     List.of("line"),
                     50,
@@ -1608,7 +1642,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         InMemoryStorageObject obj = new InMemoryStorageObject(content);
         assertThat(
             "test needs a genuinely multi-segment file or it hits the single-stream fallback (no AsReadyParallelIterator)",
-            ParallelParsingCoordinator.computeSegments(new LineFormatReader(blockFactory()), obj, content.length, 4, 1).size(),
+            ParallelParsingCoordinator.computeSegments(fixtureFactory(new LineFormatReader(blockFactory())), obj, content.length, 4, 1)
+                .size(),
             Matchers.greaterThan(1)
         );
 
@@ -1618,7 +1653,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService exec = Executors.newFixedThreadPool(6);
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, 4, exec);
+            CloseableIterator<Page> iter = parallelRead(fixtureFactory(reader), obj, List.of("line"), 50, 4, exec);
             // A segment worker has entered read() and is blocked before producing any page: segments are
             // parsing, remainingSegments is still full, and the shared queue is empty.
             assertTrue("a segment worker must have entered read()", readEntered.await(10, TimeUnit.SECONDS));
@@ -1652,13 +1687,13 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         LineFormatReader reader = new LineFormatReader(blockFactory());
         assertThat(
             "test needs a genuinely multi-segment file or it hits the single-stream fallback",
-            ParallelParsingCoordinator.computeSegments(reader, obj, content.length, 4, 1).size(),
+            ParallelParsingCoordinator.computeSegments(fixtureFactory(reader), obj, content.length, 4, 1).size(),
             Matchers.greaterThan(1)
         );
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, 4, exec);
+            CloseableIterator<Page> iter = parallelRead(fixtureFactory(reader), obj, List.of("line"), 50, 4, exec);
             try (iter) {
                 while (iter.hasNext()) {
                     iter.next().releaseBlocks();
@@ -1688,7 +1723,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         InMemoryStorageObject obj = new InMemoryStorageObject(content);
         assertThat(
             "test needs a genuinely multi-segment file",
-            ParallelParsingCoordinator.computeSegments(new LineFormatReader(blockFactory()), obj, content.length, 4, 1).size(),
+            ParallelParsingCoordinator.computeSegments(fixtureFactory(new LineFormatReader(blockFactory())), obj, content.length, 4, 1)
+                .size(),
             Matchers.greaterThan(1)
         );
 
@@ -1698,7 +1734,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService exec = Executors.newFixedThreadPool(6);
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, 4, exec);
+            CloseableIterator<Page> iter = parallelRead(fixtureFactory(reader), obj, List.of("line"), 50, 4, exec);
             SubscribableListener<Void> ready = iter.waitForReady();
             assertFalse("waitForReady must NOT complete while segments parse with an empty queue", ready.isDone());
 
@@ -1754,7 +1790,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         assertThat(
             "each file must be genuinely multi-segment to exercise AsReadyParallelIterator",
             ParallelParsingCoordinator.computeSegments(
-                new LineFormatReader(blockFactory()),
+                fixtureFactory(new LineFormatReader(blockFactory())),
                 new InMemoryStorageObject(sample),
                 sample.length,
                 parallelism,
@@ -1777,8 +1813,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             for (int f = 0; f < fileCount; f++) {
                 InMemoryStorageObject obj = new InMemoryStorageObject(repeatedLines(linesPerFile));
                 GatedReadLineReader reader = new GatedReadLineReader(blockFactory(), new CountDownLatch(1), producePermit);
-                CloseableIterator<Page> it = ParallelParsingCoordinator.parallelRead(
-                    reader,
+                CloseableIterator<Page> it = parallelRead(
+                    fixtureFactory(reader),
                     obj,
                     List.of("line"),
                     50,
@@ -2043,83 +2079,161 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * COUNT(*) over a leader-bearing read: the coordinator binds the file's schema onto the reader before any
-     * segment worker runs, which mints an instance nothing outside the coordinator ever sees. Under the
-     * {@link FormatReader} ownership contract that instance is the coordinator's to release, and it is in use for
-     * exactly as long as the iterator that reads through it — so the release has to ride that iterator, not the
-     * {@code parallelRead} call. Both shapes are covered: the single-threaded fallback and the parallel iterator.
+     * COUNT(*) over a leader-bearing read binds the discovered schema onto the factory create binding before readers
+     * are built. Every build establishes a separate ownership boundary: metadata discovery, segmentation, and
+     * each worker read get distinct readers, and the coordinator closes every reader it builds.
      */
-    public void testSchemaBoundReaderIsReleasedWithTheIteratorItServes() throws Exception {
+    public void testSchemaBoundFactoryCreatesAndClosesDistinctReaders() throws Exception {
         for (int parallelism : new int[] { 1, 4 }) {
-            byte[] content = "alpha\nbeta\ngamma\ndelta\n".getBytes(StandardCharsets.UTF_8);
+            byte[] content = repeatedLines(200);
             StorageObject obj = new InMemoryStorageObject(content);
-            SchemaBindingLineReader reader = new SchemaBindingLineReader(blockFactory());
+            SchemaBindingLineReaderFactory readerBuilder = new SchemaBindingLineReaderFactory(blockFactory());
+            int expectedWorkers = parallelism == 1
+                ? 1
+                : ParallelParsingCoordinator.computeSegments(
+                    fixtureFactory(new LineFormatReader(blockFactory())),
+                    obj,
+                    content.length,
+                    parallelism,
+                    1
+                ).size();
 
             ExecutorService exec = Executors.newFixedThreadPool(4);
             try {
                 // Empty projection + leader-bearing read is what triggers the bind.
-                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of(), 2, parallelism, exec);
-                assertEquals("the bind minted one instance at parallelism " + parallelism, 1, reader.bound.size());
-                assertEquals("held open while the iterator can still read through it", List.of(), reader.closed);
-
-                try (iter) {
+                try (CloseableIterator<Page> iter = parallelRead(readerBuilder, obj, List.of(), 2, parallelism, exec)) {
                     while (iter.hasNext()) {
                         iter.next().releaseBlocks();
                     }
                 }
-
-                assertEquals("released with its iterator", reader.bound, reader.closed);
-                assertFalse("the caller's own reader is not the coordinator's to close", reader.closed.contains(reader));
             } finally {
                 exec.shutdown();
+                assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
             }
+
+            List<SchemaBindingLineReader> built = readerBuilder.built();
+            assertEquals("every build must create a distinct reader", built.size(), Set.copyOf(built).size());
+            assertEquals("every built reader must be closed", Set.copyOf(built), Set.copyOf(readerBuilder.closed()));
+
+            List<SchemaBindingLineReader> metadataReaders = built.stream().filter(reader -> reader.metadataCalls() > 0).toList();
+            assertEquals("schema discovery must use one reader", 1, metadataReaders.size());
+            assertFalse("the metadata reader is created from an unbound factory", metadataReaders.get(0).schemaBound());
+            assertEquals("the metadata reader must not serve a worker read", 0, metadataReaders.get(0).readCalls());
+
+            List<SchemaBindingLineReader> workerReaders = built.stream().filter(reader -> reader.readCalls() > 0).toList();
+            assertEquals("one owned reader per worker read", expectedWorkers, workerReaders.size());
+            assertTrue("every worker reader must be schema-bound", workerReaders.stream().allMatch(SchemaBindingLineReader::schemaBound));
+            assertTrue(
+                "each worker reader must serve exactly one read",
+                workerReaders.stream().allMatch(reader -> reader.readCalls() == 1)
+            );
         }
     }
 
     /**
-     * A {@link LineFormatReader} that answers the schema bind — {@code metadata} returns a non-empty schema and
-     * {@code withSchema} mints a distinct instance — and records every close against lists shared by the whole
-     * lineage, so a test can tell the bound instance's close from the caller's.
+     * Segmentable factory whose creates share only observation state. Each create returns a new reader.
+     * Schema binding is taken from the create {@link FormatReadContext.Binding}.
      */
-    private static final class SchemaBindingLineReader extends LineFormatReader {
+    private static final class SchemaBindingLineReaderFactory implements FormatReaderFactory {
         private final BlockFactory blockFactory;
-        private final List<SchemaBindingLineReader> bound;
+        private final List<SchemaBindingLineReader> built;
         private final List<SchemaBindingLineReader> closed;
 
-        SchemaBindingLineReader(BlockFactory blockFactory) {
-            super(blockFactory);
+        SchemaBindingLineReaderFactory(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
-            this.bound = new CopyOnWriteArrayList<>();
+            this.built = new CopyOnWriteArrayList<>();
             this.closed = new CopyOnWriteArrayList<>();
         }
 
-        private SchemaBindingLineReader(SchemaBindingLineReader parent) {
-            super(parent.blockFactory);
-            this.blockFactory = parent.blockFactory;
-            this.bound = parent.bound;
-            this.closed = parent.closed;
+        @Override
+        public boolean segmentable() {
+            return true;
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(Map<String, Object> config, int maxRecordBytes) {
+            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize(Map<String, Object> config) {
+            return 1;
+        }
+
+        @Override
+        public String formatName() {
+            return "test-schema-binding-line";
+        }
+
+        @Override
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return create(settings, blockFactory, null, FormatReadContext.Binding.empty());
+        }
+
+        @Override
+        public FormatReader create(
+            Settings settings,
+            BlockFactory blockFactory,
+            Map<String, Object> config,
+            FormatReadContext.Binding binding
+        ) {
+            boolean schemaBound = binding != null && binding.boundSchema() != null;
+            SchemaBindingLineReader reader = new SchemaBindingLineReader(this.blockFactory, schemaBound, closed);
+            built.add(reader);
+            return reader;
+        }
+
+        List<SchemaBindingLineReader> built() {
+            return List.copyOf(built);
+        }
+
+        List<SchemaBindingLineReader> closed() {
+            return List.copyOf(closed);
+        }
+    }
+
+    private static final class SchemaBindingLineReader extends LineFormatReader {
+        private final boolean schemaBound;
+        private final List<SchemaBindingLineReader> closed;
+        private final AtomicInteger metadataCalls = new AtomicInteger();
+        private final AtomicInteger readCalls = new AtomicInteger();
+        private final AtomicBoolean isClosed = new AtomicBoolean();
+
+        private SchemaBindingLineReader(BlockFactory blockFactory, boolean schemaBound, List<SchemaBindingLineReader> closed) {
+            super(blockFactory);
+            this.schemaBound = schemaBound;
+            this.closed = closed;
         }
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
-            Attribute line = new FieldAttribute(
-                Source.EMPTY,
-                "line",
-                new EsField("line", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
-            );
-            return new SimpleSourceMetadata(List.of(line), "test-line", object.path().toString());
+            metadataCalls.incrementAndGet();
+            return new SimpleSourceMetadata(SCHEMA, "test-line", object.path().toString());
         }
 
         @Override
-        public FormatReader withSchema(List<Attribute> schema) {
-            SchemaBindingLineReader derived = new SchemaBindingLineReader(this);
-            bound.add(derived);
-            return derived;
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            readCalls.incrementAndGet();
+            return super.read(object, context);
+        }
+
+        boolean schemaBound() {
+            return schemaBound;
+        }
+
+        int metadataCalls() {
+            return metadataCalls.get();
+        }
+
+        int readCalls() {
+            return readCalls.get();
         }
 
         @Override
         public void close() {
-            closed.add(this);
+            if (isClosed.compareAndSet(false, true)) {
+                closed.add(this);
+            }
         }
     }
 
@@ -2131,10 +2245,228 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         return TEST_BLOCK_FACTORY;
     }
 
+    private static CloseableIterator<Page> parallelReadWithConfig(
+        FormatReaderFactory factory,
+        Map<String, Object> config,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor
+    ) throws IOException {
+        return parallelReadWithBinding(
+            factory,
+            config,
+            FormatReadContext.Binding.empty(),
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            null,
+            false,
+            true
+        );
+    }
+
+    private static CloseableIterator<Page> parallelReadWithBinding(
+        FormatReaderFactory factory,
+        Map<String, Object> config,
+        FormatReadContext.Binding binding,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary,
+        boolean splitIncludesFileLeader
+    ) throws IOException {
+        return ParallelParsingCoordinator.parallelRead(
+            factory,
+            Settings.EMPTY,
+            blockFactory(),
+            config,
+            binding,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            splitStartsAtRecordBoundary,
+            splitIncludesFileLeader,
+            null,
+            0L,
+            ParallelParsingCoordinator.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            false,
+            ExternalSourceMetrics.NOOP,
+            null
+        );
+    }
+
+    private static FormatReaderFactory fixtureFactory(SegmentableFormatReader reader) {
+        return TestFormatReaderFactory.of(reader);
+    }
+
+    private static CloseableIterator<Page> parallelRead(
+        FormatReaderFactory readerBuilder,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor
+    ) throws IOException {
+        return parallelRead(readerBuilder, storageObject, projectedColumns, batchSize, parallelism, executor, null, false, true);
+    }
+
+    private static CloseableIterator<Page> parallelRead(
+        FormatReaderFactory readerBuilder,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary,
+        boolean splitIncludesFileLeader
+    ) throws IOException {
+        return parallelRead(
+            readerBuilder,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            splitStartsAtRecordBoundary,
+            splitIncludesFileLeader,
+            null,
+            ParallelParsingCoordinator.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            null
+        );
+    }
+
+    private static CloseableIterator<Page> parallelRead(
+        FormatReaderFactory readerBuilder,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary,
+        boolean splitIncludesFileLeader,
+        List<Attribute> readSchema,
+        int maxConcurrentOpenSegments
+    ) throws IOException {
+        return parallelRead(
+            readerBuilder,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            splitStartsAtRecordBoundary,
+            splitIncludesFileLeader,
+            readSchema,
+            maxConcurrentOpenSegments,
+            null
+        );
+    }
+
+    private static CloseableIterator<Page> parallelRead(
+        FormatReaderFactory readerBuilder,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary,
+        boolean splitIncludesFileLeader,
+        List<Attribute> readSchema,
+        int maxConcurrentOpenSegments,
+        ConcurrentMap<String, List<Map<String, Object>>> captureSink
+    ) throws IOException {
+        return parallelRead(
+            readerBuilder,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            splitStartsAtRecordBoundary,
+            splitIncludesFileLeader,
+            readSchema,
+            0L,
+            maxConcurrentOpenSegments,
+            captureSink,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            false,
+            ExternalSourceMetrics.NOOP
+        );
+    }
+
+    private static CloseableIterator<Page> parallelRead(
+        FormatReaderFactory readerBuilder,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary,
+        boolean splitIncludesFileLeader,
+        List<Attribute> readSchema,
+        long baseFileOffset,
+        int maxConcurrentOpenSegments,
+        ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        int maxRecordBytes,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        boolean splitIsFileFinal,
+        ExternalSourceMetrics metrics
+    ) throws IOException {
+        return ParallelParsingCoordinator.parallelRead(
+            readerBuilder,
+            Settings.EMPTY,
+            blockFactory(),
+            null,
+            FormatReadContext.Binding.empty(),
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            splitStartsAtRecordBoundary,
+            splitIncludesFileLeader,
+            readSchema,
+            baseFileOffset,
+            maxConcurrentOpenSegments,
+            captureSink,
+            maxRecordBytes,
+            statsStripeSize,
+            statsColumnScope,
+            splitIsFileFinal,
+            metrics,
+            null
+        );
+    }
+
     /**
      * Minimal SegmentableFormatReader that scans for newlines.
      */
-    private static class NewlineSegmentableReader implements SegmentableFormatReader, NoConfigFormatReader {
+    private static class NewlineSegmentableReader implements SegmentableFormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -2167,16 +2499,6 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "test-newline";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".txt");
-        }
-
-        @Override
         public void close() {}
     }
 
@@ -2184,7 +2506,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * A line-oriented format reader that reads newline-delimited text and produces
      * single-column pages with keyword blocks. Used for testing parallel parsing.
      */
-    private static class LineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+    private static class LineFormatReader implements SegmentableFormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -2289,16 +2611,6 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "test-line";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".txt");
-        }
-
-        @Override
         public void close() {}
     }
 
@@ -2309,7 +2621,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * chunk paths. Used by {@link #testParallelReadPropagatesPerSegmentPartialsToSink} to
      * observe whether parallel-parsing worker threads can reach a bound sink.
      */
-    private static class StatsPublishingLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+    private static class StatsPublishingLineReader implements SegmentableFormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -2381,16 +2693,6 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "test-stats-publishing-line";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return delegate.fileExtensions();
-        }
-
-        @Override
         public void close() {
             delegate.close();
         }
@@ -2401,7 +2703,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * {@link #read} call. Lets tests assert per-segment flag wiring without re-implementing line
      * parsing.
      */
-    private static class ContextRecordingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+    private static class ContextRecordingFormatReader implements SegmentableFormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -2447,16 +2749,6 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "test-recording";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".txt");
-        }
-
-        @Override
         public void close() {}
     }
 
@@ -2480,7 +2772,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * A line-oriented reader that throws after producing a configurable number of lines.
      */
-    private static class FailingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+    private static class FailingFormatReader implements SegmentableFormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -2589,16 +2881,6 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                     stream.close();
                 }
             };
-        }
-
-        @Override
-        public String formatName() {
-            return "test-failing";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".txt");
         }
 
         @Override

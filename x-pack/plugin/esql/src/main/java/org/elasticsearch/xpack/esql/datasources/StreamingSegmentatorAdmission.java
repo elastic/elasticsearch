@@ -43,6 +43,10 @@ import java.util.function.Consumer;
  */
 final class StreamingSegmentatorAdmission {
 
+    interface Ticket {
+        boolean cancel();
+    }
+
     private final int maxConcurrentSegmentators;
 
     /** Segmentators currently handed to the pool (running or queued in the pool's own work queue). Guarded by {@code this}. */
@@ -50,7 +54,35 @@ final class StreamingSegmentatorAdmission {
     /** Segmentators admitted here but not yet handed to the pool because the budget was full. Guarded by {@code this}. */
     private final ArrayDeque<Deferred> pending = new ArrayDeque<>();
 
-    private record Deferred(Runnable segmentator, Executor executor, Consumer<RejectedExecutionException> onReject) {}
+    private final class Deferred implements Ticket {
+        private final Runnable segmentator;
+        private final Executor executor;
+        private final Consumer<RejectedExecutionException> onReject;
+        private final Runnable onNotStarted;
+        private boolean pending;
+
+        private Deferred(Runnable segmentator, Executor executor, Consumer<RejectedExecutionException> onReject, Runnable onNotStarted) {
+            this.segmentator = segmentator;
+            this.executor = executor;
+            this.onReject = onReject;
+            this.onNotStarted = onNotStarted;
+        }
+
+        @Override
+        public boolean cancel() {
+            boolean cancelled;
+            synchronized (StreamingSegmentatorAdmission.this) {
+                cancelled = pending && StreamingSegmentatorAdmission.this.pending.remove(this);
+                if (cancelled) {
+                    pending = false;
+                }
+            }
+            if (cancelled) {
+                onNotStarted.run();
+            }
+            return cancelled;
+        }
+    }
 
     /**
      * An effectively-unbounded controller ({@link Integer#MAX_VALUE} budget) that dispatches every segmentator
@@ -73,18 +105,25 @@ final class StreamingSegmentatorAdmission {
      * coordinators sharing this controller submit to the same node-level pool, so the executor is stable across
      * calls; it is passed per call so the controller need not hold a reference to it.
      */
-    void submit(Runnable segmentator, Executor executor, Consumer<RejectedExecutionException> onReject) {
+    Ticket submit(Runnable segmentator, Executor executor, Consumer<RejectedExecutionException> onReject) {
+        return submit(segmentator, executor, onReject, () -> {});
+    }
+
+    Ticket submit(Runnable segmentator, Executor executor, Consumer<RejectedExecutionException> onReject, Runnable onNotStarted) {
         Deferred toDispatch;
+        Deferred deferred = new Deferred(segmentator, executor, onReject, onNotStarted);
         synchronized (this) {
             if (running < maxConcurrentSegmentators) {
                 running++;
-                toDispatch = new Deferred(segmentator, executor, onReject);
+                toDispatch = deferred;
             } else {
-                pending.add(new Deferred(segmentator, executor, onReject));
-                return;
+                deferred.pending = true;
+                pending.add(deferred);
+                return deferred;
             }
         }
         dispatch(toDispatch);
+        return deferred;
     }
 
     /**
@@ -97,16 +136,16 @@ final class StreamingSegmentatorAdmission {
         while (d != null) {
             try {
                 Deferred toRun = d;
-                toRun.executor().execute(() -> {
+                toRun.executor.execute(() -> {
                     try {
-                        toRun.segmentator().run();
+                        toRun.segmentator.run();
                     } finally {
                         dispatch(releaseAndPromote());
                     }
                 });
                 return;
             } catch (RejectedExecutionException e) {
-                d.onReject().accept(e);
+                d.onReject.accept(e);
                 d = releaseAndPromote();
             }
         }
@@ -117,6 +156,7 @@ final class StreamingSegmentatorAdmission {
         running--;
         Deferred next = pending.poll();
         if (next != null) {
+            next.pending = false;
             running++;
         }
         return next;

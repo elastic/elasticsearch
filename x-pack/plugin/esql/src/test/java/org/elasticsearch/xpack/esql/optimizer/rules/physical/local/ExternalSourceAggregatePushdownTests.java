@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -36,7 +37,8 @@ import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -364,7 +366,7 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         // could serve COUNT(*). Fails without the canPushAggregates gate in PushStatsToExternalSource.rule.
         AggregatePushdownSupport rejectAll = (aggregates, groupings) -> AggregatePushdownSupport.Pushability.NO;
         FormatReaderRegistry registry = new FormatReaderRegistry(null);
-        registry.registerLazy("parquet", (settings, blockFactory) -> new StubFormatReader(rejectAll), null, null);
+        registry.registerLazy("parquet", new StubFormatReaderFactory(rejectAll));
 
         // Stats that WOULD serve COUNT(*) if the gate let the rule proceed.
         var agg = aggregateExec(AggregatorMode.SINGLE, externalSource(statsMetadata(1000L, null, null)), countStarAlias());
@@ -1024,7 +1026,7 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
             }
             return AggregatePushdownSupport.Pushability.YES;
         };
-        registry.registerLazy("parquet", (settings, blockFactory) -> new StubFormatReader(parquetSupport), null, null);
+        registry.registerLazy("parquet", new StubFormatReaderFactory(parquetSupport));
         return registry;
     }
 
@@ -1037,7 +1039,7 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
     private static FormatReaderRegistry buildTextRegistry() {
         FormatReaderRegistry registry = new FormatReaderRegistry(null);
         AggregatePushdownSupport textSupport = new TextAggregatePushdownSupport();
-        registry.registerLazy("parquet", (settings, blockFactory) -> new StubFormatReader(textSupport), null, null);
+        registry.registerLazy("parquet", new StubFormatReaderFactory(textSupport));
         return registry;
     }
 
@@ -1057,19 +1059,34 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         return new PushStatsToExternalSource().apply(agg, buildContext(buildTextRegistry()));
     }
 
-    /**
-     * Minimal FormatReader stub that only provides aggregate pushdown support.
-     */
-    private static class StubFormatReader implements NoConfigFormatReader {
+    /** Minimal factory stub that provides aggregate pushdown support. */
+    private static class StubFormatReaderFactory implements FormatReaderFactory {
+        private final AggregatePushdownSupport support;
+
+        StubFormatReaderFactory(AggregatePushdownSupport support) {
+            this.support = support;
+        }
+
+        @Override
+        public String formatName() {
+            return "parquet";
+        }
+
+        @Override
+        public AggregatePushdownSupport aggregatePushdownSupport() {
+            return support;
+        }
+
+        @Override
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return new StubFormatReader();
+        }
+    }
+
+    private static class StubFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
-        }
-
-        private final AggregatePushdownSupport support;
-
-        StubFormatReader(AggregatePushdownSupport support) {
-            this.support = support;
         }
 
         @Override
@@ -1085,21 +1102,6 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
             org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext context
         ) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String formatName() {
-            return "parquet";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
-        }
-
-        @Override
-        public AggregatePushdownSupport aggregatePushdownSupport() {
-            return support;
         }
 
         @Override

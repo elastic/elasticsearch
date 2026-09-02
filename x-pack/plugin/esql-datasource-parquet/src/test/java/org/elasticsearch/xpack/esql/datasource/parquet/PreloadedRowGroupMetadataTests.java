@@ -438,7 +438,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             }
         });
 
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         int totalRows = 0;
         try (CloseableIterator<Page> iterator = reader.read(countingStorage, FormatReadContext.of(List.of("a", "b", "c"), 1024))) {
             while (iterator.hasNext()) {

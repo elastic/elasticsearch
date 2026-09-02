@@ -20,9 +20,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -94,7 +94,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             () -> false
         );
 
-        module.formatReaderRegistry().byName("spy");
+        module.formatReaderRegistry().factoryByName("spy").inspect(Map.of());
 
         assertTrue("Spy format factory should be called", SPY_FORMAT_FACTORY_CALLED.get());
         assertFalse("Other format factory should NOT be called", OTHER_FORMAT_FACTORY_CALLED.get());
@@ -114,7 +114,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             () -> false
         );
 
-        module.formatReaderRegistry().byExtension("data.spy");
+        module.formatReaderRegistry().resolveByExtension("data.spy").factory().inspect(Map.of());
 
         assertTrue("Spy format factory should be called for .spy extension", SPY_FORMAT_FACTORY_CALLED.get());
         assertFalse("Other format factory should NOT be called for .spy extension", OTHER_FORMAT_FACTORY_CALLED.get());
@@ -248,9 +248,9 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
                 return Map.of(
                     "fmt1",
-                    (s, bf) -> new StubFormatReader("fmt1", List.of(".ext1")),
+                    TestFormatReaderFactory.basic(StubFormatReader::new).withFormatName("fmt1"),
                     "fmt2",
-                    (s, bf) -> new StubFormatReader("fmt2", List.of(".ext2"))
+                    TestFormatReaderFactory.basic(StubFormatReader::new).withFormatName("fmt2")
                 );
             }
         };
@@ -297,7 +297,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
         @Override
         public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
             SPY_FORMAT_FACTORY_CALLED.set(true);
-            return Map.of("spy", (s, bf) -> new StubFormatReader("spy", List.of(".spy")));
+            return Map.of("spy", TestFormatReaderFactory.basic(StubFormatReader::new).withFormatName("spy"));
         }
     }
 
@@ -310,7 +310,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
         @Override
         public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
             OTHER_FORMAT_FACTORY_CALLED.set(true);
-            return Map.of("other", (s, bf) -> new StubFormatReader("other", List.of(".other")));
+            return Map.of("other", TestFormatReaderFactory.basic(StubFormatReader::new).withFormatName("other"));
         }
     }
 
@@ -351,18 +351,10 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class StubFormatReader implements NoConfigFormatReader {
+    private static class StubFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
-        }
-
-        private final String name;
-        private final List<String> extensions;
-
-        StubFormatReader(String name, List<String> extensions) {
-            this.name = name;
-            this.extensions = extensions;
         }
 
         @Override
@@ -373,16 +365,6 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             throw new UnsupportedOperationException("Stub");
-        }
-
-        @Override
-        public String formatName() {
-            return name;
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return extensions;
         }
 
         @Override

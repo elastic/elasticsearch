@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
@@ -92,7 +92,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
         if (formatReaderRegistry == null) {
             return aggregateExec;
         }
-        FormatReader formatReader = formatReaderRegistry.findByName(externalExec.sourceType());
+        FormatReaderFactory formatReader = formatReaderRegistry.findFactoryByName(externalExec.sourceType());
         if (formatReader == null || formatReader.aggregatePushdownSupport() == AggregatePushdownSupport.UNSUPPORTED) {
             return aggregateExec;
         }

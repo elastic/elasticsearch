@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -124,7 +123,7 @@ public class AsyncExternalSourceOperatorFactoryMetadataMergeTests extends ESTest
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             filePath,
             attributes,
             100,
@@ -165,7 +164,7 @@ public class AsyncExternalSourceOperatorFactoryMetadataMergeTests extends ESTest
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             filePath,
             attributes,
             100,
@@ -212,7 +211,7 @@ public class AsyncExternalSourceOperatorFactoryMetadataMergeTests extends ESTest
     }
 
     /** Reader that returns a single one-row Page with the integer 42 in column 0. */
-    private static class SingleIntPageFormatReader implements NoConfigFormatReader {
+    private static class SingleIntPageFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -247,16 +246,6 @@ public class AsyncExternalSourceOperatorFactoryMetadataMergeTests extends ESTest
                 @Override
                 public void close() {}
             };
-        }
-
-        @Override
-        public String formatName() {
-            return "test-int";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
         }
 
         @Override

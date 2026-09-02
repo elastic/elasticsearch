@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -92,7 +92,7 @@ public class ExternalSourceParallelismTests extends ESTestCase {
                     try {
                         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                             storageProvider,
-                            formatReader,
+                            TestFormatReaderFactory.of(formatReader),
                             StoragePath.of("s3://bucket/f0.parquet"),
                             testAttributes(),
                             100,
@@ -206,7 +206,7 @@ public class ExternalSourceParallelismTests extends ESTestCase {
                     try {
                         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                             storageProvider,
-                            formatReader,
+                            TestFormatReaderFactory.of(formatReader),
                             StoragePath.of("s3://bucket/f0.parquet"),
                             testAttributes(),
                             100,
@@ -280,7 +280,7 @@ public class ExternalSourceParallelismTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             StoragePath.of("s3://bucket/f1.parquet"),
             attributes,
             100,
@@ -320,7 +320,7 @@ public class ExternalSourceParallelismTests extends ESTestCase {
         );
     }
 
-    private static class TrackingFormatReader implements NoConfigFormatReader {
+    private static class TrackingFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -365,16 +365,6 @@ public class ExternalSourceParallelismTests extends ESTestCase {
                 @Override
                 public void close() {}
             };
-        }
-
-        @Override
-        public String formatName() {
-            return "test-tracking";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
         }
 
         @Override

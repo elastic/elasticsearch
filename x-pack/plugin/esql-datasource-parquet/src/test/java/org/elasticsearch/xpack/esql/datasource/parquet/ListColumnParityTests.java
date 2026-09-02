@@ -112,7 +112,7 @@ public class ListColumnParityTests extends ESTestCase {
 
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader baseline = new ParquetFormatReader(blockFactory, false);
-        ParquetFormatReader optimized = new ParquetFormatReader(blockFactory, true);
+        ParquetFormatReader optimized = new ParquetFormatReader(blockFactory);
 
         // Both paths drop null list elements (a multivalue cannot hold null) and announce it. Capture the notices
         // per read instead of letting them reach this thread's HeaderWarning context, so they can be compared:

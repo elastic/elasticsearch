@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSetting
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
-import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -26,7 +25,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
@@ -292,16 +293,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
             settings,
             ExternalSourceResolver.storageConfig(config)
         );
-        FormatReader baseReader = null;
-        Configured<FormatReader> resolvedReader = null;
+        ResolvedFormat resolvedFormat = resolveFormat(storagePath.objectName(), config);
         try {
-            baseReader = resolveFormatReader(storagePath.objectName(), config);
-            resolvedReader = baseReader.withConfigTrackingConsumedKeys(config);
-            ConfigKeyValidator.check(config, List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS));
+            Configured<Void> inspected = resolvedFormat.factory().inspect(config);
+            ConfigKeyValidator.check(config, List.of(resolvedStorage.consumedKeys(), inspected.consumedKeys(), COORDINATOR_KEYS));
         } finally {
-            // Validation-scoped reader: minted only to collect consumedKeys and never read through, so it is
-            // discarded here rather than escaping into the query.
-            FormatReaderOwnership.closeIfDerived(resolvedReader == null ? null : resolvedReader.value(), baseReader);
             StorageProviderCache.closeLease(resolvedStorage.value());
         }
     }
@@ -309,7 +305,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
     @Override
     public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
         StorageProvider provider = null;
-        FormatReader baseReader = null;
         FormatReader reader = null;
         boolean hasConfig = config != null && config.isEmpty() == false;
         try {
@@ -321,8 +316,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
             } else {
                 provider = storageRegistry.provider(storagePath);
             }
-            baseReader = resolveFormatReader(storagePath.objectName(), config);
-            reader = baseReader.withConfig(config);
+            reader = resolveFormat(storagePath.objectName(), config).create(
+                settings,
+                blockFactory,
+                config,
+                FormatReadContext.Binding.empty()
+            );
 
             StorageObject storageObject = provider.newObject(storagePath);
             if (storageObject.exists() == false) {
@@ -335,9 +334,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             // see ExternalFailures#resolutionFailureMessage for why, and for when the path is prepended.
             throw new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, e), e);
         } finally {
-            // Resolution-scoped reader: the metadata read above is the only thing it was minted for, and it does
-            // not outlive this method on either the success or the failure path.
-            FormatReaderOwnership.closeIfDerived(reader, baseReader);
+            ReaderReleasingIterator.closeReader(reader);
             StorageProviderCache.closeLease(provider);
         }
     }
@@ -360,7 +357,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
         final StorageObject storageObject;
         final FormatReader reader;
         StorageProvider provider = null;
-        FormatReader baseReader = null;
         FormatReader mintedReader = null;
         boolean hasConfig = config != null && config.isEmpty() == false;
         boolean setupComplete = false;
@@ -377,13 +373,15 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     settings,
                     ExternalSourceResolver.storageConfig(config)
                 ).value();
-                baseReader = resolveFormatReader(storagePath.objectName(), config);
-                reader = baseReader.withConfigTrackingConsumedKeys(config).value();
             } else {
                 provider = storageRegistry.provider(storagePath);
-                baseReader = resolveFormatReader(storagePath.objectName(), config);
-                reader = baseReader.withConfig(config);
             }
+            reader = resolveFormat(storagePath.objectName(), config).create(
+                settings,
+                blockFactory,
+                config,
+                FormatReadContext.Binding.empty()
+            );
             mintedReader = reader;
 
             if (hint != null) {
@@ -392,8 +390,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 storageObject = provider.newObject(storagePath);
                 if (storageObject.exists() == false) {
                     IOException missing = new IOException("File does not exist: " + location);
-                    listener.onFailure(new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, missing), missing));
-                    return;
+                    throw new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, missing), missing);
                 }
             }
             setupComplete = true;
@@ -402,13 +399,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
             return;
         } finally {
             if (setupComplete == false) {
-                FormatReaderOwnership.closeIfDerived(mintedReader, baseReader);
+                ReaderReleasingIterator.closeReader(mintedReader);
                 StorageProviderCache.closeLease(provider);
             }
         }
         // The reader outlives this method: the metadata read below is asynchronous, so its release rides the
-        // completion listener exactly as the pooled storage lease does. Null when the with* chain minted nothing.
-        final Closeable readerOwner = FormatReaderOwnership.ownedBy(reader, baseReader);
+        // completion listener exactly as the pooled storage lease does.
         ActionListener<SourceMetadata> completion = listener.delegateResponse((l, e) -> {
             if (e instanceof IOException) {
                 l.onFailure(new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, e), e));
@@ -416,9 +412,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 l.onFailure(e);
             }
         });
-        if (readerOwner != null) {
-            completion = ActionListener.runAfter(completion, () -> IOUtils.closeWhileHandlingException(readerOwner));
-        }
+        completion = ActionListener.runAfter(completion, () -> ReaderReleasingIterator.closeReader(reader));
         if (StorageProviderCache.isPooledLease(provider)) {
             StorageProvider leased = provider;
             completion = ActionListener.runAfter(completion, () -> StorageProviderCache.closeLease(leased));
@@ -431,9 +425,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
             started = true;
         } finally {
             // metadataAsync may throw Error; runAfter already closed if the listener ran. closeLease is idempotent,
-            // and closeIfDerived tolerates the same double call (FormatReader#close is contractually idempotent).
+            // and FormatReader#close is contractually idempotent.
             if (started == false) {
-                IOUtils.closeWhileHandlingException(readerOwner);
+                ReaderReleasingIterator.closeReader(reader);
                 StorageProviderCache.closeLease(provider);
             }
         }
@@ -447,7 +441,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
             storageRegistry,
             formatRegistry,
             settings,
-            splitDiscoveryExecutor
+            splitDiscoveryExecutor,
+            blockFactory
         );
     }
 
@@ -466,31 +461,32 @@ final class FileSourceFactory implements ExternalSourceFactory {
             Closeable onClose = null;
             boolean transferred = false;
             try {
+                Supplier<StorageProvider> providerSupplier;
+                boolean pooledLease;
                 if (config != null && config.isEmpty() == false) {
-                    // Borrow on first storage use (operator get()), not at factory build, so a
-                    // planned-but-never-started driver does not pin an SDK client forever.
-                    storage = new DeferredPoolLease(
-                        () -> storageRegistry.createProvider(path.scheme(), settings, ExternalSourceResolver.storageConfig(config))
+                    providerSupplier = () -> storageRegistry.createProvider(
+                        path.scheme(),
+                        settings,
+                        ExternalSourceResolver.storageConfig(config)
                     );
-                    onClose = storage;
+                    pooledLease = true;
                 } else {
-                    storage = storageRegistry.provider(path);
+                    providerSupplier = () -> storageRegistry.provider(path);
+                    pooledLease = false;
                 }
 
-                FormatReader baseFormat = resolveFormatReader(path.objectName(), config);
-                FormatReader format = baseFormat.withConfig(config)
-                    .withPushedFilter(context.pushedFilter())
-                    .withSchema(context.attributes())
-                    // Declared per-column date formats: the spec keys them by logical name, but the reader sees physical
-                    // (file) column names, so physicalize the keys through the same `path` renames here at the last mile.
-                    .withDeclaredDateFormats(physicalDateFormats(context.declaredReadSpec()))
-                    // Declared-type columns (licensed to narrow toward their target): same logical->physical last-mile
-                    // translation, so the by-name columnar readers can key their null-fill escape on the physical names.
-                    .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()))
-                    // Keyed on provenance, not renames: a DECLARED schema binds by name even with no `path`, and an
-                    // INFERRED (dynamic) schema must never re-bind at the reader (its positions already came from the file).
-                    .withDeclaredProvenanceBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED);
-                ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
+                ResolvedFormat format = resolveFormat(path.objectName(), config);
+                format.factory().inspect(config);
+                FormatReadContext.Binding binding = new FormatReadContext.Binding(
+                    context.attributes(),
+                    context.pushedFilter(),
+                    physicalDateFormats(context.declaredReadSpec()),
+                    physicalDeclaredTypeColumns(context.declaredReadSpec()),
+                    context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED,
+                    null,
+                    null
+                );
+                ErrorPolicy errorPolicy = resolveErrorPolicy(config, format.factory());
 
                 Map<String, Object> partitionValues = Map.of();
                 if (context.split() instanceof FileSplit fileSplit) {
@@ -511,7 +507,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // Suppressing it here would strand a drifted file with an un-adapted predicate, so it stays keyed on
                 // the pushed expressions alone.
                 FilterPushdownSupport pushdownSupport = (pushedExpressions != null && pushedExpressions.isEmpty() == false)
-                    ? format.filterPushdownSupport()
+                    ? format.factory().filterPushdownSupport()
                     : null;
 
                 // Per-query fairness: draw a dynamic slice of the per-scheme permit budget so one query cannot starve the
@@ -522,24 +518,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // QueryBudgetedStorageProvider.close() only releases the budget, so the lease is a sibling Closeable
                 // when both are present.
                 ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
-                if (allocator != null) {
-                    QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, allocator.register());
-                    storage = budgeted;
-                    Closeable lease = onClose;
-                    onClose = lease == null ? budgeted : () -> IOUtils.close(budgeted, lease);
-                }
-
-                // The configured reader is this factory's own instance, so this factory owns closing it. Riding the
-                // existing onClose chain buys the whole lifecycle for free: AsyncExternalSourceOperatorFactory closes
-                // the chain exactly once, when the LAST source operator finishes — on success, failure and
-                // cancellation alike — and the deferred-extraction refcount holds it open while an
-                // ExternalFieldExtractOperator is still reading through it. Null when every with* call above returned
-                // `this` (nothing was minted; the registry singleton is not ours to close).
-                Closeable readerOwner = FormatReaderOwnership.ownedBy(format, baseFormat);
-                if (readerOwner != null) {
-                    Closeable rest = onClose;
-                    onClose = rest == null ? readerOwner : () -> IOUtils.close(readerOwner, rest);
-                }
+                DeferredExecutionStorageProvider executionStorage = new DeferredExecutionStorageProvider(
+                    providerSupplier,
+                    pooledLease,
+                    allocator
+                );
+                storage = executionStorage;
+                onClose = executionStorage;
 
                 // Read/parse pool: the dedicated esql_external_io pool (blocking opens + parser workers), falling back to
                 // the compute pool when no distinct file-read pool is wired. The producer/drain loop runs on the compute
@@ -547,8 +532,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // read/parse pool of blocked parser workers cannot starve the drain that consumes their pages.
                 Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
                 Executor producerExecutor = context.executor();
-                // Deferred extraction fires when both signals are present: the reader is
-                // ColumnExtractorAware AND the plan paired this source with an ExternalFieldExtractExec
+                // Deferred extraction fires when both signals are present: the factory reports
+                // columnExtractor AND the plan paired this source with an ExternalFieldExtractExec
                 // (the context flag InsertExternalFieldExtraction sets). _rowPosition presence in the
                 // projection is NOT a valid signal on its own — InjectRowPositionForExternalId also
                 // injects it for plain _id composition, where enabling deferred mode would create a
@@ -556,13 +541,17 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // Additionally, deferred extraction is disabled when skip_row is active with declared-type
                 // coercion columns: the extractor runs after the page shape is fixed and cannot drop rows
                 // that fail coercion; the columnar iterator must do the filtering at emit time instead.
-                boolean deferredExtraction = format instanceof ColumnExtractorAware
+                boolean deferredExtraction = format.factory().columnExtractor()
                     && context.deferredExtraction()
                     && dropsRowsOnCoercionFailure == false;
 
                 AsyncExternalSourceOperatorFactory built = AsyncExternalSourceOperatorFactory.builder(
                     storage,
                     format,
+                    binding,
+                    settings,
+                    blockFactory,
+                    config,
                     path,
                     context.attributes(),
                     context.batchSize(),
@@ -677,38 +666,69 @@ final class FileSourceFactory implements ExternalSourceFactory {
         return physical;
     }
 
-    /** Delegates to {@link ErrorPolicy#forReader(Map, FormatReader)}, the one resolution the plan-time rules use too.
-     *  Kept here so existing call sites and tests do not have to change. */
-    static ErrorPolicy resolveErrorPolicy(Map<String, Object> config, FormatReader format) {
+    /** Resolves error policy from the factory default, matching plan-time capability checks. */
+    static ErrorPolicy resolveErrorPolicy(Map<String, Object> config, FormatReaderFactory format) {
         return ErrorPolicy.forReader(config, format);
     }
 
-    private FormatReader resolveFormatReader(String objectName, Map<String, Object> config) {
-        return FormatNameResolver.resolveReader(config, objectName, formatRegistry);
+    private ResolvedFormat resolveFormat(String objectName, Map<String, Object> config) {
+        return FormatNameResolver.resolveFormat(config, objectName, formatRegistry);
     }
 
-    /**
-     * WITH-config pool borrow that does not call {@code createProvider} until the first storage
-     * operation. {@link #close()} is a no-op if the factory never ran {@code get()}.
-     */
-    private static final class DeferredPoolLease implements StorageProvider {
+    /** Lazily acquires the provider lease and query budget as one execution-scoped state. */
+    private static final class DeferredExecutionStorageProvider implements StorageProvider {
         private final Supplier<StorageProvider> supplier;
+        private final boolean pooledLease;
+        @Nullable
+        private final ConcurrencyBudgetAllocator allocator;
         private StorageProvider inner;
+        private StorageProvider provider;
+        private RuntimeException failure;
         private boolean closed;
 
-        DeferredPoolLease(Supplier<StorageProvider> supplier) {
+        DeferredExecutionStorageProvider(
+            Supplier<StorageProvider> supplier,
+            boolean pooledLease,
+            @Nullable ConcurrencyBudgetAllocator allocator
+        ) {
             this.supplier = supplier;
+            this.pooledLease = pooledLease;
+            this.allocator = allocator;
         }
 
         private StorageProvider inner() {
             synchronized (this) {
                 if (closed) {
-                    throw new IllegalStateException("storage lease already returned");
+                    throw new IllegalStateException("execution storage is closed");
                 }
-                if (inner == null) {
-                    inner = supplier.get();
+                if (failure != null) {
+                    throw failure;
                 }
-                return inner;
+                if (inner != null) {
+                    return inner;
+                }
+                StorageProvider provider = null;
+                QueryConcurrencyBudget budget = null;
+                try {
+                    provider = supplier.get();
+                    StorageProvider initialized = provider;
+                    if (allocator != null) {
+                        budget = allocator.register();
+                        initialized = new QueryBudgetedStorageProvider(provider, budget);
+                    }
+                    this.provider = provider;
+                    inner = initialized;
+                    return initialized;
+                } catch (RuntimeException e) {
+                    failure = e;
+                    if (budget != null) {
+                        IOUtils.closeWhileHandlingException(budget);
+                    }
+                    if (pooledLease && provider != null) {
+                        StorageProviderCache.closeLease(provider);
+                    }
+                    throw e;
+                }
             }
         }
 
@@ -750,12 +770,22 @@ final class FileSourceFactory implements ExternalSourceFactory {
         @Override
         public void close() {
             StorageProvider current;
+            StorageProvider leasedProvider;
             synchronized (this) {
+                if (closed) {
+                    return;
+                }
                 closed = true;
                 current = inner;
+                leasedProvider = provider;
+                inner = null;
+                provider = null;
             }
-            if (current != null) {
-                StorageProviderCache.closeLease(current);
+            if (current != null && current != leasedProvider) {
+                IOUtils.closeWhileHandlingException(current);
+            }
+            if (pooledLease && leasedProvider != null) {
+                StorageProviderCache.closeLease(leasedProvider);
             }
         }
     }

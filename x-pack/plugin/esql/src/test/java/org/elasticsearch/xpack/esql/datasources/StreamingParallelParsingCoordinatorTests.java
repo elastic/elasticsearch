@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
@@ -39,7 +40,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -81,6 +82,120 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         .breaker(new NoopCircuitBreaker("test"))
         .build();
 
+    private static CloseableIterator<Page> parallelRead(
+        FormatReaderFactory readerBuilder,
+        InputStream stream,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy
+    ) throws IOException {
+        return parallelRead(
+            readerBuilder,
+            stream,
+            null,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            null,
+            0L,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            null,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            StreamingParallelParsingCoordinator.WarningSinks.NONE
+        );
+    }
+
+    private static CloseableIterator<Page> parallelRead(
+        FormatReaderFactory readerBuilder,
+        InputStream stream,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        List<Attribute> readSchema,
+        long baseFileOffset,
+        int maxRecordBytes,
+        ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        StreamingParallelParsingCoordinator.WarningSinks warningSinks
+    ) throws IOException {
+        return parallelRead(
+            readerBuilder,
+            stream,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            readSchema,
+            baseFileOffset,
+            maxRecordBytes,
+            captureSink,
+            statsStripeSize,
+            statsColumnScope,
+            warningSinks,
+            StreamingSegmentatorAdmission.unbounded(),
+            new NoopCircuitBreaker("streaming-parse-test")
+        );
+    }
+
+    private static CloseableIterator<Page> parallelRead(
+        FormatReaderFactory readerBuilder,
+        InputStream stream,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        List<Attribute> readSchema,
+        long baseFileOffset,
+        int maxRecordBytes,
+        ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        StreamingParallelParsingCoordinator.WarningSinks warningSinks,
+        StreamingSegmentatorAdmission admission,
+        CircuitBreaker breaker
+    ) throws IOException {
+        return StreamingParallelParsingCoordinator.parallelRead(
+            readerBuilder,
+            Settings.EMPTY,
+            null,
+            null,
+            FormatReadContext.Binding.empty(),
+            stream,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            readSchema,
+            baseFileOffset,
+            maxRecordBytes,
+            captureSink,
+            statsStripeSize,
+            statsColumnScope,
+            warningSinks,
+            admission,
+            breaker
+        );
+    }
+
+    private static FormatReaderFactory fixtureFactory(SegmentableFormatReader reader) {
+        return TestFormatReaderFactory.of(reader);
+    }
+
     public void testBasicStreamingParallelParse() throws Exception {
         int lineCount = 200;
         String content = buildContent(lineCount);
@@ -88,10 +203,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService executor = Executors.newFixedThreadPool(6);
         try {
-            LineFormatReader reader = new LineFormatReader(1024);
-            List<String> allLines = collectLines(
-                StreamingParallelParsingCoordinator.parallelRead(reader, stream, List.of("line"), 50, 4, executor, ErrorPolicy.STRICT)
-            );
+            LineFormatReaderFactory reader = new LineFormatReaderFactory(1024);
+            List<String> allLines = collectLines(parallelRead(reader, stream, List.of("line"), 50, 4, executor, ErrorPolicy.STRICT));
 
             assertEquals(lineCount, allLines.size());
             for (int i = 0; i < lineCount; i++) {
@@ -103,10 +216,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * After chunk 0 the segmentator swaps the caller's reader for a schema-bound one it minted itself. Under the
-     * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader} ownership contract that instance is the
-     * iterator's — it never escapes to the caller, so nothing else could release it — and it must go when the
-     * iterator does, while the reader the caller handed in stays the caller's.
+     * Schema inference derives a new immutable builder. Every metadata or parser build is independently owned
+     * by the coordinator and must be released when that operation completes.
      */
     public void testSchemaBoundReaderIsReleasedWhenTheIteratorCloses() throws Exception {
         int lineCount = 200;
@@ -115,22 +226,18 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService executor = Executors.newFixedThreadPool(6);
         try {
-            LineFormatReader reader = new LineFormatReader(1024);
-            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
-                reader,
-                stream,
-                List.of("line"),
-                50,
-                4,
-                executor,
-                ErrorPolicy.STRICT
-            );
-            assertEquals("nothing released while the iterator is live", List.of(), reader.closedInstances);
-
+            LineFormatReaderFactory reader = new LineFormatReaderFactory(1024);
+            CloseableIterator<Page> iterator = parallelRead(reader, stream, List.of("line"), 50, 4, executor, ErrorPolicy.STRICT);
             assertEquals(lineCount, collectLines(iterator).size());
 
-            assertEquals("exactly the bound instance was released", 1, reader.closedInstances.size());
-            assertFalse("the caller's reader is not the iterator's to close", reader.closedInstances.contains(reader));
+            assertTrue("metadata and parser work must build more than one reader", reader.builtInstances.size() > 1);
+            assertEquals("every built reader must be released exactly once", reader.builtInstances.size(), reader.closedInstances.size());
+            assertTrue("every built reader must be released", reader.closedInstances.containsAll(reader.builtInstances));
+            for (int i = 0; i < reader.builtInstances.size(); i++) {
+                for (int j = i + 1; j < reader.builtInstances.size(); j++) {
+                    assertNotSame("build() must create distinct readers", reader.builtInstances.get(i), reader.builtInstances.get(j));
+                }
+            }
         } finally {
             executor.shutdownNow();
         }
@@ -142,10 +249,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
-            LineFormatReader reader = new LineFormatReader(1024);
-            List<String> allLines = collectLines(
-                StreamingParallelParsingCoordinator.parallelRead(reader, stream, List.of("line"), 50, 1, executor, ErrorPolicy.STRICT)
-            );
+            LineFormatReaderFactory reader = new LineFormatReaderFactory(1024);
+            List<String> allLines = collectLines(parallelRead(reader, stream, List.of("line"), 50, 1, executor, ErrorPolicy.STRICT));
 
             assertEquals(1, allLines.size());
             assertEquals("line-0000", allLines.get(0));
@@ -159,10 +264,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
-            LineFormatReader reader = new LineFormatReader(1024);
-            List<String> allLines = collectLines(
-                StreamingParallelParsingCoordinator.parallelRead(reader, stream, List.of("line"), 50, 4, executor, ErrorPolicy.STRICT)
-            );
+            LineFormatReaderFactory reader = new LineFormatReaderFactory(1024);
+            List<String> allLines = collectLines(parallelRead(reader, stream, List.of("line"), 50, 4, executor, ErrorPolicy.STRICT));
 
             assertEquals(0, allLines.size());
         } finally {
@@ -177,10 +280,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService executor = Executors.newFixedThreadPool(10);
         try {
-            LineFormatReader reader = new LineFormatReader(4096);
-            List<String> allLines = collectLines(
-                StreamingParallelParsingCoordinator.parallelRead(reader, stream, List.of("line"), 100, 8, executor, ErrorPolicy.STRICT)
-            );
+            LineFormatReaderFactory reader = new LineFormatReaderFactory(4096);
+            List<String> allLines = collectLines(parallelRead(reader, stream, List.of("line"), 100, 8, executor, ErrorPolicy.STRICT));
 
             assertEquals(lineCount, allLines.size());
             for (int i = 0; i < lineCount; i++) {
@@ -206,12 +307,12 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         String content = buildContent(lineCount);
         InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
         String path = "mem://streaming-capture-test";
-        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
+        StatsPublishingLineReaderFactory reader = new StatsPublishingLineReaderFactory(512, path);
 
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         ExecutorService executor = Executors.newFixedThreadPool(6);
         try {
-            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+            CloseableIterator<Page> outer = parallelRead(
                 reader,
                 stream,
                 null,
@@ -266,12 +367,12 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         String path = "mem://streaming-early-close-test";
         Instant mtime = Instant.parse("2020-01-01T00:00:00Z");
         StorageObject file = new TestFileStorageObject(path, mtime);
-        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
+        StatsPublishingLineReaderFactory reader = new StatsPublishingLineReaderFactory(512, path);
 
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         ExecutorService executor = Executors.newFixedThreadPool(6);
         try {
-            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+            CloseableIterator<Page> outer = parallelRead(
                 reader,
                 stream,
                 file,
@@ -309,12 +410,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
-            FailingFormatReader reader = new FailingFormatReader(5, 1024);
+            FormatReaderFactory reader = fixtureFactory(new FailingFormatReader(5, 1024));
             RuntimeException ex = expectThrows(
                 RuntimeException.class,
-                () -> collectLines(
-                    StreamingParallelParsingCoordinator.parallelRead(reader, stream, List.of("line"), 50, 4, executor, ErrorPolicy.STRICT)
-                )
+                () -> collectLines(parallelRead(reader, stream, List.of("line"), 50, 4, executor, ErrorPolicy.STRICT))
             );
             assertTrue(
                 "Expected injected failure message but got: " + ex.getMessage(),
@@ -340,12 +439,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
-            FailingFormatReader reader = new FailingFormatReader(5, 1024);
+            FormatReaderFactory reader = fixtureFactory(new FailingFormatReader(5, 1024));
             RuntimeException ex = expectThrows(
                 RuntimeException.class,
-                () -> collectLines(
-                    StreamingParallelParsingCoordinator.parallelRead(reader, stream, List.of("line"), 50, 4, executor, ErrorPolicy.STRICT)
-                )
+                () -> collectLines(parallelRead(reader, stream, List.of("line"), 50, 4, executor, ErrorPolicy.STRICT))
             );
             assertThat(
                 "stored IOException must surface as a typed ExternalClientException, not a generic RuntimeException",
@@ -387,10 +484,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         ExecutorService executor = Executors.newFixedThreadPool(8);
         try {
             // Small chunkSize forces many chunks so per-chunk inference would be obvious.
-            LineFormatReader reader = new LineFormatReader(1024);
-            List<String> allLines = collectLines(
-                StreamingParallelParsingCoordinator.parallelRead(reader, stream, List.of("line"), 100, 4, executor, ErrorPolicy.STRICT)
-            );
+            LineFormatReaderFactory reader = new LineFormatReaderFactory(1024);
+            List<String> allLines = collectLines(parallelRead(reader, stream, List.of("line"), 100, 4, executor, ErrorPolicy.STRICT));
 
             assertEquals(lineCount, allLines.size());
             assertEquals("metadata() should be called exactly once for the whole stream", 1, reader.metadataCalls.get());
@@ -421,10 +516,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         try {
             // Small chunkSize forces several parser-thread invocations so the assertion exercises
             // both interior chunks and the final EOF chunk.
-            LineFormatReader reader = new LineFormatReader(1024);
-            collectLines(
-                StreamingParallelParsingCoordinator.parallelRead(reader, stream, List.of("line"), 100, 4, executor, ErrorPolicy.STRICT)
-            );
+            LineFormatReaderFactory reader = new LineFormatReaderFactory(1024);
+            collectLines(parallelRead(reader, stream, List.of("line"), 100, 4, executor, ErrorPolicy.STRICT));
 
             List<FormatReadContext> seen;
             synchronized (reader.seenContexts) {
@@ -469,9 +562,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         ExecutorService executor = Executors.newFixedThreadPool(8);
         try {
             // Small chunkSize forces several chunks so interior + EOF chunks are both exercised.
-            LineFormatReader reader = new LineFormatReader(1024);
+            LineFormatReaderFactory reader = new LineFormatReaderFactory(1024);
             collectLines(
-                StreamingParallelParsingCoordinator.parallelRead(
+                parallelRead(
                     reader,
                     stream,
                     null,
@@ -537,16 +630,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         try {
             for (int attempt = 0; attempt < SLOT_REUSE_REPEATS; attempt++) {
                 InputStream stream = new ByteArrayInputStream(contentBytes);
-                LineFormatReader reader = new LineFormatReader(1024);
-                CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
-                    reader,
-                    stream,
-                    List.of("line"),
-                    50,
-                    8,
-                    executor,
-                    ErrorPolicy.STRICT
-                );
+                LineFormatReaderFactory reader = new LineFormatReaderFactory(1024);
+                CloseableIterator<Page> iterator = parallelRead(reader, stream, List.of("line"), 50, 8, executor, ErrorPolicy.STRICT);
                 List<String> allLines = collectLinesSlow(iterator, 1);
                 assertEquals("attempt " + attempt, lineCount, allLines.size());
                 int prev = -1;
@@ -584,16 +669,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         InputStream stream = new ByteArrayInputStream(payload);
         ExecutorService executor = Executors.newFixedThreadPool(8);
         try {
-            LineFormatReader reader = new LineFormatReader(256);
-            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
-                reader,
-                stream,
-                List.of("line"),
-                50,
-                parallelism,
-                executor,
-                ErrorPolicy.STRICT
-            );
+            LineFormatReaderFactory reader = new LineFormatReaderFactory(256);
+            CloseableIterator<Page> iterator = parallelRead(reader, stream, List.of("line"), 50, parallelism, executor, ErrorPolicy.STRICT);
             StreamingParallelParsingCoordinator.StreamingParallelIterator streamingIterator =
                 (StreamingParallelParsingCoordinator.StreamingParallelIterator) iterator;
             assertBusy(() -> assertTrue(streamingIterator.isSegmentatorParkedOnDispatchPermits()), 5, TimeUnit.SECONDS);
@@ -637,16 +714,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         };
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
-            LineFormatReader reader = new LineFormatReader(1024);
-            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
-                reader,
-                gatedStream,
-                List.of("line"),
-                50,
-                2,
-                executor,
-                ErrorPolicy.STRICT
-            );
+            LineFormatReaderFactory reader = new LineFormatReaderFactory(1024);
+            CloseableIterator<Page> iterator = parallelRead(reader, gatedStream, List.of("line"), 50, 2, executor, ErrorPolicy.STRICT);
             org.elasticsearch.action.support.SubscribableListener<Void> ready = iterator.waitForReady();
             assertFalse("waitForReady must NOT complete before any chunk is dispatched", ready.isDone());
             // Now unblock the segmenter; it dispatches chunk 0 → signalReady fires → listener completes.
@@ -667,16 +736,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
-            LineFormatReader reader = new LineFormatReader(1024);
-            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
-                reader,
-                stream,
-                List.of("line"),
-                50,
-                2,
-                executor,
-                ErrorPolicy.STRICT
-            );
+            LineFormatReaderFactory reader = new LineFormatReaderFactory(1024);
+            CloseableIterator<Page> iterator = parallelRead(reader, stream, List.of("line"), 50, 2, executor, ErrorPolicy.STRICT);
             // Wait until the iterator has produced at least one page worth of work, then check ready.
             assertBusy(() -> assertTrue(iterator.hasNext()), 5, TimeUnit.SECONDS);
             org.elasticsearch.action.support.SubscribableListener<Void> ready = iterator.waitForReady();
@@ -707,16 +768,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         };
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
-            LineFormatReader reader = new LineFormatReader(1024);
-            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
-                reader,
-                gatedStream,
-                List.of("line"),
-                50,
-                2,
-                executor,
-                ErrorPolicy.STRICT
-            );
+            LineFormatReaderFactory reader = new LineFormatReaderFactory(1024);
+            CloseableIterator<Page> iterator = parallelRead(reader, gatedStream, List.of("line"), 50, 2, executor, ErrorPolicy.STRICT);
             org.elasticsearch.action.support.SubscribableListener<Void> ready = iterator.waitForReady();
             assertFalse("waitForReady must NOT complete while stream is gated", ready.isDone());
             iterator.close();
@@ -748,18 +801,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         try {
             for (int f = 0; f < fileCount; f++) {
                 InputStream s = new ByteArrayInputStream(buildContent(50).getBytes(StandardCharsets.UTF_8));
-                LineFormatReader reader = new LineFormatReader(1024);
-                iterators.add(
-                    StreamingParallelParsingCoordinator.parallelRead(
-                        reader,
-                        s,
-                        List.of("line"),
-                        50,
-                        parsingParallelism,
-                        executor,
-                        ErrorPolicy.STRICT
-                    )
-                );
+                LineFormatReaderFactory reader = new LineFormatReaderFactory(1024);
+                iterators.add(parallelRead(reader, s, List.of("line"), 50, parsingParallelism, executor, ErrorPolicy.STRICT));
             }
             // Drain all iterators on a SINGLE consumer thread (= mimics the producer-loop pattern of
             // one driver per iterator, all competing for the same pool). Without the waitForReady
@@ -819,9 +862,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         ExecutorService executor = Executors.newFixedThreadPool(parallelism + 1);
         try {
             for (int iter = 0; iter < iterations; iter++) {
-                LineFormatReader reader = new LineFormatReader(chunkSize);
+                LineFormatReaderFactory reader = new LineFormatReaderFactory(chunkSize);
                 List<String> got = collectLines(
-                    StreamingParallelParsingCoordinator.parallelRead(
+                    parallelRead(
                         reader,
                         new ByteArrayInputStream(bytes),
                         List.of("line"),
@@ -884,8 +927,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         try {
             for (int f = 0; f < fileCount; f++) {
                 InputStream s = new ByteArrayInputStream(buildContent(linesPerFile).getBytes(StandardCharsets.UTF_8));
-                LineFormatReader reader = new LineFormatReader(chunkSize);
-                CloseableIterator<Page> raw = StreamingParallelParsingCoordinator.parallelRead(
+                LineFormatReaderFactory reader = new LineFormatReaderFactory(chunkSize);
+                CloseableIterator<Page> raw = parallelRead(
                     reader,
                     s,
                     List.of("line"),
@@ -937,17 +980,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         PlainActionFuture<Integer> done = new PlainActionFuture<>();
         CloseableIterator<Page> it = null;
         try {
-            GatedLineFormatReader reader = new GatedLineFormatReader(chunkSize, 1, gate, gatedReached);
+            GatedLineFormatReaderFactory reader = new GatedLineFormatReaderFactory(chunkSize, 1, gate, gatedReached);
             InputStream s = new ByteArrayInputStream(buildContent(linesPerFile).getBytes(StandardCharsets.UTF_8));
-            it = StreamingParallelParsingCoordinator.parallelRead(
-                reader,
-                s,
-                List.of("line"),
-                batchSize,
-                parsingParallelism,
-                pool,
-                ErrorPolicy.STRICT
-            );
+            it = parallelRead(reader, s, List.of("line"), batchSize, parsingParallelism, pool, ErrorPolicy.STRICT);
             CloseableIterator<Page> iter = it;
             pool.execute(() -> drainViaProducerLoopCollecting(iter, pool, rows, done));
 
@@ -1108,9 +1143,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         List<CloseableIterator<Page>> iterators = new ArrayList<>();
         try {
             for (int f = 0; f < fileCount; f++) {
-                LineFormatReader reader = new LineFormatReader(chunkSize);
+                LineFormatReaderFactory reader = new LineFormatReaderFactory(chunkSize);
                 iterators.add(
-                    StreamingParallelParsingCoordinator.parallelRead(
+                    parallelRead(
                         reader,
                         new ByteArrayInputStream(contentBytes),
                         null,
@@ -1199,8 +1234,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
-            LineFormatReader reader = new LineFormatReader(chunkSize);
-            CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+            LineFormatReaderFactory reader = new LineFormatReaderFactory(chunkSize);
+            CloseableIterator<Page> it = parallelRead(
                 reader,
                 new ByteArrayInputStream(bytes),
                 null,
@@ -1252,8 +1287,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
-            LineFormatReader reader = new LineFormatReader(chunkSize);
-            CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+            LineFormatReaderFactory reader = new LineFormatReaderFactory(chunkSize);
+            CloseableIterator<Page> it = parallelRead(
                 reader,
                 new ByteArrayInputStream(bytes),
                 null,
@@ -1371,17 +1406,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         ExecutorService executor = Executors.newFixedThreadPool(6);
         try {
             // chunkSize=64 forces many splits; quoted \n must not become a chunk boundary
-            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(64);
+            QuoteAwareLineFormatReaderFactory reader = new QuoteAwareLineFormatReaderFactory(64);
             List<String> allLines = collectLines(
-                StreamingParallelParsingCoordinator.parallelRead(
-                    reader,
-                    new ByteArrayInputStream(bytes),
-                    List.of("line"),
-                    50,
-                    4,
-                    executor,
-                    ErrorPolicy.STRICT
-                )
+                parallelRead(reader, new ByteArrayInputStream(bytes), List.of("line"), 50, 4, executor, ErrorPolicy.STRICT)
             );
 
             assertEquals(recordCount, allLines.size());
@@ -1418,17 +1445,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         ExecutorService executor = Executors.newFixedThreadPool(6);
         try {
             // Chunk size smaller than the first record → forces growUntilRecordBoundary
-            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(64);
+            QuoteAwareLineFormatReaderFactory reader = new QuoteAwareLineFormatReaderFactory(64);
             List<String> allLines = collectLines(
-                StreamingParallelParsingCoordinator.parallelRead(
-                    reader,
-                    new ByteArrayInputStream(bytes),
-                    List.of("line"),
-                    50,
-                    4,
-                    executor,
-                    ErrorPolicy.STRICT
-                )
+                parallelRead(reader, new ByteArrayInputStream(bytes), List.of("line"), 50, 4, executor, ErrorPolicy.STRICT)
             );
 
             assertEquals(2, allLines.size());
@@ -1456,9 +1475,13 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
-            NeverBoundaryFormatReader reader = new NeverBoundaryFormatReader(64);
+            FormatReaderFactory reader = fixtureFactory(new NeverBoundaryFormatReader(64));
             var iterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
                 reader,
+                Settings.EMPTY,
+                null,
+                null,
+                FormatReadContext.Binding.empty(),
                 new ByteArrayInputStream(bytes),
                 null,
                 List.of("line"),
@@ -1472,7 +1495,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                StreamingParallelParsingCoordinator.WarningSinks.NONE
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("streaming-parse-test")
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
@@ -1505,9 +1530,13 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         // Strict: the cap-hit is still a hard failure.
         ExecutorService strictExecutor = Executors.newFixedThreadPool(6);
         try {
-            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(512);
+            QuoteAwareLineFormatReaderFactory reader = new QuoteAwareLineFormatReaderFactory(512);
             var strictIterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
                 reader,
+                Settings.EMPTY,
+                null,
+                null,
+                FormatReadContext.Binding.empty(),
                 new ByteArrayInputStream(bytes),
                 null,
                 List.of("line"),
@@ -1521,7 +1550,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                StreamingParallelParsingCoordinator.WarningSinks.NONE
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("streaming-parse-test")
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(strictIterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
@@ -1536,9 +1567,13 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         // Non-strict: truncate at the cap-hit and return the prefix records parsed so far.
         ExecutorService lenientExecutor = Executors.newFixedThreadPool(6);
         try {
-            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(512);
+            QuoteAwareLineFormatReaderFactory reader = new QuoteAwareLineFormatReaderFactory(512);
             var lenientIterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
                 reader,
+                Settings.EMPTY,
+                null,
+                null,
+                FormatReadContext.Binding.empty(),
                 new ByteArrayInputStream(bytes),
                 null,
                 List.of("line"),
@@ -1552,7 +1587,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                StreamingParallelParsingCoordinator.WarningSinks.NONE
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("streaming-parse-test")
             );
             List<String> got = collectLines(lenientIterator);
             assertEquals("non-strict policy must return the records parsed before the cap-hit", leadingRecords, got.size());
@@ -1584,9 +1621,13 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         List<String> sink = new CopyOnWriteArrayList<>();
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
-            NeverBoundaryFormatReader reader = new NeverBoundaryFormatReader(64);
+            FormatReaderFactory reader = fixtureFactory(new NeverBoundaryFormatReader(64));
             var iterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
                 reader,
+                Settings.EMPTY,
+                null,
+                null,
+                FormatReadContext.Binding.empty(),
                 new ByteArrayInputStream(bytes),
                 null,
                 List.of("line"),
@@ -1600,7 +1641,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                new StreamingParallelParsingCoordinator.WarningSinks(sink::add, null)
+                new StreamingParallelParsingCoordinator.WarningSinks(sink::add, null),
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("streaming-parse-test")
             );
             List<String> got = collectLines(iterator);
             assertEquals("an undelimitable first record yields no rows under truncation", 0, got.size());
@@ -1633,9 +1676,13 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
 
         Executor sameThread = Runnable::run;
-        NeverBoundaryFormatReader reader = new NeverBoundaryFormatReader(64);
+        FormatReaderFactory reader = fixtureFactory(new NeverBoundaryFormatReader(64));
         var iterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
             reader,
+            Settings.EMPTY,
+            null,
+            null,
+            FormatReadContext.Binding.empty(),
             new ByteArrayInputStream(bytes),
             null,
             List.of("line"),
@@ -1649,7 +1696,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             null,
             -1L,
             StripeColumnScope.PROJECTED,
-            StreamingParallelParsingCoordinator.WarningSinks.NONE
+            StreamingParallelParsingCoordinator.WarningSinks.NONE,
+            StreamingSegmentatorAdmission.unbounded(),
+            new NoopCircuitBreaker("streaming-parse-test")
         );
         List<String> got = collectLines(iterator);
         assertEquals("an undelimitable first record yields no rows under truncation", 0, got.size());
@@ -1686,17 +1735,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         ExecutorService executor = Executors.newFixedThreadPool(10);
         try {
-            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(512);
+            QuoteAwareLineFormatReaderFactory reader = new QuoteAwareLineFormatReaderFactory(512);
             List<String> allLines = collectLines(
-                StreamingParallelParsingCoordinator.parallelRead(
-                    reader,
-                    new ByteArrayInputStream(bytes),
-                    List.of("line"),
-                    100,
-                    6,
-                    executor,
-                    ErrorPolicy.STRICT
-                )
+                parallelRead(reader, new ByteArrayInputStream(bytes), List.of("line"), 100, 6, executor, ErrorPolicy.STRICT)
             );
 
             assertEquals(totalRecords, allLines.size());
@@ -1725,17 +1766,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         ExecutorService executor = Executors.newFixedThreadPool(6);
         try {
-            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(256);
+            QuoteAwareLineFormatReaderFactory reader = new QuoteAwareLineFormatReaderFactory(256);
             List<String> allLines = collectLines(
-                StreamingParallelParsingCoordinator.parallelRead(
-                    reader,
-                    new ByteArrayInputStream(bytes),
-                    List.of("line"),
-                    50,
-                    4,
-                    executor,
-                    ErrorPolicy.STRICT
-                )
+                parallelRead(reader, new ByteArrayInputStream(bytes), List.of("line"), 50, 4, executor, ErrorPolicy.STRICT)
             );
 
             assertEquals(lineCount, allLines.size());
@@ -1765,20 +1798,12 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
 
         Settings settings = Settings.builder().put(NdJsonFormatReader.SEGMENT_SIZE_SETTING, "64kb").build();
-        NdJsonFormatReader reader = new NdJsonFormatReader(settings, TEST_BLOCK_FACTORY, null);
+        NdJsonFormatReaderFactory reader = new NdJsonFormatReaderFactory(settings);
 
         ExecutorService executor = Executors.newFixedThreadPool(8);
         try {
             List<String> names = collectLines(
-                StreamingParallelParsingCoordinator.parallelRead(
-                    reader,
-                    new ByteArrayInputStream(bytes),
-                    List.of("name"),
-                    100,
-                    4,
-                    executor,
-                    ErrorPolicy.STRICT
-                )
+                parallelRead(reader, new ByteArrayInputStream(bytes), List.of("name"), 100, 4, executor, ErrorPolicy.STRICT)
             );
 
             assertEquals(recordCount, names.size());
@@ -1804,13 +1829,13 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
 
         Settings settings = Settings.builder().put(NdJsonFormatReader.SEGMENT_SIZE_SETTING, "64kb").build();
-        NdJsonFormatReader reader = new NdJsonFormatReader(settings, TEST_BLOCK_FACTORY, null);
+        NdJsonFormatReaderFactory reader = new NdJsonFormatReaderFactory(settings);
 
         ExecutorService executor = Executors.newFixedThreadPool(6);
         try {
             int totalRows = 0;
             try (
-                CloseableIterator<Page> pages = StreamingParallelParsingCoordinator.parallelRead(
+                CloseableIterator<Page> pages = parallelRead(
                     reader,
                     new ByteArrayInputStream(bytes),
                     List.of(),
@@ -1840,23 +1865,18 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
-            LineFormatReader baseReader = new LineFormatReader(1024) {
+            LineFormatReaderFactory baseReader = new LineFormatReaderFactory(1024) {
                 @Override
-                public void acceptReadCpuNanos(long nanos) {
-                    capturedNanos.set(nanos);
+                protected LineFormatReader newLineReader(List<Attribute> schema) {
+                    return new LineFormatReader(minSegment, schema, state) {
+                        @Override
+                        public void acceptReadCpuNanos(long nanos) {
+                            capturedNanos.set(nanos);
+                        }
+                    };
                 }
             };
-            try (
-                CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
-                    baseReader,
-                    stream,
-                    List.of("line"),
-                    50,
-                    4,
-                    executor,
-                    ErrorPolicy.STRICT
-                )
-            ) {
+            try (CloseableIterator<Page> it = parallelRead(baseReader, stream, List.of("line"), 50, 4, executor, ErrorPolicy.STRICT)) {
                 while (it.hasNext()) {
                     it.next().releaseBlocks();
                 }
@@ -1889,12 +1909,22 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 streamClosed.set(true);
             }
         };
-        LineFormatReader reader = new LineFormatReader(1024);
+        LineFormatReaderFactory reader = new LineFormatReaderFactory(1024);
         Executor rejectingExecutor = r -> { throw new RejectedExecutionException("pool is shut down"); };
 
         StreamingParallelParsingCoordinator.StreamingParallelIterator iterator =
             new StreamingParallelParsingCoordinator.StreamingParallelIterator(
+
                 reader,
+
+                Settings.EMPTY,
+
+                null,
+
+                null,
+
+                FormatReadContext.Binding.empty(),
+
                 trackingStream,
                 null,
                 List.of("line"),
@@ -1908,7 +1938,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                StreamingParallelParsingCoordinator.WarningSinks.NONE
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("streaming-parse-test")
             );
         // The rejection is synchronous: onSegmentatorLaunchRejected fires during admission.submit()
         // inside the constructor, so the stream is already closed before the constructor returns.
@@ -1916,6 +1948,51 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         // Calling close() after the fact must be safe (CAS no-op on the already-closed stream).
         iterator.close();
         assertTrue("stream must remain closed after iterator.close()", streamClosed.get());
+    }
+
+    public void testCloseCancelsPendingSegmentatorAdmissionAndClosesStream() throws Exception {
+        StreamingSegmentatorAdmission admission = new StreamingSegmentatorAdmission(1);
+        Executor parked = command -> {};
+        admission.submit(() -> {}, parked, e -> fail("unexpected rejection"));
+        AtomicBoolean streamClosed = new AtomicBoolean(false);
+        InputStream trackingStream = new ByteArrayInputStream("line-0000\n".getBytes(StandardCharsets.UTF_8)) {
+            @Override
+            public void close() throws IOException {
+                streamClosed.set(true);
+                super.close();
+            }
+        };
+        LineFormatReaderFactory factory = new LineFormatReaderFactory(1024);
+
+        StreamingParallelParsingCoordinator.StreamingParallelIterator iterator =
+            new StreamingParallelParsingCoordinator.StreamingParallelIterator(
+                factory,
+                Settings.EMPTY,
+                null,
+                null,
+                FormatReadContext.Binding.empty(),
+                trackingStream,
+                null,
+                List.of("line"),
+                50,
+                4,
+                parked,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                admission,
+                new NoopCircuitBreaker("streaming-pending-admission-test")
+            );
+
+        assertEquals(1, admission.pending());
+        iterator.close();
+        assertEquals(0, admission.pending());
+        assertTrue(streamClosed.get());
     }
 
     private static RecordSplitter neverBoundarySplitter(int maxRecordBytes) {
@@ -1996,57 +2073,103 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         };
     }
 
-    /**
-     * A minimal format reader that treats each line as a record, producing one keyword block per page.
-     * <p>
-     * Tracks {@link #metadataCalls}, {@link #boundReadCalls}, and {@link #unboundReadCalls} per
-     * <strong>root</strong> reader (the counters are aliased into every {@link #withSchema}
-     * variant). Tests use these counters to assert that the coordinator infers schema once and
-     * dispatches every parser-thread read to the schema-bound variant.
-     */
-    private static class LineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
-        @Override
-        public RowPositionStrategy rowPositionStrategy() {
-            return PassThroughRowPositionStrategy.INSTANCE;
-        }
+    private abstract static class TestSegmentableFormatReader implements SegmentableFormatReader {}
 
-        private final long minSegment;
-        private final List<Attribute> resolvedSchema;
+    private static final class LineReaderState {
+        private final AtomicInteger metadataCalls = new AtomicInteger();
+        private final AtomicInteger boundReadCalls = new AtomicInteger();
+        private final AtomicInteger unboundReadCalls = new AtomicInteger();
+        private final List<FormatReadContext> seenContexts = Collections.synchronizedList(new ArrayList<>());
+        private final List<FormatReader> builtInstances = Collections.synchronizedList(new ArrayList<>());
+        private final List<FormatReader> closedInstances = Collections.synchronizedList(new ArrayList<>());
+    }
+
+    /**
+     * Factory for a minimal line reader. Derived factories share observation state, while each
+     * {@link #create} call creates a distinct owned reader. Schema is taken from the create binding.
+     */
+    private static class LineFormatReaderFactory implements FormatReaderFactory {
+        protected final long minSegment;
+        protected final LineReaderState state;
         final AtomicInteger metadataCalls;
         final AtomicInteger boundReadCalls;
         final AtomicInteger unboundReadCalls;
         final List<FormatReadContext> seenContexts;
-        /** Every instance of the lineage that was closed, shared across the chain so a test can tell them apart. */
+        final List<FormatReader> builtInstances;
         final List<FormatReader> closedInstances;
 
-        LineFormatReader(long minSegment) {
-            this(
-                minSegment,
-                null,
-                new AtomicInteger(),
-                new AtomicInteger(),
-                new AtomicInteger(),
-                Collections.synchronizedList(new ArrayList<>()),
-                Collections.synchronizedList(new ArrayList<>())
-            );
+        LineFormatReaderFactory(long minSegment) {
+            this(minSegment, new LineReaderState());
         }
 
-        private LineFormatReader(
-            long minSegment,
-            List<Attribute> resolvedSchema,
-            AtomicInteger metadataCalls,
-            AtomicInteger boundReadCalls,
-            AtomicInteger unboundReadCalls,
-            List<FormatReadContext> seenContexts,
-            List<FormatReader> closedInstances
+        protected LineFormatReaderFactory(long minSegment, LineReaderState state) {
+            this.minSegment = minSegment;
+            this.state = state;
+            this.metadataCalls = state.metadataCalls;
+            this.boundReadCalls = state.boundReadCalls;
+            this.unboundReadCalls = state.unboundReadCalls;
+            this.seenContexts = state.seenContexts;
+            this.builtInstances = state.builtInstances;
+            this.closedInstances = state.closedInstances;
+        }
+
+        @Override
+        public boolean segmentable() {
+            return true;
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(Map<String, Object> config, int maxRecordBytes) {
+            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize(Map<String, Object> config) {
+            return minSegment;
+        }
+
+        @Override
+        public String formatName() {
+            return "line";
+        }
+
+        @Override
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return create(settings, blockFactory, null, FormatReadContext.Binding.empty());
+        }
+
+        @Override
+        public FormatReader create(
+            Settings settings,
+            BlockFactory blockFactory,
+            Map<String, Object> config,
+            FormatReadContext.Binding binding
         ) {
+            List<Attribute> schema = binding == null ? null : binding.boundSchema();
+            LineFormatReader reader = newLineReader(schema);
+            builtInstances.add(reader);
+            return reader;
+        }
+
+        protected LineFormatReader newLineReader(List<Attribute> schema) {
+            return new LineFormatReader(minSegment, schema, state);
+        }
+    }
+
+    private static class LineFormatReader extends TestSegmentableFormatReader {
+        private final long minSegment;
+        private final List<Attribute> resolvedSchema;
+        private final LineReaderState state;
+
+        private LineFormatReader(long minSegment, List<Attribute> resolvedSchema, LineReaderState state) {
             this.minSegment = minSegment;
             this.resolvedSchema = resolvedSchema;
-            this.metadataCalls = metadataCalls;
-            this.boundReadCalls = boundReadCalls;
-            this.unboundReadCalls = unboundReadCalls;
-            this.seenContexts = seenContexts;
-            this.closedInstances = closedInstances;
+            this.state = state;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
         }
 
         @Override
@@ -2061,22 +2184,17 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
-            metadataCalls.incrementAndGet();
+            state.metadataCalls.incrementAndGet();
             List<Attribute> schema = List.of(
                 new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)
             );
-            return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
-        }
-
-        @Override
-        public FormatReader withSchema(List<Attribute> schema) {
-            return new LineFormatReader(minSegment, schema, metadataCalls, boundReadCalls, unboundReadCalls, seenContexts, closedInstances);
+            return new SimpleSourceMetadata(schema, "line", object.path().toString());
         }
 
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-            (resolvedSchema != null ? boundReadCalls : unboundReadCalls).incrementAndGet();
-            seenContexts.add(context);
+            (resolvedSchema != null ? state.boundReadCalls : state.unboundReadCalls).incrementAndGet();
+            state.seenContexts.add(context);
             InputStream stream = object.newStream();
             List<String> lines = new ArrayList<>();
             StringBuilder current = new StringBuilder();
@@ -2139,37 +2257,63 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "line";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".txt");
-        }
-
-        @Override
         public void close() {
-            closedInstances.add(this);
+            state.closedInstances.add(this);
         }
     }
 
     /**
      * Wraps {@link LineFormatReader} and blocks the parse of one chosen chunk index on a latch, so a test can
      * deterministically hold the consumer at the inter-chunk POISON gap. The chunk index is recovered from the
-     * per-chunk storage path the coordinator synthesizes ({@code mem://chunk-<index>}). Gating survives
-     * {@link #withSchema} (the coordinator swaps to the schema-bound reader after chunk 0), so a gated middle
-     * chunk stays gated.
+     * per-chunk storage path the coordinator synthesizes ({@code mem://chunk-<index>}). Schema-bound builders
+     * retain the gate, so a gated middle chunk stays gated.
      */
-    private static final class GatedLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
-        private final LineFormatReader delegate;
+    private static final class GatedLineFormatReaderFactory extends LineFormatReaderFactory {
         private final int gatedChunkIndex;
         private final CountDownLatch gate;
         private final CountDownLatch gatedReached;
 
-        GatedLineFormatReader(long minSegment, int gatedChunkIndex, CountDownLatch gate, CountDownLatch gatedReached) {
-            this(new LineFormatReader(minSegment), gatedChunkIndex, gate, gatedReached);
+        GatedLineFormatReaderFactory(long minSegment, int gatedChunkIndex, CountDownLatch gate, CountDownLatch gatedReached) {
+            this(minSegment, new LineReaderState(), gatedChunkIndex, gate, gatedReached);
         }
+
+        private GatedLineFormatReaderFactory(
+            long minSegment,
+            LineReaderState state,
+            int gatedChunkIndex,
+            CountDownLatch gate,
+            CountDownLatch gatedReached
+        ) {
+            super(minSegment, state);
+            this.gatedChunkIndex = gatedChunkIndex;
+            this.gate = gate;
+            this.gatedReached = gatedReached;
+        }
+
+        @Override
+        protected LineFormatReader newLineReader(List<Attribute> schema) {
+            return new LineFormatReader(minSegment, schema, state);
+        }
+
+        @Override
+        public FormatReader create(
+            Settings settings,
+            BlockFactory blockFactory,
+            Map<String, Object> config,
+            FormatReadContext.Binding binding
+        ) {
+            List<Attribute> schema = binding == null ? null : binding.boundSchema();
+            GatedLineFormatReader reader = new GatedLineFormatReader(newLineReader(schema), gatedChunkIndex, gate, gatedReached);
+            builtInstances.add(reader);
+            return reader;
+        }
+    }
+
+    private static final class GatedLineFormatReader extends TestSegmentableFormatReader {
+        private final LineFormatReader delegate;
+        private final int gatedChunkIndex;
+        private final CountDownLatch gate;
+        private final CountDownLatch gatedReached;
 
         private GatedLineFormatReader(LineFormatReader delegate, int gatedChunkIndex, CountDownLatch gate, CountDownLatch gatedReached) {
             this.delegate = delegate;
@@ -2206,11 +2350,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public FormatReader withSchema(List<Attribute> schema) {
-            return new GatedLineFormatReader((LineFormatReader) delegate.withSchema(schema), gatedChunkIndex, gate, gatedReached);
-        }
-
-        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return delegate.rowPositionStrategy();
         }
@@ -2231,16 +2370,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return delegate.formatName();
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return delegate.fileExtensions();
-        }
-
-        @Override
         public void close() {
             delegate.close();
         }
@@ -2251,7 +2380,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * regression that would otherwise drive the segmentator's grow loop unbounded. Used to verify the
      * grow-loop bound fails fast.
      */
-    private static class NeverBoundaryFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+    private static class NeverBoundaryFormatReader extends TestSegmentableFormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -2278,12 +2407,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             List<Attribute> schema = List.of(
                 new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)
             );
-            return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
-        }
-
-        @Override
-        public FormatReader withSchema(List<Attribute> schema) {
-            return this;
+            return new SimpleSourceMetadata(schema, "never-boundary", object.path().toString());
         }
 
         @Override
@@ -2305,16 +2429,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "never-boundary";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".nb");
-        }
-
-        @Override
         public void close() {}
     }
 
@@ -2327,7 +2441,38 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * {@code path} (not the per-chunk synthetic path the coordinator constructs) so the test can
      * key into the sink by a known string.
      */
-    private static class StatsPublishingLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+    private static final class StatsPublishingLineReaderFactory extends LineFormatReaderFactory {
+        private final String path;
+
+        StatsPublishingLineReaderFactory(long minSegment, String path) {
+            this(minSegment, new LineReaderState(), path);
+        }
+
+        private StatsPublishingLineReaderFactory(long minSegment, LineReaderState state, String path) {
+            super(minSegment, state);
+            this.path = path;
+        }
+
+        @Override
+        public String formatName() {
+            return "test-stats-publishing-streaming-line";
+        }
+
+        @Override
+        public FormatReader create(
+            Settings settings,
+            BlockFactory blockFactory,
+            Map<String, Object> config,
+            FormatReadContext.Binding binding
+        ) {
+            List<Attribute> schema = binding == null ? null : binding.boundSchema();
+            StatsPublishingLineReader reader = new StatsPublishingLineReader(newLineReader(schema), path);
+            builtInstances.add(reader);
+            return reader;
+        }
+    }
+
+    private static class StatsPublishingLineReader extends TestSegmentableFormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -2335,10 +2480,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         private final LineFormatReader delegate;
         private final String path;
-
-        StatsPublishingLineReader(long minSegment, String path) {
-            this(new LineFormatReader(minSegment), path);
-        }
 
         private StatsPublishingLineReader(LineFormatReader delegate, String path) {
             this.delegate = delegate;
@@ -2358,14 +2499,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public SourceMetadata metadata(StorageObject object) {
             return delegate.metadata(object);
-        }
-
-        @Override
-        public FormatReader withSchema(List<Attribute> schema) {
-            // Streaming coordinator swaps `reader` for the result; keep the publishing wrapper so
-            // post-inference chunk reads still record under `path`.
-            LineFormatReader bound = (LineFormatReader) delegate.withSchema(schema);
-            return new StatsPublishingLineReader(bound, path);
         }
 
         @Override
@@ -2414,16 +2547,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "test-stats-publishing-streaming-line";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return delegate.fileExtensions();
-        }
-
-        @Override
         public void close() {
             delegate.close();
         }
@@ -2432,7 +2555,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * A format reader that fails after reading a configured number of lines.
      */
-    private static class FailingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+    private static class FailingFormatReader extends TestSegmentableFormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -2462,7 +2585,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             // mask the injected parser failure being tested here.
             return new SimpleSourceMetadata(
                 List.of(new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)),
-                formatName(),
+                "failing",
                 object.path().toString()
             );
         }
@@ -2497,16 +2620,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "failing";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of();
-        }
-
-        @Override
         public void close() {}
     }
 
@@ -2523,22 +2636,62 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * simple open/close toggle. This is sufficient for testing the coordinator's chunk-splitting
      * logic but does not model full RFC 4180 quoting.
      */
-    private static class QuoteAwareLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
-        @Override
-        public RowPositionStrategy rowPositionStrategy() {
-            return PassThroughRowPositionStrategy.INSTANCE;
+    private static final class QuoteAwareLineFormatReaderFactory implements FormatReaderFactory {
+        private final long minSegment;
+
+        QuoteAwareLineFormatReaderFactory(long minSegment) {
+            this.minSegment = minSegment;
         }
 
+        @Override
+        public boolean segmentable() {
+            return true;
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(Map<String, Object> config, int maxRecordBytes) {
+            return quoteAwareSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize(Map<String, Object> config) {
+            return minSegment;
+        }
+
+        @Override
+        public String formatName() {
+            return "quote-aware-line";
+        }
+
+        @Override
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return create(settings, blockFactory, null, FormatReadContext.Binding.empty());
+        }
+
+        @Override
+        public FormatReader create(
+            Settings settings,
+            BlockFactory blockFactory,
+            Map<String, Object> config,
+            FormatReadContext.Binding binding
+        ) {
+            List<Attribute> schema = binding == null ? null : binding.boundSchema();
+            return new QuoteAwareLineFormatReader(minSegment, schema);
+        }
+    }
+
+    private static class QuoteAwareLineFormatReader extends TestSegmentableFormatReader {
         private final long minSegment;
         private final List<Attribute> resolvedSchema;
-
-        QuoteAwareLineFormatReader(long minSegment) {
-            this(minSegment, null);
-        }
 
         private QuoteAwareLineFormatReader(long minSegment, List<Attribute> resolvedSchema) {
             this.minSegment = minSegment;
             this.resolvedSchema = resolvedSchema;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
         }
 
         @Override
@@ -2556,12 +2709,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             List<Attribute> schema = List.of(
                 new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)
             );
-            return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
-        }
-
-        @Override
-        public FormatReader withSchema(List<Attribute> schema) {
-            return new QuoteAwareLineFormatReader(minSegment, schema);
+            return new SimpleSourceMetadata(schema, "quote-aware-line", object.path().toString());
         }
 
         @Override
@@ -2624,16 +2772,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 @Override
                 public void close() {}
             };
-        }
-
-        @Override
-        public String formatName() {
-            return "quote-aware-line";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".txt");
         }
 
         @Override

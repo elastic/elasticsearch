@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.time.Instant;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * StorageObject implementation for Google Cloud Storage.
@@ -225,6 +226,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             return;
         }
         ByteBuffer buffer = drb.buffer();
+        AtomicBoolean bufferReleasedOrTransferred = new AtomicBoolean();
 
         try {
             executor.execute(() -> {
@@ -246,34 +248,30 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                     }
                 } catch (StorageException e) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    bufferReleasedOrTransferred.set(true);
                     drb.close();
                     listener.onFailure(mapReadFailure("Failed to read bytes from", e));
                     return;
                 } catch (Exception e) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    bufferReleasedOrTransferred.set(true);
                     drb.close();
                     listener.onFailure(e);
                     return;
                 }
-                // I/O succeeded; deliver outside the I/O catch blocks so a throw from
-                // onResponse does not double-close drb or invoke listener.onFailure.
                 counters.addRequest(System.nanoTime() - startNanos, payloadBytes);
-                try {
-                    listener.onResponse(drb);
-                } catch (Exception e) {
-                    try {
-                        drb.close();
-                    } catch (Exception closeEx) {
-                        e.addSuppressed(closeEx);
-                    }
-                    throw e;
-                }
+                bufferReleasedOrTransferred.set(true);
+                listener.onResponse(drb);
             });
         } catch (RuntimeException e) {
-            // Executor rejection (saturated queue, shutdown) — release the buffer eagerly so the
-            // charge does not stay against the allocator for the lifetime of the JVM.
-            drb.close();
-            listener.onFailure(e);
+            if (bufferReleasedOrTransferred.compareAndSet(false, true)) {
+                // Executor rejection (saturated queue, shutdown): release the buffer eagerly so the
+                // charge does not stay against the allocator for the lifetime of the JVM.
+                drb.close();
+                listener.onFailure(e);
+            } else {
+                throw e;
+            }
         }
     }
 

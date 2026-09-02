@@ -270,21 +270,9 @@ class RetryableStorageObject implements StorageObject {
                 retryPolicy.notifySuccess();
                 // Read succeeded; publish the cumulative backoff spent getting here (skipped when it never retried).
                 retryCounters.addReadStall(accumulatedBackoffMillis);
-                // Do NOT route a throw from listener.onResponse into onFailure — that would
-                // trigger retry logic or double-complete the downstream listener. Propagate
-                // the exception directly so the caller's uncaught-exception handler deals with it.
-                try {
-                    listener.onResponse(result);
-                } catch (Exception e) {
-                    // listener.onResponse threw before consuming the buffer; release it so the
-                    // breaker reservation does not outlive the failed delivery.
-                    try {
-                        result.close();
-                    } catch (Exception closeEx) {
-                        e.addSuppressed(closeEx);
-                    }
-                    throw e;
-                }
+                // A successful callback owns the buffer before invocation. Propagate callback failures
+                // directly so they cannot trigger retries or a second completion.
+                listener.onResponse(result);
             }
 
             @Override

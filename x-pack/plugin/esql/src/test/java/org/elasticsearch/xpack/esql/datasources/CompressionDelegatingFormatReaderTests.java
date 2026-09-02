@@ -12,10 +12,11 @@ import net.jpountz.lz4.LZ4FrameOutputStream;
 import com.github.luben.zstd.ZstdOutputStream;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasource.brotli.BrotliDecompressionCodec;
@@ -27,7 +28,7 @@ import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -40,21 +41,18 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Set;
 import java.util.zip.GZIPOutputStream;
 
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * Unit tests for {@link CompressionDelegatingFormatReader}.
+ * Unit tests for {@link CompressionDelegatingFormatReader} and {@link ResolvedFormat} compression wrapping.
  */
 public class CompressionDelegatingFormatReaderTests extends ESTestCase {
 
@@ -112,42 +110,12 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         assertTrue(((CapturingFormatReader) innerReader).readCalled);
     }
 
-    public void testFormatNameAndExtensionsDelegated() {
-        FormatReader innerReader = new NoConfigFormatReader() {
-
-            @Override
-            public SourceMetadata metadata(StorageObject object) {
-                return null;
-            }
-
-            @Override
-            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
-                return emptyIterator();
-            }
-
-            @Override
-            public String formatName() {
-                return "csv";
-            }
-
-            @Override
-            public List<String> fileExtensions() {
-                return List.of(".csv", ".tsv");
-            }
-
-            @Override
-            public RowPositionStrategy rowPositionStrategy() {
-                return PassThroughRowPositionStrategy.INSTANCE;
-            }
-
-            @Override
-            public void close() {}
-        };
+    public void testFormatNameDelegated() {
+        FormatReaderFactory innerFactory = new RecordingFormatReaderFactory();
         DecompressionCodec codec = mockCodec();
-        FormatReader delegating = new CompressionDelegatingFormatReader(innerReader, codec);
+        ResolvedFormat resolved = new ResolvedFormat(innerFactory, codec);
 
-        assertEquals("csv", delegating.formatName());
-        assertEquals(List.of(".csv", ".tsv"), delegating.fileExtensions());
+        assertEquals("csv", resolved.formatName());
     }
 
     public void testNullInnerThrows() {
@@ -169,18 +137,16 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         assertSame(codec, delegating.codec());
     }
 
-    public void testUnwrapPreservedThroughWithConfig() {
-        FormatReader inner = new CapturingFormatReader();
+    public void testCreateWrapsInnerReaderWhenCodecPresent() {
+        RecordingFormatReaderFactory inner = new RecordingFormatReaderFactory();
         DecompressionCodec codec = mockCodec();
-        CompressionDelegatingFormatReader delegating = new CompressionDelegatingFormatReader(inner, codec);
+        ResolvedFormat resolved = new ResolvedFormat(inner, codec);
 
-        FormatReader configured = delegating.withConfig(Map.of());
-        assertSame(delegating, configured);
-
-        if (configured instanceof CompressionDelegatingFormatReader cdr) {
-            assertSame(inner, cdr.unwrap());
-            assertSame(codec, cdr.codec());
-        }
+        FormatReader created = resolved.create(Settings.EMPTY, null, Map.of(), FormatReadContext.Binding.empty());
+        assertThat(created, instanceOf(CompressionDelegatingFormatReader.class));
+        CompressionDelegatingFormatReader wrapped = (CompressionDelegatingFormatReader) created;
+        assertSame(codec, wrapped.codec());
+        assertThat(wrapped.unwrap(), instanceOf(CloseCountingFormatReader.class));
     }
 
     private static byte[] gzip(byte[] input) throws IOException {
@@ -259,7 +225,7 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         };
     }
 
-    private static class CapturingFormatReader implements NoConfigFormatReader {
+    private static class CapturingFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -284,16 +250,6 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
                 stream.readAllBytes();
             }
             return emptyIterator();
-        }
-
-        @Override
-        public String formatName() {
-            return "csv";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".csv", ".tsv");
         }
 
         @Override
@@ -340,53 +296,27 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         }
     }
 
-    /**
-     * The delegate forwards each wither explicitly, and the SPI defaults return the WRAPPER — so an unforwarded
-     * wither is silent: the inner reader is never configured, nothing errors, and only warmth quietly disappears for
-     * compressed files. That is exactly how the read-configuration stamp was lost for .csv.gz once. Pin the forward
-     * rather than the incident.
-     */
-    public void testWithReadConfigReachesTheInnerReader() {
-        ReadConfigRecordingFormatReader inner = new ReadConfigRecordingFormatReader();
-        FormatReader delegating = new CompressionDelegatingFormatReader(inner, new BrotliDecompressionCodec());
+    public void testReadConfigReachesTheInnerFactory() {
+        RecordingFormatReaderFactory inner = new RecordingFormatReaderFactory();
+        ResolvedFormat resolved = new ResolvedFormat(inner, new BrotliDecompressionCodec());
 
-        FormatReader configured = delegating.withReadConfig("config-A");
+        FormatReader created = resolved.create(
+            Settings.EMPTY,
+            null,
+            Map.of(),
+            FormatReadContext.Binding.empty().withReadConfig("config-A")
+        );
 
-        assertEquals("the inner reader must receive the read configuration", "config-A", inner.lastReadConfig);
+        assertEquals("the inner factory must receive the read configuration", "config-A", inner.lastReadConfig);
         assertThat(
             "and the result must stay wrapped, or the decompression is lost",
-            configured,
+            created,
             instanceOf(CompressionDelegatingFormatReader.class)
         );
-        assertNotSame("a configured reader is a new instance, not the original wrapper", delegating, configured);
     }
 
-    /** Records what the wrapper hands down, and returns a distinct instance so the wrapper must re-wrap. */
-    private static class ReadConfigRecordingFormatReader implements NoConfigFormatReader {
+    private static class RecordingFormatReaderFactory implements FormatReaderFactory {
         String lastReadConfig;
-
-        @Override
-        public RowPositionStrategy rowPositionStrategy() {
-            return PassThroughRowPositionStrategy.INSTANCE;
-        }
-
-        @Override
-        public FormatReader withReadConfig(String readConfig) {
-            ReadConfigRecordingFormatReader configured = new ReadConfigRecordingFormatReader();
-            configured.lastReadConfig = readConfig;
-            this.lastReadConfig = readConfig;
-            return configured;
-        }
-
-        @Override
-        public SourceMetadata metadata(StorageObject object) {
-            return new SimpleSourceMetadata(List.of(), "csv", object.path().toString());
-        }
-
-        @Override
-        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
-            throw new UnsupportedOperationException("not used by this test");
-        }
 
         @Override
         public String formatName() {
@@ -394,54 +324,26 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         }
 
         @Override
-        public List<String> fileExtensions() {
-            return List.of(".csv");
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return create(settings, blockFactory, null, FormatReadContext.Binding.empty());
         }
 
         @Override
-        public void close() {}
-    }
-
-    /**
-     * The class, not the instance. Every {@code with*} on the SPI defaults to returning the reader unchanged, and this
-     * wrapper must override each one to hand the call down and re-wrap — otherwise the inner reader is never
-     * configured and only warmth quietly disappears for compressed files. That has happened once already, for the
-     * read-configuration stamp. A test pinning one wither would not stop the eighth from repeating it, so enumerate
-     * them: every default method on {@link FormatReader} returning a {@link FormatReader} must be overridden here.
-     */
-    @SuppressForbidden(reason = "an OVERRIDE check needs declared methods; getMethod returns the inherited default")
-    public void testEveryWitherIsForwardedByTheWrapper() {
-        // withConfig is the one legitimate exception: its default is defined in terms of
-        // withConfigTrackingConsumedKeys, which this wrapper DOES override, and the SPI states that implementations
-        // must override the tracking variant rather than this one. Every other default stands alone.
-        Set<String> defaultsDelegatingToAnOverride = Set.of("withConfig");
-
-        List<String> unforwarded = new ArrayList<>();
-        for (Method spiMethod : FormatReader.class.getMethods()) {
-            if (spiMethod.isDefault() == false || spiMethod.getReturnType() != FormatReader.class) {
-                continue;
-            }
-            if (defaultsDelegatingToAnOverride.contains(spiMethod.getName())) {
-                continue;
-            }
-            try {
-                CompressionDelegatingFormatReader.class.getDeclaredMethod(spiMethod.getName(), spiMethod.getParameterTypes());
-            } catch (NoSuchMethodException absent) {
-                unforwarded.add(spiMethod.getName());
-            }
+        public FormatReader create(
+            Settings settings,
+            BlockFactory blockFactory,
+            Map<String, Object> config,
+            FormatReadContext.Binding binding
+        ) {
+            lastReadConfig = binding == null ? null : binding.readConfig();
+            return new CloseCountingFormatReader();
         }
-        assertEquals(
-            "the compression wrapper must forward every SPI wither and re-wrap the result; an unforwarded one is "
-                + "silent — the inner reader is never configured and warmth disappears for compressed files only",
-            List.of(),
-            unforwarded
-        );
     }
 
     /**
      * The wrapper holds no resources of its own, so the release the {@link FormatReader} lifecycle contract drives
      * has to reach the reader that does. A wrapper that swallowed {@code close()} would make the whole lifecycle a
-     * no-op for compressed files — and compressed files are exactly the ones whose reader is most likely to be
+     * no-op for compressed files. Compressed files are exactly the ones whose reader is most likely to be
      * holding a decompressor.
      */
     public void testCloseReachesTheInnerReader() throws IOException {
@@ -453,29 +355,26 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         assertEquals(1, inner.closeCount);
     }
 
-    /**
-     * A wither that mints a new inner reader must re-wrap it, so closing the derived wrapper releases the derived
-     * inner and not the one the caller still holds. Without that, a per-query configured wrapper would close the
-     * registry's shared reader.
-     */
-    public void testCloseOfADerivedWrapperReachesOnlyTheDerivedInner() throws IOException {
-        CloseCountingFormatReader inner = new CloseCountingFormatReader();
-        CompressionDelegatingFormatReader wrapper = new CompressionDelegatingFormatReader(inner, new GzipDecompressionCodec());
+    public void testEachCreateOwnsAndClosesItsInnerReader() throws IOException {
+        ResolvedFormat resolved = new ResolvedFormat(new RecordingFormatReaderFactory(), new GzipDecompressionCodec());
+        FormatReader firstRaw = resolved.create(Settings.EMPTY, null, null, FormatReadContext.Binding.empty());
+        FormatReader secondRaw = resolved.create(Settings.EMPTY, null, null, FormatReadContext.Binding.empty());
+        CompressionDelegatingFormatReader first = (CompressionDelegatingFormatReader) firstRaw;
+        CompressionDelegatingFormatReader second = (CompressionDelegatingFormatReader) secondRaw;
+        CloseCountingFormatReader firstInner = (CloseCountingFormatReader) first.unwrap();
+        CloseCountingFormatReader secondInner = (CloseCountingFormatReader) second.unwrap();
 
-        FormatReader derived = wrapper.withSchema(List.of());
-        assertThat(derived, instanceOf(CompressionDelegatingFormatReader.class));
-        assertNotSame("the inner reader minted, so the wrapper must have minted too", wrapper, derived);
+        assertNotSame(first, second);
+        assertNotSame(firstInner, secondInner);
 
-        derived.close();
+        first.close();
 
-        assertEquals("the derived inner was released", 1, inner.derived.closeCount);
-        assertEquals("the caller's own reader was not", 0, inner.closeCount);
+        assertEquals(1, firstInner.closeCount);
+        assertEquals(0, secondInner.closeCount);
     }
 
-    /** Counts closes and mints a distinct instance on {@code withSchema}, so a test can tell the two apart. */
-    private static class CloseCountingFormatReader implements NoConfigFormatReader {
+    private static class CloseCountingFormatReader implements FormatReader {
         int closeCount;
-        CloseCountingFormatReader derived;
 
         @Override
         public RowPositionStrategy rowPositionStrategy() {
@@ -490,22 +389,6 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             throw new UnsupportedOperationException("not read in these tests");
-        }
-
-        @Override
-        public FormatReader withSchema(List<org.elasticsearch.xpack.esql.core.expression.Attribute> schema) {
-            derived = new CloseCountingFormatReader();
-            return derived;
-        }
-
-        @Override
-        public String formatName() {
-            return "csv";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".csv");
         }
 
         @Override

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -530,15 +531,21 @@ public class CsvModeReadTests extends ESTestCase {
     // ---- harness ----
 
     private CsvFormatReader csvReader(Map<String, Object> config) {
-        return configured(new CsvFormatReader(blockFactory, "csv", List.of(".csv")), config);
+        return (CsvFormatReader) new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true).create(
+            Settings.EMPTY,
+            blockFactory,
+            config,
+            FormatReadContext.Binding.empty()
+        );
     }
 
     private CsvFormatReader tsvReader(Map<String, Object> config) {
-        return configured(new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv")), config);
-    }
-
-    private static CsvFormatReader configured(CsvFormatReader reader, Map<String, Object> config) {
-        return (CsvFormatReader) reader.withConfigTrackingConsumedKeys(config).value();
+        return (CsvFormatReader) new CsvFormatReaderFactory("tsv", List.of(".tsv"), CsvFormatOptions.TSV, true).create(
+            Settings.EMPTY,
+            blockFactory,
+            config,
+            FormatReadContext.Binding.empty()
+        );
     }
 
     /** The inferred per-column {@link ElementType} from the first page (used to assert type inference). */

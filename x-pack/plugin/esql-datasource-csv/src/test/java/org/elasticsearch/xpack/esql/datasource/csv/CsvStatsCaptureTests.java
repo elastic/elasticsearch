@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -164,8 +165,8 @@ public class CsvStatsCaptureTests extends ESTestCase {
             """;
         List<String> cols = List.of("id", "n", "name", "score");
         FormatReadContext ctx = FormatReadContext.builder().batchSize(2).projectedColumns(cols).build();
-        SplitStats direct = SplitStats.of(captureWith(new CsvFormatReader(blockFactory).withDirectBlockEnabled(true), csv, ctx));
-        SplitStats jackson = SplitStats.of(captureWith(new CsvFormatReader(blockFactory).withDirectBlockEnabled(false), csv, ctx));
+        SplitStats direct = SplitStats.of(captureWith(createCsvReader(true), csv, ctx));
+        SplitStats jackson = SplitStats.of(captureWith(createCsvReader(false), csv, ctx));
         assertEquals("row count", jackson.rowCount(), direct.rowCount());
         for (String col : cols) {
             assertEquals("nullCount[" + col + "]", jackson.columnNullCount(col), direct.columnNullCount(col));
@@ -273,6 +274,13 @@ public class CsvStatsCaptureTests extends ESTestCase {
     private Map<String, Object> capture(StorageObject o, FormatReadContext ctx) throws Exception {
         List<Map<String, Object>> all = captureAll(o, ctx);
         return all == null ? null : all.get(0);
+    }
+
+    private CsvFormatReader createCsvReader(boolean directBlockEnabled) {
+        return (CsvFormatReader) new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, directBlockEnabled).create(
+            Settings.EMPTY,
+            blockFactory
+        );
     }
 
     /** Binds a capture sink, drains the given reader over a fresh cacheable object, returns its contribution. */

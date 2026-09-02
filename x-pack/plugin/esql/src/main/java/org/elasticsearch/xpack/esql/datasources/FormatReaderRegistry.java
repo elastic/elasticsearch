@@ -11,94 +11,95 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Supplier;
 
 /**
- * Registry for FormatReader implementations, keyed by format name and file extension.
- * Readers are created lazily on first access to avoid pulling in heavy dependencies at startup.
- * Supports compound extensions (e.g. .csv.gz) via {@link DecompressionCodecRegistry}.
+ * Registry for format-reader factories, keyed by format name and file extension.
+ * Plugin implementations are loaded lazily on first {@link FormatReaderFactory#inspect}
+ * or {@link FormatReaderFactory#create}. Supports compound extensions (e.g. .csv.gz)
+ * via {@link DecompressionCodecRegistry}.
  */
 public class FormatReaderRegistry {
 
     /**
      * Whole-file compression codecs supported for text formats on release builds, keyed by
      * {@link DecompressionCodec#name()}. {@code uncompressed} is the no-codec path and so is not listed.
-     * On snapshot builds the gate in {@link #wrapWithCodec} is bypassed, so any registered codec
+     * On snapshot builds the gate in {@link #attachCodec} is bypassed, so any registered codec
      * resolves; the four codecs outside this set (bzip2, snappy, lz4, brotli) each return to the GA
      * surface once benchmarked (see elastic/esql-planning#938).
      */
     public static final Set<String> GA_TEXT_CODECS = Set.of("gzip", "zstd");
 
-    private final Map<String, Supplier<FormatReader>> byName = new ConcurrentHashMap<>();
-    private final Map<String, Supplier<FormatReader>> byExtension = new ConcurrentHashMap<>();
+    private final Map<String, Registration> byName = new ConcurrentHashMap<>();
+    private final Map<String, Registration> byExtension = new ConcurrentHashMap<>();
     private final DecompressionCodecRegistry codecRegistry;
+
+    private record Registration(FormatSpec spec, FormatReaderFactory factory) {}
 
     public FormatReaderRegistry(DecompressionCodecRegistry codecRegistry) {
         this.codecRegistry = codecRegistry;
     }
 
-    public void registerLazy(String formatName, FormatReaderFactory factory, Settings settings, BlockFactory blockFactory) {
+    public void registerLazy(FormatSpec spec, FormatReaderFactory factory) {
+        Check.notNull(spec, "Format spec cannot be null");
+        String formatName = spec.format();
         if (Strings.isNullOrEmpty(formatName)) {
             throw new IllegalArgumentException("Format name cannot be null or empty");
         }
         Check.notNull(factory, "Factory cannot be null");
 
-        // Lazy supplier that creates the reader on first access and registers extensions
-        Supplier<FormatReader> lazySupplier = new Supplier<>() {
-            private volatile FormatReader instance;
-
-            @Override
-            public FormatReader get() {
-                if (instance == null) {
-                    synchronized (this) {
-                        if (instance == null) {
-                            instance = factory.create(settings, blockFactory);
-                            // Register extension mappings now that the reader is created
-                            for (String ext : instance.fileExtensions()) {
-                                if (Strings.isNullOrEmpty(ext) == false) {
-                                    String normalizedExt = ext.toLowerCase(Locale.ROOT);
-                                    if (normalizedExt.startsWith(".") == false) {
-                                        normalizedExt = "." + normalizedExt;
-                                    }
-                                    byExtension.put(normalizedExt, this);
-                                }
-                            }
-                        }
-                    }
-                }
-                return instance;
-            }
-        };
-
-        byName.put(formatName.toLowerCase(Locale.ROOT), lazySupplier);
-    }
-
-    public Supplier<FormatReader> unregister(String formatName) {
-        if (Strings.isNullOrEmpty(formatName)) {
-            return null;
+        Registration registration = new Registration(spec, factory);
+        byName.put(formatName.toLowerCase(Locale.ROOT), registration);
+        for (String extension : spec.extensions()) {
+            registerExtension(extension, formatName);
         }
-        return byName.remove(formatName.toLowerCase(Locale.ROOT));
     }
 
-    public FormatReader byName(String formatName) {
+    public void registerLazy(String formatName, FormatReaderFactory factory) {
+        registerLazy(new FormatSpec(formatName, Set.of(), Set.of()), factory);
+    }
+
+    /**
+     * Registers a factory. {@code settings} and {@code blockFactory} are unused: create-time
+     * arguments are supplied by the caller of {@link FormatReaderFactory#create}.
+     */
+    public void registerLazy(FormatSpec spec, FormatReaderFactory factory, Settings settings, BlockFactory blockFactory) {
+        registerLazy(spec, factory);
+    }
+
+    /**
+     * Registers a factory. {@code settings} and {@code blockFactory} are unused: create-time
+     * arguments are supplied by the caller of {@link FormatReaderFactory#create}.
+     */
+    public void registerLazy(String formatName, FormatReaderFactory factory, Settings settings, BlockFactory blockFactory) {
+        registerLazy(formatName, factory);
+    }
+
+    public void unregister(String formatName) {
+        if (Strings.isNullOrEmpty(formatName) == false) {
+            byName.remove(formatName.toLowerCase(Locale.ROOT));
+        }
+    }
+
+    public FormatReaderFactory factoryByName(String formatName) {
         if (Strings.isNullOrEmpty(formatName)) {
             throw new IllegalArgumentException("Format name cannot be null or empty");
         }
 
-        Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
-        if (supplier == null) {
+        Registration registration = byName.get(formatName.toLowerCase(Locale.ROOT));
+        if (registration == null) {
             // The ONE place where "the plugin providing this format may not be installed" is correct advice: we
-            // get here for a format name this registry does not know -- a plugin absent or feature-gated on this
+            // get here for a format name this registry does not know: a plugin absent or feature-gated on this
             // node, or a typo'd query-time override, which reaches us unvalidated because query config can carry
             // `format` without passing the PUT-time dataset validator. Do not repeat the advice on the extension
             // paths, where the storage side is already proven and only the format failed.
@@ -110,19 +111,31 @@ public class FormatReaderRegistry {
                     + "."
             );
         }
-        return supplier.get();
+        return registration.factory();
     }
 
     /**
-     * Look up a format reader by name, returning null if not registered.
+     * Looks up a format-reader factory by name, returning null if not registered.
      * Use for speculative lookups where a missing format is normal (e.g., optimizer probing).
      */
-    public FormatReader findByName(String formatName) {
+    public FormatReaderFactory findFactoryByName(String formatName) {
         if (Strings.isNullOrEmpty(formatName)) {
             return null;
         }
-        Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
-        return supplier != null ? supplier.get() : null;
+        Registration registration = byName.get(formatName.toLowerCase(Locale.ROOT));
+        return registration != null ? registration.factory() : null;
+    }
+
+    public FormatSpec specByName(String formatName) {
+        if (Strings.isNullOrEmpty(formatName)) {
+            throw new IllegalArgumentException("Format name cannot be null or empty");
+        }
+        Registration registration = byName.get(formatName.toLowerCase(Locale.ROOT));
+        if (registration == null) {
+            factoryByName(formatName);
+            throw new AssertionError("unreachable");
+        }
+        return registration.spec();
     }
 
     public void registerExtension(String extension, String formatName) {
@@ -130,13 +143,13 @@ public class FormatReaderRegistry {
         if (normalizedExt.startsWith(".") == false) {
             normalizedExt = "." + normalizedExt;
         }
-        Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
-        Check.notNull(supplier, "Cannot register extension [{}] -- format [{}] not registered", extension, formatName);
-        byExtension.put(normalizedExt, supplier);
+        Registration registration = byName.get(formatName.toLowerCase(Locale.ROOT));
+        Check.notNull(registration, "Cannot register extension [{}] for unregistered format [{}]", extension, formatName);
+        byExtension.put(normalizedExt, registration);
     }
 
-    public FormatReader byExtension(String objectName) {
-        return byExtension(objectName, objectName);
+    public ResolvedFormat resolveByExtension(String objectName) {
+        return resolveByExtension(objectName, objectName);
     }
 
     /**
@@ -145,14 +158,14 @@ public class FormatReaderRegistry {
      *                      not the stripped intermediate, which names a file that does not exist and would give the
      *                      same object a different answer here than on the resolver path.
      */
-    private FormatReader byExtension(String objectName, String originalName) {
+    private ResolvedFormat resolveByExtension(String objectName, String originalName) {
         if (Strings.isNullOrEmpty(objectName)) {
             throw new IllegalArgumentException("Object name cannot be null or empty");
         }
 
         String extension = trailingExtension(objectName);
         if (extension == null) {
-            // Same condition, same builder: an extensionless object is one more shape of "cannot work out how
+            // Same condition, same factory: an extensionless object is one more shape of "cannot work out how
             // to read this", and must not answer differently just because it failed one branch earlier.
             throw unreadableObject(originalName, originalName);
         }
@@ -161,33 +174,31 @@ public class FormatReaderRegistry {
         if (codecRegistry != null) {
             String stripped = codecRegistry.stripCompressionSuffix(objectName);
             if (stripped != null) {
-                FormatReader inner = byExtension(stripped, originalName);
+                ResolvedFormat inner = resolveByExtension(stripped, originalName);
                 DecompressionCodec codec = codecRegistry.byExtension(extension);
                 if (codec != null) {
-                    return wrapWithCodec(inner, codec, extension, objectName);
+                    return attachCodec(inner.factory(), codec, extension, objectName);
                 }
             }
         }
 
-        Supplier<FormatReader> supplier = byExtension.get(extension);
-        if (supplier == null) {
+        Registration registration = byExtension.get(extension);
+        if (registration == null) {
             throw unreadableObject(originalName, originalName);
         }
-        return supplier.get();
+        return new ResolvedFormat(registration.factory(), null);
     }
 
     /**
-     * The single builder for "we cannot work out how to read this". Both the resolver's factory-selection
+     * The single exception for "we cannot work out how to read this". Both the resolver's factory-selection
      * failure and this registry's own extension lookup raise it, so one condition cannot produce two
      * differently-worded answers depending on which layer caught it.
      * <p>
      * It lives here because this registry owns the vocabulary AND the claiming decision: {@code canHandle}
      * consults {@link #hasExtension}/{@link #hasFormat}, i.e. these very maps. Sourcing the message from
      * {@link DataSourceCapabilities} instead would let it disagree with what actually claims — capabilities is
-     * built from {@code FormatSpec} declarations alone, so an extension a reader declares only via
-     * {@code FormatReader#fileExtensions()} would be absent from it while this registry, and therefore
-     * {@code canHandle}, honours it. Sourcing the message from the claiming maps means such a reader
-     * cannot make the advice lie.
+     * built from the same {@code FormatSpec} declarations, so the registry maps and advertised
+     * capabilities remain aligned.
      *
      * @param displayPath what the user asked for, quoted back to them — the full location on the resolver
      *                    path, the object name here
@@ -238,35 +249,52 @@ public class FormatReaderRegistry {
     }
 
     /**
-     * Resolves the named format reader and, if {@code objectName} carries a trailing compression-codec
-     * extension (e.g. {@code .gz}), wraps it in a {@link CompressionDelegatingFormatReader} — applying the
-     * same whole-file-compression-support check and GA-codec gate as {@link #byExtension(String)}.
+     * Resolves the named format factory and, if {@code objectName} carries a trailing compression-codec
+     * extension (e.g. {@code .gz}), attaches the codec after applying the same compatibility
+     * checks as {@link #resolveByExtension(String)}.
      * <p>
      * Used when the caller already knows the format via an explicit {@code format}/{@code reader} config
-     * override: without this, an explicit override would resolve the plain reader and feed it the resource's
+     * override: without this, an explicit override would resolve the plain factory and feed it the resource's
      * compressed bytes unchanged (the compressed-read-under-explicit-format fix). {@code objectName} with no
-     * compression suffix (the common case) returns the plain reader unchanged.
+     * compression suffix (the common case) returns the plain factory unchanged.
      */
-    public FormatReader byNameForObject(String formatName, String objectName) {
-        FormatReader inner = byName(formatName);
+    public ResolvedFormat resolveByNameForObject(String formatName, String objectName) {
+        FormatReaderFactory inner = factoryByName(formatName);
         if (codecRegistry == null || Strings.isNullOrEmpty(objectName)) {
-            return inner;
+            return new ResolvedFormat(inner, null);
         }
         String extension = trailingExtension(objectName);
         if (extension == null) {
-            return inner;
+            return new ResolvedFormat(inner, null);
         }
         DecompressionCodec codec = codecRegistry.byExtension(extension);
         if (codec == null) {
-            return inner;
+            return new ResolvedFormat(inner, null);
         }
-        return wrapWithCodec(inner, codec, extension, objectName);
+        return attachCodec(inner, codec, extension, objectName);
+    }
+
+    /**
+     * Returns the whole-file compression codec implied by {@code objectName}'s trailing extension,
+     * or {@code null} when there is no registered codec suffix. Does not validate format compatibility;
+     * {@link #resolveByExtension} and {@link #resolveByNameForObject} do that at lookup time.
+     */
+    @Nullable
+    public DecompressionCodec codecFor(String objectName) {
+        if (codecRegistry == null || Strings.isNullOrEmpty(objectName)) {
+            return null;
+        }
+        String extension = trailingExtension(objectName);
+        if (extension == null) {
+            return null;
+        }
+        return codecRegistry.byExtension(extension);
     }
 
     /**
      * Returns {@code objectName}'s trailing extension (e.g. {@code ".gz"}), lower-cased, or {@code null}
-     * if there is no dot or the dot is the last character. Shared by {@link #byExtension(String)} and
-     * {@link #byNameForObject(String, String)} so the two paths cannot diverge on how the compression
+     * if there is no dot or the dot is the last character. Shared by {@link #resolveByExtension(String)} and
+     * {@link #resolveByNameForObject(String, String)} so the two paths cannot diverge on how the compression
      * suffix is detected; callers decide separately whether a missing extension is an error.
      */
     private static String trailingExtension(String objectName) {
@@ -278,16 +306,16 @@ public class FormatReaderRegistry {
     }
 
     /**
-     * Applies the whole-file-compression veto and the release-build GA-codec gate, then wraps {@code inner}
-     * in a {@link CompressionDelegatingFormatReader} for {@code codec}. Shared by {@link #byExtension(String)}
-     * (compound-extension inference) and {@link #byNameForObject(String, String)} (explicit format/reader
+     * Applies the whole-file-compression veto and the release-build GA-codec gate, then pairs {@code factory}
+     * with {@code codec}. Shared by {@link #resolveByExtension(String)}
+     * (compound-extension inference) and {@link #resolveByNameForObject(String, String)} (explicit format/reader
      * override), so the two paths cannot diverge on which codecs/formats are compatible.
      */
-    private static FormatReader wrapWithCodec(FormatReader inner, DecompressionCodec codec, String extension, String objectName) {
-        if (inner.supportsWholeFileCompression() == false) {
+    private static ResolvedFormat attachCodec(FormatReaderFactory factory, DecompressionCodec codec, String extension, String objectName) {
+        if (factory.supportsWholeFileCompression() == false) {
             throw new IllegalArgumentException(
                 "Format ["
-                    + inner.formatName()
+                    + factory.formatName()
                     + "] does not support whole-file compression; the ["
                     + extension
                     + "] suffix is not valid on ["
@@ -303,7 +331,7 @@ public class FormatReaderRegistry {
                 "compression codec [" + codec.name() + "] is not supported; supported: uncompressed, gzip, zstd"
             );
         }
-        return new CompressionDelegatingFormatReader(inner, codec);
+        return new ResolvedFormat(factory, codec);
     }
 
     /**

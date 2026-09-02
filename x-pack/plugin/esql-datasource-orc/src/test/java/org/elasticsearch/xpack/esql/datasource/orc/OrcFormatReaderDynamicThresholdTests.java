@@ -20,6 +20,7 @@ import org.apache.orc.OrcFile;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -34,6 +35,7 @@ import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
@@ -243,11 +245,34 @@ public class OrcFormatReaderDynamicThresholdTests extends ESTestCase {
         assertThat(rows.size(), equalTo(200));
     }
 
+    private OrcFormatReader readerWithThreshold(DynamicThreshold threshold) {
+        return (OrcFormatReader) new OrcFormatReaderFactory().create(
+            Settings.EMPTY,
+            blockFactory,
+            null,
+            FormatReadContext.Binding.empty().withDynamicThreshold(threshold)
+        );
+    }
+
     private DynamicThreshold threshold(long value, boolean ascending, boolean nullsFirst) {
         SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(ascending, nullsFirst);
         SharedNumericThreshold channel = supplier.get();
         channel.offer(value);
         return new DynamicThreshold("id", ElementType.LONG, ascending, nullsFirst, channel);
+    }
+
+    public void testCreateDoesNotCloseBorrowedThreshold() throws IOException {
+        DynamicThreshold threshold = threshold(10L, true, false);
+        try {
+            OrcFormatReader first = readerWithThreshold(threshold);
+            OrcFormatReader second = readerWithThreshold(threshold);
+
+            assertNotSame(first, second);
+            first.close();
+            second.close();
+        } finally {
+            threshold.close();
+        }
     }
 
     /**
@@ -277,7 +302,7 @@ public class OrcFormatReaderDynamicThresholdTests extends ESTestCase {
     }
 
     private List<Long> readIdsWithThreshold(byte[] data, DynamicThreshold threshold) throws IOException {
-        OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withDynamicThreshold(threshold);
+        OrcFormatReader reader = readerWithThreshold(threshold);
         try (threshold; CloseableIterator<Page> iterator = reader.read(storageObject(data), List.of("id"), 128)) {
             List<Long> values = new ArrayList<>();
             while (iterator.hasNext()) {
@@ -296,7 +321,7 @@ public class OrcFormatReaderDynamicThresholdTests extends ESTestCase {
     }
 
     private List<String> readNamesWithThreshold(byte[] data, DynamicThreshold threshold) throws IOException {
-        OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withDynamicThreshold(threshold);
+        OrcFormatReader reader = readerWithThreshold(threshold);
         try (threshold; CloseableIterator<Page> iterator = reader.read(storageObject(data), List.of("name"), 128)) {
             List<String> values = new ArrayList<>();
             BytesRef scratch = new BytesRef();

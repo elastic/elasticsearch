@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.junit.Before;
@@ -55,7 +56,8 @@ public class NdJsonDottedPrefixStreamingTests extends ESTestCase {
     }
 
     public void testBoundDottedLeafDecodesFlatKeyAcrossChunks() throws Exception {
-        long chunkSize = new NdJsonFormatReader(segmentSize64Kb(), blockFactory).minimumSegmentSize();
+        NdJsonFormatReaderFactory factory = new NdJsonFormatReaderFactory(segmentSize64Kb());
+        long chunkSize = factory.minimumSegmentSize(null);
 
         // Flat dotted key "languages.long" beside a sibling scalar "languages". The sibling is what makes
         // a first-chunk inference produce the "languages" prefix column, and what turns the misread into a
@@ -71,7 +73,6 @@ public class NdJsonDottedPrefixStreamingTests extends ESTestCase {
         // The planner-bound schema and the reader's configured schema both project only the dotted leaf,
         // without the "languages" prefix.
         List<Attribute> bound = List.of(new ReferenceAttribute(Source.EMPTY, "languages.long", DataType.LONG));
-        NdJsonFormatReader reader = new NdJsonFormatReader(segmentSize64Kb(), blockFactory).withSchema(bound);
 
         InputStream stream = new ByteArrayInputStream(ndjson.toString().getBytes(StandardCharsets.UTF_8));
         ExecutorService executor = Executors.newFixedThreadPool(4);
@@ -80,7 +81,11 @@ public class NdJsonDottedPrefixStreamingTests extends ESTestCase {
         long sum = 0;
         try (
             CloseableIterator<Page> pages = StreamingParallelParsingCoordinator.parallelRead(
-                (SegmentableFormatReader) reader,
+                factory,
+                segmentSize64Kb(),
+                blockFactory,
+                null,
+                FormatReadContext.Binding.empty().withBoundSchema(bound),
                 stream,
                 null,
                 List.of("languages.long"),

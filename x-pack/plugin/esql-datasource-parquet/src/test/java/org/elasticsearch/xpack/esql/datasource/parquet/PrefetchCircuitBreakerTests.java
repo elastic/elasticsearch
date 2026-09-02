@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -96,7 +97,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
 
         StorageObject storage = createAsyncStorageObject(parquetData);
         int totalRows = 0;
-        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory).read(storage, FormatReadContext.of(null, 1024))) {
             while (iter.hasNext()) {
                 Page page = iter.next();
                 totalRows += page.getPositionCount();
@@ -125,7 +126,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
 
         StorageObject storage = createAsyncStorageObject(parquetData);
-        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory).read(storage, FormatReadContext.of(null, 1024))) {
             try {
                 while (iter.hasNext()) {
                     Page page = iter.next();
@@ -149,7 +150,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
 
         StorageObject storage = createFailingAsyncStorageObject(parquetData);
         int totalRows = 0;
-        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory).read(storage, FormatReadContext.of(null, 1024))) {
             long storageReadBaseline = breaker.reservedBytes("storage read buffer");
             while (iter.hasNext()) {
                 Page page = iter.next();
@@ -172,7 +173,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         StorageObject storage = createFailingAsyncStorageObject(parquetData);
 
         try (
-            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
             CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 1024))
         ) {
             breaker.rejectStorageReads = true;
@@ -192,7 +193,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
 
         StorageObject storage = createAsyncStorageObject(parquetData);
         int totalRows = 0;
-        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory).read(storage, FormatReadContext.of(null, 1024))) {
             while (iter.hasNext()) {
                 Page page = iter.next();
                 totalRows += page.getPositionCount();
@@ -220,7 +221,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
 
         StorageObject storage = createAsyncStorageObject(parquetData);
-        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory).read(storage, FormatReadContext.of(null, 1024))) {
             if (iter.hasNext()) {
                 Page page = iter.next();
                 page.releaseBlocks();
@@ -244,7 +245,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
             int totalRows = 0;
             try {
                 try (
-                    CloseableIterator<Page> iter = new ParquetFormatReader(pipeline.blockFactory, true).read(
+                    CloseableIterator<Page> iter = new ParquetFormatReader(pipeline.blockFactory).read(
                         pipeline.storage(),
                         FormatReadContext.of(null, 1024)
                     )
@@ -283,7 +284,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         startInParallel(readers, i -> {
             try {
                 try (
-                    CloseableIterator<Page> iter = new ParquetFormatReader(pipeline.blockFactory, true).read(
+                    CloseableIterator<Page> iter = new ParquetFormatReader(pipeline.blockFactory).read(
                         pipeline.storage(),
                         FormatReadContext.of(null, 1024)
                     )
@@ -318,8 +319,9 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         try {
             try (
                 threshold;
-                ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory, true).withDynamicThreshold(
-                    threshold
+                ParquetFormatReader reader = readerWithBinding(
+                    blockFactory,
+                    FormatReadContext.Binding.empty().withDynamicThreshold(threshold)
                 );
                 CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 1024))
             ) {
@@ -379,7 +381,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         );
         try {
             try (
-                ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+                ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
                 CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 1024))
             ) {
                 OptimizedParquetColumnIterator optimized = (OptimizedParquetColumnIterator) iter;
@@ -1192,4 +1194,18 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
             }
         };
     }
+
+    private static ParquetFormatReader readerWithPushedFilter(BlockFactory blockFactory, Object pushed) {
+        return (ParquetFormatReader) new ParquetFormatReaderFactory().create(
+            Settings.EMPTY,
+            blockFactory,
+            null,
+            FormatReadContext.Binding.empty().withPushedFilter(pushed)
+        );
+    }
+
+    private static ParquetFormatReader readerWithBinding(BlockFactory blockFactory, FormatReadContext.Binding binding) {
+        return (ParquetFormatReader) new ParquetFormatReaderFactory().create(Settings.EMPTY, blockFactory, null, binding);
+    }
+
 }

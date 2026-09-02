@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -31,7 +33,7 @@ import org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -738,7 +740,7 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
             }
             return AggregatePushdownSupport.Pushability.YES;
         };
-        registry.registerLazy("parquet", (settings, blockFactory) -> new StubFormatReader(parquetSupport), null, null);
+        registry.registerLazy("parquet", new StubFormatReaderFactory(parquetSupport));
         return registry;
     }
 
@@ -751,7 +753,7 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
     private static FormatReaderRegistry buildTextRegistry() {
         FormatReaderRegistry registry = new FormatReaderRegistry(null);
         AggregatePushdownSupport textSupport = new TextAggregatePushdownSupport();
-        registry.registerLazy("parquet", (settings, blockFactory) -> new StubFormatReader(textSupport), null, null);
+        registry.registerLazy("parquet", new StubFormatReaderFactory(textSupport));
         return registry;
     }
 
@@ -763,16 +765,31 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         return new LocalPhysicalOptimizerContext(null, null, null, null, null, ExternalOptimizerContext.NONE);
     }
 
-    /**
-     * Minimal FormatReader stub that only provides aggregate pushdown support.
-     */
-    private static class StubFormatReader implements NoConfigFormatReader {
+    /** Minimal factory stub that provides aggregate pushdown support. */
+    private static class StubFormatReaderFactory implements FormatReaderFactory {
         private final AggregatePushdownSupport support;
 
-        StubFormatReader(AggregatePushdownSupport support) {
+        StubFormatReaderFactory(AggregatePushdownSupport support) {
             this.support = support;
         }
 
+        @Override
+        public String formatName() {
+            return "parquet";
+        }
+
+        @Override
+        public AggregatePushdownSupport aggregatePushdownSupport() {
+            return support;
+        }
+
+        @Override
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return new StubFormatReader();
+        }
+    }
+
+    private static class StubFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -791,21 +808,6 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
             org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext context
         ) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String formatName() {
-            return "parquet";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
-        }
-
-        @Override
-        public AggregatePushdownSupport aggregatePushdownSupport() {
-            return support;
         }
 
         @Override

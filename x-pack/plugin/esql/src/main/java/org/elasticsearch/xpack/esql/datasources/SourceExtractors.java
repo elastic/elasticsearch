@@ -112,6 +112,7 @@ public final class SourceExtractors implements Releasable {
     }
 
     private final List<ColumnExtractor> extractors = new ArrayList<>();
+    private final List<Releasable> readerLeases = new ArrayList<>();
     /**
      * Resources whose lifecycle must extend beyond the source operator's, because the deferred
      * extraction path keeps using them to satisfy point lookups long after the source finished
@@ -144,6 +145,40 @@ public final class SourceExtractors implements Releasable {
         }
         extractors.add(extractor);
         return id;
+    }
+
+    /**
+     * Atomically adopts an extractor and the reader lease that keeps its backing reader alive.
+     */
+    public int registerOwned(ColumnExtractor extractor, Releasable readerLease) {
+        if (extractor == null) {
+            throw new IllegalArgumentException("extractor must not be null");
+        }
+        if (readerLease == null) {
+            throw new IllegalArgumentException("readerLease must not be null");
+        }
+        boolean adopted = false;
+        try {
+            synchronized (this) {
+                if (closed) {
+                    throw new IllegalStateException("SourceExtractors is closed");
+                }
+                int id = extractors.size();
+                if (id > MAX_EXTRACTOR_ID) {
+                    throw new IllegalStateException(
+                        "extractor id space exhausted; maximum is " + MAX_EXTRACTOR_ID + " registrations per driver"
+                    );
+                }
+                extractors.add(extractor);
+                readerLeases.add(readerLease);
+                adopted = true;
+                return id;
+            }
+        } finally {
+            if (adopted == false) {
+                Releasables.closeExpectNoException(extractor, readerLease);
+            }
+        }
     }
 
     /**
@@ -411,19 +446,29 @@ public final class SourceExtractors implements Releasable {
     }
 
     @Override
-    public synchronized void close() {
-        if (closed) {
-            return;
+    public void close() {
+        List<ColumnExtractor> extractorsToClose;
+        List<Releasable> readerLeasesToClose;
+        List<Closeable> trailingCloseablesToClose;
+        synchronized (this) {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            extractorsToClose = List.copyOf(extractors);
+            readerLeasesToClose = List.copyOf(readerLeases);
+            trailingCloseablesToClose = List.copyOf(trailingCloseables);
+            extractors.clear();
+            readerLeases.clear();
+            trailingCloseables.clear();
         }
-        closed = true;
-        Releasables.closeExpectNoException(extractors.toArray(new Releasable[0]));
-        extractors.clear();
+        Releasables.closeExpectNoException(extractorsToClose.toArray(new Releasable[0]));
+        Releasables.closeExpectNoException(readerLeasesToClose.toArray(new Releasable[0]));
         // Close trailing resources (e.g. per-query budget) after the extractors so any
         // storage-object closes that flow through them succeed before the budget is torn down.
         // LIFO order — last attached, first closed.
-        for (int i = trailingCloseables.size() - 1; i >= 0; i--) {
-            IOUtils.closeWhileHandlingException(trailingCloseables.get(i));
+        for (int i = trailingCloseablesToClose.size() - 1; i >= 0; i--) {
+            IOUtils.closeWhileHandlingException(trailingCloseablesToClose.get(i));
         }
-        trailingCloseables.clear();
     }
 }

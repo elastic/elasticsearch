@@ -56,20 +56,11 @@ public abstract class AbstractMeteredStorageObject implements StorageObject {
 
     /**
      * Hands a successfully-read {@code buffer} to {@code listener}, recording the byte count and
-     * elapsed time. If delivery throws, closes the buffer so its breaker charge does not outlive the
-     * failed hand-off, then propagates.
+     * elapsed time. The listener owns the buffer before its callback begins, including when the callback
+     * throws.
      */
     protected final void deliverRead(ActionListener<DirectReadBuffer> listener, DirectReadBuffer buffer, long startNanos) {
         counters.addRequest(System.nanoTime() - startNanos, buffer.buffer().remaining());
-        try {
-            listener.onResponse(buffer);
-        } catch (Exception e) {
-            try {
-                buffer.close();
-            } catch (Exception closeEx) {
-                e.addSuppressed(closeEx);
-            }
-            throw e;
-        }
+        listener.onResponse(buffer);
     }
 }

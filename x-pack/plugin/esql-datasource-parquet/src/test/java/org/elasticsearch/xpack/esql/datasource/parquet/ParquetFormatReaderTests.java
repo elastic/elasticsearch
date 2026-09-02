@@ -41,6 +41,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -167,7 +168,22 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * {@code int64} file) is treated as an inferred clash and the whole column null-fills.
      */
     private ParquetFormatReader declaredReader(String... declaredColumns) {
-        return (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of(declaredColumns));
+        return readerWithBinding(FormatReadContext.Binding.empty().withDeclaredTypeColumns(Set.of(declaredColumns)));
+    }
+
+    private ParquetFormatReader baselineDeclaredReader(String... declaredColumns) {
+        return new ParquetFormatReader(
+            blockFactory,
+            FilterCompat.NOOP,
+            null,
+            true,
+            true,
+            null,
+            Map.of(),
+            Set.of(declaredColumns),
+            new PlainCompressionCodecFactory(),
+            new ParquetReaderCounters()
+        );
     }
 
     /**
@@ -187,16 +203,15 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     public void testFormatName() {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        assertEquals("parquet", reader.formatName());
+        assertEquals("parquet", new ParquetFormatReaderFactory().formatName());
     }
 
     public void testFileExtensions() {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        List<String> extensions = reader.fileExtensions();
-        assertEquals(2, extensions.size());
-        assertTrue(extensions.contains(".parquet"));
-        assertTrue(extensions.contains(".parq"));
+        assertTrue(
+            new ParquetDataSourcePlugin().formatSpecs()
+                .stream()
+                .anyMatch(spec -> spec.format().equals("parquet") && spec.extensions().containsAll(List.of(".parquet", ".parq")))
+        );
     }
 
     public void testReadSchemaFromSimpleParquet() throws Exception {
@@ -758,6 +773,35 @@ public class ParquetFormatReaderTests extends ESTestCase {
         } finally {
             probePool.shutdownNow();
         }
+    }
+
+    public void testMetadataAsyncDoesNotRouteOnResponseExceptionToOnFailure() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group group = factory.newGroup();
+            group.add("id", 7L);
+            return List.of(group);
+        });
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        AtomicInteger failures = new AtomicInteger();
+        RuntimeException callbackFailure = new RuntimeException("listener callback failure");
+
+        RuntimeException thrown = expectThrows(
+            RuntimeException.class,
+            () -> reader.metadataAsync(createInlineAsyncStorageObject(parquetData), Runnable::run, new ActionListener<>() {
+                @Override
+                public void onResponse(SourceMetadata response) {
+                    throw callbackFailure;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    failures.incrementAndGet();
+                }
+            })
+        );
+        assertSame(callbackFailure, thrown);
+        assertEquals(0, failures.get());
     }
 
     /**
@@ -2795,7 +2839,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     public void testMalformedListLeadingContinuationFailsStrictReaders() throws Exception {
         for (ParquetFormatReader reader : List.of(
             new ParquetFormatReader(blockFactory),
-            new ParquetFormatReader(blockFactory).withBaselinePath()
+            ParquetFormatReader.forcedBaseline(blockFactory)
         )) {
             StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory://ARROW-GH-45185.parquet");
             try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of("x"), 2)) {
@@ -2811,7 +2855,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         for (ErrorPolicy.Mode mode : List.of(ErrorPolicy.Mode.SKIP_ROW, ErrorPolicy.Mode.NULL_FIELD)) {
             for (ParquetFormatReader reader : List.of(
                 new ParquetFormatReader(blockFactory),
-                new ParquetFormatReader(blockFactory).withBaselinePath()
+                ParquetFormatReader.forcedBaseline(blockFactory)
             )) {
                 List<String> warnings = new ArrayList<>();
                 StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory://ARROW-GH-45185.parquet");
@@ -2853,7 +2897,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ErrorPolicy noErrors = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 0, 0.0, false);
         for (ParquetFormatReader reader : List.of(
             new ParquetFormatReader(blockFactory),
-            new ParquetFormatReader(blockFactory).withBaselinePath()
+            ParquetFormatReader.forcedBaseline(blockFactory)
         )) {
             StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory://ARROW-GH-45185.parquet");
             List<Attribute> attributes = reader.metadata(storageObject).schema();
@@ -2872,7 +2916,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     public void testMalformedListPartialLimitDoesNotRequireRowGroupExhaustion() throws Exception {
         for (ParquetFormatReader reader : List.of(
             new ParquetFormatReader(blockFactory),
-            new ParquetFormatReader(blockFactory).withBaselinePath()
+            ParquetFormatReader.forcedBaseline(blockFactory)
         )) {
             List<String> warnings = new ArrayList<>();
             StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory://ARROW-GH-45185.parquet");
@@ -3110,7 +3154,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     public void testReadListOfUnsignedLongColumnOptimizedReader() throws Exception {
-        assertReadListOfUnsignedLongColumn(new ParquetFormatReader(blockFactory, true)); // optimized reader
+        assertReadListOfUnsignedLongColumn(new ParquetFormatReader(blockFactory)); // optimized reader
     }
 
     /**
@@ -3198,7 +3242,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     public void testReadListOfDateNanosColumnOptimizedReader() throws Exception {
-        assertReadListOfDateNanosColumn(new ParquetFormatReader(blockFactory, true)); // optimized reader
+        assertReadListOfDateNanosColumn(new ParquetFormatReader(blockFactory)); // optimized reader
     }
 
     /**
@@ -3319,10 +3363,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
 
         // Default reader wraps memory storage in a ParquetStorageObjectAdapter and drives the
-        // optimized iterator; withBaselinePath() forces the row-at-a-time baseline iterator.
+        // optimized iterator; forcedBaseline forces the row-at-a-time baseline iterator.
         for (ParquetFormatReader reader : List.of(
             new ParquetFormatReader(blockFactory),
-            new ParquetFormatReader(blockFactory).withBaselinePath()
+            ParquetFormatReader.forcedBaseline(blockFactory)
         )) {
             StorageObject storageObject = createStorageObject(parquetData);
             try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of("id", "answers.text", "answers.answer_start"), 10)) {
@@ -4002,7 +4046,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // text readers (CSV/NDJSON) and ORC. A per-value coercion failure fails the read unless a query opts into
         // error_mode: null_field. This pins the cross-format consistency and fails if a permissive default is ever
         // re-introduced for this reader.
-        assertEquals(ErrorPolicy.STRICT, new ParquetFormatReader(blockFactory).defaultErrorPolicy());
+        assertEquals(ErrorPolicy.STRICT, new ParquetFormatReaderFactory().defaultErrorPolicy());
     }
 
     public void testDoesNotDropRowsUnderPushedFilter() {
@@ -4013,7 +4057,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // translate their post-predicate positions back into batch coordinates, this must stay false: it is what
         // makes the planner hold the predicate in a FilterExec for skip_row reads that declare column types.
         // ORC answers true (OrcFormatReaderTests.testDropsRowsUnderPushedFilter) because it filters on every path.
-        assertFalse(new ParquetFormatReader(blockFactory).dropsRowsUnderPushedFilter());
+        assertFalse(new ParquetFormatReaderFactory().dropsRowsUnderPushedFilter());
     }
 
     public void testStringToLongDoubleBooleanIpCoerces() throws Exception {
@@ -4286,7 +4330,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
 
-        ParquetFormatReader withFormat = (ParquetFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        ParquetFormatReader withFormat = readerWithBinding(
+            FormatReadContext.Binding.empty().withDeclaredTypeColumns(Set.of("ts")).withDeclaredDateFormats(Map.of("ts", "epoch_second"))
+        );
         try (
             CloseableIterator<Page> it = withFormat.readRange(
                 storageObject,
@@ -4385,7 +4431,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             return List.of(ok1, bad, ok2);
         });
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
-        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+        for (ParquetFormatReader r : List.of(declaredReader("x"), baselineDeclaredReader("x"))) {
             try (
                 CloseableIterator<Page> it = r.readRange(
                     createStorageObject(parquetData),
@@ -4438,7 +4484,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, "tag", DataType.KEYWORD)
         );
-        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+        for (ParquetFormatReader r : List.of(declaredReader("x"), baselineDeclaredReader("x"))) {
             try (
                 CloseableIterator<Page> it = r.readRange(
                     createStorageObject(parquetData),
@@ -4477,7 +4523,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             return List.of(bad1, bad2);
         });
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
-        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+        for (ParquetFormatReader r : List.of(declaredReader("x"), baselineDeclaredReader("x"))) {
             try (
                 CloseableIterator<Page> it = r.readRange(
                     createStorageObject(parquetData),
@@ -4495,7 +4541,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Characterizes the gap that {@link ParquetFormatReader#dropsRowsUnderPushedFilter()} exists to declare: with a
+     * Characterizes the gap that {@link ParquetFormatReaderFactory#dropsRowsUnderPushedFilter()} exists to declare: with a
      * {@link ParquetPushedExpressions} filter in hand the iterator switches to late materialization, and that path
      * emits its page without {@code ColumnarRowDropHelper#filterBlocks} — so a {@code skip_row} coercion failure
      * nulls the cell and the row survives, which is {@code null_field} behaviour. Three rows in, three rows out.
@@ -4535,7 +4581,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, "tag", DataType.KEYWORD),
             new WildcardPattern("keep*")
         );
-        ParquetFormatReader reader = declaredReader("x").withPushedFilter(new ParquetPushedExpressions(List.of(like)));
+        ParquetFormatReader reader = readerWithBinding(
+            FormatReadContext.Binding.empty()
+                .withDeclaredTypeColumns(Set.of("x"))
+                .withPushedFilter(new ParquetPushedExpressions(List.of(like)))
+        );
         List<Attribute> plannerTypes = List.of(
             new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, "tag", DataType.KEYWORD)
@@ -4556,7 +4606,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals("the filtered path cannot drop rows -- the bad row survives with a null cell", 3, total);
         assertFalse(
             "so the reader must not advertise row-dropping under a pushed filter",
-            new ParquetFormatReader(blockFactory).dropsRowsUnderPushedFilter()
+            new ParquetFormatReaderFactory().dropsRowsUnderPushedFilter()
         );
         drainWarnings();
     }
@@ -4582,7 +4632,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
         ErrorPolicy budget = new ErrorPolicy(1L, false);
-        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+        for (ParquetFormatReader r : List.of(declaredReader("x"), baselineDeclaredReader("x"))) {
             try (
                 CloseableIterator<Page> it = r.readRange(
                     createStorageObject(parquetData),
@@ -4631,7 +4681,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             return List.of(bad, ok1, ok2);
         });
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
-        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+        for (ParquetFormatReader r : List.of(declaredReader("x"), baselineDeclaredReader("x"))) {
             List<Long> got = new ArrayList<>();
             try (
                 CloseableIterator<Page> it = r.readRange(
@@ -4685,7 +4735,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             return List.of(ok1, bad, ok2);
         });
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
-        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+        for (ParquetFormatReader r : List.of(declaredReader("x"), baselineDeclaredReader("x"))) {
             try (
                 CloseableIterator<Page> it = r.readRange(
                     createStorageObject(parquetData),
@@ -4836,7 +4886,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         int distinctBad = SkipWarnings.MAX_ADDED_WARNINGS + 5;
         byte[] data = badDatetimeTokenFixture(0, distinctBad);
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
-        for (ParquetFormatReader reader : List.of(declaredReader("ts"), declaredReader("ts").withBaselinePath())) {
+        for (ParquetFormatReader reader : List.of(declaredReader("ts"), baselineDeclaredReader("ts"))) {
             List<String> sink = new ArrayList<>();
             StorageObject storageObject = createStorageObject(data);
             try (
@@ -4890,7 +4940,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // previously hard-failed the read while the deferred extractor warned+nulled the same cell.
         byte[] parquetData = stringDatetimeFixture();
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
-        for (ParquetFormatReader r : List.of(declaredReader("ts"), declaredReader("ts").withBaselinePath())) {
+        for (ParquetFormatReader r : List.of(declaredReader("ts"), baselineDeclaredReader("ts"))) {
             StorageObject storageObject = createStorageObject(parquetData);
             try (
                 CloseableIterator<Page> it = r.readRange(
@@ -4917,7 +4967,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // castBlock's strict contract and to the text readers' parse failure under fail_fast.
         byte[] parquetData = stringDatetimeFixture();
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
-        for (ParquetFormatReader r : List.of(declaredReader("ts"), declaredReader("ts").withBaselinePath())) {
+        for (ParquetFormatReader r : List.of(declaredReader("ts"), baselineDeclaredReader("ts"))) {
             StorageObject storageObject = createStorageObject(parquetData);
             try (
                 CloseableIterator<Page> it = r.readRange(
@@ -4956,8 +5006,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "vals", DataType.DATETIME));
         StorageObject storageObject = createStorageObject(parquetData);
 
-        ParquetFormatReader withFormat = (ParquetFormatReader) declaredReader("vals").withDeclaredDateFormats(
-            Map.of("vals", "epoch_second")
+        ParquetFormatReader withFormat = readerWithBinding(
+            FormatReadContext.Binding.empty()
+                .withDeclaredTypeColumns(Set.of("vals"))
+                .withDeclaredDateFormats(Map.of("vals", "epoch_second"))
         );
         try (
             CloseableIterator<Page> it = withFormat.readRange(
@@ -5116,7 +5168,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         byte[] parquetData = nullBearingIntListFixture();
         for (ParquetFormatReader reader : List.of(
             new ParquetFormatReader(blockFactory),
-            new ParquetFormatReader(blockFactory).withBaselinePath()
+            ParquetFormatReader.forcedBaseline(blockFactory)
         )) {
             try (CloseableIterator<Page> it = reader.read(createStorageObject(parquetData), null, 10)) {
                 Page page = it.next();
@@ -5742,7 +5794,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         byte[] parquetData = createWideMultiRowGroupFile(500);
         StorageObject storageObject = createStorageObject(parquetData);
         FilterPredicate filter = FilterApi.gt(FilterApi.longColumn("id"), -1L);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(FilterCompat.get(filter));
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, FilterCompat.get(filter));
 
         List<String> fullRows = collectIdPayloadRows(reader.read(storageObject, null, 500));
 
@@ -5779,7 +5831,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         byte[] parquetData = createWideMultiRowGroupFile(500);
         StorageObject storageObject = createStorageObject(parquetData);
         FilterPredicate filter = FilterApi.gt(FilterApi.longColumn("id"), -1L);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, false).withPushedFilter(FilterCompat.get(filter));
+        ParquetFormatReader reader = baselineReaderWithPushedFilter(FilterCompat.get(filter));
 
         List<String> fullRows = collectIdPayloadRows(reader.read(storageObject, null, 500));
 
@@ -6088,6 +6140,63 @@ public class ParquetFormatReaderTests extends ESTestCase {
             @Override
             public StoragePath path() {
                 return StoragePath.of("memory://async-test.parquet");
+            }
+        };
+    }
+
+    private static StorageObject createInlineAsyncStorageObject(byte[] data) {
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(data);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                return new ByteArrayInputStream(data, pos, len);
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                final DirectReadBuffer buffer;
+                try {
+                    buffer = factory.allocate((int) length);
+                } catch (IOException e) {
+                    listener.onFailure(e);
+                    return;
+                }
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                buffer.buffer().put(data, pos, len).flip();
+                listener.onResponse(buffer);
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://inline-async-test.parquet");
             }
         };
     }
@@ -6403,10 +6512,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
         );
     }
 
-    public void testWithConfigDefaults() {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        assertSame(reader, reader.withConfig(null));
-        assertSame(reader, reader.withConfig(Map.of()));
+    public void testInspectRecognizesNoKeys() {
+        ParquetFormatReaderFactory factory = new ParquetFormatReaderFactory();
+        assertTrue(factory.inspect(null).consumedKeys().isEmpty());
+        assertTrue(factory.inspect(Map.of()).consumedKeys().isEmpty());
     }
 
     // --- Nested STRUCT subfield projection tests ---
@@ -6675,7 +6784,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 null
             );
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
-        ParquetFormatReader filtered = new ParquetFormatReader(blockFactory).withPushedFilter(pushed);
+        ParquetFormatReader filtered = readerWithPushedFilter(blockFactory, pushed);
         int survived = countRows(filtered, parquetData, List.of("event.id"));
         // Strict less-than is the contract: the first row group's 50 rows must be pruned. The
         // exact count is at most 51 (the second row group), since parquet-mr may not perform
@@ -7108,9 +7217,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, 100_000L, DataType.LONG),
                 null
             );
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(
-            new ParquetPushedExpressions(List.of(u32Filter))
-        );
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, new ParquetPushedExpressions(List.of(u32Filter)));
 
         List<Long> survivors = new ArrayList<>();
         try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of("u32"), 10)) {
@@ -7160,9 +7267,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                     new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, 4_000_000_000L, DataType.LONG)
                 )
             );
-        ParquetFormatReader inReader = new ParquetFormatReader(blockFactory).withPushedFilter(
-            new ParquetPushedExpressions(List.of(inFilter))
-        );
+        ParquetFormatReader inReader = readerWithPushedFilter(blockFactory, new ParquetPushedExpressions(List.of(inFilter)));
         List<Long> inSurvivors = new ArrayList<>();
         try (CloseableIterator<Page> iterator = inReader.read(createStorageObject(data), List.of("u32"), 10)) {
             while (iterator.hasNext()) {
@@ -7193,9 +7298,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             );
         org.elasticsearch.xpack.esql.core.expression.Expression combined =
             new org.elasticsearch.xpack.esql.expression.predicate.logical.And(Source.EMPTY, u32Gt, u16Gt);
-        ParquetFormatReader andReader = new ParquetFormatReader(blockFactory).withPushedFilter(
-            new ParquetPushedExpressions(List.of(combined))
-        );
+        ParquetFormatReader andReader = readerWithPushedFilter(blockFactory, new ParquetPushedExpressions(List.of(combined)));
         List<Long> andSurvivors = new ArrayList<>();
         try (CloseableIterator<Page> iterator = andReader.read(createStorageObject(data), List.of("u32"), 10)) {
             while (iterator.hasNext()) {
@@ -7327,7 +7430,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     public void testUnsignedLong64SignFlipEncodingOptimizedReader() throws Exception {
-        assertUnsignedLong64SignFlipEncoding(new ParquetFormatReader(blockFactory, true)); // optimized reader
+        assertUnsignedLong64SignFlipEncoding(new ParquetFormatReader(blockFactory)); // optimized reader
     }
 
     /**
@@ -7371,7 +7474,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     public void testUnsignedLong64ConstantColumnEncodingOptimizedReader() throws Exception {
         // The optimized reader collapses an all-equal column into a constant block; assert both the encoding and the collapse,
         // which proves the encode is applied before constant detection rather than after.
-        assertUnsignedLong64ConstantColumnEncoding(new ParquetFormatReader(blockFactory, true), true);
+        assertUnsignedLong64ConstantColumnEncoding(new ParquetFormatReader(blockFactory), true);
     }
 
     /**
@@ -7974,6 +8077,41 @@ public class ParquetFormatReaderTests extends ESTestCase {
             allocator.release(buffer);
         }
         assertEquals("release must return the full charge", before, breaker.getUsed());
+    }
+
+    private static ParquetFormatReader readerWithPushedFilter(BlockFactory blockFactory, Object pushed) {
+        return (ParquetFormatReader) new ParquetFormatReaderFactory().create(
+            Settings.EMPTY,
+            blockFactory,
+            null,
+            FormatReadContext.Binding.empty().withPushedFilter(pushed)
+        );
+    }
+
+    private ParquetFormatReader readerWithBinding(FormatReadContext.Binding binding) {
+        return (ParquetFormatReader) new ParquetFormatReaderFactory().create(Settings.EMPTY, blockFactory, null, binding);
+    }
+
+    private ParquetFormatReader baselineReaderWithPushedFilter(Object pushed) {
+        FilterCompat.Filter filter = FilterCompat.NOOP;
+        ParquetPushedExpressions expressions = null;
+        if (pushed instanceof FilterCompat.Filter parquetFilter) {
+            filter = parquetFilter;
+        } else if (pushed instanceof ParquetPushedExpressions pushedExpressions) {
+            expressions = pushedExpressions;
+        }
+        return new ParquetFormatReader(
+            blockFactory,
+            filter,
+            expressions,
+            false,
+            false,
+            null,
+            Map.of(),
+            Set.of(),
+            new PlainCompressionCodecFactory(),
+            new ParquetReaderCounters()
+        );
     }
 
 }

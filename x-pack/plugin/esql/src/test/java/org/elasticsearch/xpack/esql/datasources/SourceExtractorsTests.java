@@ -153,6 +153,35 @@ public class SourceExtractorsTests extends ESTestCase {
         assertEquals("trailing closeable must run exactly once", 1, calls.get());
     }
 
+    public void testOwnedReaderLeaseClosesAfterExtractor() {
+        SourceExtractors registry = new SourceExtractors();
+        StringBuilder order = new StringBuilder();
+        IntListExtractor extractor = new IntListExtractor(new int[] { 1 }) {
+            @Override
+            public void close() {
+                order.append("extractor;");
+                super.close();
+            }
+        };
+        registry.registerOwned(extractor, () -> order.append("reader;"));
+
+        registry.close();
+
+        assertEquals("extractor;reader;", order.toString());
+    }
+
+    public void testRegisterOwnedAfterCloseReleasesBothInputs() {
+        SourceExtractors registry = new SourceExtractors();
+        registry.close();
+        IntListExtractor extractor = new IntListExtractor(new int[] { 1 });
+        AtomicInteger leaseCloses = new AtomicInteger();
+
+        expectThrows(IllegalStateException.class, () -> registry.registerOwned(extractor, leaseCloses::incrementAndGet));
+
+        assertEquals(1, extractor.closeCount());
+        assertEquals(1, leaseCloses.get());
+    }
+
     public void testMaterializeEmptyCount() {
         try (SourceExtractors registry = new SourceExtractors()) {
             registry.register(new IntListExtractor(new int[] { 1, 2 }));

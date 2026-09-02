@@ -20,6 +20,7 @@ import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
@@ -46,6 +47,8 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 
@@ -301,10 +304,9 @@ public class ParquetPageIndexFilteringTests extends ESTestCase {
     }
 
     private int readWithFilter(byte[] parquetData, FilterPredicate filter) throws IOException {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        if (filter != null) {
-            reader = reader.withPushedFilter(FilterCompat.get(filter));
-        }
+        ParquetFormatReader reader = filter == null
+            ? new ParquetFormatReader(blockFactory)
+            : readerWithPushedFilter(FilterCompat.get(filter));
 
         StorageObject storageObject = createStorageObject(parquetData);
         int totalRows = 0;
@@ -322,10 +324,9 @@ public class ParquetPageIndexFilteringTests extends ESTestCase {
      * This is the ground truth — parquet-mr handles all filtering.
      */
     private List<Integer> readIdsWithBaselineFilter(byte[] parquetData, FilterPredicate filter) throws IOException {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, false);
-        if (filter != null) {
-            reader = reader.withPushedFilter(FilterCompat.get(filter));
-        }
+        ParquetFormatReader reader = filter == null
+            ? new ParquetFormatReader(blockFactory, false)
+            : baselineReaderWithPushedFilter(FilterCompat.get(filter));
         return collectIds(reader, createStorageObject(parquetData));
     }
 
@@ -334,10 +335,9 @@ public class ParquetPageIndexFilteringTests extends ESTestCase {
      * RowRanges code path (ColumnIndexRowRangesComputer → PageColumnReader page skipping).
      */
     private List<Integer> readIdsWithPushedExpressions(byte[] parquetData, Expression filter) throws IOException {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true);
-        if (filter != null) {
-            reader = reader.withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
-        }
+        ParquetFormatReader reader = filter == null
+            ? new ParquetFormatReader(blockFactory)
+            : readerWithPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         return collectIds(reader, createStorageObject(parquetData));
     }
 
@@ -471,4 +471,40 @@ public class ParquetPageIndexFilteringTests extends ESTestCase {
             }
         };
     }
+
+    private static ParquetFormatReader readerWithPushedFilter(BlockFactory blockFactory, Object pushed) {
+        return (ParquetFormatReader) new ParquetFormatReaderFactory().create(
+            Settings.EMPTY,
+            blockFactory,
+            null,
+            FormatReadContext.Binding.empty().withPushedFilter(pushed)
+        );
+    }
+
+    private ParquetFormatReader readerWithPushedFilter(Object pushed) {
+        return readerWithPushedFilter(blockFactory, pushed);
+    }
+
+    private ParquetFormatReader baselineReaderWithPushedFilter(Object pushed) {
+        FilterCompat.Filter filter = FilterCompat.NOOP;
+        ParquetPushedExpressions expressions = null;
+        if (pushed instanceof FilterCompat.Filter parquetFilter) {
+            filter = parquetFilter;
+        } else if (pushed instanceof ParquetPushedExpressions pushedExpressions) {
+            expressions = pushedExpressions;
+        }
+        return new ParquetFormatReader(
+            blockFactory,
+            filter,
+            expressions,
+            false,
+            false,
+            null,
+            Map.of(),
+            Set.of(),
+            new PlainCompressionCodecFactory(),
+            new ParquetReaderCounters()
+        );
+    }
+
 }

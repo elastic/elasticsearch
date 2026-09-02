@@ -347,12 +347,10 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             .stats(0, stripeSize, true)
             .statsColumnScope(StripeColumnScope.PROJECTED)
             .build();
-        FormatReader reader = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
-            Map.of(CsvFormatReader.CONFIG_HEADER_ROW, true)
-        );
-        if (readConfig != null) {
-            reader = reader.withReadConfig(readConfig);
-        }
+        FormatReadContext.Binding binding = readConfig == null
+            ? FormatReadContext.Binding.empty()
+            : FormatReadContext.Binding.empty().withReadConfig(readConfig);
+        FormatReader reader = csvReader(Map.of(CsvFormatReader.CONFIG_HEADER_ROW, true), binding);
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (var handle = ExternalStatsCapture.bind(sink); CloseableIterator<Page> it = reader.read(o, ctx)) {
             while (it.hasNext()) {
@@ -379,9 +377,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (
             var handle = ExternalStatsCapture.bind(sink);
-            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withDirectBlockEnabled(false)
-                .withConfig(Map.of(CsvFormatReader.CONFIG_HEADER_ROW, true))
-                .read(o, ctx)
+            CloseableIterator<Page> it = csvReader(false, Map.of(CsvFormatReader.CONFIG_HEADER_ROW, true)).read(o, ctx)
         ) {
             while (it.hasNext()) {
                 it.next().releaseBlocks();
@@ -407,7 +403,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (
             var handle = ExternalStatsCapture.bind(sink);
-            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+            CloseableIterator<Page> it = csvReader(
                 Map.of(CsvFormatReader.CONFIG_HEADER_ROW, true, CsvFormatReader.CONFIG_MULTI_VALUE_SYNTAX, "brackets")
             ).read(o, ctx)
         ) {
@@ -435,9 +431,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (
             var handle = ExternalStatsCapture.bind(sink);
-            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
-                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, true)
-            ).read(o, ctx)
+            CloseableIterator<Page> it = csvReader(Map.of(CsvFormatReader.CONFIG_HEADER_ROW, true)).read(o, ctx)
         ) {
             while (it.hasNext()) {
                 it.next().releaseBlocks();
@@ -650,9 +644,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (
             var handle = ExternalStatsCapture.bind(sink);
-            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
-                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false)
-            ).read(o, ctx)
+            CloseableIterator<Page> it = csvReader(Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false)).read(o, ctx)
         ) {
             while (it.hasNext()) {
                 it.next().releaseBlocks();
@@ -695,9 +687,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (
             var handle = ExternalStatsCapture.bind(sink);
-            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
-                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, headerRow)
-            ).read(o, ctx)
+            CloseableIterator<Page> it = csvReader(Map.of(CsvFormatReader.CONFIG_HEADER_ROW, headerRow)).read(o, ctx)
         ) {
             while (it.hasNext()) {
                 it.next().releaseBlocks();
@@ -736,9 +726,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (
             var handle = ExternalStatsCapture.bind(sink);
-            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
-                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, headerRow)
-            ).read(o, ctx)
+            CloseableIterator<Page> it = csvReader(Map.of(CsvFormatReader.CONFIG_HEADER_ROW, headerRow)).read(o, ctx)
         ) {
             while (it.hasNext()) {
                 it.next().releaseBlocks();
@@ -906,7 +894,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (
             var handle = ExternalStatsCapture.bind(sink);
-            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+            CloseableIterator<Page> it = csvReader(
                 Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false, CsvFormatReader.CONFIG_MULTI_VALUE_SYNTAX, "brackets")
             ).read(o, ctx)
         ) {
@@ -1026,9 +1014,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (
             var handle = ExternalStatsCapture.bind(sink);
-            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
-                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false)
-            ).read(o, ctx)
+            CloseableIterator<Page> it = csvReader(Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false)).read(o, ctx)
         ) {
             while (it.hasNext()) {
                 it.next().releaseBlocks();
@@ -1066,9 +1052,8 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (
             var handle = ExternalStatsCapture.bind(sink);
-            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
-                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false) // NO multi_value_syntax -> non-bracket record-reader path
-            ).read(o, ctx)
+            CloseableIterator<Page> it = csvReader(Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false)).read(o, ctx) // no multi_value_syntax:
+                                                                                                                  // record-reader path
         ) {
             while (it.hasNext()) {
                 it.next().releaseBlocks();
@@ -1107,9 +1092,8 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (
             var handle = ExternalStatsCapture.bind(sink);
-            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
-                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false) // plain, non-bracket -> direct-block path
-            ).read(o, ctx)
+            CloseableIterator<Page> it = csvReader(Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false)).read(o, ctx) // plain, non-bracket:
+                                                                                                                  // direct-block path
         ) {
             while (it.hasNext()) {
                 it.next().releaseBlocks();
@@ -1147,7 +1131,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (
             var handle = ExternalStatsCapture.bind(sink);
-            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+            CloseableIterator<Page> it = csvReader(
                 Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false, CsvFormatReader.CONFIG_MULTI_VALUE_SYNTAX, "brackets")
             ).read(o, ctx)
         ) {
@@ -1232,7 +1216,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (
             var handle = ExternalStatsCapture.bind(sink);
-            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+            CloseableIterator<Page> it = csvReader(
                 Map.of(
                     CsvFormatReader.CONFIG_HEADER_ROW,
                     headerRow,
@@ -1355,7 +1339,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (
             var handle = ExternalStatsCapture.bind(sink);
-            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+            CloseableIterator<Page> it = csvReader(
                 Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false, CsvFormatReader.CONFIG_ENCODING, encoding)
             ).read(o, ctx)
         ) {
@@ -1372,6 +1356,27 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         System.arraycopy(a, 0, out, 0, a.length);
         System.arraycopy(b, 0, out, a.length, b.length);
         return out;
+    }
+
+    private CsvFormatReader csvReader(Map<String, Object> config) {
+        return csvReader(true, config, FormatReadContext.Binding.empty());
+    }
+
+    private CsvFormatReader csvReader(boolean directBlockEnabled, Map<String, Object> config) {
+        return csvReader(directBlockEnabled, config, FormatReadContext.Binding.empty());
+    }
+
+    private CsvFormatReader csvReader(Map<String, Object> config, FormatReadContext.Binding binding) {
+        return csvReader(true, config, binding);
+    }
+
+    private CsvFormatReader csvReader(boolean directBlockEnabled, Map<String, Object> config, FormatReadContext.Binding binding) {
+        return (CsvFormatReader) new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, directBlockEnabled).create(
+            Settings.EMPTY,
+            blockFactory,
+            config,
+            binding
+        );
     }
 
     private static Attribute intCol(String name) {

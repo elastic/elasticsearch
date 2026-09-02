@@ -7,14 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.lang.reflect.Field;
@@ -22,6 +18,7 @@ import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -31,10 +28,6 @@ import static org.hamcrest.Matchers.empty;
 
 /** Pins {@link CsvFormatReader#RECOGNIZED_KEYS} against the parser's actual reads. */
 public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
-
-    private static final BlockFactory NOOP_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("noop"))
-        .build();
 
     public void testRecognizedKeysSetIsExpected() {
         Set<String> expected = new TreeSet<>();
@@ -60,7 +53,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
             Map<String, Object> config = new HashMap<>();
             config.put(key, sampleValueFor(key));
             try {
-                Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(config);
+                Configured<Void> result = csvFactory().inspect(config);
                 assertTrue("key [" + key + "] must be consumed when present", result.consumedKeys().contains(key));
             } catch (RuntimeException e) {
                 // A throw still proves the key was read — the reader looked at it before rejecting.
@@ -73,17 +66,24 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         config.put("delimiter", "|");
         config.put("not_a_csv_key", true);
         config.put("alsobogus", 42);
-        Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(config);
+        Configured<Void> result = csvFactory().inspect(config);
         assertThat(result.consumedKeys(), containsInAnyOrder("delimiter"));
     }
 
+    public void testFullConfigIsParsedWithoutClaimingSharedKeys() {
+        Configured<Void> result = csvFactory().inspect(Map.of("delimiter", "|", "error_mode", "null_field", "max_errors", 10));
+        assertThat(result.consumedKeys(), containsInAnyOrder("delimiter"));
+
+        expectThrows(IllegalArgumentException.class, () -> csvFactory().inspect(Map.of("error_mode", "not_a_mode")));
+    }
+
     public void testEmptyConfigConsumesNothing() {
-        Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(Map.of());
+        Configured<Void> result = csvFactory().inspect(Map.of());
         assertThat(result.consumedKeys(), empty());
     }
 
     public void testNullConfigConsumesNothing() {
-        Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(null);
+        Configured<Void> result = csvFactory().inspect(null);
         assertThat(result.consumedKeys(), empty());
     }
 
@@ -98,7 +98,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
             }
         }
         try {
-            Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(config);
+            Configured<Void> result = csvFactory().inspect(config);
             assertEquals(expectedConsumed, result.consumedKeys());
         } catch (RuntimeException e) {
             // Random values may trigger parser validation; the contract is only checked on success.
@@ -165,6 +165,10 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
                 spec.configKeys()
             );
         }
+    }
+
+    private static CsvFormatReaderFactory csvFactory() {
+        return new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true);
     }
 
     private static Object sampleValueFor(String key) {

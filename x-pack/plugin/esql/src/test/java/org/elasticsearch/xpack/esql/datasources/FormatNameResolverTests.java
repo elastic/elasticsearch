@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 
 import java.io.InputStream;
 import java.util.List;
@@ -18,7 +20,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class FormatNameResolverTests extends ESTestCase {
 
@@ -113,28 +114,21 @@ public class FormatNameResolverTests extends ESTestCase {
     }
 
     /**
-     * Regression test for the compressed-read-under-explicit-format fix: an explicit {@code format} override
-     * must still compose with the resource's outer compression suffix — the reader
-     * {@link FormatNameResolver#resolveReader} returns (not just the name
-     * {@link FormatNameResolver#resolveFormatName} reads back) must be wrapped in a
-     * {@link CompressionDelegatingFormatReader} so the returned reader actually decompresses at read time,
-     * rather than resolving the plain reader over compressed bytes.
+     * An explicit {@code format} override composes with the resource's outer compression suffix, so the resolved
+     * factory retains decompression until it creates the runtime reader.
      */
-    public void testResolveReaderConfigOverrideComposesWithCompressionSuffix() {
+    public void testResolveFormatConfigOverrideComposesWithCompressionSuffix() {
         FormatReaderRegistry registry = csvRegistry();
-        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "hits.csv.gz", registry);
-        assertEquals("csv", reader.formatName());
-        assertTrue(
-            "explicit format over a compressed resource must resolve a CompressionDelegatingFormatReader",
-            reader instanceof CompressionDelegatingFormatReader
-        );
+        ResolvedFormat resolved = FormatNameResolver.resolveFormat(Map.of("format", "csv"), "hits.csv.gz", registry);
+        assertEquals("csv", resolved.formatName());
+        assertTrue("explicit format over a compressed resource must attach a codec", resolved.codec() != null);
     }
 
-    /** An explicit {@code format} override over an uncompressed resource resolves the plain reader, unwrapped. */
-    public void testResolveReaderConfigOverrideWithoutCompressionSuffixIsUnwrapped() {
+    /** An explicit {@code format} override over an uncompressed resource resolves the plain factory, unwrapped. */
+    public void testResolveFormatConfigOverrideWithoutCompressionSuffixIsUnwrapped() {
         FormatReaderRegistry registry = csvRegistry();
-        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "hits.csv", registry);
-        assertFalse(reader instanceof CompressionDelegatingFormatReader);
+        ResolvedFormat resolved = FormatNameResolver.resolveFormat(Map.of("format", "csv"), "hits.csv", registry);
+        assertNull(resolved.codec());
     }
 
     /** An extensionless, format-less strict resource fails loud at the registry rather than resolving null. */
@@ -151,18 +145,8 @@ public class FormatNameResolverTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[format]"));
     }
 
-    /**
-     * A registry with a single csv reader registered for {@code .csv}. A Mockito stub (not a real reader or a simplified
-     * subclass) is used deliberately: {@code resolveFormatName} touches only {@link FormatReader#formatName()},
-     * {@link FormatReader#fileExtensions()}, and {@link FormatReader#supportsWholeFileCompression()} (the last consulted
-     * by the compound-extension wrapping), so a full {@link FormatReader} implementation ({@code metadata}/{@code read}/
-     * {@code withConfigTrackingConsumedKeys}/{@code rowPositionStrategy}) would be far larger for zero added coverage.
-     */
+    /** A registry with a resource-free csv factory registered for {@code .csv}. */
     private static FormatReaderRegistry csvRegistry() {
-        FormatReader csv = mock(FormatReader.class);
-        when(csv.formatName()).thenReturn("csv");
-        when(csv.fileExtensions()).thenReturn(List.of(".csv"));
-        when(csv.supportsWholeFileCompression()).thenReturn(true);
         DecompressionCodecRegistry codecs = new DecompressionCodecRegistry();
         codecs.register(new DecompressionCodec() {
             @Override
@@ -181,8 +165,20 @@ public class FormatNameResolverTests extends ESTestCase {
             }
         });
         FormatReaderRegistry registry = new FormatReaderRegistry(codecs);
-        registry.registerLazy("csv", (s, bf) -> csv, Settings.EMPTY, null);
+        registry.registerLazy("csv", new CsvFormatReaderFactory());
         registry.registerExtension(".csv", "csv");
         return registry;
+    }
+
+    private static final class CsvFormatReaderFactory implements FormatReaderFactory {
+        @Override
+        public String formatName() {
+            return "csv";
+        }
+
+        @Override
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return mock(FormatReader.class);
+        }
     }
 }

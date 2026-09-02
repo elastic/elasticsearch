@@ -53,8 +53,16 @@ public final class ExternalStatsCapture {
         }
         ConcurrentMap<String, List<Map<String, Object>>> sink = ACTIVE.get();
         if (sink != null) {
-            sink.computeIfAbsent(filePath, k -> Collections.synchronizedList(new ArrayList<>())).add(stats);
+            record(sink, filePath, stats);
         }
+    }
+
+    /** Appends directly to an explicitly owned sink, independent of thread-local binding. */
+    public static void record(ConcurrentMap<String, List<Map<String, Object>>> sink, String filePath, Map<String, Object> stats) {
+        if (sink == null || filePath == null || stats == null || stats.isEmpty()) {
+            return;
+        }
+        sink.computeIfAbsent(filePath, k -> Collections.synchronizedList(new ArrayList<>())).add(stats);
     }
 
     /**

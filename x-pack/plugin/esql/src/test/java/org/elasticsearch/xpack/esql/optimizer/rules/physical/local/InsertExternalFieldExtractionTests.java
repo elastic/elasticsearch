@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -22,10 +24,10 @@ import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
-import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -71,7 +73,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         ExternalSourceExec source = parquetSource(schema, /* pushedFilter = */ null);
         TopNExec topN = topN(sortKey, 100, source);
 
-        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        PhysicalPlan rewritten = applyRule(topN, columnExtractingRegistry());
 
         ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
         // Deferred columns are exactly the non-sort-key columns from the schema.
@@ -121,15 +123,15 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         // The rule is keyed on TopN; nothing happens to a bare source. Sanity check via apply()
         // by feeding the source directly — the rule should not match and return the same node.
         ExternalSourceExec source = parquetSource(sixColumnSchema(), null);
-        PhysicalPlan result = new InsertExternalFieldExtraction().apply(source, contextWith(columnExtractorAwareRegistry()));
+        PhysicalPlan result = new InsertExternalFieldExtraction().apply(source, contextWith(columnExtractingRegistry()));
         assertSame(source, result);
     }
 
-    public void testNoOpWhenSourceIsNotColumnExtractorAware() {
+    public void testNoOpWhenSourceBuilderDoesNotSupportColumnExtraction() {
         ExternalSourceExec source = parquetSource(sixColumnSchema(), null);
         TopNExec topN = topN(source.output().get(0), 100, source);
         PhysicalPlan result = applyRule(topN, plainParquetRegistry());
-        assertSame("rule must be no-op when reader does not implement ColumnExtractorAware", topN, result);
+        assertSame("rule must be no-op when the reader builder does not support column extraction", topN, result);
     }
 
     public void testNoOpWhenRegistryMissing() {
@@ -151,7 +153,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         ExternalSourceExec source = parquetSource(schema, "skip_row", Set.of("a"));
         TopNExec topN = topN(schema.get(0), 100, source);
 
-        PhysicalPlan result = applyRule(topN, columnExtractorAwareRegistry());
+        PhysicalPlan result = applyRule(topN, columnExtractingRegistry());
         assertSame("skip_row + declared types must not get an extract exec", topN, result);
     }
 
@@ -162,7 +164,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         ExternalSourceExec source = parquetSource(schema, "skip_row", Set.of());
         TopNExec topN = topN(schema.get(0), 100, source);
 
-        assertThat(applyRule(topN, columnExtractorAwareRegistry()), instanceOf(ExternalFieldExtractExec.class));
+        assertThat(applyRule(topN, columnExtractingRegistry()), instanceOf(ExternalFieldExtractExec.class));
     }
 
     /** Declared column types under a mode that keeps every row ({@code null_field}) also stay eligible. */
@@ -171,7 +173,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         ExternalSourceExec source = parquetSource(schema, "null_field", Set.of("a"));
         TopNExec topN = topN(schema.get(0), 100, source);
 
-        assertThat(applyRule(topN, columnExtractorAwareRegistry()), instanceOf(ExternalFieldExtractExec.class));
+        assertThat(applyRule(topN, columnExtractingRegistry()), instanceOf(ExternalFieldExtractExec.class));
     }
 
     public void testNoOpWhenNoExternalSourceReachable() {
@@ -183,7 +185,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         // path is exercised by testNotEnoughDeferredColumns.
         ExternalSourceExec ext = parquetSource(List.of(keep), null);
         TopNExec topN = topN(keep, 100, ext);
-        PhysicalPlan result = applyRule(topN, columnExtractorAwareRegistry());
+        PhysicalPlan result = applyRule(topN, columnExtractingRegistry());
         // With only a single column and that being the sort key, nothing is deferred → bail.
         assertSame(topN, result);
     }
@@ -194,7 +196,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         ExternalSourceExec source = parquetSource(schema, null);
         TopNExec topN = topN(schema.get(0), 100, source);
 
-        PhysicalPlan result = applyRule(topN, columnExtractorAwareRegistry());
+        PhysicalPlan result = applyRule(topN, columnExtractingRegistry());
         assertSame(topN, result);
     }
 
@@ -202,7 +204,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         ExternalSourceExec source = parquetSource(sixColumnSchema(), null);
         TopNExec topN = topN(source.output().get(0), InsertExternalFieldExtraction.TOPN_EXTRACT_LIMIT_MAX + 1, source);
 
-        PhysicalPlan result = applyRule(topN, columnExtractorAwareRegistry());
+        PhysicalPlan result = applyRule(topN, columnExtractingRegistry());
         assertSame(topN, result);
     }
 
@@ -210,7 +212,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         ExternalSourceExec source = parquetSource(sixColumnSchema(), null);
         TopNExec topN = topN(source.output().get(0), InsertExternalFieldExtraction.TOPN_EXTRACT_LIMIT_MAX, source);
 
-        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        PhysicalPlan rewritten = applyRule(topN, columnExtractingRegistry());
         // Exactly at the limit must still optimize.
         assertTrue(rewritten instanceof ExternalFieldExtractExec);
     }
@@ -223,7 +225,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         ExternalSourceExec source = parquetSource(sixColumnSchema(), /* pushedFilter = */ "opaque");
         TopNExec topN = topN(source.output().get(0), 100, source);
 
-        AssertionError ae = expectThrows(AssertionError.class, () -> applyRule(topN, columnExtractorAwareRegistry()));
+        AssertionError ae = expectThrows(AssertionError.class, () -> applyRule(topN, columnExtractingRegistry()));
         assertThat(ae.getMessage(), containsString("pushed filter without pushed expressions"));
     }
 
@@ -242,7 +244,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
 
         TopNExec topN = topN(sortKey, 100, source);
 
-        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        PhysicalPlan rewritten = applyRule(topN, columnExtractingRegistry());
 
         ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
 
@@ -272,7 +274,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         );
         TopNExec topN = topN(sortKey, 100, source);
 
-        PhysicalPlan result = applyRule(topN, columnExtractorAwareRegistry());
+        PhysicalPlan result = applyRule(topN, columnExtractingRegistry());
         assertSame("rule must bail when too few columns remain deferable after filter eager-ifies them", topN, result);
     }
 
@@ -287,7 +289,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         FilterExec filter = new FilterExec(Source.EMPTY, source, (Expression) filterColumn);
         TopNExec topN = topN(sortKey, 100, filter);
 
-        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        PhysicalPlan rewritten = applyRule(topN, columnExtractingRegistry());
         ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
 
         // The deferred set must NOT contain "a"; the filter on the spine reads it.
@@ -310,7 +312,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         ExternalSourceExec source = parquetSource(schema, null);
         TopNExec topN = topN(source.output().get(0), 100, source);
 
-        PhysicalPlan result = applyRule(topN, columnExtractorAwareRegistry());
+        PhysicalPlan result = applyRule(topN, columnExtractingRegistry());
         assertSame(topN, result);
     }
 
@@ -330,7 +332,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         Order secondary = new Order(Source.EMPTY, schema.get(1), Order.OrderDirection.DESC, Order.NullsPosition.FIRST);
         TopNExec topN = new TopNExec(Source.EMPTY, source, List.of(primary, secondary), literal(100), null);
 
-        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        PhysicalPlan rewritten = applyRule(topN, columnExtractingRegistry());
         ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
 
         ExternalSourceExec narrowed = (ExternalSourceExec) ((TopNExec) extract.child()).child();
@@ -362,7 +364,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         ExternalSourceExec source = parquetSource(schema, null, partitionMetadata("STATION", "ELEMENT"));
         TopNExec topN = topN(schema.get(0), 100, source);
 
-        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        PhysicalPlan rewritten = applyRule(topN, columnExtractingRegistry());
         ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
 
         // Partition columns must NOT be deferred — only the plain data columns are.
@@ -392,7 +394,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         ExternalSourceExec source = parquetSource(schema, null, Map.of());
         TopNExec topN = topN(schema.get(0), 100, source);
 
-        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        PhysicalPlan rewritten = applyRule(topN, columnExtractingRegistry());
         ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
 
         List<String> deferredNames = extract.attributesToExtract().stream().map(Attribute::name).toList();
@@ -414,7 +416,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         ExternalSourceExec source = parquetSource(schema, null, partitionMetadata("STATION", "ELEMENT"));
         TopNExec topN = topN(schema.get(0), 100, source);
 
-        PhysicalPlan result = applyRule(topN, columnExtractorAwareRegistry());
+        PhysicalPlan result = applyRule(topN, columnExtractingRegistry());
         assertSame("rule must bail when pinning partition columns leaves too few deferred", topN, result);
     }
 
@@ -431,7 +433,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         ExternalSourceExec source = parquetSource(schema, null, partitionMetadata("STATION"));
         TopNExec topN = topN(schema.get(0), 100, source);
 
-        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        PhysicalPlan rewritten = applyRule(topN, columnExtractingRegistry());
         ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
 
         List<String> deferredNames = extract.attributesToExtract().stream().map(Attribute::name).toList();
@@ -460,7 +462,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         );
         TopNExec topN = topN(schema.get(0), 100, source);
 
-        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        PhysicalPlan rewritten = applyRule(topN, columnExtractingRegistry());
         ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
 
         List<String> deferredNames = extract.attributesToExtract().stream().map(Attribute::name).toList();
@@ -522,15 +524,15 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         );
     }
 
-    private static FormatReaderRegistry columnExtractorAwareRegistry() {
+    private static FormatReaderRegistry columnExtractingRegistry() {
         FormatReaderRegistry registry = new FormatReaderRegistry(null);
-        registry.registerLazy("parquet", (settings, blockFactory) -> new ColumnExtractorAwareStub(), null, null);
+        registry.registerLazy("parquet", new ColumnExtractingStubFactory());
         return registry;
     }
 
     private static FormatReaderRegistry plainParquetRegistry() {
         FormatReaderRegistry registry = new FormatReaderRegistry(null);
-        registry.registerLazy("parquet", (settings, blockFactory) -> new PlainStub(), null, null);
+        registry.registerLazy("parquet", new StubFactory());
         return registry;
     }
 
@@ -542,16 +544,29 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         return new InsertExternalFieldExtraction().apply(topN, contextWith(registry));
     }
 
-    /** Format-reader stub that <em>does</em> implement {@link ColumnExtractorAware}. */
-    private static final class ColumnExtractorAwareStub extends StubReader implements ColumnExtractorAware {}
+    /** Factory stub that exposes the deferred-extraction capability. */
+    private static final class ColumnExtractingStubFactory extends StubFactory {
+        @Override
+        public boolean columnExtractor() {
+            return true;
+        }
+    }
 
-    /** Format-reader stub that does NOT implement {@link ColumnExtractorAware}. */
-    private static final class PlainStub extends StubReader {}
+    /** Common factory used by optimizer-only tests. */
+    private static class StubFactory implements FormatReaderFactory {
+        @Override
+        public String formatName() {
+            return "parquet";
+        }
 
-    /** Common base. The optimizer only ever inspects {@code instanceof ColumnExtractorAware}; the
-     *  remaining {@link NoConfigFormatReader} methods stay unimplemented to make accidental use
-     *  during a rule pass loud. */
-    private static class StubReader implements NoConfigFormatReader {
+        @Override
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return new StubReader();
+        }
+    }
+
+    /** Common runtime reader whose read methods fail if optimizer code crosses the builder boundary. */
+    private static class StubReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -568,16 +583,6 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
             FormatReadContext context
         ) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String formatName() {
-            return "parquet";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
         }
 
         @Override

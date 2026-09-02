@@ -58,18 +58,13 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
-import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
-import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
-import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
@@ -120,7 +115,7 @@ import java.util.function.IntConsumer;
  *   <li>Stripe-level split parallelism for multi-stripe files</li>
  * </ul>
  */
-public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatReader, DynamicThresholdAware {
+public class OrcFormatReader implements RangeAwareFormatReader {
 
     private static final Logger LOGGER = LogManager.getLogger(OrcFormatReader.class);
 
@@ -142,24 +137,25 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     private final BlockFactory blockFactory;
     private final SearchArgument pushedFilter;
     private final OrcPushedExpressions pushedExpressions;
-    private final OrcReaderCounters counters = new OrcReaderCounters();
+    private final OrcReaderCounters counters;
     private final DynamicThreshold dynamicThreshold;
-    /** Declared per-column date parse patterns (physical name &rarr; pattern); see {@link #withDeclaredDateFormats}. */
+    /** Declared per-column date parse patterns (physical name &rarr; pattern); see {@link OrcFormatReaderFactory}. */
     private final Map<String, String> declaredDateFormats;
-    /** Physical names of declared-type columns (licensed to narrow toward their target); see {@link #withDeclaredTypeColumns}. */
+    /** Physical names of declared-type columns licensed to narrow toward their target; see {@link OrcFormatReaderFactory}. */
     private final Set<String> declaredTypeColumns;
 
     public OrcFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, null, null, null, Map.of(), Set.of());
+        this(blockFactory, null, null, null, Map.of(), Set.of(), new OrcReaderCounters());
     }
 
-    private OrcFormatReader(
+    OrcFormatReader(
         BlockFactory blockFactory,
         SearchArgument pushedFilter,
         OrcPushedExpressions pushedExpressions,
         DynamicThreshold dynamicThreshold,
         Map<String, String> declaredDateFormats,
-        Set<String> declaredTypeColumns
+        Set<String> declaredTypeColumns,
+        OrcReaderCounters counters
     ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
@@ -167,65 +163,12 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         this.dynamicThreshold = dynamicThreshold;
         this.declaredDateFormats = declaredDateFormats;
         this.declaredTypeColumns = declaredTypeColumns;
+        this.counters = counters;
     }
 
     @Override
-    public FormatReader withPushedFilter(Object pushedFilter) {
-        if (pushedFilter instanceof SearchArgument sarg) {
-            return new OrcFormatReader(this.blockFactory, sarg, null, dynamicThreshold, declaredDateFormats, declaredTypeColumns);
-        }
-        if (pushedFilter instanceof OrcPushedExpressions exprs) {
-            return new OrcFormatReader(this.blockFactory, null, exprs, dynamicThreshold, declaredDateFormats, declaredTypeColumns);
-        }
-        return this;
-    }
-
-    @Override
-    public FormatReader withDynamicThreshold(DynamicThreshold threshold) {
-        return new OrcFormatReader(blockFactory, pushedFilter, pushedExpressions, threshold, declaredDateFormats, declaredTypeColumns);
-    }
-
-    /**
-     * Declared per-column date parse patterns, keyed by physical (file) column name. Consumed by the
-     * string&rarr;datetime declared coercion ({@code DeclaredTypeCoercions}): a string column whose planner attribute
-     * is {@code datetime} parses each value with this pattern (ISO default when absent). Native TIMESTAMP/DATE columns
-     * carry their own encoding and never text-parse.
-     */
-    @Override
-    public FormatReader withDeclaredDateFormats(Map<String, String> physicalNameToPattern) {
-        if (physicalNameToPattern == null || physicalNameToPattern.isEmpty()) {
-            return this;
-        }
-        return new OrcFormatReader(
-            blockFactory,
-            pushedFilter,
-            pushedExpressions,
-            dynamicThreshold,
-            Map.copyOf(physicalNameToPattern),
-            declaredTypeColumns
-        );
-    }
-
-    /**
-     * The physical names of declared-type columns — the ones whose target type came from an explicit declaration and are
-     * therefore licensed to coerce (including narrow) toward it. {@code validatePlannerTypesAgainstFile} keys its
-     * whole-column incompatibility null-fill on this set: a declared column keeps the {@code DeclaredTypeCoercions}
-     * escape, while an inferred column null-fills whenever the file type is not widening-compatible (a
-     * {@code first_file_wins} cross-file clash must widen-or-null, never downcast).
-     */
-    @Override
-    public FormatReader withDeclaredTypeColumns(Set<String> physicalDeclaredColumns) {
-        if (physicalDeclaredColumns == null || physicalDeclaredColumns.isEmpty()) {
-            return this;
-        }
-        return new OrcFormatReader(
-            blockFactory,
-            pushedFilter,
-            pushedExpressions,
-            dynamicThreshold,
-            declaredDateFormats,
-            Set.copyOf(physicalDeclaredColumns)
-        );
+    public OrcReaderStatus statusSnapshot() {
+        return counters.snapshot();
     }
 
     @Override
@@ -236,7 +179,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             TypeDescription schema = reader.getSchema();
             List<Attribute> attributes = convertOrcSchemaToAttributes(schema);
             SourceStatistics statistics = extractStatistics(reader, schema);
-            return new SimpleSourceMetadata(attributes, formatName(), object.path().toString(), statistics, null);
+            return new SimpleSourceMetadata(attributes, "orc", object.path().toString(), statistics, null);
         }
     }
 
@@ -784,11 +727,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         return null;
     }
 
-    @Override
-    public FilterPushdownSupport filterPushdownSupport() {
-        return new OrcFilterPushdownSupport();
-    }
-
     /**
      * ORC keeps dropping rows for {@code skip_row} with a SearchArgument pushed into it, so it opts into the
      * pushdown the SPI withholds by default.
@@ -801,44 +739,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      * answer; {@code OrcFormatReaderTests#testDropsRowsUnderPushedFilter} demonstrates the drop under a real
      * pushed SearchArgument rather than leaving it asserted.
      */
-    @Override
-    public boolean dropsRowsUnderPushedFilter() {
-        return true;
-    }
-
-    @Override
-    public AggregatePushdownSupport aggregatePushdownSupport() {
-        return new OrcAggregatePushdownSupport();
-    }
-
-    @Override
-    public boolean supportsWholeFileCompression() {
-        return false;
-    }
-
-    @Override
-    public String formatName() {
-        return "orc";
-    }
-
-    /** Mirrors the Parquet reader: a {@code null} context policy falls back to {@link #defaultErrorPolicy()}. */
+    /** A {@code null} context policy falls back to the strict format default. */
     private ErrorPolicy resolveErrorPolicy(@Nullable ErrorPolicy contextPolicy) {
-        return contextPolicy != null ? contextPolicy : defaultErrorPolicy();
-    }
-
-    /**
-     * Returns an immutable typed snapshot of the ORC reader's counters for the operator-status
-     * envelope. Zero counters, false flag, empty predicate columns before any read() / readRange()
-     * has run.
-     */
-    @Override
-    public OrcReaderStatus statusSnapshot() {
-        return counters.snapshot();
-    }
-
-    @Override
-    public List<String> fileExtensions() {
-        return List.of(".orc");
+        return contextPolicy != null ? contextPolicy : ErrorPolicy.STRICT;
     }
 
     @Override
@@ -1019,9 +922,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             }
             // A declared format or retype makes the sort column decode into a unit the raw stripe stats are NOT in
             // (epoch_second scales x1000), so a raw-vs-decoded dominance compare would drop the true extreme. This
-            // rail holds raw stats and does not convert, so decline the skip for such a column — mirroring the
-            // parquet threshold rail (sortColumnIsTemporal ? null : raw). Latent today: OrcFormatReader is not
-            // ColumnExtractorAware, so no dynamic threshold is installed in production; this guards the day it is.
+            // rail holds raw stats and does not convert, so decline the skip for such a column, matching the
+            // parquet threshold rail (sortColumnIsTemporal ? null : raw).
             String sortCol = threshold.columnName();
             if (declaredDateFormats.containsKey(sortCol) || declaredTypeColumns.contains(sortCol)) {
                 return null;

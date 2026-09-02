@@ -106,7 +106,7 @@ public class ParquetByteHintTests extends ESTestCase {
 
         int ideal = directHintedReservations(values);
         CountingBreaker breaker = new CountingBreaker();
-        int readerReservations = readerReservations(breaker, new ParquetFormatReader(factory(breaker)).withBaselinePath(), data, values);
+        int readerReservations = readerReservations(breaker, ParquetFormatReader.forcedBaseline(factory(breaker)), data, values);
 
         assertThat("baseline reader already hints byte storage (no regrow)", readerReservations, equalTo(ideal));
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.orc;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 /**
@@ -30,6 +31,14 @@ public class OrcDataSourcePluginTests extends ESTestCase {
 
         assertTrue("should register orc reader", plugin.formatReaders(Settings.EMPTY).containsKey("orc"));
         assertTrue("should register orc format spec", plugin.formatSpecs().stream().map(FormatSpec::format).anyMatch("orc"::equals));
+
+        FormatReaderFactory factory = plugin.formatReaders(Settings.EMPTY).get("orc");
+        assertTrue(factory instanceof OrcFormatReaderFactory);
+        assertEquals("orc", factory.formatName());
+        assertTrue(factory.rangeAware());
+        assertTrue(factory.acceptsDynamicThreshold());
+        assertTrue(factory.dropsRowsUnderPushedFilter());
+        assertFalse(factory.supportsWholeFileCompression());
     }
 
     public void testDisabledWhenFeatureFlagOff() {

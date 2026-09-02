@@ -22,6 +22,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -93,17 +94,16 @@ public class OptimizedParquetReaderTests extends ESTestCase {
     }
 
     public void testDoesNotSupportWholeFileCompression() {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         assertFalse(
             "Parquet requires random access and cannot be wrapped in a whole-file compressor",
-            reader.supportsWholeFileCompression()
+            new ParquetFormatReaderFactory().supportsWholeFileCompression()
         );
     }
 
-    public void testWithConfigDefaults() {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        assertSame(reader, reader.withConfig(null));
-        assertSame(reader, reader.withConfig(Map.of()));
+    public void testInspectRecognizesNoKeys() {
+        ParquetFormatReaderFactory factory = new ParquetFormatReaderFactory();
+        assertTrue(factory.inspect(null).consumedKeys().isEmpty());
+        assertTrue(factory.inspect(Map.of()).consumedKeys().isEmpty());
     }
 
     public void testCorrectnessParitySimpleTypes() throws Exception {
@@ -137,7 +137,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
 
         StorageObject storageObject = createStorageObject(parquetData);
         List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject);
-        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory, true), storageObject);
+        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory), storageObject);
         assertPagesEqual(baselinePages, optimizedPages);
     }
 
@@ -170,7 +170,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
 
         StorageObject storageObject = createStorageObject(parquetData);
         List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject);
-        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory, true), storageObject);
+        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory), storageObject);
         assertPagesEqual(baselinePages, optimizedPages);
     }
 
@@ -200,7 +200,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         List<String> projection = List.of("id", "name");
         List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject, projection);
-        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory, true), storageObject, projection);
+        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory), storageObject, projection);
         assertPagesEqual(baselinePages, optimizedPages);
     }
 
@@ -239,7 +239,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
 
         List<Page> optimizedPages;
         try (
-            CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(
+            CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory).read(
                 storageObject,
                 FormatReadContext.builder().batchSize(1024).rowLimit(rowLimit).build()
             )
@@ -278,7 +278,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression gtExpr = new GreaterThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 200L, DataType.LONG), null);
         ParquetPushedExpressions pushedExprs = new ParquetPushedExpressions(List.of(gtExpr));
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushedExprs);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushedExprs);
 
         StorageObject storageObject = createStorageObject(parquetData);
         List<Page> pages = readAllPages(reader, storageObject);
@@ -327,7 +327,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         // No pushed filter — late materialization should not activate
         List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject);
-        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory, true), storageObject);
+        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory), storageObject);
         assertPagesEqual(baselinePages, optimizedPages);
     }
 
@@ -357,7 +357,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression gtExpr = new GreaterThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 99999L, DataType.LONG), null);
         ParquetPushedExpressions pushedExprs = new ParquetPushedExpressions(List.of(gtExpr));
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushedExprs);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushedExprs);
 
         StorageObject storageObject = createStorageObject(parquetData);
         List<Page> pages = readAllPages(reader, storageObject);
@@ -397,7 +397,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER);
         Expression ltExpr = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 10, DataType.INTEGER), null);
         ParquetPushedExpressions pushedExprs = new ParquetPushedExpressions(List.of(ltExpr));
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushedExprs);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushedExprs);
 
         StorageObject storageObject = createStorageObject(parquetData);
         List<Page> pages = readAllPages(reader, storageObject);
@@ -448,7 +448,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         ReferenceAttribute filterAttr = new ReferenceAttribute(Source.EMPTY, "filter_col", DataType.LONG);
         Expression gtExpr = new GreaterThan(Source.EMPTY, filterAttr, new Literal(Source.EMPTY, 150L, DataType.LONG), null);
         ParquetPushedExpressions pushedExprs = new ParquetPushedExpressions(List.of(gtExpr));
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushedExprs);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushedExprs);
 
         StorageObject storageObject = createStorageObject(parquetData);
         List<Page> pages = readAllPages(reader, storageObject);
@@ -499,7 +499,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         ReferenceAttribute filterAttr = new ReferenceAttribute(Source.EMPTY, "filter_col", DataType.INTEGER);
         Expression gtExpr = new GreaterThan(Source.EMPTY, filterAttr, new Literal(Source.EMPTY, 190, DataType.INTEGER), null);
         ParquetPushedExpressions pushedExprs = new ParquetPushedExpressions(List.of(gtExpr));
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushedExprs);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushedExprs);
 
         // Set row limit smaller than the 9 matching rows
         int rowLimit = 5;
@@ -574,7 +574,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         ReferenceAttribute predAttr = new ReferenceAttribute(Source.EMPTY, "pred_col", DataType.INTEGER);
         Expression filter = new GreaterThan(Source.EMPTY, predAttr, new Literal(Source.EMPTY, 89, DataType.INTEGER), null);
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
 
         StorageObject storageObject = createStorageObject(parquetData);
         List<Page> pages = readAllPages(reader, storageObject);
@@ -638,7 +638,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
 
         // With late-mat enabled (default), the file-level byte-ratio gate has been removed, so the
         // reader filters rows even though the predicate column dominates the byte footprint.
-        ParquetFormatReader readerLateMat = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader readerLateMat = readerWithPushedFilter(blockFactory, pushed);
         StorageObject storageObject = createStorageObject(parquetData);
         List<Page> pagesLateMat = readAllPages(readerLateMat, storageObject);
         int rowsLateMat = pagesLateMat.stream().mapToInt(Page::getPositionCount).sum();
@@ -673,7 +673,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         java.util.Arrays.fill(parquetData, 4, footerStart, (byte) 0xFF);
 
         StorageObject storageObject = createStorageObject(parquetData);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         Exception ex = expectThrows(Exception.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(storageObject, FormatReadContext.of(null, 100))) {
                 while (iterator.hasNext()) {
@@ -808,9 +808,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
 
         ReferenceAttribute codeAttr = new ReferenceAttribute(Source.EMPTY, "code", DataType.KEYWORD);
         Expression eq = new Equals(Source.EMPTY, codeAttr, new Literal(Source.EMPTY, new BytesRef("US"), DataType.KEYWORD), null);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(
-            new ParquetPushedExpressions(List.of(eq))
-        );
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, new ParquetPushedExpressions(List.of(eq)));
 
         StorageObject storageObject = createStorageObject(parquetData);
         List<Long> survivingIds = new ArrayList<>();
@@ -869,9 +867,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
 
         ReferenceAttribute cityAttr = new ReferenceAttribute(Source.EMPTY, "city", DataType.KEYWORD);
         Expression eq = new Equals(Source.EMPTY, cityAttr, new Literal(Source.EMPTY, new BytesRef("paris"), DataType.KEYWORD), null);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(
-            new ParquetPushedExpressions(List.of(eq))
-        );
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, new ParquetPushedExpressions(List.of(eq)));
 
         StorageObject storageObject = createStorageObject(parquetData);
         int rows = 0;
@@ -991,4 +987,14 @@ public class OptimizedParquetReaderTests extends ESTestCase {
             }
         };
     }
+
+    private static ParquetFormatReader readerWithPushedFilter(BlockFactory blockFactory, Object pushed) {
+        return (ParquetFormatReader) new ParquetFormatReaderFactory().create(
+            Settings.EMPTY,
+            blockFactory,
+            null,
+            FormatReadContext.Binding.empty().withPushedFilter(pushed)
+        );
+    }
+
 }

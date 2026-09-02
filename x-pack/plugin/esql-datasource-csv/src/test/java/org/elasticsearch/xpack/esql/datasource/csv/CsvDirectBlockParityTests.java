@@ -11,6 +11,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -53,7 +54,7 @@ import java.util.Map;
  * assertion here is a contract both parsers must reproduce byte-for-byte.
  *
  * <p>The read goes through {@link #read}, which is the single A/B seam: it reads with both the
- * direct-block arm ({@code CsvFormatReader.withDirectBlockEnabled(true)}) and the Jackson arm and
+ * direct-block arm (factory {@code directBlockEnabled=true}) and the Jackson arm and
  * asserts the two agree, so every test in this suite is a parity check with no per-test changes.
  *
  * <p>Values are rendered per element type: numeric/boolean as boxed primitives, datetime/date_nanos
@@ -183,9 +184,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         Locale previous = Locale.getDefault();
         Locale.setDefault(Locale.ROOT);
         try {
-            CsvFormatReader base = config.isEmpty() ? baseReader(tsv) : (CsvFormatReader) baseReader(tsv).withConfig(config);
-            String jackson = captureFailFastMessage(base.withDirectBlockEnabled(false), projection, content);
-            String direct = captureFailFastMessage(base.withDirectBlockEnabled(true), projection, content);
+            String jackson = captureFailFastMessage(createReader(tsv, false, config), projection, content);
+            String direct = captureFailFastMessage(createReader(tsv, true, config), projection, content);
             assertEquals("Jackson baseline message changed", expected, jackson);
             assertEquals("direct-block message diverged from the Jackson baseline", jackson, direct);
         } finally {
@@ -581,7 +581,12 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     /** The per-column declared `format` still outranks both the file-level pattern and the epoch shortcut. */
     public void testDeclaredColumnFormatOverridesNumericEpochShortcut() throws IOException {
-        CsvFormatReader reader = baseReader(false).withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        CsvFormatReader reader = createReader(
+            false,
+            true,
+            Map.of(),
+            FormatReadContext.Binding.empty().withDeclaredDateFormats(Map.of("ts", "epoch_second"))
+        );
         StorageObject object = new InMemoryStorageObject("ts:datetime\n1609459200\n".getBytes(StandardCharsets.UTF_8));
         try (CloseableIterator<Page> pages = reader.read(object, null, 10)) {
             Page page = pages.next();
@@ -599,7 +604,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
      * a no-op on any CSV whose header does not declare {@code ts:datetime}.
      */
     public void testDatetimeFormatDrivesSchemaInference() throws IOException {
-        CsvFormatReader reader = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss"));
+        CsvFormatReader reader = createReader(false, true, Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss"));
         StorageObject object = new InMemoryStorageObject("ts\n25/12/2023 10:30:00\n01/01/2024 00:00:00\n".getBytes(StandardCharsets.UTF_8));
         assertEquals(DataType.DATETIME, reader.schema(object).get(0).dataType());
     }
@@ -614,16 +619,14 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     /** The headerless (synthesized column names) inference path honors the pattern too, not just the header path. */
     public void testDatetimeFormatDrivesHeaderlessSchemaInference() throws IOException {
-        CsvFormatReader reader = (CsvFormatReader) baseReader(false).withConfig(
-            Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss", "header_row", false)
-        );
+        CsvFormatReader reader = createReader(false, true, Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss", "header_row", false));
         StorageObject object = new InMemoryStorageObject("25/12/2023 10:30:00\n01/01/2024 00:00:00\n".getBytes(StandardCharsets.UTF_8));
         assertEquals(DataType.DATETIME, reader.schema(object).get(0).dataType());
     }
 
     /** Numeric candidates are tried before DATETIME, so an all-digit column stays numeric even under an all-digit pattern. */
     public void testDatetimeFormatDoesNotMakeNumericColumnsDates() throws IOException {
-        CsvFormatReader reader = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyyMMdd"));
+        CsvFormatReader reader = createReader(false, true, Map.of("datetime_format", "yyyyMMdd"));
         StorageObject object = new InMemoryStorageObject("id\n20240101\n20240102\n".getBytes(StandardCharsets.UTF_8));
         assertEquals(DataType.INTEGER, reader.schema(object).get(0).dataType());
     }
@@ -634,7 +637,12 @@ public class CsvDirectBlockParityTests extends ESTestCase {
      * the read failed outright under the default error policy.
      */
     public void testDeclaredColumnFormatAppliesToDateNanos() throws IOException {
-        CsvFormatReader reader = baseReader(false).withDeclaredDateFormats(Map.of("ts", "dd/MM/yyyy"));
+        CsvFormatReader reader = createReader(
+            false,
+            true,
+            Map.of(),
+            FormatReadContext.Binding.empty().withDeclaredDateFormats(Map.of("ts", "dd/MM/yyyy"))
+        );
         StorageObject object = new InMemoryStorageObject("ts:date_nanos\n02/01/2024\n".getBytes(StandardCharsets.UTF_8));
         try (CloseableIterator<Page> pages = reader.read(object, null, 10)) {
             Page page = pages.next();
@@ -706,10 +714,10 @@ public class CsvDirectBlockParityTests extends ESTestCase {
      */
     public void testDatetimeFormatUnparseableValueFailFast() throws IOException {
         String content = "id:long,ts:datetime\n1,not-a-date\n";
-        CsvFormatReader base = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"));
+        Map<String, Object> config = Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss");
         String expected = "line -1:-1: CSV parse error at row [1]: Failed to parse CSV datetime value [not-a-date]; row: ";
         for (boolean directBlock : List.of(false, true)) {
-            String message = captureFailFastMessage(base.withDirectBlockEnabled(directBlock), null, content);
+            String message = captureFailFastMessage(createReader(false, directBlock, config), null, content);
             assertTrue("direct_block=" + directBlock + " message: " + message, message.startsWith(expected));
         }
     }
@@ -767,8 +775,12 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     /** A per-column declared `format` still overrides the file-level one for that column only. */
     public void testDeclaredColumnFormatOverridesFileLevelDatetimeFormat() throws IOException {
-        CsvFormatReader reader = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyy-MM-dd HH:mm:ssXXX"));
-        reader = reader.withDeclaredDateFormats(Map.of("ts", "dd/MM/yyyy"));
+        CsvFormatReader reader = createReader(
+            false,
+            true,
+            Map.of("datetime_format", "yyyy-MM-dd HH:mm:ssXXX"),
+            FormatReadContext.Binding.empty().withDeclaredDateFormats(Map.of("ts", "dd/MM/yyyy"))
+        );
         StorageObject object = new InMemoryStorageObject("ts:datetime\n02/01/2024\n".getBytes(StandardCharsets.UTF_8));
         try (CloseableIterator<Page> pages = reader.read(object, null, 1024)) {
             Page page = pages.next();
@@ -1562,7 +1574,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
      * not direct-eligible, so both arms parse identically); the golden assertion pins the value.
      */
     private List<List<Object>> readAllScope(Map<String, Object> config, String content) throws IOException {
-        CsvFormatReader reader = (CsvFormatReader) baseReader(false).withConfig(config);
+        CsvFormatReader reader = createReader(false, true, config);
         StorageObject object = new InMemoryStorageObject(content.getBytes(StandardCharsets.UTF_8));
         FormatReadContext ctx = FormatReadContext.builder()
             .batchSize(1024)
@@ -1609,9 +1621,27 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     private CsvFormatReader baseReader(boolean tsv) {
+        return tsv ? new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv")) : new CsvFormatReader(blockFactory);
+    }
+
+    private CsvFormatReaderFactory factory(boolean tsv, boolean directBlockEnabled) {
         return tsv
-            ? new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv"))
-            : new CsvFormatReader(blockFactory, "csv", List.of(".csv"));
+            ? new CsvFormatReaderFactory("tsv", List.of(".tsv"), CsvFormatOptions.TSV, directBlockEnabled)
+            : new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, directBlockEnabled);
+    }
+
+    private CsvFormatReader createReader(boolean tsv, boolean directBlockEnabled, Map<String, Object> config) {
+        return createReader(tsv, directBlockEnabled, config, FormatReadContext.Binding.empty());
+    }
+
+    private CsvFormatReader createReader(
+        boolean tsv,
+        boolean directBlockEnabled,
+        Map<String, Object> config,
+        FormatReadContext.Binding binding
+    ) {
+        Map<String, Object> effective = config == null || config.isEmpty() ? null : config;
+        return (CsvFormatReader) factory(tsv, directBlockEnabled).create(Settings.EMPTY, blockFactory, effective, binding);
     }
 
     private List<List<Object>> read(boolean tsv, Map<String, Object> config, String content) throws IOException {
@@ -1635,15 +1665,14 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         int batchSize,
         String content
     ) throws IOException {
-        CsvFormatReader configured = config.isEmpty() ? baseReader(tsv) : (CsvFormatReader) baseReader(tsv).withConfig(config);
         // Parity harness: read once with the direct-to-block path (default) and once with it forced
         // off (Jackson), and assert the two agree row-for-row. For modes that are not eligible for the
         // direct path (e.g. bracket multi-values or escaped mode) both arms are Jackson and the
         // comparison is trivially true, but the golden assertEquals in each test still pins behavior.
         // The direct arm is read first so a test using assertThrows still observes the direct path's
         // exception.
-        List<List<Object>> direct = drain(configured.withDirectBlockEnabled(true), projection, batchSize, policy, content);
-        List<List<Object>> jackson = drain(configured.withDirectBlockEnabled(false), projection, batchSize, policy, content);
+        List<List<Object>> direct = drain(createReader(tsv, true, config), projection, batchSize, policy, content);
+        List<List<Object>> jackson = drain(createReader(tsv, false, config), projection, batchSize, policy, content);
         assertEquals("direct-block output diverged from the Jackson baseline", jackson, direct);
         return direct;
     }

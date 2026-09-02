@@ -26,6 +26,7 @@ import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -63,6 +64,8 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -196,7 +199,7 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         byte[] parquetData = createEmptyThenMatchingLargeRowGroups();
         CountingAsyncStorageObject storage = new CountingAsyncStorageObject(parquetData);
         FilterPredicate filter = FilterApi.eq(FilterApi.intColumn("id"), 500);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(FilterCompat.get(filter));
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, FilterCompat.get(filter));
 
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 1024))) {
             OptimizedParquetColumnIterator optimized = (OptimizedParquetColumnIterator) iter;
@@ -462,7 +465,7 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         Expression statusEq = new Equals(Source.EMPTY, statusAttr, new Literal(Source.EMPTY, 200L, DataType.LONG), null);
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(like, statusEq));
 
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
         StorageObject storageObject = createStorageObject(parquetData);
         int total;
         try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, 1024))) {
@@ -507,7 +510,7 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         Expression statusEq = new Equals(Source.EMPTY, statusAttr, new Literal(Source.EMPTY, 200L, DataType.LONG), null);
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(statusEq));
 
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
         StorageObject storageObject = createStorageObject(parquetData);
         int total;
         try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, 1024))) {
@@ -811,9 +814,13 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
     }
 
     private List<Page> readWithFilter(byte[] parquetData, FilterPredicate filter, boolean optimized) throws IOException {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, optimized);
-        if (filter != null) {
-            reader = reader.withPushedFilter(FilterCompat.get(filter));
+        ParquetFormatReader reader;
+        if (filter == null) {
+            reader = new ParquetFormatReader(blockFactory, optimized);
+        } else if (optimized) {
+            reader = readerWithPushedFilter(FilterCompat.get(filter));
+        } else {
+            reader = baselineReaderWithPushedFilter(FilterCompat.get(filter));
         }
         StorageObject storageObject = createStorageObject(parquetData);
         try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, 1024))) {
@@ -826,7 +833,7 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
     }
 
     private void assertLeadingRowsArePagePruned(byte[] parquetData, FilterPredicate filter) throws IOException {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(FilterCompat.get(filter));
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, FilterCompat.get(filter));
         StorageObject storageObject = createStorageObject(parquetData);
         try (CloseableIterator<Page> iterator = reader.read(storageObject, FormatReadContext.of(null, 1024))) {
             OptimizedParquetColumnIterator optimized = (OptimizedParquetColumnIterator) iterator;
@@ -844,7 +851,7 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
      */
     private List<Page> readWithPushedExpressions(byte[] parquetData, Expression esqlFilter) throws IOException {
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(esqlFilter));
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
         StorageObject storageObject = createStorageObject(parquetData);
         try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, 1024))) {
             List<Page> pages = new ArrayList<>();
@@ -1086,4 +1093,40 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
             }
         };
     }
+
+    private static ParquetFormatReader readerWithPushedFilter(BlockFactory blockFactory, Object pushed) {
+        return (ParquetFormatReader) new ParquetFormatReaderFactory().create(
+            Settings.EMPTY,
+            blockFactory,
+            null,
+            FormatReadContext.Binding.empty().withPushedFilter(pushed)
+        );
+    }
+
+    private ParquetFormatReader readerWithPushedFilter(Object pushed) {
+        return readerWithPushedFilter(blockFactory, pushed);
+    }
+
+    private ParquetFormatReader baselineReaderWithPushedFilter(Object pushed) {
+        FilterCompat.Filter filter = FilterCompat.NOOP;
+        ParquetPushedExpressions expressions = null;
+        if (pushed instanceof FilterCompat.Filter parquetFilter) {
+            filter = parquetFilter;
+        } else if (pushed instanceof ParquetPushedExpressions pushedExpressions) {
+            expressions = pushedExpressions;
+        }
+        return new ParquetFormatReader(
+            blockFactory,
+            filter,
+            expressions,
+            false,
+            false,
+            null,
+            Map.of(),
+            Set.of(),
+            new PlainCompressionCodecFactory(),
+            new ParquetReaderCounters()
+        );
+    }
+
 }

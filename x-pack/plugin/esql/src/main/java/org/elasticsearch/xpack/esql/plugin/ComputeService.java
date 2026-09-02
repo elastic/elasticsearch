@@ -72,7 +72,7 @@ import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -542,7 +542,7 @@ public class ComputeService {
         if (registry == null) {
             return false;
         }
-        FormatReader formatReader = registry.findByName(ext.sourceType());
+        FormatReaderFactory formatReader = registry.findFactoryByName(ext.sourceType());
         if (formatReader == null) {
             return false;
         }

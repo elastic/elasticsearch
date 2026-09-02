@@ -28,12 +28,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
-import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -98,7 +97,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            reader,
+            TestFormatReaderFactory.columnExtracting(() -> new FormatReader_RowPositionEmitting(readCount, extractorsCreated, 3)),
             path,
             attributes,
             100,
@@ -192,7 +191,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             new StubStorageProvider(),
-            reader,
+            TestFormatReaderFactory.columnExtracting(() -> new RowPositionOnlyReader(extractorsCreated, 3)),
             path,
             attributes,
             100,
@@ -255,7 +254,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            reader,
+            TestFormatReaderFactory.basic(() -> reader),
             path,
             attributes,
             100,
@@ -292,7 +291,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
     }
 
     /**
-     * Defensive: a {@link ColumnExtractorAware} reader satisfies the planner-time capability check,
+     * Defensive: a factory with {@link FormatReaderFactory#columnExtractor()} satisfies the planner-time capability check,
      * but it must also return iterators that implement {@link ColumnExtractorProducer} when the
      * projection asks for {@link ColumnExtractor#ROW_POSITION_COLUMN}. If the iterator does not,
      * the factory must surface a clear {@link IllegalStateException} — it cannot silently encode
@@ -301,7 +300,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
      * thread the producer interface through its iterator wrapping.
      */
     public void testDeferredExtractionFailsLoudlyWhenIteratorIsNotProducer() throws Exception {
-        // Reader is ColumnExtractorAware but its iterator does NOT implement ColumnExtractorProducer.
+        // The builder has the column-extractor capability, but its iterator does not implement ColumnExtractorProducer.
         FormatReader reader = new NonProducerAwareReader();
 
         List<StorageEntry> entries = List.of(new StorageEntry(StoragePath.of("s3://bucket/data/f.parquet"), 100, Instant.EPOCH));
@@ -318,7 +317,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            reader,
+            TestFormatReaderFactory.columnExtracting(NonProducerAwareReader::new),
             path,
             attributes,
             100,
@@ -358,11 +357,10 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
     }
 
     /**
-     * Reader stub that <em>declares</em> {@link ColumnExtractorAware} so the planner-time
-     * capability check passes, but returns plain iterators that do <em>not</em> implement
-     * {@link ColumnExtractorProducer}. Used to verify the factory's runtime guard.
+     * Reader stub that returns plain iterators that do <em>not</em> implement
+     * {@link ColumnExtractorProducer}. The test builder declares the planner-time capability.
      */
-    private static final class NonProducerAwareReader implements NoConfigFormatReader, ColumnExtractorAware {
+    private static final class NonProducerAwareReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -384,16 +382,6 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
             Block rpBlock = BLOCK_FACTORY.newLongArrayVector(rowPositions, n).asBlock();
             Page page = new Page(n, valueBlock, rpBlock);
             return singletonIterator(page);
-        }
-
-        @Override
-        public String formatName() {
-            return "non-producer-aware";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
         }
 
         @Override
@@ -453,7 +441,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         java.io.Closeable onCloseProbe = () -> onCloseCalls.incrementAndGet();
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            reader,
+            TestFormatReaderFactory.columnExtracting(() -> new FormatReader_RowPositionEmitting(readCount, extractorsCreated, 2)),
             path,
             attributes,
             100,
@@ -512,7 +500,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         java.io.Closeable onCloseProbe = () -> onCloseCalls.incrementAndGet();
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            reader,
+            TestFormatReaderFactory.basic(() -> reader),
             path,
             attributes,
             100,
@@ -534,10 +522,8 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         assertEquals("non-deferred path closes onClose at source release", 1, onCloseCalls.get());
     }
 
-    public void testDeferredExtractionRequiresColumnExtractorAware() {
-        // Builder must reject deferredExtraction(true) when the reader doesn't implement
-        // ColumnExtractorAware — we won't be able to materialise anything later, so failing
-        // fast at construction beats silently emitting refs no one can resolve.
+    public void testDeferredExtractionRequiresColumnExtractorBuilder() {
+        // The source cannot materialise columns later without the builder capability.
         FormatReader plain = new PlainFormatReader();
         StoragePath path = StoragePath.of("s3://bucket/data/f.parquet");
         List<Attribute> attributes = List.of(field("value", DataType.INTEGER));
@@ -545,9 +531,15 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, plain, path, attributes, 100, 10, (Runnable r) -> r.run())
-                .deferredExtraction(true)
-                .build()
+            () -> AsyncExternalSourceOperatorFactory.builder(
+                storageProvider,
+                TestFormatReaderFactory.basic(() -> plain),
+                path,
+                attributes,
+                100,
+                10,
+                (Runnable r) -> r.run()
+            ).deferredExtraction(true).build()
         );
     }
 
@@ -587,7 +579,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             new StubStorageProvider(),
-            reader,
+            TestFormatReaderFactory.basic(() -> reader),
             path,
             attributes,
             100,
@@ -628,7 +620,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
      * column {@code a}, {@code 200+i} for {@code b}) or the {@code _rowPosition} LongBlock
      * ({@code 0..rows-1}), in projection order — mirroring a real reader's emission contract.
      */
-    private static final class ProjectionEchoReader implements NoConfigFormatReader {
+    private static final class ProjectionEchoReader implements FormatReader {
         private final int rows;
 
         ProjectionEchoReader(int rows) {
@@ -693,16 +685,6 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         }
 
         @Override
-        public String formatName() {
-            return "projection-echo-stub";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
-        }
-
-        @Override
         public void close() {}
     }
 
@@ -724,10 +706,10 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
     }
 
     /**
-     * {@link ColumnExtractorAware} reader that emits a single _rowPosition block and no data columns
+     * Reader that emits a single _rowPosition block and no data columns
      * — the shape a reader produces when every data column has been moved to deferred extraction.
      */
-    private static final class RowPositionOnlyReader implements NoConfigFormatReader, ColumnExtractorAware {
+    private static final class RowPositionOnlyReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -749,16 +731,6 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             return new RowPositionOnlyProducerIterator(extractorsCreated, rows);
-        }
-
-        @Override
-        public String formatName() {
-            return "rp-only-stub";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
         }
 
         @Override
@@ -811,13 +783,13 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
     }
 
     /**
-     * Format reader that implements {@link ColumnExtractorAware}. Each {@code read} returns one
+     * Format reader whose iterator can produce a column extractor. Each {@code read} returns one
      * page with two columns (value, _rowPosition). The {@code _rowPosition} column carries raw
      * file-local positions ({@code 0..rowsPerFile-1}) — exactly what a real
-     * {@link ColumnExtractorAware} reader emits. The factory's encoder is responsible for packing
+     * deferred-extraction reader emits. The factory's encoder is responsible for packing
      * the assigned extractor id into the high bits before downstream operators see it.
      */
-    private static final class FormatReader_RowPositionEmitting implements NoConfigFormatReader, ColumnExtractorAware {
+    private static final class FormatReader_RowPositionEmitting implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -842,16 +814,6 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             int idx = readCount.getAndIncrement();
             return new ProducerIterator(idx, extractorsCreated, rowsPerFile);
-        }
-
-        @Override
-        public String formatName() {
-            return "rp-stub";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
         }
 
         @Override
@@ -918,8 +880,8 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         public void close() {}
     }
 
-    /** Same shape as the row-position emitting reader minus the {@link ColumnExtractorAware} mixin. */
-    private static final class PlainFormatReader implements NoConfigFormatReader {
+    /** Same shape as the row-position emitting reader without column-extractor-producing iterators. */
+    private static final class PlainFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -933,16 +895,6 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             return singletonIterator(new Page(BLOCK_FACTORY.newIntArrayVector(new int[] { 0 }, 1).asBlock()));
-        }
-
-        @Override
-        public String formatName() {
-            return "plain";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
         }
 
         @Override

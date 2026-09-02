@@ -31,13 +31,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
-import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
-import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
@@ -786,10 +785,8 @@ public class FileSplitProviderTests extends ESTestCase {
         long fileLength = payload.length;
 
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        formatRegistry.registerLazy(registryName, (s, bf) -> mockReader, Settings.EMPTY, null);
+        formatRegistry.registerLazy(registryName, TestFormatReaderFactory.of(mockReader));
         formatRegistry.registerExtension(extension, registryName);
-        formatRegistry.byName(registryName);
-
         StorageProviderRegistry storageRegistry = createPayloadStorageRegistry(payload);
 
         FileSplitProvider splitter = new FileSplitProvider(
@@ -959,15 +956,8 @@ public class FileSplitProviderTests extends ESTestCase {
 
         String formatName = extension.substring(1);
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        formatRegistry.registerLazy(
-            formatName,
-            (s, bf) -> new CsvFormatReader(bf, baselineOptions, formatName, List.of(extension)),
-            Settings.EMPTY,
-            null
-        );
+        formatRegistry.registerLazy(formatName, new CsvFormatReaderFactory(formatName, List.of(extension), baselineOptions, true));
         formatRegistry.registerExtension(extension, formatName);
-        formatRegistry.byName(formatName);
-
         StorageProviderRegistry storageRegistry = createPayloadStorageRegistry(payload);
         FileSplitProvider splitter = new FileSplitProvider(
             targetStrideBytes,
@@ -2162,15 +2152,8 @@ public class FileSplitProviderTests extends ESTestCase {
         int maxRecordBytes
     ) {
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        formatRegistry.registerLazy(
-            "csv",
-            (s, bf) -> new CsvFormatReader(bf, CsvFormatOptions.DEFAULT, "csv", List.of(".csv")),
-            Settings.EMPTY,
-            null
-        );
+        formatRegistry.registerLazy("csv", new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true));
         formatRegistry.registerExtension(".csv", "csv");
-        formatRegistry.byName("csv");
-
         FileSplitProvider provider = new FileSplitProvider(
             targetStrideBytes,
             new DecompressionCodecRegistry(),
@@ -2208,14 +2191,9 @@ public class FileSplitProviderTests extends ESTestCase {
      */
     private static List<ExternalSplit> discoverMixedFormatSplits(Map<String, byte[]> payloads, long targetStrideBytes) {
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        formatRegistry.registerLazy(
-            "csv",
-            (s, bf) -> new CsvFormatReader(bf, CsvFormatOptions.DEFAULT, "csv", List.of(".csv")),
-            Settings.EMPTY,
-            null
-        );
+        formatRegistry.registerLazy("csv", new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true));
         formatRegistry.registerExtension(".csv", "csv");
-        formatRegistry.registerLazy("ndjson", (s, bf) -> new NdJsonFormatReader(s, bf, null), Settings.EMPTY, null);
+        formatRegistry.registerLazy("ndjson", new NdJsonFormatReaderFactory(Settings.EMPTY));
         formatRegistry.registerExtension(".ndjson", "ndjson");
 
         FileSplitProvider provider = new FileSplitProvider(
@@ -2530,7 +2508,12 @@ public class FileSplitProviderTests extends ESTestCase {
 
         // Plain mode keeps strided probing; macro-split discovery refuses non-strided (default/quoted) CSV,
         // which is read whole-file instead.
-        var csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
+        var csvReader = (SegmentableFormatReader) new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true).create(
+            Settings.EMPTY,
+            blockFactory,
+            Map.of("mode", "plain"),
+            FormatReadContext.Binding.empty()
+        );
         List<Long> starts = serialStridedStarts(
             csvReader,
             object,
@@ -2570,7 +2553,12 @@ public class FileSplitProviderTests extends ESTestCase {
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject object = DrainSimulatingStorageObject.create(payload, tracking);
 
-        var csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
+        var csvReader = (SegmentableFormatReader) new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true).create(
+            Settings.EMPTY,
+            blockFactory,
+            Map.of("mode", "plain"),
+            FormatReadContext.Binding.empty()
+        );
         List<Long> starts = serialStridedStarts(
             csvReader,
             object,
@@ -2647,7 +2635,12 @@ public class FileSplitProviderTests extends ESTestCase {
      */
     private static RecordSplitter stridedSplitter() {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
-        var reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
+        var reader = (SegmentableFormatReader) new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true).create(
+            Settings.EMPTY,
+            blockFactory,
+            Map.of("mode", "plain"),
+            FormatReadContext.Binding.empty()
+        );
         return reader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
     }
 
@@ -3085,7 +3078,12 @@ public class FileSplitProviderTests extends ESTestCase {
         StorageObject object = createInMemoryStorageObject(payload, StoragePath.of("mem://test.csv"));
         // Plain mode: the max-record-size verdict is format-agnostic, but macro-split discovery refuses non-strided
         // (default/quoted) CSV. Plain CSV keeps strided probing.
-        var csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
+        var csvReader = (SegmentableFormatReader) new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true).create(
+            Settings.EMPTY,
+            blockFactory,
+            Map.of("mode", "plain"),
+            FormatReadContext.Binding.empty()
+        );
 
         List<Long> starts = serialStridedStarts(csvReader, object, payload.length, stride, maxRecordBytes, NON_BINDING_PROBE_WINDOW);
 
@@ -3136,7 +3134,12 @@ public class FileSplitProviderTests extends ESTestCase {
         }
         byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
         StorageObject object = createInMemoryStorageObject(payload, StoragePath.of("mem://long-records.csv"));
-        var csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
+        var csvReader = (SegmentableFormatReader) new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true).create(
+            Settings.EMPTY,
+            blockFactory,
+            Map.of("mode", "plain"),
+            FormatReadContext.Binding.empty()
+        );
 
         List<Long> starts = serialStridedStarts(
             csvReader,
@@ -3335,8 +3338,7 @@ public class FileSplitProviderTests extends ESTestCase {
         RangeAwareFormatReader mockReader = createMockRangeReader(List.of(fakeRanges[0], fakeRanges[1], fakeRanges[2]));
 
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        formatRegistry.registerLazy("parquet", (s, bf) -> mockReader, Settings.EMPTY, null);
-        formatRegistry.byName("parquet");
+        formatRegistry.registerLazy("parquet", TestFormatReaderFactory.of(mockReader));
 
         StorageProviderRegistry storageRegistry = createMockStorageRegistry();
 
@@ -3381,8 +3383,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
         RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        formatRegistry.registerLazy("parquet", (s, bf) -> mockReader, Settings.EMPTY, null);
-        formatRegistry.byName("parquet");
+        formatRegistry.registerLazy("parquet", TestFormatReaderFactory.of(mockReader));
         FileSplitProvider splitter = new FileSplitProvider(
             FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
             new DecompressionCodecRegistry(),
@@ -3447,8 +3448,7 @@ public class FileSplitProviderTests extends ESTestCase {
         RangeAwareFormatReader mockReader = createMockRangeReader(List.<SplitRange>of());
 
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        formatRegistry.registerLazy("parquet", (s, bf) -> mockReader, Settings.EMPTY, null);
-        formatRegistry.byName("parquet");
+        formatRegistry.registerLazy("parquet", TestFormatReaderFactory.of(mockReader));
 
         StorageProviderRegistry storageRegistry = createMockStorageRegistry();
 
@@ -3478,8 +3478,7 @@ public class FileSplitProviderTests extends ESTestCase {
         RangeAwareFormatReader mockReader = createMockRangeReader(List.of(singleRange));
 
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        formatRegistry.registerLazy("parquet", (s, bf) -> mockReader, Settings.EMPTY, null);
-        formatRegistry.byName("parquet");
+        formatRegistry.registerLazy("parquet", TestFormatReaderFactory.of(mockReader));
 
         StorageProviderRegistry storageRegistry = createMockStorageRegistry();
 
@@ -3518,11 +3517,6 @@ public class FileSplitProviderTests extends ESTestCase {
             private final List<List<SplitRange>> perFileRanges = List.of(List.of(range1), List.of(range2), List.of(range3));
 
             @Override
-            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-                return Configured.empty(this);
-            }
-
-            @Override
             public List<SplitRange> discoverSplitRanges(StorageObject object) {
                 return perFileRanges.get(callCount++);
             }
@@ -3543,16 +3537,6 @@ public class FileSplitProviderTests extends ESTestCase {
             }
 
             @Override
-            public String formatName() {
-                return "parquet";
-            }
-
-            @Override
-            public List<String> fileExtensions() {
-                return List.of(".parquet");
-            }
-
-            @Override
             public RowPositionStrategy rowPositionStrategy() {
                 return PassThroughRowPositionStrategy.INSTANCE;
             }
@@ -3562,8 +3546,7 @@ public class FileSplitProviderTests extends ESTestCase {
         };
 
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        formatRegistry.registerLazy("parquet", (s, bf) -> mockReader, Settings.EMPTY, null);
-        formatRegistry.byName("parquet");
+        formatRegistry.registerLazy("parquet", TestFormatReaderFactory.of(mockReader));
 
         StorageProviderRegistry storageRegistry = createMockStorageRegistry();
 
@@ -3602,11 +3585,6 @@ public class FileSplitProviderTests extends ESTestCase {
         return new RangeAwareFormatReader() {
 
             @Override
-            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-                return Configured.empty(this);
-            }
-
-            @Override
             public List<SplitRange> discoverSplitRanges(StorageObject object) {
                 return ranges;
             }
@@ -3624,16 +3602,6 @@ public class FileSplitProviderTests extends ESTestCase {
             @Override
             public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
                 return null;
-            }
-
-            @Override
-            public String formatName() {
-                return "parquet";
-            }
-
-            @Override
-            public List<String> fileExtensions() {
-                return List.of(".parquet", ".parq");
             }
 
             @Override

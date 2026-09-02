@@ -1763,7 +1763,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     public void testParquetRenameDeferredExtractionOnRenamedColumns() throws Exception {
-        // A TopN keeping >= DEFERRED_COLUMN_MIN (3) non-sort columns over a ColumnExtractorAware parquet source defers
+        // A TopN keeping >= DEFERRED_COLUMN_MIN (3) non-sort columns over a column-extracting parquet source defers
         // their extraction until after the top rows are chosen. Deferred columns are pulled from the file by name, so a
         // `path` rename must physicalize them too — otherwise the extractor looks up the logical names (id/name/dept_code)
         // which the file doesn't have (emp_no/first_name/dept.code) and fails "column [id] is missing".

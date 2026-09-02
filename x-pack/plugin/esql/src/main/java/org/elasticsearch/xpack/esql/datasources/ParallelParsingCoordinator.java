@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
@@ -19,6 +21,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -39,6 +42,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -83,6 +87,55 @@ public final class ParallelParsingCoordinator {
 
     private ParallelParsingCoordinator() {}
 
+    private static SegmentableFormatReader createSegmentableReader(
+        FormatReaderFactory factory,
+        Settings settings,
+        @Nullable BlockFactory blockFactory,
+        @Nullable Map<String, Object> config,
+        FormatReadContext.Binding binding
+    ) {
+        if (factory.create(settings, blockFactory, config, binding) instanceof SegmentableFormatReader segmentable) {
+            return segmentable;
+        }
+        throw new IllegalStateException("format factory [" + factory.formatName() + "] is not segmentable");
+    }
+
+    /** Convenience overload for tests and internal callers using default execution settings. */
+    public static CloseableIterator<Page> parallelRead(
+        FormatReaderFactory factory,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor
+    ) throws IOException {
+        return parallelRead(
+            factory,
+            Settings.EMPTY,
+            null,
+            null,
+            FormatReadContext.Binding.empty(),
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            null,
+            false,
+            true,
+            null,
+            0L,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            false,
+            ExternalSourceMetrics.NOOP,
+            null
+        );
+    }
+
     /**
      * Creates a parallel-parsing iterator over a single storage object.
      * <p>
@@ -92,7 +145,7 @@ public final class ParallelParsingCoordinator {
      * parallelism (below the reader's {@link SegmentableFormatReader#minimumSegmentSize()}
      * per segment), falls back to single-threaded reading.
      *
-     * @param reader            the segmentable format reader
+     * @param factory           the format factory; each worker creates and closes its own reader
      * @param storageObject     the file to read
      * @param projectedColumns  columns to project
      * @param batchSize         rows per page
@@ -101,344 +154,11 @@ public final class ParallelParsingCoordinator {
      * @return an iterator that yields pages as they become ready (cross-segment row order not preserved)
      */
     public static CloseableIterator<Page> parallelRead(
-        SegmentableFormatReader reader,
-        StorageObject storageObject,
-        List<String> projectedColumns,
-        int batchSize,
-        int parallelism,
-        Executor executor
-    ) throws IOException {
-        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, null, false, true, null, 0L);
-    }
-
-    /**
-     * Creates a parallel-parsing iterator with an explicit error policy.
-     *
-     * @param errorPolicy error handling policy for per-segment parsing, or {@code null} for defaults
-     */
-    public static CloseableIterator<Page> parallelRead(
-        SegmentableFormatReader reader,
-        StorageObject storageObject,
-        List<String> projectedColumns,
-        int batchSize,
-        int parallelism,
-        Executor executor,
-        ErrorPolicy errorPolicy
-    ) throws IOException {
-        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, errorPolicy, false, true, null, 0L);
-    }
-
-    /**
-     * Convenience overload that forwards {@code splitIncludesFileLeader=true}. This assumes the
-     * storage object includes the file's leading bytes (header row). For non-leading macro-splits,
-     * use the nine-argument overload with explicit {@code splitIncludesFileLeader=false}.
-     *
-     * @param splitStartsAtRecordBoundary when {@code true}, {@code storageObject} is a byte range that already begins
-     *                                     on a record boundary (e.g. newline-aligned macro {@link FileSplit});
-     *                                     single-threaded fallback reads must set {@link FormatReadContext#recordAligned()}.
-     */
-    public static CloseableIterator<Page> parallelRead(
-        SegmentableFormatReader reader,
-        StorageObject storageObject,
-        List<String> projectedColumns,
-        int batchSize,
-        int parallelism,
-        Executor executor,
-        ErrorPolicy errorPolicy,
-        boolean splitStartsAtRecordBoundary
-    ) throws IOException {
-        return parallelRead(
-            reader,
-            storageObject,
-            projectedColumns,
-            batchSize,
-            parallelism,
-            executor,
-            errorPolicy,
-            splitStartsAtRecordBoundary,
-            true,
-            null,
-            0L
-        );
-    }
-
-    /**
-     * @param splitStartsAtRecordBoundary when {@code true}, {@code storageObject} is a byte range that already begins
-     *                                     on a record boundary (e.g. newline-aligned macro {@link FileSplit});
-     *                                     single-threaded fallback reads must set {@link FormatReadContext#recordAligned()}.
-     * @param splitIncludesFileLeader     whether this split contains the file-leading bytes (and therefore file header for
-     *                                     header-bearing formats). For whole-file reads this is {@code true}; for
-     *                                     non-leading macro-splits this is {@code false}.
-     */
-    public static CloseableIterator<Page> parallelRead(
-        SegmentableFormatReader reader,
-        StorageObject storageObject,
-        List<String> projectedColumns,
-        int batchSize,
-        int parallelism,
-        Executor executor,
-        ErrorPolicy errorPolicy,
-        boolean splitStartsAtRecordBoundary,
-        boolean splitIncludesFileLeader
-    ) throws IOException {
-        return parallelRead(
-            reader,
-            storageObject,
-            projectedColumns,
-            batchSize,
-            parallelism,
-            executor,
-            errorPolicy,
-            splitStartsAtRecordBoundary,
-            splitIncludesFileLeader,
-            null,
-            0L
-        );
-    }
-
-    /**
-     * Forwards to the full-control overload with the {@link #DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS
-     * default} open-segment cap and {@code captureSink=null} (text-format readers' close hooks
-     * then publish into whatever {@link ExternalStatsCapture} sink — if any — happens to be bound
-     * on the calling thread). Callers that resolve the {@code external_max_concurrent_open_segments} pragma
-     * or care about cross-thread stats capture use the 12-arg overload.
-     *
-     * @param readSchema     planner-bound read schema, or {@code null} for per-file inference
-     * @param baseFileOffset file-global byte offset of {@code storageObject}'s first byte (i.e. the macro
-     *                       split's {@code FileSplit.offset()}). {@code 0} for whole-file reads. Added to each
-     *                       segment's split-relative offset so readers emit file-global, split-invariant
-     *                       record positions on the {@code _rowPosition} channel.
-     */
-    public static CloseableIterator<Page> parallelRead(
-        SegmentableFormatReader reader,
-        StorageObject storageObject,
-        List<String> projectedColumns,
-        int batchSize,
-        int parallelism,
-        Executor executor,
-        ErrorPolicy errorPolicy,
-        boolean splitStartsAtRecordBoundary,
-        boolean splitIncludesFileLeader,
-        List<Attribute> readSchema,
-        long baseFileOffset
-    ) throws IOException {
-        return parallelRead(
-            reader,
-            storageObject,
-            projectedColumns,
-            batchSize,
-            parallelism,
-            executor,
-            errorPolicy,
-            splitStartsAtRecordBoundary,
-            splitIncludesFileLeader,
-            readSchema,
-            baseFileOffset,
-            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
-            null,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            -1L,
-            StripeColumnScope.PROJECTED,
-            // No stripe addressing on this convenience path (stripeSize == -1), so file-final is moot;
-            // conservatively false preserves the prior never-file-final-for-macro-splits behavior.
-            false
-        );
-    }
-
-    /**
-     * Convenience overload that adds the {@code external_max_concurrent_open_segments} cap without per-chunk
-     * source-stats capture (equivalent to passing {@code captureSink == null}).
-     */
-    public static CloseableIterator<Page> parallelRead(
-        SegmentableFormatReader reader,
-        StorageObject storageObject,
-        List<String> projectedColumns,
-        int batchSize,
-        int parallelism,
-        Executor executor,
-        ErrorPolicy errorPolicy,
-        boolean splitStartsAtRecordBoundary,
-        boolean splitIncludesFileLeader,
-        List<Attribute> readSchema,
-        int maxConcurrentOpenSegments
-    ) throws IOException {
-        return parallelRead(
-            reader,
-            storageObject,
-            projectedColumns,
-            batchSize,
-            parallelism,
-            executor,
-            errorPolicy,
-            splitStartsAtRecordBoundary,
-            splitIncludesFileLeader,
-            readSchema,
-            maxConcurrentOpenSegments,
-            null
-        );
-    }
-
-    /**
-     * Full-control overload that takes both the {@code external_max_concurrent_open_segments} cap and an
-     * explicit {@code captureSink} for per-chunk source-stats contributions.
-     * <p>
-     * {@code maxConcurrentOpenSegments} is the per-file limit on byte-range segments whose read
-     * streams are open at once. A sliding window dispatches at most {@code maxConcurrentOpenSegments}
-     * segments at a time; each completion opens the next. This caps the open-stream / buffer count
-     * independent of file count and length. See {@link AsReadyParallelIterator}.
-     * <p>
-     * Each segment is parsed on a worker thread; the worker binds {@code captureSink} around the
-     * per-segment {@link CloseableIterator#close()} so text-format readers' close hooks publish their
-     * {@code _stats.*} contribution into the same sink the consumer-thread wrapper sees. Pass
-     * {@code null} when no capture is desired (tests, benchmarks).
-     *
-     * @param maxConcurrentOpenSegments per-file cap on concurrently-open segment streams (>= 1)
-     * @param captureSink               consumer-owned per-file stats sink to bind on each parser
-     *                                  worker, or {@code null} to disable capture
-     */
-    public static CloseableIterator<Page> parallelRead(
-        SegmentableFormatReader reader,
-        StorageObject storageObject,
-        List<String> projectedColumns,
-        int batchSize,
-        int parallelism,
-        Executor executor,
-        ErrorPolicy errorPolicy,
-        boolean splitStartsAtRecordBoundary,
-        boolean splitIncludesFileLeader,
-        List<Attribute> readSchema,
-        int maxConcurrentOpenSegments,
-        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
-    ) throws IOException {
-        return parallelRead(
-            reader,
-            storageObject,
-            projectedColumns,
-            batchSize,
-            parallelism,
-            executor,
-            errorPolicy,
-            splitStartsAtRecordBoundary,
-            splitIncludesFileLeader,
-            readSchema,
-            0L,
-            maxConcurrentOpenSegments,
-            captureSink,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            -1L,
-            StripeColumnScope.PROJECTED,
-            // No stripe addressing on this convenience path (stripeSize == -1), so file-final is moot.
-            false
-        );
-    }
-
-    /**
-     * Full-control overload that also takes the {@code external_max_record_size} cap used by record splitters,
-     * the file-global byte base offset, and the canonical-stripe grid for per-stripe stats attribution
-     * ({@code <= 0} disables; pure overlay).
-     */
-    public static CloseableIterator<Page> parallelRead(
-        SegmentableFormatReader reader,
-        StorageObject storageObject,
-        List<String> projectedColumns,
-        int batchSize,
-        int parallelism,
-        Executor executor,
-        ErrorPolicy errorPolicy,
-        boolean splitStartsAtRecordBoundary,
-        boolean splitIncludesFileLeader,
-        List<Attribute> readSchema,
-        long baseFileOffset,
-        int maxConcurrentOpenSegments,
-        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
-        int maxRecordBytes,
-        long statsStripeSize,
-        StripeColumnScope statsColumnScope,
-        boolean splitIsFileFinal
-    ) throws IOException {
-        return parallelRead(
-            reader,
-            storageObject,
-            projectedColumns,
-            batchSize,
-            parallelism,
-            executor,
-            errorPolicy,
-            splitStartsAtRecordBoundary,
-            splitIncludesFileLeader,
-            readSchema,
-            baseFileOffset,
-            maxConcurrentOpenSegments,
-            captureSink,
-            maxRecordBytes,
-            statsStripeSize,
-            statsColumnScope,
-            splitIsFileFinal,
-            ExternalSourceMetrics.NOOP
-        );
-    }
-
-    /**
-     * As the {@code captureSink}+{@code maxRecordBytes} overload, plus a node telemetry sink used to record a
-     * {@code reader.pool.rejected} event when a parser-segment submission is rejected (executor saturated /
-     * shutting down). Pass {@link ExternalSourceMetrics#NOOP} to disable (all narrower overloads do).
-     */
-    public static CloseableIterator<Page> parallelRead(
-        SegmentableFormatReader reader,
-        StorageObject storageObject,
-        List<String> projectedColumns,
-        int batchSize,
-        int parallelism,
-        Executor executor,
-        ErrorPolicy errorPolicy,
-        boolean splitStartsAtRecordBoundary,
-        boolean splitIncludesFileLeader,
-        List<Attribute> readSchema,
-        long baseFileOffset,
-        int maxConcurrentOpenSegments,
-        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
-        int maxRecordBytes,
-        long statsStripeSize,
-        StripeColumnScope statsColumnScope,
-        boolean splitIsFileFinal,
-        ExternalSourceMetrics metrics
-    ) throws IOException {
-        return parallelRead(
-            reader,
-            storageObject,
-            projectedColumns,
-            batchSize,
-            parallelism,
-            executor,
-            errorPolicy,
-            splitStartsAtRecordBoundary,
-            splitIncludesFileLeader,
-            readSchema,
-            baseFileOffset,
-            maxConcurrentOpenSegments,
-            captureSink,
-            maxRecordBytes,
-            statsStripeSize,
-            statsColumnScope,
-            splitIsFileFinal,
-            metrics,
-            null
-        );
-    }
-
-    /**
-     * As the {@code metrics} overload, plus a relay for client-visible lenient-policy warnings raised
-     * while parsing a segment (see {@link SkipWarnings}). Segment parsing runs on {@code executor}
-     * worker threads, so a direct {@link org.elasticsearch.common.logging.HeaderWarning} call there
-     * would attach to the wrong thread's response headers and be dropped; production passes
-     * {@code AsyncExternalSourceBuffer::recordInformationalWarning} so the operator can re-emit it on
-     * the driver thread without flipping the response's {@code is_partial} flag (these are per-record
-     * skip/null-fill warnings, not a truncation of the whole read — see
-     * {@code AsyncExternalSourceBuffer#recordWarning} for that case). Pass {@code null} to fall back to
-     * a direct {@code HeaderWarning} call on the parsing thread (tests, benchmarks).
-     */
-    public static CloseableIterator<Page> parallelRead(
-        SegmentableFormatReader reader,
+        FormatReaderFactory factory,
+        Settings settings,
+        @Nullable BlockFactory blockFactory,
+        @Nullable Map<String, Object> config,
+        FormatReadContext.Binding binding,
         StorageObject storageObject,
         List<String> projectedColumns,
         int batchSize,
@@ -459,105 +179,90 @@ public final class ParallelParsingCoordinator {
         @Nullable Consumer<String> warningSink
     ) throws IOException {
         long fileLength = storageObject.length();
-        long minSegment = reader.minimumSegmentSize();
-
-        // COUNT(*) and similar: projectedColumns is empty while rows still need structural validation
-        // against the file width. When this read includes the file-leading bytes (and therefore any
-        // header), bind the full on-disk schema before segment workers run. For non-leading macro
-        // splits, rebinding via metadata is unsafe because the split-local first row is data, not header.
-        //
-        // When the bind mints an instance, this coordinator owns it (see the ownership contract on FormatReader):
-        // every iterator below reads through it, so its release rides the iterator that is handed back rather than
-        // happening when this method returns. `reader` itself stays the caller's throughout.
-        SegmentableFormatReader parallelReader = reader;
+        long minSegment = factory.minimumSegmentSize(config);
+        FormatReadContext.Binding workerBinding = binding != null ? binding : FormatReadContext.Binding.empty();
         if (projectedColumns != null && projectedColumns.isEmpty() && splitIncludesFileLeader) {
-            var meta = parallelReader.metadata(storageObject);
-            if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
-                parallelReader = (SegmentableFormatReader) parallelReader.withSchema(meta.schema());
+            SegmentableFormatReader metadataReader = createSegmentableReader(factory, settings, blockFactory, config, workerBinding);
+            try {
+                var metadata = metadataReader.metadata(storageObject);
+                if (metadata != null && metadata.schema() != null && metadata.schema().isEmpty() == false) {
+                    workerBinding = workerBinding.withBoundSchema(metadata.schema());
+                }
+            } finally {
+                ReaderReleasingIterator.closeReader(metadataReader);
             }
         }
-        boolean handedOff = false;
-        try {
-            ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
-            // Empty list would read as "0-column schema"; pass null through.
-            FormatReadContext baseCtx = FormatReadContext.builder()
-                .projectedColumns(projectedColumns)
-                .batchSize(batchSize)
-                .errorPolicy(effectivePolicy)
-                .firstSplit(splitIncludesFileLeader)
-                // lastSplit is deliberately left to the builder default (true) and not set from splitIsFileFinal.
-                // This context is used two ways: as the single-threaded fallback below, which reads the whole
-                // storage object and so genuinely owns its trailing bytes, and as the base for per-segment
-                // contexts, which each set lastSplit themselves from their segment index. Setting it here from
-                // splitIsFileFinal breaks the first use, because the convenience overloads that assume a
-                // whole-file read (splitIncludesFileLeader=true) do not make the matching claim about the
-                // file's end. Reconciling those defaults is worth doing on its own, not as a side effect.
-                .recordAligned(splitStartsAtRecordBoundary)
-                .readSchema(readSchema)
-                .splitStartByte(baseFileOffset)
-                .maxRecordBytes(maxRecordBytes)
-                // Single-segment fallback reads this whole storage object in one shot, so its trailing stripe is
-                // file-final exactly when this macro-split is the file's final split (splitIsFileFinal). A mid-file
-                // macro-split is never file-final — a later split supplies the terminal stripe.
-                .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
-                .statsColumnScope(statsColumnScope)
-                .informationalWarningSink(warningSink)
-                .build();
-            if (parallelism <= 1 || fileLength < minSegment * 2) {
-                CloseableIterator<Page> single = ReaderReleasingIterator.wrap(
-                    parallelReader.read(storageObject, baseCtx),
-                    parallelReader,
-                    reader
-                );
+
+        ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
+        FormatReadContext baseCtx = FormatReadContext.builder()
+            .projectedColumns(projectedColumns)
+            .batchSize(batchSize)
+            .errorPolicy(effectivePolicy)
+            .firstSplit(splitIncludesFileLeader)
+            .recordAligned(splitStartsAtRecordBoundary)
+            .readSchema(readSchema)
+            .splitStartByte(baseFileOffset)
+            .maxRecordBytes(maxRecordBytes)
+            .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
+            .statsColumnScope(statsColumnScope)
+            .informationalWarningSink(warningSink)
+            .build();
+        if (parallelism <= 1 || fileLength < minSegment * 2) {
+            SegmentableFormatReader reader = createSegmentableReader(factory, settings, blockFactory, config, workerBinding);
+            boolean handedOff = false;
+            try {
+                CloseableIterator<Page> pages = ReaderReleasingIterator.wrap(reader.read(storageObject, baseCtx), reader);
                 handedOff = true;
-                return single;
-            }
-
-            List<long[]> segments = computeSegments(parallelReader, storageObject, fileLength, parallelism, minSegment, maxRecordBytes);
-
-            if (segments.size() <= 1) {
-                CloseableIterator<Page> single = ReaderReleasingIterator.wrap(
-                    parallelReader.read(storageObject, baseCtx),
-                    parallelReader,
-                    reader
-                );
-                handedOff = true;
-                return single;
-            }
-
-            AsReadyParallelIterator iterator = new AsReadyParallelIterator(
-                parallelReader,
-                storageObject,
-                projectedColumns,
-                batchSize,
-                segments,
-                executor,
-                parallelism,
-                maxConcurrentOpenSegments,
-                effectivePolicy,
-                splitIncludesFileLeader,
-                readSchema,
-                baseFileOffset,
-                captureSink,
-                maxRecordBytes,
-                statsStripeSize,
-                statsColumnScope,
-                splitIsFileFinal,
-                metrics,
-                warningSink
-            );
-            // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
-            iterator.start();
-            CloseableIterator<Page> released = ReaderReleasingIterator.wrap(iterator, parallelReader, reader);
-            handedOff = true;
-            return released;
-        } finally {
-            // Nothing downstream holds the bound reader until an iterator carrying it has been returned, so a
-            // failure to open / segment / start releases it here instead.
-            if (handedOff == false) {
-                FormatReaderOwnership.closeIfDerived(parallelReader, reader);
+                return pages;
+            } finally {
+                if (handedOff == false) {
+                    ReaderReleasingIterator.closeReader(reader);
+                }
             }
         }
+
+        List<long[]> segments = computeSegments(factory, config, storageObject, fileLength, parallelism, minSegment, maxRecordBytes);
+        if (segments.size() <= 1) {
+            SegmentableFormatReader reader = createSegmentableReader(factory, settings, blockFactory, config, workerBinding);
+            boolean handedOff = false;
+            try {
+                CloseableIterator<Page> pages = ReaderReleasingIterator.wrap(reader.read(storageObject, baseCtx), reader);
+                handedOff = true;
+                return pages;
+            } finally {
+                if (handedOff == false) {
+                    ReaderReleasingIterator.closeReader(reader);
+                }
+            }
+        }
+
+        AsReadyParallelIterator iterator = new AsReadyParallelIterator(
+            factory,
+            settings,
+            blockFactory,
+            config,
+            workerBinding,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            segments,
+            executor,
+            parallelism,
+            maxConcurrentOpenSegments,
+            effectivePolicy,
+            splitIncludesFileLeader,
+            readSchema,
+            baseFileOffset,
+            captureSink,
+            maxRecordBytes,
+            statsStripeSize,
+            statsColumnScope,
+            splitIsFileFinal,
+            metrics,
+            warningSink
+        );
+        iterator.start();
+        return iterator;
     }
 
     /**
@@ -567,14 +272,15 @@ public final class ParallelParsingCoordinator {
      * the nominal split point.
      */
     public static List<long[]> computeSegments(
-        SegmentableFormatReader reader,
+        FormatReaderFactory factory,
         StorageObject storageObject,
         long fileLength,
         int parallelism,
         long minSegment
     ) throws IOException {
         return computeSegments(
-            reader,
+            factory,
+            null,
             storageObject,
             fileLength,
             parallelism,
@@ -587,7 +293,22 @@ public final class ParallelParsingCoordinator {
      * Computes byte-range segments using a splitter capped by {@code maxRecordBytes}.
      */
     public static List<long[]> computeSegments(
-        SegmentableFormatReader reader,
+        FormatReaderFactory factory,
+        StorageObject storageObject,
+        long fileLength,
+        int parallelism,
+        long minSegment,
+        int maxRecordBytes
+    ) throws IOException {
+        return computeSegments(factory, null, storageObject, fileLength, parallelism, minSegment, maxRecordBytes);
+    }
+
+    /**
+     * Computes byte-range segments using a splitter capped by {@code maxRecordBytes}.
+     */
+    public static List<long[]> computeSegments(
+        FormatReaderFactory factory,
+        @Nullable Map<String, Object> config,
         StorageObject storageObject,
         long fileLength,
         int parallelism,
@@ -599,7 +320,7 @@ public final class ParallelParsingCoordinator {
             nominalSize = minSegment;
         }
 
-        RecordSplitter splitter = reader.recordSplitter(maxRecordBytes);
+        RecordSplitter splitter = factory.recordSplitter(config, maxRecordBytes);
         boolean strided = splitter.supportsStridedProbing();
         boolean proven = splitter.supportsProvenProbing();
         // Strided segmentation probes record boundaries at arbitrary mid-file offsets, which is only correct
@@ -683,7 +404,13 @@ public final class ParallelParsingCoordinator {
          * {@code maxConcurrentSegments * PAGES_PER_OPEN_SEGMENT}, preserving the same backpressure.
          */
         private static final int PAGES_PER_OPEN_SEGMENT = 16;
-        private final SegmentableFormatReader reader;
+        private final FormatReaderFactory factory;
+        private final Settings settings;
+        @Nullable
+        private final BlockFactory blockFactory;
+        @Nullable
+        private final Map<String, Object> config;
+        private final FormatReadContext.Binding binding;
         private final StorageObject storageObject;
         private final List<String> projectedColumns;
         private final int batchSize;
@@ -734,6 +461,7 @@ public final class ParallelParsingCoordinator {
          */
         private final BlockingQueue<Page> sharedQueue;
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
+        private final AtomicBoolean statsPoisoned = new AtomicBoolean(false);
         /** Counts segments still running. Reaches 0 when every worker has finished (success or failure). */
         private final AtomicInteger remainingSegments;
         private final CountDownLatch allDone;
@@ -755,7 +483,11 @@ public final class ParallelParsingCoordinator {
         private final AtomicReference<SubscribableListener<Void>> pendingReady = new AtomicReference<>();
 
         AsReadyParallelIterator(
-            SegmentableFormatReader reader,
+            FormatReaderFactory factory,
+            Settings settings,
+            @Nullable BlockFactory blockFactory,
+            @Nullable Map<String, Object> config,
+            FormatReadContext.Binding binding,
             StorageObject storageObject,
             List<String> projectedColumns,
             int batchSize,
@@ -775,7 +507,11 @@ public final class ParallelParsingCoordinator {
             ExternalSourceMetrics metrics,
             @Nullable Consumer<String> warningSink
         ) {
-            this.reader = reader;
+            this.factory = factory;
+            this.settings = settings;
+            this.blockFactory = blockFactory;
+            this.config = config;
+            this.binding = binding != null ? binding : FormatReadContext.Binding.empty();
             this.storageObject = storageObject;
             this.splitIsFileFinal = splitIsFileFinal;
             this.projectedColumns = projectedColumns;
@@ -792,16 +528,10 @@ public final class ParallelParsingCoordinator {
             this.warningSink = warningSink;
             this.segments = segments;
             this.executor = executor;
-            // Single clamp site for the effective window: the configured cap, never more than the parser
-            // thread pool can run nor more segments than exist, floored at 1.
             this.maxConcurrentSegments = Math.max(1, Math.min(maxConcurrentOpenSegments, Math.min(parallelism, segments.size())));
             this.remainingSegments = new AtomicInteger(segments.size());
             this.allDone = new CountDownLatch(segments.size());
-            // Bound total buffered pages to the open-segment window times the per-segment page budget, so
-            // backpressure scales with how many streams may be open rather than with the segment count.
             this.sharedQueue = new LinkedBlockingQueue<>(Math.max(1, maxConcurrentSegments * PAGES_PER_OPEN_SEGMENT));
-            // Work is dispatched by start(), not here, so no parser thread can observe a partially
-            // constructed instance — the constructor fully publishes before any worker runs.
         }
 
         /**
@@ -929,8 +659,9 @@ public final class ParallelParsingCoordinator {
             // with the sink still bound; then the handle restores the previous binding. The reader stamps
             // stripe addressing itself, so the sink no longer carries a coverage.
             ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
+            SegmentableFormatReader workerReader = createSegmentableReader(factory, settings, blockFactory, config, binding);
             try (bound) {
-                try (CloseableIterator<Page> pages = reader.read(segObj, ctx)) {
+                try (CloseableIterator<Page> pages = workerReader.read(segObj, ctx)) {
                     while (pages.hasNext()) {
                         if (firstError.get() != null || closed) {
                             break;
@@ -938,6 +669,8 @@ public final class ParallelParsingCoordinator {
                         enqueueOrRelease(pages.next());
                     }
                 }
+            } finally {
+                ReaderReleasingIterator.closeReader(workerReader);
             }
         }
 
@@ -967,15 +700,20 @@ public final class ParallelParsingCoordinator {
          * so it observes the final segment finishing within one poll interval.
          */
         private void finishSegment() {
+            int remaining = remainingSegments.decrementAndGet();
+            if (remaining == 0 && closed) {
+                drainQueue();
+            }
+            // Publish completion only after the final worker has performed close-time queue cleanup.
+            // Otherwise close() can return from await() while the last queued page still owns breaker bytes.
             allDone.countDown();
-            remainingSegments.decrementAndGet();
             // Only wake a parked consumer when this completion actually flips isReadyNow() to true: an error
             // was recorded, or this was the last segment and the queue is now drained (terminal EOF). A
             // mid-parse segment finishing with pages still to come leaves isReadyNow() false, so signalling
             // here would spuriously complete the listener and drop drainHotPath into a blocking hasNext() —
             // exactly the starvation this override removes. Enqueued pages are woken by enqueueOrRelease's
             // own signalReady(), so no wake-up is lost. Mirrors StreamingParallelIterator's task-exit gate.
-            if (firstError.get() != null || (remainingSegments.get() == 0 && sharedQueue.isEmpty())) {
+            if (firstError.get() != null || (remaining == 0 && sharedQueue.isEmpty())) {
                 signalReady();
             }
         }
@@ -1140,9 +878,11 @@ public final class ParallelParsingCoordinator {
             // close can leave a segment with a partial count under a full range, so discard the file's
             // contributions when the scan did not drain cleanly.
             if (cleanCompletion == false && captureSink != null) {
-                Map<String, Object> poison = new HashMap<>();
-                poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
-                ExternalStatsCapture.record(storageObject.path().toString(), poison);
+                if (statsPoisoned.compareAndSet(false, true)) {
+                    Map<String, Object> poison = new HashMap<>();
+                    poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
+                    ExternalStatsCapture.record(captureSink, storageObject.path().toString(), poison);
+                }
             }
         }
 

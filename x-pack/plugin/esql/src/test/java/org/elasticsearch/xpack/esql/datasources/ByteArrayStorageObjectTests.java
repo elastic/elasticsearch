@@ -7,13 +7,16 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ByteArrayStorageObjectTests extends ESTestCase {
 
@@ -68,6 +71,40 @@ public class ByteArrayStorageObjectTests extends ESTestCase {
         ByteArrayStorageObject obj = new ByteArrayStorageObject(StoragePath.of("mem://test"), data, 0, data.length);
 
         assertEquals(-1, obj.readBytes(3, ByteBuffer.allocate(1)));
+    }
+
+    public void testAsyncReadTransfersBufferOwnershipBeforeCallback() {
+        byte[] data = "abc".getBytes(StandardCharsets.UTF_8);
+        ByteArrayStorageObject obj = new ByteArrayStorageObject(StoragePath.of("mem://test"), data, 0, data.length);
+        AtomicInteger closes = new AtomicInteger();
+        AtomicInteger failures = new AtomicInteger();
+        RuntimeException callbackFailure = new RuntimeException("listener callback failure");
+
+        RuntimeException thrown = expectThrows(
+            RuntimeException.class,
+            () -> obj.readBytesAsync(
+                0,
+                data.length,
+                length -> new DirectReadBuffer(ByteBuffer.allocate(length), closes::incrementAndGet),
+                Runnable::run,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(DirectReadBuffer buffer) {
+                        buffer.close();
+                        throw callbackFailure;
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        failures.incrementAndGet();
+                    }
+                }
+            )
+        );
+
+        assertSame(callbackFailure, thrown);
+        assertEquals(0, failures.get());
+        assertEquals(1, closes.get());
     }
 
     public void testExists() throws IOException {

@@ -172,8 +172,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testJsonExtensionRecognized() throws IOException {
-        var reader = new NdJsonFormatReader(null, blockFactory);
-        assertTrue("NdJsonFormatReader should list .json as a supported extension", reader.fileExtensions().contains(".json"));
+        assertTrue(
+            new NdJsonDataSourcePlugin().formatSpecs()
+                .stream()
+                .anyMatch(spec -> spec.format().equals("ndjson") && spec.extensions().contains(".json"))
+        );
     }
 
     public void testJsonExtensionReadsData() throws IOException {
@@ -1298,7 +1301,12 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         // columnar readers. Regression for the epoch-reinterpret-past-declared-format bug.
         String ndjson = "{\"ts\": 20260101}\n";
         var object = new BytesStorageObject("file:///dt.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(null, blockFactory).withDeclaredDateFormats(Map.of("ts", "yyyyMMdd"));
+        var reader = (NdJsonFormatReader) new NdJsonFormatReaderFactory(Settings.EMPTY).create(
+            Settings.EMPTY,
+            blockFactory,
+            null,
+            FormatReadContext.Binding.empty().withDeclaredDateFormats(Map.of("ts", "yyyyMMdd"))
+        );
         List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.DATETIME));
         try (
             var iterator = reader.read(
@@ -1600,10 +1608,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             """;
         var settings = Settings.builder().put(NdJsonFormatReader.SCHEMA_SAMPLE_SIZE_SETTING, 1).build();
         var object = new BytesStorageObject("file:///inferred.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(settings, blockFactory);
 
         // strict: the cross-kind boolean fails the query
         try (
-            var iterator = new NdJsonFormatReader(settings, blockFactory).read(
+            var iterator = reader.read(
                 object,
                 FormatReadContext.builder().projectedColumns(List.of("n")).batchSize(100).errorPolicy(ErrorPolicy.STRICT).build()
             )
@@ -1618,7 +1627,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
         // skip_row: the offending record is dropped whole; the good record survives
         try (
-            var iterator = new NdJsonFormatReader(settings, blockFactory).read(
+            var iterator = reader.read(
                 object,
                 FormatReadContext.builder().projectedColumns(List.of("n")).batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build()
             )
@@ -1633,7 +1642,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
         // null_field: the record is kept, the offending cell is nulled
         try (
-            var iterator = new NdJsonFormatReader(settings, blockFactory).read(
+            var iterator = reader.read(
                 object,
                 FormatReadContext.builder().projectedColumns(List.of("n")).batchSize(100).errorPolicy(ErrorPolicy.PERMISSIVE).build()
             )
@@ -2763,6 +2772,15 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertEquals(0, reader.recordSplitter().findLastRecordBoundary(new byte[] { '\r' }, 1));
     }
 
+    private NdJsonFormatReader createConfigured(Map<String, Object> config) {
+        return (NdJsonFormatReader) new NdJsonFormatReaderFactory(Settings.EMPTY).create(
+            Settings.EMPTY,
+            blockFactory,
+            config,
+            FormatReadContext.Binding.empty()
+        );
+    }
+
     private int blockIdx(SourceMetadata meta, String name) {
         for (int i = 0; i < meta.schema().size(); i++) {
             if (meta.schema().get(i).name().equals(name)) {
@@ -2802,49 +2820,47 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testWithConfigSchemaSampleSizeOverride() {
-        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        var configured = reader.withConfig(Map.of("schema_sample_size", "50"));
-        assertNotSame(reader, configured);
+        var inspected = new NdJsonFormatReaderFactory(Settings.EMPTY).inspect(Map.of("schema_sample_size", "50"));
+        assertTrue(inspected.consumedKeys().contains("schema_sample_size"));
     }
 
     public void testWithConfigSchemaSampleSizeZeroIsRejected() {
-        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> reader.withConfig(Map.of("schema_sample_size", "0"))
+            () -> new NdJsonFormatReaderFactory(Settings.EMPTY).inspect(Map.of("schema_sample_size", "0"))
         );
         assertThat(e.getMessage(), Matchers.containsString("schema_sample_size must be positive"));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
     }
 
     public void testWithConfigSchemaSampleSizeNegativeIsRejected() {
-        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> reader.withConfig(Map.of("schema_sample_size", "-1"))
+            () -> new NdJsonFormatReaderFactory(Settings.EMPTY).inspect(Map.of("schema_sample_size", "-1"))
         );
         assertThat(e.getMessage(), Matchers.containsString("schema_sample_size must be positive"));
     }
 
     public void testWithConfigSchemaSampleSizeInvalidIsRejected() {
-        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
         // Distinct from the out-of-range cases: only the message separates unparseable from out-of-range now.
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> reader.withConfig(Map.of("schema_sample_size", "abc"))
+            () -> new NdJsonFormatReaderFactory(Settings.EMPTY).inspect(Map.of("schema_sample_size", "abc"))
         );
         assertThat(e.getMessage(), Matchers.containsString("Invalid integer value [abc]"));
     }
 
-    public void testWithConfigNullOrEmptyReturnsThis() {
-        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        assertSame(reader, reader.withConfig(null));
-        assertSame(reader, reader.withConfig(Map.of()));
+    public void testWithConfigNullOrEmptyConsumesNothing() {
+        var factory = new NdJsonFormatReaderFactory(Settings.EMPTY);
+        assertTrue(factory.inspect(null).consumedKeys().isEmpty());
+        assertTrue(factory.inspect(Map.of()).consumedKeys().isEmpty());
     }
 
     public void testWithConfigDatetimeFormatInvalidIsRejected() {
-        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("datetime_format", "not-a-valid-!!format!!")));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new NdJsonFormatReaderFactory(Settings.EMPTY).inspect(Map.of("datetime_format", "not-a-valid-!!format!!"))
+        );
     }
 
     /**
@@ -2854,9 +2870,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     public void testDatetimeFormatSchemaInference() throws IOException {
         String ndjson = "{\"ts\":\"25/12/2023 10:30:00\",\"id\":1}\n" + "{\"ts\":\"01/01/2024 00:00:00\",\"id\":2}\n";
         var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
-            Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss")
-        );
+        var reader = createConfigured(Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss"));
         var metadata = reader.metadata(object);
         var schema = metadata.schema();
         var tsAttr = schema.stream().filter(a -> a.name().equals("ts")).findFirst().orElseThrow();
@@ -2870,9 +2884,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     public void testDatetimeFormatDecoding() throws IOException {
         String ndjson = "{\"ts\":\"25/12/2023 10:30:00\",\"id\":1}\n";
         var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
-            Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss")
-        );
+        var reader = createConfigured(Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss"));
         var ctx = FormatReadContext.builder().projectedColumns(List.of("ts")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build();
         try (var iterator = reader.read(object, ctx)) {
             assertTrue(iterator.hasNext());
@@ -2901,9 +2913,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     private void assertDatetimeFormatDecodesTo(String pattern, String value, String expectedInstant) throws IOException {
         String ndjson = "{\"ts\":\"" + value + "\"}\n";
         var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
-            Map.of("datetime_format", pattern)
-        );
+        var reader = createConfigured(Map.of("datetime_format", pattern));
         var ctx = FormatReadContext.builder().projectedColumns(List.of("ts")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build();
         try (var iterator = reader.read(object, ctx)) {
             Page page = iterator.next();
@@ -3003,9 +3013,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         // 1704067200000 ms = 2024-01-01T00:00:00Z; 1719835200000 ms = 2024-07-01T12:00:00Z
         String ndjson = "{\"ts\":\"1704067200000\",\"id\":1}\n" + "{\"ts\":\"1719835200000\",\"id\":2}\n";
         var object = new BytesStorageObject("file:///epoch-ms.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
-            Map.of("datetime_format", "epoch_millis")
-        );
+        var reader = createConfigured(Map.of("datetime_format", "epoch_millis"));
 
         var schema = reader.metadata(object).schema();
         assertSchema(schema, "ts:DATETIME, id:INTEGER");
@@ -3031,9 +3039,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         // 1704067200 s = 2024-01-01T00:00:00Z; 1719835200 s = 2024-07-01T12:00:00Z
         String ndjson = "{\"ts\":\"1704067200\",\"id\":1}\n" + "{\"ts\":\"1719835200\",\"id\":2}\n";
         var object = new BytesStorageObject("file:///epoch-s.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
-            Map.of("datetime_format", "epoch_second")
-        );
+        var reader = createConfigured(Map.of("datetime_format", "epoch_second"));
 
         var schema = reader.metadata(object).schema();
         assertSchema(schema, "ts:DATETIME, id:INTEGER");
@@ -3059,9 +3065,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         // 20240601T120000.000Z = 2024-06-01T12:00:00Z; 20241231T235959.999Z = 2024-12-31T23:59:59.999Z
         String ndjson = "{\"ts\":\"20240601T120000.000Z\"}\n" + "{\"ts\":\"20241231T235959.999Z\"}\n";
         var object = new BytesStorageObject("file:///basic-dt.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
-            Map.of("datetime_format", "basic_date_time")
-        );
+        var reader = createConfigured(Map.of("datetime_format", "basic_date_time"));
 
         var schema = reader.metadata(object).schema();
         assertSchema(schema, "ts:DATETIME");
@@ -3089,9 +3093,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         // 20241231T200000.000-0800 = 2024-12-31T20:00:00-08:00 → UTC 2025-01-01T04:00:00Z
         String ndjson = "{\"ts\":\"20240601T120000.000+0530\"}\n" + "{\"ts\":\"20241231T200000.000-0800\"}\n";
         var object = new BytesStorageObject("file:///basic-dt-tz.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
-            Map.of("datetime_format", "basic_date_time")
-        );
+        var reader = createConfigured(Map.of("datetime_format", "basic_date_time"));
 
         var schema = reader.metadata(object).schema();
         assertSchema(schema, "ts:DATETIME");
@@ -3109,7 +3111,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testDefaultErrorPolicyIsStrictLikeOtherFormats() {
-        assertEquals(ErrorPolicy.STRICT, new NdJsonFormatReader(Settings.EMPTY, blockFactory).defaultErrorPolicy());
+        assertEquals(ErrorPolicy.STRICT, new NdJsonFormatReaderFactory(Settings.EMPTY).defaultErrorPolicy());
     }
 
     /**
@@ -3117,7 +3119,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * that drops the override (and silently falls back to 1 MiB) trips a precommit failure.
      */
     public void testMinimumSegmentSizeDefaultIsFourMiB() {
-        assertEquals(4L * 1024 * 1024, new NdJsonFormatReader(Settings.EMPTY, blockFactory).minimumSegmentSize());
+        assertEquals(4L * 1024 * 1024, new NdJsonFormatReaderFactory(Settings.EMPTY).minimumSegmentSize(null));
     }
 
     /**
@@ -3127,29 +3129,32 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      */
     public void testMinimumSegmentSizeRespectsNodeSetting() {
         var settings = Settings.builder().put(NdJsonFormatReader.SEGMENT_SIZE_SETTING, "8mb").build();
-        assertEquals(8L * 1024 * 1024, new NdJsonFormatReader(settings, blockFactory).minimumSegmentSize());
+        assertEquals(8L * 1024 * 1024, new NdJsonFormatReaderFactory(settings).minimumSegmentSize(null));
     }
 
     /**
      * Per-query override via {@code WITH {"segment_size": ...}}; mirrors the existing
-     * {@code schema_sample_size} pattern. Withconfig returns a new reader; the original is left
-     * unchanged so other concurrent queries keep their own values.
+     * {@code schema_sample_size} pattern. {@code minimumSegmentSize(config)} applies the override
+     * without changing the factory's node-level default.
      */
     public void testMinimumSegmentSizeRespectsWithConfig() {
-        var reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        FormatReader tuned = reader.withConfig(Map.of("segment_size", "2mb"));
-        assertNotSame(reader, tuned);
-        assertEquals("Per-query override applied", 2L * 1024 * 1024, ((NdJsonFormatReader) tuned).minimumSegmentSize());
-        assertEquals("Original reader still uses the default", 4L * 1024 * 1024, reader.minimumSegmentSize());
+        var factory = new NdJsonFormatReaderFactory(Settings.EMPTY);
+        assertEquals("Per-query override applied", 2L * 1024 * 1024, factory.minimumSegmentSize(Map.of("segment_size", "2mb")));
+        assertEquals("Factory still uses the default", 4L * 1024 * 1024, factory.minimumSegmentSize(null));
     }
 
     /** Configurations that hurt more than they help (sub-64 KiB) must be rejected up front. */
     public void testSegmentSizeTooSmallIsRejected() {
         var settings = Settings.builder().put(NdJsonFormatReader.SEGMENT_SIZE_SETTING, "1kb").build();
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new NdJsonFormatReader(settings, blockFactory));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new NdJsonFormatReaderFactory(settings).minimumSegmentSize(null)
+        );
         assertThat(ex.getMessage(), Matchers.containsString("segment_size"));
-        var reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        IllegalArgumentException ex2 = expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("segment_size", "1kb")));
+        IllegalArgumentException ex2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new NdJsonFormatReaderFactory(Settings.EMPTY).minimumSegmentSize(Map.of("segment_size", "1kb"))
+        );
         assertThat(ex2.getMessage(), Matchers.containsString("segment_size"));
     }
 
@@ -3379,10 +3384,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
         // 64kb is the minimum allowed segment_size; the ~480 KB buffer still splits into several segments.
         Settings settings = Settings.builder().put("esql.external.ndjson.segment_size", "64kb").build();
-        NdJsonFormatReader reader = new NdJsonFormatReader(settings, blockFactory);
+        NdJsonFormatReaderFactory factory = new NdJsonFormatReaderFactory(settings);
         BytesStorageObject obj = new BytesStorageObject("mem://multi-segment.ndjson", content);
 
-        int segmentCount = ParallelParsingCoordinator.computeSegments(reader, obj, content.length, 4, reader.minimumSegmentSize()).size();
+        int segmentCount = ParallelParsingCoordinator.computeSegments(factory, obj, content.length, 4, factory.minimumSegmentSize(null))
+            .size();
         assertThat(
             "buffer must actually split into multiple segments for this test to be meaningful",
             segmentCount,
@@ -3391,7 +3397,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
         long count = 0;
         ExecutorService exec = Executors.newFixedThreadPool(4);
-        try (CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("a"), 100, 4, exec)) {
+        try (CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(factory, obj, List.of("a"), 100, 4, exec)) {
             while (iter.hasNext()) {
                 Page p = iter.next();
                 count += p.getPositionCount();

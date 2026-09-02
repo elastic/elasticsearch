@@ -48,12 +48,10 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
-import org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator;
 import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
@@ -61,13 +59,10 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsHarvester;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
-import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
-import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -135,7 +130,8 @@ import java.util.function.Consumer;
  * {@code ip}, {@code version} ({@code v}), {@code null} ({@code n}).
  *
  * <h2>Configurable options</h2>
- * All options are set via the {@code WITH} clause and parsed by {@link #withConfig(Map)}.
+ * All options are set via the {@code WITH} clause and parsed by {@link CsvFormatReaderFactory#inspect} /
+ * {@link CsvFormatReaderFactory#create}.
  *
  * <table>
  *   <caption>CSV options</caption>
@@ -415,7 +411,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     static final String CONFIG_TRIM_SPACES = "trim_spaces";
     static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
 
-    /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
+    /** Keys recognised by {@link CsvFormatReaderFactory#inspect(Map)}. */
     static final Set<String> RECOGNIZED_KEYS = Set.of(
         CONFIG_DELIMITER,
         CONFIG_MODE,
@@ -440,15 +436,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final List<String> extensions;
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
-    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
+    // Mutable reader-level counters surfaced through {@link #statusSnapshot()};
     // shared across the parallel {@link CsvBatchIterator} segments spawned by {@link #read}.
     private final CsvReaderCounters counters;
     /**
      * ErrorPolicy used by the planning-time {@link #metadata} call (which has no per-query
-     * {@link FormatReadContext}). Resolved from the {@code WITH} options in {@link #withConfig}
+     * {@link FormatReadContext}). Resolved from the {@code WITH} options in {@link CsvFormatReaderFactory#create}
      * so a dataset configured with {@code error_mode=skip_row} also applies it to schema
      * sampling — matching common database readers' error-tolerance semantics.
-     * Defaults to {@link #defaultErrorPolicy()} (FAIL_FAST), so unset implies "fail at planning
+     * Defaults to {@link ErrorPolicy#STRICT}, so unset implies "fail at planning
      * if the file cannot be sampled cleanly", consistent with the rest of the system.
      */
     private final ErrorPolicy effectivePolicy;
@@ -459,18 +455,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * schema: a data node reads only the query's projected columns and an instance-local options
      * object, so a projection/options-derived fingerprint would differ from the coordinator's and the
      * coordinator would reject the data node's shipped-back stats — silently disabling the warm
-     * short-circuit in any real (coordinator != data node) cluster. Empty until {@link #withConfig} runs.
+     * short-circuit in any real (coordinator != data node) cluster. Empty until
+     * {@link CsvFormatReaderFactory#create} parses a non-empty config.
      */
     private final String canonicalConfig;
     /**
      * Identity of how the file currently being read is interpreted (see {@code ReadConfigFingerprint}), or empty when
      * the producing path had no coordinator-minted read schema. Per FILE, so it is set at the per-file seam via
-     * {@link #withReadConfig} rather than at config time like {@link #canonicalConfig}. Opaque here.
+     * {@link FormatReadContext.Binding#readConfig()} rather than at config time like {@link #canonicalConfig}. Opaque here.
      */
     private final String readConfig;
     /**
      * Per-column declared date parse-patterns, keyed by <b>physical</b> (file) column name (the caller applied any
-     * {@code path} rename). Set via {@link #withDeclaredDateFormats}; empty when no column declares a {@code format}.
+     * {@code path} rename). Set via {@link FormatReadContext.Binding#declaredDateFormats()}; empty when no column declares a
+     * {@code format}.
      * A {@link CsvBatchIterator} turns this into a per-projected-column {@link DateFormatter} array and parses those
      * columns' timestamps with the ES {@link DateFormatter} (zone-aware) instead of the ISO / file-level path.
      */
@@ -479,7 +477,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * True when the pinned schema's provenance is {@code DECLARED} (set by {@code FileSourceFactory} from
      * {@link org.elasticsearch.xpack.esql.datasources.SchemaProvenance#DECLARED}), meaning the schema was explicitly
      * declared by the user and its columns must bind to the file BY NAME rather than by position — see
-     * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader#withDeclaredProvenanceBinding}.
+     * {@link FormatReadContext.Binding#declaredProvenanceBinding()}.
      * False (the default) means the schema is inferred; the file columns bind positionally.
      */
     private final boolean declaredProvenanceBinding;
@@ -489,7 +487,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * logical records straight into typed {@code Block} builders: plain (unquoted) reads take the
      * simplest walk, and RFC 4180 quoted reads (with or without backslash escapes) take the
      * quote/escape-aware walk. Controlled by the node setting {@code esql.external.csv.direct_block.enabled}
-     * via {@link #withDirectBlockEnabled(boolean)}; turning it off forces the byte-equivalent Jackson
+     * via {@link CsvFormatReaderFactory}'s {@code directBlockEnabled} flag; turning it off forces the byte-equivalent Jackson
      * bulk path everywhere.
      */
     private final boolean directBlockEnabled;
@@ -576,12 +574,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         );
     }
 
-    /**
-     * As above, but adopting an existing counters instance rather than starting fresh ones. Used by the per-file
-     * withers: the operator snapshots its status envelope from the factory's shared reader, so a per-file copy that
-     * started its own counters would accumulate where nobody reads, and the reported figures would be zero.
-     */
-    private CsvFormatReader(
+    /** Creates a reader that reports into the supplied counter scope, or a fresh scope when it is null. */
+    CsvFormatReader(
         BlockFactory blockFactory,
         CsvFormatOptions options,
         String format,
@@ -610,30 +604,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.declaredProvenanceBinding = declaredProvenanceBinding;
         this.counters = sharedCounters != null ? sharedCounters : new CsvReaderCounters(format);
         this.sharedCsvMapper = createMapper(options);
-    }
-
-    /**
-     * Returns a copy of this reader with the direct-to-block read path toggled. Threaded from the
-     * {@code esql.external.csv.direct_block.enabled} node setting at reader-construction time.
-     */
-    public CsvFormatReader withDirectBlockEnabled(boolean enabled) {
-        if (enabled == directBlockEnabled) {
-            return this;
-        }
-        return new CsvFormatReader(
-            blockFactory,
-            options,
-            format,
-            extensions,
-            resolvedSchema,
-            schemaSampleSize,
-            effectivePolicy,
-            canonicalConfig,
-            readConfig,
-            enabled,
-            declaredDateFormats,
-            declaredProvenanceBinding
-        );
     }
 
     /**
@@ -686,7 +656,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Absent keys keep baseline values so e.g. TSV's tab delimiter is preserved when only {@code header_row}
      * is overridden.
      */
-    private static CsvFormatOptions parseOptionsFromConfig(Map<String, Object> config, CsvFormatOptions baseline) {
+    static CsvFormatOptions parseOptionsFromConfig(Map<String, Object> config, CsvFormatOptions baseline) {
         // `mode` is a named preset over the (quoting, escaping) pair; explicit quote/escape keys then
         // override whatever the preset (or the extension baseline) chose. Overrides always win — we no
         // longer reject an "incoherent" combination, so a resulting silent misread is the user's to own.
@@ -845,7 +815,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return value.toString();
     }
 
-    private static int parseInt(Object value, int defaultValue) {
+    static int parseInt(Object value, int defaultValue) {
         if (value == null) {
             return defaultValue;
         }
@@ -900,8 +870,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Compiles the file-level {@code datetime_format} option into an ES {@link DateFormatter} — the same engine the
-     * per-column declared {@code format} ({@link #withDeclaredDateFormats}), the NDJSON reader's identically-named
+     * Compiles the file-level {@code datetime_format} option into an ES {@link DateFormatter}: the same engine the
+     * per-column declared {@code format} ({@link FormatReadContext.Binding#declaredDateFormats()}), the NDJSON reader's
+     * identically-named
      * option and the date field mapper all parse with. One option name must not mean two pattern dialects.
      */
     private static DateFormatter parseDatetimeFormat(Object value, DateFormatter baseline) {
@@ -913,69 +884,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid datetime format [" + value + "]", e);
         }
-    }
-
-    public CsvFormatReader withOptions(CsvFormatOptions newOptions) {
-        return new CsvFormatReader(
-            blockFactory,
-            newOptions,
-            format,
-            extensions,
-            resolvedSchema,
-            schemaSampleSize,
-            effectivePolicy,
-            canonicalConfig,
-            readConfig,
-            directBlockEnabled,
-            declaredDateFormats,
-            declaredProvenanceBinding
-        );
-    }
-
-    @Override
-    public CsvFormatReader withSchema(List<Attribute> schema) {
-        return new CsvFormatReader(
-            blockFactory,
-            options,
-            format,
-            extensions,
-            schema,
-            schemaSampleSize,
-            effectivePolicy,
-            canonicalConfig,
-            readConfig,
-            directBlockEnabled,
-            declaredDateFormats,
-            declaredProvenanceBinding
-        );
-    }
-
-    @Override
-    public CsvFormatReader withDeclaredProvenanceBinding(boolean binding) {
-        if (binding == declaredProvenanceBinding) {
-            return this;
-        }
-        return new CsvFormatReader(
-            blockFactory,
-            options,
-            format,
-            extensions,
-            resolvedSchema,
-            schemaSampleSize,
-            effectivePolicy,
-            canonicalConfig,
-            readConfig,
-            directBlockEnabled,
-            declaredDateFormats,
-            binding
-        );
-    }
-
-    @Override
-    public boolean declaredNameBindingNeedsFileStart() {
-        // Headered + provenance-declared schema binds against the header line, which only the first split carries.
-        // Headerless binds from the names alone, so it stays splittable.
-        return declaredProvenanceBinding && options.headerRow();
     }
 
     /**
@@ -1081,83 +989,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     @Override
-    public CsvFormatReader withDeclaredDateFormats(Map<String, String> physicalNameToPattern) {
-        if (physicalNameToPattern == null || physicalNameToPattern.isEmpty()) {
-            return this;
-        }
-        return new CsvFormatReader(
-            blockFactory,
-            options,
-            format,
-            extensions,
-            resolvedSchema,
-            schemaSampleSize,
-            effectivePolicy,
-            canonicalConfig,
-            readConfig,
-            directBlockEnabled,
-            physicalNameToPattern,
-            declaredProvenanceBinding
-        );
-    }
-
-    @Override
-    public CsvFormatReader withReadConfig(String newReadConfig) {
-        if (newReadConfig == null || newReadConfig.equals(readConfig)) {
-            return this;
-        }
-        // Shares this reader's counters. The status envelope is snapshotted from the factory's shared reader, but
-        // this wither runs at the per-file seam, so the copy is the instance that actually reads. Starting fresh
-        // counters leaves the reported read time at zero for every query — telemetry goes quiet, not the data.
-        return new CsvFormatReader(
-            blockFactory,
-            options,
-            format,
-            extensions,
-            resolvedSchema,
-            schemaSampleSize,
-            effectivePolicy,
-            canonicalConfig,
-            newReadConfig,
-            directBlockEnabled,
-            declaredDateFormats,
-            declaredProvenanceBinding,
-            counters
-        );
-    }
-
-    @Override
-    public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-        if (config == null || config.isEmpty()) {
-            return Configured.empty(this);
-        }
-        CsvFormatOptions parsed = parseOptionsFromConfig(config, options);
-        int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
-        Check.clientError(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
-        ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);
-        CsvFormatReader result = parsed != null ? withOptions(parsed) : this;
-        // Pin the node-stable config identity from THIS query's WITH config. buildFormatConfig filters
-        // to format-affecting params (dropping credentials, split keys, and any per-node augmentation),
-        // so a coordinator and a data node configured from the same logical query derive the same value.
-        String canon = SchemaCacheKey.buildFormatConfig(config);
-        result = new CsvFormatReader(
-            result.blockFactory,
-            result.options,
-            result.format,
-            result.extensions,
-            result.resolvedSchema,
-            newSampleSize,
-            resolvedPolicy,
-            canon,
-            result.readConfig,
-            result.directBlockEnabled,
-            result.declaredDateFormats,
-            result.declaredProvenanceBinding
-        );
-        return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
-    }
-
-    @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<Attribute> schema = readSchema(object);
         String location = object.path().toString();
@@ -1166,11 +997,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         try {
             Instant mtime = object.lastModified();
             if (mtime == null) {
-                return new SimpleSourceMetadata(schema, formatName(), location);
+                return new SimpleSourceMetadata(schema, format, location);
             }
             mtimeMillis = mtime.toEpochMilli();
         } catch (IOException e) {
-            return new SimpleSourceMetadata(schema, formatName(), location);
+            return new SimpleSourceMetadata(schema, format, location);
         }
         OptionalLong cachedSize;
         try {
@@ -1190,7 +1021,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             configFingerprint
         );
         Map<String, Object> sourceMetadata = SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats);
-        return new SimpleSourceMetadata(schema, formatName(), location, stats, null, sourceMetadata, null);
+        return new SimpleSourceMetadata(schema, format, location, stats, null, sourceMetadata, null);
     }
 
     /**
@@ -1919,7 +1750,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             warnAbsentDeclaredColumns(schemaFieldIndex, readSchema, context.informationalWarningSink());
             effectiveSchema = readSchema;
         } else if (context.firstSplit()) {
-            // resolvedSchema from withSchema(...) is the projected output, not the file's column
+            // resolvedSchema from the builder is the projected output, not the file's column
             // layout — using it as positional schema would mis-align columns. Only trust it when
             // recordAligned=true (streaming-parallel pre-bound the FULL file schema from chunk 0).
             if (context.recordAligned() && resolvedSchema != null) {
@@ -2002,18 +1833,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
         );
     }
 
-    /**
-     * Returns an immutable typed snapshot of the CSV reader's counters for the operator-status
-     * envelope. Zero-valued counters when no batches have run.
-     */
-    @Override
-    public CsvReaderStatus statusSnapshot() {
-        return counters.snapshot();
-    }
-
     @Override
     public void acceptReadCpuNanos(long nanos) {
         counters.addReadCpuNanos(nanos);
+    }
+
+    @Override
+    public CsvReaderStatus statusSnapshot() {
+        return counters.snapshot();
     }
 
     @Override
@@ -2023,6 +1850,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     @Override
     public RecordSplitter recordSplitter(int maxRecordBytes) {
+        return recordSplitter(options, maxRecordBytes);
+    }
+
+    static RecordSplitter recordSplitter(CsvFormatOptions options, int maxRecordBytes) {
         // Splitter chosen once, from the (quoting, escaping) pair - never a per-byte branch. Only plain
         // data (no quoting, no escaping: every byte literal) has raw line terminators that are always
         // record boundaries, so only it can use the cheap strided terminator scan. When quoting is on a
@@ -2037,21 +1868,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     static boolean isAsciiCsvFieldLeadingWhitespace(int ib) {
         return ib == ' ' || ib == '\t' || ib == '\f';
-    }
-
-    @Override
-    public String formatName() {
-        return format;
-    }
-
-    @Override
-    public List<String> fileExtensions() {
-        return extensions;
-    }
-
-    @Override
-    public AggregatePushdownSupport aggregatePushdownSupport() {
-        return new TextAggregatePushdownSupport();
     }
 
     @Override

@@ -22,6 +22,7 @@ import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -133,7 +134,7 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
 
         StorageObject obj = nativeAsyncStorage(parquetData);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
         try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(1024).build())) {
             // hasNext() drives advanceRowGroup() -> Phase 1 (predicate decode) and Phase 2
             // (projection prefetch). All of these allocations must succeed; we arm the breaker
@@ -188,7 +189,7 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
 
         StorageObject obj = nativeAsyncStorage(parquetData);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
 
         AtomicLong rowsConsumed = new AtomicLong();
         try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(512).build())) {
@@ -237,7 +238,7 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
 
         StorageObject obj = nativeAsyncStorage(parquetData);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
 
         int rowsRead = 0;
         try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(1024).build())) {
@@ -282,7 +283,7 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
 
         StorageObject obj = nativeAsyncStorage(parquetData);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
 
         int rowsRead = 0;
         try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(1024).rowLimit(37).build())) {
@@ -359,7 +360,7 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
 
         StorageObject obj = nativeAsyncStorage(parquetData);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
         try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(512).build())) {
             // Arm with skip=1: the id block allocation is allowed, the id2 block allocation trips.
             // decodePredicateBatch is driven eagerly inside hasNext() for the two-phase path.
@@ -413,7 +414,7 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
         // syncStorage: supportsNativeAsync() == false → shouldUseTwoPhase returns false →
         // nextWithLateMaterialization is used instead of nextTwoPhaseBatch.
         StorageObject obj = syncStorage(parquetData);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(pushed);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
         try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(512).build())) {
             assertTrue("expected at least one row group", it.hasNext());
             // Arm with skip=1 before next(): Phase 1 allocates the id block (skipped), Phase 3
@@ -464,7 +465,7 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
 
         StorageObject obj = syncStorage(parquetData);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(pushed);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
         try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(512).build())) {
             assertTrue("expected at least one row group", it.hasNext());
             // Arm with skip=1 before next(): Phase 1 allocates id block (skipped), then id2
@@ -750,4 +751,14 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
         java.util.Arrays.fill(arr, c);
         return new String(arr);
     }
+
+    private static ParquetFormatReader readerWithPushedFilter(BlockFactory blockFactory, Object pushed) {
+        return (ParquetFormatReader) new ParquetFormatReaderFactory().create(
+            Settings.EMPTY,
+            blockFactory,
+            null,
+            FormatReadContext.Binding.empty().withPushedFilter(pushed)
+        );
+    }
+
 }

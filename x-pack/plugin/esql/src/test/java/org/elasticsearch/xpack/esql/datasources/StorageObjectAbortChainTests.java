@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.hamcrest.Matchers;
@@ -111,9 +114,16 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
         // Plain mode: the abort-chain contract is format-agnostic; macro-split discovery now refuses non-strided
         // (default/quoted) CSV. Plain CSV keeps strided probing.
-        SegmentableFormatReader csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
+        Map<String, Object> plainConfig = Map.of("mode", "plain");
+        CsvFormatReaderFactory csvFactory = new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true);
+        SegmentableFormatReader csvReader = (SegmentableFormatReader) csvFactory.create(
+            Settings.EMPTY,
+            blockFactory,
+            plainConfig,
+            FormatReadContext.Binding.empty()
+        );
 
-        long minSegment = csvReader.minimumSegmentSize();
+        long minSegment = csvFactory.minimumSegmentSize(plainConfig);
         List<Long> positions = RecordBoundaryProbe.stridedPositions(fileLength, stride, minSegment);
         List<Long> starts = RecordBoundaryProbe.reduce(
             RecordBoundaryProbe.stridedOutcomes(
@@ -162,14 +172,22 @@ public class StorageObjectAbortChainTests extends ESTestCase {
 
         StorageObject chain = new RetryableStorageObject(raw, new RetryPolicy(3, 1, 10));
 
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
         // Plain mode: the abort-chain contract is format-agnostic; computeSegments now refuses non-strided
         // (default/quoted) CSV. Plain CSV keeps strided probing.
-        SegmentableFormatReader csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
+        Map<String, Object> plainConfig = Map.of("mode", "plain");
+        CsvFormatReaderFactory csvFactory = new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true);
 
-        List<long[]> segments = ParallelParsingCoordinator.computeSegments(csvReader, chain, fileLength, 4, csvReader.minimumSegmentSize());
+        List<long[]> segments = ParallelParsingCoordinator.computeSegments(
+            csvFactory,
+            plainConfig,
+            chain,
+            fileLength,
+            4,
+            csvFactory.minimumSegmentSize(plainConfig),
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
 
-        long stride = Math.max(fileLength / 4, csvReader.minimumSegmentSize());
+        long stride = Math.max(fileLength / 4, csvFactory.minimumSegmentSize(plainConfig));
         assertThat(
             "a probe here must be left with more than the drain threshold to transfer, or it is no longer testing the abort path",
             segmentProbeWindow(fileLength, stride),

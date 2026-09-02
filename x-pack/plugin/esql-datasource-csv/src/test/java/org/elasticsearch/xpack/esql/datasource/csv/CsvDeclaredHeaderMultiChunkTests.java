@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.junit.Before;
@@ -56,7 +58,8 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
         // The streaming coordinator chunks at the reader's minimum segment size, so the content has to
         // exceed it to produce a second chunk at all — below that the read never leaves chunk 0 and the
         // test would pass without the fix.
-        long chunkSize = new CsvFormatReader(blockFactory).minimumSegmentSize();
+        CsvFormatReaderFactory factory = new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true);
+        long chunkSize = factory.minimumSegmentSize(null);
         StringBuilder csv = new StringBuilder("emp_no,first_name,salary\n");
         int rows = 0;
         while (csv.length() < chunkSize * 2) {
@@ -71,17 +74,17 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "first_name", DataType.KEYWORD)
         );
 
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withDeclaredProvenanceBinding(true)
-            .withSchema(declared);
-
         InputStream stream = new ByteArrayInputStream(csv.toString().getBytes(StandardCharsets.UTF_8));
         ExecutorService executor = Executors.newFixedThreadPool(4);
         long seenRows = 0;
         long salarySum = 0;
         try (
             CloseableIterator<Page> pages = StreamingParallelParsingCoordinator.parallelRead(
-                (SegmentableFormatReader) reader,
+                factory,
+                Settings.EMPTY,
+                blockFactory,
+                Map.of("header_row", true),
+                FormatReadContext.Binding.empty().withBoundSchema(declared).withDeclaredProvenanceBinding(true),
                 stream,
                 null,
                 List.of("salary", "first_name"),

@@ -22,6 +22,7 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -158,8 +159,7 @@ public class ParquetBloomFilterTests extends ESTestCase {
         FilterPredicate filter = FilterApi.eq(FilterApi.longColumn("id"), 999999L);
         FilterCompat.Filter compatFilter = FilterCompat.get(filter);
 
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        ParquetFormatReader filteredReader = reader.withPushedFilter(compatFilter);
+        ParquetFormatReader filteredReader = readerWithPushedFilter(blockFactory, compatFilter);
 
         StorageObject storageObject = createStorageObject(parquetData);
         int totalRows = 0;
@@ -192,30 +192,23 @@ public class ParquetBloomFilterTests extends ESTestCase {
         assertTrue(filteredRows > 0);
     }
 
-    /**
-     * Test that withPushedFilter with null returns the same reader.
-     */
-    public void testWithPushedFilterNullReturnsThis() {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        ParquetFormatReader result = reader.withPushedFilter(null);
-        assertSame(reader, result);
+    public void testCreateIgnoresNullPushedFilter() {
+        ParquetFormatReader reader = readerWithPushedFilter(null);
+        assertSame(FilterCompat.NOOP, reader.pushedFilter());
+        assertNull(reader.pushedExpressions());
     }
 
-    /**
-     * Test that withPushedFilter with non-Filter object returns the same reader.
-     */
-    public void testWithPushedFilterWrongTypeReturnsThis() {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        ParquetFormatReader result = reader.withPushedFilter("not a filter");
-        assertSame(reader, result);
+    public void testCreateIgnoresUnrecognizedPushedFilter() {
+        ParquetFormatReader reader = readerWithPushedFilter("not a filter");
+        assertSame(FilterCompat.NOOP, reader.pushedFilter());
+        assertNull(reader.pushedExpressions());
     }
 
     /**
      * Test that filterPushdownSupport returns non-null.
      */
     public void testFilterPushdownSupport() {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        assertNotNull(reader.filterPushdownSupport());
+        assertNotNull(new ParquetFormatReaderFactory().filterPushdownSupport());
     }
 
     // --- helpers ---
@@ -253,10 +246,9 @@ public class ParquetBloomFilterTests extends ESTestCase {
     }
 
     private int readWithFilter(byte[] parquetData, FilterPredicate filter) throws IOException {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        if (filter != null) {
-            reader = reader.withPushedFilter(FilterCompat.get(filter));
-        }
+        ParquetFormatReader reader = filter == null
+            ? new ParquetFormatReader(blockFactory)
+            : readerWithPushedFilter(FilterCompat.get(filter));
 
         StorageObject storageObject = createStorageObject(parquetData);
         int totalRows = 0;
@@ -357,4 +349,18 @@ public class ParquetBloomFilterTests extends ESTestCase {
             }
         };
     }
+
+    private static ParquetFormatReader readerWithPushedFilter(BlockFactory blockFactory, Object pushed) {
+        return (ParquetFormatReader) new ParquetFormatReaderFactory().create(
+            Settings.EMPTY,
+            blockFactory,
+            null,
+            FormatReadContext.Binding.empty().withPushedFilter(pushed)
+        );
+    }
+
+    private ParquetFormatReader readerWithPushedFilter(Object pushed) {
+        return readerWithPushedFilter(blockFactory, pushed);
+    }
+
 }

@@ -26,6 +26,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -531,7 +532,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     private void assertMvSurvivors(byte[] parquetBytes, Expression filter, Set<Long> expected) throws IOException {
         Set<Long> actual = new TreeSet<>();
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(splitTopLevelAnd(filter));
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
         try (CloseableIterator<Page> iter = reader.read(inMemoryStorageObject(parquetBytes), FormatReadContext.of(null, READ_BATCH_SIZE))) {
             while (iter.hasNext()) {
                 Page page = iter.next();
@@ -910,7 +911,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     private Set<Long> productionReaderEvaluate(byte[] parquetBytes, Expression filter) throws IOException {
         List<Expression> conjuncts = splitTopLevelAnd(filter);
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(conjuncts);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
 
         // Determine the FilterExec remainder using the same classifier the planner uses.
         ParquetFilterPushdownSupport pushdownSupport = new ParquetFilterPushdownSupport();
@@ -970,7 +971,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
      * trivially-passes, RowRanges over-pruning).
      */
     private Set<Long> oracleB_pushdownDisabled(byte[] parquetBytes, Expression filter) throws IOException {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         Set<Long> allRows = collectIdsWithEval(reader, parquetBytes, filter);
         return allRows;
     }
@@ -1585,6 +1586,15 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
                 out.write(b, off, len);
             }
         };
+    }
+
+    private static ParquetFormatReader readerWithPushedFilter(BlockFactory blockFactory, Object pushed) {
+        return (ParquetFormatReader) new ParquetFormatReaderFactory().create(
+            Settings.EMPTY,
+            blockFactory,
+            null,
+            FormatReadContext.Binding.empty().withPushedFilter(pushed)
+        );
     }
 
 }

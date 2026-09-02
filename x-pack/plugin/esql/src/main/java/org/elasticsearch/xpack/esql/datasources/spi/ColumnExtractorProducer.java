@@ -22,8 +22,8 @@ import java.util.function.Consumer;
  * path: opting in commits to the full handshake — the iterator both produces a matching
  * extractor and emits {@code _rowPosition} values <em>already encoded</em> with the registry-
  * assigned id, so downstream operators can decode them without an intermediate re-encoding
- * pass. Iterators that don't support deferred extraction simply omit
- * {@link ColumnExtractorAware} on the format reader and never reach this code path.
+ * pass. Formats that do not support deferred extraction leave
+ * {@link FormatReaderFactory#columnExtractor()} false and never reach this code path.
  *
  * <h2>Encoding handshake</h2>
  * <ol>

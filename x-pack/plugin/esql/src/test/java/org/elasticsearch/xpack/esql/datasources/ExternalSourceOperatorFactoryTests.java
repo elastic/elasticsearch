@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -70,7 +69,6 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         Mockito.when(storageProvider.newObject(Mockito.any(StoragePath.class))).thenReturn(storageObject);
 
         FormatReader formatReader = Mockito.mock(FormatReader.class);
-        Mockito.when(formatReader.formatName()).thenReturn("csv");
         Mockito.when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         @SuppressWarnings("unchecked")
         CloseableIterator<org.elasticsearch.compute.data.Page> emptyIterator = Mockito.mock(CloseableIterator.class);
@@ -99,7 +97,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         // Create operator factory
         ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             1000  // batch size
@@ -134,7 +132,10 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         );
 
         // Test null storage provider
-        expectThrows(IllegalArgumentException.class, () -> new ExternalSourceOperatorFactory(null, formatReader, path, attributes, 1000));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ExternalSourceOperatorFactory(null, TestFormatReaderFactory.of(formatReader), path, attributes, 1000)
+        );
 
         // Test null format reader
         expectThrows(
@@ -145,24 +146,24 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         // Test null path
         expectThrows(
             IllegalArgumentException.class,
-            () -> new ExternalSourceOperatorFactory(storageProvider, formatReader, null, attributes, 1000)
+            () -> new ExternalSourceOperatorFactory(storageProvider, TestFormatReaderFactory.of(formatReader), null, attributes, 1000)
         );
 
         // Test null attributes
         expectThrows(
             IllegalArgumentException.class,
-            () -> new ExternalSourceOperatorFactory(storageProvider, formatReader, path, null, 1000)
+            () -> new ExternalSourceOperatorFactory(storageProvider, TestFormatReaderFactory.of(formatReader), path, null, 1000)
         );
 
         // Test invalid batch size
         expectThrows(
             IllegalArgumentException.class,
-            () -> new ExternalSourceOperatorFactory(storageProvider, formatReader, path, attributes, 0)
+            () -> new ExternalSourceOperatorFactory(storageProvider, TestFormatReaderFactory.of(formatReader), path, attributes, 0)
         );
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> new ExternalSourceOperatorFactory(storageProvider, formatReader, path, attributes, -1)
+            () -> new ExternalSourceOperatorFactory(storageProvider, TestFormatReaderFactory.of(formatReader), path, attributes, -1)
         );
     }
 
@@ -198,7 +199,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
 
         ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
             new StubStorageProvider(),
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             StoragePath.of("s3://bucket/whole.csv"),
             List.of(
                 new FieldAttribute(
@@ -261,7 +262,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
 
         ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -340,7 +341,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
 
         ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -387,7 +388,6 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         StorageProvider storageProvider = Mockito.mock(StorageProvider.class);
         FormatReader formatReader = Mockito.mock(FormatReader.class);
         Mockito.when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        Mockito.when(formatReader.formatName()).thenReturn("csv");
         StoragePath path = StoragePath.of("file:///tmp/data.csv");
         List<Attribute> attributes = List.of(
             new FieldAttribute(
@@ -397,7 +397,13 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
             )
         );
 
-        ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(storageProvider, formatReader, path, attributes, 500);
+        ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
+            storageProvider,
+            TestFormatReaderFactory.basic(() -> formatReader).withFormatName("csv"),
+            path,
+            attributes,
+            500
+        );
 
         String description = factory.describe();
         assertTrue(description.contains("ExternalSourceOperator"));
@@ -439,7 +445,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
 
         ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             StoragePath.of("s3://bucket/headerless.csv"),
             attributes,
             100,
@@ -476,7 +482,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         return new Page(block);
     }
 
-    private static class SplitCapturingFormatReader implements NoConfigFormatReader {
+    private static class SplitCapturingFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -531,16 +537,6 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
                 @Override
                 public void close() {}
             };
-        }
-
-        @Override
-        public String formatName() {
-            return "test-split-capturing";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".csv");
         }
 
         @Override

@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
 import org.apache.parquet.column.page.PageReader;
+import org.apache.parquet.compression.CompressionCodecFactory;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.schema.MessageType;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -109,7 +111,9 @@ import java.util.function.Consumer;
 final class ParquetColumnExtractor implements ColumnExtractor {
 
     private final StorageObject storageObject;
-    private final ParquetFormatReader reader;
+    private final CompressionCodecFactory codecFactory;
+    private final Set<String> declaredTypeColumns;
+    private final Map<String, String> declaredDateFormats;
     private final ParquetMetadata ownedFooter;
     /** See {@link #castBlockWarnings()}. */
     private final ErrorPolicy errorPolicy;
@@ -134,9 +138,8 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     private final Consumer<String> warningSink;
 
     /**
-     * Delegates to {@link #ParquetColumnExtractor(StorageObject, ParquetFormatReader, ParquetMetadata, ErrorPolicy, Consumer)}
-     * with no warning sink, so coercion warnings emit directly via {@code HeaderWarning} (per-instance
-     * cap only). Used by tests and any on-driver-thread caller that does not centrally cap the channel.
+     * Snapshots codec and declared-type helpers from {@code reader} at construct time. The
+     * extractor does not retain the reader.
      */
     ParquetColumnExtractor(StorageObject storageObject, ParquetFormatReader reader, ParquetMetadata ownedFooter, ErrorPolicy errorPolicy) {
         this(storageObject, reader, ownedFooter, errorPolicy, null);
@@ -144,8 +147,8 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
     /**
      * @param storageObject the storage handle for the file (extractor borrows it; caller closes)
-     * @param reader        a {@link ParquetFormatReader} to use for codec-factory access; the
-     *                      extractor never opens iterators through it
+     * @param reader        source of codec-factory and declared-type helpers; snapshotted here,
+     *                      then unused
      * @param ownedFooter   the {@link ParquetMetadata} for the file. Always the full footer —
      *                      iterators (full-file or range-split) emit file-global row identities,
      *                      so the extractor's address space matches the file rather than any
@@ -164,8 +167,30 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         ErrorPolicy errorPolicy,
         @Nullable Consumer<String> warningSink
     ) {
+        this(
+            storageObject,
+            reader.codecFactory(),
+            reader.declaredTypeColumns(),
+            reader.declaredDateFormats(),
+            ownedFooter,
+            errorPolicy,
+            warningSink
+        );
+    }
+
+    ParquetColumnExtractor(
+        StorageObject storageObject,
+        CompressionCodecFactory codecFactory,
+        Set<String> declaredTypeColumns,
+        Map<String, String> declaredDateFormats,
+        ParquetMetadata ownedFooter,
+        ErrorPolicy errorPolicy,
+        @Nullable Consumer<String> warningSink
+    ) {
         this.storageObject = Objects.requireNonNull(storageObject, "storageObject");
-        this.reader = Objects.requireNonNull(reader, "reader");
+        this.codecFactory = Objects.requireNonNull(codecFactory, "codecFactory");
+        this.declaredTypeColumns = Set.copyOf(Objects.requireNonNull(declaredTypeColumns, "declaredTypeColumns"));
+        this.declaredDateFormats = Map.copyOf(Objects.requireNonNull(declaredDateFormats, "declaredDateFormats"));
         this.ownedFooter = Objects.requireNonNull(ownedFooter, "ownedFooter");
         this.errorPolicy = Objects.requireNonNull(errorPolicy, "errorPolicy");
         this.warningSink = warningSink;
@@ -554,11 +579,17 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         }
     }
 
+    @Nullable
+    private DateFormatter declaredDateFormatterFor(String physicalColumnName) {
+        String pattern = declaredDateFormats.get(physicalColumnName);
+        return pattern == null ? null : DateFormatter.forPattern(pattern);
+    }
+
     /**
      * Coerces one stitched physical-type block to the caller's target (planner/declared) type
      * through {@link DeclaredTypeCoercions#castBlock} — the identical engine, formatter (the
      * column's declared date {@code format} via
-     * {@link ParquetFormatReader#declaredDateFormatterFor}), and policy-aware failure behavior
+     * {@link #declaredDateFormatterFor}), and policy-aware failure behavior
      * ({@link #castBlockWarnings}) as the eager decode paths, so a deferred column reads exactly
      * like an eagerly scanned one — including the declared-vs-inferred null-fill decision: the lossy
      * {@link DeclaredTypeCoercions#supports} escape (which admits narrowing) is honored only for a
@@ -577,13 +608,13 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             // scan of the same file. columnName is physical here (the extractor projects physical names), matching the set.
             boolean coercible = DeclaredTypeCoercions.supports(fileType, target)
                 && (ParquetFormatReader.plannerTypeCompatibleWithFileDerivedType(target, fileType)
-                    || reader.isDeclaredTypeColumn(columnName));
+                    || declaredTypeColumns.contains(columnName));
             if (coercible) {
                 return DeclaredTypeCoercions.castBlock(
                     physical,
                     fileType,
                     target,
-                    reader.declaredDateFormatterFor(columnName),
+                    declaredDateFormatterFor(columnName),
                     factory,
                     columnName,
                     castBlockWarnings()
@@ -753,7 +784,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 /* rowRanges = */ null,
                 /* preloadedMetadata = */ null,
                 prefetched,
-                reader.codecFactory(),
+                codecFactory,
                 blockFactory.breaker()
             )
         ) {

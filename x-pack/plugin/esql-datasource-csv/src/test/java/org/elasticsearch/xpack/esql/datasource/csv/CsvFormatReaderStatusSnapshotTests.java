@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
@@ -31,14 +33,9 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Verifies that {@link CsvFormatReader#statusSnapshot()} reports populated counters after a real
  * read drains a CSV file. Complements {@link CsvReaderCountersTests} (which exercises the counter
- * struct in isolation) by exercising the full FormatReader → batch-iterator wiring.
+ * struct in isolation) by exercising the full FormatReader to batch-iterator wiring.
  * <p>
- * The last two pin the COUNTER LIFETIME in both directions, mirroring the NDJSON suite. CSV has the correct
- * shape today — only {@link CsvFormatReader#withReadConfig} shares its parent's counters — and these exist to
- * keep it: the chain's root is the node-lifetime reader the format registry hands out, so a wither that shares
- * above the per-query seam mixes concurrent queries' telemetry, while a fork at the per-file seam leaves the
- * reader that reads reporting into a copy nobody snapshots. Neither is observable from a single drained reader,
- * which is why both assert on a SECOND live copy.
+ * Each {@link CsvFormatReaderFactory#create} owns its own counters.
  */
 public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
 
@@ -57,9 +54,8 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
             3,Carol
             """;
         StorageObject object = inMemoryCsv(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = (CsvFormatReader) csvFactory().create(Settings.EMPTY, blockFactory);
 
-        // Snapshot before drain: counters should be at zero, header_detected false.
         var before = reader.statusSnapshot();
         assertEquals(0L, before.rowsEmitted());
         assertEquals(0L, before.parseErrors());
@@ -81,37 +77,52 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
         assertTrue("read_cpu_nanos should be > 0 after at least one batch", after.readCpuNanos() > 0);
         assertTrue("read_cpu_nanos must not exceed read_nanos", after.readCpuNanos() <= after.readNanos());
 
-        // Test manual addition to read_cpu_nanos
         long readNanosBeforeAccept = after.readCpuNanos();
         reader.acceptReadCpuNanos(99_999L);
         assertThat(reader.statusSnapshot().readCpuNanos(), equalTo(readNanosBeforeAccept + 99_999L));
 
     }
 
-    public void testSiblingQueryReadersDoNotShareCounters() throws IOException {
-        CsvFormatReader base = new CsvFormatReader(blockFactory);
-        CsvFormatReader first = (CsvFormatReader) base.withConfigTrackingConsumedKeys(Map.of("delimiter", ",")).value();
-        CsvFormatReader second = (CsvFormatReader) base.withConfigTrackingConsumedKeys(Map.of("delimiter", ",")).value();
+    public void testCreatesHaveIndependentCounters() throws IOException {
+        CsvFormatReaderFactory factory = csvFactory();
+        CsvFormatReader first = (CsvFormatReader) factory.create(
+            Settings.EMPTY,
+            blockFactory,
+            Map.of("delimiter", ","),
+            FormatReadContext.Binding.empty()
+        );
+        CsvFormatReader second = (CsvFormatReader) factory.create(
+            Settings.EMPTY,
+            blockFactory,
+            Map.of("delimiter", ","),
+            FormatReadContext.Binding.empty()
+        );
 
         drain(first);
 
-        assertTrue("the reader that read must report its own work", first.statusSnapshot().rowsEmitted() > 0);
-        assertEquals("a sibling query's reader must not see it", 0L, second.statusSnapshot().rowsEmitted());
-        assertEquals("nor may it reach the registry's shared reader", 0L, base.statusSnapshot().rowsEmitted());
+        assertTrue("the first reader must report its own work", first.statusSnapshot().rowsEmitted() > 0);
+        assertEquals("a later create must start at zero", 0L, second.statusSnapshot().rowsEmitted());
+        long firstReadCpuNanos = first.statusSnapshot().readCpuNanos();
+        second.acceptReadCpuNanos(1);
+        assertEquals(firstReadCpuNanos, first.statusSnapshot().readCpuNanos());
+        assertEquals(1L, second.statusSnapshot().readCpuNanos());
     }
 
-    public void testPerFileReadConfigCopyReportsThroughItsParent() throws IOException {
-        CsvFormatReader query = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfigTrackingConsumedKeys(Map.of("delimiter", ","))
-            .value();
-        CsvFormatReader perFile = query.withReadConfig("0123456789abcdef0123456789abcdef");
+    public void testReadConfigBindingReportsOnCreatedReader() throws IOException {
+        CsvFormatReader perFile = (CsvFormatReader) csvFactory().create(
+            Settings.EMPTY,
+            blockFactory,
+            Map.of("delimiter", ","),
+            FormatReadContext.Binding.empty().withReadConfig("0123456789abcdef0123456789abcdef")
+        );
 
         drain(perFile);
 
-        assertTrue(
-            "withReadConfig runs per file, below the reader the status envelope snapshots, so its work must land"
-                + " in the parent — a fork here is the zero-read-time defect this pins against",
-            query.statusSnapshot().rowsEmitted() > 0
-        );
+        assertTrue("the created reader must receive its own counters", perFile.statusSnapshot().rowsEmitted() > 0);
+    }
+
+    private CsvFormatReaderFactory csvFactory() {
+        return new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true);
     }
 
     private void drain(CsvFormatReader reader) throws IOException {

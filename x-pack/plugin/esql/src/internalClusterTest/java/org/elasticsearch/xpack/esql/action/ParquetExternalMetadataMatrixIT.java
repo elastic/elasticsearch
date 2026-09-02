@@ -17,7 +17,7 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Parquet binding of the standard-metadata matrix. Parquet is the only {@code ColumnExtractorAware}
+ * Parquet binding of the standard-metadata matrix. Parquet is the only column-extracting
  * reader, which means its {@code _rowPosition} channel is the deferred-extraction-encoded form
  * ({@code (extractorId << LOCAL_POSITION_BITS) | physicalPosition}); {@code ExternalRowIdentity}
  * masks the high bits off before composing {@code _id}. This subclass exercises that masked-compose

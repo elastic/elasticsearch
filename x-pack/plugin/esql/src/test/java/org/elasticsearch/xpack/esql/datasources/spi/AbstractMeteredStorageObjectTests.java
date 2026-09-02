@@ -16,7 +16,7 @@ import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class AbstractMeteredStorageObjectTests extends ESTestCase {
@@ -116,15 +116,16 @@ public class AbstractMeteredStorageObjectTests extends ESTestCase {
         assertSame(buffer, delivered.get());
     }
 
-    public void testDeliverReadClosesBufferWhenDeliveryThrows() {
+    public void testDeliverReadTransfersOwnershipBeforeDeliveryThrows() {
         TestStorageObject obj = new TestStorageObject();
-        AtomicBoolean closed = new AtomicBoolean();
-        DirectReadBuffer buffer = new DirectReadBuffer(ByteBuffer.allocate(16), () -> closed.set(true));
+        AtomicInteger closes = new AtomicInteger();
+        DirectReadBuffer buffer = new DirectReadBuffer(ByteBuffer.allocate(16), closes::incrementAndGet);
         RuntimeException boom = new RuntimeException("listener boom");
 
         ActionListener<DirectReadBuffer> throwing = new ActionListener<>() {
             @Override
             public void onResponse(DirectReadBuffer b) {
+                b.close();
                 throw boom;
             }
 
@@ -135,6 +136,6 @@ public class AbstractMeteredStorageObjectTests extends ESTestCase {
         };
 
         assertSame(boom, expectThrows(RuntimeException.class, () -> obj.deliverRead(throwing, buffer, System.nanoTime())));
-        assertTrue("buffer must be closed when delivery throws", closed.get());
+        assertEquals(1, closes.get());
     }
 }

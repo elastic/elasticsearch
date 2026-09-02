@@ -16,7 +16,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 
-/** CSV binding of the standard-metadata matrix. The CSV reader is not {@code ColumnExtractorAware}. */
+/** CSV binding of the standard-metadata matrix. The CSV builder does not support column extraction. */
 public class CsvExternalMetadataMatrixIT extends AbstractExternalMetadataMatrixIT {
 
     @Override

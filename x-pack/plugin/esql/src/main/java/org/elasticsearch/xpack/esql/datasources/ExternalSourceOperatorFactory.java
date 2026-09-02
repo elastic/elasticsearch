@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -60,7 +62,7 @@ import java.util.function.Consumer;
 public class ExternalSourceOperatorFactory implements SourceOperator.SourceOperatorFactory {
 
     private final StorageProvider storageProvider;
-    private final FormatReader formatReader;
+    private final FormatReaderFactory formatReaderFactory;
     private final StoragePath path;
     private final List<Attribute> attributes;
     private final int batchSize;
@@ -70,7 +72,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
 
     public ExternalSourceOperatorFactory(
         StorageProvider storageProvider,
-        FormatReader formatReader,
+        FormatReaderFactory formatReaderFactory,
         StoragePath path,
         List<Attribute> attributes,
         int batchSize,
@@ -80,8 +82,8 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
         }
-        if (formatReader == null) {
-            throw new IllegalArgumentException("formatReader cannot be null");
+        if (formatReaderFactory == null) {
+            throw new IllegalArgumentException("formatReaderFactory cannot be null");
         }
         if (path == null) {
             throw new IllegalArgumentException("path cannot be null");
@@ -94,7 +96,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         }
 
         this.storageProvider = storageProvider;
-        this.formatReader = formatReader;
+        this.formatReaderFactory = formatReaderFactory;
         this.path = path;
         this.attributes = attributes;
         this.batchSize = batchSize;
@@ -104,12 +106,12 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
 
     public ExternalSourceOperatorFactory(
         StorageProvider storageProvider,
-        FormatReader formatReader,
+        FormatReaderFactory formatReaderFactory,
         StoragePath path,
         List<Attribute> attributes,
         int batchSize
     ) {
-        this(storageProvider, formatReader, path, attributes, batchSize, FormatReader.NO_LIMIT, null);
+        this(storageProvider, formatReaderFactory, path, attributes, batchSize, FormatReader.NO_LIMIT, null);
     }
 
     @Override
@@ -122,7 +124,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         if (sliceQueue != null) {
             return new SliceQueueSourceOperator(
                 storageProvider,
-                formatReader,
+                formatReaderFactory,
                 projectedColumns,
                 attributes,
                 batchSize,
@@ -134,6 +136,8 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         }
 
         StorageObject storageObject = storageProvider.newObject(path);
+        FormatReader formatReader = formatReaderFactory.create(Settings.EMPTY, driverContext.blockFactory());
+        boolean handedOff = false;
         try {
             Consumer<String> warnSink = msg -> {
                 String toEmit = informationalWarningBudget.accept(msg);
@@ -149,9 +153,15 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 .build();
             CloseableIterator<Page> pages = formatReader.read(storageObject, ctx);
             pages = formatReader.rowPositionStrategy().apply(pages, SyntheticColumns.rowPositionIndexInNames(projectedColumns));
+            pages = ReaderReleasingIterator.wrap(pages, formatReader);
+            handedOff = true;
             return new ExternalSourceOperator(pages, path);
         } catch (Exception e) {
             throw new ElasticsearchException("Failed to create external source operator for [" + path + "]", e);
+        } finally {
+            if (handedOff == false) {
+                ReaderReleasingIterator.closeReader(formatReader);
+            }
         }
     }
 
@@ -161,7 +171,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             + "storage="
             + storageProvider.getClass().getSimpleName()
             + ", format="
-            + formatReader.formatName()
+            + formatReaderFactory.formatName()
             + ", path="
             + path
             + ", batchSize="
@@ -237,7 +247,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private static final Logger logger = LogManager.getLogger(SliceQueueSourceOperator.class);
 
         private final StorageProvider storageProvider;
-        private final FormatReader formatReader;
+        private final FormatReaderFactory formatReaderFactory;
         private final List<String> projectedColumns;
         private final List<Attribute> attributes;
         // Data-attribute view of {@link #attributes}; built once at construction.
@@ -254,7 +264,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
 
         SliceQueueSourceOperator(
             StorageProvider storageProvider,
-            FormatReader formatReader,
+            FormatReaderFactory formatReaderFactory,
             List<String> projectedColumns,
             List<Attribute> attributes,
             int batchSize,
@@ -264,7 +274,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             InformationalWarningBudget warningBudget
         ) {
             this.storageProvider = storageProvider;
-            this.formatReader = formatReader;
+            this.formatReaderFactory = formatReaderFactory;
             this.projectedColumns = projectedColumns;
             this.attributes = attributes;
             this.queryDataSchema = ExternalSchema.dataAttributesOf(attributes);
@@ -350,52 +360,62 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                     .splitStartByte(fileSplit.offset())
                     .informationalWarningSink(warnSink)
                     .build();
-                CloseableIterator<Page> pages = formatReader.read(obj, ctx);
+                FormatReader formatReader = formatReaderFactory.create(Settings.EMPTY, blockFactory);
+                boolean handedOff = false;
+                try {
+                    CloseableIterator<Page> pages = formatReader.read(obj, ctx);
 
-                // Empty queryDataSchema is COUNT(*) / _file.*-only: no data columns to reshape and the
-                // reader already emits zero-data-block row-count pages, so skip the adapter (a
-                // full-width mapping would otherwise trip its output-size-vs-mapping-width guard).
-                // Identity mappings are no longer short-circuited: SchemaAdaptingIterator validates
-                // output block element types on every page (see SchemaAdaptingIterator.validateOutputTypes).
-                if (columnMapping != null && queryDataSchema.isEmpty() == false) {
-                    // Per-file source types are only needed when the mapping has a KEYWORD cast
-                    // (the only path where LongBlock — DATETIME / DATE_NANOS / LONG — needs
-                    // disambiguating). Skip the schema-narrowing dance entirely otherwise.
-                    DataType[] perFileColumnTypes = null;
-                    if (columnMapping.hasKeywordCast()) {
-                        // The reader emits columns in the file's natural order, intersected with
-                        // the requested projection. Narrow `effectiveProjection` to columns
-                        // present in `fileSplit.readSchema()` in the file's order so the
-                        // per-position type lookup aligns with the reader's emitted page.
-                        List<Attribute> readSchema = fileSplit.readSchema();
-                        List<String> perFileCols = effectiveProjection;
-                        if (readSchema != null && readSchema.isEmpty() == false && effectiveProjection != null) {
-                            HashSet<String> wanted = new HashSet<>(effectiveProjection);
-                            perFileCols = new ArrayList<>(Math.min(effectiveProjection.size(), readSchema.size()));
-                            for (Attribute attr : readSchema) {
-                                if (wanted.contains(attr.name())) {
-                                    perFileCols.add(attr.name());
+                    // Empty queryDataSchema is COUNT(*) / _file.*-only: no data columns to reshape and the
+                    // reader already emits zero-data-block row-count pages, so skip the adapter (a
+                    // full-width mapping would otherwise trip its output-size-vs-mapping-width guard).
+                    // Identity mappings also flow through SchemaAdaptingIterator, which validates
+                    // output block element types on every page (see SchemaAdaptingIterator.validateOutputTypes).
+                    if (columnMapping != null && queryDataSchema.isEmpty() == false) {
+                        // Per-file source types are only needed when the mapping has a KEYWORD cast
+                        // (the only path where LongBlock for DATETIME, DATE_NANOS, and LONG needs
+                        // disambiguating). Skip the schema-narrowing dance entirely otherwise.
+                        DataType[] perFileColumnTypes = null;
+                        if (columnMapping.hasKeywordCast()) {
+                            // The reader emits columns in the file's natural order, intersected with
+                            // the requested projection. Narrow `effectiveProjection` to columns
+                            // present in `fileSplit.readSchema()` in the file's order so the
+                            // per-position type lookup aligns with the reader's emitted page.
+                            List<Attribute> readSchema = fileSplit.readSchema();
+                            List<String> perFileCols = effectiveProjection;
+                            if (readSchema != null && readSchema.isEmpty() == false && effectiveProjection != null) {
+                                HashSet<String> wanted = new HashSet<>(effectiveProjection);
+                                perFileCols = new ArrayList<>(Math.min(effectiveProjection.size(), readSchema.size()));
+                                for (Attribute attr : readSchema) {
+                                    if (wanted.contains(attr.name())) {
+                                        perFileCols.add(attr.name());
+                                    }
                                 }
                             }
+                            perFileColumnTypes = ColumnMapping.buildPerFileColumnTypes(readSchema, perFileCols);
                         }
-                        perFileColumnTypes = ColumnMapping.buildPerFileColumnTypes(readSchema, perFileCols);
+                        pages = new SchemaAdaptingIterator(
+                            pages,
+                            queryDataSchema.attributes(),
+                            columnMapping,
+                            blockFactory,
+                            -1,
+                            perFileColumnTypes,
+                            warnSink
+                        );
                     }
-                    pages = new SchemaAdaptingIterator(
-                        pages,
-                        queryDataSchema.attributes(),
-                        columnMapping,
-                        blockFactory,
-                        -1,
-                        perFileColumnTypes,
-                        warnSink
-                    );
+                    // rowPositionStrategy is applied after SchemaAdaptingIterator: SAI validates data
+                    // columns (width = queryDataSchema) and the strategy appends the synthetic
+                    // _rowPosition block after. Applying it before SAI would give SAI N+1 blocks for
+                    // an N-column schema, tripping validateOutputTypes.
+                    pages = formatReader.rowPositionStrategy().apply(pages, SyntheticColumns.rowPositionIndexInNames(projectedColumns));
+                    pages = ReaderReleasingIterator.wrap(pages, formatReader);
+                    handedOff = true;
+                    return pages;
+                } finally {
+                    if (handedOff == false) {
+                        ReaderReleasingIterator.closeReader(formatReader);
+                    }
                 }
-                // rowPositionStrategy is applied after SchemaAdaptingIterator: SAI validates data
-                // columns (width = queryDataSchema) and the strategy appends the synthetic
-                // _rowPosition block after. Applying it before SAI would give SAI N+1 blocks for
-                // an N-column schema, tripping validateOutputTypes.
-                pages = formatReader.rowPositionStrategy().apply(pages, SyntheticColumns.rowPositionIndexInNames(projectedColumns));
-                return pages;
             }
             throw new IllegalArgumentException("Unsupported split type: " + split.getClass().getName());
         }

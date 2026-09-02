@@ -29,6 +29,7 @@ import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -53,7 +54,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -97,30 +97,49 @@ public class OrcFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * A reader that treats the given columns as declared-type — the ones whose target came from an explicit declaration
+     * A reader that treats the given columns as declared-type, the ones whose target came from an explicit declaration
      * and are therefore licensed to coerce (including narrow) toward it. Mirrors what {@code FileSourceFactory} threads
      * from a dataset mapping in production; without it a coercion that is not a pure widening is treated as an inferred
      * clash and the whole column null-fills.
      */
     private OrcFormatReader declaredReader(String... declaredColumns) {
-        return (OrcFormatReader) new OrcFormatReader(blockFactory).withDeclaredTypeColumns(Set.of(declaredColumns));
+        return factoryReader(FormatReadContext.Binding.empty().withDeclaredTypeColumns(Set.of(declaredColumns)));
+    }
+
+    private OrcFormatReader factoryReader(FormatReadContext.Binding binding) {
+        return (OrcFormatReader) new OrcFormatReaderFactory().create(Settings.EMPTY, blockFactory, null, binding);
     }
 
     public void testFormatName() {
-        OrcFormatReader reader = new OrcFormatReader(blockFactory);
-        assertEquals("orc", reader.formatName());
+        assertEquals("orc", new OrcFormatReaderFactory().formatName());
+    }
+
+    public void testFactoryCapabilities() {
+        OrcFormatReaderFactory factory = new OrcFormatReaderFactory();
+
+        assertEquals("orc", factory.formatName());
+        assertNotNull(factory.aggregatePushdownSupport());
+        assertNotNull(factory.filterPushdownSupport());
+        assertTrue(factory.dropsRowsUnderPushedFilter());
+        assertFalse(factory.supportsWholeFileCompression());
+        assertFalse(factory.supportsBatchRead());
+        assertTrue(factory.rangeAware());
+        assertTrue(factory.acceptsDynamicThreshold());
     }
 
     public void testFileExtensions() {
-        OrcFormatReader reader = new OrcFormatReader(blockFactory);
-        List<String> extensions = reader.fileExtensions();
-        assertEquals(1, extensions.size());
-        assertTrue(extensions.contains(".orc"));
+        assertTrue(
+            new OrcDataSourcePlugin().formatSpecs()
+                .stream()
+                .anyMatch(spec -> spec.format().equals("orc") && spec.extensions().contains(".orc"))
+        );
     }
 
     public void testDoesNotSupportWholeFileCompression() {
-        OrcFormatReader reader = new OrcFormatReader(blockFactory);
-        assertFalse("ORC requires random access and cannot be wrapped in a whole-file compressor", reader.supportsWholeFileCompression());
+        assertFalse(
+            "ORC requires random access and cannot be wrapped in a whole-file compressor",
+            new OrcFormatReaderFactory().supportsWholeFileCompression()
+        );
     }
 
     /**
@@ -147,7 +166,6 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
 
-        // Snapshot before drain: format identifier present, row count at zero.
         var before = reader.statusSnapshot();
         assertEquals("orc", before.format());
         assertEquals(0L, before.rowsEmitted());
@@ -164,6 +182,17 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertEquals("orc", after.format());
         assertEquals("3 data rows drained from the file", 3L, after.rowsEmitted());
         assertTrue("read_nanos should be > 0 after at least one batch", after.readNanos() > 0);
+
+        OrcFormatReader secondReader = new OrcFormatReader(blockFactory);
+        assertNotSame(reader, secondReader);
+        assertEquals(0L, secondReader.statusSnapshot().rowsEmitted());
+        try (CloseableIterator<Page> iterator = secondReader.read(storageObject, null, 1024)) {
+            while (iterator.hasNext()) {
+                iterator.next().releaseBlocks();
+            }
+        }
+        assertEquals(3L, secondReader.statusSnapshot().rowsEmitted());
+        assertEquals(3L, reader.statusSnapshot().rowsEmitted());
     }
 
     public void testReadSchemaFromSimpleOrc() throws Exception {
@@ -832,18 +861,6 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertEquals(OrcFormatReader.MAX_STRUCT_FLATTENING_DEPTH, OrcPushedExpressions.MAX_STRUCT_FLATTENING_DEPTH);
     }
 
-    public void testWithPushedFilterReturnsNewInstance() {
-        OrcFormatReader reader = new OrcFormatReader(blockFactory);
-        SearchArgument sarg = SearchArgumentFactory.newBuilder().startAnd().equals("id", PredicateLeaf.Type.LONG, 1L).end().build();
-        FormatReader withFilter = reader.withPushedFilter(sarg);
-        assertNotSame("withPushedFilter must return a new instance", reader, withFilter);
-    }
-
-    public void testWithPushedFilterNullReturnsThis() {
-        OrcFormatReader reader = new OrcFormatReader(blockFactory);
-        assertSame("withPushedFilter(null) must return same instance", reader, reader.withPushedFilter(null));
-    }
-
     public void testReadWithPushedFilterMatchingAll() throws Exception {
         TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
         byte[] orcData = createOrcFile(schema, batch -> {
@@ -856,7 +873,7 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         SearchArgument sarg = SearchArgumentFactory.newBuilder().startNot().lessThanEquals("id", PredicateLeaf.Type.LONG, 0L).end().build();
 
-        OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(sarg);
+        OrcFormatReader reader = factoryReader(FormatReadContext.Binding.empty().withPushedFilter(sarg));
         StorageObject storageObject = createStorageObject(orcData);
         readFirstPage(reader, storageObject, null, page -> assertEquals(5, page.getPositionCount()));
     }
@@ -877,7 +894,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             .end()
             .build();
 
-        OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(sarg);
+        OrcFormatReader reader = factoryReader(FormatReadContext.Binding.empty().withPushedFilter(sarg));
         StorageObject storageObject = createStorageObject(orcData);
         try (CloseableIterator<Page> iter = reader.read(storageObject, null, 1024)) {
             assertFalse("No rows should match the filter", iter.hasNext());
@@ -903,7 +920,7 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         SearchArgument sarg = SearchArgumentFactory.newBuilder().startNot().lessThan("id", PredicateLeaf.Type.LONG, 1L).end().build();
 
-        OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(sarg);
+        OrcFormatReader reader = factoryReader(FormatReadContext.Binding.empty().withPushedFilter(sarg));
         StorageObject storageObject = createStorageObject(orcData);
         readFirstPage(reader, storageObject, List.of("name"), page -> {
             assertEquals(3, page.getPositionCount());
@@ -1352,7 +1369,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             .lessThanEquals("id", PredicateLeaf.Type.LONG, 999999L)
             .end()
             .build();
-        OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(sarg);
+        OrcFormatReader reader = factoryReader(FormatReadContext.Binding.empty().withPushedFilter(sarg));
 
         List<SplitRange> ranges = reader.discoverSplitRanges(storageObject);
         assertTrue("Should have multiple stripes", ranges.size() >= 2);
@@ -1567,7 +1584,11 @@ public class OrcFormatReaderTests extends ESTestCase {
             ((BytesColumnVector) batch.cols[0]).setVal(0, "10/Oct/2000:13:55:36 -0700".getBytes(StandardCharsets.UTF_8));
         });
         StorageObject storageObject = createStorageObject(orcData);
-        OrcFormatReader reader = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"));
+        OrcFormatReader reader = factoryReader(
+            FormatReadContext.Binding.empty()
+                .withDeclaredTypeColumns(Set.of("ts"))
+                .withDeclaredDateFormats(Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"))
+        );
         List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
         try (
             CloseableIterator<Page> it = reader.readRange(
@@ -1628,7 +1649,9 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
 
-        OrcFormatReader withFormat = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        OrcFormatReader withFormat = factoryReader(
+            FormatReadContext.Binding.empty().withDeclaredTypeColumns(Set.of("ts")).withDeclaredDateFormats(Map.of("ts", "epoch_second"))
+        );
         try (
             CloseableIterator<Page> it = withFormat.readRange(
                 storageObject,
@@ -1669,7 +1692,9 @@ public class OrcFormatReaderTests extends ESTestCase {
         List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
 
         // null_field: the overflow cell nulls, both good rows survive, one Warning per bad cell.
-        OrcFormatReader nullFieldReader = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        OrcFormatReader nullFieldReader = factoryReader(
+            FormatReadContext.Binding.empty().withDeclaredTypeColumns(Set.of("ts")).withDeclaredDateFormats(Map.of("ts", "epoch_second"))
+        );
         try (
             CloseableIterator<Page> it = nullFieldReader.readRange(
                 createStorageObject(orcData),
@@ -1689,7 +1714,9 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertTrue("Warning should name the column, got: " + nullFieldWarnings, nullFieldWarnings.toString().contains("[ts]"));
 
         // skip_row: the overflowing row is dropped entirely; only the 2 good rows survive.
-        OrcFormatReader skipRowReader = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        OrcFormatReader skipRowReader = factoryReader(
+            FormatReadContext.Binding.empty().withDeclaredTypeColumns(Set.of("ts")).withDeclaredDateFormats(Map.of("ts", "epoch_second"))
+        );
         try (
             CloseableIterator<Page> it = skipRowReader.readRange(
                 createStorageObject(orcData),
@@ -1706,7 +1733,9 @@ public class OrcFormatReaderTests extends ESTestCase {
         drainWarnings();
 
         // fail_fast: the same overflow aborts the read with a sensible per-cell error — not a bare ArithmeticException.
-        OrcFormatReader strict = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        OrcFormatReader strict = factoryReader(
+            FormatReadContext.Binding.empty().withDeclaredTypeColumns(Set.of("ts")).withDeclaredDateFormats(Map.of("ts", "epoch_second"))
+        );
         Exception failure = expectThrows(Exception.class, () -> {
             try (
                 CloseableIterator<Page> it = strict.readRange(
@@ -1744,7 +1773,11 @@ public class OrcFormatReaderTests extends ESTestCase {
         long expectedMinMillis = 1372968000000L; // 2013-07-04T20:00:00Z
         long expectedMaxMillis = 1374436797000L; // 2013-07-21T19:59:57Z
 
-        OrcFormatReader reader = (OrcFormatReader) declaredReader("EventTime").withDeclaredDateFormats(Map.of("EventTime", "epoch_second"));
+        OrcFormatReader reader = factoryReader(
+            FormatReadContext.Binding.empty()
+                .withDeclaredTypeColumns(Set.of("EventTime"))
+                .withDeclaredDateFormats(Map.of("EventTime", "epoch_second"))
+        );
         List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "EventTime", DataType.DATETIME));
         long count = 0;
         long min = Long.MAX_VALUE;
@@ -1916,11 +1949,11 @@ public class OrcFormatReaderTests extends ESTestCase {
         // text readers (CSV/NDJSON) and Parquet. A per-value coercion failure fails the read unless a query opts into
         // error_mode: null_field. This pins the cross-format consistency and fails if a permissive default is ever
         // re-introduced for this reader.
-        assertEquals(ErrorPolicy.STRICT, new OrcFormatReader(blockFactory).defaultErrorPolicy());
+        assertEquals(ErrorPolicy.STRICT, new OrcFormatReaderFactory().defaultErrorPolicy());
     }
 
     /**
-     * The behavioural half of {@link FormatReader#dropsRowsUnderPushedFilter()}: with a SearchArgument actually
+     * The behavioural half of {@link OrcFormatReaderFactory#dropsRowsUnderPushedFilter()}: with a SearchArgument actually
      * pushed in, a {@code skip_row} coercion failure must still drop the whole row.
      * <p>
      * This is the assertion that carries weight, and it is the mirror image of Parquet's
@@ -1951,7 +1984,9 @@ public class OrcFormatReaderTests extends ESTestCase {
         });
 
         SearchArgument sarg = SearchArgumentFactory.newBuilder().startNot().lessThanEquals("id", PredicateLeaf.Type.LONG, 0L).end().build();
-        OrcFormatReader reader = (OrcFormatReader) declaredReader("n").withPushedFilter(sarg);
+        OrcFormatReader reader = factoryReader(
+            FormatReadContext.Binding.empty().withPushedFilter(sarg).withDeclaredTypeColumns(Set.of("n"))
+        );
         List<Attribute> plannerSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG)
@@ -1977,7 +2012,7 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         // ...which is why the reader may opt into the capability the SPI withholds by default. Pinned so a future
         // row-level ORC predicate path cannot keep the now-stale "true" and start null-filling instead of dropping.
-        assertTrue(new OrcFormatReader(blockFactory).dropsRowsUnderPushedFilter());
+        assertTrue(new OrcFormatReaderFactory().dropsRowsUnderPushedFilter());
     }
 
     public void testCoercionUnparseableValueEmitsWarningAndNull() throws Exception {
@@ -2946,7 +2981,7 @@ public class OrcFormatReaderTests extends ESTestCase {
                 )
             );
         OrcPushedExpressions pushed = new OrcPushedExpressions(List.of(filter));
-        OrcFormatReader filtered = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(pushed);
+        OrcFormatReader filtered = factoryReader(FormatReadContext.Binding.empty().withPushedFilter(pushed));
         int survived = countRows(filtered, storageObject, List.of("event.id"), 1024);
         assertTrue("expected pruning to drop the first stripe (100 rows). survived=" + survived, survived <= 100 && survived < totalRows);
     }

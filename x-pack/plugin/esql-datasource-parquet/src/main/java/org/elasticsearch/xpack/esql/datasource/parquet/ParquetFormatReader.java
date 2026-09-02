@@ -59,22 +59,17 @@ import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
-import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
-import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
-import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
-import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
@@ -123,7 +118,7 @@ import java.util.function.IntConsumer;
  *   <li>Direct conversion from Parquet to ESQL blocks</li>
  * </ul>
  */
-public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigFormatReader, ColumnExtractorAware, DynamicThresholdAware {
+public class ParquetFormatReader implements RangeAwareFormatReader {
 
     private static final Logger logger = LogManager.getLogger(ParquetFormatReader.class);
 
@@ -140,18 +135,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     private final boolean forceBaselinePath;
     private final boolean optimizedReader;
     private final DynamicThreshold dynamicThreshold;
-    /** Declared per-column date parse patterns (physical name &rarr; pattern); see {@link #withDeclaredDateFormats}. */
+    /** Declared per-column date parse patterns, keyed by physical name. */
     private final Map<String, String> declaredDateFormats;
-    /** Physical names of declared-type columns (licensed to narrow toward their target); see {@link #withDeclaredTypeColumns}. */
+    /** Physical names of declared-type columns that may narrow toward their target type. */
     private final Set<String> declaredTypeColumns;
-    // Shared across all iterators created by this reader: holds lazy decompressor instances and
-    // pays the per-codec init cost once. The factory is stateless across files/row groups.
-    private final PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
-    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()}
-    // and folded into AsyncExternalSourceOperator.Status.formatReader by the carrier. Per-reader
-    // (one ParquetFormatReader instance owns one counter struct), incremented by each read /
-    // readRange invocation that flows through this reader.
-    private final ParquetReaderCounters counters = new ParquetReaderCounters();
+    // Shared by readers built from the same query builder. The factory holds lazy codec helpers,
+    // and the counters aggregate activity across all reader ownership boundaries in that query.
+    private final PlainCompressionCodecFactory codecFactory;
+    private final ParquetReaderCounters counters;
 
     static final long DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES = 32L * 1024 * 1024;
 
@@ -190,6 +181,36 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         return codecFactory;
     }
 
+    ParquetReaderCounters counters() {
+        return counters;
+    }
+
+    @Override
+    public ParquetReaderStatus statusSnapshot() {
+        return counters.snapshot();
+    }
+
+    DynamicThreshold dynamicThreshold() {
+        return dynamicThreshold;
+    }
+
+    FilterCompat.Filter pushedFilter() {
+        return pushedFilter;
+    }
+
+    @Nullable
+    ParquetPushedExpressions pushedExpressions() {
+        return pushedExpressions;
+    }
+
+    boolean forceBaselinePath() {
+        return forceBaselinePath;
+    }
+
+    boolean optimizedReader() {
+        return optimizedReader;
+    }
+
     /**
      * Declared date parse pattern for one physical column, resolved to a {@link DateFormatter} —
      * the same formatter {@link #buildColumnInfos} hands the eager decode paths. Package-private
@@ -211,6 +232,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      */
     boolean isDeclaredTypeColumn(String physicalColumnName) {
         return declaredTypeColumns.contains(physicalColumnName);
+    }
+
+    Set<String> declaredTypeColumns() {
+        return declaredTypeColumns;
+    }
+
+    Map<String, String> declaredDateFormats() {
+        return declaredDateFormats;
     }
 
     /**
@@ -268,15 +297,48 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     }
 
     public ParquetFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, FilterCompat.NOOP, null, false, true, null, Map.of(), Set.of());
+        this(blockFactory, true);
     }
 
-    // Test oracle: false selects the baseline iterator. Production uses the public ctor (always optimized).
+    /**
+     * Same defaults as {@link #ParquetFormatReader(BlockFactory)}, with the optimized decode path
+     * selectable. {@code optimizedReader == false} is the baseline oracle path used by tests.
+     */
     ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader) {
-        this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader, null, Map.of(), Set.of());
+        this(
+            blockFactory,
+            FilterCompat.NOOP,
+            null,
+            false,
+            optimizedReader,
+            null,
+            Map.of(),
+            Set.of(),
+            new PlainCompressionCodecFactory(),
+            new ParquetReaderCounters()
+        );
     }
 
-    private ParquetFormatReader(
+    /**
+     * Optimized reader that still takes the baseline decode path. Used by tests that compare
+     * that path against the vectorized one on the same reader type.
+     */
+    static ParquetFormatReader forcedBaseline(BlockFactory blockFactory) {
+        return new ParquetFormatReader(
+            blockFactory,
+            FilterCompat.NOOP,
+            null,
+            true,
+            true,
+            null,
+            Map.of(),
+            Set.of(),
+            new PlainCompressionCodecFactory(),
+            new ParquetReaderCounters()
+        );
+    }
+
+    ParquetFormatReader(
         BlockFactory blockFactory,
         FilterCompat.Filter pushedFilter,
         ParquetPushedExpressions pushedExpressions,
@@ -284,7 +346,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         boolean optimizedReader,
         DynamicThreshold dynamicThreshold,
         Map<String, String> declaredDateFormats,
-        Set<String> declaredTypeColumns
+        Set<String> declaredTypeColumns,
+        PlainCompressionCodecFactory codecFactory,
+        ParquetReaderCounters counters
     ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
@@ -294,121 +358,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         this.dynamicThreshold = dynamicThreshold;
         this.declaredDateFormats = declaredDateFormats;
         this.declaredTypeColumns = declaredTypeColumns;
-    }
-
-    /**
-     * Returns a reader that always uses the row-at-a-time {@code ColumnReader} path,
-     * bypassing {@link PageColumnReader}. Package-private; intended for correctness
-     * testing against the optimized path.
-     */
-    ParquetFormatReader withBaselinePath() {
-        return new ParquetFormatReader(
-            blockFactory,
-            pushedFilter,
-            pushedExpressions,
-            true,
-            optimizedReader,
-            dynamicThreshold,
-            declaredDateFormats,
-            declaredTypeColumns
-        );
-    }
-
-    @Override
-    public ParquetFormatReader withPushedFilter(Object pushedFilter) {
-        if (pushedFilter instanceof FilterCompat.Filter filter) {
-            return new ParquetFormatReader(
-                blockFactory,
-                filter,
-                null,
-                forceBaselinePath,
-                optimizedReader,
-                dynamicThreshold,
-                declaredDateFormats,
-                declaredTypeColumns
-            );
-        }
-        if (pushedFilter instanceof ParquetPushedExpressions exprs) {
-            return new ParquetFormatReader(
-                blockFactory,
-                FilterCompat.NOOP,
-                exprs,
-                forceBaselinePath,
-                optimizedReader,
-                dynamicThreshold,
-                declaredDateFormats,
-                declaredTypeColumns
-            );
-        }
-        return this;
-    }
-
-    @Override
-    public FormatReader withDynamicThreshold(DynamicThreshold threshold) {
-        return new ParquetFormatReader(
-            blockFactory,
-            pushedFilter,
-            pushedExpressions,
-            forceBaselinePath,
-            optimizedReader,
-            threshold,
-            declaredDateFormats,
-            declaredTypeColumns
-        );
-    }
-
-    /**
-     * Declared per-column date parse patterns, keyed by physical (file) column name. Consumed by the
-     * string&rarr;datetime declared coercion ({@code DeclaredTypeCoercions}): a BINARY string column whose planner
-     * attribute is {@code datetime} parses each value with this pattern (ISO default when absent). Unlike the text
-     * formats — where a declared format re-routes an existing text parse — parquet only ever consults this map for
-     * coerced string columns; native temporal columns carry their own unit and never text-parse.
-     */
-    @Override
-    public FormatReader withDeclaredDateFormats(Map<String, String> physicalNameToPattern) {
-        if (physicalNameToPattern == null || physicalNameToPattern.isEmpty()) {
-            return this;
-        }
-        return new ParquetFormatReader(
-            blockFactory,
-            pushedFilter,
-            pushedExpressions,
-            forceBaselinePath,
-            optimizedReader,
-            dynamicThreshold,
-            Map.copyOf(physicalNameToPattern),
-            declaredTypeColumns
-        );
-    }
-
-    /**
-     * The physical names of declared-type columns — the ones whose target type came from an explicit declaration and are
-     * therefore licensed to coerce (including narrow) toward it. {@link #validatePlannerTypesAgainstFile} keys its
-     * whole-column incompatibility null-fill on this set: a declared column keeps the {@code DeclaredTypeCoercions}
-     * escape (so a declared {@code integer} over an {@code int64} file narrows per value, null on overflow), while an
-     * inferred column null-fills whenever the file type is not widening-compatible (a {@code first_file_wins} cross-file
-     * clash must widen-or-null, never downcast).
-     */
-    @Override
-    public FormatReader withDeclaredTypeColumns(Set<String> physicalDeclaredColumns) {
-        if (physicalDeclaredColumns == null || physicalDeclaredColumns.isEmpty()) {
-            return this;
-        }
-        return new ParquetFormatReader(
-            blockFactory,
-            pushedFilter,
-            pushedExpressions,
-            forceBaselinePath,
-            optimizedReader,
-            dynamicThreshold,
-            declaredDateFormats,
-            Set.copyOf(physicalDeclaredColumns)
-        );
-    }
-
-    @Override
-    public FilterPushdownSupport filterPushdownSupport() {
-        return new ParquetFilterPushdownSupport();
+        this.codecFactory = codecFactory;
+        this.counters = counters;
     }
 
     /**
@@ -428,11 +379,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * positions back into batch coordinates before reporting them to the helper (see the "Coordinate
      * spaces" note on {@code ColumnarRowDropHelper}).
      */
-    @Override
-    public boolean dropsRowsUnderPushedFilter() {
-        return false;
-    }
-
     /**
      * Coercion-failure leniency for one read: {@code fail_fast} is strict — a per-value coercion
      * failure must propagate, which the coercion sinks express as a {@code null}
@@ -442,17 +388,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * whole row at emit; {@code null_field} nulls the cell and warns.
      */
     private ErrorPolicy resolveErrorPolicy(@Nullable ErrorPolicy contextPolicy) {
-        return contextPolicy != null ? contextPolicy : defaultErrorPolicy();
-    }
-
-    /**
-     * Returns an immutable typed snapshot of this reader's instrumentation counters. The carrier
-     * ({@code AsyncExternalSourceOperator.Status}) folds it into the {@code format_reader}
-     * sub-object on the operator profile.
-     */
-    @Override
-    public ParquetReaderStatus statusSnapshot() {
-        return counters.snapshot();
+        return contextPolicy != null ? contextPolicy : ErrorPolicy.STRICT;
     }
 
     /** Returns {@link StorageObject#length()} when callable, otherwise 0 (length is best-effort). */
@@ -675,7 +611,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         validateFooterIntegrity(object.path().toString(), parquetSchema, footer.getBlocks());
         List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
         SourceStatistics statistics = extractStatistics(footer.getBlocks(), schema, parquetSchema);
-        return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
+        return new SimpleSourceMetadata(schema, FormatNameResolver.FORMAT_PARQUET, object.path().toString(), statistics, null);
     }
 
     /**
@@ -724,64 +660,86 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         int tailLen = (int) Math.min(FOOTER_TAIL_PREFETCH_BYTES, length);
         DirectBufferFactory factory = DirectBufferFactory.forBreaker(blockFactory.breaker());
 
-        object.readBytesAsync(length - tailLen, tailLen, factory, executor, ActionListener.wrap(tail -> {
-            final byte[] tailBytes;
-            try {
-                tailBytes = copyToArray(tail);
-            } finally {
-                tail.close();
-            }
-
-            if (tailBytes.length != tailLen) {
-                // readBytesAsync's SPI contract permits a short read (fewer than the requested bytes). The parse path
-                // treats these bytes as a suffix ending at the file length (TailBackedInputFile offsets by
-                // length - tailBytes.length), so a short read would misalign every footer offset. Fall back to the
-                // synchronous parse, which reads the exact ranges it needs itself, rather than relying on the
-                // trailing-magic scan below happening to reject the misaligned bytes.
-                parseFooterOnExecutor(object, executor, listener);
-                return;
-            }
-
-            int footerLength = footerLengthFromTrailer(tailBytes);
-            if (footerLength <= 0) {
-                // Missing/foreign magic or a nonsensical length — let the sync path produce the
-                // proper invalid-Parquet error (or handle an encrypted footer via its own I/O).
-                parseFooterOnExecutor(object, executor, listener);
-                return;
-            }
-
-            long footerRegion = (long) footerLength + PARQUET_TRAILER_BYTES;
-            if (footerRegion <= tailBytes.length) {
-                // The whole footer is already in the prefetched tail — parse straight from it.
-                parseTailOnExecutor(object, length, tailBytes, cacheKey, executor, listener);
-                return;
-            }
-
-            if (footerRegion > FooterByteCache.getInstance().maxEntryBytes()) {
-                // The footer is larger than the cache admits; the sync parse reads it directly.
-                parseFooterOnExecutor(object, executor, listener);
-                return;
-            }
-
-            // Large footer: a single exact-range read of [length - footerRegion, length) covers the
-            // whole footer, which is then parsed straight from the returned bytes.
-            int exactLen = (int) footerRegion;
-            object.readBytesAsync(length - exactLen, exactLen, factory, executor, ActionListener.wrap(footer -> {
-                final byte[] footerBytes;
+        object.readBytesAsync(length - tailLen, tailLen, factory, executor, new ActionListener<>() {
+            @Override
+            public void onResponse(DirectReadBuffer tail) {
+                final byte[] tailBytes;
                 try {
-                    footerBytes = copyToArray(footer);
-                } finally {
-                    footer.close();
+                    tailBytes = copyToArray(tail);
+                } catch (Exception e) {
+                    tail.close();
+                    listener.onFailure(e);
+                    return;
                 }
-                if (footerBytes.length != exactLen) {
-                    // Short read (see the tail-read guard above): the bytes would not align to the file suffix the
-                    // parse path assumes, so fall back to the synchronous exact-range read.
+                tail.close();
+
+                if (tailBytes.length != tailLen) {
+                    // readBytesAsync's SPI contract permits a short read (fewer than the requested bytes). The parse path
+                    // treats these bytes as a suffix ending at the file length (TailBackedInputFile offsets by
+                    // length - tailBytes.length), so a short read would misalign every footer offset. Fall back to the
+                    // synchronous parse, which reads the exact ranges it needs itself, rather than relying on the
+                    // trailing-magic scan below happening to reject the misaligned bytes.
                     parseFooterOnExecutor(object, executor, listener);
                     return;
                 }
-                parseTailOnExecutor(object, length, footerBytes, cacheKey, executor, listener);
-            }, listener::onFailure));
-        }, listener::onFailure));
+
+                int footerLength = footerLengthFromTrailer(tailBytes);
+                if (footerLength <= 0) {
+                    // Missing or foreign magic, or a nonsensical length: let the sync path produce the
+                    // proper invalid-Parquet error (or handle an encrypted footer via its own I/O).
+                    parseFooterOnExecutor(object, executor, listener);
+                    return;
+                }
+
+                long footerRegion = (long) footerLength + PARQUET_TRAILER_BYTES;
+                if (footerRegion <= tailBytes.length) {
+                    // The whole footer is already in the prefetched tail, so parse straight from it.
+                    parseTailOnExecutor(object, length, tailBytes, cacheKey, executor, listener);
+                    return;
+                }
+
+                if (footerRegion > FooterByteCache.getInstance().maxEntryBytes()) {
+                    // The footer is larger than the cache admits; the sync parse reads it directly.
+                    parseFooterOnExecutor(object, executor, listener);
+                    return;
+                }
+
+                // Large footer: a single exact-range read of [length - footerRegion, length) covers the
+                // whole footer, which is then parsed straight from the returned bytes.
+                int exactLen = (int) footerRegion;
+                object.readBytesAsync(length - exactLen, exactLen, factory, executor, new ActionListener<>() {
+                    @Override
+                    public void onResponse(DirectReadBuffer footer) {
+                        final byte[] footerBytes;
+                        try {
+                            footerBytes = copyToArray(footer);
+                        } catch (Exception e) {
+                            footer.close();
+                            listener.onFailure(e);
+                            return;
+                        }
+                        footer.close();
+                        if (footerBytes.length != exactLen) {
+                            // Short read (see the tail-read guard above): the bytes would not align to the file suffix the
+                            // parse path assumes, so fall back to the synchronous exact-range read.
+                            parseFooterOnExecutor(object, executor, listener);
+                            return;
+                        }
+                        parseTailOnExecutor(object, length, footerBytes, cacheKey, executor, listener);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                });
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     /**
@@ -804,12 +762,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         ActionListener<SourceMetadata> listener
     ) {
         executor.execute(() -> {
+            final SourceMetadata metadata;
             try {
                 FooterByteCache.getInstance().put(cacheKey, tailBytes);
-                listener.onResponse(parseFooterFromTail(object, length, tailBytes, cacheKey));
+                metadata = parseFooterFromTail(object, length, tailBytes, cacheKey);
             } catch (Exception e) {
                 listener.onFailure(e);
+                return;
             }
+            listener.onResponse(metadata);
         });
     }
 
@@ -847,11 +808,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     /** Runs the synchronous {@link #metadata(StorageObject)} on {@code executor}, completing {@code listener}. */
     private void parseFooterOnExecutor(StorageObject object, Executor executor, ActionListener<SourceMetadata> listener) {
         executor.execute(() -> {
+            final SourceMetadata metadata;
             try {
-                listener.onResponse(metadata(object));
+                metadata = metadata(object);
             } catch (Exception e) {
                 listener.onFailure(e);
+                return;
             }
+            listener.onResponse(metadata);
         });
     }
 
@@ -1300,31 +1264,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         }
     }
 
-    @Override
-    public AggregatePushdownSupport aggregatePushdownSupport() {
-        return new ParquetAggregatePushdownSupport();
-    }
-
-    @Override
-    public boolean supportsWholeFileCompression() {
-        return false;
-    }
-
-    @Override
-    public String formatName() {
-        return FormatNameResolver.FORMAT_PARQUET;
-    }
-
     /**
      * Every extension this reader accepts. The plugin's {@code FormatSpec} derives from it, so the eager and
      * lazy registration surfaces cannot disagree.
      */
     public static final List<String> FILE_EXTENSIONS = List.of(".parquet", ".parq");
-
-    @Override
-    public List<String> fileExtensions() {
-        return FILE_EXTENSIONS;
-    }
 
     @Override
     public RowPositionStrategy rowPositionStrategy() {

@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -224,7 +224,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     /**
      * Push filters to external source using the SPI-based FilterPushdownSupport.
      * <p>
-     * Resolves pushdown support via {@link FormatReader#filterPushdownSupport()} through
+     * Resolves pushdown support via {@link FormatReaderFactory#filterPushdownSupport()} through
      * the {@link FormatReaderRegistry}. The pushdown support converts ESQL expressions to
      * source-specific filters (e.g., ORC SearchArgument, Parquet FilterPredicate).
      * <p>
@@ -252,8 +252,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         }
 
         String formatName = resolveFormatName(externalExec.config(), externalExec.sourcePath());
-        FormatReader formatReader = resolveFormatReader(formatName, ctx);
-        FilterPushdownSupport pushdownSupport = formatReader != null ? formatReader.filterPushdownSupport() : null;
+        FormatReaderFactory formatReaderFactory = resolveFormatReader(formatName, ctx);
+        FilterPushdownSupport pushdownSupport = formatReaderFactory != null ? formatReaderFactory.filterPushdownSupport() : null;
         if (pushdownSupport == null) {
             return filterExec;
         }
@@ -269,8 +269,9 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         // signal the reader keys late materialization off, and by the time the factory sees the plan the FilterExec
         // for a Pushability.YES conjunct has already been dropped -- so the factory can neither suppress the filter
         // (rows would leak unfiltered) nor undo the late-mat decision it implies.
-        if (formatReader.dropsRowsUnderPushedFilter() == false
-            && externalExec.declaredReadSpec().dropsRowsOnCoercionFailure(ErrorPolicy.forReader(externalExec.config(), formatReader))) {
+        if (formatReaderFactory.dropsRowsUnderPushedFilter() == false
+            && externalExec.declaredReadSpec()
+                .dropsRowsOnCoercionFailure(ErrorPolicy.forReader(externalExec.config(), formatReaderFactory))) {
             return filterExec;
         }
 
@@ -358,12 +359,12 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     /**
      * Resolves the configured reader for the given format, or {@code null} when the rule has no way to look one up
      * (no external context, no registry, format unregistered). Callers read both
-     * {@link FormatReader#filterPushdownSupport()} and {@link FormatReader#dropsRowsUnderPushedFilter()} off it, so
-     * it returns the reader rather than the support object alone.
+     * {@link FormatReaderFactory#filterPushdownSupport()} and
+     * {@link FormatReaderFactory#dropsRowsUnderPushedFilter()} off it.
      */
-    static FormatReader resolveFormatReader(String formatName, LocalPhysicalOptimizerContext ctx) {
+    static FormatReaderFactory resolveFormatReader(String formatName, LocalPhysicalOptimizerContext ctx) {
         FormatReaderRegistry formatReaderRegistry = ctx == null || ctx.external() == null ? null : ctx.external().formatReaderRegistry();
-        return formatReaderRegistry != null ? formatReaderRegistry.findByName(formatName) : null;
+        return formatReaderRegistry != null ? formatReaderRegistry.findFactoryByName(formatName) : null;
     }
 
     private static PhysicalPlan planFilterExec(FilterExec filterExec, ParameterizedQueryExec pqExec, LocalPhysicalOptimizerContext ctx) {

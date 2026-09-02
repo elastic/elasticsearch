@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -69,7 +69,7 @@ public class ExternalSourceLimitTests extends ESTestCase {
         }
         FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/*.csv");
 
-        FormatReader formatReader = new RowGeneratingFormatReader(filesRead, rowsPerFile);
+        FormatReaderFactory formatReader = TestFormatReaderFactory.basic(() -> new RowGeneratingFormatReader(filesRead, rowsPerFile));
         StorageProvider storageProvider = new StubStorageProvider();
 
         StoragePath path = StoragePath.of("s3://bucket/data/f0.csv");
@@ -123,7 +123,7 @@ public class ExternalSourceLimitTests extends ESTestCase {
         }
         FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/*.csv");
 
-        FormatReader formatReader = new RowGeneratingFormatReader(filesRead, rowsPerFile);
+        FormatReaderFactory formatReader = TestFormatReaderFactory.basic(() -> new RowGeneratingFormatReader(filesRead, rowsPerFile));
         StorageProvider storageProvider = new StubStorageProvider();
 
         StoragePath path = StoragePath.of("s3://bucket/data/f0.csv");
@@ -169,7 +169,7 @@ public class ExternalSourceLimitTests extends ESTestCase {
         AtomicInteger filesRead = new AtomicInteger(0);
         int rowsPerFile = 1000;
 
-        FormatReader formatReader = new RowGeneratingFormatReader(filesRead, rowsPerFile);
+        FormatReaderFactory formatReader = TestFormatReaderFactory.basic(() -> new RowGeneratingFormatReader(filesRead, rowsPerFile));
         StorageProvider storageProvider = new StubStorageProvider();
 
         StoragePath path = StoragePath.of("s3://bucket/data/big.csv");
@@ -222,7 +222,7 @@ public class ExternalSourceLimitTests extends ESTestCase {
         return pages;
     }
 
-    private static class RowGeneratingFormatReader implements NoConfigFormatReader {
+    private static class RowGeneratingFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -247,16 +247,6 @@ public class ExternalSourceLimitTests extends ESTestCase {
             int limit = context.rowLimit();
             int totalRows = limit == FormatReader.NO_LIMIT ? rowsPerFile : Math.min(rowsPerFile, limit);
             return new RowIterator(totalRows, context.batchSize());
-        }
-
-        @Override
-        public String formatName() {
-            return "test";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".csv");
         }
 
         @Override

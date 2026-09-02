@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -23,17 +24,18 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
-import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
-import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -51,7 +53,10 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Mockito.doAnswer;
@@ -59,14 +64,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Pins the {@link FormatReader} lifecycle contract at the framework's minting sites: a reader an SPI
- * {@code with*} call hands back is owned by the caller and gets closed, while the registry's shared instance
- * never does.
- * <p>
- * The reader here mints a distinct, self-identifying instance for every {@code with*} call that applies and
- * records each close, so a test can assert exactly which instances of a derivation chain were released — the
- * one thing a spy on a single object cannot express, since the whole point of the contract is that the
- * instances are different objects with different owners.
+ * Verifies that format-reader factories remain resource-free through planning and that every
+ * metadata or execution operation owns the distinct runtime reader it creates.
  */
 public class FormatReaderLifecycleTests extends ESTestCase {
 
@@ -76,258 +75,170 @@ public class FormatReaderLifecycleTests extends ESTestCase {
 
     private static final Map<String, Object> CONFIG = Map.of("delimiter", ";");
 
-    // === Population A: planning / validation-scoped readers, closed where they were minted ===
+    public void testValidateConfigDoesNotBuildAReader() {
+        TrackingFormatReaderFactory readers = new TrackingFormatReaderFactory();
 
-    public void testValidateConfigClosesTheReaderItConfigured() {
-        TrackingFormatReader root = new TrackingFormatReader();
-        newFileSourceFactory(root).validateConfig("s3://bucket/data.test", CONFIG);
+        newFileSourceFactory(readers).validateConfig("s3://bucket/data.test", CONFIG);
 
-        assertEquals("withConfig minted exactly one instance", 1, root.minted().size());
-        assertEquals("the configured instance is released with the validation that minted it", root.minted(), root.closed());
+        assertEquals(1, readers.inspectCount());
+        assertEquals(List.of(CONFIG), readers.configurations());
+        assertNoReadersBuilt(readers);
     }
 
-    public void testValidateConfigClosesTheReaderWhenValidationRejectsAnUnknownKey() {
-        // The reader claims only what it recognises, so `bogus` reaches ConfigKeyValidator unclaimed and
-        // validation throws — after the reader has already been minted.
-        TrackingFormatReader root = new TrackingFormatReader();
+    public void testValidateConfigRejectsAnUnknownKeyWithoutBuildingAReader() {
+        TrackingFormatReaderFactory readers = new TrackingFormatReaderFactory();
         Map<String, Object> config = Map.of("delimiter", ";", "bogus", "x");
 
-        expectThrows(IllegalArgumentException.class, () -> newFileSourceFactory(root).validateConfig("s3://bucket/data.test", config));
+        expectThrows(IllegalArgumentException.class, () -> newFileSourceFactory(readers).validateConfig("s3://bucket/data.test", config));
 
-        assertEquals(1, root.minted().size());
-        assertEquals("the failure path releases it too", root.minted(), root.closed());
+        assertEquals(1, readers.inspectCount());
+        assertEquals(List.of(config), readers.configurations());
+        assertNoReadersBuilt(readers);
     }
 
-    public void testResolveMetadataClosesTheReaderItConfigured() {
-        TrackingFormatReader root = new TrackingFormatReader();
-        SourceMetadata metadata = newFileSourceFactory(root).resolveMetadata("s3://bucket/data.test", CONFIG);
+    public void testResolveMetadataUsesAndClosesTheExactBuiltReader() {
+        TrackingFormatReaderFactory readers = new TrackingFormatReaderFactory();
+
+        SourceMetadata metadata = newFileSourceFactory(readers).resolveMetadata("s3://bucket/data.test", CONFIG);
 
         assertNotNull(metadata);
-        assertEquals(1, root.minted().size());
-        assertEquals(root.minted(), root.closed());
+        TrackingFormatReader reader = onlyBuiltReader(readers);
+        assertSame(reader, onlyMetadataReader(readers));
+        assertTrue("the reader must still be open while metadata is read", reader.wasOpenDuringMetadata());
+        assertTrue(reader.isClosed());
+        assertEquals(CONFIG, reader.config());
+        assertAllBuiltReadersClosed(readers);
     }
 
-    public void testResolveMetadataClosesTheReaderWhenTheMetadataReadFails() {
-        TrackingFormatReader root = new TrackingFormatReader().failMetadataWith(new IOException("boom"));
+    public void testResolveMetadataClosesTheBuiltReaderWhenMetadataFails() {
+        TrackingFormatReaderFactory readers = TrackingFormatReaderFactory.failingMetadata(new IOException("boom"));
 
-        expectThrows(IllegalArgumentException.class, () -> newFileSourceFactory(root).resolveMetadata("s3://bucket/data.test", CONFIG));
+        expectThrows(IllegalArgumentException.class, () -> newFileSourceFactory(readers).resolveMetadata("s3://bucket/data.test", CONFIG));
 
-        assertEquals(1, root.minted().size());
-        assertEquals("a failed metadata read still releases the reader", root.minted(), root.closed());
+        TrackingFormatReader reader = onlyBuiltReader(readers);
+        assertSame(reader, onlyMetadataReader(readers));
+        assertTrue("the reader must still be open while metadata is read", reader.wasOpenDuringMetadata());
+        assertTrue(reader.isClosed());
+        assertAllBuiltReadersClosed(readers);
     }
 
-    public void testResolveMetadataAsyncClosesTheReaderOnlyAfterTheListenerCompletes() {
-        // The async read outlives the method, so the release has to ride the completion listener rather than
-        // the return. The reader snapshots what had been closed at the moment the read was entered; the
-        // instance being read through must not be in it.
-        TrackingFormatReader root = new TrackingFormatReader();
+    public void testResolveMetadataAsyncClosesTheBuiltReaderAfterTheListenerCompletes() {
+        TrackingFormatReaderFactory readers = new TrackingFormatReaderFactory();
         AtomicReference<SourceMetadata> response = new AtomicReference<>();
+        AtomicReference<TrackingFormatReader> listenerReader = new AtomicReference<>();
+        AtomicReference<Boolean> closedInListener = new AtomicReference<>();
 
-        newFileSourceFactory(root).resolveMetadataAsync(
+        newFileSourceFactory(readers).resolveMetadataAsync(
             "s3://bucket/data.test",
             null,
             CONFIG,
             Runnable::run,
-            ActionListener.wrap(response::set, e -> fail("unexpected failure: " + e))
+            ActionListener.wrap(metadata -> {
+                response.set(metadata);
+                TrackingFormatReader reader = onlyMetadataReader(readers);
+                listenerReader.set(reader);
+                closedInListener.set(reader.isClosed());
+            }, e -> fail("unexpected failure: " + e))
         );
 
         assertNotNull(response.get());
-        // Two mints: the up-front validateConfig pass, which releases its own, then the reader this method
-        // actually reads through.
-        List<TrackingFormatReader> minted = root.minted();
-        assertEquals(2, minted.size());
-        assertFalse("still open while the read was in flight", root.closedDuringMetadata().contains(minted.get(1)));
-        assertEveryMintedInstanceReleased(root);
+        TrackingFormatReader reader = onlyBuiltReader(readers);
+        assertSame(reader, listenerReader.get());
+        assertFalse("the completion wrapper must close after invoking the listener", closedInListener.get());
+        assertTrue("the reader must still be open while metadata is read", reader.wasOpenDuringMetadata());
+        assertTrue(reader.isClosed());
+        assertEquals("validation and metadata each inspect the factory", 2, readers.inspectCount());
+        assertEquals("validation must not create a runtime reader", 1, readers.builtReaders().size());
+        assertAllBuiltReadersClosed(readers);
     }
 
-    public void testResolveMetadataAsyncClosesTheReaderWhenTheReadFails() {
-        TrackingFormatReader root = new TrackingFormatReader().failMetadataWith(new IOException("boom"));
+    public void testResolveMetadataAsyncClosesTheBuiltReaderWhenMetadataFails() {
+        TrackingFormatReaderFactory readers = TrackingFormatReaderFactory.failingMetadata(new IOException("boom"));
         AtomicReference<Exception> failure = new AtomicReference<>();
+        AtomicReference<TrackingFormatReader> listenerReader = new AtomicReference<>();
+        AtomicReference<Boolean> closedInListener = new AtomicReference<>();
 
-        newFileSourceFactory(root).resolveMetadataAsync(
+        newFileSourceFactory(readers).resolveMetadataAsync(
             "s3://bucket/data.test",
             null,
             CONFIG,
             Runnable::run,
-            ActionListener.wrap(m -> fail("expected a failure"), failure::set)
+            ActionListener.wrap(metadata -> fail("expected a failure"), e -> {
+                failure.set(e);
+                TrackingFormatReader reader = onlyMetadataReader(readers);
+                listenerReader.set(reader);
+                closedInListener.set(reader.isClosed());
+            })
         );
 
         assertNotNull(failure.get());
-        assertEveryMintedInstanceReleased(root);
+        TrackingFormatReader reader = onlyBuiltReader(readers);
+        assertSame(reader, listenerReader.get());
+        assertFalse("the completion wrapper must close after invoking the listener", closedInListener.get());
+        assertTrue("the reader must still be open while metadata is read", reader.wasOpenDuringMetadata());
+        assertTrue(reader.isClosed());
+        assertAllBuiltReadersClosed(readers);
     }
 
-    /**
-     * The other half of the contract: when no {@code with*} call applies, the reader the caller holds is the
-     * registry's node-level singleton and nothing may close it. Closing it once per query is exactly the
-     * regression the identity guard exists to prevent.
-     */
-    public void testTheRegistryInstanceIsNeverClosed() {
-        TrackingFormatReader root = new TrackingFormatReader();
-        FileSourceFactory factory = newFileSourceFactory(root);
+    public void testExecutionBuildsReadsAndClosesOneRuntimeReader() {
+        TrackingFormatReaderFactory readers = new TrackingFormatReaderFactory();
+        List<Attribute> attributes = List.of(field("value"));
+        AsyncExternalSourceOperatorFactory factory = executionFactory(readers, Runnable::run, false, attributes);
 
-        factory.validateConfig("s3://bucket/data.test", Map.of());
-        factory.resolveMetadata("s3://bucket/data.test", Map.of());
-        factory.operatorFactory()
-            .create(
-                SourceOperatorContext.builder()
-                    .sourceType("file")
-                    .path(StoragePath.of("s3://bucket/data.test"))
-                    .executor(Runnable::run)
-                    .build()
-            );
-
-        assertEquals("no with* call applied, so nothing was minted", List.of(), root.minted());
-        assertEquals("and nothing was closed", List.of(), root.closed());
-    }
-
-    /**
-     * Split discovery mints a config-aware reader per file to ask which record splitter and which byte ranges the
-     * format supports, then discards it. Nothing past planning reads through those, so they have to go where they
-     * were minted rather than ride anything downstream.
-     */
-    public void testSplitDiscoveryClosesThePerFileProbeReaders() {
-        TrackingFormatReader root = new TrackingFormatReader();
-        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        formatRegistry.registerLazy("test-format", (s, bf) -> root, Settings.EMPTY, null);
-        formatRegistry.registerExtension(".test", "test-format");
-
-        StorageProviderRegistry storageRegistry = new StorageProviderRegistry(Settings.EMPTY);
-        storageRegistry.registerFactory("s3", StorageProviderFactory.noConfigKeys(StubStorageProvider::new));
-
-        FileSplitProvider splitProvider = new FileSplitProvider(
-            1024,
-            new DecompressionCodecRegistry(),
-            storageRegistry,
-            formatRegistry,
-            Settings.EMPTY,
-            null
-        );
-
-        FileList fileList = GlobExpander.fileListOf(
-            List.of(
-                new StorageEntry(StoragePath.of("s3://bucket/data/f1.test"), 4096, Instant.EPOCH),
-                new StorageEntry(StoragePath.of("s3://bucket/data/f2.test"), 4096, Instant.EPOCH)
-            ),
-            "s3://bucket/data/*.test"
-        );
-
-        splitProvider.discoverSplits(new SplitDiscoveryContext(null, fileList, CONFIG, PartitionMetadata.EMPTY, List.of()));
-
-        // Two probes per file: the splitter/segment probe and the range-split probe, each config-aware and each
-        // minting its own instance.
-        assertEquals(4, root.minted().size());
-        assertEveryMintedInstanceReleased(root);
-    }
-
-    // === Population B: the per-query execution reader, released through the operator factory's onClose ===
-
-    public void testOperatorFactoryReleasesTheConfiguredReaderWhenTheLastOperatorFinishes() {
-        TrackingFormatReader root = new TrackingFormatReader();
-        AsyncExternalSourceOperatorFactory factory = executionFactory(root);
-        assertEquals("the with* chain minted the query's reader", 1, root.minted().size());
-        assertEquals("held open while the operator can still run", List.of(), root.closed());
+        assertNoReadersBuilt(readers);
 
         drainToCompletion(factory);
 
-        // Two instances by now: the query-scoped one the factory built, plus the per-read re-mint the
-        // single-file rail stamps with this file's read config.
-        assertEquals(2, root.minted().size());
-        assertEveryMintedInstanceReleased(root);
+        TrackingFormatReader reader = onlyBuiltReader(readers);
+        assertSame(reader, onlyReadReader(readers));
+        assertEquals(CONFIG, reader.config());
+        assertEquals(attributes, reader.schema());
+        assertEquals(List.of("value"), reader.readContext().projectedColumns());
+        assertNotNull(reader.readConfig());
+        assertTrue(reader.isClosed());
+        assertAllBuiltReadersClosed(readers);
     }
 
-    public void testOperatorFactoryReleasesTheConfiguredReaderWhenTheReadFails() {
-        TrackingFormatReader root = new TrackingFormatReader().failReadWith(new IOException("read blew up"));
-        AsyncExternalSourceOperatorFactory factory = executionFactory(root);
+    public void testExecutionClosesTheBuiltReaderWhenReadFails() {
+        TrackingFormatReaderFactory readers = TrackingFormatReaderFactory.failingRead(new IOException("read blew up"));
+        AsyncExternalSourceOperatorFactory factory = executionFactory(readers);
 
         DriverContext driverContext = driverContext();
         SourceOperator operator = factory.get(driverContext);
-        expectThrows(Exception.class, () -> {
-            while (operator.isFinished() == false) {
-                Page page = operator.getOutput();
-                if (page != null) {
-                    page.releaseBlocks();
+        try {
+            expectThrows(Exception.class, () -> {
+                while (operator.isFinished() == false) {
+                    Page page = operator.getOutput();
+                    if (page != null) {
+                        page.releaseBlocks();
+                    }
                 }
-            }
-        });
-        operator.close();
+            });
+        } finally {
+            operator.close();
+        }
 
-        assertFalse("the read got far enough to mint", root.minted().isEmpty());
-        assertEveryMintedInstanceReleased(root);
+        TrackingFormatReader reader = onlyBuiltReader(readers);
+        assertSame(reader, onlyReadReader(readers));
+        assertTrue(reader.isClosed());
+        assertAllBuiltReadersClosed(readers);
     }
 
-    /**
-     * Cancellation shape: the driver closes the source operator before the producer has drained, which finishes
-     * the buffer and takes the producer loop down the same {@code DrainResult.DONE} path a task cancellation
-     * does. The reader must be released there too, not only on the clean-EOF path.
-     */
-    public void testOperatorFactoryReleasesTheConfiguredReaderWhenTheOperatorIsClosedEarly() {
-        TrackingFormatReader root = new TrackingFormatReader();
+    public void testClosingBeforeProducerStartDoesNotBuildAReader() {
+        TrackingFormatReaderFactory readers = new TrackingFormatReaderFactory();
         QueuedExecutor executor = new QueuedExecutor();
-        AsyncExternalSourceOperatorFactory factory = executionFactory(root, executor);
+        AsyncExternalSourceOperatorFactory factory = executionFactory(readers, executor);
 
         SourceOperator operator = factory.get(driverContext());
-        assertEquals("the producer has not run yet", List.of(), root.closed());
+        assertNoReadersBuilt(readers);
         operator.close();
         executor.runAll();
 
-        assertEveryMintedInstanceReleased(root);
+        assertNoReadersBuilt(readers);
     }
 
-    /**
-     * Deferred extraction keeps the source's resources alive past the last source operator, because an
-     * {@code ExternalFieldExtractOperator} still reads through them. The reader rides the same {@code onClose}
-     * chain as the storage lease, so it must inherit that extension rather than be released at source EOF.
-     */
-    public void testDeferredExtractionHoldsTheReaderOpenUntilTheExtractorRegistryCloses() throws IOException {
-        TrackingFormatReader root = new TrackingFormatReader();
-        AsyncExternalSourceOperatorFactory factory = executionFactory(root, Runnable::run, true);
-
-        DriverContext driverContext = driverContext();
-        SourceExtractors registry = factory.sourceExtractorsFor(driverContext);
-        drainToCompletion(factory, driverContext);
-
-        // minted[0] is the query-scoped reader on the onClose chain; minted[1] is the per-read re-mint, whose
-        // life is its iterator's and which is therefore already gone.
-        List<TrackingFormatReader> minted = root.minted();
-        assertEquals(2, minted.size());
-        assertEquals("the query's reader is held open for the extract operator still to run", List.of(minted.get(1)), root.closed());
-
-        registry.close();
-        assertEveryMintedInstanceReleased(root);
-    }
-
-    /**
-     * A {@code with*} chain hands the caller a new instance per applied setting, but only the tail is ever read
-     * through — the ones before it were configured and dropped. The contract says {@code with*} acquires
-     * nothing, so releasing the tail is the whole obligation; this pins that the framework does exactly that
-     * rather than quietly relying on a chain of length one.
-     */
-    public void testOnlyTheTailOfTheWithChainIsReleased() {
-        TrackingFormatReader root = new TrackingFormatReader();
-        // Non-empty attributes make withSchema apply as well, so the chain is withConfig -> withSchema.
-        AsyncExternalSourceOperatorFactory factory = executionFactory(root, Runnable::run, false, List.of(field("value")));
-
-        assertEquals("two settings applied, two instances minted", 2, root.minted().size());
-        TrackingFormatReader intermediate = root.minted().get(0);
-        TrackingFormatReader tail = root.minted().get(1);
-        drainToCompletion(factory);
-
-        assertTrue("the tail is the instance the read went through", root.closed().contains(tail));
-        assertFalse(
-            "the intermediate was configured and dropped, never read through, so by contract it holds nothing",
-            root.closed().contains(intermediate)
-        );
-    }
-
-    // === Population C: per-file re-mints during execution ===
-
-    /**
-     * The multi-file producer re-mints a reader per file ({@code withReadConfig} stamps how that file is being
-     * read). Each of those is the factory's own, and each has to go when its file's iterator does — while the
-     * shared instance every file derives from stays open for the files still to come.
-     */
-    public void testPerFileRemintsAreEachReleasedAndTheSharedReaderIsNot() {
-        TrackingFormatReader shared = new TrackingFormatReader();
+    public void testMultiFileExecutionBuildsAndClosesOneDistinctReaderPerFile() {
+        TrackingFormatReaderFactory readers = new TrackingFormatReaderFactory();
         List<StorageEntry> entries = List.of(
             new StorageEntry(StoragePath.of("s3://bucket/data/f1.test"), 100, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/data/f2.test"), 200, Instant.EPOCH),
@@ -337,7 +248,7 @@ public class FormatReaderLifecycleTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             new StubStorageProvider(),
-            shared,
+            readers,
             StoragePath.of("s3://bucket/data/f1.test"),
             List.of(),
             100,
@@ -347,24 +258,69 @@ public class FormatReaderLifecycleTests extends ESTestCase {
 
         drainToCompletion(factory);
 
-        assertEquals("one re-mint per file", 3, shared.minted().size());
-        assertEveryMintedInstanceReleased(shared);
+        List<TrackingFormatReader> builtReaders = readers.builtReaders();
+        assertEquals(3, builtReaders.size());
+        assertNotSame(builtReaders.get(0), builtReaders.get(1));
+        assertNotSame(builtReaders.get(0), builtReaders.get(2));
+        assertNotSame(builtReaders.get(1), builtReaders.get(2));
+        assertThat(readers.readReaders(), containsInAnyOrder(builtReaders.toArray()));
+        assertThat(
+            builtReaders.stream().map(TrackingFormatReader::readPath).toList(),
+            containsInAnyOrder(entries.stream().map(StorageEntry::path).toArray())
+        );
+        assertAllBuiltReadersClosed(readers);
     }
 
-    // === helpers ===
+    public void testDeferredExtractionKeepsTheBuiltReaderOpenUntilTheExtractorRegistryCloses() throws IOException {
+        TrackingFormatReaderFactory readers = new TrackingFormatReaderFactory();
+        List<Attribute> attributes = List.of(field(ColumnExtractor.ROW_POSITION_COLUMN, DataType.LONG));
+        AsyncExternalSourceOperatorFactory factory = executionFactory(readers, Runnable::run, true, attributes);
 
-    /**
-     * Every instance a {@code with*} call handed out was released exactly once (a double close would fail the
-     * size check {@code containsInAnyOrder} makes), and the registry's shared instance was left alone.
-     */
-    private static void assertEveryMintedInstanceReleased(TrackingFormatReader root) {
-        assertThat("every minted instance released, exactly once", root.closed(), containsInAnyOrder(root.minted().toArray()));
-        assertFalse("the registry's shared instance is never closed", root.closed().contains(root));
+        DriverContext driverContext = driverContext();
+        SourceExtractors registry = factory.sourceExtractorsFor(driverContext);
+        drainToCompletion(factory, driverContext);
+
+        TrackingFormatReader reader = onlyBuiltReader(readers);
+        assertSame(reader, onlyReadReader(readers));
+        assertEquals(1, registry.size());
+        assertFalse("the registered extractor still owns the runtime reader", reader.isClosed());
+
+        registry.close();
+
+        assertTrue(reader.isClosed());
+        assertAllBuiltReadersClosed(readers);
     }
 
-    private static FileSourceFactory newFileSourceFactory(TrackingFormatReader reader) {
+    private static void assertNoReadersBuilt(TrackingFormatReaderFactory readers) {
+        assertEquals(List.of(), readers.builtReaders());
+        assertEquals(List.of(), readers.closedReaders());
+    }
+
+    private static void assertAllBuiltReadersClosed(TrackingFormatReaderFactory readers) {
+        assertThat(readers.closedReaders(), containsInAnyOrder(readers.builtReaders().toArray()));
+        for (TrackingFormatReader reader : readers.builtReaders()) {
+            assertTrue(reader.isClosed());
+        }
+    }
+
+    private static TrackingFormatReader onlyBuiltReader(TrackingFormatReaderFactory readers) {
+        assertEquals(1, readers.builtReaders().size());
+        return readers.builtReaders().get(0);
+    }
+
+    private static TrackingFormatReader onlyMetadataReader(TrackingFormatReaderFactory readers) {
+        assertEquals(1, readers.metadataReaders().size());
+        return readers.metadataReaders().get(0);
+    }
+
+    private static TrackingFormatReader onlyReadReader(TrackingFormatReaderFactory readers) {
+        assertEquals(1, readers.readReaders().size());
+        return readers.readReaders().get(0);
+    }
+
+    private static FileSourceFactory newFileSourceFactory(TrackingFormatReaderFactory readers) {
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        formatRegistry.registerLazy("test-format", (s, bf) -> reader, Settings.EMPTY, null);
+        formatRegistry.registerLazy("test-format", readers, Settings.EMPTY, BLOCK_FACTORY);
         formatRegistry.registerExtension(".test", "test-format");
 
         StorageProviderRegistry storageRegistry = new StorageProviderRegistry(Settings.EMPTY);
@@ -373,31 +329,22 @@ public class FormatReaderLifecycleTests extends ESTestCase {
         return new FileSourceFactory(storageRegistry, formatRegistry, new DecompressionCodecRegistry(), Settings.EMPTY);
     }
 
-    private static AsyncExternalSourceOperatorFactory executionFactory(TrackingFormatReader reader) {
-        return executionFactory(reader, Runnable::run);
+    private static AsyncExternalSourceOperatorFactory executionFactory(TrackingFormatReaderFactory readers) {
+        return executionFactory(readers, Runnable::run);
     }
 
-    private static AsyncExternalSourceOperatorFactory executionFactory(TrackingFormatReader reader, Executor executor) {
-        return executionFactory(reader, executor, false);
+    private static AsyncExternalSourceOperatorFactory executionFactory(TrackingFormatReaderFactory readers, Executor executor) {
+        return executionFactory(readers, executor, false, List.of());
     }
 
     private static AsyncExternalSourceOperatorFactory executionFactory(
-        TrackingFormatReader reader,
-        Executor executor,
-        boolean deferredExtraction
-    ) {
-        return executionFactory(reader, executor, deferredExtraction, List.of());
-    }
-
-    /** Builds the production chain: {@link FileSourceFactory#operatorFactory()} mints the reader and owns it. */
-    private static AsyncExternalSourceOperatorFactory executionFactory(
-        TrackingFormatReader reader,
+        TrackingFormatReaderFactory readers,
         Executor executor,
         boolean deferredExtraction,
         List<Attribute> attributes
     ) {
         StoragePath path = StoragePath.of("s3://bucket/data.test");
-        SourceOperator.SourceOperatorFactory built = newFileSourceFactory(reader).operatorFactory()
+        SourceOperator.SourceOperatorFactory built = newFileSourceFactory(readers).operatorFactory()
             .create(
                 SourceOperatorContext.builder()
                     .sourceType("file")
@@ -442,14 +389,13 @@ public class FormatReaderLifecycleTests extends ESTestCase {
     }
 
     private static Attribute field(String name) {
-        return new FieldAttribute(
-            Source.EMPTY,
-            name,
-            new EsField(name, DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
-        );
+        return field(name, DataType.INTEGER);
     }
 
-    /** Defers every task until {@link #runAll()}, so a test can interleave a close with the producer loop. */
+    private static Attribute field(String name, DataType dataType) {
+        return new FieldAttribute(Source.EMPTY, name, new EsField(name, dataType, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
     private static final class QueuedExecutor implements Executor {
         private final Deque<Runnable> queued = new ArrayDeque<>();
 
@@ -465,128 +411,51 @@ public class FormatReaderLifecycleTests extends ESTestCase {
         }
     }
 
-    /**
-     * Mints a fresh instance for every {@code with*} call that applies and records every close, against lists
-     * shared by the whole lineage so the root is the single handle a test needs.
-     * <p>
-     * Deliberately not a Mockito spy: the contract is about which <em>instance</em> of a chain gets closed, and
-     * a spy on one object cannot tell the parent's close from the child's.
-     * <p>
-     * Declares {@link ColumnExtractorAware} because that marker is one of the two signals
-     * {@code FileSourceFactory} requires before it enables deferred extraction, which is the lifetime-extension
-     * case under test. With no {@code _rowPosition} in the projection the runtime producer handshake never runs,
-     * so the marker alone is enough and the iterators below stay plain.
-     */
-    private static final class TrackingFormatReader implements FormatReader, ColumnExtractorAware {
+    private static final class TrackingFormatReaderFactory implements FormatReaderFactory {
+        private final TrackingState state;
 
-        private final TrackingFormatReader root;
-        private final String label;
-        private final List<TrackingFormatReader> minted;
-        private final List<TrackingFormatReader> closed;
-        /** Snapshot of {@link #closed} taken inside {@code metadata}, so a test can prove the reader was open during the read. */
-        private volatile List<TrackingFormatReader> closedDuringMetadata;
-        private IOException metadataFailure;
-        private IOException readFailure;
-
-        TrackingFormatReader() {
-            this.root = this;
-            this.label = "root";
-            this.minted = new CopyOnWriteArrayList<>();
-            this.closed = new CopyOnWriteArrayList<>();
+        TrackingFormatReaderFactory() {
+            this(null, null);
         }
 
-        private TrackingFormatReader(TrackingFormatReader parent, String setting) {
-            this.root = parent.root;
-            this.label = parent.label + "->" + setting;
-            this.minted = parent.minted;
-            this.closed = parent.closed;
-            this.metadataFailure = parent.metadataFailure;
-            this.readFailure = parent.readFailure;
+        private TrackingFormatReaderFactory(IOException metadataFailure, IOException readFailure) {
+            this.state = new TrackingState(metadataFailure, readFailure);
         }
 
-        TrackingFormatReader failMetadataWith(IOException failure) {
-            this.metadataFailure = failure;
-            return this;
+        static TrackingFormatReaderFactory failingMetadata(IOException failure) {
+            return new TrackingFormatReaderFactory(failure, null);
         }
 
-        TrackingFormatReader failReadWith(IOException failure) {
-            this.readFailure = failure;
-            return this;
-        }
-
-        /** Every instance the lineage minted, in mint order. Excludes the root, which nobody owns. */
-        List<TrackingFormatReader> minted() {
-            return List.copyOf(minted);
-        }
-
-        /** Every instance closed, in close order. */
-        List<TrackingFormatReader> closed() {
-            return List.copyOf(closed);
-        }
-
-        List<TrackingFormatReader> closedDuringMetadata() {
-            return closedDuringMetadata == null ? List.of() : closedDuringMetadata;
-        }
-
-        private TrackingFormatReader mint(String setting) {
-            TrackingFormatReader derived = new TrackingFormatReader(this, setting);
-            minted.add(derived);
-            return derived;
+        static TrackingFormatReaderFactory failingRead(IOException failure) {
+            return new TrackingFormatReaderFactory(null, failure);
         }
 
         @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            if (config == null || config.isEmpty()) {
-                return Configured.empty(this);
-            }
-            // Claim only the keys we know, so a test can drive the unknown-key rejection path.
-            return Configured.fromKnownSubset(mint("config"), config, Set.of("delimiter"));
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return create(settings, blockFactory, null, FormatReadContext.Binding.empty());
         }
 
         @Override
-        public FormatReader withSchema(List<Attribute> schema) {
-            return schema == null || schema.isEmpty() ? this : mint("schema");
+        public FormatReader create(
+            Settings settings,
+            BlockFactory blockFactory,
+            Map<String, Object> config,
+            FormatReadContext.Binding binding
+        ) {
+            Map<String, Object> immutableConfig = config == null ? Map.of() : Map.copyOf(config);
+            List<Attribute> schema = binding == null || binding.boundSchema() == null ? List.of() : List.copyOf(binding.boundSchema());
+            String readConfig = binding == null ? null : binding.readConfig();
+            TrackingFormatReader reader = new TrackingFormatReader(state, immutableConfig, schema, readConfig);
+            state.builtReaders.add(reader);
+            return reader;
         }
 
         @Override
-        public FormatReader withReadConfig(String readConfig) {
-            return readConfig == null ? this : mint("readConfig");
-        }
-
-        @Override
-        public SourceMetadata metadata(StorageObject object) throws IOException {
-            closedDuringMetadata = List.copyOf(closed);
-            if (metadataFailure != null) {
-                throw metadataFailure;
-            }
-            return new SimpleSourceMetadata(List.of(), "file", object.path().toString());
-        }
-
-        @Override
-        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-            if (readFailure != null) {
-                throw readFailure;
-            }
-            return new CloseableIterator<>() {
-                private boolean consumed = false;
-
-                @Override
-                public boolean hasNext() {
-                    return consumed == false;
-                }
-
-                @Override
-                public Page next() {
-                    if (consumed) {
-                        throw new NoSuchElementException();
-                    }
-                    consumed = true;
-                    return new Page(1);
-                }
-
-                @Override
-                public void close() {}
-            };
+        public Configured<Void> inspect(Map<String, Object> config) {
+            state.inspectCount.incrementAndGet();
+            Map<String, Object> immutableConfig = config == null ? Map.of() : Map.copyOf(config);
+            state.configurations.add(immutableConfig);
+            return Configured.fromKnownSubset(null, config, KNOWN_CONFIG_KEYS);
         }
 
         @Override
@@ -595,8 +464,117 @@ public class FormatReaderLifecycleTests extends ESTestCase {
         }
 
         @Override
-        public List<String> fileExtensions() {
-            return List.of(".test");
+        public boolean columnExtractor() {
+            return true;
+        }
+
+        int inspectCount() {
+            return state.inspectCount.get();
+        }
+
+        List<Map<String, Object>> configurations() {
+            return List.copyOf(state.configurations);
+        }
+
+        List<TrackingFormatReader> builtReaders() {
+            return List.copyOf(state.builtReaders);
+        }
+
+        List<TrackingFormatReader> metadataReaders() {
+            return List.copyOf(state.metadataReaders);
+        }
+
+        List<TrackingFormatReader> readReaders() {
+            return List.copyOf(state.readReaders);
+        }
+
+        List<TrackingFormatReader> closedReaders() {
+            return List.copyOf(state.closedReaders);
+        }
+    }
+
+    private static final class TrackingState {
+        private final IOException metadataFailure;
+        private final IOException readFailure;
+        private final AtomicInteger inspectCount = new AtomicInteger();
+        private final List<Map<String, Object>> configurations = new CopyOnWriteArrayList<>();
+        private final List<TrackingFormatReader> builtReaders = new CopyOnWriteArrayList<>();
+        private final List<TrackingFormatReader> metadataReaders = new CopyOnWriteArrayList<>();
+        private final List<TrackingFormatReader> readReaders = new CopyOnWriteArrayList<>();
+        private final List<TrackingFormatReader> closedReaders = new CopyOnWriteArrayList<>();
+
+        TrackingState(IOException metadataFailure, IOException readFailure) {
+            this.metadataFailure = metadataFailure;
+            this.readFailure = readFailure;
+        }
+    }
+
+    private static final Set<String> KNOWN_CONFIG_KEYS = Set.of("delimiter");
+
+    private static final class TrackingFormatReader implements FormatReader {
+        private final TrackingState state;
+        private final Map<String, Object> config;
+        private final List<Attribute> schema;
+        private final String readConfig;
+        private final AtomicBoolean closed = new AtomicBoolean();
+        private volatile boolean openDuringMetadata;
+        private volatile FormatReadContext readContext;
+        private volatile StoragePath readPath;
+
+        TrackingFormatReader(TrackingState state, Map<String, Object> config, List<Attribute> schema, String readConfig) {
+            this.state = state;
+            this.config = config;
+            this.schema = schema;
+            this.readConfig = readConfig;
+        }
+
+        Map<String, Object> config() {
+            return config;
+        }
+
+        List<Attribute> schema() {
+            return schema;
+        }
+
+        String readConfig() {
+            return readConfig;
+        }
+
+        boolean wasOpenDuringMetadata() {
+            return openDuringMetadata;
+        }
+
+        FormatReadContext readContext() {
+            return readContext;
+        }
+
+        StoragePath readPath() {
+            return readPath;
+        }
+
+        boolean isClosed() {
+            return closed.get();
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) throws IOException {
+            state.metadataReaders.add(this);
+            openDuringMetadata = closed.get() == false;
+            if (state.metadataFailure != null) {
+                throw state.metadataFailure;
+            }
+            return new SimpleSourceMetadata(List.of(), "file", object.path().toString());
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            state.readReaders.add(this);
+            readContext = context;
+            readPath = object.path();
+            if (state.readFailure != null) {
+                throw state.readFailure;
+            }
+            return new TrackingPageIterator(context.projectedColumns());
         }
 
         @Override
@@ -606,16 +584,81 @@ public class FormatReaderLifecycleTests extends ESTestCase {
 
         @Override
         public void close() {
-            closed.add(this);
+            if (closed.compareAndSet(false, true) == false) {
+                throw new AssertionError("runtime reader closed more than once");
+            }
+            state.closedReaders.add(this);
         }
 
         @Override
         public String toString() {
-            return label;
+            return "TrackingFormatReader[config=" + config + ", schema=" + schema + ", readConfig=" + readConfig + "]";
         }
     }
 
-    /** Minimal storage provider: hands back a stub object for any path. */
+    private static final class TrackingPageIterator implements CloseableIterator<Page>, ColumnExtractorProducer {
+        private final List<String> projectedColumns;
+        private boolean consumed;
+        private long extractorHighBits = -1L;
+
+        TrackingPageIterator(List<String> projectedColumns) {
+            this.projectedColumns = projectedColumns;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return consumed == false;
+        }
+
+        @Override
+        public Page next() {
+            if (consumed) {
+                throw new NoSuchElementException();
+            }
+            consumed = true;
+            Block[] blocks = new Block[projectedColumns.size()];
+            for (int i = 0; i < projectedColumns.size(); i++) {
+                if (ColumnExtractor.ROW_POSITION_COLUMN.equals(projectedColumns.get(i))) {
+                    if (extractorHighBits < 0) {
+                        throw new IllegalStateException("extractor id was not installed before reading row positions");
+                    }
+                    blocks[i] = BLOCK_FACTORY.newLongArrayVector(new long[] { extractorHighBits }, 1).asBlock();
+                } else {
+                    blocks[i] = BLOCK_FACTORY.newConstantNullBlock(1);
+                }
+            }
+            return new Page(1, blocks);
+        }
+
+        @Override
+        public ColumnExtractor createColumnExtractor(Consumer<String> driverThreadWarningSink) {
+            return new TrackingColumnExtractor();
+        }
+
+        @Override
+        public void setExtractorId(int id) {
+            extractorHighBits = ((long) id) << ColumnExtractor.LOCAL_POSITION_BITS;
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static final class TrackingColumnExtractor implements ColumnExtractor {
+        @Override
+        public long rowCount() {
+            return 1;
+        }
+
+        @Override
+        public Block[] extract(String[] columnNames, DataType[] targetTypes, long[] positions, BlockFactory blockFactory) {
+            throw new UnsupportedOperationException("the lifecycle test does not materialize deferred columns");
+        }
+
+        @Override
+        public void close() {}
+    }
+
     private static final class StubStorageProvider implements StorageProvider {
         @Override
         public StorageObject newObject(StoragePath path) {

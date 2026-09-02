@@ -7,13 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
-import org.junit.Before;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -21,16 +17,10 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 public class CsvRecordSplitterTests extends ESTestCase {
-
-    private BlockFactory blockFactory;
-
-    @Before
-    public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
-    }
 
     public void testTsvFindLastRecordBoundaryWithLiteralMidFieldQuotes() throws IOException {
         RecordSplitter splitter = splitter(quotedTsv());
@@ -323,7 +313,10 @@ public class CsvRecordSplitterTests extends ESTestCase {
      * rather than constructing a {@link CsvRecordSplitter} directly, since a plain file never gets one.
      */
     private RecordSplitter productionSplitter(CsvFormatOptions options) {
-        return new CsvFormatReader(blockFactory).withOptions(options).recordSplitter();
+        return new CsvFormatReaderFactory("csv", List.of(".csv"), options, true).recordSplitter(
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
     }
 
     /**
@@ -331,8 +324,10 @@ public class CsvRecordSplitterTests extends ESTestCase {
      * every option field, so the test tracks whatever plain mode actually installs in production.
      */
     private RecordSplitter plainModeCsvSplitter() {
-        SegmentableFormatReader reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
-        return reader.recordSplitter();
+        return new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true).recordSplitter(
+            Map.of("mode", "plain"),
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
     }
 
     private static RecordSplitter splitter(CsvFormatOptions options) {

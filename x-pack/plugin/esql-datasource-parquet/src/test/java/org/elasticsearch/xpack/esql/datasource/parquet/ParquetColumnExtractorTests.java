@@ -26,6 +26,7 @@ import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -293,7 +295,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         // deferred gate distinguishes declared from inferred, exactly like the eager pair.
         byte[] data = writeSingleInt64File(new long[] { 5L, 7L, 9L });
         StorageObject so = createStorageObject(data);
-        ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of("v"));
+        ParquetFormatReader reader = readerWithBinding(FormatReadContext.Binding.empty().withDeclaredTypeColumns(Set.of("v")));
         try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, loadFooter(so), ErrorPolicy.PERMISSIVE)) {
             long[] positions = { 0, 1, 2 };
             Block[] blocks = extractor.extract(new String[] { "v" }, new DataType[] { DataType.INTEGER }, positions, blockFactory);
@@ -326,7 +328,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
             return groups;
         }, /* rowGroupBytes = */ 1024L);
         StorageObject so = createStorageObject(data);
-        ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of("v"));
+        ParquetFormatReader reader = readerWithBinding(FormatReadContext.Binding.empty().withDeclaredTypeColumns(Set.of("v")));
         List<String> sink = new ArrayList<>();
         try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, loadFooter(so), ErrorPolicy.PERMISSIVE, sink::add)) {
             long[] positions = { 0, 1, 2 };
@@ -1394,4 +1396,9 @@ public class ParquetColumnExtractorTests extends ESTestCase {
             });
         }
     }
+
+    private ParquetFormatReader readerWithBinding(FormatReadContext.Binding binding) {
+        return (ParquetFormatReader) new ParquetFormatReaderFactory().create(Settings.EMPTY, blockFactory, null, binding);
+    }
+
 }

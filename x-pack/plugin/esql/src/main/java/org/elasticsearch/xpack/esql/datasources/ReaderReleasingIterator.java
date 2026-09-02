@@ -11,24 +11,24 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
- * Ties a derived {@link FormatReader}'s release to the lifetime of the iterator that reads through it.
+ * Ties an owned {@link FormatReader}'s release to the lifetime of the iterator that reads through it.
  * <p>
- * Needed where a component mints a configured reader ({@code withSchema}, {@code withReadConfig}, …), opens an
- * iterator on it and hands that iterator to a caller: the reader stays in use for as long as the iterator is open,
+ * Needed where a component builds a reader, opens an iterator on it, and hands that iterator to a caller:
+ * the reader stays in use for as long as the iterator is open,
  * so it cannot be closed when the minting method returns, and the caller cannot close it because it never saw it.
- * The wrapper closes it right after the delegate, which is the order the reader's own state expects — an iterator's
+ * The wrapper closes it right after the delegate, which is the order the reader's own state expects. An iterator's
  * close may still call back into the reader (stats finalization, CPU accounting).
- * <p>
- * The reader is closed only when it is not the {@code source} instance the minting component was handed; see the
- * ownership contract on {@link FormatReader}.
  *
  * <h2>{@link ColumnExtractorProducer} forwarding</h2>
  * Like {@code SchemaAdaptingIterator} and {@code StatsCapturingIterator}, this wrapper unconditionally declares the
@@ -38,26 +38,19 @@ import java.util.function.Consumer;
  */
 final class ReaderReleasingIterator implements CloseableIterator<Page>, ColumnExtractorProducer {
 
+    private static final Logger logger = LogManager.getLogger(ReaderReleasingIterator.class);
+
     private final CloseableIterator<Page> delegate;
     private final FormatReader reader;
-    private final FormatReader source;
 
-    private ReaderReleasingIterator(CloseableIterator<Page> delegate, FormatReader reader, @Nullable FormatReader source) {
-        this.delegate = delegate;
-        this.reader = reader;
-        this.source = source;
+    private ReaderReleasingIterator(CloseableIterator<Page> delegate, FormatReader reader) {
+        this.delegate = Objects.requireNonNull(delegate);
+        this.reader = Objects.requireNonNull(reader);
     }
 
-    /**
-     * Wraps {@code delegate} so closing it also releases {@code reader}. Returns {@code delegate} unchanged when
-     * there is nothing to release — {@code reader} is the very instance {@code source} the caller was handed, so no
-     * {@code with*} call minted anything and no ownership changed hands.
-     */
-    static CloseableIterator<Page> wrap(CloseableIterator<Page> delegate, FormatReader reader, @Nullable FormatReader source) {
-        if (delegate == null || reader == null || reader == source) {
-            return delegate;
-        }
-        return new ReaderReleasingIterator(delegate, reader, source);
+    /** Wraps {@code delegate} so closing it also releases {@code reader}. */
+    static CloseableIterator<Page> wrap(CloseableIterator<Page> delegate, FormatReader reader) {
+        return new ReaderReleasingIterator(delegate, reader);
     }
 
     @Override
@@ -90,7 +83,21 @@ final class ReaderReleasingIterator implements CloseableIterator<Page>, ColumnEx
         try {
             delegate.close();
         } finally {
-            FormatReaderOwnership.closeIfDerived(reader, source);
+            closeReader(reader);
+        }
+    }
+
+    /**
+     * Closes {@code reader} and swallows the failure so cleanup cannot replace a successful result.
+     */
+    static void closeReader(@Nullable FormatReader reader) {
+        if (reader == null) {
+            return;
+        }
+        try {
+            reader.close();
+        } catch (Exception e) {
+            logger.warn("failed to close format reader [{}]", reader.getClass().getName(), e);
         }
     }
 

@@ -12,16 +12,17 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
  * Immutable context for a single {@link FormatReader#read} or {@link FormatReader#readAsync} call.
  * Bundles all per-read execution parameters that were previously spread across 12+ method overloads.
  * <p>
- * Format-specific configuration (delimiter, encoding, etc.) lives on the reader instance via
- * {@link FormatReader#withConfig}. Per-query optimizer hints (pushed filters) live on the reader
- * instance via {@link FormatReader#withPushedFilter}. This context carries only the parameters
- * that may vary per file or per split within a single query execution.
+ * Format-specific configuration is applied at {@link FormatReaderFactory#create}.
+ * {@link Binding} carries per-unit schema, filter, and declaration fields. The remaining
+ * components are per-file or per-split read parameters.
  *
  * @param projectedColumns columns to read. {@code null} means "no projection info available — read
  *                         every column" (backward compatibility default). An <em>empty</em> list
@@ -42,8 +43,8 @@ import java.util.function.Consumer;
  * @param readSchema       optional planner-resolved positional column layout. When non-{@code null},
  *                         format readers use it as the authoritative typed schema; when {@code null},
  *                         readers fall back to per-file inference. Distinct from
- *                         {@link FormatReader#withSchema}, which carries the projection. Empty
- *                         list and {@code null} both mean "no schema"; the compact constructor
+ *                         {@link Binding#boundSchema()}, which carries the projection.
+ *                         Empty list and {@code null} both mean "no schema"; the compact constructor
  *                         collapses empty to {@code null} so readers do one check.
  * @param splitStartByte   file-global byte offset at which this split begins (i.e. {@code FileSplit.offset()}).
  *                         Text readers add the bytes they consume to this anchor to emit a file-global,
@@ -98,6 +99,8 @@ import java.util.function.Consumer;
  *                         header but still has to know what the columns are called — a chunk after the
  *                         first of a header-bearing file whose declared schema binds by name. Binding such
  *                         a chunk by position instead would shift every column silently.
+ * @param binding          per-unit factory create input (schema, filter, declarations). {@code null}
+ *                         means the created reader uses its constructor defaults.
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -116,8 +119,115 @@ public record FormatReadContext(
     StripeColumnScope statsColumnScope,
     @Nullable Consumer<String> informationalWarningSink,
     @Nullable List<String> fileHeaderColumns,
-    @Nullable CircuitBreaker breaker
+    @Nullable CircuitBreaker breaker,
+    @Nullable Binding binding
 ) {
+    /**
+     * Per-unit fields applied at {@link FormatReaderFactory#create}. Query-stable
+     * declarations live here with the fields that remint per file.
+     */
+    public record Binding(
+        @Nullable List<Attribute> boundSchema,
+        @Nullable Object pushedFilter,
+        Map<String, String> declaredDateFormats,
+        Set<String> declaredTypeColumns,
+        boolean declaredProvenanceBinding,
+        @Nullable String readConfig,
+        @Nullable DynamicThreshold dynamicThreshold
+    ) {
+        public Binding {
+            declaredDateFormats = declaredDateFormats == null ? Map.of() : Map.copyOf(declaredDateFormats);
+            declaredTypeColumns = declaredTypeColumns == null ? Set.of() : Set.copyOf(declaredTypeColumns);
+        }
+
+        public static Binding empty() {
+            return new Binding(null, null, Map.of(), Set.of(), false, null, null);
+        }
+
+        public Binding withBoundSchema(@Nullable List<Attribute> schema) {
+            return new Binding(
+                schema,
+                pushedFilter,
+                declaredDateFormats,
+                declaredTypeColumns,
+                declaredProvenanceBinding,
+                readConfig,
+                dynamicThreshold
+            );
+        }
+
+        public Binding withPushedFilter(@Nullable Object filter) {
+            return new Binding(
+                boundSchema,
+                filter,
+                declaredDateFormats,
+                declaredTypeColumns,
+                declaredProvenanceBinding,
+                readConfig,
+                dynamicThreshold
+            );
+        }
+
+        public Binding withReadConfig(@Nullable String config) {
+            return new Binding(
+                boundSchema,
+                pushedFilter,
+                declaredDateFormats,
+                declaredTypeColumns,
+                declaredProvenanceBinding,
+                config,
+                dynamicThreshold
+            );
+        }
+
+        public Binding withDynamicThreshold(@Nullable DynamicThreshold threshold) {
+            return new Binding(
+                boundSchema,
+                pushedFilter,
+                declaredDateFormats,
+                declaredTypeColumns,
+                declaredProvenanceBinding,
+                readConfig,
+                threshold
+            );
+        }
+
+        public Binding withDeclaredDateFormats(Map<String, String> formats) {
+            return new Binding(
+                boundSchema,
+                pushedFilter,
+                formats,
+                declaredTypeColumns,
+                declaredProvenanceBinding,
+                readConfig,
+                dynamicThreshold
+            );
+        }
+
+        public Binding withDeclaredTypeColumns(Set<String> columns) {
+            return new Binding(
+                boundSchema,
+                pushedFilter,
+                declaredDateFormats,
+                columns,
+                declaredProvenanceBinding,
+                readConfig,
+                dynamicThreshold
+            );
+        }
+
+        public Binding withDeclaredProvenanceBinding(boolean provenanceBinding) {
+            return new Binding(
+                boundSchema,
+                pushedFilter,
+                declaredDateFormats,
+                declaredTypeColumns,
+                provenanceBinding,
+                readConfig,
+                dynamicThreshold
+            );
+        }
+    }
 
     public FormatReadContext {
         if (readSchema != null && readSchema.isEmpty()) {
@@ -133,10 +243,8 @@ public record FormatReadContext(
 
     /**
      * Creates a minimal context for the common non-split case. Leaves {@code errorPolicy} as
-     * {@code null} so the reader falls back to its own default — typically the policy resolved
-     * from the user's {@code WITH} options via {@link FormatReader#withConfig}, or the
-     * {@link FormatReader#defaultErrorPolicy()} when no user options are set. Callers that need
-     * to override the policy should use {@link #builder()} or {@link #withErrorPolicy(ErrorPolicy)}.
+     * {@code null} so the created reader applies {@link FormatReaderFactory#defaultErrorPolicy()}. Callers that
+     * need to override the policy should use {@link #builder()} or {@link #withErrorPolicy(ErrorPolicy)}.
      */
     public static FormatReadContext of(List<String> projectedColumns, int batchSize) {
         return builder().projectedColumns(projectedColumns).batchSize(batchSize).build();
@@ -163,7 +271,8 @@ public record FormatReadContext(
             statsColumnScope,
             informationalWarningSink,
             fileHeaderColumns,
-            breaker
+            breaker,
+            binding
         );
     }
 
@@ -188,7 +297,8 @@ public record FormatReadContext(
             statsColumnScope,
             informationalWarningSink,
             fileHeaderColumns,
-            breaker
+            breaker,
+            binding
         );
     }
 
@@ -213,7 +323,32 @@ public record FormatReadContext(
             statsColumnScope,
             informationalWarningSink,
             fileHeaderColumns,
-            breaker
+            breaker,
+            binding
+        );
+    }
+
+    /** Returns a copy with a different factory binding. */
+    public FormatReadContext withBinding(@Nullable Binding newBinding) {
+        return new FormatReadContext(
+            projectedColumns,
+            batchSize,
+            rowLimit,
+            errorPolicy,
+            firstSplit,
+            lastSplit,
+            recordAligned,
+            readSchema,
+            splitStartByte,
+            maxRecordBytes,
+            statsBaseOffset,
+            statsStripeSize,
+            statsFileFinal,
+            statsColumnScope,
+            informationalWarningSink,
+            fileHeaderColumns,
+            breaker,
+            newBinding
         );
     }
 
@@ -246,6 +381,8 @@ public record FormatReadContext(
         private Consumer<String> informationalWarningSink = null;
         @Nullable
         private CircuitBreaker breaker = null;
+        @Nullable
+        private Binding binding = null;
 
         private Builder() {}
 
@@ -361,6 +498,11 @@ public record FormatReadContext(
             return this;
         }
 
+        public Builder binding(@Nullable Binding binding) {
+            this.binding = binding;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -382,7 +524,8 @@ public record FormatReadContext(
                 statsColumnScope,
                 informationalWarningSink,
                 fileHeaderColumns,
-                breaker
+                breaker,
+                binding
             );
         }
     }

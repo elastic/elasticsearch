@@ -260,7 +260,7 @@ public class PageColumnReaderDictionaryCacheTests extends ESTestCase {
     private CloseableIterator<Page> openIterator(BlockFactory blockFactory, byte[] data, int batchSize) throws IOException {
         StorageObject so = storageObject(data);
         // Force optimizedReader=true so we exercise the PageColumnReader / OptimizedParquetColumnIterator paths.
-        return new ParquetFormatReader(blockFactory, true).read(so, FormatReadContext.of(List.of("name"), batchSize));
+        return new ParquetFormatReader(blockFactory).read(so, FormatReadContext.of(List.of("name"), batchSize));
     }
 
     private byte[] writeStringFile(int numRows, boolean optional, IntFunction<String> valueFor) throws IOException {

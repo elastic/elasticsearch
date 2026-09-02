@@ -10,19 +10,15 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 
 import java.util.Map;
 
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
 
     public void testResolveMaxErrorsFromConfig() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
 
         ErrorPolicy policy = FileSourceFactory.resolveErrorPolicy(Map.of("max_errors", "100"), reader);
         assertEquals(100, policy.maxErrors());
@@ -31,9 +27,7 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
     }
 
     public void testResolveMaxErrorRatioFromConfig() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
 
         ErrorPolicy policy = FileSourceFactory.resolveErrorPolicy(Map.of("max_error_ratio", "0.1"), reader);
         assertEquals(Long.MAX_VALUE, policy.maxErrors());
@@ -42,9 +36,7 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
     }
 
     public void testResolveBothMaxErrorsAndRatio() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
 
         ErrorPolicy policy = FileSourceFactory.resolveErrorPolicy(Map.of("max_errors", "50", "max_error_ratio", "0.2"), reader);
         assertEquals(50, policy.maxErrors());
@@ -52,9 +44,7 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
     }
 
     public void testResolveZeroMaxErrors() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
 
         ErrorPolicy policy = FileSourceFactory.resolveErrorPolicy(Map.of("max_errors", "0"), reader);
         assertEquals(0, policy.maxErrors());
@@ -62,28 +52,23 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
     }
 
     public void testResolveFallsBackToFormatDefault() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
         ErrorPolicy customDefault = new ErrorPolicy(50, false);
-        when(reader.defaultErrorPolicy()).thenReturn(customDefault);
+        reader = reader.withDefaultErrorPolicy(customDefault);
 
         ErrorPolicy policy = FileSourceFactory.resolveErrorPolicy(Map.of(), reader);
         assertSame(customDefault, policy);
     }
 
     public void testResolveNullConfig() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
 
         ErrorPolicy policy = FileSourceFactory.resolveErrorPolicy(null, reader);
         assertSame(ErrorPolicy.STRICT, policy);
     }
 
     public void testResolveInvalidMaxErrors() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
 
         expectThrows(
             IllegalArgumentException.class,
@@ -92,9 +77,7 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
     }
 
     public void testResolveInvalidMaxErrorRatio() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
 
         expectThrows(
             IllegalArgumentException.class,
@@ -103,9 +86,7 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
     }
 
     public void testResolveNullFieldMode() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
 
         ErrorPolicy policy = FileSourceFactory.resolveErrorPolicy(Map.of("error_mode", "null_field", "max_errors", "50"), reader);
         assertEquals(ErrorPolicy.Mode.NULL_FIELD, policy.mode());
@@ -114,9 +95,7 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
     }
 
     public void testResolveSkipRowMode() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
 
         ErrorPolicy policy = FileSourceFactory.resolveErrorPolicy(Map.of("error_mode", "skip_row", "max_errors", "10"), reader);
         assertEquals(ErrorPolicy.Mode.SKIP_ROW, policy.mode());
@@ -124,18 +103,14 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
     }
 
     public void testResolveFailFastMode() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
 
         ErrorPolicy policy = FileSourceFactory.resolveErrorPolicy(Map.of("error_mode", "fail_fast"), reader);
         assertSame(ErrorPolicy.STRICT, policy);
     }
 
     public void testResolveFailFastWithBudgetThrows() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
 
         expectThrows(
             IllegalArgumentException.class,
@@ -148,9 +123,7 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
     }
 
     public void testResolveInvalidErrorMode() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
 
         expectThrows(
             IllegalArgumentException.class,
@@ -159,17 +132,13 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
     }
 
     public void testResolveEmptyErrorModeThrows() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
 
         expectThrows(IllegalArgumentException.class, () -> FileSourceFactory.resolveErrorPolicy(Map.of("error_mode", ""), reader));
     }
 
     public void testResolveNullFieldModeWithoutBudgetDefaultsToUnlimited() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
 
         ErrorPolicy policy = FileSourceFactory.resolveErrorPolicy(Map.of("error_mode", "null_field"), reader);
         assertEquals(ErrorPolicy.Mode.NULL_FIELD, policy.mode());
@@ -178,9 +147,7 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
     }
 
     public void testResolveSkipRowModeWithoutBudgetDefaultsToUnlimited() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
 
         ErrorPolicy policy = FileSourceFactory.resolveErrorPolicy(Map.of("error_mode", "skip_row"), reader);
         assertEquals(ErrorPolicy.Mode.SKIP_ROW, policy.mode());
@@ -189,9 +156,7 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
     }
 
     public void testLogErrorsEnabledWhenBudgetIsFinite() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
 
         ErrorPolicy withCount = FileSourceFactory.resolveErrorPolicy(Map.of("max_errors", "10"), reader);
         assertTrue(withCount.logErrors());
@@ -201,9 +166,7 @@ public class FileSourceFactoryErrorPolicyTests extends ESTestCase {
     }
 
     public void testLogErrorsDisabledWhenBudgetIsUnlimited() {
-        FormatReader reader = mock(FormatReader.class);
-        when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(reader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        TestFormatReaderFactory reader = TestFormatReaderFactory.basic(() -> mock(FormatReader.class));
 
         ErrorPolicy policy = FileSourceFactory.resolveErrorPolicy(Map.of("error_mode", "skip_row"), reader);
         assertFalse(policy.logErrors());

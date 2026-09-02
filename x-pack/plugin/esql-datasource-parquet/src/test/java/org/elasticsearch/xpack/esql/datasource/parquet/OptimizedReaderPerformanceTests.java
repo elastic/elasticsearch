@@ -77,7 +77,7 @@ public class OptimizedReaderPerformanceTests extends ESTestCase {
 
         for (int i = 0; i < warmups; i++) {
             readAll(new ParquetFormatReader(blockFactory, false), storageObject);
-            readAll(new ParquetFormatReader(blockFactory, true), storageObject);
+            readAll(new ParquetFormatReader(blockFactory), storageObject);
         }
 
         long[] baselineTimes = new long[measured];
@@ -88,7 +88,7 @@ public class OptimizedReaderPerformanceTests extends ESTestCase {
             baselineTimes[i] = System.nanoTime() - start;
 
             start = System.nanoTime();
-            readAll(new ParquetFormatReader(blockFactory, true), storageObject);
+            readAll(new ParquetFormatReader(blockFactory), storageObject);
             optimizedTimes[i] = System.nanoTime() - start;
         }
 

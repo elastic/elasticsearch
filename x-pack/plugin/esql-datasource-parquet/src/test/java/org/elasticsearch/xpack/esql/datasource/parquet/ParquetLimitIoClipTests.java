@@ -29,6 +29,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
@@ -367,9 +368,7 @@ public class ParquetLimitIoClipTests extends ESTestCase {
         assertThat(blocks.size(), greaterThan(k));
 
         RecordingStorageObject filtered = new RecordingStorageObject(parquetData);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(
-            FilterCompat.get(FilterApi.gtEq(FilterApi.longColumn("id"), 0L))
-        );
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, FilterCompat.get(FilterApi.gtEq(FilterApi.longColumn("id"), 0L)));
         try (
             CloseableIterator<Page> iter = reader.read(
                 filtered,
@@ -399,7 +398,7 @@ public class ParquetLimitIoClipTests extends ESTestCase {
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
 
         RecordingStorageObject storage = new RecordingStorageObject(parquetData);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetFormatReader reader = readerWithPushedFilter(blockFactory, pushed);
         int rows = 0;
         CloseableIterator<Page> iter = reader.read(
             storage,
@@ -786,4 +785,14 @@ public class ParquetLimitIoClipTests extends ESTestCase {
             });
         }
     }
+
+    private static ParquetFormatReader readerWithPushedFilter(BlockFactory blockFactory, Object pushed) {
+        return (ParquetFormatReader) new ParquetFormatReaderFactory().create(
+            Settings.EMPTY,
+            blockFactory,
+            null,
+            FormatReadContext.Binding.empty().withPushedFilter(pushed)
+        );
+    }
+
 }

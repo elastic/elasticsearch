@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -143,6 +144,43 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertSame(result, response.get());
+        assertEquals(0, budget.inFlight());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testAsyncReadCallbackFailureDoesNotDoubleCompleteOrCloseBuffer() {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
+        StorageObject delegate = mock(StorageObject.class);
+        AtomicInteger closes = new AtomicInteger();
+        DirectReadBuffer result = new DirectReadBuffer(ByteBuffer.allocate(4), closes::incrementAndGet);
+        doAnswer(inv -> {
+            ActionListener<DirectReadBuffer> listener = inv.getArgument(4);
+            listener.onResponse(result);
+            return null;
+        }).when(delegate).readBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
+        AtomicInteger failures = new AtomicInteger();
+        RuntimeException callbackFailure = new RuntimeException("listener callback failure");
+
+        RuntimeException thrown = expectThrows(
+            RuntimeException.class,
+            () -> obj.readBytesAsync(0, 4, FACTORY, Runnable::run, new ActionListener<>() {
+                @Override
+                public void onResponse(DirectReadBuffer buffer) {
+                    buffer.close();
+                    throw callbackFailure;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    failures.incrementAndGet();
+                }
+            })
+        );
+
+        assertSame(callbackFailure, thrown);
+        assertEquals(0, failures.get());
+        assertEquals(1, closes.get());
         assertEquals(0, budget.inFlight());
     }
 

@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
-import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -105,10 +104,18 @@ public class CsvRecordSplitterMaxRecordSizeTests extends ESTestCase {
         // whole-file instead. Plain CSV keeps strided probing, so the oversized-record fallback is still
         // reachable here: the single 1024-byte run has no newline within maxRecordBytes, so the boundary probe
         // exceeds the cap and computeSegments falls back to one whole-file segment.
-        SegmentableFormatReader reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory()).withConfig(Map.of("mode", "plain"));
+        CsvFormatReaderFactory factory = new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true);
         StorageObject object = new ByteArrayStorageObject(bytes);
 
-        List<long[]> segments = ParallelParsingCoordinator.computeSegments(reader, object, bytes.length, 4, 1, maxRecordBytes);
+        List<long[]> segments = ParallelParsingCoordinator.computeSegments(
+            factory,
+            Map.of("mode", "plain"),
+            object,
+            bytes.length,
+            4,
+            1,
+            maxRecordBytes
+        );
 
         assertEquals(1, segments.size());
         assertArrayEquals(new long[] { 0, bytes.length }, segments.get(0));

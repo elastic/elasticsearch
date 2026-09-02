@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -34,7 +36,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -69,6 +71,7 @@ import java.util.zip.GZIPOutputStream;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -84,23 +87,27 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     public void testResolveDispatchModeSequentialWhenSplitterNotStridedSafe() {
         // A quoted CSV/TSV reader reports a non-strided splitter, so the uncompressed file must be read as one
         // sequential stream through the streaming coordinator rather than segmented at arbitrary offsets.
-        SegmentableFormatReader quoted = mock(SegmentableFormatReader.class);
+        FormatReaderFactory quoted = mock(FormatReaderFactory.class);
         RecordSplitter nonStrided = mock(RecordSplitter.class);
         when(nonStrided.supportsStridedProbing()).thenReturn(false);
-        when(quoted.recordSplitter()).thenReturn(nonStrided);
+        when(quoted.segmentable()).thenReturn(true);
+        when(quoted.headerRow(nullableConfig())).thenReturn(false);
+        when(quoted.recordSplitter(nullableConfig(), anyInt())).thenReturn(nonStrided);
         assertEquals(
             AsyncExternalSourceOperatorFactory.ParallelDispatchMode.SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL,
-            AsyncExternalSourceOperatorFactory.resolveDispatchMode(quoted)
+            AsyncExternalSourceOperatorFactory.resolveDispatchMode(quoted, null, Map.of(), false)
         );
 
         // A plain (quoting-off) reader keeps strided probing, so it stays on the offset-segmented parallel path.
-        SegmentableFormatReader plain = mock(SegmentableFormatReader.class);
+        FormatReaderFactory plain = mock(FormatReaderFactory.class);
         RecordSplitter strided = mock(RecordSplitter.class);
         when(strided.supportsStridedProbing()).thenReturn(true);
-        when(plain.recordSplitter()).thenReturn(strided);
+        when(plain.segmentable()).thenReturn(true);
+        when(plain.headerRow(nullableConfig())).thenReturn(false);
+        when(plain.recordSplitter(nullableConfig(), anyInt())).thenReturn(strided);
         assertEquals(
             AsyncExternalSourceOperatorFactory.ParallelDispatchMode.SEGMENTABLE_UNCOMPRESSED,
-            AsyncExternalSourceOperatorFactory.resolveDispatchMode(plain)
+            AsyncExternalSourceOperatorFactory.resolveDispatchMode(plain, null, Map.of(), false)
         );
     }
 
@@ -121,7 +128,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         // Test null storage provider
         expectThrows(
             IllegalArgumentException.class,
-            () -> AsyncExternalSourceOperatorFactory.builder(null, formatReader, path, attributes, 1000, 10, executor).build()
+            () -> AsyncExternalSourceOperatorFactory.builder(
+                null,
+                TestFormatReaderFactory.of(formatReader),
+                path,
+                attributes,
+                1000,
+                10,
+                executor
+            ).build()
         );
 
         // Test null format reader
@@ -133,41 +148,97 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         // Test null path
         expectThrows(
             IllegalArgumentException.class,
-            () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, null, attributes, 1000, 10, executor).build()
+            () -> AsyncExternalSourceOperatorFactory.builder(
+                storageProvider,
+                TestFormatReaderFactory.of(formatReader),
+                null,
+                attributes,
+                1000,
+                10,
+                executor
+            ).build()
         );
 
         // Test null attributes
         expectThrows(
             IllegalArgumentException.class,
-            () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, null, 1000, 10, executor).build()
+            () -> AsyncExternalSourceOperatorFactory.builder(
+                storageProvider,
+                TestFormatReaderFactory.of(formatReader),
+                path,
+                null,
+                1000,
+                10,
+                executor
+            ).build()
         );
 
         // Test null executor
         expectThrows(
             IllegalArgumentException.class,
-            () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, attributes, 1000, 10, null).build()
+            () -> AsyncExternalSourceOperatorFactory.builder(
+                storageProvider,
+                TestFormatReaderFactory.of(formatReader),
+                path,
+                attributes,
+                1000,
+                10,
+                null
+            ).build()
         );
 
         // Test invalid batch size
         expectThrows(
             IllegalArgumentException.class,
-            () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, attributes, 0, 10, executor).build()
+            () -> AsyncExternalSourceOperatorFactory.builder(
+                storageProvider,
+                TestFormatReaderFactory.of(formatReader),
+                path,
+                attributes,
+                0,
+                10,
+                executor
+            ).build()
         );
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, attributes, -1, 10, executor).build()
+            () -> AsyncExternalSourceOperatorFactory.builder(
+                storageProvider,
+                TestFormatReaderFactory.of(formatReader),
+                path,
+                attributes,
+                -1,
+                10,
+                executor
+            ).build()
         );
 
         // Test invalid buffer size
         expectThrows(
             IllegalArgumentException.class,
-            () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, attributes, 1000, 0, executor).build()
+            () -> AsyncExternalSourceOperatorFactory.builder(
+                storageProvider,
+                TestFormatReaderFactory.of(formatReader),
+                path,
+                attributes,
+                1000,
+                0,
+                executor
+            ).build()
         );
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, attributes, 1000, -1, executor).build()
+            () -> AsyncExternalSourceOperatorFactory.builder(
+                storageProvider,
+                TestFormatReaderFactory.of(formatReader),
+                path,
+                attributes,
+                1000,
+                -1,
+                executor
+            ).build()
         );
     }
 
@@ -175,8 +246,6 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
         when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(formatReader.formatName()).thenReturn("csv");
-        when(formatReader.supportsNativeAsync()).thenReturn(false);
 
         StoragePath path = StoragePath.of("file:///data/test.csv");
         List<Attribute> attributes = List.of(
@@ -190,7 +259,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.basic(() -> formatReader).withFormatName("csv"),
             path,
             attributes,
             500,
@@ -211,8 +280,6 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
         when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(formatReader.formatName()).thenReturn("parquet");
-        when(formatReader.supportsNativeAsync()).thenReturn(true);
 
         StoragePath path = StoragePath.of("s3://bucket/data.parquet");
         List<Attribute> attributes = List.of(
@@ -226,7 +293,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.basic(() -> formatReader).withFormatName("parquet").withNativeAsync(true),
             path,
             attributes,
             1000,
@@ -245,7 +312,6 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
         when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(formatReader.formatName()).thenReturn("csv");
 
         StoragePath path = StoragePath.of("file:///test.csv");
         List<Attribute> attributes = List.of(
@@ -256,10 +322,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             )
         );
         Executor executor = Runnable::run;
+        FormatReaderFactory formatReaderFactory = TestFormatReaderFactory.of(formatReader);
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            formatReaderFactory,
             path,
             attributes,
             500,
@@ -268,7 +335,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         ).build();
 
         assertSame(storageProvider, factory.storageProvider());
-        assertSame(formatReader, factory.formatReader());
+        assertSame(formatReaderFactory, factory.formatReaderFactory());
         assertEquals(path, factory.path());
         assertEquals(attributes, factory.attributes());
         assertEquals(500, factory.batchSize());
@@ -294,7 +361,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             500,
@@ -348,7 +415,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         // Create factory
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -408,7 +475,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         // Create factory
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -426,6 +493,95 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         // Clean up
         operator.close();
+    }
+
+    public void testNativeAsyncSetupFailureClosesIteratorBeforeReaderAndReleasesLifecycle() {
+        List<String> closeEvents = new ArrayList<>();
+        CloseableIterator<Page> iterator = new CloseableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+
+            @Override
+            public Page next() {
+                throw new NoSuchElementException();
+            }
+
+            @Override
+            public void close() {
+                closeEvents.add("iterator");
+            }
+        };
+        FormatReader formatReader = new FormatReader() {
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                return null;
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                throw new AssertionError("synchronous read is not expected");
+            }
+
+            @Override
+            public void readAsync(
+                StorageObject object,
+                FormatReadContext context,
+                Executor executor,
+                ActionListener<CloseableIterator<Page>> listener
+            ) {
+                listener.onResponse(iterator);
+            }
+
+            @Override
+            public void close() {
+                closeEvents.add("reader");
+            }
+        };
+
+        StorageProvider storageProvider = mock(StorageProvider.class);
+        when(storageProvider.newObject(any())).thenReturn(mock(StorageObject.class));
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> {
+            closeEvents.add("async action");
+            return null;
+        }).when(driverContext).removeAsyncAction();
+
+        Executor rejectingExecutor = command -> { throw new IllegalArgumentException("background submission failed"); };
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            TestFormatReaderFactory.basic(() -> formatReader).withFormatName("test-async-setup-failure").withNativeAsync(true),
+            StoragePath.of("s3://bucket/test.parquet"),
+            List.of(
+                new FieldAttribute(
+                    Source.EMPTY,
+                    "value",
+                    new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                )
+            ),
+            100,
+            10,
+            rejectingExecutor
+        ).onClose(() -> closeEvents.add("factory")).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        try {
+            IllegalArgumentException failure = expectThrows(IllegalArgumentException.class, operator::getOutput);
+            assertEquals("background submission failed", failure.getMessage());
+            assertEquals(List.of("iterator", "reader", "async action", "factory"), closeEvents);
+        } finally {
+            operator.close();
+        }
+        assertEquals(List.of("iterator", "reader", "async action", "factory"), closeEvents);
     }
 
     // ===== Multi-file iteration tests =====
@@ -463,7 +619,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -535,7 +691,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             filePath,
             attributes,
             100,
@@ -619,7 +775,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             filePath,
             attributes,
             100,
@@ -695,7 +851,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             filePath,
             attributes,
             100,
@@ -764,7 +920,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             filePath,
             attributes,
             100,
@@ -823,7 +979,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             filePath,
             attributes,
             100,
@@ -889,7 +1045,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             filePath,
             attributes,
             100,
@@ -944,7 +1100,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -1000,7 +1156,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -1041,11 +1197,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
         when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(formatReader.formatName()).thenReturn("parquet");
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             StoragePath.of("s3://bucket/a.parquet"),
             List.of(
                 new FieldAttribute(Source.EMPTY, "x", new EsField("x", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
@@ -1091,7 +1246,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -1144,7 +1299,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -1205,7 +1360,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
             AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                 storageProvider,
-                formatReader,
+                TestFormatReaderFactory.of(formatReader),
                 path,
                 attributes,
                 100,
@@ -1245,11 +1400,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
         when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(formatReader.formatName()).thenReturn("parquet");
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             StoragePath.of("s3://bucket/a.parquet"),
             List.of(
                 new FieldAttribute(Source.EMPTY, "x", new EsField("x", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
@@ -1290,7 +1444,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             new StubMultiFileStorageProvider(),
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             StoragePath.of("s3://bucket/whole.ndjson"),
             List.of(
                 new FieldAttribute(
@@ -1358,7 +1512,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -1420,7 +1574,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -1489,7 +1643,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -1564,7 +1718,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -1628,7 +1782,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -1672,7 +1826,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -1722,7 +1876,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -1753,7 +1907,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             StoragePath.of("file:///test.csv"),
             List.of(
                 new FieldAttribute(Source.EMPTY, "x", new EsField("x", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
@@ -1779,7 +1933,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             StoragePath.of("file:///test.csv"),
             List.of(
                 new FieldAttribute(Source.EMPTY, "x", new EsField("x", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
@@ -1802,7 +1956,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             StoragePath.of("file:///test.csv"),
             List.of(
                 new FieldAttribute(Source.EMPTY, "x", new EsField("x", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
@@ -1840,7 +1994,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -1905,7 +2059,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -1972,7 +2126,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -2039,7 +2193,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -2099,7 +2253,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -2155,7 +2309,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -2210,7 +2364,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
             AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                 storageProvider,
-                formatReader,
+                TestFormatReaderFactory.of(formatReader),
                 path,
                 attributes,
                 100,
@@ -2277,7 +2431,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
             AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                 storageProvider,
-                formatReader,
+                TestFormatReaderFactory.of(formatReader),
                 path,
                 attributes,
                 100,
@@ -2344,7 +2498,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
             AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                 storageProvider,
-                formatReader,
+                TestFormatReaderFactory.of(formatReader),
                 path,
                 attributes,
                 100,
@@ -2411,7 +2565,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
-            formatReader,
+            TestFormatReaderFactory.of(formatReader),
             path,
             attributes,
             100,
@@ -2509,7 +2663,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 contexts[d] = ctx;
                 AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                     storageProvider,
-                    formatReader,
+                    TestFormatReaderFactory.of(formatReader),
                     path,
                     attributes,
                     100,
@@ -2598,7 +2752,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
             AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                 storageProvider,
-                formatReader,
+                TestFormatReaderFactory.of(formatReader),
                 path,
                 attributes,
                 100,
@@ -2682,7 +2836,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 contexts[d] = ctx;
                 AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                     storageProvider,
-                    formatReader,
+                    TestFormatReaderFactory.of(formatReader),
                     path,
                     attributes,
                     100,
@@ -2816,7 +2970,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         try {
             AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                 storageProvider,
-                reader,
+                TestFormatReaderFactory.of(reader),
                 StoragePath.of("s3://bucket/s0_l0.parquet"),
                 attributes,
                 100,
@@ -2885,30 +3039,26 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     public void testDescribeSplittableCompressedUsesSyncWrapperMode() throws IOException {
-        SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
-        CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new StubSplittableCodec());
-        AsyncExternalSourceOperatorFactory factory = factoryForCompressionDescribeTests(cdr, 4);
+        FormatReaderFactory inner = mockInnerForParallelDescribeAndOpen();
+        AsyncExternalSourceOperatorFactory factory = factoryForCompressionDescribeTests(inner, new StubSplittableCodec(), 4);
         String description = factory.describe();
         assertTrue("describe should mention sync-wrapper: " + description, description.contains("sync-wrapper"));
     }
 
     public void testDescribeGzipCompressedUsesStreamingParallelParseInDescription() throws IOException {
-        SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
-        CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new GzipDecompressionCodec());
-        AsyncExternalSourceOperatorFactory factory = factoryForCompressionDescribeTests(cdr, 4);
+        FormatReaderFactory inner = mockInnerForParallelDescribeAndOpen();
+        AsyncExternalSourceOperatorFactory factory = factoryForCompressionDescribeTests(inner, new GzipDecompressionCodec(), 4);
         String description = factory.describe();
         assertTrue("describe should mention streaming parallel parse: " + description, description.contains("streaming-parallel-parse(4)"));
     }
 
     public void testOpenWithParallelismSplittableCompressedReturnsNull() throws IOException {
-        AsyncExternalSourceOperatorFactory factory = factoryForCompressionDescribeTests(dummyFormatReaderForOpenParallelismTests(), 4);
-
-        SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
-        CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new StubSplittableCodec());
+        FormatReaderFactory inner = mockInnerForParallelDescribeAndOpen();
+        AsyncExternalSourceOperatorFactory factory = factoryForCompressionDescribeTests(inner, new StubSplittableCodec(), 4);
         byte[] payload = "{\"a\":1}\n".repeat(20).getBytes(StandardCharsets.UTF_8);
         assertNull(
             factory.openWithParallelism(
-                cdr,
+                FormatReadContext.Binding.empty(),
                 bytesStorageObject(payload),
                 List.of("a"),
                 ErrorPolicy.STRICT,
@@ -2927,17 +3077,13 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     public void testOpenWithParallelismGzipCompressedReturnsIterator() throws IOException {
         ExecutorService exec = Executors.newFixedThreadPool(8);
         try {
-            AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
-                dummyFormatReaderForOpenParallelismTests(),
-                exec
-            );
-            SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
-            CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new GzipDecompressionCodec());
+            FormatReaderFactory inner = mockInnerForParallelDescribeAndOpen();
+            AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(inner, new GzipDecompressionCodec(), exec);
             byte[] plain = "{\"a\":1}\n".repeat(100).getBytes(StandardCharsets.UTF_8);
             byte[] gzipped = gzipCompress(plain);
 
             CloseableIterator<Page> iterator = factory.openWithParallelism(
-                cdr,
+                FormatReadContext.Binding.empty(),
                 bytesStorageObject(gzipped),
                 List.of("a"),
                 ErrorPolicy.STRICT,
@@ -2962,12 +3108,12 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * cleanup must abort (not drain) the underlying connection.
      */
     public void testOpenWithParallelismGzipDecompressFailureAbortsRawStream() throws IOException {
+        FormatReaderFactory inner = mockInnerForParallelDescribeAndOpen();
         AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
-            dummyFormatReaderForOpenParallelismTests(),
+            inner,
+            new FailingStreamOnlyCodec(),
             Runnable::run
         );
-        SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
-        CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new FailingStreamOnlyCodec());
 
         byte[] plain = "{\"a\":1}\n".repeat(100).getBytes(StandardCharsets.UTF_8);
         byte[] gzipped = gzipCompress(plain);
@@ -2977,7 +3123,20 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         IOException thrown = expectThrows(
             IOException.class,
-            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, true, null, 0L, null, null, null)
+            () -> factory.openWithParallelism(
+                FormatReadContext.Binding.empty(),
+                object,
+                List.of("a"),
+                ErrorPolicy.STRICT,
+                false,
+                true,
+                true,
+                null,
+                0L,
+                null,
+                null,
+                null
+            )
         );
         assertEquals("decompress failed", thrown.getMessage());
         assertTrue("raw stream must be aborted when decompression fails", tracking.aborted.get());
@@ -2986,24 +3145,20 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
     /**
      * Regression guard: if {@code parallelRead} construction fails after the decompressing wrapper
-     * is created (e.g. the streaming iterator constructor throws), the wrapper must be
-     * closed to release codec-specific native handles (e.g. the {@code PanamaZstdInputStream}'s
-     * native {@code ZSTD_DStream} and {@code Arena.ofShared()} — resources with no JDK Cleaner
+     * is created (e.g., the streaming iterator constructor throws), the wrapper must be
+     * closed to release codec-specific native handles (e.g., the {@code PanamaZstdInputStream}'s
+     * native {@code ZSTD_DStream} and {@code Arena.ofShared()}, resources with no JDK Cleaner
      * fallback, unlike gzip's {@code Inflater}) and the raw stream must be aborted without a drain.
      */
     public void testOpenWithParallelismDecompressorReleasedOnParallelReadFailure() throws IOException {
-        AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
-            dummyFormatReaderForOpenParallelismTests(),
-            Runnable::run
-        );
+        FormatReaderFactory inner = mockInnerForParallelDescribeAndOpen();
         // Force StreamingParallelIterator constructor to fail after the codec has successfully
-        // opened the decompressing stream — simulating an unexpected error mid-construction.
-        SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
-        when(inner.minimumSegmentSize()).thenThrow(new RuntimeException("simulated parallelRead construction failure"));
+        // opened the decompressing stream, simulating an unexpected error mid-construction.
+        when(inner.minimumSegmentSize(nullableConfig())).thenThrow(new RuntimeException("simulated parallelRead construction failure"));
 
         // Codec that passes bytes through but tracks whether close() was called on its stream.
         // The close-tracking stream is what DecompressingStorageObject.abortStream() must close
-        // first (before aborting raw) — this is the layer holding any codec-specific native handle.
+        // first (before aborting raw). This is the layer holding any codec-specific native handle.
         AtomicBoolean wrapperClosed = new AtomicBoolean(false);
         DecompressionCodec trackingPassThroughCodec = new DecompressionCodec() {
             @Override
@@ -3037,7 +3192,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 };
             }
         };
-        CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, trackingPassThroughCodec);
+        AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
+            inner,
+            trackingPassThroughCodec,
+            Runnable::run
+        );
 
         byte[] payload = "{\"a\":1}\n".repeat(100).getBytes(StandardCharsets.UTF_8);
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
@@ -3045,10 +3204,23 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         RuntimeException thrown = expectThrows(
             RuntimeException.class,
-            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, true, null, 0L, null, null, null)
+            () -> factory.openWithParallelism(
+                FormatReadContext.Binding.empty(),
+                object,
+                List.of("a"),
+                ErrorPolicy.STRICT,
+                false,
+                true,
+                true,
+                null,
+                0L,
+                null,
+                null,
+                null
+            )
         );
         assertEquals("simulated parallelRead construction failure", thrown.getMessage());
-        assertTrue("decompressor wrapper must be closed to release codec-specific native handles (e.g. zstd Arena)", wrapperClosed.get());
+        assertTrue("decompressor wrapper must be closed to release codec-specific native handles (e.g., zstd Arena)", wrapperClosed.get());
         assertTrue("raw stream must be aborted when parallelRead fails", tracking.aborted.get());
         assertEquals("abortStream must be invoked exactly once", 1, tracking.abortCalls.get());
     }
@@ -3056,15 +3228,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     public void testOpenWithParallelismBareSegmentableReturnsIterator() throws IOException {
         ExecutorService exec = Executors.newFixedThreadPool(8);
         try {
-            AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
-                dummyFormatReaderForOpenParallelismTests(),
-                exec
-            );
-
-            SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
+            FormatReaderFactory inner = mockInnerForParallelDescribeAndOpen();
+            AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(inner, null, exec);
             byte[] plain = "{\"a\":1}\n".repeat(100).getBytes(StandardCharsets.UTF_8);
             CloseableIterator<Page> iterator = factory.openWithParallelism(
-                inner,
+                FormatReadContext.Binding.empty(),
                 bytesStorageObject(plain),
                 List.of("a"),
                 ErrorPolicy.STRICT,
@@ -3093,10 +3261,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * sequential branch fails loud rather than reading mid-file and silently miscounting.
      */
     public void testOpenWithParallelismQuotedSequentialRejectsPartialSplits() throws IOException {
-        AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
-            new NonStridedSegmentableFormatReader(),
-            Runnable::run
-        );
+        FormatReaderFactory quoted = nonStridedFactory();
+        AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(quoted, null, Runnable::run);
         byte[] payload = "\"a\nb\",c\nd,e\n".getBytes(StandardCharsets.UTF_8);
 
         // recordAlignedMacroSplit, splitIncludesFileLeader, baseFileOffset: each of the three
@@ -3116,7 +3282,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> factory.openWithParallelism(
-                new NonStridedSegmentableFormatReader(),
+                FormatReadContext.Binding.empty(),
                 bytesStorageObject(payload),
                 List.of("a"),
                 ErrorPolicy.STRICT,
@@ -3186,26 +3352,53 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
-    private static SegmentableFormatReader mockInnerForParallelDescribeAndOpen() throws IOException {
-        SegmentableFormatReader inner = mock(SegmentableFormatReader.class);
-        when(inner.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(inner.minimumSegmentSize()).thenReturn(1024L);
-        when(inner.formatName()).thenReturn("ndjson");
-        when(inner.supportsNativeAsync()).thenReturn(false);
-        when(inner.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
-        when(inner.metadata(any())).thenReturn(null);
-        when(inner.read(any(), any())).thenReturn(emptyPageIterator());
-        when(inner.recordSplitter(anyInt())).thenAnswer(invocation -> TestRecordSplitters.newlineSplitter(invocation.getArgument(0)));
-        return inner;
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> nullableConfig() {
+        return nullable(Map.class);
     }
 
-    private static FormatReader dummyFormatReaderForOpenParallelismTests() {
-        FormatReader dummyReader = mock(FormatReader.class);
-        when(dummyReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
-        when(dummyReader.formatName()).thenReturn("dummy");
-        when(dummyReader.supportsNativeAsync()).thenReturn(false);
-        when(dummyReader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
-        return dummyReader;
+    private static FormatReaderFactory mockInnerForParallelDescribeAndOpen() throws IOException {
+        FormatReaderFactory factory = mock(FormatReaderFactory.class);
+        when(factory.formatName()).thenReturn("ndjson");
+        when(factory.segmentable()).thenReturn(true);
+        when(factory.minimumSegmentSize(nullableConfig())).thenReturn(1024L);
+        when(factory.recordSplitter(nullableConfig(), anyInt())).thenAnswer(
+            invocation -> TestRecordSplitters.newlineSplitter(invocation.getArgument(1))
+        );
+        when(factory.headerRow(nullableConfig())).thenReturn(false);
+        when(factory.create(any(Settings.class), nullable(BlockFactory.class), nullableConfig(), any())).thenAnswer(invocation -> {
+            SegmentableFormatReader reader = mock(SegmentableFormatReader.class);
+            when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
+            when(reader.metadata(any())).thenReturn(null);
+            when(reader.read(any(), any())).thenReturn(emptyPageIterator());
+            return reader;
+        });
+        when(factory.create(any(Settings.class), nullable(BlockFactory.class))).thenAnswer(invocation -> {
+            SegmentableFormatReader reader = mock(SegmentableFormatReader.class);
+            when(reader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
+            when(reader.metadata(any())).thenReturn(null);
+            when(reader.read(any(), any())).thenReturn(emptyPageIterator());
+            return reader;
+        });
+        return factory;
+    }
+
+    private static FormatReaderFactory nonStridedFactory() {
+        FormatReaderFactory factory = mock(FormatReaderFactory.class);
+        when(factory.formatName()).thenReturn("csv");
+        when(factory.segmentable()).thenReturn(true);
+        when(factory.minimumSegmentSize(nullableConfig())).thenReturn(1L);
+        when(factory.recordSplitter(nullableConfig(), anyInt())).thenAnswer(
+            invocation -> TestRecordSplitters.nonStridedSplitter(invocation.getArgument(1))
+        );
+        when(factory.headerRow(nullableConfig())).thenReturn(false);
+        when(factory.create(any(Settings.class), nullable(BlockFactory.class), nullableConfig(), any())).thenAnswer(
+            invocation -> new NonStridedSegmentableFormatReader()
+        );
+        when(factory.create(any(Settings.class), nullable(BlockFactory.class))).thenAnswer(
+            invocation -> new NonStridedSegmentableFormatReader()
+        );
+        return factory;
     }
 
     private static CloseableIterator<Page> emptyPageIterator() {
@@ -3225,7 +3418,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         };
     }
 
-    private static AsyncExternalSourceOperatorFactory factoryForCompressionDescribeTests(FormatReader formatReader, int parallelism) {
+    private static AsyncExternalSourceOperatorFactory factoryForCompressionDescribeTests(
+        FormatReaderFactory formatReaderFactory,
+        DecompressionCodec codec,
+        int parallelism
+    ) {
         StorageProvider storageProvider = mock(StorageProvider.class);
         StoragePath path = StoragePath.of("file:///data/stream.ndjson.gz");
         List<Attribute> attributes = List.of(
@@ -3235,14 +3432,24 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 new EsField("col1", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
             )
         );
-        return AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, attributes, 500, 10, Runnable::run)
-            .rowLimit(FormatReader.NO_LIMIT)
-            .parsingParallelism(parallelism)
-            .build();
+        return AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            new ResolvedFormat(formatReaderFactory, codec),
+            FormatReadContext.Binding.empty(),
+            Settings.EMPTY,
+            null,
+            Map.of(),
+            path,
+            attributes,
+            500,
+            10,
+            Runnable::run
+        ).rowLimit(FormatReader.NO_LIMIT).parsingParallelism(parallelism).build();
     }
 
     private static AsyncExternalSourceOperatorFactory factoryForOpenParallelismStreamingTests(
-        FormatReader formatReader,
+        FormatReaderFactory formatReaderFactory,
+        DecompressionCodec codec,
         Executor executor
     ) {
         StorageProvider storageProvider = mock(StorageProvider.class);
@@ -3254,10 +3461,19 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 new EsField("col1", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
             )
         );
-        return AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, attributes, 500, 10, executor)
-            .rowLimit(FormatReader.NO_LIMIT)
-            .parsingParallelism(4)
-            .build();
+        return AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            new ResolvedFormat(formatReaderFactory, codec),
+            FormatReadContext.Binding.empty(),
+            Settings.EMPTY,
+            null,
+            Map.of(),
+            path,
+            attributes,
+            500,
+            10,
+            executor
+        ).rowLimit(FormatReader.NO_LIMIT).parsingParallelism(4).build();
     }
 
     private static StorageObject bytesStorageObject(byte[] data) {
@@ -3355,7 +3571,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * that increments {@code closeCalls} on {@link CloseableIterator#close()}, so the test can
      * assert that every opened iterator is closed exactly once.
      */
-    private static class TrackingReader implements NoConfigFormatReader {
+    private static class TrackingReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -3403,16 +3619,6 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "tracking";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
-        }
-
-        @Override
         public void close() {}
     }
 
@@ -3449,7 +3655,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * each read owns fresh, releasable blocks). Used by the partition-collision tests to control
      * the exact file-body page shape the factory adapts.
      */
-    private static class SinglePageReader implements NoConfigFormatReader {
+    private static class SinglePageReader implements FormatReader {
 
         private final Supplier<Page> pageSupplier;
 
@@ -3488,16 +3694,6 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "single-page";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
-        }
-
-        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -3506,7 +3702,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class PageCountingFormatReader implements NoConfigFormatReader {
+    private static class PageCountingFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -3550,20 +3746,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "test-counting";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
-        }
-
-        @Override
         public void close() {}
     }
 
-    private static class FailOnSecondFileFormatReader implements NoConfigFormatReader {
+    private static class FailOnSecondFileFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -3603,16 +3789,6 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 @Override
                 public void close() {}
             };
-        }
-
-        @Override
-        public String formatName() {
-            return "test-fail";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
         }
 
         @Override
@@ -3695,7 +3871,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     /**
      * Test sync format reader that returns empty pages.
      */
-    private static class TestSyncFormatReader implements NoConfigFormatReader {
+    private static class TestSyncFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -3712,21 +3888,6 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "test-sync";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".test");
-        }
-
-        @Override
-        public boolean supportsNativeAsync() {
-            return false;
-        }
-
-        @Override
         public void close() {}
     }
 
@@ -3734,7 +3895,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Format reader that captures the StorageObject and skipFirstLine flag passed to readSplit.
      * Used to verify that RangeStorageObject wrapping and skipFirstLine logic are correct.
      */
-    private static class SplitCapturingFormatReader implements NoConfigFormatReader {
+    private static class SplitCapturingFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -3797,23 +3958,13 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "test-split-capturing";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".csv");
-        }
-
-        @Override
         public void close() {}
     }
 
     /**
-     * Format reader that implements SegmentableFormatReader, NoConfigFormatReader and tracks which methods are called.
+     * Format reader that implements SegmentableFormatReader, FormatReader and tracks which methods are called.
      */
-    private static class TrackingSegmentableFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+    private static class TrackingSegmentableFormatReader implements SegmentableFormatReader, FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -3861,16 +4012,6 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 @Override
                 public void close() {}
             };
-        }
-
-        @Override
-        public String formatName() {
-            return "test-segmentable";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".csv");
         }
 
         @Override
@@ -3997,7 +4138,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     /**
      * Format reader that always throws on read, for testing error handling.
      */
-    private static class AlwaysFailFormatReader implements NoConfigFormatReader {
+    private static class AlwaysFailFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -4014,23 +4155,13 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "test-always-fail";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
-        }
-
-        @Override
         public void close() {}
     }
 
     /**
      * Format reader that returns multiple pages per read, for testing backpressure.
      */
-    private static class MultiPageFormatReader implements NoConfigFormatReader {
+    private static class MultiPageFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -4075,16 +4206,6 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "test-multi-page";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
-        }
-
-        @Override
         public void close() {}
     }
 
@@ -4095,7 +4216,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Format reader that succeeds for the first N reads (returning multiple pages each),
      * then throws an IOException on the (N+1)th read. Used to test error-path cleanup.
      */
-    private static class FailAfterNReadsFormatReader implements NoConfigFormatReader {
+    private static class FailAfterNReadsFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -4143,20 +4264,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public String formatName() {
-            return "test-fail-after-n";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".parquet");
-        }
-
-        @Override
         public void close() {}
     }
 
-    private static class TestAsyncFormatReader implements NoConfigFormatReader {
+    private static class TestAsyncFormatReader implements FormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -4170,21 +4281,6 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             return emptyIterator();
-        }
-
-        @Override
-        public String formatName() {
-            return "test-async";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".test");
-        }
-
-        @Override
-        public boolean supportsNativeAsync() {
-            return true;
         }
 
         @Override

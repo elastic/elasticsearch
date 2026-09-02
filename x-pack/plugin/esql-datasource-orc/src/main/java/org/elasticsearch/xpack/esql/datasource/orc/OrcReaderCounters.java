@@ -13,10 +13,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * Thread-safe counter struct for {@link OrcFormatReader}; {@link #snapshot()} yields the immutable
- * typed {@link OrcReaderStatus}. ORC's internal stripe rejection (stats / dictionary / bloom) is not
- * exposed by the Reader API, so selectivity must be inferred from {@code rows_emitted} vs.
- * {@code stripes_total}.
+ * Thread-safe counters owned by one {@link OrcFormatReader}.
+ * {@link #snapshot()} yields the immutable typed {@link OrcReaderStatus}. ORC's internal stripe
+ * rejection (stats / dictionary / bloom) is not exposed by the Reader API, so selectivity must be
+ * inferred from {@code rows_emitted} vs. {@code stripes_total}.
  */
 public final class OrcReaderCounters {
 

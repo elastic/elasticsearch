@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -51,7 +52,7 @@ public class NdJsonBoundSchemaPrecedenceTests extends ESTestCase {
      * {@code integer}; the engine expects {@code long}.
      */
     public void testBoundTypeWinsOverInferredType() throws Exception {
-        FormatReader reader = new NdJsonFormatReader(null, blockFactory).withSchema(List.of(ref("v", DataType.INTEGER)));
+        FormatReader reader = readerWithSchema(List.of(ref("v", DataType.INTEGER)));
 
         try (CloseableIterator<Page> pages = read(reader, "{\"v\":1}\n{\"v\":2}\n", List.of(ref("v", DataType.LONG)))) {
             assertTrue("expected a page", pages.hasNext());
@@ -74,9 +75,7 @@ public class NdJsonBoundSchemaPrecedenceTests extends ESTestCase {
 
     /** A column the bound schema does not mention is still contributed by the projection. */
     public void testProjectionOnlyColumnIsStillRead() throws Exception {
-        FormatReader reader = new NdJsonFormatReader(null, blockFactory).withSchema(
-            List.of(ref("v", DataType.LONG), ref("w", DataType.LONG))
-        );
+        FormatReader reader = readerWithSchema(List.of(ref("v", DataType.LONG), ref("w", DataType.LONG)));
 
         try (CloseableIterator<Page> pages = read(reader, "{\"v\":1,\"w\":7}\n", List.of(ref("v", DataType.LONG)))) {
             assertTrue("expected a page", pages.hasNext());
@@ -93,9 +92,7 @@ public class NdJsonBoundSchemaPrecedenceTests extends ESTestCase {
 
     /** Bound column order survives the merge — the projection must not reorder the page's channels. */
     public void testBoundColumnOrderIsPreserved() throws Exception {
-        FormatReader reader = new NdJsonFormatReader(null, blockFactory).withSchema(
-            List.of(ref("b", DataType.LONG), ref("a", DataType.LONG))
-        );
+        FormatReader reader = readerWithSchema(List.of(ref("b", DataType.LONG), ref("a", DataType.LONG)));
 
         try (
             CloseableIterator<Page> pages = read(reader, "{\"a\":10,\"b\":20}\n", List.of(ref("a", DataType.LONG), ref("b", DataType.LONG)))
@@ -109,6 +106,15 @@ public class NdJsonBoundSchemaPrecedenceTests extends ESTestCase {
                 page.releaseBlocks();
             }
         }
+    }
+
+    private FormatReader readerWithSchema(List<Attribute> schema) {
+        return new NdJsonFormatReaderFactory(Settings.EMPTY).create(
+            Settings.EMPTY,
+            blockFactory,
+            null,
+            FormatReadContext.Binding.empty().withBoundSchema(schema)
+        );
     }
 
     private CloseableIterator<Page> read(FormatReader reader, String ndjson, List<Attribute> boundSchema) throws Exception {

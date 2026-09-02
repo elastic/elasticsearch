@@ -37,11 +37,22 @@ import java.util.Set;
  * bad values report together. {@code null} means no value validation beyond key
  * membership — values are accepted as-is and validated at query time.
  *
- * <p>Example:
+ * <p>Example (formats sharing a reader pass their own baseline so the validator applies
+ * the right defaults, here tab as the TSV delimiter):
  * {@snippet lang="java" :
  * Set.of(
- *     new FormatSpec("csv", Set.of(".csv"), Set.of("delimiter", "quote"), CsvFormatReader::validateConfig),
- *     new FormatSpec("tsv", Set.of(".tsv"), Set.of("delimiter", "quote"), CsvFormatReader::validateConfig)
+ *     new FormatSpec(
+ *         "csv",
+ *         Set.of(".csv"),
+ *         Set.of("delimiter", "quote"),
+ *         config -> CsvFormatReader.validateConfig(config, CsvFormatOptions.DEFAULT)
+ *     ),
+ *     new FormatSpec(
+ *         "tsv",
+ *         Set.of(".tsv"),
+ *         Set.of("delimiter", "quote"),
+ *         config -> CsvFormatReader.validateConfig(config, CsvFormatOptions.TSV)
+ *     )
  * )
  * }
  *

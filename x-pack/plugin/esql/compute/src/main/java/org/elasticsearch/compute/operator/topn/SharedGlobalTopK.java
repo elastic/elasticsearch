@@ -147,6 +147,6 @@ public final class SharedGlobalTopK extends SideChannel {
 
     @Override
     protected void closeSideChannel() {
-        Releasables.closeExpectNoException((Releasable) globalQueue);
+        Releasables.closeExpectNoException((Releasable) globalQueue, minCompetitive);
     }
 }

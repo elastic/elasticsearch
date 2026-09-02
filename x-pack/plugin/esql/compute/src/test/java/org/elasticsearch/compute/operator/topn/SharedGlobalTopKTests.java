@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
@@ -97,6 +98,25 @@ public class SharedGlobalTopKTests extends ESTestCase {
             BytesRef boundAfterRound2 = minCompetitive.rawBound();
             assertThat(boundAfterRound2, equalTo(encodedKey(false, false, 2L)));
         }
+    }
+
+    /**
+     * Regression test for a refcount leak: {@link SharedGlobalTopK#closeSideChannel()} must also
+     * close the {@link SharedMinCompetitive} reference it acquired in {@code build()}, otherwise the
+     * {@code BreakingBytesRefBuilder} inside {@link SharedMinCompetitive} is never released.
+     */
+    public void testNoCircuitBreakerLeakAfterClose() {
+        CircuitBreaker tracked = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        SharedMinCompetitive.Supplier minCompetitiveSupplier = new SharedMinCompetitive.Supplier(
+            tracked,
+            List.of(new SharedMinCompetitive.KeyConfig(ElementType.LONG, TopNEncoder.DEFAULT_SORTABLE.toSortable(false), false, false))
+        );
+        SharedGlobalTopK.Supplier globalTopKSupplier = new SharedGlobalTopK.Supplier(tracked, 2, minCompetitiveSupplier);
+        try (SharedMinCompetitive minCompetitive = minCompetitiveSupplier.get(); SharedGlobalTopK globalTopK = globalTopKSupplier.get()) {
+            // Trigger a publish so SharedMinCompetitive.value holds a live allocation.
+            assertTrue(globalTopK.mergeKeys(encodedKeys(false, false, 1_000L, 2_000L)));
+        }
+        // ESTestCase @After asserts tracked.getUsed() == 0, catching any breaker leak.
     }
 
     public void testAllNullGlobalTopKMarksNoFurtherCandidates() {

@@ -24,6 +24,10 @@ Federated data sources can read the following file formats:
 
 Datasets must be scoped to a single file format. If your bucket contains a mix of file types, use the [resource pattern](esql-data-federation-patterns.md) to narrow the dataset to one, for example `**/*.parquet`. If you need to query both CSV and Parquet files from the same bucket, create a separate dataset for each. Ideally, all files in a dataset also share the same schema. When they differ, the [`schema_resolution`](#schema-merge-strategies) setting controls how differences are reconciled.
 
+:::{important}
+When set, the `format` setting forces every file the resource pattern matches through the same reader, regardless of file extension. If the pattern matches files of a different format, this can lead to errors or, worse, returning garbled data without error.
+:::
+
 ### Text formats
 
 The following text formats are recognized by file extension:

@@ -614,7 +614,6 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     public void testPlanUnmappedFieldExtractSyntheticSource() throws Exception {
-        // Enables synthetic source, so that fallback synthetic source blocker loader is used:
         settings = Settings.builder().put(settings).put("index.mapping.source.mode", "synthetic").build();
 
         var blockLoader = constructBlockLoader();

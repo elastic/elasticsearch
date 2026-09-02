@@ -494,6 +494,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             ByteSizeValue blockLoaderSizeOrdinals,
             ByteSizeValue blockLoaderSizeScript
         ) {
+            // The fabricated keyword type cannot load itself: both of KeywordFieldType#blockLoader's paths mangle an object value, so
+            // read _source directly - see UnmappedKeywordBlockLoader for the two broken paths and the issues (#156381, #156433).
+            // TODO: consider fixing FallbackSyntheticSourceBlockLoader instead of working around it here. Rejected for now because it
+            // only covers the synthetic-source half, and its constructor rejects the NO_IGNORED_SOURCE format stored source reports.
             if (asUnsupportedSource == false && name.equals(fullFieldName) && super.fieldType(name) == null) {
                 return unmappedKeywordBlockLoader(name, this);
             }

@@ -24,11 +24,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Reads a single unmapped field from {@code _source} as a keyword (ES|QL fabricates the keyword type for a field unmapped on a shard; see
- * {@code EsPhysicalOperationProviders.DefaultShardContextForUnmappedField}). An object {@code _source} value has no keyword scalar, so it
- * reads as {@code null}. This loader is needed because on synthetic-source indices the reuse of {@code KeywordFieldType.blockLoader()}
- * routes through {@code FallbackSyntheticSourceBlockLoader}, which asserts one {@code _ignored_source} parent key (broken by nested
- * unmapped paths, see #156381) and {@code VALUE_STRING} tokens (broken when the value is an object, see #156433).
+ * Reads a single unmapped field from {@code _source} as a keyword (ES|QL fabricates that type for a field unmapped on a shard), so an
+ * object value reads as {@code null} instead of {@code Map.toString()}. Needed in both source modes, since {@code KeywordFieldType}'s
+ * own loaders mangle an object value (#156381, #156433); unlike them this one does not apply the index-level {@code ignore_above}.
  */
 final class UnmappedKeywordBlockLoader implements BlockLoader {
 

@@ -143,7 +143,7 @@ public class OnFailureColumnarRollingUpgradeIT extends AbstractLogsdbRollingUpgr
 
         // doc 4: nullability violation — explicit null accepted, marked in _ignored.
         // Synthetic source preserves the null slot written by the inline-null array-order binary doc-values column,
-        // so _source.required_kw is [null] (an array), not absent.  _ignored contains "required_kw".
+        // so _source.required_kw is [null] (an array), not absent. _ignored contains "required_kw".
         expectedDocs.add(
             new ExpectedDoc(
                 "4",
@@ -169,10 +169,10 @@ public class OnFailureColumnarRollingUpgradeIT extends AbstractLogsdbRollingUpgr
             )
         );
 
-        // doc 6: both violations in one document.  For single_kw, the multi-value violation fires (multi_value:false)
+        // doc 6: both violations in one document. For single_kw, the multi-value violation fires (multi_value:false)
         // and [a,b] is stored with "a" primary + "b" in the sidecar; single_kw appears in _ignored.
         // For required_kw, the [null,"real"] array contains "real", which satisfies nullability:false, so the field
-        // is NOT marked in _ignored.  Synthetic source preserves the null slot, so _source.required_kw is
+        // is NOT marked in _ignored. Synthetic source preserves the null slot, so _source.required_kw is
         // [null,"real"] verbatim — the null is not discarded.
         expectedDocs.add(
             new ExpectedDoc(

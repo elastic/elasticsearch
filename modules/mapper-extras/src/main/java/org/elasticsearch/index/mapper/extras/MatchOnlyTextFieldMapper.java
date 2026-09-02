@@ -1130,7 +1130,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private final FieldMapper.DocValuesParameter.Values docValuesParameters;
     private final DocValuesFieldFactory dvFactory;
     private final boolean indexed;
-    private final IndexMode indexMode;
     private final IndexSettings indexSettings;
     // The companion ".offsets" field used to reconstruct array order and null positions in strict-columnar mode; null otherwise.
     private final String offsetsFieldName;
@@ -1157,7 +1156,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         // match_only_text does not use doc values skippers
         this.dvFactory = new DocValuesFieldFactory(this.docValuesParameters.multiValue(), false, this.indexCreatedVersion);
         this.indexed = builder.indexed.get();
-        this.indexMode = builder.indexMode;
         this.indexSettings = builder.indexSettings;
         this.offsetsFieldName = builder.offsetsFieldName;
     }

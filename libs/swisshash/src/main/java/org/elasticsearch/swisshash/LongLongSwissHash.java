@@ -205,6 +205,13 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
         return (int) hash;
     }
 
+    /**
+     * Returns the partition index using bits that do not overlap with the lower 32 hash-slot bits or the top 7 control bits.
+     */
+    private static int partition(long hash64) {
+        return (int) (hash64 >>> Integer.SIZE) & PARTITION_MASK;
+    }
+
     @Override
     public void close() {
         Releasables.close(smallCore, bigCore);
@@ -851,7 +858,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
                 final long key2 = (long) LONG_HANDLE.get(keyPage, indexInPage + Long.BYTES);
                 indexInPage += KEY_SIZE;
                 final long hash64 = hash(key1, key2);
-                final int p = (int) (hash64 >>> 32) & PARTITION_MASK;
+                final int p = partition(hash64);
                 int c = partitionCounts[p]++;
                 if (c == PARTITION_WRITE_BATCH) {
                     --partitionCounts[p];

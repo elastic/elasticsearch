@@ -158,7 +158,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             case STRING -> writeStringColumn(
                 field,
                 type,
-                () -> ColumnarStringBinaryDocValues.singleValues(valuesProducer.getBinary(field))
+                () -> ColumnarStringBinaryDocValues.decodePayloads(valuesProducer.getBinary(field))
             );
         }
     }
@@ -477,7 +477,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             // Read decoded values directly for our own columns; fall back to the payload for anything else.
             StringColumnValues values = binary instanceof ColumnarStringBinaryDocValues columnar
                 ? columnar.directValues(ordinalMap(binary, vocabulary))
-                : ColumnarStringBinaryDocValues.singleValues(binary);
+                : ColumnarStringBinaryDocValues.decodePayloads(binary);
             cost += values.cost();
             subs.add(new ColumnMergeSub<>(mergeState.docMaps[i], values));
         }
@@ -511,8 +511,18 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             }
 
             @Override
+            public int nullCount() throws IOException {
+                return current.values.nullCount();
+            }
+
+            @Override
             public void nextValue() throws IOException {
                 current.values.nextValue();
+            }
+
+            @Override
+            public boolean isNull() throws IOException {
+                return current.values.isNull();
             }
 
             @Override
@@ -565,8 +575,10 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     }
 
     /**
-     * Counts the column in one pass, then streams the values block by block from fresh cursors — never
-     * buffering the whole field on-heap.
+     * Counts the column in one pass, then streams the slots block by block from fresh cursors — never
+     * buffering the whole field on-heap. Both totals the pass collects are needed up front: the value
+     * addresses and the null slots are {@code DirectMonotonic} tables, which are built against a known
+     * entry count.
      */
     private void writeStringColumn(FieldInfo field, ColumnarFieldType type, IOSupplier<StringColumnValues> cursors) throws IOException {
         writeStringColumn(field, type, cursors, null);
@@ -576,19 +588,19 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         throws IOException {
         int numDocsWithField = 0;
         long numValues = 0;
+        long numNullSlots = 0;
         StringColumnValues counter = cursors.get();
         for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
             numDocsWithField++;
-            // One value per document: that is what this surface carries, and what lets the reader take a
-            // document's rank as its value's address rather than keeping one for every document.
-            assert counter.valueCount() == 1 : "document [" + doc + "] of field [" + field.name + "] has " + counter.valueCount();
-            numValues++;
+            numValues += counter.valueCount();
+            numNullSlots += counter.nullCount();
         }
 
         StringColumnMetadata metadata = StringColumnWriter.write(
             maxDoc,
             numDocsWithField,
             numValues,
+            numNullSlots,
             cursors,
             ValueStream.VALUES_PER_BLOCK,
             ChunkCodec.ZSTD,

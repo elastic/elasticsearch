@@ -34,17 +34,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Writes a string column. Values are written in the order the {@link StringColumnValues} cursor yields them and
- * are never reordered.
+ * Writes a string column — single- or multi-valued. Slots are written in the order the
+ * {@link StringColumnValues} cursor yields them and are never reordered.
  *
  * <p>Nothing column-proportional is held on the heap: the values go into a {@link ValueStream}, which streams
- * them a block at a time and writes its offset table to a temporary file. Blocks address a fixed count of
+ * them a block at a time and writes its offset table to a temporary file, and the tables that address the
+ * column's slots go through {@link AddressingWriter}, which does the same. Blocks address a fixed count of
  * values while chunks bound how many bytes are compressed at once, so a block of long urls and a block of
  * single characters are the same count of values and nothing like the same amount of data.
  *
  * <p>Which {@link StringColumnLayout} a column takes is decided from its values: a dictionary when the terms
  * it repeats are worth naming under the caller's {@link DictionaryPolicy}, and otherwise the values
- * themselves.
+ * themselves. How a document's slots are found is the same question either way, so both layouts write the
+ * addressing tables identically — see {@link StringColumnMetadata.Addressing}.
  */
 public final class StringColumnWriter {
 
@@ -67,21 +69,24 @@ public final class StringColumnWriter {
      * offset table; returns the metadata needed to reconstruct the column at read time.
      *
      * @param maxDoc           documents in the segment
-     * @param numDocsWithField documents that have at least one value
-     * @param numValues        total number of values across all documents
-     * @param cursors          supplies fresh forward cursors over the documents that have a value; called
+     * @param numDocsWithField documents that have at least one slot
+     * @param numValues        total number of slots across all documents, null slots included
+     * @param numNullSlots     how many of those slots are null; the null-slot table is written only when
+     *                         this is positive
+     * @param cursors          supplies fresh forward cursors over the documents that have a slot; called
      *                         once for the iterator and once for the values
      * @param valuesPerBlock   values behind one offset in the byte stream
      * @param chunkCodec       how a chunk of the byte stream is compressed
      * @param targetChunkBytes bytes a chunk holds before it is closed
-     * @param directory        directory used for the temporary table file
-     * @param context          IO context for the temporary table file
-     * @param data             data output (iterator, value blocks, and the offset table are appended)
+     * @param directory        directory used for the temporary table files
+     * @param context          IO context for the temporary table files
+     * @param data             data output (iterator, value blocks, and the tables are appended)
      */
     public static StringColumnMetadata write(
         int maxDoc,
         int numDocsWithField,
         long numValues,
+        long numNullSlots,
         IOSupplier<StringColumnValues> cursors,
         int valuesPerBlock,
         ChunkCodec chunkCodec,
@@ -108,6 +113,7 @@ public final class StringColumnWriter {
                         iterator,
                         numDocsWithField,
                         numValues,
+                        numNullSlots,
                         cursors,
                         surveyed,
                         surveyed.columnBytes(),
@@ -131,6 +137,7 @@ public final class StringColumnWriter {
         }
 
         final ValueStream.Metadata written;
+        final StringColumnMetadata.Addressing addressing;
         try (
             ValueStream.Writer stream = new ValueStream.Writer(
                 chunkCodec,
@@ -141,19 +148,28 @@ public final class StringColumnWriter {
                 context,
                 data.getName(),
                 data
-            )
+            );
+            AddressingWriter slots = AddressingWriter.open(numDocsWithField, numValues, numNullSlots, directory, context, data.getName())
         ) {
+            long valueAddress = 0;
             StringColumnValues values = cursors.get();
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                slots.startDocument(valueAddress);
                 for (int i = 0, count = values.valueCount(); i < count; i++) {
                     values.nextValue();
+                    slots.slot(valueAddress, values.isNull());
+                    // A null slot stores zero bytes, so it takes an address like any other and the null-slot
+                    // table above is the only thing that tells it from an empty string.
                     stream.add(values.value());
+                    valueAddress++;
                 }
             }
+            assert valueAddress == numValues : "wrote " + valueAddress + " slots, counted " + numValues;
             written = stream.finish();
+            addressing = slots.finish(numValues, data);
         }
         return withSummary(
-            StringColumnMetadata.plain(iterator, numDocsWithField, numValues, written),
+            StringColumnMetadata.plain(iterator, numDocsWithField, numValues, addressing, written),
             surveyed,
             numValues,
             valuesPerBlock,
@@ -229,6 +245,7 @@ public final class StringColumnWriter {
         ColumnIteratorMetadata iterator,
         int numDocsWithField,
         long numValues,
+        long numNullSlots,
         IOSupplier<StringColumnValues> cursors,
         Vocabulary.Terms vocabulary,
         long valueBytes,
@@ -272,7 +289,18 @@ public final class StringColumnWriter {
             long escapes = 0;
             final ValueStream.Metadata escapeStream;
             final MonotonicWriter.Table escapeRanks;
-            try (MonotonicWriter ranks = new MonotonicWriter(directory, context, data.getName(), escapeRankEntries(numValues))) {
+            final StringColumnMetadata.Addressing addressing;
+            try (
+                MonotonicWriter ranks = new MonotonicWriter(directory, context, data.getName(), escapeRankEntries(numValues));
+                AddressingWriter slots = AddressingWriter.open(
+                    numDocsWithField,
+                    numValues,
+                    numNullSlots,
+                    directory,
+                    context,
+                    data.getName()
+                )
+            ) {
                 // Opened one at a time, each named before the next is asked for: a temporary file that the
                 // one after it fails to open is still a file to delete, and only its name says which.
                 try (IndexOutput ordinalTemp = directory.createTempOutput(data.getName(), "columnar-ordinals", context)) {
@@ -287,11 +315,16 @@ public final class StringColumnWriter {
                         boolean hasPrevious = false;
                         long index = 0;
                         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                            slots.startDocument(index);
                             for (int i = 0, count = values.valueCount(); i < count; i++) {
                                 if (index % ESCAPE_RANK_BLOCK == 0) {
                                     ranks.add(escapes);
                                 }
                                 values.nextValue();
+                                // A null slot is named like any other: its bytes are empty, so it takes the
+                                // ordinal of the empty term or escapes as a zero-length value, and the
+                                // null-slot table is what tells it from an empty string either way.
+                                slots.slot(index, values.isNull());
                                 // A cursor that already knows the ordinal saves resolving the value's bytes
                                 // only to look them up again, which is most of what merging such a column costs.
                                 final int mapped = values.ordinal();
@@ -324,8 +357,10 @@ public final class StringColumnWriter {
                         }
                         // One past the end, so the escapes in the last block can be counted like any other.
                         ranks.add(escapes);
+                        assert index == numValues : "wrote " + index + " slots, counted " + numValues;
                     }
                 }
+                addressing = slots.finish(numValues, data);
                 escapeStream = replayEscapes(
                     directory,
                     context,
@@ -359,6 +394,7 @@ public final class StringColumnWriter {
                 numDocsWithField,
                 numValues,
                 valueBytes,
+                addressing,
                 dictionary,
                 ordinals,
                 escapeStream,

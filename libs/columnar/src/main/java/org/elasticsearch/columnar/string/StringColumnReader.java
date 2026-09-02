@@ -21,11 +21,17 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Reads a string column written by {@link StringColumnWriter}.
+ * Reads a string column written by {@link StringColumnWriter}, single- or multi-valued.
  *
- * <p>Values are addressed by <b>value address</b> — a value's 0-based position in the column's block-encoded
+ * <p>Slots are addressed by <b>value address</b> — a slot's 0-based position in the column's block-encoded
  * store, in {@code [0, numValues)}. A document maps to its value addresses through {@link #iterator()}: a
- * single-valued column maps a document's rank straight to its value address.
+ * single-valued column maps a document's rank straight to its value address, while a multi-valued one looks
+ * the range up in the value-address table.
+ *
+ * <p>A null slot holds an address like any other and stores zero bytes; {@link #isNullSlot} tells the two
+ * apart, which is what keeps an inline null distinguishable from an empty string. That holds under either
+ * layout — a dictionary names a null slot with the empty term's ordinal, or lets it escape as a zero-length
+ * value, and the null-slot table settles it either way.
  *
  * <p>The values sit in a {@link ValueStream}: addressed in blocks of a fixed count of values, compressed in
  * chunks of a fixed number of bytes, with a chunk closing only on a block boundary so no value spans two of
@@ -55,6 +61,16 @@ public final class StringColumnReader {
     private long escapeCursorAddress = -1;
     private long escapeCursorRank;
 
+    /** Where a document's slots begin, and which addresses hold a null; null when the column has neither. */
+    private final LongValues valueAddresses;
+    private final LongValues nullSlots;
+    private final long numNullSlots;
+
+    /** Index of the first null-slot entry at or after {@link #lastNullQuery}, and that entry's address. */
+    private long nullCursor;
+    private long nullCursorAddress;
+    private long lastNullQuery = -1;
+
     private final BytesRef value = new BytesRef();
 
     /** Held so a summary can be read on demand; a merge reads it, an ordinary search never does. */
@@ -62,9 +78,29 @@ public final class StringColumnReader {
 
     public StringColumnReader(StringColumnMetadata meta, IndexInput data) throws IOException {
         this.data = data;
-        assert meta.multiValued() == false : "this surface carries one value per document";
         this.meta = meta;
         this.iteratorReader = new ColumnIteratorReader(meta.iterator(), data);
+        final StringColumnMetadata.Addressing addressing = meta.addressing();
+        this.valueAddresses = meta.hasValueAddresses()
+            ? MonotonicReader.open(
+                data,
+                addressing.valueAddresses().meta(),
+                meta.numDocsWithField() + 1L,
+                addressing.valueAddresses().dataOffset(),
+                addressing.valueAddresses().dataLength()
+            )
+            : null;
+        this.numNullSlots = addressing.numNullSlots();
+        this.nullSlots = meta.hasNullSlots()
+            ? MonotonicReader.open(
+                data,
+                addressing.nullSlots().meta(),
+                numNullSlots,
+                addressing.nullSlots().dataOffset(),
+                addressing.nullSlots().dataLength()
+            )
+            : null;
+        this.nullCursorAddress = nullSlots == null ? Long.MAX_VALUE : nullSlots.get(0);
         switch (meta) {
             case StringColumnMetadata.Dictionary column -> {
                 this.values = null;
@@ -107,21 +143,67 @@ public final class StringColumnReader {
     }
 
     /**
-     * The value address of a document's first value, given its rank. This surface carries one value per
-     * document, so the rank is the address.
+     * Whether a document's value address has to be looked up rather than being its rank. False only when the
+     * column holds exactly one slot per document.
      */
-    public long firstValueAddress(int rank) {
-        return rank;
+    public boolean hasValueAddresses() {
+        return valueAddresses != null;
     }
 
-    /** The number of values a document has, given its rank. This surface carries one per document. */
+    /** The value address of a document's first slot, given its rank. */
+    public long firstValueAddress(int rank) {
+        return valueAddresses == null ? rank : valueAddresses.get(rank);
+    }
+
+    /** The number of slots a document has, given its rank; null slots are counted. */
     public long valueCount(int rank) {
-        return 1;
+        return valueAddresses == null ? 1 : valueAddresses.get(rank + 1) - valueAddresses.get(rank);
+    }
+
+    /**
+     * Whether the slot at {@code valueAddress} is null rather than a value.
+     *
+     * <p>Both callers walk a document's addresses in order and documents in order, so this keeps a cursor
+     * into the null-slot table and advances it, making a full scan cost one pass over that table. A caller
+     * that asks about an address behind the one it last asked about re-seeks by binary search.
+     */
+    public boolean isNullSlot(long valueAddress) {
+        if (nullSlots == null) {
+            return false;
+        }
+        if (valueAddress < lastNullQuery) {
+            seekNullCursor(valueAddress);
+        }
+        lastNullQuery = valueAddress;
+        while (nullCursorAddress < valueAddress) {
+            nullCursor++;
+            nullCursorAddress = nullCursor < numNullSlots ? nullSlots.get(nullCursor) : Long.MAX_VALUE;
+        }
+        return nullCursorAddress == valueAddress;
+    }
+
+    /** Positions the cursor on the first null slot at or after {@code valueAddress}. */
+    private void seekNullCursor(long valueAddress) {
+        long low = 0;
+        long high = numNullSlots - 1;
+        long found = numNullSlots;
+        while (low <= high) {
+            final long mid = (low + high) >>> 1;
+            if (nullSlots.get(mid) >= valueAddress) {
+                found = mid;
+                high = mid - 1;
+            } else {
+                low = mid + 1;
+            }
+        }
+        nullCursor = found;
+        nullCursorAddress = found < numNullSlots ? nullSlots.get(found) : Long.MAX_VALUE;
     }
 
     /**
      * The value at {@code valueAddress} in {@code [0, numValues)}. The returned {@link BytesRef} points into a
-     * buffer this reader reuses, so it is only valid until the next call.
+     * buffer this reader reuses, so it is only valid until the next call. A null slot reads back as a
+     * zero-length value; use {@link #isNullSlot} to tell it from an empty string.
      */
     public BytesRef valueAt(long valueAddress) throws IOException {
         if (dictionary != null) {
@@ -239,7 +321,7 @@ public final class StringColumnReader {
         return blockSize;
     }
 
-    /** Total number of values across all documents. */
+    /** Total number of slots across all documents, null slots included. */
     public long numValues() {
         return meta.numValues();
     }

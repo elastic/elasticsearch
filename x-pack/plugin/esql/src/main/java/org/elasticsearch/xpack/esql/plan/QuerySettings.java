@@ -166,10 +166,15 @@ public final class QuerySettings {
         since = "9.5.0",
         description = "When enabled, column metadata is added to the `_query` response as additional `_meta` properties."
             + " Defaults to `false`. Currently, only `_meta.bucket` is added for columns corresponding to the `BUCKET` function"
-            + " and contains bucket interval and unit for queries where it can be determined."
+            + " and contains bucket interval and unit for queries where it can be determined.\n\n"
+            + "The default itself is configurable. If a query does not specify a value, the "
+            + "`esql.query.settings.column_metadata` cluster setting supplies it. If that cluster setting is not "
+            + "configured either, the value is `false`. "
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
     )
     public static final QuerySettingDef<Boolean> COLUMN_METADATA = QuerySettingDef.bool("column_metadata")
         .withDefault(Boolean.FALSE)
+        .withClusterDefault()
         .withPreview()
         .withRequestBody()
         .build();

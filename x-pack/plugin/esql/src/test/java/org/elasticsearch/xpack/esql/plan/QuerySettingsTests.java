@@ -650,11 +650,13 @@ public class QuerySettingsTests extends ESTestCase {
         for (Setting<?> setting : QuerySettings.clusterSettings()) {
             derivedKeys.add(setting.getKey());
         }
-        assertThat(derivedKeys, equalTo(Set.of("esql.query.settings.time_zone", "esql.query.settings.unmapped_fields")));
+        assertThat(
+            derivedKeys,
+            equalTo(Set.of("esql.query.settings.time_zone", "esql.query.settings.unmapped_fields", "esql.query.settings.column_metadata"))
+        );
 
         // A setting that did not opt in has no key at all, so the key stays unknown and is rejected as a typo
         // rather than silently accepted.
-        assertThat(QuerySettings.COLUMN_METADATA.clusterSetting(), is(nullValue()));
         assertThat(QuerySettings.APPROXIMATION.clusterSetting(), is(nullValue()));
         assertThat(QuerySettings.PROJECT_ROUTING.clusterSetting(), is(nullValue()));
     }
@@ -723,6 +725,23 @@ public class QuerySettingsTests extends ESTestCase {
             () -> QuerySettings.warnUnusableClusterDefaults(Settings.EMPTY),
             QuerySettings.class,
             new MockLog.UnseenEventExpectation("no warning", QuerySettings.class.getCanonicalName(), Level.WARN, "*")
+        );
+    }
+
+    public void testColumnMetadataClusterDefaultApplies() {
+        // A boolean setting, so it also covers the bool() factory's derived parser end to end.
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.COLUMN_METADATA, "true"),
+            Settings.EMPTY,
+            Map.of(),
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(QuerySettings.COLUMN_METADATA), equalTo(Boolean.TRUE));
+        assertThat(
+            QuerySettings.resolve(Settings.EMPTY, Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED)
+                .get(QuerySettings.COLUMN_METADATA),
+            equalTo(Boolean.FALSE)
         );
     }
 
@@ -840,9 +859,8 @@ public class QuerySettingsTests extends ESTestCase {
 
     public void testSettingWithoutClusterDefaultIgnoresItsWouldBeKey() {
         // column_metadata did not opt in, so even a value sitting at its would-be key changes nothing.
-        Settings stray = Settings.builder().put("esql.query.settings.column_metadata", true).build();
+        Settings stray = Settings.builder().put("esql.query.settings.approximation", true).build();
         ResolvedSettings resolved = QuerySettings.resolve(stray, Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
-        assertThat(resolved.get(QuerySettings.COLUMN_METADATA), equalTo(Boolean.FALSE));
         assertThat(resolved, equalTo(QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED)));
     }
 

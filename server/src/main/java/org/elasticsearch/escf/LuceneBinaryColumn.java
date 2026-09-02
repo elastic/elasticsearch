@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.sourcebatch.LuceneColumn;
@@ -32,9 +33,10 @@ import static org.elasticsearch.escf.EscfColumn.windowValidity;
  * Create via {@link #stringColumn}, {@link #arrayColumn}, or the dispatch helper {@link #of}.
  *
  * <p>An optional {@code filter} bitset (see {@link #withFilter}) can restrict which documents are
- * emitted to Lucene. When non-null the column is always {@link Density#SPARSE}, regardless of the
- * underlying data's density, and only documents whose bit is set in the filter appear in
- * {@link #tuples()}, {@link #rowFieldCursor()}, and {@link #values()}.
+ * emitted to Lucene. Density is always data-driven: a dense column (no validity bitset, not ARRAY)
+ * stays {@link Density#DENSE} even when a filter is active — its {@link #values()} cursor emits
+ * exactly {@code filter.cardinality()} values at the filter-bit positions. Sparse columns emit
+ * compact doc IDs (0-based rank in the filter) via {@link #tuples()}.
  */
 public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColumn {
 
@@ -75,9 +77,11 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
     }
 
     /**
-     * Returns a copy of this column that passes only the documents whose bit is set in
-     * {@code filter} to Lucene. The returned column is always {@link Density#SPARSE}. Pass
-     * {@code null} to remove any existing filter.
+     * Returns a copy of this column filtered to only the documents whose bit is set in
+     * {@code filter}. Density is preserved: a dense column stays {@link Density#DENSE} (emitting
+     * {@code filter.cardinality()} values via {@link #values()}); a sparse column stays
+     * {@link Density#SPARSE} (emitting compact doc IDs via {@link #tuples()}). Pass {@code null}
+     * to remove any existing filter.
      *
      * @param filter a bitset of length equal to this column's doc count, or {@code null}
      */
@@ -104,18 +108,32 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
         // retainValues=true: see appendCurrentFields below — the emitted Fields outlive the cursor position.
         final ObjectTupleCursor<BytesRef> cursor = data.bytesRefCursor(true);
         return new LuceneColumn.RowFieldCursor() {
+            // Same co-iteration as tuples(): emit compact doc IDs when filter is active.
+            private final BitSetIterator filterBits = filter != null ? new BitSetIterator(filter, filter.cardinality()) : null;
+            private int filterBit = filter != null ? filterBits.nextDoc() : 0;
+            private int compactDoc = 0;
+
             @Override
             public int nextDoc() {
                 if (filter == null) {
                     return cursor.nextDoc();
                 }
-                int doc;
-                while ((doc = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                    if (filter.get(doc)) {
-                        return doc;
+                while (true) {
+                    int innerDoc = cursor.nextDoc();
+                    if (innerDoc == DocIdSetIterator.NO_MORE_DOCS || filterBit == DocIdSetIterator.NO_MORE_DOCS) {
+                        return DocIdSetIterator.NO_MORE_DOCS;
+                    }
+                    while (filterBit < innerDoc) {
+                        filterBit = filterBits.nextDoc();
+                        compactDoc++;
+                        if (filterBit == DocIdSetIterator.NO_MORE_DOCS) {
+                            return DocIdSetIterator.NO_MORE_DOCS;
+                        }
+                    }
+                    if (filterBit == innerDoc) {
+                        return compactDoc;
                     }
                 }
-                return DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override
@@ -145,16 +163,32 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
         if (filter == null) {
             return inner;
         }
+        // Co-iterate the inner cursor (which emits original doc IDs) with the filter's bit positions.
+        // For each inner doc that aligns with a filter bit, return the compact doc ID (0-based rank).
         return new ObjectTupleCursor<>() {
+            private final BitSetIterator filterBits = new BitSetIterator(filter, filter.cardinality());
+            private int filterBit = filterBits.nextDoc();
+            private int compactDoc = 0;
+
             @Override
             public int nextDoc() {
-                int doc;
-                while ((doc = inner.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                    if (filter.get(doc)) {
-                        return doc;
+                while (true) {
+                    int innerDoc = inner.nextDoc();
+                    if (innerDoc == DocIdSetIterator.NO_MORE_DOCS || filterBit == DocIdSetIterator.NO_MORE_DOCS) {
+                        return DocIdSetIterator.NO_MORE_DOCS;
                     }
+                    while (filterBit < innerDoc) {
+                        filterBit = filterBits.nextDoc();
+                        compactDoc++;
+                        if (filterBit == DocIdSetIterator.NO_MORE_DOCS) {
+                            return DocIdSetIterator.NO_MORE_DOCS;
+                        }
+                    }
+                    if (filterBit == innerDoc) {
+                        return compactDoc;
+                    }
+                    // filterBit > innerDoc: innerDoc is excluded by filter; advance inner.
                 }
-                return DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override
@@ -168,6 +202,19 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
     public BytesRefValuesCursor values() {
         if (density() == Density.SPARSE) {
             return super.values();
+        }
+        if (filter != null) {
+            // Dense with filter: emit M values at the filter-bit positions using O(1) random access.
+            final int m = filter.cardinality();
+            final AbstractVarColumn dense = (AbstractVarColumn) data;
+            return new BytesRefValuesCursor(m) {
+                private final BitSetIterator bits = new BitSetIterator(filter, m);
+
+                @Override
+                public BytesRef nextValue() {
+                    return dense.getBinaryValue(bits.nextDoc());
+                }
+            };
         }
         return ((AbstractVarColumn) data).bytesRefValuesCursor(false);
     }

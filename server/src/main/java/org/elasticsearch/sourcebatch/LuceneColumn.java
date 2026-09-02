@@ -27,10 +27,10 @@ public interface LuceneColumn extends SliceableColumn {
 
     /**
      * Returns a copy of this column that emits only documents whose bit is set in {@code filter}.
-     * When {@code filter} is non-null the returned column has {@link Column.Density#SPARSE} density.
-     * Passing {@code null} is a no-op when the column already has an active filter: the existing
-     * filter is preserved. Use {@link #singleFilter} to compose the incoming value with any
-     * pre-existing filter.
+     * The returned column retains the density of the underlying data: a dense column stays dense (it
+     * emits {@code filter.cardinality()} values at the filter-bit positions), while a sparse column
+     * stays sparse (it emits tuples with compact doc IDs 0-based in the filter). Pass {@code null}
+     * to remove any existing filter.
      *
      * @param filter a bitset of length equal to this column's doc count, or {@code null}
      */

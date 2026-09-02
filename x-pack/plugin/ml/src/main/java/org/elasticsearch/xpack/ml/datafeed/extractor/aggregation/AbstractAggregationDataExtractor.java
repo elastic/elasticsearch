@@ -122,6 +122,8 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
 
         return new Result(
             searchInterval,
+            // Every emitted document retains the time field (queueDocToWrite), so document count and
+            // key-value count cross zero together; this gate matches the former getKeyValueCount() check.
             aggregationToJsonProcessor.getWrittenDocumentCount() > 0
                 ? Optional.of(new ByteArrayInputStream(outputStream.toByteArray()))
                 : Optional.empty(),

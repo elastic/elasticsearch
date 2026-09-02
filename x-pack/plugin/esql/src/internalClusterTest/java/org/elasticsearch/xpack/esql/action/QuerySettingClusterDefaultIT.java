@@ -64,12 +64,12 @@ public class QuerySettingClusterDefaultIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testSettingWithoutAClusterDefaultIsRejectedAsUnknown() {
-        // column_metadata deliberately has no cluster key, so its would-be key must not be quietly accepted.
+        // approximation deliberately has no cluster key, so its would-be key must not be quietly accepted.
         var e = expectThrows(
             Exception.class,
-            () -> updateClusterSettings(Settings.builder().put("esql.query.settings.column_metadata", true))
+            () -> updateClusterSettings(Settings.builder().put("esql.query.settings.approximation", true))
         );
-        assertThat(e.getMessage(), containsString("esql.query.settings.column_metadata"));
+        assertThat(e.getMessage(), containsString("esql.query.settings.approximation"));
     }
 
     public void testUnmappedFieldsClusterDefaultChangesQueryOutcome() {

@@ -205,7 +205,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         // Only send localRetries to nodes which are new enough to know about it.
         // This is fine as the only time this is serialized is when returning in the response to the recovery API.
         if (out.getTransportVersion().supports(RECOVERY_LOCAL_RETRY_COUNT_TRANSPORT_VERSION)) {
-            out.writeVInt(localRetries);
+            out.writeVInt(getLocalRetries());
         }
         shardId.writeTo(out);
         recoverySource.writeTo(out);

@@ -2204,6 +2204,86 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
+     * The line-number comparison in {@link NdJsonUtils#moveToNextLine} detects that Jackson already crossed a line
+     * boundary while tokenizing a bare number. Jackson increments its line counter on {@code '\n'} and bare
+     * {@code '\r'}, so the detection works for LF, CR, and CRLF line endings.
+     * <p>
+     * CR risk: a bare CR followed by {@code '\n'} (CRLF) could leave a dangling {@code '\n'} in the
+     * released buffer if Jackson's scanner only consumed the {@code '\r'} — but Jackson's byte-stream reader
+     * reads the {@code '\n'} too when it follows immediately (CRLF → one line break), so the buffer starts
+     * at the next record after both bytes, not just after the {@code '\r'}.
+     */
+    public void testBareNumberWithCrAndCrlfLineEndings() throws IOException {
+        for (String eol : List.of("\r", "\r\n")) {
+            for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+                String tag = eol.equals("\r") ? "CR" : "CRLF";
+                String ndjson = "{\"v\":1}" + eol + "42" + eol + "{\"v\":2}" + eol + "{\"v\":3}" + eol;
+                byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
+
+                // Streaming path
+                NdJsonReaderCounters streamCounters = new NdJsonReaderCounters();
+                try (
+                    NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                        new ByteArrayInputStream(bytes),
+                        null,
+                        List.of(attribute("v", DataType.LONG)),
+                        null,
+                        10,
+                        blockFactory,
+                        policy,
+                        "test://bare-number-" + tag.toLowerCase() + "-streaming",
+                        streamCounters
+                    );
+                    Page page = decoder.decodePage()
+                ) {
+                    assertNotNull(policy.modeName() + " " + tag + " streaming: page must not be null", page);
+                    LongBlock block = page.getBlock(0);
+                    assertEquals(policy.modeName() + " " + tag + " streaming: bare number drops only itself", 3, block.getPositionCount());
+                    assertEquals(1L, block.getLong(0));
+                    assertEquals(2L, block.getLong(1));
+                    assertEquals(3L, block.getLong(2));
+                }
+                assertEquals(
+                    policy.modeName() + " " + tag + " streaming: the bare number is charged exactly once",
+                    1L,
+                    streamCounters.snapshot().parseErrors()
+                );
+
+                // Byte-array path
+                NdJsonReaderCounters bytesCounters = new NdJsonReaderCounters();
+                try (
+                    NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                        bytes,
+                        0,
+                        bytes.length,
+                        null,
+                        List.of(attribute("v", DataType.LONG)),
+                        null,
+                        10,
+                        blockFactory,
+                        policy,
+                        "test://bare-number-" + tag.toLowerCase() + "-bytes",
+                        bytesCounters
+                    );
+                    Page page = decoder.decodePage()
+                ) {
+                    assertNotNull(policy.modeName() + " " + tag + " byte-array: page must not be null", page);
+                    LongBlock block = page.getBlock(0);
+                    assertEquals(policy.modeName() + " " + tag + " byte-array: bare number drops only itself", 3, block.getPositionCount());
+                    assertEquals(1L, block.getLong(0));
+                    assertEquals(2L, block.getLong(1));
+                    assertEquals(3L, block.getLong(2));
+                }
+                assertEquals(
+                    policy.modeName() + " " + tag + " byte-array: the bare number is charged exactly once",
+                    1L,
+                    bytesCounters.snapshot().parseErrors()
+                );
+            }
+        }
+    }
+
+    /**
      * Bare scalars other than numbers — quoted strings, booleans, null, arrays — already recovered correctly
      * before elastic/esql-planning#1731, because their tokenizers do not consume the line terminator as a
      * lookahead byte. Verifies the fix did not regress them.

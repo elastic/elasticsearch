@@ -751,14 +751,7 @@ public class NdJsonPageDecoder implements Closeable {
             this.parserSliceStart = next;
             this.parser = jsonFactory.createParser(sourceBytes, next, sourceEnd - next);
         } else {
-            // A bare number causes Jackson to consume the line terminator while scanning the end of
-            // the number token, leaving getCurrentLocation() at the start of the following record.
-            // Detect this by comparing line numbers: if the parser moved to a new line while reading
-            // the token, moveToNextLine must skip its scan (releaseBuffered already positions the
-            // stream past the terminator). Jackson increments its line counter on '\n' and bare '\r',
-            // so the comparison is accurate for LF, CR, and CRLF line endings.
-            boolean alreadyCrossedLine = failedParser.getCurrentLocation().getLineNr() > failedParser.getTokenLocation().getLineNr();
-            this.input = NdJsonUtils.moveToNextLine(failedParser, this.input, alreadyCrossedLine);
+            this.input = NdJsonUtils.moveToNextLine(failedParser, this.input);
             this.parser = jsonFactory.createParser(this.input);
             // The fresh parser's byte offsets restart at the recovery point while parserSliceStart stays 0, so
             // every subsequent tokenStartOffset() is short by the pre-recovery bytes. Record offsets are no longer

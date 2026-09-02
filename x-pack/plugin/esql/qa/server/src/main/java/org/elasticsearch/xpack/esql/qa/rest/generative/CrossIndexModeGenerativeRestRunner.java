@@ -581,23 +581,22 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         if (cmdText.contains("LEAST(") || cmdText.contains("GREATEST(")) {
             return false;
         }
-        // FIRST() aggregation function picks a value from the row with the minimum sort-column
-        // value. It can be non-deterministic when there are ties. Additionally, columnar mode has a
-        // known issue where FIRST() returns null for boolean MV fields instead of the correct
-        // multi-value boolean. Note: contains("FIRST(") also matches MV_FIRST(, and
-        // contains("LAST(") matches MV_LAST(; both are correctly gated since the aggregate and the
-        // scalar function share the same ordering-sensitivity rationale.
-        // (The generator never emits a bare last(...) aggregate; LAST( here catches only MV_LAST(.)
-        // TODO: remove once the columnar FIRST/LAST boolean bug is fixed.
+        // FIRST() / LAST() pick the search-field value from the row with the minimum (FIRST) or
+        // maximum (LAST) sort value. Two effects make cross-mode value comparison unreliable, and
+        // both are expected divergences rather than correctness bugs:
+        // 1. Ties in the sort column: when several rows share the winning sort value, either
+        // physical layout may legitimately pick a different row's search-field value.
+        // 2. Multi-value search field: the returned cell keeps source element order, which
+        // differs between the two modes (columnar source-insertion order vs standard ascending
+        // doc-values order). The multiset is identical but e.g. [false, true] vs [true, false]
+        // compares unequal. Same ordering artifact already gated for MV_FIRST/MV_LAST/MV_SLICE.
+        // Correct columnar behavior for boolean MV fields (no spurious null) is covered by the
+        // stats_first_last.csv-spec "Test retrieval of multi-values" case, which CsvColumnarIT runs
+        // against voyager's low_power_mode field.
+        // Note: contains("FIRST(") also matches MV_FIRST(, and contains("LAST(") matches MV_LAST(;
+        // both share the same ordering-sensitivity rationale. The generator never emits a bare
+        // last(...) aggregate, so LAST( here only catches MV_LAST(.
         if (cmdText.contains("FIRST(") || cmdText.contains("LAST(")) {
-            return false;
-        }
-        // DISSECT and GROK applied to multi-value string fields: standard mode expands each element
-        // of the MV field into a separate row before matching, while columnar mode processes only
-        // the first element. This produces a different row count after the command, which then
-        // propagates into any subsequent aggregation (e.g. COUNT). Gate to prevent false value
-        // divergences that stem from this row-count difference rather than an incorrect result.
-        if ("dissect".equals(cmdName) || "grok".equals(cmdName)) {
             return false;
         }
         // Commands whose output order or aggregate semantics depend on per-segment or per-shard

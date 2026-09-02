@@ -2171,6 +2171,12 @@ public class VerifierTests extends ESTestCase {
             "from test | inline stats m = max(id) by category | where qstr(\"title: Meditation\")",
             containsString("[QSTR] function cannot be used after INLINE")
         );
+        // SCORE is checked by checkScoreFunction, which keeps its own unconditional Aggregate restriction, so
+        // wrapping an otherwise allowed MATCH in SCORE is still rejected after INLINE STATS
+        fullText().error(
+            "from test | inline stats m = max(id) by category | eval s = score(match(title, \"Meditation\"))",
+            containsString("[SCORE] function cannot be used after INLINE")
+        );
     }
 
     public void testFullTextFunctionsAfterFork() {

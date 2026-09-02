@@ -2633,3 +2633,35 @@ book_no:keyword | max_year:integer | min_year:integer
 8423            | 2022             | 1969
 9896            | 2022             | 1969
 ;
+
+matchAfterInlineStatsWithAggregateExpression
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS next_year = MAX(year) + 1
+| WHERE MATCH(author, "Faulkner")
+| KEEP book_no, next_year
+| SORT book_no
+;
+
+book_no:keyword | next_year:integer
+2378            | 2023
+2713            | 2023
+2847            | 2023
+2883            | 2023
+3293            | 2023
+3535            | 2023
+3870            | 2023
+4502            | 2023
+4724            | 2023
+4977            | 2023
+5119            | 2023
+5404            | 2023
+5578            | 2023
+6151            | 2023
+7381            | 2023
+8077            | 2023
+8423            | 2023
+9896            | 2023
+;

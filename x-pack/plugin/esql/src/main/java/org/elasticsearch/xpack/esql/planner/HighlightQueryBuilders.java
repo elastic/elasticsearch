@@ -65,6 +65,9 @@ public final class HighlightQueryBuilders {
         return folded instanceof BytesRef || folded instanceof String ? BytesRefs.toString(folded) : null;
     }
 
+    /**
+     * Checks that the expression contains only full-text functions supported by HIGHLIGHT.
+     */
     private static void verifyQueryStructure(Expression expr, @Nullable List<String> onFields) {
         // TODO: Allow HIGHLIGHT queries to use expressions other than full-text functions.
         switch (expr) {

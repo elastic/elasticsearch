@@ -13,6 +13,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.Diagnosis.Resource.Type;
 import org.elasticsearch.health.GetHealthAction;
+import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
@@ -30,6 +32,10 @@ import java.util.Map;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
+import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.ALL_REPOS_HEALTHY;
+import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.CORRUPTED_DEFINITION;
+import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.IMPACTS;
+import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -49,7 +55,10 @@ public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapsho
                 .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
         );
 
-        assertSnapshotRepositoryHealth("Indicator should be green after empty repository is created", greenResult(1));
+        assertSnapshotRepositoryHealth(
+            "Indicator should be green after empty repository is created",
+            greenResult(1)
+        );
 
         createIndex("test-index-1");
         indexRandomDocs("test-index-1", randomIntBetween(1, 10));

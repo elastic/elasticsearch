@@ -1,0 +1,6 @@
+area: SLM
+issues:
+- 141887
+pr: 152712
+summary: Use BulkProcessor2 in SnapshotHistoryStore to retry on EsRejectedExecutionException
+type: bug

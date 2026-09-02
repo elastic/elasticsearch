@@ -184,17 +184,18 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             var conjunctions = Predicates.splitAnd(filter.condition());
 
             // Split the filter condition in 3 parts.
-            // For an InlineJoin whose right-hand side is still "live" (the aggregate hasn't executed yet, i.e. it's not a
-            // LocalRelation), we use a restrictive scoping that only allows pushing down filters on the join keys (either to the
-            // left only, or duplicated to both sides): InlineJoin copies the left branch onto the right to compute the aggregate,
-            // so pushing an arbitrary left-only filter at this point would also filter the aggregate's input, changing its result.
-            // Once that right-hand side has been resolved into a concrete LocalRelation (post aggregate execution), the right side
-            // no longer depends on the left at all, so it's safe to fall back to the standard scoping used for every other join:
+            // For InlineJoin we use a scoping that allows pushing down filters either to right side only or to both sides.
+            // Left-only filters deliberately stay above an InlineJoin: it computes its right side from the left branch (through the
+            // StubRelation planted by stubSource), so filtering the left branch would also filter the aggregate's input and change
+            // its result. Note that relaxing this once the right side has been resolved into a LocalRelation, and thus no longer
+            // depends on the left, would be dead code today: the logical optimizer runs exactly once, before any sub-plan is
+            // executed, and the plan rebuilt after a sub-plan result is substituted in is marked optimized without being
+            // re-optimized (see the TODO in InlineJoin#newMainPlan).
+            // For the rest of the joins we use the standard scoping:
             // - filters scoped to the left
             // - filters scoped to the right
             // - filter that requires both sides to be evaluated
-            boolean liveInlineStats = join instanceof InlineJoin && join.right() instanceof LocalRelation == false;
-            var scoped = liveInlineStats ? scopeInlineStatsFilter(conjunctions, (InlineJoin) join) : scopeFilter(conjunctions, left, right);
+            var scoped = join instanceof InlineJoin ij ? scopeInlineStatsFilter(conjunctions, ij) : scopeFilter(conjunctions, left, right);
 
             boolean optimizationApplied = false;
             // push the left scoped filter down to the left child

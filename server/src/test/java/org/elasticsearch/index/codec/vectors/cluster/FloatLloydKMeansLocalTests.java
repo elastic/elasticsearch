@@ -162,6 +162,7 @@ public class FloatLloydKMeansLocalTests extends AbstractLloydKMeansLocalTestCase
 
                 assertEquals(neighborHoodsBruteForce.length, neighborHoodsGraphConcurrent.length);
                 for (int i = 0; i < neighborHoodsGraphConcurrent.length; i++) {
+                    assertEquals(neighborHoodsBruteForce[i].neighbors().length, neighborHoodsGraphConcurrent[i].neighbors().length);
                     int matched = compareNN(i, neighborHoodsBruteForce[i].neighbors(), neighborHoodsGraphConcurrent[i].neighbors());
                     double recall = (double) matched / neighborHoodsGraphConcurrent[i].neighbors().length;
                     assertThat(

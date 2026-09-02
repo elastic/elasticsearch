@@ -15,9 +15,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -41,7 +39,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -143,21 +140,6 @@ public class CsvBoundaryScanBenchmark {
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
             return wrapped.read(object, context);
-        }
-
-        @Override
-        public String formatName() {
-            return wrapped.formatName();
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return wrapped.fileExtensions();
-        }
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return wrapped.withConfigTrackingConsumedKeys(config);
         }
 
         @Override

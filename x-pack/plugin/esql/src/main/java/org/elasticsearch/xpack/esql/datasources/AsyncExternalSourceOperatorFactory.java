@@ -582,7 +582,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     /**
      * Fluent builder for {@link AsyncExternalSourceOperatorFactory}. Required parameters are captured
-     * via {@link #builder(StorageProvider, ResolvedFormat, FormatReadContext.Binding, Settings, BlockFactory, Map, StoragePath, List, int, int, Executor)}.
+     * via {@link #builder}.
      * Optional parameters default to: {@link FormatReader#NO_LIMIT} for rowLimit, empty collections
      * for partition/pushed-expression lists, {@code null} for opt-in hooks (sliceQueue,
      * pushdownSupport, etc.), and {@code 1} for parsingParallelism.

@@ -9,11 +9,13 @@ package org.elasticsearch.benchmark._nightly.esql;
 
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -127,7 +129,10 @@ public class CsvReadBenchmark {
 
     @Benchmark
     public int readAll(ReadMetrics metrics) throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory, options, formatName, extensions).withDirectBlockEnabled(directBlock);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReaderFactory(formatName, extensions, options, directBlock).create(
+            Settings.EMPTY,
+            blockFactory
+        );
         FormatReadContext ctx = FormatReadContext.builder().projectedColumns(projectedColumns).batchSize(1000).build();
         int totalRows = 0;
         try (CloseableIterator<Page> iter = reader.read(storageObject, ctx)) {

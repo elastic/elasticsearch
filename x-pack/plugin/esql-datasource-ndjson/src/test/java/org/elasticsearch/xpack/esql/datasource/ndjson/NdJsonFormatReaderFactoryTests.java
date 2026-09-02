@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -63,6 +64,7 @@ public class NdJsonFormatReaderFactoryTests extends ESTestCase {
         assertNotSame(first, second);
     }
 
+    @SuppressForbidden(reason = "test-only reflection to assert factory instance fields stay final")
     public void testFactoryStateIsFinal() {
         for (Field field : NdJsonFormatReaderFactory.class.getDeclaredFields()) {
             if (Modifier.isStatic(field.getModifiers()) == false) {

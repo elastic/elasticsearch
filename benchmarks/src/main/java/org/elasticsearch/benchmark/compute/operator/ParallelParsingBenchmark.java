@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark.compute.operator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -24,7 +25,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
-import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -116,11 +118,10 @@ public class ParallelParsingBenchmark {
     @Benchmark
     public void parallelParse(Blackhole bh) throws Exception {
         StorageObject obj = new InMemoryStorageObject(fileData);
-        BenchLineReader reader = new BenchLineReader();
 
         try (
             CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
-                reader,
+                new BenchLineReaderFactory(),
                 obj,
                 List.of("line"),
                 1000,
@@ -136,7 +137,34 @@ public class ParallelParsingBenchmark {
         }
     }
 
-    private static class BenchLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+    private static final class BenchLineReaderFactory implements FormatReaderFactory {
+        @Override
+        public FormatReader create(Settings settings, BlockFactory blockFactory) {
+            return new BenchLineReader();
+        }
+
+        @Override
+        public String formatName() {
+            return "bench-line";
+        }
+
+        @Override
+        public boolean segmentable() {
+            return true;
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(Map<String, Object> config, int maxRecordBytes) {
+            return new BenchLineReader().recordSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize(Map<String, Object> config) {
+            return 1;
+        }
+    }
+
+    private static class BenchLineReader implements SegmentableFormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -292,16 +320,6 @@ public class ParallelParsingBenchmark {
                     // data buffer will be GC'd
                 }
             };
-        }
-
-        @Override
-        public String formatName() {
-            return "bench-line";
-        }
-
-        @Override
-        public List<String> fileExtensions() {
-            return List.of(".txt");
         }
 
         @Override

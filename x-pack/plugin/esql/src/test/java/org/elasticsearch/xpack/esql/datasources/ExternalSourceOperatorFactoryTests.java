@@ -73,7 +73,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         CloseableIterator<org.elasticsearch.compute.data.Page> emptyIterator = Mockito.mock(CloseableIterator.class);
         Mockito.when(emptyIterator.hasNext()).thenReturn(false);
-        Mockito.when(formatReader.read(Mockito.any(), Mockito.any(), Mockito.anyInt())).thenReturn(emptyIterator);
+        Mockito.when(formatReader.read(Mockito.any(), Mockito.any(FormatReadContext.class))).thenReturn(emptyIterator);
 
         // Define attributes (schema)
         List<Attribute> attributes = List.of(

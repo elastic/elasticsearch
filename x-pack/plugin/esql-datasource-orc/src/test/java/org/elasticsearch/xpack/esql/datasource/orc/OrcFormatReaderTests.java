@@ -128,6 +128,10 @@ public class OrcFormatReaderTests extends ESTestCase {
     }
 
     public void testFileExtensions() {
+        assumeTrue(
+            "ORC format specs are registered only when the feature flag is on",
+            OrcDataSourcePlugin.ESQL_EXTERNAL_ORC_FEATURE_FLAG.isEnabled()
+        );
         assertTrue(
             new OrcDataSourcePlugin().formatSpecs()
                 .stream()

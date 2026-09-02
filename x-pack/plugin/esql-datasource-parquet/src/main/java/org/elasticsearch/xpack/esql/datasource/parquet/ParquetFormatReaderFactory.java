@@ -30,7 +30,7 @@ public final class ParquetFormatReaderFactory implements FormatReaderFactory {
 
     @Override
     public FormatReader create(Settings settings, BlockFactory blockFactory) {
-        return new ParquetFormatReader(blockFactory);
+        return create(settings, blockFactory, null, null);
     }
 
     @Override

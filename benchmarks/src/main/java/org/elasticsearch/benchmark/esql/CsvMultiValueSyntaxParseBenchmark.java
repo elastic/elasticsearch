@@ -9,11 +9,14 @@ package org.elasticsearch.benchmark.esql;
 
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -36,6 +39,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -45,7 +49,7 @@ import java.util.concurrent.TimeUnit;
  * bracket-aware parser; {@code none} routes it through the Jackson streaming path. The data has no
  * bracket arrays, so both produce identical output — this isolates the parser cost the default flip
  * changes. Drives the real {@link CsvFormatReader#read} production path (configured via
- * {@code withConfig}, exactly as the EXTERNAL command does), not a splitter proxy.
+ * {@link CsvFormatReaderFactory#create}), not a splitter proxy.
  */
 @Fork(1)
 @Warmup(iterations = 3)
@@ -73,7 +77,12 @@ public class CsvMultiValueSyntaxParseBenchmark {
         // Reader (and its CsvMapper) constructed once per trial so the measurement loop reflects
         // only per-stream parse cost, not per-invocation mapper construction. In production the
         // mapper is shared via sharedCsvMapper, so this also matches the realistic call pattern.
-        reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", multiValueSyntax));
+        reader = (CsvFormatReader) new CsvFormatReaderFactory("csv", List.of(".csv"), CsvFormatOptions.DEFAULT, true).create(
+            Settings.EMPTY,
+            blockFactory,
+            Map.of("multi_value_syntax", multiValueSyntax),
+            null
+        );
     }
 
     @Benchmark

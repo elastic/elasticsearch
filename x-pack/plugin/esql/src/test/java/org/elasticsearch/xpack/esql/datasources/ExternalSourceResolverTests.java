@@ -80,6 +80,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -2835,61 +2836,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     // ===== Resolver + Cache integration =====
 
-    public void testCacheReducesListingAndSchemaLoaderCalls() throws Exception {
-        List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
-        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
-        schemasByPath.put("s3://bucket/data/a.parquet", schema);
-        schemasByPath.put("s3://bucket/data/b.parquet", schema);
-
-        List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
-
-        CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
-
-        Settings settings = Settings.builder()
-            .put("esql.external.cache.size", "10mb")
-            .put("esql.external.cache.enabled", true)
-            .put("esql.external.cache.listing.ttl", "30s")
-            .build();
-
-        // FFW-specific assertions of listing-cache + anchor-schema-cache reuse.
-        // The cross-mode cache invariant (every SchemaResolution strategy hits the cache on
-        // warm resolves) is covered separately by testMultiFileCacheReducesSchemaLoaderCallsPerStrategy.
-        Map<String, Map<String, Object>> pathConfigs = Map.of(
-            "s3://bucket/data/*.parquet",
-            new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))
-        );
-        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
-            ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
-
-            PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/*.parquet"), pathConfigs, f1);
-            ExternalSourceResolution res1 = f1.actionGet();
-            assertNotNull(res1.resolvedSource("s3://bucket/data/*.parquet"));
-            assertEquals(2, res1.resolvedSource("s3://bucket/data/*.parquet").fileList().fileCount());
-            int listCallsAfterFirst = countingProvider.listCallCount.get();
-            int schemaCallsAfterFirst = countingProvider.schemaCallCount.get();
-            assertTrue("listing loader should have been called at least once", listCallsAfterFirst > 0);
-            assertTrue("schema loader should have been called at least once", schemaCallsAfterFirst > 0);
-
-            PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/*.parquet"), pathConfigs, f2);
-            ExternalSourceResolution res2 = f2.actionGet();
-            assertNotNull(res2.resolvedSource("s3://bucket/data/*.parquet"));
-            assertEquals(2, res2.resolvedSource("s3://bucket/data/*.parquet").fileList().fileCount());
-
-            assertEquals(
-                "listing loader should not be called again on cache hit",
-                listCallsAfterFirst,
-                countingProvider.listCallCount.get()
-            );
-            assertEquals(
-                "schema loader should not be called again on cache hit",
-                schemaCallsAfterFirst,
-                countingProvider.schemaCallCount.get()
-            );
-        }
-    }
-
     /**
      * Cold cacheable multi-file resolves must expose the just-harvested footer statistics on the
      * returned metadata. {@code cachedResolveSingleSourceAsync} wraps the resolved metadata in a
@@ -2975,6 +2921,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * listing to a subset of the files; keyed only on the path, that subset would be served back to a query that
      * carries no filter, which then silently sees fewer files than the dataset holds. Here the {@code _file.name}
      * hint on a plain glob prunes the listing to one file; the unfiltered follow-up must still see all three.
+     * Loops {@link #MULTI_FILE_STRATEGIES}: file-count is the assertion the IT cannot make, and default
+     * UNION_BY_NAME is the product rail.
      */
     public void testListingCacheNotPoisonedByFileMetadataHint() throws Exception {
         String glob = "s3://bucket/data/*.parquet";
@@ -2988,26 +2936,27 @@ public class ExternalSourceResolverTests extends ESTestCase {
             entry("s3://bucket/data/b.parquet", 200),
             entry("s3://bucket/data/c.parquet", 300)
         );
-        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemas);
-
         var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
             FileMetadataColumns.NAME,
             PartitionFilterHintExtractor.Operator.EQUALS,
             List.of("a.parquet")
         );
 
-        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
-            ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
+        for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
+            CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemas);
+            try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+                ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
 
-            ExternalSourceResolution filtered = resolveWith(resolver, glob, Map.of(glob, List.of(hint)));
-            assertEquals(1, filtered.resolvedSource(glob).fileList().fileCount());
+                ExternalSourceResolution filtered = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
+                assertEquals("[" + strategy + "]", 1, filtered.resolvedSource(glob).fileList().fileCount());
 
-            ExternalSourceResolution unfiltered = resolveWith(resolver, glob, Map.of());
-            assertEquals(
-                "the unfiltered query must see every file, not the filtered query's cached subset",
-                3,
-                unfiltered.resolvedSource(glob).fileList().fileCount()
-            );
+                ExternalSourceResolution unfiltered = resolveWith(resolver, glob, Map.of(), strategy);
+                assertEquals(
+                    "[" + strategy + "] the unfiltered query must see every file, not the filtered query's cached subset",
+                    3,
+                    unfiltered.resolvedSource(glob).fileList().fileCount()
+                );
+            }
         }
     }
 
@@ -3028,26 +2977,27 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(entry("s3://bucket/data/year=2024/a.parquet", 100), entry("s3://bucket/data/year=2025/b.parquet", 200))
         );
         listingsByPrefix.put("s3://bucket/data/year=2024/", List.of(entry("s3://bucket/data/year=2024/a.parquet", 100)));
-        CountingStorageProvider provider = new CountingStorageProvider(listingsByPrefix, schemas);
-
         var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
             "year",
             PartitionFilterHintExtractor.Operator.EQUALS,
             List.of(2024)
         );
 
-        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
-            ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
+        for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
+            CountingStorageProvider provider = new CountingStorageProvider(listingsByPrefix, schemas);
+            try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+                ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
 
-            ExternalSourceResolution filtered = resolveWith(resolver, glob, Map.of(glob, List.of(hint)));
-            assertEquals(1, filtered.resolvedSource(glob).fileList().fileCount());
+                ExternalSourceResolution filtered = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
+                assertEquals("[" + strategy + "]", 1, filtered.resolvedSource(glob).fileList().fileCount());
 
-            ExternalSourceResolution unfiltered = resolveWith(resolver, glob, Map.of());
-            assertEquals(
-                "the unfiltered query must enumerate every partition, not the filtered query's single folder",
-                2,
-                unfiltered.resolvedSource(glob).fileList().fileCount()
-            );
+                ExternalSourceResolution unfiltered = resolveWith(resolver, glob, Map.of(), strategy);
+                assertEquals(
+                    "[" + strategy + "] the unfiltered query must enumerate every partition, not the filtered query's single folder",
+                    2,
+                    unfiltered.resolvedSource(glob).fileList().fileCount()
+                );
+            }
         }
     }
 
@@ -3076,7 +3026,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
             ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
 
-            ExternalSourceResolution resolution = resolveWith(resolver, glob, Map.of(glob, List.of(hint)));
+            ExternalSourceResolution resolution = resolveWith(
+                resolver,
+                glob,
+                Map.of(glob, List.of(hint)),
+                FormatReader.SchemaResolution.UNION_BY_NAME
+            );
             assertEquals(1, resolution.resolvedSource(glob).fileList().fileCount());
         }
     }
@@ -3084,26 +3039,22 @@ public class ExternalSourceResolverTests extends ESTestCase {
     private ExternalSourceResolution resolveWith(
         ExternalSourceResolver resolver,
         String glob,
-        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        FormatReader.SchemaResolution strategy
     ) {
-        Map<String, Map<String, Object>> pathConfigs = Map.of(
-            glob,
-            new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))
-        );
+        Map<String, Map<String, Object>> pathConfigs = Map.of(glob, new HashMap<>(configFor(strategy)));
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         resolver.resolve(List.of(glob), pathConfigs, filterHints, null, null, future);
         return future.actionGet();
     }
 
     /**
-     * Invariant: every schema-resolution mode must consult the schema cache on the per-file
-     * resolve. A second resolve of the same glob across the same paths must add zero schema-loader
-     * calls. Parameterized over {@link #MULTI_FILE_STRATEGIES} so any new mode inherits the
-     * invariant by construction; the bug fixed by this PR (UNION_BY_NAME default flip in
-     * elastic/elasticsearch#149176) was that the reconciliation path bypassed the schema cache,
-     * so every warm multi-file query re-read N footers from storage.
+     * Every inferred schema-resolution mode must consult the listing cache and the schema cache.
+     * A second resolve of the same glob must add zero listing-loader calls and zero schema-loader
+     * calls. Parameterized over {@link #MULTI_FILE_STRATEGIES} so any new mode inherits the invariant.
+     * UNION_BY_NAME used to skip {@code cachedListing} (raw {@code GlobExpander.expand}).
      */
-    public void testMultiFileCacheReducesSchemaLoaderCallsPerStrategy() throws Exception {
+    public void testMultiFileCacheReducesListingAndSchemaLoaderCallsPerStrategy() throws Exception {
         Settings cacheSettings = Settings.builder()
             .put("esql.external.cache.size", "10mb")
             .put("esql.external.cache.enabled", true)
@@ -3134,7 +3085,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 resolver.resolve(List.of("s3://bucket/data/*.parquet"), pathConfigs, f1);
                 ExternalSourceResolution res1 = f1.actionGet();
                 assertNotNull("[" + strategy + "] first resolve must produce a source", res1.resolvedSource("s3://bucket/data/*.parquet"));
+                int listCallsAfterFirst = countingProvider.listCallCount.get();
                 int schemaCallsAfterFirst = countingProvider.schemaCallCount.get();
+                assertTrue("[" + strategy + "] listing loader must be invoked on first resolve", listCallsAfterFirst > 0);
                 assertTrue("[" + strategy + "] schema loader must be invoked on first resolve", schemaCallsAfterFirst > 0);
 
                 PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
@@ -3143,11 +3096,162 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 assertNotNull("[" + strategy + "] second resolve must produce a source", res2.resolvedSource("s3://bucket/data/*.parquet"));
 
                 assertEquals(
+                    "[" + strategy + "] listing loader must not be called again on second resolve (cache hit invariant)",
+                    listCallsAfterFirst,
+                    countingProvider.listCallCount.get()
+                );
+                assertEquals(
                     "[" + strategy + "] schema loader must not be called again on second resolve (cache hit invariant)",
                     schemaCallsAfterFirst,
                     countingProvider.schemaCallCount.get()
                 );
             }
+        }
+    }
+
+    /**
+     * {@code ListingCacheKey} omits {@code schema_resolution}, so FIRST_FILE_WINS and UNION_BY_NAME
+     * share one listing entry. A second strategy on the same cache must add zero LIST calls.
+     * Schema-loader counts are not asserted: UNION_BY_NAME still reads non-anchor footers.
+     */
+    public void testListingCacheSharedAcrossSchemaResolutionStrategies() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
+        CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
+        String glob = "s3://bucket/data/*.parquet";
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> ffw = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))), ffw);
+            assertEquals(2, ffw.actionGet().resolvedSource(glob).fileList().fileCount());
+            int listCallsAfterFfw = countingProvider.listCallCount.get();
+            assertTrue("FIRST_FILE_WINS must list at least once", listCallsAfterFfw > 0);
+
+            PlainActionFuture<ExternalSourceResolution> ubn = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME))), ubn);
+            assertEquals(2, ubn.actionGet().resolvedSource(glob).fileList().fileCount());
+            assertEquals(
+                "UNION_BY_NAME must reuse the FIRST_FILE_WINS listing; schema_resolution is not part of ListingCacheKey",
+                listCallsAfterFfw,
+                countingProvider.listCallCount.get()
+            );
+        }
+    }
+
+    /**
+     * Concurrent UNION_BY_NAME resolves of the same glob (no hints) must issue one LIST.
+     * {@code Cache.computeIfAbsent} single-flights that key. Different WHERE clauses still
+     * produce different {@code ListingCacheKey}s. Skip-cache fails this ({@code listCallCount}
+     * equals thread count). The loader does not return until every tester is inside
+     * {@code resolve()}.
+     */
+    public void testConcurrentUnionByNameResolvesIssueOneListing() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
+        final int threadCount = 8;
+        AtomicInteger inResolve = new AtomicInteger();
+        CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath) {
+            @Override
+            public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+                try {
+                    assertBusy(
+                        () -> assertEquals("LIST must wait until every resolver thread is in resolve()", threadCount, inResolve.get())
+                    );
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+                return super.listObjects(prefix, recursive);
+            }
+        };
+
+        String glob = "s3://bucket/data/*.parquet";
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(threadCount);
+        CyclicBarrier aligned = new CyclicBarrier(threadCount);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        ExecutorService exec = Executors.newFixedThreadPool(threadCount);
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
+            for (int i = 0; i < threadCount; i++) {
+                exec.submit(() -> {
+                    try {
+                        start.await();
+                        aligned.await(30, TimeUnit.SECONDS);
+                        inResolve.incrementAndGet();
+                        try {
+                            Map<String, Map<String, Object>> pathConfigs = Map.of(
+                                glob,
+                                new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME))
+                            );
+                            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+                            resolver.resolve(List.of(glob), pathConfigs, future);
+                            ExternalSourceResolution resolution = future.actionGet(30, TimeUnit.SECONDS);
+                            assertNotNull(resolution.resolvedSource(glob));
+                            assertEquals(2, resolution.resolvedSource(glob).fileList().fileCount());
+                        } finally {
+                            inResolve.decrementAndGet();
+                        }
+                    } catch (Throwable t) {
+                        failure.compareAndSet(null, t);
+                    } finally {
+                        done.countDown();
+                    }
+                });
+            }
+            start.countDown();
+            assertTrue("concurrent UNION_BY_NAME resolves did not finish", done.await(30, TimeUnit.SECONDS));
+            Throwable t = failure.get();
+            if (t != null) {
+                throw new AssertionError("concurrent UNION_BY_NAME resolve failed", t);
+            }
+            assertEquals("concurrent UNION_BY_NAME resolves of the same glob must issue one LIST", 1, countingProvider.listCallCount.get());
+        } finally {
+            exec.shutdownNow();
+        }
+    }
+
+    /**
+     * Cached inferred listings must replay {@code file_exclusions} headers. Expand used to warn only while
+     * listing; a warm UNION_BY_NAME hit skipped that. First resolve consumes the warning, second must
+     * emit it again with no extra LIST.
+     */
+    public void testListingCacheReplaysExclusionWarningOnSecondResolve() throws Exception {
+        String warning = "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the "
+            + "[file_exclusions] dataset setting, for example [_SUCCESS] which matched entry [**/_*]";
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/data/a.parquet", schema);
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/_SUCCESS", 0));
+        CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
+        String glob = "s3://bucket/data/*";
+        Map<String, Map<String, Object>> pathConfigs = Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME)));
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> first = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), pathConfigs, first);
+            ExternalSourceResolution res1 = first.actionGet();
+            assertEquals(1, res1.resolvedSource(glob).fileList().fileCount());
+            assertEquals(List.of(warning), res1.resolvedSource(glob).fileList().exclusionWarnings());
+            assertWarnings(warning);
+            int listCallsAfterFirst = countingProvider.listCallCount.get();
+            assertTrue("first resolve must list", listCallsAfterFirst > 0);
+
+            PlainActionFuture<ExternalSourceResolution> second = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), pathConfigs, second);
+            ExternalSourceResolution res2 = second.actionGet();
+            assertEquals(1, res2.resolvedSource(glob).fileList().fileCount());
+            assertEquals(List.of(warning), res2.resolvedSource(glob).fileList().exclusionWarnings());
+            assertEquals("second resolve must be a listing cache hit", listCallsAfterFirst, countingProvider.listCallCount.get());
+            assertWarnings(warning);
         }
     }
 

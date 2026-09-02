@@ -92,102 +92,25 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
 
     /**
      * Datasets excluded from cross-mode testing because they create successfully in columnar mode
-     * but produce legitimately different results. Derived from the catalogue in
-     * {@code LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT} (logsdb module) and
-     * {@link org.elasticsearch.xpack.esql.qa.rest.AllSupportedFieldsTestCase}.
+     * but produce legitimately different results, or are too heavy for the generative suite.
      *
-     * <ul>
-     *   <li>{@code airports_not_indexed}, {@code airports_no_doc_values},
-     *       {@code airports_not_indexed_nor_doc_values}: {@code index:false} / {@code doc_values:false}
-     *       are effectively no-ops in strict columnar mode — every field gets doc values and is
-     *       searchable — so query results differ by design from a standard index where those settings
-     *       are honoured.</li>
-     *   <li>{@code addresses_text}, {@code employees_gender_text}: keyword-to-text variant datasets.
-     *       Columnar mode auto-converts text fields to keyword, so the ref_ variant (text) and the
-     *       base ref_ index (keyword) produce a type conflict ({@code [keyword, text] → unsupported})
-     *       under wildcard {@code ref_*} queries, while the cand_ side sees no conflict (all keyword).
-     *       This structural divergence is not a correctness bug.</li>
-     * </ul>
+     * <p>Other historically excluded datasets (geo precision, text→keyword / short→long wildcard
+     * conflicts, COUNT-on-MV bugs, etc.) are covered by value-skipping, the determinism gate, or
+     * automatic skip-on-cand-creation-failure — verified empirically with {@code -Dtests.iters=20+}
+     * and a follow-up 100-iter run.
      */
     private static final Set<String> EXCLUDED_DATASETS = Set.of(
-        // index:false / doc_values:false are no-ops in columnar — searchability and loadability
-        // differ by design from a standard index that honours those settings.
-        "airports_not_indexed",
-        "airports_no_doc_values",
-        "airports_not_indexed_nor_doc_values",
-        // geo_point fields (city_location) are stored at different precision in columnar mode:
-        // to_string(city_location) returns e.g. "POINT (116.073 5.975)" on standard but
-        // "POINT (116.072 5.975)" on columnar — a known encoding precision difference.
-        "airports",
-        "airports_web",
-        // Mapping designed to be type-incompatible with the standard employees dataset; combining
-        // ref_employees_incompatible (with its altered field types) and ref_employees under a wildcard
-        // pattern produces type conflicts that cause schema divergences between the two modes.
+        // Mapping designed to be type-incompatible with the standard employees dataset; CSV also
+        // carries deliberate boolean MV duplicates that standard collapses to a scalar while
+        // columnar keeps as a list (false vs [false]).
         "employees_incompatible",
-        // Multi-value double fields (rows carry [1.1], [1.1,2.2], …, [1.1,…,5.5]) cause COUNT to
-        // diverge: standard mode counts individual MV values whereas columnar mode counts documents.
-        // Root cause: columnar mode disables point indexing for numeric fields, so
-        // SearchContextStats#detectSingleValue mis-detects them as single-valued and PushStatsToSource
-        // pushes COUNT down to a Lucene document count instead of a per-value count.
-        "all_types_mv",
-        // The all_types family uses mapping-all-types.json which contains `semantic_text` and
-        // `dense_vector` field types. These types appear in field_caps for standard mode but are
-        // absent from columnar mode's field_caps, causing a schema-size divergence whenever any
-        // wildcard pattern matches ref_all_types* indices. The mapping also has a `short`-typed
-        // field named "short"; columnar normalises short → long, so wildcard queries that combine
-        // an all_types index (short: short) with any other index that has a "short: long" field
-        // produce type-conflict unsupported[long, short] on the reference side but a clean "long"
-        // on the candidate side.
-        "all_types",
-        "all_types_no_short",
-        "all_types_short_as_long",
-        // Variant of `apps` with `id` overridden to type short. Standard mode returns the field as
-        // short in field_caps; when combined with the base `apps` index (id: integer) under a
-        // wildcard pattern, ref_* sees type-conflict unsupported[integer, short], while cand_*
-        // normalises short → integer (no conflict). Not a correctness bug.
-        "apps_short",
-        // Contains a plain `txt: text` field that has no doc_values. Columnar mode requires all
-        // fields to be reconstructable from doc values for synthetic source, so this dataset either
-        // fails cand_ index creation or produces a schema divergence (txt absent from the
-        // columnar-side schema). Excluded to prevent wildcard patterns from matching an orphaned
-        // ref_text_state_mapped index.
-        "text_state_mapped",
-        // 245 000+ documents with MV integer fields. Bulk indexing and force-merge of this volume
-        // in columnar mode can time out or exceed REST client limits, leaving an orphaned ref_
-        // index that pollutes wildcard schema resolution.
+        // 245 000+ documents with MV integer fields. Loading both ref_ and cand_ copies makes
+        // wide wildcards like FROM ref_* large enough to close the REST connection / kill the
+        // test cluster mid-suite.
         "many_numbers",
-        // Variant of `addresses` that overrides keyword fields (street, city.name,
-        // city.country.name, city.country.continent.name, …) to text. Columnar mode auto-converts
-        // those text fields to keyword (doc_values), so ref_addresses_text ends up with text while
-        // cand_addresses_text ends up with keyword. A wildcard query like `from ref_*` matches both
-        // ref_addresses (keyword) and ref_addresses_text (text), making field_caps report type
-        // conflict [keyword, text] → unsupported; cand_* sees no conflict (all keyword). This
-        // structural schema divergence is not a correctness bug.
-        "addresses_text",
-        // Variant of `employees` with the `gender` field overridden to text. Same root cause as
-        // addresses_text: ref_employees (keyword) and ref_employees_gender_text (text) produce a
-        // type conflict under ref_* wildcards, while cand_* consistently sees keyword in columnar.
-        "employees_gender_text",
-        // Multi-value date fields (rows carry [1952,1962] and [2003,1998]) cause COUNT to diverge:
-        // standard mode counts individual MV values while columnar mode counts documents. Same root
-        // cause as all_types_mv (SearchContextStats#detectSingleValue + PushStatsToSource push
-        // COUNT down to a document count for point-index-disabled fields).
-        "mv_decades",
-        // Cartesian multi-polygon shape data fails to bulk-index in columnar mode (the cartesian_shape
-        // field cannot be stored via doc_values for synthetic source), leaving cand_cartesian_multipolygons
-        // with 0 documents while ref_cartesian_multipolygons has the full dataset. Any WHERE clause then
-        // returns 21 rows on the reference side and 0 on the candidate side.
-        "cartesian_multipolygons",
-        // ul_logs has unsigned_long fields named `bytes_in` and `bytes_out`. A known columnar bug
-        // causes STATS output aliases with the same names to read from the wrong source when the
-        // alias name conflicts with an existing index field, producing incorrect aggregate values.
-        // Excluded until the columnar alias-resolution bug is fixed.
-        "ul_logs",
-        // conv_from_keyword contains keyword fields (geotile_str, geohash_str, etc.) that are not
-        // indexed in columnar mode (index.mapping.index_disabled_by_default=true disables the
-        // inverted index for fields without an explicit "index: true"). Full-text queries (`:`)
-        // on those fields return different results between the two modes.
-        "conv_from_keyword"
+        // cartesian_shape cannot be stored via doc values for synthetic source, leaving the cand
+        // index with 0 documents while ref has the full dataset.
+        "cartesian_multipolygons"
     );
 
     /**
@@ -581,23 +504,22 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         if (cmdText.contains("LEAST(") || cmdText.contains("GREATEST(")) {
             return false;
         }
-        // FIRST() aggregation function picks a value from the row with the minimum sort-column
-        // value. It can be non-deterministic when there are ties. Additionally, columnar mode has a
-        // known issue where FIRST() returns null for boolean MV fields instead of the correct
-        // multi-value boolean. Note: contains("FIRST(") also matches MV_FIRST(, and
-        // contains("LAST(") matches MV_LAST(; both are correctly gated since the aggregate and the
-        // scalar function share the same ordering-sensitivity rationale.
-        // (The generator never emits a bare last(...) aggregate; LAST( here catches only MV_LAST(.)
-        // TODO: remove once the columnar FIRST/LAST boolean bug is fixed.
+        // FIRST() / LAST() pick the search-field value from the row with the minimum (FIRST) or
+        // maximum (LAST) sort value. Two effects make cross-mode value comparison unreliable, and
+        // both are expected divergences rather than correctness bugs:
+        // 1. Ties in the sort column: when several rows share the winning sort value, either
+        // physical layout may legitimately pick a different row's search-field value.
+        // 2. Multi-value search field: the returned cell keeps source element order, which
+        // differs between the two modes (columnar source-insertion order vs standard ascending
+        // doc-values order). The multiset is identical but e.g. [false, true] vs [true, false]
+        // compares unequal. Same ordering artifact already gated for MV_FIRST/MV_LAST/MV_SLICE.
+        // Correct columnar behavior for boolean MV fields (no spurious null) is covered by the
+        // stats_first_last.csv-spec "Test retrieval of multi-values" case, which CsvColumnarIT runs
+        // against voyager's low_power_mode field.
+        // Note: contains("FIRST(") also matches MV_FIRST(, and contains("LAST(") matches MV_LAST(;
+        // both share the same ordering-sensitivity rationale. The generator never emits a bare
+        // last(...) aggregate, so LAST( here only catches MV_LAST(.
         if (cmdText.contains("FIRST(") || cmdText.contains("LAST(")) {
-            return false;
-        }
-        // DISSECT and GROK applied to multi-value string fields: standard mode expands each element
-        // of the MV field into a separate row before matching, while columnar mode processes only
-        // the first element. This produces a different row count after the command, which then
-        // propagates into any subsequent aggregation (e.g. COUNT). Gate to prevent false value
-        // divergences that stem from this row-count difference rather than an incorrect result.
-        if ("dissect".equals(cmdName) || "grok".equals(cmdName)) {
             return false;
         }
         // Commands whose output order or aggregate semantics depend on per-segment or per-shard

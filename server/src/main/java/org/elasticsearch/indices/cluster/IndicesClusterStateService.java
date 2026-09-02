@@ -979,7 +979,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private void createShardWhenLockAvailable(
         ShardRouting shardRouting,
         ClusterState originalState,
-        DiscoveryNode sourceNode,
+        @Nullable DiscoveryNode sourceNode,
         long primaryTerm,
         int iteration,
         long delayMillis,

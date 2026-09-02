@@ -27,8 +27,8 @@ public interface LuceneColumn extends SliceableColumn {
 
     /**
      * Returns a copy of this column that emits only documents whose bit is set in {@code filter}.
-     * The returned column has {@link Column.Density#SPARSE} density. Pass {@code null} to remove
-     * any existing filter and restore the original density.
+     * When {@code filter} is non-null the returned column has {@link Column.Density#SPARSE} density.
+     * Pass {@code null} to remove any existing filter and restore the column's original density.
      *
      * @param filter a bitset of length equal to this column's doc count, or {@code null}
      */

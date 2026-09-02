@@ -50,6 +50,52 @@ count:long | bucket:double_range
 2          | null
 ;
 
+count with bucket on empty input
+required_capability: fn_bucket_histogram_types
+required_capability: histogram_bucket_optimization
+
+FROM exp_histo_sample
+ | WHERE instance == "does-not-exist"
+ | STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 25)
+;
+
+count:long | bucket:double_range
+;
+
+count with bucket on empty and populated histograms
+required_capability: fn_bucket_histogram_types
+required_capability: histogram_bucket_optimization
+
+FROM exp_histo_sample
+ | WHERE instance IN ("dummy-empty", "dummy-full")
+ | EVAL group = "all"
+ | STATS count = COUNT(responseTime, bucket) BY group, bucket = BUCKET(responseTime, 25)
+ | SORT RANGE_MIN(bucket)
+;
+
+count:long | group:keyword | bucket:double_range
+36         | all           | -100.0..-75.0
+32         | all           | -50.0..-25.0
+32         | all           | -25.0..0.0
+33         | all           | 0.0..25.0
+18         | all           | 25.0..50.0
+null       | all           | null
+;
+
+count with bucket on null and empty histograms
+required_capability: fn_bucket_histogram_types
+required_capability: histogram_bucket_optimization
+
+FROM exp_histo_sample
+ | WHERE instance IN ("dummy-empty", "dummy-full")
+ | EVAL histogram = CASE(instance == "dummy-empty", responseTime)
+ | STATS count = COUNT(histogram, bucket) BY bucket = BUCKET(histogram, 25)
+;
+
+count:long | bucket:double_range
+null       | null
+;
+
 // -------------------------------------------------------------------------------
 
 count with bucket only in TS

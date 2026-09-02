@@ -30,6 +30,50 @@ count:long | bucket:double_range
 1          | null
 ;
 
+count with bucket on empty input
+required_capability: fn_bucket_histogram_types
+required_capability: histogram_bucket_optimization
+
+FROM tdigest_standard_index
+ | WHERE instance == "does-not-exist"
+ | STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 0.25)
+;
+
+count:long | bucket:double_range
+;
+
+count with bucket on empty and populated histograms
+required_capability: fn_bucket_histogram_types
+required_capability: histogram_bucket_optimization
+
+FROM tdigest_standard_index
+ | WHERE STARTS_WITH(instance, "hand-rolled")
+ | EVAL group = "all"
+ | STATS count = COUNT(responseTime, bucket) BY group, bucket = BUCKET(responseTime, 0.25)
+ | SORT RANGE_MIN(bucket)
+;
+
+count:long | group:keyword | bucket:double_range
+14         | all           | 0.0..0.25
+34         | all           | 0.25..0.5
+3          | all           | 0.5..0.75
+null       | all           | null
+;
+
+count with bucket on null and empty histograms
+required_capability: fn_bucket_histogram_types
+required_capability: histogram_bucket_optimization
+
+FROM tdigest_standard_index
+ | WHERE STARTS_WITH(instance, "hand-rolled")
+ | EVAL histogram = CASE(instance == "hand-rolled-empty", responseTime)
+ | STATS count = COUNT(histogram, bucket) BY bucket = BUCKET(histogram, 0.25)
+;
+
+count:long | bucket:double_range
+null       | null
+;
+
 // -------------------------------------------------------------------------------
 
 count with bucket only in TS

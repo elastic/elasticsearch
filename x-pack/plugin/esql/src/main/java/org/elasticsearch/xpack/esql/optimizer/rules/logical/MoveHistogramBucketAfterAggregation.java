@@ -7,18 +7,26 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMerge;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramFraction;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
@@ -33,9 +41,11 @@ import java.util.Set;
  *     STATS merged = HISTOGRAM_MERGE(h) BY bucket = BUCKET(h, size), other_groups
  *     | EVAL count = HISTOGRAM_FRACTION(merged, bucket)
  *     →
- *     STATS merged = HISTOGRAM_MERGE(h) BY other_groups
+ *     EVAL empty_or_null = HISTOGRAM_COUNT(h) == 0 OR HISTOGRAM_COUNT(h) IS NULL
+ *     | STATS merged = HISTOGRAM_MERGE(h) BY other_groups, empty_or_null
  *     | EVAL bucket = BUCKET(merged, size)
  *     | MV_EXPAND bucket
+ *     | DROP empty_or_null
  *     | EVAL count = HISTOGRAM_FRACTION(merged, bucket)
  * </pre>
  *
@@ -135,19 +145,44 @@ public final class MoveHistogramBucketAfterAggregation extends Rule<LogicalPlan,
     }
 
     private static LogicalPlan rewrite(Aggregate aggregate, Match match) {
-        List<Expression> newGroupings = aggregate.groupings()
-            .stream()
-            .filter(grouping -> grouping.semanticEquals(match.bucketGrouping()) == false)
-            .toList();
-        List<NamedExpression> newAggregates = aggregate.aggregates()
-            .stream()
-            .filter(output -> output.toAttribute().semanticEquals(match.bucketGrouping()) == false)
-            .map(NamedExpression.class::cast)
-            .toList();
+        HistogramMerge histogramMerge = (HistogramMerge) match.histogramMergeAlias().child();
+        // Keep empty and null histograms in a separate group so they still produce the null bucket that existed before the rewrite.
+        // The synthetic grouping also prevents an empty input from becoming an ungrouped aggregation that emits a single null row.
+        Expression histogramCount = ExtractHistogramComponent.create(
+            aggregate.source(),
+            histogramMerge.field(),
+            HistogramBlock.Component.COUNT
+        );
+        Alias emptyHistogram = new Alias(
+            aggregate.source(),
+            Attribute.rawTemporaryName("is_histogram_empty"),
+            new Or(
+                aggregate.source(),
+                new Equals(aggregate.source(), histogramCount, new Literal(aggregate.source(), 0.0, DataType.DOUBLE)),
+                new IsNull(aggregate.source(), histogramMerge.field())
+            ),
+            null,
+            true
+        );
+        Attribute emptyHistogramAttribute = emptyHistogram.toAttribute();
+
+        List<Expression> newGroupings = new ArrayList<>(
+            aggregate.groupings().stream().filter(grouping -> grouping.semanticEquals(match.bucketGrouping()) == false).toList()
+        );
+        newGroupings.add(emptyHistogramAttribute);
+        List<NamedExpression> newAggregates = new ArrayList<>(
+            aggregate.aggregates()
+                .stream()
+                .filter(output -> output.toAttribute().semanticEquals(match.bucketGrouping()) == false)
+                .map(NamedExpression.class::cast)
+                .toList()
+        );
+        newAggregates.add(emptyHistogramAttribute);
 
         Eval eval = (Eval) aggregate.child();
-        List<Alias> remainingFields = eval.fields().stream().filter(alias -> alias != match.bucketAlias()).toList();
-        LogicalPlan aggregateChild = remainingFields.isEmpty() ? eval.child() : new Eval(eval.source(), eval.child(), remainingFields);
+        List<Alias> remainingFields = new ArrayList<>(eval.fields().stream().filter(alias -> alias != match.bucketAlias()).toList());
+        remainingFields.add(emptyHistogram);
+        LogicalPlan aggregateChild = new Eval(eval.source(), eval.child(), remainingFields);
         LogicalPlan plan = aggregate.with(aggregateChild, newGroupings, newAggregates);
 
         Bucket bucket = (Bucket) match.bucketAlias().child();
@@ -157,7 +192,8 @@ public final class MoveHistogramBucketAfterAggregation extends Rule<LogicalPlan,
         plan = new Eval(aggregate.source(), plan, List.of(postAggregateBucket));
 
         Attribute bucketAttribute = postAggregateBucket.toAttribute();
-        return new MvExpand(aggregate.source(), plan, bucketAttribute, bucketAttribute);
+        plan = new MvExpand(aggregate.source(), plan, bucketAttribute, bucketAttribute);
+        return new Project(aggregate.source(), plan, aggregate.output());
     }
 
     private record Match(Alias histogramMergeAlias, Attribute bucketGrouping, Alias bucketAlias) {}

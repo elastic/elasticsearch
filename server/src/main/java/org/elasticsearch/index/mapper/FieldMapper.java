@@ -1811,14 +1811,6 @@ public abstract class FieldMapper extends Mapper {
                 }
                 if (valueMap.containsKey(onFailureParameter.name)) {
                     onFailureParameter.parse(field, context, valueMap.get(onFailureParameter.name));
-                    if (onFailureParameter.getValue() == Values.OnFailure.IGNORE
-                        && context.indexVersionCreated().before(IndexVersions.DOC_VALUES_ON_FAILURE_IGNORE)) {
-                        throw new MapperParsingException(
-                            "[doc_values.on_failure=ignore] is not supported on indices created before version ["
-                                + IndexVersions.DOC_VALUES_ON_FAILURE_IGNORE
-                                + "]"
-                        );
-                    }
                 }
 
                 setValue(

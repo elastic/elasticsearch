@@ -17,6 +17,8 @@ import org.elasticsearch.test.rest.ObjectPath;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -61,8 +63,8 @@ public class OnFailureColumnarRollingUpgradeIT extends AbstractLogsdbRollingUpgr
      *
      * @param id               document id
      * @param body             JSON body sent to the index API
-     * @param expectedSingleKw expected {@code _source.single_kw}; {@code null} means field absent
-     * @param expectedRequiredKw expected {@code _source.required_kw}; {@code null} means field absent
+     * @param expectedSingleKw expected {@code _source.single_kw}; {@code null} means field absent from source
+     * @param expectedRequiredKw expected {@code _source.required_kw}; {@code null} means field absent from source
      * @param expectedIgnored  expected {@code _ignored} stored-field values; empty means the field is absent entirely
      * @param searchablePrimary the value that must be findable via a term query on {@code single_kw}
      * @param sidecarValues    values stored in the sidecar that must NOT be findable via a term query
@@ -139,13 +141,15 @@ public class OnFailureColumnarRollingUpgradeIT extends AbstractLogsdbRollingUpgr
             )
         );
 
-        // doc 4: nullability violation — explicit null accepted, marked in _ignored
+        // doc 4: nullability violation — explicit null accepted, marked in _ignored.
+        // Synthetic source preserves the null slot written by the inline-null array-order binary doc-values column,
+        // so _source.required_kw is [null] (an array), not absent.  _ignored contains "required_kw".
         expectedDocs.add(
             new ExpectedDoc(
                 "4",
                 "{\"@timestamp\":\"" + ts + "\",\"single_kw\":\"kept4\",\"required_kw\":null}",
                 "kept4",
-                null,
+                Collections.singletonList(null),
                 List.of("required_kw"),
                 "kept4",
                 List.of()
@@ -165,14 +169,17 @@ public class OnFailureColumnarRollingUpgradeIT extends AbstractLogsdbRollingUpgr
             )
         );
 
-        // doc 6: both violations in one document; the leading null in required_kw is discarded,
-        // leaving "real" — so required_kw is satisfied and must NOT appear in _ignored.
+        // doc 6: both violations in one document.  For single_kw, the multi-value violation fires (multi_value:false)
+        // and [a,b] is stored with "a" primary + "b" in the sidecar; single_kw appears in _ignored.
+        // For required_kw, the [null,"real"] array contains "real", which satisfies nullability:false, so the field
+        // is NOT marked in _ignored.  Synthetic source preserves the null slot, so _source.required_kw is
+        // [null,"real"] verbatim — the null is not discarded.
         expectedDocs.add(
             new ExpectedDoc(
                 "6",
                 "{\"@timestamp\":\"" + ts + "\",\"single_kw\":[\"a\",\"b\"],\"required_kw\":[null,\"real\"]}",
                 List.of("a", "b"),
-                "real",
+                Arrays.asList(null, "real"),
                 List.of("single_kw"),
                 "a",
                 List.of("b")

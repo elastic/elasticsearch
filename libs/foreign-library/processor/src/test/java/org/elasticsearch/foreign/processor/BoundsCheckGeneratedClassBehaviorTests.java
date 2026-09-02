@@ -301,38 +301,37 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
     /**
      * Proves the emitted {@code Objects.checkFromIndexSize(offset, size, segment.byteSize())} call
      * really does throw when {@code offset + size} exceeds the segment, and really does let a
-     * correctly-sized call through to the native function. Uses {@code long} slice parameters and
-     * libc {@code pread}, whose four-argument signature matches the generated downcall descriptor.
+     * correctly-sized call through to the native function. Both {@code offsetParam} and
+     * {@code sizeParam} reference the same {@code long n} parameter so the method arity stays
+     * {@code (a, b, n)}, matching libc {@code memcmp}'s signature on every platform (POSIX
+     * {@code pread} is unavailable via Windows CRT default lookup).
      */
     public void testSlicedSegmentCheckThrowsWhenSliceExceedsSegment() throws Throwable {
-        LoadedLibrary lib = loadLibrary("test.PReadLib", """
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", """
             package test;
             import java.lang.foreign.MemorySegment;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
             import org.elasticsearch.foreign.SlicedSegment;
             @LibrarySpecification
-            public interface PReadLib {
-                @Function("pread")
-                long pread(
-                    int fd,
-                    @SlicedSegment(offsetParam = "offset", sizeParam = "size") MemorySegment buf,
-                    long size,
-                    long offset);
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @SlicedSegment(offsetParam = "n", sizeParam = "n") MemorySegment a,
+                    MemorySegment b,
+                    long n);
             }
             """);
 
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment buf = arena.allocate(10);
-            lib.expectThrows(IndexOutOfBoundsException.class, "pread", -1, buf, 2L, 9L);
-            lib.expectThrows(IndexOutOfBoundsException.class, "pread", -1, buf, 6L, 5L);
+            MemorySegment a = arena.allocate(10);
+            MemorySegment b = arena.allocate(10);
+            lib.expectThrows(IndexOutOfBoundsException.class, "memcmp", a, b, 9L);
+            lib.expectThrows(IndexOutOfBoundsException.class, "memcmp", a, b, 6L);
 
-            // Valid slice: bounds check passes (native pread may fail on the invalid fd, but not with IOOBE).
-            try {
-                lib.call("pread", -1, buf, 4L, 0L);
-            } catch (IndexOutOfBoundsException e) {
-                throw new AssertionError("valid offset/size must pass the generated bounds check", e);
-            }
+            a = fill(arena.allocate(10));
+            b = fill(arena.allocate(10));
+            assertEquals(0, (int) lib.call("memcmp", a, b, 4L));
         }
     }
 

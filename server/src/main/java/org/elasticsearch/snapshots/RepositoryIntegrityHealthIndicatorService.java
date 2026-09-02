@@ -10,8 +10,10 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
@@ -21,6 +23,7 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.HealthIndicatorDisplayValues;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.node.RepositoriesHealthInfo;
 import org.elasticsearch.repositories.RepositoryData;
@@ -44,9 +47,9 @@ import static org.elasticsearch.health.HealthStatus.UNKNOWN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 
 /**
- * This indicator reports health for snapshot repositories.
+ * This indicator reports health for snapshot repositories across all projects.
  *
- * Indicator will report RED status when any of snapshot repositories is marked as corrupted.
+ * Indicator will report YELLOW status when any snapshot repository is corrupted, unknown, or invalid.
  * Data might not be backed up in such cases.
  *
  * Corrupted repository most likely need to be manually cleaned and a new snapshot needs to be created from scratch.
@@ -98,9 +101,11 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     );
 
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
 
-    public RepositoryIntegrityHealthIndicatorService(ClusterService clusterService) {
+    public RepositoryIntegrityHealthIndicatorService(ClusterService clusterService, ProjectResolver projectResolver) {
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -111,14 +116,35 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         var clusterState = clusterService.state();
-        var snapshotMetadata = RepositoriesMetadata.get(clusterService.state());
+        int totalRepositories = 0;
+        List<String> corruptedRepositories = new ArrayList<>();
+        for (ProjectMetadata project : clusterState.metadata().projects().values()) {
+            List<RepositoryMetadata> projectRepositories = RepositoriesMetadata.get(project).repositories();
+            totalRepositories += projectRepositories.size();
+            for (RepositoryMetadata repository : projectRepositories) {
+                if (repository.generation() == RepositoryData.CORRUPTED_REPO_GEN) {
+                    corruptedRepositories.add(
+                        HealthIndicatorDisplayValues.getRepositoryDisplayName(
+                            project.id(),
+                            repository.name(),
+                            projectResolver.supportsMultipleProjects()
+                        )
+                    );
+                }
+            }
+        }
+        corruptedRepositories.sort(String::compareTo);
 
-        var repositories = snapshotMetadata.repositories();
-        if (repositories.isEmpty()) {
+        if (totalRepositories == 0) {
             return createIndicator(GREEN, NO_REPOS_CONFIGURED, HealthIndicatorDetails.EMPTY, List.of(), List.of());
         }
 
-        var repositoryHealthAnalyzer = new RepositoryHealthAnalyzer(clusterState, repositories, healthInfo.repositoriesInfoByNode());
+        var repositoryHealthAnalyzer = new RepositoryHealthAnalyzer(
+            clusterState,
+            totalRepositories,
+            corruptedRepositories,
+            healthInfo.repositoriesInfoByNode()
+        );
         return createIndicator(
             repositoryHealthAnalyzer.getHealthStatus(),
             repositoryHealthAnalyzer.getSymptom(),
@@ -144,16 +170,13 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
 
         private RepositoryHealthAnalyzer(
             ClusterState clusterState,
-            List<RepositoryMetadata> repositories,
+            int totalRepositories,
+            List<String> corruptedRepositories,
             Map<String, RepositoriesHealthInfo> repositoriesHealthByNode
         ) {
             this.clusterState = clusterState;
-            this.totalRepositories = repositories.size();
-            this.corruptedRepositories = repositories.stream()
-                .filter(repository -> repository.generation() == RepositoryData.CORRUPTED_REPO_GEN)
-                .map(RepositoryMetadata::name)
-                .sorted()
-                .toList();
+            this.totalRepositories = totalRepositories;
+            this.corruptedRepositories = corruptedRepositories;
 
             repositoriesHealthByNode.forEach((nodeId, healthInfo) -> {
                 unknownRepositories.addAll(healthInfo.unknownRepositories());

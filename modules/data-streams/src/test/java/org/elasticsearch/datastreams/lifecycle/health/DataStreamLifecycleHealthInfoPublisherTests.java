@@ -17,6 +17,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -30,6 +33,7 @@ import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -37,8 +41,10 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -97,7 +103,12 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
         }
         Index indexUnderThreshold = new Index("testIndexUnderSignalThreshold", randomUUID());
         errorStore.recordError(projectId, indexUnderThreshold, new IllegalStateException("bad state"));
-        ClusterState stateWithHealthNode = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
+        ClusterState stateWithHealthNode = addIndicesToClusterState(
+            ClusterStateCreationUtils.state(node1, node1, node1, allNodes),
+            projectId,
+            indexOverThreshold,
+            indexUnderThreshold
+        );
         ClusterServiceUtils.setState(clusterService, stateWithHealthNode);
         dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
             @Override
@@ -122,14 +133,18 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
     public void testPublishDslErrorEntriesNoHealthNode() {
         final var projectId = randomProjectIdOrDefault();
         // no requests are being executed
+        Index indexOverThreshold = new Index("testIndexOverSignalThreshold", randomUUID());
         for (int i = 0; i < 11; i++) {
-            Index indexOverThreshold = new Index("testIndexOverSignalThreshold", randomUUID());
             errorStore.recordError(projectId, indexOverThreshold, new NullPointerException("ouch"));
         }
         Index index = new Index("testIndex", randomUUID());
         errorStore.recordError(projectId, index, new IllegalStateException("bad state"));
-
-        ClusterState stateNoHealthNode = ClusterStateCreationUtils.state(node1, node1, null, allNodes);
+        ClusterState stateNoHealthNode = addIndicesToClusterState(
+            ClusterStateCreationUtils.state(node1, node1, null, allNodes),
+            projectId,
+            indexOverThreshold,
+            index
+        );
         ClusterServiceUtils.setState(clusterService, stateNoHealthNode);
         dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
             @Override
@@ -177,6 +192,18 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
                 clientSeenRequests.add((UpdateHealthInfoCacheAction.Request) request);
             }
         };
+    }
+
+    public ClusterState addIndicesToClusterState(ClusterState clusterState, ProjectId projectId, Index... indices) {
+        ClusterState.Builder builder = ClusterState.builder(clusterState);
+        Map<String, IndexMetadata> indicesMap = new HashMap<>();
+        for (Index index : indices) {
+            IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+                .settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 0))
+                .build();
+            indicesMap.put(index.getName(), indexMetadata);
+        }
+        return builder.putProjectMetadata(ProjectMetadata.builder(projectId).indices(indicesMap).build()).build();
     }
 
 }

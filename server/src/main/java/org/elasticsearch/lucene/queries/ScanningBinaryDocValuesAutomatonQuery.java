@@ -10,7 +10,6 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
@@ -19,28 +18,46 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 
-import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A query for matching an exact BytesRef value for a specific field.
+ * A query that matches documents where a binary doc values field contains a value matching the given automaton.
  * The equivalent of {@link org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery}, but then without the scripting overhead and
  * just for binary doc values.
  * <p>
  * This implementation is slow, because it potentially scans binary doc values for each document.
  */
-public final class ScanningBinaryDocValuesWildcardQuery extends AbstractBinaryDocValuesAutomatonQuery {
+public final class ScanningBinaryDocValuesAutomatonQuery extends AbstractBinaryDocValuesAutomatonQuery {
 
-    private final String pattern;
-    private final boolean caseInsensitive;
+    private final String description;
 
-    public ScanningBinaryDocValuesWildcardQuery(String fieldName, String pattern, boolean caseInsensitive, boolean arrayOrderInlineNull) {
-        super(fieldName, buildByteRunAutomaton(fieldName, pattern, caseInsensitive), arrayOrderInlineNull);
-        this.pattern = Objects.requireNonNull(pattern);
-        this.caseInsensitive = caseInsensitive;
+    public ScanningBinaryDocValuesAutomatonQuery(
+        String fieldName,
+        Automaton automaton,
+        boolean arrayOrderInlineNull,
+        String description
+    ) {
+        super(fieldName, new ByteRunAutomaton(automaton), arrayOrderInlineNull);
+        this.description = Objects.requireNonNull(description);
     }
 
-    private static ByteRunAutomaton buildByteRunAutomaton(String fieldName, String pattern, boolean caseInsensitive) {
+    /** Creates a query matching a wildcard pattern, rewriting {@code *literal*} patterns to a faster contains query. */
+    public static Query forWildcard(String fieldName, String pattern, boolean caseInsensitive, boolean arrayOrderInlineNull) {
+        if (caseInsensitive == false) {
+            var innerPattern = getContainsPattern(pattern);
+            if (innerPattern != null) {
+                return new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(innerPattern), arrayOrderInlineNull);
+            }
+        }
+        return new ScanningBinaryDocValuesAutomatonQuery(
+            fieldName,
+            buildAutomaton(fieldName, pattern, caseInsensitive),
+            arrayOrderInlineNull,
+            "pattern=" + pattern + ",caseInsensitive=" + caseInsensitive
+        );
+    }
+
+    private static Automaton buildAutomaton(String fieldName, String pattern, boolean caseInsensitive) {
         Term term = new Term(Objects.requireNonNull(fieldName), Objects.requireNonNull(pattern));
         Automaton automaton;
         if (caseInsensitive) {
@@ -48,18 +65,7 @@ public final class ScanningBinaryDocValuesWildcardQuery extends AbstractBinaryDo
         } else {
             automaton = WildcardQuery.toAutomaton(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         }
-        return new ByteRunAutomaton(automaton);
-    }
-
-    @Override
-    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        if (caseInsensitive == false) {
-            var innerPattern = getContainsPattern(pattern);
-            if (innerPattern != null) {
-                return new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(innerPattern), arrayOrderInlineNull);
-            }
-        }
-        return super.rewrite(indexSearcher);
+        return automaton;
     }
 
     /**
@@ -84,13 +90,7 @@ public final class ScanningBinaryDocValuesWildcardQuery extends AbstractBinaryDo
 
     @Override
     public String toString(String field) {
-        return "ScanningBinaryDocValuesWildcardQuery(fieldName="
-            + fieldName
-            + ",pattern="
-            + pattern
-            + ",caseInsensitive="
-            + caseInsensitive
-            + ")";
+        return "ScanningBinaryDocValuesAutomatonQuery(fieldName=" + fieldName + "," + description + ")";
     }
 
     @Override
@@ -101,14 +101,14 @@ public final class ScanningBinaryDocValuesWildcardQuery extends AbstractBinaryDo
         if (sameClassAs(o) == false) {
             return false;
         }
-        ScanningBinaryDocValuesWildcardQuery that = (ScanningBinaryDocValuesWildcardQuery) o;
+        ScanningBinaryDocValuesAutomatonQuery that = (ScanningBinaryDocValuesAutomatonQuery) o;
         return Objects.equals(fieldName, that.fieldName)
-            && Objects.equals(pattern, that.pattern)
-            && caseInsensitive == that.caseInsensitive;
+            && Objects.equals(automaton, that.automaton)
+            && arrayOrderInlineNull == that.arrayOrderInlineNull;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, pattern, caseInsensitive);
+        return Objects.hash(classHash(), fieldName, automaton, arrayOrderInlineNull);
     }
 }

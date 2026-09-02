@@ -102,7 +102,6 @@ emp_no:integer | first_name:keyword
 
 likeListTwoArgWildcard
 required_capability: like_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name like ("Eberhardt*", "testString*") 
 | KEEP emp_no, first_name;
@@ -125,7 +124,6 @@ foobar
 
 likeListThreeArgWildcard
 required_capability: like_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name like ("Eberhardt*", "Ot*", "Part?") 
 | KEEP emp_no, first_name  
@@ -140,7 +138,6 @@ emp_no:integer | first_name:keyword
 
 likeListMultipleWhere
 required_capability: like_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name like ("Eberhardt*", "Ot*", "Part?") 
 | WHERE first_name like ("Eberhard?", "Otm*")
@@ -167,7 +164,6 @@ emp_no:integer | first_name:keyword
 
 likeListOverlappingPatterns
 required_capability: like_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name like ("Eber*", "Eberhardt") 
 | KEEP emp_no, first_name;
@@ -187,7 +183,6 @@ emp_no:integer | first_name:keyword
 
 likeListSpecialCharacters
 required_capability: like_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name like ("*ar*", "?eor*") 
 | KEEP emp_no, first_name 
@@ -240,7 +235,6 @@ emp_no:integer | first_name:keyword
 
 notLikeListThreeArgWildcardNotOtherFilter
 required_capability: like_with_list_of_patterns
-skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE first_name not like ("Eberhardt*", "Ot*", "Part?") and emp_no < 10010 
 | KEEP emp_no, first_name
@@ -259,7 +253,6 @@ emp_no:integer | first_name:keyword
 
 likeListBeginningWithWildcard
 required_capability: like_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name like ("A*", "B*", "C*") 
 | KEEP emp_no, first_name 
@@ -286,7 +279,6 @@ emp_no:integer | first_name:keyword
 
 notLikeListThreeArgWildcardOtherFirst
 required_capability: like_with_list_of_patterns
-skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE emp_no < 10010 and first_name not like ("Eberhardt*", "Ot*", "Part?") 
 | KEEP emp_no, first_name  
@@ -340,7 +332,6 @@ emp_no:integer | first_name:keyword
 
 notLikeListMultipleWhere
 required_capability: like_with_list_of_patterns
-skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE first_name not like ("Eberhardt*", "Ot*", "Part?", "A*", "B*", "C*", "D*") 
 | WHERE first_name not like ("Eberhard?", "Otm*", "F*", "G*", "H*", "I*", "J*", "K*", "L*")
@@ -396,7 +387,6 @@ emp_no:integer | first_name:keyword
 
 notLikeListNotField
 required_capability: like_with_list_of_patterns
-skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE not first_name like ("Eberhardt*", "Ot*", "Part?", "A*", "B*", "C*", "D*") 
 | WHERE first_name not like ("Eberhard?", "Otm*", "F*", "G*", "H*", "I*", "J*", "K*", "L*")
@@ -465,7 +455,6 @@ emp_no:integer | first_name:keyword
 
 notLikeListWildcard
 required_capability: like_with_list_of_patterns
-skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE first_name not like ("A*","B*", "C*", "D*","E*", "F*", "G*", "H*", "I*", "J*", "K*") 
 | KEEP emp_no, first_name  
@@ -534,7 +523,6 @@ emp_no:integer | first_name:keyword
 
 likeListWithUpperTurnedInsensitiveMult
 required_capability: like_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE TO_UPPER(first_name) LIKE ("GEOR*", "WE*")  
 | KEEP emp_no, first_name 
@@ -558,7 +546,6 @@ emp_no:integer | first_name:keyword
 
 likeListWithUpperAllUpper
 required_capability: like_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE TO_UPPER(first_name) LIKE ("GEOR*", "WEI*")
 | KEEP emp_no, first_name 
@@ -582,7 +569,6 @@ emp_no:integer | first_name:keyword
 
 likeListWithUpperMultiplePatternsMixedCase
 required_capability: like_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE TO_UPPER(first_name) LIKE ("geor*", "WEIYI*", "bErnI*") 
 | KEEP emp_no, first_name 
@@ -614,7 +600,6 @@ emp_no:integer | first_name:keyword
 
 rlikeListWithUpperAllUpper
 required_capability: rlike_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE TO_UPPER(first_name) RLIKE ("GEOR.*", "WEI.*")
 | KEEP emp_no, first_name 
@@ -638,7 +623,6 @@ emp_no:integer | first_name:keyword
 
 rlikeListWithUpperMultiplePatternsMixedCase
 required_capability: rlike_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE TO_UPPER(first_name) RLIKE ("geor*", "WEIYI.*", "bErnI.*") 
 | KEEP emp_no, first_name 
@@ -679,7 +663,6 @@ emp_no:integer | first_name:keyword
 
 rlikeListTwoArgWildcard
 required_capability: rlike_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name rlike ("Eberhardt.*", "testString.*") 
 | KEEP emp_no, first_name;
@@ -702,7 +685,6 @@ foobar
 
 rlikeListThreeArgWildcard
 required_capability: rlike_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name rlike ("Eberhardt.*", "Ot.*", "Part.") 
 | KEEP emp_no, first_name  
@@ -716,7 +698,6 @@ emp_no:integer | first_name:keyword
 
 rlikeListMultipleWhere
 required_capability: rlike_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name RLIKE ("Eberhardt.*", "Ot.*", "Part.") 
 | WHERE first_name RLIKE ("Eberhard.", "Otm.*")
@@ -743,7 +724,6 @@ emp_no:integer | first_name:keyword
 
 rlikeListOverlappingPatterns
 required_capability: rlike_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name rlike ("Eber.*", "Eberhardt") 
 | KEEP emp_no, first_name;
@@ -763,7 +743,6 @@ emp_no:integer | first_name:keyword
 
 rlikeListSpecialCharacters
 required_capability: rlike_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name rlike (".*ar.*", ".*eor.*") 
 | KEEP emp_no, first_name 
@@ -816,7 +795,6 @@ emp_no:integer | first_name:keyword
 
 notRlikeListThreeArgWildcardNotOtherFilter
 required_capability: rlike_with_list_of_patterns
-skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE first_name not rlike ("Eberhardt.*", "Ot.*", "Part.") and emp_no < 10010 
 | KEEP emp_no, first_name
@@ -835,7 +813,6 @@ emp_no:integer | first_name:keyword
 
 rlikeListBeginningWithWildcard
 required_capability: rlike_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name rlike ("A.*", "B.*", "C.*") 
 | KEEP emp_no, first_name 
@@ -862,7 +839,6 @@ emp_no:integer | first_name:keyword
 
 notRlikeListThreeArgWildcardOtherFirst
 required_capability: rlike_with_list_of_patterns
-skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE emp_no < 10010 and first_name not rlike ("Eberhardt.*", "Ot.*", "Part.") 
 | KEEP emp_no, first_name  
@@ -916,7 +892,6 @@ emp_no:integer | first_name:keyword
 
 notRlikeListMultipleWhere
 required_capability: rlike_with_list_of_patterns
-skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE first_name NOT RLIKE ("Eberhardt.*", "Ot.*", "Part.", "A.*", "B.*", "C.*", "D.*") 
 | WHERE first_name NOT RLIKE ("Eberhard.", "Otm.*", "F.*", "G.*", "H.*", "I.*", "J.*", "K.*", "L.*")
@@ -972,7 +947,6 @@ emp_no:integer | first_name:keyword
 
 notRlikeListNotField
 required_capability: rlike_with_list_of_patterns
-skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE NOT first_name RLIKE ("Eberhardt.*", "Ot.*", "Part.", "A.*", "B.*", "C.*", "D.*") 
 | WHERE first_name NOT RLIKE ("Eberhard.", "Otm.*", "F.*", "G.*", "H.*", "I.*", "J.*", "K.*", "L.*")
@@ -1041,7 +1015,6 @@ emp_no:integer | first_name:keyword
 
 notRlikeListWildcard
 required_capability: rlike_with_list_of_patterns
-skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE first_name NOT RLIKE ("A.*","B.*", "C.*", "D.*","E.*", "F.*", "G.*", "H.*", "I.*", "J.*", "K.*") 
 | KEEP emp_no, first_name  
@@ -1110,7 +1083,6 @@ emp_no:integer | first_name:keyword
 
 rlikeListWithUpperTurnedInsensitiveMult
 required_capability: rlike_with_list_of_patterns
-skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE TO_UPPER(first_name) RLIKE ("GEOR.*", "WE.*")  
 | KEEP emp_no, first_name 

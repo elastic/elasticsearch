@@ -75,12 +75,12 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFro
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesAutomatonQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
-import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
 import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
@@ -1234,8 +1234,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                     value = indexedValueForSearch(value).utf8ToString();
                 }
 
-                if (usesBinaryDocValues) {
-                    return new ScanningBinaryDocValuesWildcardQuery(name(), value, caseInsensitive, useArrayOrderBinaryDocValues);
+                if (usesBinaryDocValues()) {
+                    return ScanningBinaryDocValuesAutomatonQuery.forWildcard(name(), value, caseInsensitive, useArrayOrderBinaryDocValues);
                 }
 
                 if (caseInsensitive == false) {
@@ -1369,7 +1369,19 @@ public final class KeywordFieldMapper extends FieldMapper {
             SearchExecutionContext context,
             String description
         ) {
-            return new AutomatonQueryWithDescription(new Term(name()), automatonSupplier.get(), description);
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (indexType.hasTerms()) {
+                return new AutomatonQueryWithDescription(new Term(name()), automatonSupplier.get(), description);
+            } else if (usesBinaryDocValues()) {
+                return new ScanningBinaryDocValuesAutomatonQuery(name(), automatonSupplier.get(), useArrayOrderBinaryDocValues, description);
+            } else {
+                return new AutomatonQueryWithDescription(
+                    new Term(name()),
+                    automatonSupplier.get(),
+                    description,
+                    MultiTermQuery.DOC_VALUES_REWRITE
+                );
+            }
         }
     }
 

@@ -36,15 +36,25 @@ public class DatafeedSearchTelemetryTests extends ESTestCase {
         assertThat(DatafeedSearchTelemetry.resultsBucket(500), equalTo("500_999"));
         assertThat(DatafeedSearchTelemetry.resultsBucket(999), equalTo("500_999"));
         assertThat(DatafeedSearchTelemetry.resultsBucket(1000), equalTo("1000"));
-        assertThat(DatafeedSearchTelemetry.resultsBucket(1001), equalTo("gt_1000"));
-        assertThat(DatafeedSearchTelemetry.resultsBucket(Integer.MAX_VALUE), equalTo("gt_1000"));
+        assertThat(DatafeedSearchTelemetry.resultsBucket(1001), equalTo("1001_9999"));
+        assertThat(DatafeedSearchTelemetry.resultsBucket(9999), equalTo("1001_9999"));
+        assertThat(DatafeedSearchTelemetry.resultsBucket(10000), equalTo("10000"));
+        assertThat(DatafeedSearchTelemetry.resultsBucket(10001), equalTo("10001_1000000"));
+        assertThat(DatafeedSearchTelemetry.resultsBucket(1000000), equalTo("10001_1000000"));
+        assertThat(DatafeedSearchTelemetry.resultsBucket(1000001), equalTo("gt_1000000"));
+        assertThat(DatafeedSearchTelemetry.resultsBucket(Integer.MAX_VALUE), equalTo("gt_1000000"));
     }
 
-    public void testPageSizeBucketShouldClassifyAroundEsqlDefaultCap() {
+    public void testPageSizeBucketShouldClassifyAroundEsqlDefaultAndCeiling() {
         assertThat(DatafeedSearchTelemetry.pageSizeBucket(1), equalTo(PageSizeBucket.LT_1000));
         assertThat(DatafeedSearchTelemetry.pageSizeBucket(999), equalTo(PageSizeBucket.LT_1000));
         assertThat(DatafeedSearchTelemetry.pageSizeBucket(1000), equalTo(PageSizeBucket.EQ_1000));
-        assertThat(DatafeedSearchTelemetry.pageSizeBucket(1001), equalTo(PageSizeBucket.GT_1000));
+        assertThat(DatafeedSearchTelemetry.pageSizeBucket(1001), equalTo(PageSizeBucket.GT_1000_LT_10000));
+        assertThat(DatafeedSearchTelemetry.pageSizeBucket(9999), equalTo(PageSizeBucket.GT_1000_LT_10000));
+        assertThat(DatafeedSearchTelemetry.pageSizeBucket(10000), equalTo(PageSizeBucket.EQ_10000));
+        assertThat(DatafeedSearchTelemetry.pageSizeBucket(10001), equalTo(PageSizeBucket.GT_10000_LE_1000000));
+        assertThat(DatafeedSearchTelemetry.pageSizeBucket(1000000), equalTo(PageSizeBucket.GT_10000_LE_1000000));
+        assertThat(DatafeedSearchTelemetry.pageSizeBucket(1000001), equalTo(PageSizeBucket.GT_1000000));
     }
 
     public void testRecordSearchResultsShouldIncrementCounterWithAttributes() {

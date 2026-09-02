@@ -19,8 +19,13 @@ import java.util.Objects;
 
 /**
  * Fleet-wide telemetry for per-search datafeed result volumes. Used to assess whether
- * ES|QL's default row cap ({@code esql.query.result_truncation_default_size}, typically 1000)
- * is compatible with typical scroll and aggregation workloads.
+ * ES|QL's row caps are compatible with typical scroll and aggregation workloads: the implicit
+ * default {@code esql.query.result_truncation_default_size} (1000) and the hard ceiling
+ * {@code esql.query.result_truncation_max_size} (10000 by default, raisable to 1000000). Result
+ * and page-size buckets carry boundaries at 1000, 10000, and 1000000 so the fleet distribution can
+ * tell apart workloads that fit the default, workloads that would fit a raised default (up to the
+ * default ceiling), workloads that need the ceiling raised (up to its 1000000 maximum), and
+ * workloads that exceed even that.
  */
 public final class DatafeedSearchTelemetry {
 
@@ -52,7 +57,10 @@ public final class DatafeedSearchTelemetry {
     public enum PageSizeBucket {
         LT_1000("lt_1000"),
         EQ_1000("eq_1000"),
-        GT_1000("gt_1000");
+        GT_1000_LT_10000("1001_9999"),
+        EQ_10000("eq_10000"),
+        GT_10000_LE_1000000("10001_1000000"),
+        GT_1000000("gt_1000000");
 
         private final String attributeValue;
 
@@ -99,7 +107,16 @@ public final class DatafeedSearchTelemetry {
         if (pageSize == 1000) {
             return PageSizeBucket.EQ_1000;
         }
-        return PageSizeBucket.GT_1000;
+        if (pageSize < 10000) {
+            return PageSizeBucket.GT_1000_LT_10000;
+        }
+        if (pageSize == 10000) {
+            return PageSizeBucket.EQ_10000;
+        }
+        if (pageSize <= 1000000) {
+            return PageSizeBucket.GT_10000_LE_1000000;
+        }
+        return PageSizeBucket.GT_1000000;
     }
 
     public void recordSearchResults(ExtractorType extractorType, long resultCount, @Nullable PageSizeBucket pageSizeBucket) {
@@ -135,6 +152,15 @@ public final class DatafeedSearchTelemetry {
         if (resultCount == 1000) {
             return "1000";
         }
-        return "gt_1000";
+        if (resultCount < 10000) {
+            return "1001_9999";
+        }
+        if (resultCount == 10000) {
+            return "10000";
+        }
+        if (resultCount <= 1000000) {
+            return "10001_1000000";
+        }
+        return "gt_1000000";
     }
 }

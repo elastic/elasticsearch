@@ -1204,15 +1204,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // usesBinaryDocValues() requires doc_values to be enabledm which means synthetic-source stored-fallback is unreachable.
+        // usesBinaryDocValues() requires doc_values to be enabled which means synthetic-source stored-fallback is unreachable.
         // Additionally, this excludes the low-cardinality SORTED_SET encoding.
         // Copy_to/multi-fields have no equivalent in mapColumnBatch (no per-value dispatch to sub-mappers or other fields),
         // so fields using them fall back to the row path.
         // match_only_text has no ignore_above/null_value/normalizer
-        return indexSettings.getMode().isStrictColumnar()
-            && fieldType().usesBinaryDocValues()
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false;
+        return fieldType().usesBinaryDocValues() && copyTo().copyToFields().isEmpty() && multiFields().iterator().hasNext() == false;
     }
 
     // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.

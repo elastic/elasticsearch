@@ -11,6 +11,7 @@ package org.elasticsearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.get.GetResult;
@@ -179,5 +180,10 @@ public class ExplainResponse extends ActionResponse implements ToXContentObject 
     @Override
     public int hashCode() {
         return Objects.hash(index, id, explanation, getResult.isExists(), getResult.sourceAsMap(), getResult.getFields());
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

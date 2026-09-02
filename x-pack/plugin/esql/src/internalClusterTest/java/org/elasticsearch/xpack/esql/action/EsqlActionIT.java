@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Iterators;
@@ -50,6 +52,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -59,8 +62,12 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
 import org.junit.Before;
@@ -102,6 +109,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXPLAIN;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -113,6 +123,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -120,6 +131,23 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     long epoch = System.currentTimeMillis();
+
+    // Column indices for EXPLAIN output rows — derived from Explain.OUTPUT_ATTRIBUTES so any
+    // reordering of the attribute list breaks here at class-load time rather than silently.
+    private static final int EXPLAIN_COL_CLUSTER = explainColIndex("cluster");
+    private static final int EXPLAIN_COL_NODE = explainColIndex("node");
+    private static final int EXPLAIN_COL_ROLE = explainColIndex("role");
+    private static final int EXPLAIN_COL_TYPE = explainColIndex("type");
+    private static final int EXPLAIN_COL_PLAN = explainColIndex("plan");
+
+    private static int explainColIndex(String name) {
+        for (int i = 0; i < Explain.OUTPUT_ATTRIBUTES.size(); i++) {
+            if (name.equals(Explain.OUTPUT_ATTRIBUTES.get(i).name())) {
+                return i;
+            }
+        }
+        throw new IllegalStateException("No column named '" + name + "' in EXPLAIN output attributes");
+    }
 
     @Before
     public void setupIndex() throws IOException {
@@ -161,6 +189,30 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         long value = randomLongBetween(0, Long.MAX_VALUE);
         try (EsqlQueryResponse response = run(syncEsqlQueryRequest("ROW " + value).filter(randomQueryFilter()))) {
             assertEquals(List.of(List.of(value)), getValuesList(response));
+        }
+    }
+
+    public void testLoadStoredLongWithSourceAndDocValuesDisabled() {
+        String indexName = "stored-long-no-source";
+        long value = 1L << 40;
+        assertAcked(client().admin().indices().prepareCreate(indexName).setMapping("""
+            {
+              "_source": { "enabled": false },
+              "properties": {
+                "field": {
+                  "type": "long",
+                  "store": true,
+                  "doc_values": false,
+                  "index": false
+                }
+              }
+            }
+            """));
+        prepareIndex(indexName).setSource("field", value).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        try (EsqlQueryResponse response = run("FROM " + indexName + " | KEEP field")) {
+            assertThat(response.columns(), equalTo(List.of(new ColumnInfoImpl("field", "long", null))));
+            assertThat(getValuesList(response), equalTo(List.of(List.of(value))));
         }
     }
 
@@ -1446,6 +1498,193 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * End-to-end proof that mv_like's YES pushdown is correct with no recheck. The docs cover match-on-first (b),
+     * match-on-middle (c), match-on-last (d), no-match (a), duplicates (e), an empty-string value (f), single-valued
+     * (g), a field present with zero values (i) and a field absent entirely (h). The NOT query pins
+     * must_not(wildcard) as the exact complement, valueless docs included — mv_like never nulls, so their negation
+     * is true.
+     */
+    public void testMvLikePushdownEndToEnd() {
+        String index = "mv_like_e2e";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "v", "type=keyword").get());
+        Map<String, List<String>> docs = new HashMap<>();
+        docs.put("a", List.of("bob", "carl"));      // no value matches
+        docs.put("b", List.of("anna", "bob"));      // matches on the first value
+        docs.put("c", List.of("bob", "anna", "z")); // matches on a middle value
+        docs.put("d", List.of("bob", "anna"));      // matches on the last value
+        docs.put("e", List.of("anna", "anna"));     // duplicates that match
+        docs.put("f", List.of("", "bob"));          // an empty string is a value, but does not match "ann*"
+        docs.put("g", List.of("annabel"));          // single-valued, matches
+        docs.put("i", List.of());                   // field present, zero values
+        for (var doc : docs.entrySet()) {
+            prepareIndex(index).setSource("id", doc.getKey(), "v", doc.getValue()).get();
+        }
+        prepareIndex(index).setSource("id", "h").get();  // field absent
+        client().admin().indices().prepareRefresh(index).get();
+
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_like(v, \"ann*\") | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("b", "c", "d", "e", "g"));
+        }
+        try (EsqlQueryResponse results = run("from " + index + " | where not mv_like(v, \"ann*\") | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("a", "f", "h", "i"));
+        }
+    }
+
+    /**
+     * The companion to {@link #testMvLikePushedMatchesEvaluator}: that one indexes multivalued docs, so its field block
+     * goes through the evaluator's block path. This one indexes only single-valued docs — every position has exactly one
+     * value and no nulls — so the loaded block is a vector and the evaluator takes its {@code asVector()} fast path.
+     * Proves that fast path agrees with the pushed query, which the multivalued differential cannot reach.
+     */
+    public void testMvLikeSingleValuedFieldMatchesPushed() {
+        String index = "mv_like_single_valued";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "v", "type=keyword").get());
+        // Every doc has exactly one value — no multivalue, no missing field — so the field block is a vector.
+        List<String> values = List.of("anna", "bob", "annabel", "banana", "a*b", "a?b", "ANNA", "", "xanna");
+        for (int i = 0; i < values.size(); i++) {
+            prepareIndex(index).setSource("id", "d" + i, "v", values.get(i)).get();
+        }
+        client().admin().indices().prepareRefresh(index).get();
+
+        List<String> patterns = List.of("ann*", "*na", "*nn*", "anna", "a?b", "a\\\\*b", "*", "", "zzz*");
+        for (String pattern : patterns) {
+            for (String polarity : List.of("", "not ")) {
+                String pushed = "from " + index + " | where " + polarity + "mv_like(v, \"" + pattern + "\") | keep id | sort id";
+                String evaluated = "from "
+                    + index
+                    + " | eval x = mv_like(v, \""
+                    + pattern
+                    + "\") | where "
+                    + polarity
+                    + "x | keep id | sort id";
+                List<Object> pushedIds;
+                List<Object> evaluatedIds;
+                try (EsqlQueryResponse results = run(pushed)) {
+                    pushedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                try (EsqlQueryResponse results = run(evaluated)) {
+                    evaluatedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                assertThat(
+                    "pushed and evaluated (vector path) disagree for pattern [" + pattern + "] polarity [" + polarity + "]",
+                    pushedIds,
+                    equalTo(evaluatedIds)
+                );
+            }
+        }
+    }
+
+    /**
+     * The differential that proves mv_like's pushdown is exact rather than merely asserting it.
+     * <p>
+     * For every pattern in the corpus, two queries run over identical data on identical shards: {@code WHERE mv_like(v, p)},
+     * which pushes to a bare Lucene wildcard query, and {@code EVAL x = mv_like(v, p) | WHERE x}, where the reference
+     * attribute is not a FieldAttribute so isPushableFieldAttribute declines and the compute-engine evaluator runs
+     * instead. The two must select identical id sets, in both polarities. Any divergence between the automaton (or an
+     * affix fast path) and the pushed query fails here, which is the only place the exactness claim is actually tested.
+     */
+    public void testMvLikePushedMatchesEvaluator() {
+        String index = "mv_like_differential";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "v", "type=keyword").get());
+        Map<String, List<String>> docs = new HashMap<>();
+        docs.put("a", List.of("anna", "bob"));
+        docs.put("b", List.of("bob", "carl", "anna"));
+        docs.put("c", List.of("annabel"));
+        docs.put("d", List.of("banana"));
+        docs.put("e", List.of("", "x"));
+        docs.put("f", List.of("a*b", "plain"));   // metacharacters appearing literally in the data
+        docs.put("g", List.of("a?b"));
+        docs.put("h", List.of("ANNA"));           // case differs
+        docs.put("i", List.of("anna", "anna"));
+        docs.put("j", List.of());                 // present, zero values
+        for (var doc : docs.entrySet()) {
+            prepareIndex(index).setSource("id", doc.getKey(), "v", doc.getValue()).get();
+        }
+        prepareIndex(index).setSource("id", "k").get();  // field absent
+        client().admin().indices().prepareRefresh(index).get();
+
+        // Covers every dispatch shape: prefix, suffix, contains, exact, single-char, escaped metachars, match-all, empty.
+        List<String> patterns = List.of("ann*", "*na", "*nn*", "anna", "a?b", "a\\\\*b", "a\\\\?b", "*", "", "zzz*");
+        for (String pattern : patterns) {
+            for (String polarity : List.of("", "not ")) {
+                String pushed = "from " + index + " | where " + polarity + "mv_like(v, \"" + pattern + "\") | keep id | sort id";
+                String evaluated = "from "
+                    + index
+                    + " | eval x = mv_like(v, \""
+                    + pattern
+                    + "\") | where "
+                    + polarity
+                    + "x | keep id | sort id";
+                List<Object> pushedIds;
+                List<Object> evaluatedIds;
+                try (EsqlQueryResponse results = run(pushed)) {
+                    pushedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                try (EsqlQueryResponse results = run(evaluated)) {
+                    evaluatedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                assertThat(
+                    "pushed and evaluated disagree for pattern [" + pattern + "] polarity [" + polarity + "]",
+                    pushedIds,
+                    equalTo(evaluatedIds)
+                );
+            }
+        }
+    }
+
+    /**
+     * The mv_rlike half of the pushed-vs-evaluator differential. Same discipline as
+     * {@link #testMvLikePushedMatchesEvaluator}: the pushed regexp query and the compute-engine automaton must select
+     * identical id sets over identical data, in both polarities, for every pattern in the corpus.
+     */
+    public void testMvRLikePushedMatchesEvaluator() {
+        String index = "mv_rlike_differential";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "v", "type=keyword").get());
+        Map<String, List<String>> docs = new HashMap<>();
+        docs.put("a", List.of("anna", "bob"));
+        docs.put("b", List.of("bob", "carl", "anna"));
+        docs.put("c", List.of("annabel"));
+        docs.put("d", List.of("banana"));
+        docs.put("e", List.of("", "x"));
+        docs.put("f", List.of("a.b", "plain"));   // a literal dot in the data
+        docs.put("g", List.of("ANNA"));
+        docs.put("h", List.of("aaa"));
+        docs.put("i", List.of());                 // present, zero values
+        for (var doc : docs.entrySet()) {
+            prepareIndex(index).setSource("id", doc.getKey(), "v", doc.getValue()).get();
+        }
+        prepareIndex(index).setSource("id", "j").get();  // field absent
+        client().admin().indices().prepareRefresh(index).get();
+
+        List<String> patterns = List.of("ann.*", ".*na", "anna", "a.b", "a\\\\.b", "[abc]anana", "a+", ".*", "", "zzz.*");
+        for (String pattern : patterns) {
+            for (String polarity : List.of("", "not ")) {
+                String pushed = "from " + index + " | where " + polarity + "mv_rlike(v, \"" + pattern + "\") | keep id | sort id";
+                String evaluated = "from "
+                    + index
+                    + " | eval x = mv_rlike(v, \""
+                    + pattern
+                    + "\") | where "
+                    + polarity
+                    + "x | keep id | sort id";
+                List<Object> pushedIds;
+                List<Object> evaluatedIds;
+                try (EsqlQueryResponse results = run(pushed)) {
+                    pushedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                try (EsqlQueryResponse results = run(evaluated)) {
+                    evaluatedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                assertThat(
+                    "pushed and evaluated disagree for pattern [" + pattern + "] polarity [" + polarity + "]",
+                    pushedIds,
+                    equalTo(evaluatedIds)
+                );
+            }
+        }
+    }
+
+    /**
      * End-to-end proof that YES pushdown is correct with no recheck: for an integer field the FilterExec is dropped, so
      * rows come straight from the pushed range. The docs cover any-one-value-in-range (b), inclusive bounds (c, d),
      * just-outside (a, e, f), single-valued (g), and no/empty values (h, i). The NOT query pins must_not(range) as the
@@ -2170,6 +2409,49 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testGrokTimeoutIsUserError() {
+        String indexName = "test_grok_timeout";
+        assertAcked(client().admin().indices().prepareCreate(indexName).setMapping("message", "type=keyword"));
+        client().prepareIndex(indexName)
+            .setSource(
+                "message",
+                "Bonsuche mit folgender Anfrage: Belegart->[EINGESCHRAENKTER_VERKAUF, VERKAUF, NACHERFASSUNG] "
+                    + "Zustand->ABGESCHLOSSEN Kassennummer->2 Bonnummer->6362 Datum->Mon Jan 08 00:00:00 UTC 2018"
+            )
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow(indexName);
+
+        admin().cluster()
+            .updateSettings(
+                new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
+                    Settings.builder().put(EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME.getKey(), "200ms").build()
+                )
+            )
+            .actionGet();
+
+        try {
+            // This pattern causes catastrophic backtracking and reliably exceeds the 200 ms watchdog timeout.
+            // The same pattern is used in GrokTests.testExponentialExpressions.
+            var ex = expectThrows(
+                ElasticsearchException.class,
+                () -> run(
+                    "FROM "
+                        + indexName
+                        + " | GROK message \"\"\""
+                        + "Bonsuche mit folgender Anfrage: Belegart->\\[%{WORD:param2},(?<param5>(\\s*%{NOTSPACE})*)\\] "
+                        + "Zustand->ABGESCHLOSSEN Kassennummer->%{WORD:param9} Bonnummer->%{WORD:param10}"
+                        + " Datum->%{DATESTAMP_OTHER:param11}"
+                        + "\"\"\""
+                ).close()
+            );
+            assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("grok pattern matching was interrupted after"));
+        } finally {
+            clearPersistentSettings(EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME);
+        }
+    }
+
     public void testScriptField() throws Exception {
         XContentBuilder mapping = JsonXContent.contentBuilder();
         mapping.startObject();
@@ -2467,9 +2749,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
             String explainLocalPhysicalPlan = null;
             for (List<Object> row : values) {
-                String role = (String) row.get(2);
-                String type = (String) row.get(3);
-                String plan = (String) row.get(4);
+                String role = (String) row.get(EXPLAIN_COL_ROLE);
+                String type = (String) row.get(EXPLAIN_COL_TYPE);
+                String plan = (String) row.get(EXPLAIN_COL_PLAN);
 
                 if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
                     explainLocalPhysicalPlan = plan;
@@ -2569,6 +2851,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             // Verify we have rows with plan information (ROW doesn't need data nodes)
             List<List<Object>> values = getValuesList(results);
             assertThat(values.size(), greaterThanOrEqualTo(3));
+
+            // The node column must contain an actual node name for local-cluster rows.
+            // Remote-cluster rows (cluster != "") are excluded: this test has no CCS setup.
+            Set<String> nodeNames = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
+            for (List<Object> row : values) {
+                if ("".equals(row.get(EXPLAIN_COL_CLUSTER))) {
+                    assertThat("node column should be a valid cluster node", nodeNames, hasItem((String) row.get(EXPLAIN_COL_NODE)));
+                }
+            }
         }
     }
 
@@ -2631,10 +2922,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 String localPlanNodeName = null;
 
                 for (List<Object> row : values) {
-                    String node = (String) row.get(1);
-                    String role = (String) row.get(2);
-                    String type = (String) row.get(3);
-                    String plan = (String) row.get(4);
+                    String node = (String) row.get(EXPLAIN_COL_NODE);
+                    String role = (String) row.get(EXPLAIN_COL_ROLE);
+                    String type = (String) row.get(EXPLAIN_COL_TYPE);
+                    String plan = (String) row.get(EXPLAIN_COL_PLAN);
 
                     if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
                         explainLocalPhysicalPlan = plan;
@@ -2726,9 +3017,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 int dataNodePlanCount = 0;
 
                 for (List<Object> row : values) {
-                    String role = (String) row.get(2);
-                    String type = (String) row.get(3);
-                    String plan = (String) row.get(4);
+                    String role = (String) row.get(EXPLAIN_COL_ROLE);
+                    String type = (String) row.get(EXPLAIN_COL_TYPE);
+                    String plan = (String) row.get(EXPLAIN_COL_PLAN);
 
                     if ("coordinator".equals(role)) {
                         if ("parsedPlan".equals(type)) {
@@ -2870,9 +3161,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 int dataNodePlanCount = 0;
 
                 for (List<Object> row : values) {
-                    String role = (String) row.get(2);
-                    String type = (String) row.get(3);
-                    String plan = (String) row.get(4);
+                    String role = (String) row.get(EXPLAIN_COL_ROLE);
+                    String type = (String) row.get(EXPLAIN_COL_TYPE);
+                    String plan = (String) row.get(EXPLAIN_COL_PLAN);
 
                     if ("coordinator".equals(role)) {
                         if ("parsedPlan".equals(type)) {
@@ -2961,6 +3252,180 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             } catch (Exception e) {
                 // ignore
             }
+        }
+    }
+
+    /**
+     * EXPLAIN of a query with an IN subquery in WHERE. Regression test for EXPLAIN crashing with
+     * "Unsupported expression" on such queries. The IN subquery executes as subplan-0 (SemiJoin
+     * phase); on data nodes {@code ExplainPlanTransformer.replaceDataSourcesWithEmpty} substitutes
+     * empty {@code LocalSourceExec} for real data sources, so the subquery returns no rows. That
+     * empty result is inlined into the main plan, the SemiJoin is resolved, and the main plan is
+     * rebuilt, producing a meaningful optimizedPhysicalPlan row.
+     */
+    public void testExplainWithInSubquery() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
+        assumeTrue("IN subquery requires the capability to be enabled", WHERE_IN_SUBQUERY.isEnabled());
+
+        String query = "FROM test | WHERE data IN (FROM test | STATS m = MAX(data) | KEEP m) | KEEP data";
+        try (EsqlQueryResponse results = run("EXPLAIN (" + query + ")")) {
+            List<List<Object>> values = getValuesList(results);
+
+            Set<String> coordinatorTypes = new HashSet<>();
+            Set<String> subplan0Types = new HashSet<>();
+            boolean hasDataNodePlan = false;
+            String subplanLogical = null;
+            for (List<Object> row : values) {
+                String role = (String) row.get(EXPLAIN_COL_ROLE);
+                String type = (String) row.get(EXPLAIN_COL_TYPE);
+                if ("coordinator".equals(role)) {
+                    coordinatorTypes.add(type);
+                } else if ("subplan-0".equals(role)) {
+                    subplan0Types.add(type);
+                    if ("logicalPlan".equals(type)) {
+                        subplanLogical = (String) row.get(EXPLAIN_COL_PLAN);
+                    }
+                } else if ("data".equals(role)) {
+                    hasDataNodePlan = true;
+                }
+            }
+
+            // The optimizedPhysicalPlan row now shows the post-substitution plan: after the IN
+            // subquery runs and its (empty, in explain mode) result is inlined, the SemiJoin is
+            // resolved and the remaining main plan is physically mapped.
+            assertThat(coordinatorTypes, hasItems("parsedPlan", "optimizedLogicalPlan", "optimizedPhysicalPlan"));
+            assertThat(subplan0Types, hasItems("logicalPlan", "physicalPlan"));
+            assertNotNull("subplan-0 logicalPlan row should be present", subplanLogical);
+            assertThat("Subplan should be the IN subquery aggregation", subplanLogical, containsString("MAX"));
+            assertTrue("EXPLAIN with IN subquery should include data node plans", hasDataNodePlan);
+        }
+    }
+
+    /**
+     * EXPLAIN of a query with two chained INLINE STATS: both executed subplans must be reported, in
+     * execution order (bottom-up). Regression test for only the first subplan being captured.
+     */
+    public void testExplainWithChainedInlineStats() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
+        assumeTrue("INLINE STATS requires the capability to be enabled", INLINE_STATS.isEnabled());
+
+        String query = "FROM test | INLINE STATS m = MAX(data) BY color | INLINE STATS s = SUM(count) BY color";
+        try (EsqlQueryResponse results = run("EXPLAIN (" + query + ")")) {
+            List<List<Object>> values = getValuesList(results);
+
+            Set<String> coordinatorTypes = new HashSet<>();
+            Set<String> subplan0Types = new HashSet<>();
+            Set<String> subplan1Types = new HashSet<>();
+            String optimizedLogicalPlan = null;
+            String subplan0Logical = null;
+            String subplan1Logical = null;
+            for (List<Object> row : values) {
+                String role = (String) row.get(EXPLAIN_COL_ROLE);
+                String type = (String) row.get(EXPLAIN_COL_TYPE);
+                switch (role) {
+                    case "coordinator" -> {
+                        coordinatorTypes.add(type);
+                        if ("optimizedLogicalPlan".equals(type)) {
+                            optimizedLogicalPlan = (String) row.get(EXPLAIN_COL_PLAN);
+                        }
+                    }
+                    case "subplan-0" -> {
+                        subplan0Types.add(type);
+                        if ("logicalPlan".equals(type)) {
+                            subplan0Logical = (String) row.get(EXPLAIN_COL_PLAN);
+                        }
+                    }
+                    case "subplan-1" -> {
+                        subplan1Types.add(type);
+                        if ("logicalPlan".equals(type)) {
+                            subplan1Logical = (String) row.get(EXPLAIN_COL_PLAN);
+                        }
+                    }
+                    case "data", "node_reduce", "final" -> {
+                        // covered by other tests
+                    }
+                    default -> fail("unexpected role: " + role);
+                }
+            }
+
+            // InlineJoin is mappable as a whole, so the whole-plan physical row is present
+            assertThat(coordinatorTypes, hasItems("parsedPlan", "optimizedLogicalPlan", "optimizedPhysicalPlan"));
+            // optimizedLogicalPlan is captured pre-execution: it legitimately contains InlineJoin
+            // with StubRelation placeholders (not yet resolved). This is intentional — it shows the
+            // logical plan after optimization, before any subplan runs.
+            assertNotNull("optimizedLogicalPlan row should be present", optimizedLogicalPlan);
+            assertThat(
+                "optimizedLogicalPlan should show pre-execution InlineJoin structure",
+                optimizedLogicalPlan,
+                containsString("InlineJoin")
+            );
+            assertThat(subplan0Types, hasItems("logicalPlan", "physicalPlan"));
+            assertThat(subplan1Types, hasItems("logicalPlan", "physicalPlan"));
+            // Subplans execute bottom-up: the first INLINE STATS (MAX) runs before the second (SUM)
+            assertNotNull("subplan-0 logicalPlan row should be present", subplan0Logical);
+            assertThat("First executed subplan should be the MAX aggregation", subplan0Logical, containsString("MAX"));
+            assertNotNull("subplan-1 logicalPlan row should be present", subplan1Logical);
+            assertThat("Second executed subplan should be the SUM aggregation", subplan1Logical, containsString("SUM"));
+        }
+    }
+
+    /**
+     * EXPLAIN of a query that reads from a view. Regression test for EXPLAIN silently skipping view
+     * resolution: {@code Explain} was a {@code LeafPlan} with the inner query as a field rather than
+     * a child, so {@code viewResolver.replaceViews} never descended into it and the
+     * {@code UnresolvedRelation} survived into analysis, causing a resolution failure.
+     * After the fix, the view is resolved and the optimizedLogicalPlan shows the underlying index.
+     */
+    public void testExplainWithView() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
+        assumeTrue("Views require the capability to be enabled", VIEWS_IN_CLUSTER_STATE.isEnabled());
+
+        String viewName = "explain_view_" + randomAlphaOfLength(4).toLowerCase(java.util.Locale.ROOT);
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(viewName, "FROM test | KEEP data"))
+            )
+        );
+        try {
+            try (EsqlQueryResponse results = run("EXPLAIN (FROM " + viewName + " | STATS count = COUNT(*))")) {
+                List<List<Object>> values = getValuesList(results);
+
+                Set<String> coordinatorTypes = new HashSet<>();
+                String optimizedLogicalPlan = null;
+                String parsedPlan = null;
+                for (List<Object> row : values) {
+                    String role = (String) row.get(EXPLAIN_COL_ROLE);
+                    String type = (String) row.get(EXPLAIN_COL_TYPE);
+                    if ("coordinator".equals(role)) {
+                        coordinatorTypes.add(type);
+                        if ("optimizedLogicalPlan".equals(type)) {
+                            optimizedLogicalPlan = (String) row.get(EXPLAIN_COL_PLAN);
+                        } else if ("parsedPlan".equals(type)) {
+                            parsedPlan = (String) row.get(EXPLAIN_COL_PLAN);
+                        }
+                    }
+                }
+
+                assertThat(coordinatorTypes, hasItems("parsedPlan", "optimizedLogicalPlan", "optimizedPhysicalPlan"));
+                // parsedPlan shows the view as an UnresolvedRelation (before view resolution)
+                assertNotNull("parsedPlan row should be present", parsedPlan);
+                assertThat("parsedPlan should reference the view by name", parsedPlan, containsString(viewName));
+                // optimizedLogicalPlan shows the resolved view — the underlying 'test' index is visible
+                assertNotNull("optimizedLogicalPlan row should be present", optimizedLogicalPlan);
+                assertThat(
+                    "optimizedLogicalPlan should show the resolved view body (underlying index)",
+                    optimizedLogicalPlan,
+                    containsString("test")
+                );
+            }
+        } finally {
+            assertAcked(
+                client().execute(
+                    DeleteViewAction.INSTANCE,
+                    new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName })
+                )
+            );
         }
     }
 

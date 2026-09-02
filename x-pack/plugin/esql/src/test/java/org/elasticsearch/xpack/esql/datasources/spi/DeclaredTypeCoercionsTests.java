@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -530,7 +531,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     public void testCastWholeNumberToDatetimeUnparseableTokenFollowsErrorPolicy() {
         DateFormatter yyyyMMdd = DateFormatter.forPattern("yyyyMMdd");
         try (Block src = blockFactory.newLongArrayVector(new long[] { 7L }, 1).asBlock()) {
-            expectThrows(IllegalArgumentException.class, () -> castStrict(src, DataType.LONG, DataType.DATETIME, yyyyMMdd).close());
+            expectThrows(InvalidArgumentException.class, () -> castStrict(src, DataType.LONG, DataType.DATETIME, yyyyMMdd).close());
         }
         List<String> warnings = new ArrayList<>();
         try (
@@ -590,7 +591,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
         // a pre-epoch nanos instant has no millis representation here: it throws and follows the read's error policy
         try (Block src = blockFactory.newLongArrayVector(new long[] { -1L }, 1).asBlock()) {
-            expectThrows(IllegalArgumentException.class, () -> castStrict(src, DataType.DATE_NANOS, DataType.DATETIME).close());
+            expectThrows(InvalidArgumentException.class, () -> castStrict(src, DataType.DATE_NANOS, DataType.DATETIME).close());
         }
     }
 
@@ -613,7 +614,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
         DateFormatter epochSecond = DateFormatter.forPattern("epoch_second");
         try (Block src = blockFactory.newDoubleArrayVector(new double[] { Double.NaN }, 1).asBlock()) {
-            expectThrows(IllegalArgumentException.class, () -> castStrict(src, DataType.DOUBLE, DataType.DATETIME, epochSecond).close());
+            expectThrows(InvalidArgumentException.class, () -> castStrict(src, DataType.DOUBLE, DataType.DATETIME, epochSecond).close());
         }
     }
 
@@ -723,7 +724,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         // A genuinely unparseable token still fails (fail_fast throws).
         try (Block src = bytesBlock("notanumber")) {
             expectThrows(
-                IllegalArgumentException.class,
+                InvalidArgumentException.class,
                 () -> DeclaredTypeCoercions.castBlock(src, DataType.KEYWORD, DataType.DOUBLE, null, blockFactory, null, null).close()
             );
         }
@@ -993,7 +994,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         assertThat(warnings.get(0), containsString("declared type [date_nanos]"));
         try (Block src = blockFactory.newLongArrayVector(new long[] { -1L }, 1).asBlock()) {
             expectThrows(
-                IllegalArgumentException.class,
+                InvalidArgumentException.class,
                 () -> DeclaredTypeCoercions.castBlock(src, DataType.LONG, DataType.DATE_NANOS, null, blockFactory, null, null).close()
             );
         }
@@ -1082,6 +1083,21 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         assertThat(warnings.get(0), containsString("returning null"));
     }
 
+    /** The lenient branch degrades a null column name to {@code <unknown>} too, mirroring the strict path (shared detail). */
+    public void testLenientCoercionNullColumnDegrades() {
+        List<String> warnings = new ArrayList<>();
+        SkipWarnings sink = capturing(warnings);
+        try (Block source = bytesBlock("not-a-number")) {
+            try (Block cast = DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.LONG, null, blockFactory, null, sink)) {
+                assertTrue("the bad cell nulls under a live sink", cast.isNull(0));
+            }
+        }
+        assertThat(warnings, hasSize(1));
+        assertThat(warnings.get(0), containsString("Column [<unknown>]"));
+        assertThat(warnings.get(0), containsString("declared type [long]"));
+        assertThat(warnings.get(0), containsString("returning null"));
+    }
+
     public void testLenientOverflowNullsCellAndWarns() {
         List<String> warnings = new ArrayList<>();
         SkipWarnings sink = capturing(warnings);
@@ -1105,6 +1121,74 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                 InvalidArgumentException.class,
                 () -> DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.LONG, null, blockFactory, null, null).close()
             );
+        }
+    }
+
+    /**
+     * A strict coercion failure names the column, the declared type and the offending value, points at
+     * {@code error_mode=null_field}, and is a client error (HTTP 400) — never the bare JDK parser exception
+     * with no column/type context that regressed diagnosability. The original exception is chained as the cause.
+     */
+    public void testStrictCoercionFailureNamesColumnTypeAndValue() {
+        try (Block src = bytesBlock("abc")) {
+            InvalidArgumentException e = expectThrows(
+                InvalidArgumentException.class,
+                () -> DeclaredTypeCoercions.castBlock(src, DataType.KEYWORD, DataType.DOUBLE, null, blockFactory, "views", null).close()
+            );
+            assertThat(e.getMessage(), containsString("Column [views]"));
+            assertThat(e.getMessage(), containsString("declared type [double]"));
+            assertThat("the offending value survives on the message", e.getMessage(), containsString("abc"));
+            assertThat(e.getMessage(), containsString("error_mode=null_field"));
+            assertThat("a coercion failure is a client error, not a 500", e.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertNotNull("the low-level parser exception is preserved as the cause", e.getCause());
+        }
+    }
+
+    /**
+     * The reported incident: a column of empty strings declared {@code double} failed with a bare
+     * {@code NumberFormatException: empty String} naming neither the column nor the type. The retained
+     * message now leads with the column and declared type while still carrying the raw detail.
+     */
+    public void testStrictCoercionFailureOnEmptyStringNamesColumn() {
+        try (Block src = bytesBlock("")) {
+            InvalidArgumentException e = expectThrows(
+                InvalidArgumentException.class,
+                () -> DeclaredTypeCoercions.castBlock(src, DataType.KEYWORD, DataType.DOUBLE, null, blockFactory, "FlashMinor2", null)
+                    .close()
+            );
+            assertThat(e.getMessage(), containsString("Column [FlashMinor2]"));
+            assertThat(e.getMessage(), containsString("declared type [double]"));
+            assertThat("the raw JDK detail is retained, not discarded", e.getMessage(), containsString("empty String"));
+        }
+    }
+
+    /**
+     * The reused {@code ::} cast engine already throws {@link InvalidArgumentException} on an unparseable numeric
+     * token; the chokepoint re-wraps it with column + declared-type context. The outer type stays
+     * {@code InvalidArgumentException} (a client 400), the cast-engine exception is preserved as the cause, and the
+     * message reads cleanly without a duplicated clause.
+     */
+    public void testStrictCoercionFailureWrapsCastEngineException() {
+        try (Block src = bytesBlock("abc")) {
+            InvalidArgumentException e = expectThrows(
+                InvalidArgumentException.class,
+                () -> DeclaredTypeCoercions.castBlock(src, DataType.KEYWORD, DataType.LONG, null, blockFactory, "views", null).close()
+            );
+            assertThat(e.getMessage(), containsString("Column [views]"));
+            assertThat(e.getMessage(), containsString("declared type [long]"));
+            assertTrue("the cast-engine exception is preserved as the cause", e.getCause() instanceof InvalidArgumentException);
+        }
+    }
+
+    /** A reader that does not track a column name passes {@code null}; the message degrades to {@code <unknown>}, no NPE. */
+    public void testStrictCoercionFailureNullColumnDegrades() {
+        try (Block src = bytesBlock("abc")) {
+            InvalidArgumentException e = expectThrows(
+                InvalidArgumentException.class,
+                () -> DeclaredTypeCoercions.castBlock(src, DataType.KEYWORD, DataType.DOUBLE, null, blockFactory, null, null).close()
+            );
+            assertThat(e.getMessage(), containsString("Column [<unknown>]"));
+            assertThat(e.getMessage(), containsString("declared type [double]"));
         }
     }
 

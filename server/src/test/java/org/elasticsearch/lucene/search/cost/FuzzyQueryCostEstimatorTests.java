@@ -22,60 +22,93 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class FuzzyQueryCostEstimatorTests extends ESTestCase {
 
+    private static final int MAX_EXPANSIONS = 50;
+
+    /** Fixed segment count used by tests that aren't specifically exercising segment-count scaling. */
+    private static final int SEGMENT_COUNT = 4;
+
     public void testZeroEditsReturnsZero() {
-        assertEquals(0L, new FuzzyQueryCostEstimator(0, 0, 0, 0).estimate());
-        assertEquals(0L, new FuzzyQueryCostEstimator(50, 1, 0, 0).estimate());
-        assertEquals(0L, new FuzzyQueryCostEstimator(50, 1, 0, 5).estimate());
+        assertEquals(0L, new FuzzyQueryCostEstimator(0, 0, 0, 0, MAX_EXPANSIONS, SEGMENT_COUNT).estimate());
+        assertEquals(0L, new FuzzyQueryCostEstimator(50, 1, 0, 0, MAX_EXPANSIONS, SEGMENT_COUNT).estimate());
+        assertEquals(0L, new FuzzyQueryCostEstimator(50, 1, 0, 5, MAX_EXPANSIONS, SEGMENT_COUNT).estimate());
     }
 
     public void testEstimateIsMonotonicInTermLength() {
-        long shorter = new FuzzyQueryCostEstimator(10, 10, 2, 0).estimate();
-        long longer = new FuzzyQueryCostEstimator(50, 10, 2, 0).estimate();
-        long longest = new FuzzyQueryCostEstimator(200, 10, 2, 0).estimate();
+        long shorter = new FuzzyQueryCostEstimator(10, 10, 2, 0, MAX_EXPANSIONS, SEGMENT_COUNT).estimate();
+        long longer = new FuzzyQueryCostEstimator(50, 10, 2, 0, MAX_EXPANSIONS, SEGMENT_COUNT).estimate();
+        long longest = new FuzzyQueryCostEstimator(200, 10, 2, 0, MAX_EXPANSIONS, SEGMENT_COUNT).estimate();
         assertTrue(shorter < longer);
         assertTrue(longer < longest);
     }
 
     public void testEstimateIsMonotonicInMaxEdits() {
-        long e1 = new FuzzyQueryCostEstimator(20, 20, 1, 0).estimate();
-        long e2 = new FuzzyQueryCostEstimator(20, 20, 2, 0).estimate();
+        long e1 = new FuzzyQueryCostEstimator(20, 20, 1, 0, MAX_EXPANSIONS, SEGMENT_COUNT).estimate();
+        long e2 = new FuzzyQueryCostEstimator(20, 20, 2, 0, MAX_EXPANSIONS, SEGMENT_COUNT).estimate();
         assertTrue("expected estimate to grow with maxEdits", e1 < e2);
     }
 
+    public void testEstimateIsMonotonicInMaxExpansions() {
+        long few = new FuzzyQueryCostEstimator(20, 20, 2, 0, 10, SEGMENT_COUNT).estimate();
+        long more = new FuzzyQueryCostEstimator(20, 20, 2, 0, 50, SEGMENT_COUNT).estimate();
+        long most = new FuzzyQueryCostEstimator(20, 20, 2, 0, 200, SEGMENT_COUNT).estimate();
+        assertTrue("expected estimate to grow with maxExpansions", few < more);
+        assertTrue("expected estimate to grow with maxExpansions", more < most);
+    }
+
+    public void testEstimateIsMonotonicInSegmentCount() {
+        long fewSegments = new FuzzyQueryCostEstimator(20, 20, 2, 0, MAX_EXPANSIONS, 1).estimate();
+        long moreSegments = new FuzzyQueryCostEstimator(20, 20, 2, 0, MAX_EXPANSIONS, 16).estimate();
+        long mostSegments = new FuzzyQueryCostEstimator(20, 20, 2, 0, MAX_EXPANSIONS, 128).estimate();
+        assertTrue("expected estimate to grow with segmentCount", fewSegments < moreSegments);
+        assertTrue("expected estimate to grow with segmentCount", moreSegments < mostSegments);
+    }
+
     public void testWideAlphabetEstimateIsHigherThanNarrow() {
-        long narrow = new FuzzyQueryCostEstimator(20, 20, 2, 0).estimate();
-        long wide = new FuzzyQueryCostEstimator(20, 200, 2, 0).estimate();
+        long narrow = new FuzzyQueryCostEstimator(20, 20, 2, 0, MAX_EXPANSIONS, SEGMENT_COUNT).estimate();
+        long wide = new FuzzyQueryCostEstimator(20, 200, 2, 0, MAX_EXPANSIONS, SEGMENT_COUNT).estimate();
         assertTrue("wide alphabet (above WIDE_ALPHABET_THRESHOLD) must charge more than ASCII-shaped input", narrow < wide);
     }
 
     public void testNarrowAlphabetIsFlat() {
-        long bd1 = new FuzzyQueryCostEstimator(20, 1, 2, 0).estimate();
-        long bd26 = new FuzzyQueryCostEstimator(20, 26, 2, 0).estimate();
-        long bd64 = new FuzzyQueryCostEstimator(20, 64, 2, 0).estimate();
+        long bd1 = new FuzzyQueryCostEstimator(20, 1, 2, 0, MAX_EXPANSIONS, SEGMENT_COUNT).estimate();
+        long bd26 = new FuzzyQueryCostEstimator(20, 26, 2, 0, MAX_EXPANSIONS, SEGMENT_COUNT).estimate();
+        long bd64 = new FuzzyQueryCostEstimator(20, 64, 2, 0, MAX_EXPANSIONS, SEGMENT_COUNT).estimate();
         assertEquals(bd1, bd26);
         assertEquals(bd1, bd64);
     }
 
     public void testPrefixLengthShrinksEstimate() {
-        long noPrefix = new FuzzyQueryCostEstimator(60, 60, 2, 0).estimate();
-        long withPrefix = new FuzzyQueryCostEstimator(60, 60, 2, 5).estimate();
+        long noPrefix = new FuzzyQueryCostEstimator(60, 60, 2, 0, MAX_EXPANSIONS, SEGMENT_COUNT).estimate();
+        long withPrefix = new FuzzyQueryCostEstimator(60, 60, 2, 5, MAX_EXPANSIONS, SEGMENT_COUNT).estimate();
         assertTrue("prefix should reduce the suffix-driven cost", withPrefix < noPrefix);
     }
 
     public void testPrefixLongerThanTermIsClampedNotNegative() {
-        long allPrefix = new FuzzyQueryCostEstimator(5, 5, 2, 100).estimate();
-        assertEquals(FuzzyQueryCostEstimator.BASE_BYTES, allPrefix);
+        long allPrefix = new FuzzyQueryCostEstimator(5, 5, 2, 100, MAX_EXPANSIONS, SEGMENT_COUNT).estimate();
+        long perTermBytes = FuzzyQueryCostEstimator.EXPANSION_BYTES_PER_TERM + FuzzyQueryCostEstimator.EXPANSION_BYTES_PER_SEGMENT_PER_TERM
+            * SEGMENT_COUNT;
+        long expected = FuzzyQueryCostEstimator.BASE_BYTES + perTermBytes * MAX_EXPANSIONS;
+        assertEquals(expected, allPrefix);
     }
 
     public void testConstructorRejectsNegativeArguments() {
-        expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryCostEstimator(-1, 0, 1, 0));
-        expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryCostEstimator(10, -1, 1, 0));
-        expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryCostEstimator(10, 10, -1, 0));
-        expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryCostEstimator(10, 10, 1, -1));
+        expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryCostEstimator(-1, 0, 1, 0, MAX_EXPANSIONS, SEGMENT_COUNT));
+        expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryCostEstimator(10, -1, 1, 0, MAX_EXPANSIONS, SEGMENT_COUNT));
+        expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryCostEstimator(10, 10, -1, 0, MAX_EXPANSIONS, SEGMENT_COUNT));
+        expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryCostEstimator(10, 10, 1, -1, MAX_EXPANSIONS, SEGMENT_COUNT));
+    }
+
+    public void testConstructorRejectsNonPositiveMaxExpansions() {
+        expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryCostEstimator(10, 10, 1, 0, 0, SEGMENT_COUNT));
+        expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryCostEstimator(10, 10, 1, 0, -1, SEGMENT_COUNT));
     }
 
     public void testConstructorRejectsMaxEditsAboveLuceneLimit() {
-        expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryCostEstimator(10, 10, 99, 0));
+        expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryCostEstimator(10, 10, 99, 0, MAX_EXPANSIONS, SEGMENT_COUNT));
+    }
+
+    public void testConstructorRejectsNegativeSegmentCount() {
+        expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryCostEstimator(10, 10, 1, 0, MAX_EXPANSIONS, -1));
     }
 
     public void testEstimateIsCeilingOnMeasuredAutomataRam() {
@@ -99,7 +132,14 @@ public class FuzzyQueryCostEstimatorTests extends ESTestCase {
                             byte[] utf8 = term.getBytes(StandardCharsets.UTF_8);
                             int distinctUtf8Bytes = countDistinctUtf8Bytes(utf8);
 
-                            long estimated = new FuzzyQueryCostEstimator(utf8.length, distinctUtf8Bytes, maxEdits, prefix).estimate();
+                            long estimated = new FuzzyQueryCostEstimator(
+                                utf8.length,
+                                distinctUtf8Bytes,
+                                maxEdits,
+                                prefix,
+                                MAX_EXPANSIONS,
+                                SEGMENT_COUNT
+                            ).estimate();
                             long measured = sumCompiledAutomataRamBytes(term, maxEdits, prefix, transpositions);
 
                             double ratio = measured == 0L ? Double.POSITIVE_INFINITY : (double) estimated / (double) measured;

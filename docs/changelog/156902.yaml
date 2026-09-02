@@ -1,0 +1,5 @@
+pr: 156902
+summary: Improve search throughput by removing a lock in query cache stats lookup
+area: Search
+type: enhancement
+issues: []

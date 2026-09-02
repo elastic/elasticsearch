@@ -32,7 +32,10 @@ import static org.mockito.Mockito.when;
 public class AnthropicChatCompletionResponseHandlerTests extends ESTestCase {
     private static final String INFERENCE_ID = "anthropic_inference_id";
 
-    private final AnthropicChatCompletionResponseHandler responseHandler = new AnthropicChatCompletionResponseHandler("chat_completion");
+    private final AnthropicChatCompletionResponseHandler responseHandler = new AnthropicChatCompletionResponseHandler(
+        "chat_completion",
+        false
+    );
 
     public void testFailValidation() throws IOException {
         var responseJson = """

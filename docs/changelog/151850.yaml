@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 151850
-summary: Fix LOOKUP JOIN index scope in subqueries
-type: bug

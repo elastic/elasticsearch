@@ -41,9 +41,6 @@ public final class PainlessLookup {
 
     private final Map<Class<?>, Set<String>> annotationsToMethodKeys;
 
-    // Resolved @allocates_dynamic estimators keyed by PainlessMethod/PainlessConstructor; a derived index like annotationsToMethodKeys.
-    private final Map<Object, Method> allocationEstimators;
-
     PainlessLookup(
         Map<String, Class<?>> javaClassNamesToClasses,
         Map<String, Class<?>> canonicalClassNamesToClasses,
@@ -52,8 +49,7 @@ public final class PainlessLookup {
         Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods,
         Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings,
         Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings,
-        Map<Class<?>, Set<String>> annotationsToMethodKeys,
-        Map<Object, Method> allocationEstimators
+        Map<Class<?>, Set<String>> annotationsToMethodKeys
     ) {
         this.javaClassNamesToClasses = Map.copyOf(javaClassNamesToClasses);
         this.canonicalClassNamesToClasses = Map.copyOf(canonicalClassNamesToClasses);
@@ -65,17 +61,11 @@ public final class PainlessLookup {
         this.painlessMethodKeysToPainlessInstanceBindings = Map.copyOf(painlessMethodKeysToPainlessInstanceBindings);
 
         this.annotationsToMethodKeys = Map.copyOf(annotationsToMethodKeys);
-        this.allocationEstimators = Map.copyOf(allocationEstimators);
     }
 
     public boolean hasAnnotationAwareMethod(Class<?> annotationType, String methodName, int methodArity) {
         Set<String> methodKeys = annotationsToMethodKeys.get(annotationType);
         return methodKeys != null && methodKeys.contains(buildPainlessMethodKey(methodName, methodArity));
-    }
-
-    /** Returns the resolved {@code @allocates_dynamic} estimator for a {@link PainlessMethod}/{@link PainlessConstructor}, or null. */
-    public Method getAllocationEstimator(Object painlessMethodOrConstructor) {
-        return allocationEstimators.get(painlessMethodOrConstructor);
     }
 
     public Class<?> javaClassNameToClass(String javaClassName) {
@@ -288,6 +278,93 @@ public final class PainlessLookup {
         );
 
         return lookupPainlessObject(originalTargetClass, objectLookup);
+    }
+
+    /**
+     * Like {@link #lookupRuntimePainlessMethod} but returns the first {@code @allocates} estimator in resolution order (walking past
+     * an unannotated subclass entry that shadows an annotated supertype), or null. For def dispatch.
+     */
+    public Method lookupRuntimeAllocationEstimator(Class<?> originalTargetClass, String methodName, int methodArity) {
+        Objects.requireNonNull(originalTargetClass);
+        Objects.requireNonNull(methodName);
+
+        String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
+        Function<PainlessClass, Method> objectLookup = targetPainlessClass -> {
+            PainlessMethod painlessMethod = targetPainlessClass.runtimeMethods.get(painlessMethodKey);
+            return painlessMethod == null ? null : painlessMethod.allocationEstimator();
+        };
+
+        return lookupPainlessObject(originalTargetClass, objectLookup);
+    }
+
+    /**
+     * True if {@code targetClass} has any method (instance or static, any arity) named {@code methodName} carrying an
+     * {@code @allocates} estimator. Used at compile time to decide whether a {@code def} method reference — whose exact
+     * arity is unknown until the functional interface resolves at runtime — should capture the script for a possible
+     * per-invocation charge (see the semantic function-reference lowering and {@code Def.lookupReferenceInternal}).
+     */
+    public boolean hasAllocationEstimatorMethod(Class<?> targetClass, String methodName) {
+        Objects.requireNonNull(targetClass);
+        Objects.requireNonNull(methodName);
+
+        if (classesToPainlessClasses.containsKey(targetClass) == false) {
+            return false;
+        }
+
+        // Constructor references (X::new) resolve against the target class's constructors, which do not inherit.
+        if ("new".equals(methodName)) {
+            for (PainlessConstructor painlessConstructor : classesToPainlessClasses.get(targetClass).constructors.values()) {
+                if (painlessConstructor.allocationEstimator() != null) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        String prefix = methodName + "/";
+        Function<PainlessClass, Boolean> objectLookup = targetPainlessClass -> {
+            for (Map.Entry<String, PainlessMethod> entry : targetPainlessClass.methods.entrySet()) {
+                if (entry.getKey().startsWith(prefix) && entry.getValue().allocationEstimator() != null) {
+                    return Boolean.TRUE;
+                }
+            }
+            for (Map.Entry<String, PainlessMethod> entry : targetPainlessClass.staticMethods.entrySet()) {
+                if (entry.getKey().startsWith(prefix) && entry.getValue().allocationEstimator() != null) {
+                    return Boolean.TRUE;
+                }
+            }
+            return null;
+        };
+
+        return lookupPainlessObject(targetClass, objectLookup) != null;
+    }
+
+    /** Statically-typed counterpart of {@link #lookupRuntimeAllocationEstimator}: walks {@code methods}/{@code staticMethods}. */
+    public Method lookupAllocationEstimator(Class<?> targetClass, boolean isStatic, String methodName, int methodArity) {
+        Objects.requireNonNull(targetClass);
+        Objects.requireNonNull(methodName);
+
+        if (classesToPainlessClasses.containsKey(targetClass) == false) {
+            return null;
+        }
+
+        if (targetClass.isPrimitive()) {
+            targetClass = typeToBoxedType(targetClass);
+
+            if (classesToPainlessClasses.containsKey(targetClass) == false) {
+                return null;
+            }
+        }
+
+        String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
+        Function<PainlessClass, Method> objectLookup = targetPainlessClass -> {
+            PainlessMethod painlessMethod = isStatic
+                ? targetPainlessClass.staticMethods.get(painlessMethodKey)
+                : targetPainlessClass.methods.get(painlessMethodKey);
+            return painlessMethod == null ? null : painlessMethod.allocationEstimator();
+        };
+
+        return lookupPainlessObject(targetClass, objectLookup);
     }
 
     public MethodHandle lookupRuntimeGetterMethodHandle(Class<?> originalTargetClass, String getterName) {

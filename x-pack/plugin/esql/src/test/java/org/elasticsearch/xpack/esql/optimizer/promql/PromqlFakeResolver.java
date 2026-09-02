@@ -14,10 +14,12 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
@@ -110,7 +112,7 @@ public class PromqlFakeResolver extends Rule<LogicalPlan, LogicalPlan> {
                 IndexMode.TIME_SERIES,
                 Map.of(),
                 Map.of(),
-                Map.of("promql_data", IndexMode.TIME_SERIES),
+                Map.of("promql_data", new IndexProperties(IndexMode.TIME_SERIES, 0)),
                 attributes
             )
         );
@@ -128,6 +130,7 @@ public class PromqlFakeResolver extends Rule<LogicalPlan, LogicalPlan> {
                     collectLabelsAndMetrics(within.child(), labels, counters, counters);
                 }
                 case AcrossSeriesAggregate across -> across.groupings().stream().map(Expression::sourceText).forEach(labels::add);
+                case AcrossSeriesReduction reduction -> reduction.groupings().stream().map(Expression::sourceText).forEach(labels::add);
                 case HistogramQuantile histogramQuantile -> {
                     skipBranch.set(Boolean.TRUE);
                     collectLabelsAndMetrics(histogramQuantile.child(), labels, counters, counters);

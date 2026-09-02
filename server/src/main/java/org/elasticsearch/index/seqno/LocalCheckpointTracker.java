@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.apache.lucene.util.LongsRef;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -130,6 +132,22 @@ public class LocalCheckpointTracker {
     public void markSeqNoAsPersisted(final long seqNo) {
         synchronized (persistedSeqNo) {
             markSeqNo(seqNo, persistedCheckpoint, persistedSeqNo);
+        }
+    }
+
+    /**
+     * Marks the provided sequence numbers as persisted and updates the checkpoint if possible.
+     * <p>
+     * Synchronizes on {@link #persistedSeqNo} rather than {@code this}; see
+     * {@link #markSeqNoAsProcessed(long)} for why the two are independent.
+     *
+     * @param seqNos the sequence numbers to mark as persisted
+     */
+    public void markSeqNosAsPersisted(final LongsRef seqNos) {
+        synchronized (persistedSeqNo) {
+            for (int i = seqNos.offset; i < seqNos.offset + seqNos.length; i++) {
+                markSeqNo(seqNos.longs[i], persistedCheckpoint, persistedSeqNo);
+            }
         }
     }
 

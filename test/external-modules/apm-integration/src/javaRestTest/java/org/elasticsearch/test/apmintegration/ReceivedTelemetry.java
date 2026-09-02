@@ -60,9 +60,10 @@ public sealed interface ReceivedTelemetry {
     }
 
     /**
-     * Protocol-neutral representation of the resource (telemetry source) that emitted spans.
-     * Populated from the APM intake {@code metadata} NDJSON event (service/agent/system/process/labels)
-     * and from {@code ExportTraceServiceRequest.resource_spans[].resource} on the OTLP path.
+     * Protocol-neutral representation of the resource (telemetry source) that emitted spans,
+     * metrics, or logs. Populated from the APM intake {@code metadata} NDJSON event
+     * (service/agent/system/process/labels) and from the OTLP {@code Resource} on
+     * {@code ResourceSpans}, {@code ResourceMetrics}, and {@code ResourceLogs}.
      * <p>
      * Attribute keys are passed through verbatim from each protocol — no translation. The
      * cross-path contract therefore asserts on the keys downstream consumers actually observe,
@@ -91,11 +92,19 @@ public sealed interface ReceivedTelemetry {
     }
 
     /**
-     * A histogram of counts.
-     * @param counts the individual count values
+     * A histogram of non-zero bucket data. Each export path carries its native representation:
+     * the APM agent path populates {@code midpoints} (representative values per non-zero bucket);
+     * the OTLP path populates {@code bounds} (the explicit bucket boundaries of the histogram).
+     * Exactly one of {@code midpoints} or {@code bounds} will be non-empty for a given sample.
+     * @param midpoints representative midpoint values for each non-zero bucket (APM agent path; empty on OTLP path)
+     * @param bounds explicit bucket boundaries (OTLP path; empty on APM agent path)
+     * @param counts bucket counts in bucket order; on the APM agent path only non-zero buckets are present,
+     *               on the OTLP path all buckets are present including zeros
      */
-    record HistogramSample(List<Integer> counts) implements ReceivedMetricValue {
+    record HistogramSample(List<Double> midpoints, List<Double> bounds, List<Integer> counts) implements ReceivedMetricValue {
         public HistogramSample {
+            requireNonNull(midpoints);
+            requireNonNull(bounds);
             requireNonNull(counts);
             counts.forEach(Objects::requireNonNull);
         }
@@ -106,7 +115,8 @@ public sealed interface ReceivedTelemetry {
      * {@code attributes} is a flat map of OTLP log record attributes; the keys currently include
      * a {@code log4j.map_message.} prefix, which will be removed (tracked in #4183) when the raw
      * {@code OpenTelemetryAppender} is replaced with a custom one that applies the audit field
-     * rename.
+     * rename. The {@code ResourceLogs.resource} the record arrived under is emitted separately
+     * as a {@link ReceivedResource}.
      */
     record ReceivedLog(
         long timeUnixNano,
@@ -114,12 +124,14 @@ public sealed interface ReceivedTelemetry {
         String severityText,
         String body,
         Map<String, Object> attributes,
-        Optional<String> traceId
+        Optional<String> traceId,
+        String scopeName
     ) implements ReceivedTelemetry {
         public ReceivedLog {
             requireNonNull(attributes);
             attributes = Map.copyOf(attributes);
             requireNonNull(traceId);
+            requireNonNull(scopeName);
         }
     }
 }

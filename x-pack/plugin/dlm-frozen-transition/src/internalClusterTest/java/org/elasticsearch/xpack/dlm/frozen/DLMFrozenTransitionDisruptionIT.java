@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
@@ -809,18 +810,21 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
                 ActionListener listener,
                 BiConsumer<ActionRequest, ActionListener> proceed
             ) {
-                if (latch.getCount() > 0) {
+                if (disruptionDone.compareAndSet(false, true)) {
                     logger.info("--> intercepted [{}], running disruption action now", actionName);
-                    latch.countDown();
-                    if (disruptionDone.compareAndSet(false, true)) {
-                        if (async) {
-                            Thread t = new Thread(disruptionAction, "test-disruption-" + actionName);
-                            disruptionThreadsToJoin.add(t);
-                            t.start();
-                        } else {
-                            disruptionAction.run();
-                        }
+                    if (async) {
+                        Thread t = new Thread(disruptionAction, "test-disruption-" + actionName);
+                        disruptionThreadsToJoin.add(t);
+                        t.start();
+                    } else {
+                        disruptionAction.run();
                     }
+                    // Count down only after the disruption thread is started (or the sync action
+                    // completed): waitForStableCluster joins threads in disruptionThreadsToJoin
+                    // after awaiting this latch. Thread.join on a not-yet-started thread returns
+                    // immediately, so counting down before t.start() would let the test race ahead
+                    // while the master node is still being stopped.
+                    latch.countDown();
                 }
                 proceed.accept(request, listener);
             }
@@ -836,7 +840,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
             assertFalse(
                 "Transition should have completed for [" + candidateIndex + "]",
-                transitionService.getTransitionExecutor().transitionSubmitted(candidateIndex)
+                transitionService.getTransitionExecutor().transitionSubmitted(ProjectId.DEFAULT, candidateIndex)
             );
         }, 60, TimeUnit.SECONDS);
     }

@@ -123,6 +123,10 @@ import java.util.Map;
  *         from {@code doc_values}.
  *     </li>
  *     <li>
+ *         {@link BlockStoredFieldsReader.LongsFromNumbersBlockLoader} to read from a named
+ *         {@code stored} field.
+ *     </li>
+ *     <li>
  *         {@link org.elasticsearch.index.mapper.BlockSourceReader.LongsBlockLoader} to read from
  *         {@code _source}.
  *     </li>
@@ -139,13 +143,6 @@ import java.util.Map;
  *         {@code doc_values}.
  *     </li>
  * </ul>
- * <p>
- *     NOTE: We can't read from {@code long}s from {@code stored} fields which is a
- *     <a href="https://github.com/elastic/elasticsearch/issues/138019">bug</a>, but maybe not
- *     a terrible one because it's very uncommon to configure {@code long} to be {@code stored}
- *     but to disable {@code _source} and {@code doc_values}. Nothing's perfect. Especially
- *     code.
- * </p>
  * <h2>Column-at-a-time vs row-stride</h2>
  * <p>
  *     Readers may load {@link ColumnAtATimeReader column-at-a-time} or {@link RowStrideReader row-by-row}.
@@ -274,39 +271,6 @@ public interface BlockLoader {
          * and fall back to the slow per-doc predicate path for multi-valued fields.
          */
         default DocIdSetIterator tryTermEqualIterator(BytesRef term) throws IOException {
-            return null;
-        }
-    }
-
-    /**
-     * An interface for numeric doc values readers that can optionally produce a {@link DocIdSetIterator}
-     * optimized for range queries using SIMD bitmask scanning, with internal skipper-based block skipping
-     * when a skipper is available for the field.
-     * <p>
-     * The returned iterator shares internal block-decoding state with the reader that produced it.
-     * Callers must not use the originating reader after obtaining the iterator; the iterator assumes
-     * exclusive ownership of that shared state.
-     * <p>
-     * The default implementation returns {@code null}, indicating no optimized iterator is available.
-     */
-    interface OptionalNumericRangeReader {
-        /**
-         * Returns a {@link DocIdSetIterator} matching documents whose numeric value falls in
-         * {@code [lowerValue, upperValue]}, or {@code null} if this optimization is not supported.
-         *
-         * <p>Implementations should return a {@link TwoPhaseIterator} (wrapped via
-         * {@link TwoPhaseIterator#asDocIdSetIterator}) with a cheap {@code approximation} and a
-         * {@code matches()} that confirms one doc is in range. Override {@link TwoPhaseIterator#intoBitSet}
-         * to bulk-collect the matching window in one shot and {@link TwoPhaseIterator#docIDRunEnd} for
-         * the run of consecutive matches; both are overridable since Lucene 10.5 (apache/lucene#16177).
-         * Bounding {@code intoBitSet} by {@code upTo} is what lets ESQL {@code DataPartitioning.DOC}
-         * slices avoid over-scanning past their window.
-         *
-         * <p>Note: these overrides are reached only after a consumer recovers the two-phase via
-         * {@link TwoPhaseIterator#unwrap} (e.g. {@code ConstantScoreScorerSupplier.fromIterator}); calling
-         * them on the returned {@link DocIdSetIterator} wrapper hits the default per-doc path instead.
-         */
-        default DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue) throws IOException {
             return null;
         }
     }
@@ -785,6 +749,8 @@ public interface BlockLoader {
 
         LongRangeBuilder longRangeBuilder(int count);
 
+        DoubleRangeBuilder doubleRangeBuilder(int count);
+
         Block buildAggregateMetricDoubleDirect(Block minBlock, Block maxBlock, Block sumBlock, Block countBlock);
 
         ExponentialHistogramBuilder exponentialHistogramBlockBuilder(int count);
@@ -961,6 +927,12 @@ public interface BlockLoader {
         LongBuilder from();
 
         LongBuilder to();
+    }
+
+    interface DoubleRangeBuilder extends Builder {
+        DoubleBuilder from();
+
+        DoubleBuilder to();
     }
 
     interface ExponentialHistogramBuilder extends Builder {

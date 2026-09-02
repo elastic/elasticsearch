@@ -1,0 +1,2 @@
+FROM employees
+| WHERE COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)

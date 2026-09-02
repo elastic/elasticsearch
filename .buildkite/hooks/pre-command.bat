@@ -1,6 +1,12 @@
 @ECHO OFF
 SETLOCAL EnableDelayedExpansion
 
+REM Bootstrap workaround for a git checkout-ordering gap: renormalize tracked
+REM *.java files to LF before anything (spotless, etc.) reads them. See the
+REM script for why this is needed and when it can be removed.
+bash.exe -c "bash .buildkite/scripts/windows-renormalize-java-line-endings.sh"
+if errorlevel 1 exit /b 1
+
 FOR /F "tokens=* eol=#" %%i in ('type .ci\java-versions.properties') do set %%i
 
 SET JAVA_HOME=%USERPROFILE%\.java\%ES_BUILD_JAVA%

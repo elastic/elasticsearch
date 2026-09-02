@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
@@ -35,7 +38,7 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-public class WildcardLike extends RegexMatch<WildcardPattern> {
+public class WildcardLike extends RegexMatch<WildcardPattern> implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "WildcardLike",
@@ -44,13 +47,15 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     public static final String NAME = "LIKE";
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "boolean",
         briefSummary = "Filters data based on string patterns using wildcards.",
         description = """
             Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
             usually acts on a field placed on the left-hand side of the operator, but it can
             also act on a constant (literal) expression. The right-hand side of the operator
-            represents the pattern.
+            represents the pattern, which can be a string literal, a query parameter, or any
+            constant expression such as a call to `CONCAT` or `TO_LOWER`.
 
             The following wildcard characters are supported:
 
@@ -102,6 +107,13 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
             ```{applies_to}
             stack: ga 9.3
             ```
+
+            ```{applies_to}
+            stack: ga 9.6
+            ```
+            The pattern can also be any constant expression, such as a call to `CONCAT` or `TO_LOWER`.
+
+            <<load-esql-example, file=where-like tag=likeConstExprConcat>>
             """,
         operator = NAME,
         examples = @Example(file = "docs", tag = "like")

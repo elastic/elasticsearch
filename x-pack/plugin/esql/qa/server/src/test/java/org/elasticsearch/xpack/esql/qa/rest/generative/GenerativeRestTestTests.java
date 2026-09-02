@@ -96,6 +96,34 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertFalse(GenerativeRestTest.isFieldFullTextError(error, schema));
     }
 
+    public void testMatchOptionsOnNonIndexMappedNonTextFieldIsAllowed() {
+        String error = "Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [message]";
+        List<Column> schema = List.of(new Column("message", "keyword", List.of(), false));
+
+        assertTrue(GenerativeRestTest.isFieldFullTextError(error, schema));
+    }
+
+    public void testMatchPhraseOptionsOnNonIndexMappedFieldIsAllowed() {
+        String error = "Options are not supported for [MATCH_PHRASE] function call on non-index-mapped field [message]";
+        List<Column> schema = List.of(new Column("message", "keyword", List.of(), false));
+
+        assertTrue(GenerativeRestTest.isFieldFullTextError(error, schema));
+    }
+
+    public void testMatchPhraseOptionsOnNonIndexMappedNonTextFieldIsAllowed() {
+        String error = "Options are not supported for [MATCH_PHRASE] function call on non-index-mapped, non-TEXT field [message]";
+        List<Column> schema = List.of(new Column("message", "keyword", List.of(), false));
+
+        assertTrue(GenerativeRestTest.isFieldFullTextError(error, schema));
+    }
+
+    public void testMatchPhraseOptionsOnIndexMappedFieldIsNotAllowed() {
+        String error = "Options are not supported for [MATCH_PHRASE] function call on non-index-mapped field [message]";
+        List<Column> schema = List.of(new Column("message", "keyword", List.of(), true));
+
+        assertFalse(GenerativeRestTest.isFieldFullTextError(error, schema));
+    }
+
     public void testFullTextAfterSubqueryMatchesSortMessage() {
         String query = "FROM (FROM languages | SORT language_name | LIMIT 5), alerts | WHERE kql(\"language_name: English\")";
         String error = "verification_exception: line 1:36: [KQL] function cannot be used after SORT";
@@ -141,5 +169,4 @@ public class GenerativeRestTestTests extends ESTestCase {
 
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }
-
 }

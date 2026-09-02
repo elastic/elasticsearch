@@ -213,6 +213,12 @@ public class SplitTargetService {
         }
     }
 
+    // visible for testing: a split should leave this empty once it completes or is cancelled. A stale entry pins the IndexShard it
+    // is keyed by, so the shard is never collected even after it closes.
+    Set<ShardId> getShardsWithOngoingSplits() {
+        return onGoingSplits.keySet().stream().map(IndexShard::shardId).collect(Collectors.toSet());
+    }
+
     record Split(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, long sourcePrimaryTerm, long targetPrimaryTerm) {}
 
     private class StateMachine {

@@ -27,7 +27,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.THRESHOLD_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING;
 import static org.elasticsearch.xpack.stateless.StatelessPlugin.STATELESS_SHARD_ROLES;
 
 public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory {
@@ -56,7 +55,7 @@ public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory
 
     public static final Setting<Float> INDEXING_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "stateless.cluster.routing.allocation.balance.write_load.indexing_tier",
-        WRITE_LOAD_BALANCE_FACTOR_SETTING,
+        0.0f,
         0.0f,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

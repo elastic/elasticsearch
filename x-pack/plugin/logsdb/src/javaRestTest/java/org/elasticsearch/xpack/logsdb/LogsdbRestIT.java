@@ -664,4 +664,5 @@ public class LogsdbRestIT extends ESRestTestCase {
             containsString("mapping-level runtime fields are not allowed in index using [logsdb_columnar] index mode")
         );
     }
+
 }

@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
-import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
-
-import static java.util.Collections.emptySet;
 
 /**
  * Simplify IsNotNull targets by resolving the underlying expression to its root fields.
@@ -34,6 +32,7 @@ import static java.util.Collections.emptySet;
  * This handles the case of fields nested inside functions or expressions in order to avoid:
  * - having to evaluate the whole expression
  * - not pushing down the filter due to expression evaluation
+ * Only functions with {@link AnyNullIsNull} can propagate IsNotNull.
  * IS NULL cannot be simplified since it leads to a disjunction which prevents the filter to be
  * pushed down:
  * (x + 1) IS NULL --> x IS NULL OR x + 1 IS NULL
@@ -46,73 +45,57 @@ public class InferIsNotNull extends Rule<LogicalPlan, LogicalPlan> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
-        // the alias map is shared across the whole plan
         AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
-        // traverse bottom-up to pick up the aliases as we go
-        plan = plan.transformUp(p -> inspectPlan(p, aliasesBuilder));
-        return plan;
+        return plan.transformUp(p -> inspectPlan(p, aliasesBuilder));
     }
 
     private LogicalPlan inspectPlan(LogicalPlan plan, AttributeMap.Builder<Expression> aliasesBuilder) {
-        // inspect just this plan properties
         plan.forEachExpression(Alias.class, a -> aliasesBuilder.put(a.toAttribute(), a.child()));
-        // now go about finding isNull/isNotNull
-        LogicalPlan newPlan = plan.transformExpressionsOnlyUp(IsNotNull.class, inn -> inferNotNullable(inn, aliasesBuilder.build()));
-        return newPlan;
+        return plan.transformExpressionsOnlyUp(IsNotNull.class, inn -> inferNotNullable(inn, aliasesBuilder.build(), plan.inputSet()));
     }
 
-    private Expression inferNotNullable(IsNotNull inn, AttributeMap<Expression> aliases) {
-        Expression result = inn;
-        Set<Expression> refs = resolveExpressionAsRootAttributes(inn.field(), aliases);
-        // no refs found or could not detect - return the original function
-        if (refs.size() > 0) {
-            // add IsNull for the filters along with the initial inn
-            var innList = CollectionUtils.combine(refs.stream().map(r -> (Expression) new IsNotNull(inn.source(), r)).toList(), inn);
-            result = Predicates.combineAnd(innList);
+    private static Expression inferNotNullable(IsNotNull inn, AttributeMap<Expression> aliases, AttributeSet inputSet) {
+        Set<Expression> attributes = resolveExpressionAsRootAttributes(inn.field(), aliases, inputSet);
+        if (attributes.isEmpty() || attributes.contains(inn.field())) {  // Note: .contains(inn.field()) => .equals(Set.of(inn.field()))
+            return inn;
+        } else {
+            var innAttributesList = attributes.stream().map(a -> (Expression) new IsNotNull(inn.source(), a)).toList();
+            return Predicates.combineAnd(CollectionUtils.combine(innAttributesList, inn));
         }
-        return result;
     }
 
     /**
-     * Unroll the expression to its references to get to the root fields
-     * that really matter for filtering.
+     * Returns a set of attributes for the expression with the property that
+     * if any of these attributes is null, the expression is null.
+     *
+     * @param exp      the expression to resolve
+     * @param aliases  mapping from attributes to other expressions
+     * @param inputSet set of input attributes visible for the expression
      */
-    protected Set<Expression> resolveExpressionAsRootAttributes(Expression exp, AttributeMap<Expression> aliases) {
+    static Set<Expression> resolveExpressionAsRootAttributes(Expression exp, AttributeMap<Expression> aliases, AttributeSet inputSet) {
         Set<Expression> resolvedExpressions = new LinkedHashSet<>();
-        boolean changed = doResolve(exp, aliases, resolvedExpressions);
-        return changed ? resolvedExpressions : emptySet();
+        resolve(exp, aliases, inputSet, resolvedExpressions);
+        return resolvedExpressions;
     }
 
-    private boolean doResolve(Expression exp, AttributeMap<Expression> aliases, Set<Expression> resolvedExpressions) {
-        boolean changed = false;
-        // check if the expression can be skipped
-        if (skipExpression(exp)) {
-            resolvedExpressions.add(exp);
-        } else {
-            for (Expression e : exp.references()) {
-                Expression resolved = aliases.resolve(e, e);
-                // found a root attribute, bail out
-                if (resolved instanceof Attribute a && resolved == e) {
-                    resolvedExpressions.add(a);
-                    // don't mark things as change if the original expression hasn't been broken down
-                    changed |= resolved != exp;
-                } else {
-                    // go further
-                    changed |= doResolve(resolved, aliases, resolvedExpressions);
-                }
+    private static void resolve(
+        Expression exp,
+        AttributeMap<Expression> aliases,
+        AttributeSet inputSet,
+        Set<Expression> resolvedExpressions
+    ) {
+        Expression resolved = aliases.resolve(exp, exp);
+        if (resolved instanceof Attribute a) {
+            if (inputSet.contains(resolved)) {
+                resolvedExpressions.add(a);
             }
+            return;
         }
-        return changed;
-    }
-
-    private static boolean skipExpression(Expression e) {
-        // These two functions can have a complex set of expressions as arguments that can mess up the simplification we are trying to add.
-        // If there is a "case(f is null, null, ...) is not null" expression,
-        // assuming that "case(f is null.....) is not null AND f is not null" (what this rule is doing) is a wrong assumption because
-        // the "case" function will want both null "f" and not null "f". Doing it like this contradicts the condition inside case, so we
-        // must avoid these cases.
-        // We could be smarter and look inside "case" and "coalesce" to see if there is any comparison of fields with "null" but,
-        // the complexity is too high to warrant an attempt _now_.
-        return e instanceof Coalesce || e instanceof Case;
+        if (resolved instanceof AnyNullIsNull == false) {
+            return;
+        }
+        for (Expression child : resolved.children()) {
+            resolve(child, aliases, inputSet, resolvedExpressions);
+        }
     }
 }

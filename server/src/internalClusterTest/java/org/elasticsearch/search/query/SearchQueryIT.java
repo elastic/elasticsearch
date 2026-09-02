@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.analysis.charfilter.MappingCharFilter;
+import org.apache.lucene.analysis.charfilter.NormalizeCharMap;
 import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
@@ -1754,11 +1756,44 @@ public class SearchQueryIT extends ESIntegTestCase {
         );
     }
 
+    public void testWildcardQueryNormalizationFullwidthOperators() {
+        // A normalizer that folds fullwidth forms emits ASCII wildcard operators for literal input (#150699): the
+        // fullwidth characters are data, so the emitted operators are re-escaped instead of changing the query.
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put("index.analysis.char_filter.fullwidth_to_ascii.type", "mock_fullwidth_to_ascii")
+                    .put("index.analysis.normalizer.fullwidth_to_ascii.type", "custom")
+                    .put("index.analysis.normalizer.fullwidth_to_ascii.char_filter", "fullwidth_to_ascii")
+                    .build()
+            ).setMapping("field", "type=keyword,normalizer=fullwidth_to_ascii")
+        );
+        // the normalizer folds each fullwidth form, so the documents are indexed as foo*bar, foo?bar and foo\bar
+        prepareIndex("test").setId("1").setSource("field", "foo\uFF0Abar").get();
+        prepareIndex("test").setId("2").setSource("field", "foo\uFF1Fbar").get();
+        prepareIndex("test").setId("3").setSource("field", "foo\uFF3Cbar").get();
+        prepareIndex("test").setId("4").setSource("field", "foobar").get();
+        refresh();
+
+        // bare fullwidth characters are literal data and only match their own document
+        assertHitCount(1L, prepareSearch().setQuery(wildcardQuery("field", "foo\uFF0Abar")));
+        assertHitCount(1L, prepareSearch().setQuery(wildcardQuery("field", "foo\uFF1Fbar")));
+        assertHitCount(1L, prepareSearch().setQuery(wildcardQuery("field", "foo\uFF3Cbar")));
+        // escaped fullwidth characters are the same literals
+        assertHitCount(1L, prepareSearch().setQuery(wildcardQuery("field", "foo\\\uFF0Abar")));
+        assertHitCount(1L, prepareSearch().setQuery(wildcardQuery("field", "foo\\\uFF1Fbar")));
+        assertHitCount(1L, prepareSearch().setQuery(wildcardQuery("field", "foo\\\uFF3Cbar")));
+        // real ASCII operators keep their meaning: * spans all documents, ? exactly one character, \\ the backslash
+        assertHitCount(4L, prepareSearch().setQuery(wildcardQuery("field", "foo*bar")));
+        assertHitCount(3L, prepareSearch().setQuery(wildcardQuery("field", "foo?bar")));
+        assertHitCount(1L, prepareSearch().setQuery(wildcardQuery("field", "foo\\\\bar")));
+    }
+
     public static class MockAnalysisPlugin extends Plugin implements AnalysisPlugin {
 
         @Override
         public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
-            return singletonMap("mock_pattern_replace", (indexSettings, env, name, settings) -> {
+            return Map.of("mock_pattern_replace", (indexSettings, env, name, settings) -> {
                 class Factory implements NormalizingCharFilterFactory {
 
                     private final Pattern pattern = Regex.compile("[\\*\\?]", null);
@@ -1771,6 +1806,25 @@ public class SearchQueryIT extends ESIntegTestCase {
                     @Override
                     public Reader create(Reader reader) {
                         return new PatternReplaceCharFilter(pattern, "", reader);
+                    }
+                }
+                return new Factory();
+            }, "mock_fullwidth_to_ascii", (indexSettings, env, name, settings) -> {
+                NormalizeCharMap.Builder mappings = new NormalizeCharMap.Builder();
+                mappings.add("\uFF0A", "*");
+                mappings.add("\uFF1F", "?");
+                mappings.add("\uFF3C", "\\");
+                NormalizeCharMap map = mappings.build();
+                class Factory implements NormalizingCharFilterFactory {
+
+                    @Override
+                    public String name() {
+                        return name;
+                    }
+
+                    @Override
+                    public Reader create(Reader reader) {
+                        return new MappingCharFilter(map, reader);
                     }
                 }
                 return new Factory();

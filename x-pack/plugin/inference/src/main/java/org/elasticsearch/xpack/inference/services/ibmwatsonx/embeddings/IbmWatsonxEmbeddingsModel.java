@@ -19,7 +19,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxModel;
-import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -78,7 +77,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
     }
 
     public IbmWatsonxEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-        super(modelConfigurations, modelSecrets, (IbmWatsonxRateLimitServiceSettings) modelConfigurations.getServiceSettings());
+        super(modelConfigurations, modelSecrets);
         try {
             var serviceSettings = (IbmWatsonxEmbeddingsServiceSettings) modelConfigurations.getServiceSettings();
             this.uri = buildUri(serviceSettings.url().toString(), serviceSettings.apiVersion());
@@ -103,7 +102,6 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
-            serviceSettings,
             authHeaderDecorator
         );
         try {

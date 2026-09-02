@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -36,9 +37,8 @@ public class EnrichCoordinatorDocTests extends BaseMonitoringDocTestCase<EnrichC
 
     private CoordinatorStats stats;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initStats() {
         stats = new CoordinatorStats(
             randomAlphaOfLength(4),
             randomIntBetween(0, Integer.MAX_VALUE),

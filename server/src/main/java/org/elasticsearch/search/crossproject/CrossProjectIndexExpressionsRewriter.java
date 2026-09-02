@@ -57,6 +57,13 @@ public class CrossProjectIndexExpressionsRewriter {
     ) {
         ensureProjectsAvailable(originProjectAlias, allProjectAliases, projectRouting);
 
+        if (indexExpression.contains(":::")) {
+            throw new InvalidIndexNameException(
+                indexExpression,
+                "too many consecutive ':' (use ':' to qualify a project and '::' for an index selector)"
+            );
+        }
+
         final boolean isQualified = RemoteClusterAware.isRemoteIndexName(indexExpression);
         final IndexRewriteResult rewrittenExpression;
         if (isQualified) {

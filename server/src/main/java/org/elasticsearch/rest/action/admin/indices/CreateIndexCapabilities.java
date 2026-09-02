@@ -9,6 +9,10 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.mapper.FieldMapper;
+
 import java.util.HashSet;
 import java.util.Set;
 
@@ -37,6 +41,11 @@ public class CreateIndexCapabilities {
      */
     private static final String VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY = "vectordb_document_index_mode";
 
+    /**
+     * Support vectordb_columnar index mode
+     */
+    private static final String VECTORDB_COLUMNAR_INDEX_MODE_CAPABILITY = "vectordb_columnar_index_mode";
+
     private static final String NESTED_DENSE_VECTOR_SYNTHETIC_TEST = "nested_dense_vector_synthetic_test";
 
     private static final String POORLY_FORMATTED_BAD_REQUEST = "poorly_formatted_bad_request";
@@ -46,6 +55,17 @@ public class CreateIndexCapabilities {
     private static final String DISABLE_SEQUENCE_NUMBERS_CAPABILITY = "disable_sequence_numbers";
 
     private static final String REJECT_RUNTIME_FIELD_SHADOWING_SORT_FIELD = "reject_runtime_field_shadowing_sort_field";
+
+    /**
+     * Support for slice-enabled indices ({@code index.slice.enabled}). Advertised only when the feature flag is on, so
+     * yaml tests can gate on it and skip on builds where slice indexing is unavailable.
+     */
+    private static final String SLICE_INDEXING_CAPABILITY = "slice_indexing";
+
+    /**
+     * Support for {@code doc_values.on_failure=ignore}.
+     */
+    private static final String DOC_VALUES_ON_FAILURE_CAPABILITY = "doc_values_on_failure";
 
     public static final Set<String> CAPABILITIES;
 
@@ -63,6 +83,15 @@ public class CreateIndexCapabilities {
         );
         caps.add(COLUMNAR_INDEX_MODES_CAPABILITY);
         caps.add(VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY);
+        if (IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            caps.add(VECTORDB_COLUMNAR_INDEX_MODE_CAPABILITY);
+        }
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+            caps.add(SLICE_INDEXING_CAPABILITY);
+        }
+        if (FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled()) {
+            caps.add(DOC_VALUES_ON_FAILURE_CAPABILITY);
+        }
         CAPABILITIES = Set.copyOf(caps);
     }
 }

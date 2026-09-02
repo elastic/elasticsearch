@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.provider.filtering.FilterPathBasedFilter;
+import org.yaml.snakeyaml.error.YAMLException;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -602,19 +603,54 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     @Override
     public void close() throws IOException {
+        close(false);
+    }
+
+    @Override
+    public void closeAllowIllFormed() throws IOException {
+        close(true);
+    }
+
+    private void close(boolean allowIllFormed) throws IOException {
         if (generator.isClosed()) {
             return;
         }
-        JsonStreamContext context = generator.getOutputContext();
-        if ((context != null) && (context.inRoot() == false)) {
-            throw new IOException("Unclosed object or array found");
+
+        boolean failsStructuralCheck = false;
+        IOException exception = null;
+        try {
+            if (allowIllFormed == false) {
+                JsonStreamContext context = generator.getOutputContext();
+                failsStructuralCheck = (context != null) && (context.inRoot() == false);
+            }
+            if (writeLineFeedAtEnd) {
+                flush();
+                // Bypass generator to always write the line feed
+                getLowLevelGenerator().writeRaw(LF);
+            }
+        } catch (IOException e) {
+            exception = e;
         }
-        if (writeLineFeedAtEnd) {
-            flush();
-            // Bypass generator to always write the line feed
-            getLowLevelGenerator().writeRaw(LF);
+
+        try {
+            generator.close();
+        } catch (YAMLException e) {
+            // ignore the SnakeYAML exception, our own structural check handles the same case
+            assert allowIllFormed || failsStructuralCheck : "Should fail the structural check, but didn't: " + e.getMessage();
+        } catch (IOException e) {
+            if (exception == null) {
+                exception = e;
+            } else {
+                exception.addSuppressed(e);
+            }
         }
-        generator.close();
+
+        if (failsStructuralCheck) {
+            assert false : "Unclosed object or array found";
+            throw new IOException("Unclosed object or array found", exception);
+        } else if (exception != null) {
+            throw exception;
+        }
     }
 
     @Override

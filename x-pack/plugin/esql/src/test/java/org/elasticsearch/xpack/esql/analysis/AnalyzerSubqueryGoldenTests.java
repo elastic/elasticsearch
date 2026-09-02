@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.TransportVersion;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -36,6 +37,17 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
  */
 public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
 
+    private static final String PACK_DIMS_AGG = "pack_dims_agg";
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public AnalyzerSubqueryGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS);
 
     private static final String SALARIES_INT_RESOURCE = "s3://bucket/salaries_int.parquet";
@@ -53,16 +65,12 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
         assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
     }
 
-    private static void requireNullifySupport() {
-        assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
+    private static void requireTsMixedWithNonTsSourcesFix() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
     }
 
-    /**
-     * A negotiated transport version that supports {@code dimension_values}. Time-series {@code rate(...) BY <dimension>} aggregations are
-     * rewritten to either {@code DIMENSIONVALUES} or {@code VALUES} depending on the version, so pinning keeps the snapshot deterministic.
-     */
-    private static TransportVersion dimensionValuesVersion() {
-        return TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION);
+    private static void requireNullifySupport() {
+        assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
     }
 
     // -- basic subquery / view in FROM --
@@ -219,34 +227,34 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
 
     public void testUnionAllWithConflictingTypesFromExternalDatasetSubqueries() {
         requireExternalDatasetSupport();
-        runExternalDatasetGoldenTest("""
+        externalDatasetBuilder("""
             FROM (FROM salaries_int), (FROM salaries_long)
             | KEEP salary
-            """);
+            """).run();
     }
 
     public void testUnionAllWithConflictingTypesFromExternalDatasetSubqueriesWithoutUsage() {
         requireExternalDatasetSupport();
-        runExternalDatasetGoldenTest("""
+        externalDatasetBuilder("""
             FROM (FROM salaries_int), (FROM salaries_long)
-            """);
+            """).run();
     }
 
     public void testExternalDatasetSubqueryConflictResolvedByCastInSubqueries() {
         requireExternalDatasetSupport();
-        runExternalDatasetGoldenTest("""
+        externalDatasetBuilder("""
             FROM (FROM salaries_int | EVAL salary = salary::long), (FROM salaries_long)
             | KEEP salary
-            """);
+            """).run();
     }
 
     public void testExternalDatasetSubqueryConflictResolvedByCastInMainQuery() {
         requireExternalDatasetSupport();
-        runExternalDatasetGoldenTest("""
+        externalDatasetBuilder("""
             FROM (FROM salaries_int), (FROM salaries_long)
             | EVAL salary = salary::long
             | KEEP salary
-            """);
+            """).run();
     }
 
     // -- full text functions over a subquery in FROM --
@@ -479,31 +487,39 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
 
     public void testTSSubqueryWithTimeSeriesAggregate() {
         requireTsSubquerySupport();
-        runGoldenTest("""
+        builder("""
             FROM employees, (TS k8s-downsampled | STATS m = max(rate(network.total_bytes_in)) BY cluster, pod)
-            """, STAGES, dimensionValuesVersion());
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    public void testTSSubqueryInFromWithOuterTimeSeriesAggregate() {
+        requireTsSubquerySupport();
+        builder("""
+            FROM (TS k8s-downsampled)
+            | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testMultipleSubqueriesInFromWithTS() {
         requireTsSubquerySupport();
-        runGoldenTest("""
+        builder("""
             FROM
                 employees,
                 (TS k8s-downsampled | STATS rate = max(rate(network.total_bytes_in)) BY cluster),
                 (FROM sample_data | STATS cnt = count(*))
-            """, STAGES, dimensionValuesVersion());
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testMultipleSubqueriesInFromWithMixedTsRowAndFromSubqueries() {
         requireTsSubquerySupport();
         requireRowSubquerySupport();
-        runGoldenTest("""
+        builder("""
             FROM
                 employees,
                 (TS k8s-downsampled | STATS rate = max(rate(network.total_bytes_in)) BY cluster),
                 (FROM sample_data | STATS cnt = count(*)),
                 (ROW synthetic = 1)
-            """, STAGES, dimensionValuesVersion());
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTSSubqueryWithProcessingCommands() {
@@ -534,41 +550,41 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
 
     public void testTSSubqueryWithByWithoutAndFromSubquery() {
         requireTsSubquerySupport();
-        runGoldenTest("""
+        builder("""
             FROM
                 (TS k8s-downsampled | STATS m = max(rate(network.total_bytes_in)) BY WITHOUT(pod)),
                 (FROM sample_data)
-            """, STAGES, dimensionValuesVersion());
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTSSubqueryWithByWithoutInFromCommand() {
         requireTsSubquerySupport();
-        runGoldenTest("""
+        builder("""
             FROM
                 employees,
                 (TS k8s-downsampled | STATS m = max(rate(network.total_bytes_in)) BY WITHOUT(pod)),
                 (FROM sample_data)
-            """, STAGES, dimensionValuesVersion());
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTSSubqueryWithConflictingTypesInUnionAll() {
         requireTsSubquerySupport();
-        runGoldenTest("""
+        builder("""
             FROM
                 (TS k8s-downsampled | STATS m = max(rate(network.total_bytes_in)) BY cluster),
                 (FROM sample_data | EVAL m = "abc")
-            """, STAGES, dimensionValuesVersion());
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTSSubqueryWithConflictingTypesAndExplicitCast() {
         requireTsSubquerySupport();
-        runGoldenTest("""
+        builder("""
             FROM
                 (TS k8s-downsampled | STATS m = max(rate(network.total_bytes_in)) BY cluster),
                 (FROM sample_data | EVAL m = "abc")
             | EVAL m = m::string
             | KEEP m
-            """, STAGES, dimensionValuesVersion());
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTSSubqueryWithNumericConflict() {
@@ -592,18 +608,50 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    // -- TS subquery mixed with non-TS sources: outer STATS must produce plain Aggregate --
+
+    public void testTsSubqueryMixedWithStandardSubquery() {
+        requireTsMixedWithNonTsSourcesFix();
+        runGoldenTest("""
+            FROM (TS k8s-downsampled), (FROM sample_data) | STATS count(*)
+            """, STAGES);
+    }
+
+    public void testTwoTsSubqueriesInFrom() {
+        requireTsMixedWithNonTsSourcesFix();
+        runGoldenTest("""
+            FROM (TS k8s-downsampled), (TS k8s-downsampled) | STATS count(*)
+            """, STAGES);
+    }
+
+    public void testTsSubqueryMixedWithDirectIndex() {
+        requireTsMixedWithNonTsSourcesFix();
+        runGoldenTest("""
+            FROM (TS k8s-downsampled), sample_data | STATS count(*)
+            """, STAGES);
+    }
+
+    public void testTsSubqueryMixedWithView() {
+        requireTsMixedWithNonTsSourcesFix();
+        runGoldenTest("""
+            FROM (TS k8s-downsampled), my_view | STATS count(*)
+            """, STAGES, Map.of("my_view", "FROM sample_data | STATS total = COUNT() BY message"));
+    }
+
     // -- subquery union of a regular index, a time-series rate, and an external dataset --
 
     public void testSubqueryUnionOfIndexTimeSeriesRateAndExternalDataset() {
         requireTsSubquerySupport();
         requireExternalDatasetSupport();
         // `cluster` is a time-series dimension, so the rate aggregation is rewritten to DIMENSIONVALUES or VALUES depending on the
-        // negotiated cluster version; pin a version supporting `dimension_values` so the snapshot stays deterministic.
-        runExternalDatasetGoldenTest("""
+        // negotiated cluster version; lower-bound this test at `dimension_values` so the snapshot stays deterministic. At
+        // `pack_dims_agg` the PackDims node folds into the TimeSeriesAggregate as PACKDIMSAGG, so that older shape lives in
+        // [before_pack_dims_agg].
+        externalDatasetBuilder("""
             FROM (FROM sample_data | EVAL name = message | KEEP name),
                  (TS k8s | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster | EVAL name = cluster | KEEP name),
                  (FROM salaries_int | KEEP name)
-            """, dimensionValuesVersion());
+            """).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testSubqueryRenameKeepStarOnMissingColumnPreservesType() {
@@ -776,22 +824,13 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
     // -- helpers --
 
     /**
-     * Runs a golden test for a query that mixes subqueries with external datasets, registering the {@code salaries_int}/
+     * Builds a golden test for a query that mixes subqueries with external datasets, registering the {@code salaries_int}/
      * {@code salaries_long} datasets and their resolved schemas. The golden framework replays the production pipeline order from
      * {@code EsqlSession} (rewrite FROM dataset targets into external relations via {@code DatasetRewriter}), so a dataset branch resolves
      * to an {@code ExternalRelation} exactly like a real dataset subquery.
      */
-    private void runExternalDatasetGoldenTest(String query) {
-        builder(query).stages(STAGES).datasetMetadata(datasetMetadata()).externalSourceResolution(externalSourceResolution()).run();
-    }
-
-    /** As {@link #runExternalDatasetGoldenTest(String)} but pins the negotiated transport version (e.g. for time-series sub-branches). */
-    private void runExternalDatasetGoldenTest(String query, TransportVersion transportVersion) {
-        builder(query).stages(STAGES)
-            .datasetMetadata(datasetMetadata())
-            .externalSourceResolution(externalSourceResolution())
-            .transportVersion(transportVersion)
-            .run();
+    private TestBuilder externalDatasetBuilder(String query) {
+        return builder(query).stages(STAGES).datasetMetadata(datasetMetadata()).externalSourceResolution(externalSourceResolution());
     }
 
     private static ProjectMetadata datasetMetadata() {

@@ -1606,8 +1606,8 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "Cannot retrieve privileges for API keys with assigned role descriptors. "
-                    + "Please use the Get API key information API https://ela.st/es-api-get-api-key"
+                "Cannot retrieve privileges for a subject whose effective privileges are constrained by limited-by roles. "
+                    + "For API keys, use the Get API key information API https://ela.st/es-api-get-api-key"
             )
         );
         assertThat(e.getCause(), sameInstance(unsupportedOperationException));
@@ -1947,12 +1947,37 @@ public class RBACEngineTests extends ESTestCase {
                                 .filter(s -> s.equals(ClusterPrivilegeResolver.MONITOR_STATS.name()))
                                 .toArray(String[]::new),
                             new IndicesPrivileges[] {
+                                IndicesPrivileges.builder()
+                                    .indices(".logs-endpoint.action.responses-*")
+                                    .privileges("read", "read_cross_cluster")
+                                    .build(),
+                                IndicesPrivileges.builder()
+                                    .indices(".metrics-endpoint.metadata_united_default*")
+                                    .privileges("read", "read_cross_cluster")
+                                    .build(),
                                 IndicesPrivileges.builder().indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                                 IndicesPrivileges.builder().indices("apm-*").privileges("read", "read_cross_cluster").build(),
                                 IndicesPrivileges.builder().indices("logs-apm.*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder()
+                                    .indices("logs-endpoint.events.*")
+                                    .privileges("read", "read_cross_cluster")
+                                    .build(),
                                 IndicesPrivileges.builder().indices("metrics-apm.*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder()
+                                    .indices("metrics-endpoint.metadata_current_*")
+                                    .privileges("read", "read_cross_cluster")
+                                    .build(),
+                                IndicesPrivileges.builder()
+                                    .indices("metrics-endpoint.policy-*")
+                                    .privileges("read", "read_cross_cluster")
+                                    .build(),
                                 IndicesPrivileges.builder().indices("traces-apm-*").privileges("read", "read_cross_cluster").build(),
-                                IndicesPrivileges.builder().indices("traces-apm.*").privileges("read", "read_cross_cluster").build() },
+                                IndicesPrivileges.builder().indices("traces-apm.*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder()
+                                    .indices(".fleet-actions-results*")
+                                    .privileges("read", "read_cross_cluster")
+                                    .allowRestrictedIndices(true)
+                                    .build() },
                             null,
                             null,
                             null,

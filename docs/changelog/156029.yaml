@@ -1,0 +1,4 @@
+pr: 156029
+summary: Grant `kibana_system` access to PingDirectory indices so ILM can delete them
+area: Authorization
+type: enhancement

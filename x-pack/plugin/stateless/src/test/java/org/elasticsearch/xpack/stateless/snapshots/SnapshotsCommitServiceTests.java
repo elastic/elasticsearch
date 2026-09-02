@@ -54,6 +54,8 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -93,17 +95,15 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private int primaryTerm;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initThreadPool() throws Exception {
         threadPool = new TestThreadPool(SnapshotsCommitServiceTests.class.getName(), Settings.EMPTY);
         primaryTerm = randomIntBetween(1, 100);
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void terminateThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        super.tearDown();
     }
 
     public void testLocalSnapshotRetainsCommits() throws Exception {

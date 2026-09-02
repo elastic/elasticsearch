@@ -173,6 +173,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     }
 
     @Override
+    public BlockLoader.DoubleRangeBuilder doubleRangeBuilder(int expectedCount) {
+        return factory.newDoubleRangeBlockBuilder(expectedCount);
+    }
+
+    @Override
     public BlockLoader.Block buildAggregateMetricDoubleDirect(
         BlockLoader.Block minBlock,
         BlockLoader.Block maxBlock,

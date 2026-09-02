@@ -70,10 +70,8 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
     private InferenceAuditor inferenceAuditor;
     private MeterRegistry meterRegistry;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initAdaptiveAllocationsTestDeps() throws Exception {
         threadPool = createThreadPool(
             new ScalingExecutorBuilder(MachineLearning.UTILITY_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(10), false)
         );
@@ -85,11 +83,9 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         meterRegistry = mock(MeterRegistry.class);
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void closeThreadPool() throws Exception {
         this.threadPool.close();
-        super.tearDown();
     }
 
     private ClusterState getClusterState(int numAllocations, AssignmentState assignmentState) {

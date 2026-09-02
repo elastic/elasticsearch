@@ -18,7 +18,11 @@ import io.opentelemetry.instrumentation.runtimetelemetry.RuntimeTelemetry;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
+import io.opentelemetry.sdk.metrics.Aggregation;
+import io.opentelemetry.sdk.metrics.InstrumentSelector;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.SdkMeterProviderBuilder;
+import io.opentelemetry.sdk.metrics.View;
 import io.opentelemetry.sdk.metrics.export.AggregationTemporalitySelector;
 import io.opentelemetry.sdk.metrics.export.MetricExporter;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
@@ -27,6 +31,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.TrustEverythingConfig;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
@@ -58,6 +64,8 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     // Per-instrument-stream cardinality limit
     private static final int METRIC_CARDINALITY_LIMIT = 1000;
 
+    private static final Logger logger = LogManager.getLogger(OtelSdkExportMeterSupplier.class);
+
     private final Settings settings;
     private final Path diskBufferPath;
     private volatile OTelMetricsResources resources;
@@ -77,12 +85,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
 
     @Override
     public Meter get() {
-        synchronized (mutex) {
-            if (resources == null) {
-                resources = createMeteringResources();
-            }
-            return resources.meterProvider().get("elasticsearch");
-        }
+        return getMeterProvider().get("elasticsearch");
     }
 
     private OTelMetricsResources createMeteringResources() {
@@ -139,19 +142,24 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     }
 
     private SdkMeterProvider sdkMeterProvider(PeriodicMetricReader reader) {
-        return SdkMeterProvider.builder()
+        var builder = SdkMeterProvider.builder()
             .setResource(OtelSdkResource.get(settings))
-            .registerMetricReader(reader, instrumentType -> METRIC_CARDINALITY_LIMIT)
-            .build();
+            .registerMetricReader(reader, instrumentType -> METRIC_CARDINALITY_LIMIT);
+        registerDisabledMetricViews(builder, settings);
+        return builder.build();
+    }
+
+    static void registerDisabledMetricViews(SdkMeterProviderBuilder builder, Settings settings) {
+        for (String pattern : OtelSdkSettings.TELEMETRY_METRICS_DISABLED.get(settings)) {
+            builder.registerView(
+                InstrumentSelector.builder().setName(pattern).build(),
+                View.builder().setAggregation(Aggregation.drop()).build()
+            );
+        }
     }
 
     private OtlpGrpcMetricExporter createOTLPExporter(Supplier<MeterProvider> meterProviderSupplier) {
         String endpoint = OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.get(settings);
-        if (endpoint == null || endpoint.isEmpty()) {
-            throw new IllegalStateException(
-                OTEL_METRICS_ENABLED_SYSTEM_PROPERTY + "=true requires telemetry.export.endpoint to be configured"
-            );
-        }
         OtlpGrpcMetricExporterBuilder builder = OtlpGrpcMetricExporter.builder()
             .setEndpoint(endpoint)
             .setMeterProvider(meterProviderSupplier)
@@ -215,6 +223,14 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     public MeterProvider getMeterProvider() {
         synchronized (mutex) {
             if (resources == null) {
+                String endpoint = OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.get(settings);
+                if (endpoint == null || endpoint.isEmpty()) {
+                    logger.warn(
+                        "{}=true but [telemetry.export.endpoint] is not configured; OTel SDK metrics export is disabled",
+                        OTEL_METRICS_ENABLED_SYSTEM_PROPERTY
+                    );
+                    return MeterProvider.noop();
+                }
                 resources = createMeteringResources();
             }
             return resources.meterProvider();

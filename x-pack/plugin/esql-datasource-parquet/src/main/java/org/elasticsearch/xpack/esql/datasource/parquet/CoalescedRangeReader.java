@@ -7,16 +7,19 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -26,8 +29,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Merges adjacent byte ranges and fetches them in parallel via {@link StorageObject#readBytesAsync}.
- * After all merged ranges complete, individual sub-ranges are sliced from the coalesced buffers.
+ * Merges adjacent byte ranges and fetches them via {@link StorageObject#readBytesAsync} or
+ * {@link StorageObject#readBytes}. After all merged ranges complete, individual sub-ranges are
+ * sliced from the coalesced buffers.
  *
  * <p>This is the I/O coalescing layer for the optimized Parquet reader. It reduces the number of
  * remote requests (e.g., S3 GETs) by merging nearby byte ranges and issuing them concurrently.
@@ -37,9 +41,32 @@ final class CoalescedRangeReader {
     static final long DEFAULT_MAX_COALESCE_GAP = 1024 * 1024;
 
     /**
+     * Upper bound on how far coalescing may extend a merged range, so a densely packed wide row
+     * group does not become one very large contiguous array and request. This is a coalescing
+     * bound, not an allocation bound: a single constituent larger than this keeps its own
+     * oversized range. The 16 MiB value mirrors {@link ParquetStorageObjectAdapter#MAX_WINDOW_SIZE}
+     * as a familiar single-read ceiling, but the two constants govern unrelated paths. Using the
+     * adapter's 4 MiB {@link ParquetStorageObjectAdapter#DEFAULT_WINDOW_SIZE} here would turn a
+     * representative 152 MiB row group from roughly 10 requests into roughly 38.
+     */
+    static final long MAX_MERGED_RANGE_BYTES = 16L * 1024 * 1024;
+
+    /**
      * A byte range within a file: {@code [offset, offset + length)}.
      */
     record ByteRange(long offset, long length) implements Comparable<ByteRange> {
+        ByteRange {
+            if (offset < 0) {
+                throw new IllegalArgumentException("offset must be non-negative, got: " + offset);
+            }
+            if (length < 0) {
+                throw new IllegalArgumentException("length must be non-negative, got: " + length);
+            }
+            if (offset > Long.MAX_VALUE - length) {
+                throw new IllegalArgumentException("range end overflows a long: offset [" + offset + "], length [" + length + "]");
+            }
+        }
+
         @Override
         public int compareTo(ByteRange other) {
             return Long.compare(this.offset, other.offset);
@@ -54,12 +81,10 @@ final class CoalescedRangeReader {
 
     /**
      * Result of a coalesced read: the slices delivered to each original {@link ByteRange}, plus a
-     * {@link Releasable} that owns the underlying direct memory. The caller must close
+     * {@link Releasable} that owns the underlying buffers. The caller must close
      * {@link #release()} when the slices are no longer needed (typically at row-group rollover) so
-     * the breaker-accounted bytes are returned to the allocator eagerly instead of waiting for the
-     * JVM {@code Cleaner}. The {@code release} closes every {@link DirectReadBuffer} obtained from
-     * {@link StorageObject#readBytesAsync}, which decrements each backing {@code ArrowBuf}'s
-     * reference count and returns the memory to {@code allocator}.
+     * the breaker-accounted bytes are released eagerly instead of waiting for GC. The {@code release}
+     * closes every {@link DirectReadBuffer} allocated for the coalesced read.
      */
     record CoalescedRangeResult(Map<ByteRange, ByteBuffer> ranges, Releasable release) {}
 
@@ -70,27 +95,27 @@ final class CoalescedRangeReader {
      *
      * <p>The {@link DirectReadBuffer}s returned by each underlying read are surfaced as a single
      * composite {@link Releasable} on {@link CoalescedRangeResult#release()}; the caller owns them
-     * from that point on and must close the result to release the native memory back to
-     * {@code allocator}.
+     * from that point on and must close the result to release the breaker charge.
      *
      * @param storageObject the storage object to read from
      * @param ranges the byte ranges to fetch (need not be sorted)
      * @param maxCoalesceGap maximum gap in bytes between two ranges to merge them
-     * @param allocator allocator used by the storage object to back each merged-range buffer
+     * @param breaker circuit breaker charged for each merged-range buffer
      * @param executor executor for async dispatch
      * @param listener receives the per-range slices plus the composite {@link Releasable}
+     * @return a handle that cancels in-flight range GETs; no-op after the reads complete
      */
-    static void readCoalesced(
+    static Releasable readCoalesced(
         StorageObject storageObject,
         List<ByteRange> ranges,
         long maxCoalesceGap,
-        BufferAllocator allocator,
+        CircuitBreaker breaker,
         Executor executor,
         ActionListener<CoalescedRangeResult> listener
     ) {
         if (ranges.isEmpty()) {
             listener.onResponse(new CoalescedRangeResult(Map.of(), () -> {}));
-            return;
+            return () -> {};
         }
 
         List<MergedRange> merged = mergeRanges(ranges, maxCoalesceGap);
@@ -101,34 +126,45 @@ final class CoalescedRangeReader {
         // CoalescedRangeResult's release; on overall failure each successful buffer is closed
         // immediately so the failure path leaves no outstanding breaker reservation.
         List<Releasable> buffers = new ArrayList<>(merged.size());
+        List<Releasable> inflight = Collections.synchronizedList(new ArrayList<>(merged.size()));
         AtomicInteger remaining = new AtomicInteger(merged.size());
         AtomicReference<Exception> firstFailure = new AtomicReference<>();
 
-        // Bridge the Arrow allocator to the SPI's allocator-agnostic factory once, here at the
-        // boundary, so backends do not need to know about BufferAllocator at all.
-        DirectBufferFactory factory = DirectBufferFactory.forAllocator(allocator);
+        // Bridge the circuit breaker to the SPI's factory once, here at the boundary, so
+        // backends do not need to know about CircuitBreaker at all.
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
 
         for (MergedRange mr : merged) {
-            storageObject.readBytesAsync(mr.offset, mr.length, factory, executor, new ActionListener<>() {
+            inflight.add(storageObject.startReadBytesAsync(mr.offset, mr.length, factory, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(DirectReadBuffer result) {
-                    synchronized (results) {
-                        buffers.add(result);
-                        ByteBuffer buffer = result.buffer();
-                        for (ByteRange original : mr.constituents) {
-                            int relativeOffset = (int) (original.offset - mr.offset);
-                            ByteBuffer slice = buffer.duplicate();
-                            slice.position(relativeOffset);
-                            slice.limit(relativeOffset + (int) original.length);
-                            results.put(original, slice.slice());
+                    try {
+                        synchronized (results) {
+                            // Track the buffer before slicing so a short-read (or any slice) failure
+                            // still hands ownership to the terminal complete(), which closes it
+                            // along with its siblings.
+                            buffers.add(result);
+                            sliceConstituents(result.buffer(), mr, results);
                         }
+                    } catch (Throwable t) {
+                        // Do not rethrow. {@code result} is already in {@code buffers}, so the terminal
+                        // complete() will close it. Rethrowing would let the SPI's default readBytesAsync
+                        // catch also close {@code result}, double-releasing the buffer. Folding
+                        // every throwable (not just Exception) into firstFailure guarantees a failure is
+                        // delivered: with the finally below already calling complete(), letting an Error
+                        // through instead would deliver a spurious success with truncated slices.
+                        Exception e = t instanceof Exception ex ? ex : new ElasticsearchException(t);
+                        if (firstFailure.compareAndSet(null, e) == false) {
+                            firstFailure.get().addSuppressed(e);
+                        }
+                    } finally {
+                        complete();
                     }
-                    complete();
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    // The backend has already released its ArrowBuf on the failure path; nothing
+                    // The backend has already released its buffer on the failure path; nothing
                     // to clean up for this merged range. Siblings that succeeded are released by
                     // complete() below.
                     if (firstFailure.compareAndSet(null, e) == false) {
@@ -148,12 +184,106 @@ final class CoalescedRangeReader {
                         }
                     }
                 }
-            });
+            }));
+        }
+        return () -> Releasables.close(inflight);
+    }
+
+    /**
+     * Synchronously fetches adjacent/overlapping ranges after coalescing them, then slices the
+     * individual requested ranges from the coalesced buffers.
+     *
+     * <p>Each merged-range buffer is breaker-accounted and remains owned by the returned result.
+     * Every allocated buffer is released if allocation, I/O, or slicing fails.
+     */
+    static CoalescedRangeResult readCoalescedSync(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker
+    ) throws IOException {
+        if (ranges.isEmpty()) {
+            return new CoalescedRangeResult(Map.of(), () -> {});
+        }
+
+        List<MergedRange> merged = mergeRanges(ranges, maxCoalesceGap);
+        for (MergedRange mr : merged) {
+            if (mr.length() > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException("merged range length must fit in an int for synchronous reads, got: " + mr.length());
+            }
+        }
+
+        Map<ByteRange, ByteBuffer> results = new HashMap<>(ranges.size());
+        List<Releasable> buffers = new ArrayList<>(merged.size());
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
+        try {
+            for (MergedRange mr : merged) {
+                int length = (int) mr.length();
+                DirectReadBuffer result = factory.allocateWritableWindow(length);
+                buffers.add(result);
+                ByteBuffer buffer = result.buffer();
+                int read = 0;
+                while (read < length) {
+                    int currentRead = storageObject.readBytes(mr.offset() + read, buffer);
+                    if (currentRead < 0) {
+                        break;
+                    }
+                    if (currentRead == 0) {
+                        throw new IOException(
+                            "Read made no progress at offset ["
+                                + (mr.offset() + read)
+                                + "] with ["
+                                + buffer.remaining()
+                                + "] bytes remaining"
+                        );
+                    }
+                    read += currentRead;
+                }
+                buffer.position(0).limit(read);
+                sliceConstituents(buffer, mr, results);
+            }
+        } catch (Throwable t) {
+            try {
+                Releasables.close(buffers);
+            } catch (Throwable releaseFailure) {
+                t.addSuppressed(releaseFailure);
+            }
+            throw t;
+        }
+        return new CoalescedRangeResult(results, () -> Releasables.close(buffers));
+    }
+
+    /**
+     * Slices each constituent {@link ByteRange} out of the coalesced {@code buffer} and stores the
+     * resulting view in {@code results}. Package-private and free of I/O so the short-read boundary
+     * math is directly testable.
+     *
+     * <p>A short read delivers a buffer whose {@code remaining()} is below the merged range
+     * length. That is rejected up front with a descriptive {@link IllegalArgumentException}
+     * rather than letting {@link ByteBuffer#position}/{@link ByteBuffer#limit} throw a terse
+     * bounds error mid-loop (and rather than delivering a truncated slice). The caller folds
+     * the failure into the coalesced read.
+     */
+    static void sliceConstituents(ByteBuffer buffer, MergedRange mr, Map<ByteRange, ByteBuffer> results) {
+        int delivered = buffer.remaining();
+        if (delivered < mr.length()) {
+            throw new IllegalArgumentException(
+                "Short read: received [" + delivered + "] bytes but merged range requires [" + mr.length() + "]"
+            );
+        }
+        for (ByteRange original : mr.constituents()) {
+            int relativeOffset = (int) (original.offset() - mr.offset());
+            ByteBuffer slice = buffer.duplicate();
+            slice.position(relativeOffset);
+            slice.limit(relativeOffset + (int) original.length());
+            results.put(original, slice.slice());
         }
     }
 
     /**
-     * Sorts ranges by offset and merges adjacent/overlapping ranges whose gap is within threshold.
+     * Sorts ranges by offset and merges adjacent/overlapping ranges whose gap is within threshold
+     * without extending a multi-constituent merged range beyond {@link #MAX_MERGED_RANGE_BYTES}.
+     * Constituents are never split, so one constituent may exceed the cap.
      */
     static List<MergedRange> mergeRanges(List<ByteRange> ranges, long maxCoalesceGap) {
         if (ranges.size() == 1) {
@@ -171,8 +301,9 @@ final class CoalescedRangeReader {
 
         for (int i = 1; i < sorted.size(); i++) {
             ByteRange current = sorted.get(i);
-            if (current.offset - groupEnd <= maxCoalesceGap) {
-                groupEnd = Math.max(groupEnd, current.end());
+            long mergedEnd = Math.max(groupEnd, current.end());
+            if (current.offset - groupEnd <= maxCoalesceGap && mergedEnd - groupStart <= MAX_MERGED_RANGE_BYTES) {
+                groupEnd = mergedEnd;
                 constituents.add(current);
             } else {
                 result.add(new MergedRange(groupStart, groupEnd - groupStart, List.copyOf(constituents)));

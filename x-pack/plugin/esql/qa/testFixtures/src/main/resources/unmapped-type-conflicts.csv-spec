@@ -171,6 +171,51 @@ sample_data    | Connection error
 sample_data    | Connection error
 ;
 
+typeConflictWithUnmappedToTextAndMatchPhrase
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: fn_to_text
+required_capability: fn_match_phrase_runtime_filter
+required_capability: match_phrase_function
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL message_text = TO_TEXT(message)
+| WHERE MATCH_PHRASE(message_text, "Connection error")
+| KEEP _index, message, message_text
+;
+ignoreOrder:true
+
+_index:keyword         | message:keyword   | message_text:text
+no_mapping_sample_data | Connection error? | Connection error?
+no_mapping_sample_data | Connection error? | Connection error?
+no_mapping_sample_data | Connection error? | Connection error?
+sample_data            | Connection error  | Connection error
+sample_data            | Connection error  | Connection error
+sample_data            | Connection error  | Connection error
+;
+
+typeConflictWithUnmappedKeywordAndMatchPhrase
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: fn_match_phrase_unmapped_fields_pushdown_fix
+required_capability: match_phrase_function
+
+// match_phrase on a keyword expression requires the exact value; the value only exists in the unmapped index, so a
+// pushed-down Lucene query (which cannot see unmapped fields) would wrongly return no rows at all
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| WHERE MATCH_PHRASE(message, "Connection error?")
+| KEEP _index, message
+;
+ignoreOrder:true
+
+_index:keyword         | message:keyword
+no_mapping_sample_data | Connection error?
+no_mapping_sample_data | Connection error?
+no_mapping_sample_data | Connection error?
+;
+
 
 typeConflictWithUnmappedJustKeepWildcard
 required_capability: optional_fields_v5
@@ -555,6 +600,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
 
 noTypeConflictKeywordKeepTriggersLoad
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -575,6 +621,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
 
 noTypeConflictKeywordKeepTriggersLoadStats
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -593,6 +640,7 @@ count(*):long | first_name:keyword
 
 noTypeConflictKeywordKeepTriggersLoadStatsWithNulls
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names
@@ -612,6 +660,7 @@ c:long | first_name:keyword
 
 noTypeConflictKeywordKeepTriggersLoadInlineStats
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -632,6 +681,7 @@ emp_no:integer | last_name:keyword | _index:keyword     | c:long | first_name:ke
 
 noTypeConflictKeywordKeepTriggersLoadInlineStatsWithNulls
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -668,6 +718,7 @@ emp_no:integer | first_name:keyword | _index:keyword     | c:long | last_name:ke
 
 noTypeConflictKeepTriggersLoadInlineStatsWithFilter
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names
@@ -793,6 +844,31 @@ emp_no:integer | gender_text:text | _index:keyword
 10007          | F                | employees_no_gender
 ;
 
+typeConflictPartiallyUnmappedTextFieldToTextAndMatchPhrase
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+required_capability: fn_to_text
+required_capability: fn_match_phrase_runtime_filter
+required_capability: match_phrase_function
+
+SET unmapped_fields="load"\;
+FROM employees_gender_text, employees_no_gender METADATA _index
+| EVAL gender_text = TO_TEXT(gender)
+| WHERE MATCH_PHRASE(gender_text, "f")
+| KEEP emp_no, gender_text, _index
+| SORT emp_no, _index
+| LIMIT 6
+;
+
+emp_no:integer | gender_text:text | _index:keyword
+10002          | F                | employees_gender_text
+10002          | F                | employees_no_gender
+10006          | F                | employees_gender_text
+10006          | F                | employees_no_gender
+10007          | F                | employees_gender_text
+10007          | F                | employees_no_gender
+;
+
 // Verify that partially-mapped non-keyword fields (date, ip, long) are NOT loaded from _source when not mentioned
 // explicitly, at least until we solve https://github.com/elastic/elasticsearch/issues/141995.
 // All fields in sample_data are partially mapped (no_mapping_sample_data has no mapped fields).
@@ -900,6 +976,7 @@ Connected to 10.1.0.1  | sample_data
 noTypeConflictPartiallyUnmappedKeywordFieldLoadedWithEvalOnOtherField
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -921,6 +998,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword     | s
 noTypeConflictPartiallyUnmappedKeywordFieldLoadedWithRenameOnOtherField
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -942,6 +1020,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | pay:integer | _index:k
 noTypeConflictPartiallyUnmappedKeywordFieldLoadedWithRenameOnSameField
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -965,6 +1044,7 @@ emp_no:integer | first_name:keyword | surname:keyword | salary:integer | _index:
 noTypeConflictPartiallyUnmappedKeywordFieldLoadedWithEvalOnSameField
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -3310,6 +3390,7 @@ c:long | _index:keyword
 // All fields are keyword, so they are loaded via PotentiallyUnmappedKeywordEsField.
 deeplyNestedSubfieldPartiallyUnmappedKeyword
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM addresses, addresses_no_continent METADATA _index
@@ -3329,6 +3410,7 @@ addresses_no_continent  | Tokyo             | Japan                        | Asi
 // Cast city.country.continent.planet.name (keyword, 5-level deep, partially unmapped) to keyword.
 deeplyNestedSubfieldPartiallyUnmappedCastToKeyword
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM addresses, addresses_no_continent METADATA _index
@@ -3350,6 +3432,7 @@ addresses_no_continent  | Tokyo             | Earth
 // from addresses_no_continent. It is loaded via PotentiallyUnmappedKeywordEsField from both indices.
 deeplyNestedSubfieldUnderPartiallyUnmappedParent
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM addresses, addresses_no_continent METADATA _index

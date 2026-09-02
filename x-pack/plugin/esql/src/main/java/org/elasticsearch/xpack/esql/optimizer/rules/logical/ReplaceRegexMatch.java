@@ -35,6 +35,10 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
 
     @Override
     public Expression rule(RegexMatch<?> regexMatch, LogicalOptimizerContext ctx) {
+        return replace(regexMatch, ctx);
+    }
+
+    static Expression replace(RegexMatch<?> regexMatch, LogicalOptimizerContext ctx) {
         Expression e = regexMatch;
         StringPattern pattern = regexMatch.pattern();
         boolean matchesAll;
@@ -54,7 +58,7 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
             String match = pattern.exactMatch();
             if (match != null) {
                 Literal literal = Literal.keyword(regexMatch.source(), match);
-                e = regexToEquals(regexMatch, literal);
+                e = new Equals(regexMatch.source(), regexMatch.field(), literal);
             } else if (regexMatch instanceof WildcardLike wl
                 && wl.caseInsensitive() == false
                 && (wl.field() instanceof ChangeCase) == false) {
@@ -65,10 +69,6 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
                 }
         }
         return e;
-    }
-
-    protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
-        return new Equals(regexMatch.source(), regexMatch.field(), literal);
     }
 
     private static Expression decomposeWildcardLike(WildcardLike wl, LogicalOptimizerContext ctx) {

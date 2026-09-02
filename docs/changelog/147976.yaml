@@ -1,5 +1,0 @@
-area: CRUD
-issues: []
-pr: 147976
-summary: Minimize the amount of memory used by `CommitReferencesInfo`
-type: enhancement

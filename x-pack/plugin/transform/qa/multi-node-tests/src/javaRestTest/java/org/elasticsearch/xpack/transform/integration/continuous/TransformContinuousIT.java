@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -204,6 +204,7 @@ public class TransformContinuousIT extends TransformRestTestCase {
 
             int numDocs = randomIntBetween(1000, 20000);
             Set<String> modifiedEvents = new HashSet<>();
+            Instant maxIngestedTimestamp = runDate;
             String action = Strings.format("""
                 {"create":{"_index":"%s"}}
                 """, sourceIndexName);
@@ -244,6 +245,12 @@ public class TransformContinuousIT extends TransformRestTestCase {
 
                 String dateString = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
                     .format(runDate.plusNanos(randomIntBetween(0, 999999)));
+                Instant docTimestamp = Instant.from(
+                    ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC")).parse(dateString)
+                );
+                if (docTimestamp.isAfter(maxIngestedTimestamp)) {
+                    maxIngestedTimestamp = docTimestamp;
+                }
 
                 source.append("\"timestamp\":\"").append(dateString).append("\",");
                 // for data streams
@@ -266,7 +273,7 @@ public class TransformContinuousIT extends TransformRestTestCase {
 
             // start all transforms, wait until the processed all data and stop them
             startTransforms();
-            waitUntilTransformsProcessedNewData(ContinuousTestCase.SYNC_DELAY, run);
+            waitUntilTransformsProcessedNewData(ContinuousTestCase.SYNC_DELAY, run, maxIngestedTimestamp);
             stopTransforms();
 
             // test the output
@@ -465,11 +472,12 @@ public class TransformContinuousIT extends TransformRestTestCase {
         assertThat(pipelineIds, containsInRelativeOrder(ContinuousTestCase.INGEST_PIPELINE));
     }
 
-    private void waitUntilTransformsProcessedNewData(TimeValue delay, int iteration) throws Exception {
-        Instant waitUntil = Instant.now().plusMillis(delay.getMillis());
+    private void waitUntilTransformsProcessedNewData(TimeValue delay, int iteration, Instant maxIngestedTimestamp) throws Exception {
+        Instant waitUntil = maxIngestedTimestamp.plusMillis(delay.getMillis());
         logger.info(
-            "wait until transform reaches timestamp_millis: {} (takes into account the delay: {}) iteration: {}",
+            "wait until transform reaches max ingested timestamp plus delay: {} (max ingested: {}, delay: {}) iteration: {}",
             ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC")).format(waitUntil),
+            ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC")).format(maxIngestedTimestamp),
             delay,
             iteration
         );
@@ -483,16 +491,18 @@ public class TransformContinuousIT extends TransformRestTestCase {
                     assertThat(
                         Strings.format(
                             "Timeout [%ds] waiting for transform [%s] to finish next checkpoint, "
-                                + "iteration [%d], state [%s], reason in case of failure [%s], last search time [%d]",
+                                + "iteration [%d], state [%s], reason in case of failure [%s], last search time [%d], "
+                                + "wait until max ingested plus delay [%s]",
                             MAX_WAIT_TIME_ONE_ITERATION_SECONDS,
                             testCase.getName(),
                             iteration,
                             stats.get("state"),
                             stats.get("reason"),
-                            lastSearchTime
+                            lastSearchTime,
+                            ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC")).format(waitUntil)
                         ),
                         Instant.ofEpochMilli(lastSearchTime),
-                        is(greaterThan(waitUntil))
+                        is(greaterThanOrEqualTo(waitUntil))
                     );
                     // assert a checkpoint isn't in progress
                     Object state = XContentMapValues.extractValue("state", stats);

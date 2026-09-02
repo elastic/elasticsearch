@@ -978,9 +978,9 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         meter.getRecorder().collect();
 
         final List<Measurement> limits = meter.getRecorder()
-            .getMeasurements(InstrumentType.LONG_GAUGE, CircuitBreakerMetrics.ES_BREAKER_MEMORY_LIMIT);
+            .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, CircuitBreakerMetrics.ES_BREAKER_MEMORY_LIMIT);
         final List<Measurement> estimates = meter.getRecorder()
-            .getMeasurements(InstrumentType.LONG_GAUGE, CircuitBreakerMetrics.ES_BREAKER_MEMORY_ESTIMATED);
+            .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, CircuitBreakerMetrics.ES_BREAKER_MEMORY_ESTIMATED);
 
         final Set<String> expectedTypes = Set.of(
             CircuitBreaker.PARENT,

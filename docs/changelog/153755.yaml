@@ -1,6 +1,0 @@
-area: Machine Learning
-issues:
-  - 147686
-pr: 153755
-summary: Extend AD results template for reindexed indices and generalize heal beyond job_id mapping
-type: bug

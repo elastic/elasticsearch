@@ -25,8 +25,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class RetryPolicyTests extends ESTestCase {
 
@@ -356,16 +358,17 @@ public class RetryPolicyTests extends ESTestCase {
     }
 
     public void testDecideDoesNotRampAdaptiveBackoffWhenGivingUp() {
-        // The onThrottled() feed sits AFTER the give-up + time-budget checks in decide(), so abandoning a
-        // throttle must not ramp the cross-request multiplier. Pins that ordering.
+        // The onThrottled() feed sits AFTER the give-up checks in decide(), so abandoning a throttle
+        // must not ramp the cross-request multiplier. Pins that ordering.
         AtomicLong clock = new AtomicLong(0);
         AdaptiveBackoff backoff = new AdaptiveBackoff(AdaptiveBackoff.MAX_MULTIPLIER, clock::get);
         RetryPolicy policy = RetryPolicy.DEFAULT.withAdaptiveBackoff(backoff);
         ExternalUnavailableException throttle = new ExternalUnavailableException(true, (Throwable) null, "throttled (HTTP 503)");
 
-        // Budget exhausted (attempt == throttleMaxRetries) -> GIVE_UP, and the backoff must stay at baseline.
+        // Sanity cap reached (attempt == throttleMaxRetries / THROTTLE_RETRIES_SANITY_CAP) -> GIVE_UP,
+        // and the backoff must stay at baseline.
         RetryPolicy.RetryDecision giveUp = policy.decide(throttle, policy.throttleMaxRetries(), System.nanoTime());
-        assertFalse("an exhausted-budget throttle must give up", giveUp.retry());
+        assertFalse("sanity-cap throttle must give up", giveUp.retry());
         assertEquals("giving up must not ramp the adaptive backoff", 1, backoff.currentMultiplier());
 
         // Positive control: a within-budget throttle commits to a retry and DOES ramp the backoff.
@@ -376,7 +379,7 @@ public class RetryPolicyTests extends ESTestCase {
 
     public void testThrottleMaxRetriesAccessor() {
         RetryPolicy policy = RetryPolicy.DEFAULT;
-        assertEquals(RetryPolicy.DEFAULT_THROTTLE_MAX_RETRIES, policy.throttleMaxRetries());
+        assertEquals(RetryPolicy.THROTTLE_RETRIES_SANITY_CAP, policy.throttleMaxRetries());
     }
 
     public void testWithThrottleConfig() {
@@ -491,5 +494,187 @@ public class RetryPolicyTests extends ESTestCase {
 
         assertEquals("ok", result);
         assertEquals(3, calls.get());
+    }
+
+    // --- Budget-governed throttle arm tests ---
+
+    public void testThrottleRetriesAreNotTruncatedByTheDurationBudget() {
+        // Acceptance test: esql-planning#1658.
+        // Production config: RetryPolicy.DEFAULT + 30s budget (what StorageProviderRegistry.buildRetryPolicy
+        // produces from esql.external.throttle_max_retry_duration). A fast injected clock lets the test run
+        // without real sleeps. The loop advances the clock by each decision's delay and counts retries until
+        // GIVE_UP; the budget must be genuinely spent, not truncated by an attempt-count limit.
+        AtomicLong clockNanos = new AtomicLong(0L);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(30_000).withClock(clockNanos::get);
+        long startNanos = 0L;
+        ExternalUnavailableException throttle = new ExternalUnavailableException(true, "throttled");
+        int retries = 0;
+        RetryPolicy.RetryDecision decision;
+        do {
+            decision = policy.decide(throttle, retries, startNanos);
+            if (decision.retry()) {
+                clockNanos.addAndGet(decision.delayMillis() * 1_000_000L);
+                retries++;
+            }
+        } while (decision.retry());
+
+        long elapsedMs = clockNanos.get() / 1_000_000L;
+        // Must exceed the old attempt-count limit of 5 — budget, not attempt count, is the governing bound.
+        assertThat("retries should be budget-governed, not attempt-count-limited", retries, greaterThan(5));
+        // Must not overshoot the budget.
+        assertThat("clock must not exceed the budget", elapsedMs, lessThanOrEqualTo(30_000L));
+        // Budget must be nearly spent (within one initial delay of exhaustion).
+        assertThat(
+            "budget must be nearly spent before giving up",
+            elapsedMs,
+            greaterThan(30_000L - RetryPolicy.DEFAULT_THROTTLE_INITIAL_DELAY_MS)
+        );
+    }
+
+    public void testRetryAfterHintIsUsedAsDelay() {
+        // When the exception carries a Retry-After hint, that hint must be used as the delay.
+        AtomicLong clockNanos = new AtomicLong(0L);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(30_000).withClock(clockNanos::get);
+        long hint = 5_000L;
+        ExternalUnavailableException throttle = new ExternalUnavailableException(true, hint, "throttled with hint");
+
+        RetryPolicy.RetryDecision decision = policy.decide(throttle, 0, 0L);
+
+        assertTrue("must retry within budget", decision.retry());
+        assertEquals("delay must equal the server hint", hint, decision.delayMillis());
+    }
+
+    public void testRetryAfterHintExceedingBudgetGivesUp() {
+        // When the (capped) hint exceeds the remaining budget, retrying before the stated wait is spam;
+        // the policy must give up immediately rather than use a shorter delay.
+        // Use a hint of 20s against a 10s budget (hint stays under throttleMaxDelayMs=30s so it is not capped).
+        AtomicLong clockNanos = new AtomicLong(0L);
+        long budget = 10_000L;
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(budget).withClock(clockNanos::get);
+        long hint = 20_000L;
+        ExternalUnavailableException throttle = new ExternalUnavailableException(true, hint, "throttled with large hint");
+
+        RetryPolicy.RetryDecision decision = policy.decide(throttle, 0, 0L);
+
+        assertFalse("hint exceeds budget — must give up", decision.retry());
+    }
+
+    public void testRetryAfterHintCappedAtMaxThrottleDelay() {
+        // A pathological server returning Retry-After: 86400 (one day) must not cause an unbounded sleep;
+        // the hint is capped at throttleMaxDelayMs.
+        AtomicLong clockNanos = new AtomicLong(0L);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withClock(clockNanos::get);
+        long hint = 86_400_000L;
+        ExternalUnavailableException throttle = new ExternalUnavailableException(true, hint, "throttled with huge hint");
+
+        RetryPolicy.RetryDecision decision = policy.decide(throttle, 0, 0L);
+
+        assertTrue("must retry", decision.retry());
+        assertThat(
+            "delay must be capped at throttleMaxDelayMs",
+            decision.delayMillis(),
+            lessThanOrEqualTo(RetryPolicy.DEFAULT_THROTTLE_MAX_DELAY_MS)
+        );
+    }
+
+    public void testRetryAfterHintFromWrappedException() {
+        // isThrottlingError() walks the cause chain; retryAfterMs must too — a hint on a wrapped
+        // ExternalUnavailableException must not be silently discarded.
+        AtomicLong clockNanos = new AtomicLong(0L);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(30_000).withClock(clockNanos::get);
+        long hint = 5_000L;
+        ExternalUnavailableException inner = new ExternalUnavailableException(true, hint, "throttled");
+        RuntimeException wrapper = new RuntimeException("outer wrapper", inner);
+
+        RetryPolicy.RetryDecision decision = policy.decide(wrapper, 0, 0L);
+
+        assertTrue("wrapped throttle must retry", decision.retry());
+        assertEquals("hint must be extracted from cause chain", hint, decision.delayMillis());
+    }
+
+    public void testComputedThrottleDelayTruncatesToRemainingBudget() {
+        // When the computed backoff exceeds the remaining budget, the delay is truncated (not refused),
+        // so the last retry sleeps out the remaining budget rather than giving up with time left.
+        long budget = 30_000L;
+        long elapsed = 29_000L;  // 1s remaining
+        AtomicLong clockNanos = new AtomicLong(elapsed * 1_000_000L);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(budget).withClock(clockNanos::get);
+        ExternalUnavailableException throttle = new ExternalUnavailableException(true, "throttled");
+
+        // At attempt 5, the computed delay would be ~16s — far beyond the 1s remaining.
+        RetryPolicy.RetryDecision decision = policy.decide(throttle, 5, 0L);
+
+        assertTrue("should still retry with truncated delay", decision.retry());
+        assertThat("delay must be capped at remaining budget", decision.delayMillis(), lessThanOrEqualTo(budget - elapsed));
+    }
+
+    public void testAdaptiveMultiplierAt16xStillYieldsFullBudget() {
+        // Before the fix, a 16x adaptive multiplier caused the budget check to refuse retry 3 of 5 because
+        // the inflated delay exceeded the remaining budget. With truncation, the multiplier changes pacing
+        // within the budget but cannot convert pressure into early give-up.
+        AtomicLong clockNanos = new AtomicLong(0L);
+        AdaptiveBackoff backoff = new AdaptiveBackoff(AdaptiveBackoff.MAX_MULTIPLIER, () -> 0L);
+        // Ramp to the 16x cap.
+        for (int i = 0; i < 8; i++) {
+            backoff.onThrottled();
+        }
+        assertEquals("backoff must be at the cap for this test", AdaptiveBackoff.MAX_MULTIPLIER, backoff.currentMultiplier());
+
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(30_000).withAdaptiveBackoff(backoff).withClock(clockNanos::get);
+        ExternalUnavailableException throttle = new ExternalUnavailableException(true, "throttled");
+        int retries = 0;
+        RetryPolicy.RetryDecision decision;
+        do {
+            decision = policy.decide(throttle, retries, 0L);
+            if (decision.retry()) {
+                clockNanos.addAndGet(decision.delayMillis() * 1_000_000L);
+                retries++;
+            }
+        } while (decision.retry());
+
+        // At 16x the first computed delay is 8000ms (500ms * 16); jitter can make the first two delays consume
+        // most of the 30s budget, so the retry count is not deterministic. The invariant is that the budget is
+        // genuinely exhausted: remaining < throttleInitialDelayMs triggers give-up, so elapsed >= 29_500ms.
+        // Before the fix, the clock stopped at ~24_000ms because the inflated delay was refused rather than truncated.
+        assertThat(
+            "16x multiplier must not cause early give-up (pre-fix clock stopped at ~24000ms)",
+            clockNanos.get() / 1_000_000L,
+            greaterThan(29_000L)
+        );
+        assertThat("clock must not exceed budget", clockNanos.get() / 1_000_000L, lessThanOrEqualTo(30_000L));
+    }
+
+    public void testRetryAfterHintZeroFallsBackToComputedDelay() {
+        // retryAfterMs == 0 means absent — must use the computed exponential backoff.
+        AtomicLong clockNanos = new AtomicLong(0L);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(30_000).withClock(clockNanos::get);
+        ExternalUnavailableException noHint = new ExternalUnavailableException(true, 0L, "throttled no hint");
+
+        RetryPolicy.RetryDecision decision = policy.decide(noHint, 0, 0L);
+
+        assertTrue("must retry", decision.retry());
+        // Computed delay for attempt 0 is 500ms + jitter; it must be at least the initial delay.
+        assertThat(
+            "delay must be at least the initial delay",
+            decision.delayMillis(),
+            greaterThan(RetryPolicy.DEFAULT_THROTTLE_INITIAL_DELAY_MS / 2)
+        );
+    }
+
+    public void testParseRetryAfterMs() {
+        assertEquals(5_000L, ExternalUnavailableException.parseRetryAfterMs("5"));
+        assertEquals(60_000L, ExternalUnavailableException.parseRetryAfterMs("60"));
+        assertEquals(0L, ExternalUnavailableException.parseRetryAfterMs(null));
+        assertEquals(0L, ExternalUnavailableException.parseRetryAfterMs(""));
+        assertEquals(0L, ExternalUnavailableException.parseRetryAfterMs("  "));
+        assertEquals(0L, ExternalUnavailableException.parseRetryAfterMs("abc"));
+        assertEquals(0L, ExternalUnavailableException.parseRetryAfterMs("0"));
+        assertEquals(0L, ExternalUnavailableException.parseRetryAfterMs("-1"));
+        assertEquals(1_000L, ExternalUnavailableException.parseRetryAfterMs(" 1 "));
+        // Values above 86400s (1 day) are capped to prevent overflow on multiplication.
+        assertEquals(86_400_000L, ExternalUnavailableException.parseRetryAfterMs("99999999999999999"));
+        assertEquals(86_400_000L, ExternalUnavailableException.parseRetryAfterMs("86401"));
+        assertEquals(86_400_000L, ExternalUnavailableException.parseRetryAfterMs("86400"));
+        assertEquals(86_399_000L, ExternalUnavailableException.parseRetryAfterMs("86399"));
     }
 }

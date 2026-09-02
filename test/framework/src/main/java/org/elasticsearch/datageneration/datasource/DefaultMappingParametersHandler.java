@@ -14,6 +14,7 @@ import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -22,7 +23,9 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -343,14 +346,18 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             return ESTestCase.randomBoolean();
         }
 
-        // doc_values can't be disabled here; multi_value:false is exercised separately by SingleValueDocValuesDataSourceHandler.
-        return switch (ESTestCase.randomInt(3)) {
-            case 0 -> true;
-            case 1 -> Map.of("multi_value", true);
-            case 2 -> Map.of("on_failure", ESTestCase.randomFrom("fail", "ignore"));
-            case 3 -> Map.of("multi_value", true, "on_failure", ESTestCase.randomFrom("fail", "ignore"));
-            default -> throw new IllegalStateException();
-        };
+        // doc_values can't be disabled here; multi_value:false is in SingleValueDocValuesDataSourceHandler.
+        // on_failure=ignore is rejected when the flag is off, so all on_failure=ignore entries are flag-gated.
+        var choices = new ArrayList<Object>(List.of(true, Map.of("multi_value", true)));
+        if (FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled()) {
+            choices.add(Map.of("on_failure", ESTestCase.randomFrom("fail", "ignore")));
+            choices.add(Map.of("multi_value", true, "on_failure", ESTestCase.randomFrom("fail", "ignore")));
+            choices.add(Map.of("nullability", false, "on_failure", "ignore"));
+        } else {
+            choices.add(Map.of("on_failure", "fail"));
+            choices.add(Map.of("multi_value", true, "on_failure", "fail"));
+        }
+        return ESTestCase.randomFrom(choices);
     }
 
     @Override

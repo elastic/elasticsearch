@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.Model;
@@ -20,12 +21,15 @@ import java.util.Objects;
 
 /**
  * This class encapsulates the unified request.
- * The main difference between this class and {@link ChatCompletionInput} is this should only be used for
+ * The main difference between this class and {@link CompletionInput} is this should only be used for
  * {@link org.elasticsearch.inference.TaskType#COMPLETION} originating through the
  * {@link org.elasticsearch.inference.InferenceService#unifiedCompletionInfer(Model, UnifiedCompletionRequest, TimeValue, ActionListener)}
  * code path. These are requests sent to the API with the <code>_stream</code> route and {@link TaskType#CHAT_COMPLETION}.
  */
 public class UnifiedChatInput extends InferenceInputs {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UnifiedChatInput.class);
+
     private final UnifiedCompletionRequest request;
 
     public UnifiedChatInput(UnifiedCompletionRequest request, boolean stream) {
@@ -33,7 +37,7 @@ public class UnifiedChatInput extends InferenceInputs {
         this.request = Objects.requireNonNull(request);
     }
 
-    public UnifiedChatInput(ChatCompletionInput completionInput, String roleValue) {
+    public UnifiedChatInput(CompletionInput completionInput, String roleValue) {
         this(completionInput.getInputs(), roleValue, completionInput.stream());
     }
 
@@ -51,5 +55,10 @@ public class UnifiedChatInput extends InferenceInputs {
 
     public boolean isSingleInput() {
         return request.messages().size() == 1;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + request.ramBytesUsed();
     }
 }

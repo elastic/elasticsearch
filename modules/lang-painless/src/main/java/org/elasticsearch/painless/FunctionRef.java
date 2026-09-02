@@ -95,6 +95,8 @@ public class FunctionRef {
             MethodType delegateMethodType;
             Object[] delegateInjections;
             boolean isScriptAware = false;
+            // resolved @allocates estimator for the delegate (metadata); the compiler clears it when not charging
+            java.lang.reflect.Method allocationEstimator = null;
 
             Class<?> delegateMethodReturnType;
             List<Class<?>> delegateMethodParameters;
@@ -160,6 +162,7 @@ public class FunctionRef {
                 delegateMethodName = PainlessLookupUtility.CONSTRUCTOR_NAME;
                 delegateMethodType = painlessConstructor.methodType();
                 delegateInjections = new Object[0];
+                allocationEstimator = painlessConstructor.allocationEstimator();
 
                 delegateMethodReturnType = painlessConstructor.javaConstructor().getDeclaringClass();
                 delegateMethodParameters = painlessConstructor.typeParameters();
@@ -222,6 +225,7 @@ public class FunctionRef {
 
                 delegateMethodName = painlessMethod.javaMethod().getName();
                 delegateMethodType = painlessMethod.methodType();
+                allocationEstimator = painlessMethod.allocationEstimator();
 
                 // @script_aware augmentations carry a leading PainlessScript parameter in methodType
                 // (and the underlying Java method) so the body can use the script instance. Strip it
@@ -298,7 +302,9 @@ public class FunctionRef {
                 delegateInjections,
                 factoryMethodType,
                 needsScriptInstance ? WriterConstants.CLASS_TYPE : null,
-                isScriptAware
+                isScriptAware,
+                allocationEstimator,
+                false
             );
         } catch (IllegalArgumentException iae) {
             if (location != null) {
@@ -333,6 +339,17 @@ public class FunctionRef {
     public final Type factoryMethodReceiver;
     /** whether the delegate is a {@code @script_aware} augmentation (script captured as a leading factory parameter) */
     public final boolean isScriptAware;
+    /**
+     * the resolved {@code @allocates} estimator for the delegate target, or {@code null}. Not the charge signal (that is
+     * {@link #chargesAllocation}); a non-charging reference may carry an unread estimator. Supplies the estimator emitted into
+     * the charge call site when charging.
+     */
+    public final java.lang.reflect.Method allocationEstimator;
+    /**
+     * Whether this reference is charged per invocation. Set by {@link #withAllocationCharge}. The typed-path counterpart of
+     * {@code Def.Encoding#chargesAllocation}, so neither path infers the charge from {@link #allocationEstimator} being set.
+     */
+    public final boolean chargesAllocation;
 
     private FunctionRef(
         String interfaceMethodName,
@@ -346,7 +363,9 @@ public class FunctionRef {
         Object[] delegateInjections,
         MethodType factoryMethodType,
         Type factoryMethodReceiver,
-        boolean isScriptAware
+        boolean isScriptAware,
+        java.lang.reflect.Method allocationEstimator,
+        boolean chargesAllocation
     ) {
 
         this.interfaceMethodName = interfaceMethodName;
@@ -361,6 +380,8 @@ public class FunctionRef {
         this.factoryMethodType = factoryMethodType;
         this.factoryMethodReceiver = factoryMethodReceiver;
         this.isScriptAware = isScriptAware;
+        this.allocationEstimator = allocationEstimator;
+        this.chargesAllocation = chargesAllocation;
     }
 
     /** Get the factory method type, with updated receiver if {@code factoryMethodReceiver} is set */
@@ -374,11 +395,10 @@ public class FunctionRef {
     }
 
     /**
-     * Returns a new {@link FunctionRef} with a synthetic script-instance capture prepended
-     * to the factory method type.  Used by the compiler to augment typed static lambdas in
-     * cancellation-aware scripts so that {@code LambdaBootstrap} captures the script
-     * receiver, giving the lambda body access to both the script's persistent
-     * {@code $cancelPoll} counter and its {@code _getCancellationCheck()} runnable.
+     * Returns a new {@link FunctionRef} with a synthetic script-instance capture prepended to the factory method type, so
+     * {@code LambdaBootstrap} captures the script receiver. Used to give typed static lambdas access to the script — for
+     * cancellation (the persistent {@code $cancelPoll} counter and {@code _getCancellationCheck()} runnable) and, when the
+     * delegate is an annotated {@code @allocates} target, for the per-invocation allocation charge.
      */
     public FunctionRef withSyntheticScriptCapture(Class<?> scriptClass) {
         return new FunctionRef(
@@ -393,7 +413,32 @@ public class FunctionRef {
             delegateInjections,
             factoryMethodType.insertParameterTypes(0, scriptClass),
             factoryMethodReceiver,
-            isScriptAware
+            isScriptAware,
+            allocationEstimator,
+            chargesAllocation
+        );
+    }
+
+    /**
+     * Returns a copy that charges this reference per invocation: prepends the script as a leading factory capture and sets
+     * {@link #chargesAllocation}. The charging bootstrap drops the script capture before the delegate runs.
+     */
+    public FunctionRef withAllocationCharge(Class<?> scriptClass) {
+        return new FunctionRef(
+            interfaceMethodName,
+            interfaceMethodType,
+            delegateClassName,
+            isDelegateInterface,
+            isDelegateAugmented,
+            delegateInvokeType,
+            delegateMethodName,
+            delegateMethodType,
+            delegateInjections,
+            factoryMethodType.insertParameterTypes(0, scriptClass),
+            factoryMethodReceiver,
+            isScriptAware,
+            allocationEstimator,
+            true
         );
     }
 

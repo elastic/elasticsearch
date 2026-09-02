@@ -143,7 +143,8 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
 
     public void testRelocatingNodeIdIsSet() {
         IndexShard indexShard = mock(IndexShard.class);
-        ShardRouting shardRouting = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1).relocate("relocating_node_id", 1);
+        ShardRouting shardRouting = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1)
+            .relocate("relocating_node_id", 1, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
         when(indexShard.routingEntry()).thenReturn(shardRouting);
         when(indexShard.shardId()).thenReturn(shardId);
 
@@ -479,7 +480,8 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
             false,
             RecoverySource.PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-            ShardRouting.Role.SEARCH_ONLY
+            ShardRouting.Role.SEARCH_ONLY,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         ).initialize(nodeId, null, randomNonNegativeLong());
     }
 

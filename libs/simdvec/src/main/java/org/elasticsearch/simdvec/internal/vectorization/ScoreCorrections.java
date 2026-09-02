@@ -10,15 +10,12 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.lang.foreign.MemorySegment;
 
 public class ScoreCorrections {
-    static final VectorSimilarityFunctions SIMILARITY_FUNCTIONS = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow(AssertionError::new);
+    static final SimdVecLibrary SIMILARITY_FUNCTIONS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
     public static float nativeApplyCorrectionsBulk(
         VectorSimilarityFunction similarityFunction,

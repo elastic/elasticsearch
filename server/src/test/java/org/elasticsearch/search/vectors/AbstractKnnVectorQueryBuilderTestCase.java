@@ -219,6 +219,9 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 assertFalse(query instanceof RescoreKnnVectorQuery);
             }
         }
+        if (query instanceof PostFilterKnnQuery postFilterKnnQuery) {
+            query = postFilterKnnQuery.innerQuery();
+        }
         switch (elementType()) {
             case FLOAT -> assertThat(
                 query,

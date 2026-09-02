@@ -10,8 +10,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -20,6 +25,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.VersionDocValuesField;
+import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.util.Collections;
 
@@ -107,5 +113,28 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    private static final IndexableFieldType VERSION_COLUMN_FIELD_TYPE = buildVersionColumnFieldType();
+
+    private static IndexableFieldType buildVersionColumnFieldType() {
+        FieldType ft = new FieldType();
+        ft.setDocValuesType(DocValuesType.NUMERIC);
+        ft.freeze();
+        return ft;
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        return true;
+    }
+
+    @Override
+    public void preColumnarParse(BatchMappingContext context) {
+        // TODO: Look at moving this and the above to postColumnarParse
+        // Engine-assigned: register an array-backed column over the context's mutable version
+        // array; the engine fills the real per-document value (see InternalEngine) after mapping,
+        // just before requesting the ColumnBatch.
+        context.addColumn(MappedColumns.longColumn(context.versions(), NAME, VERSION_COLUMN_FIELD_TYPE, LongColumn.NumericKind.LONG));
     }
 }

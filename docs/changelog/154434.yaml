@@ -1,0 +1,6 @@
+area: Inference
+issues: []
+pr: 154434
+summary: "[Inference API] Add optional custom URL support to Anthropic chat completion
+  service"
+type: enhancement

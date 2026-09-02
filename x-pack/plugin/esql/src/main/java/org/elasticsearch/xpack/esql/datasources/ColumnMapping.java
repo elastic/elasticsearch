@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -357,8 +358,8 @@ public final class ColumnMapping implements Writeable {
      *       both layers share, which is a wider change than the drop itself.</li>
      * </ul>
      * Reachable only when cross-file unification actually widens a column (a multi-file glob whose files drift), so
-     * it does not affect the single-declared-type reads {@code skip_row} is normally used with. Tracked separately;
-     * until then this is the documented behaviour rather than an oversight.
+     * it does not affect the single-declared-type reads {@code skip_row} is normally used with. Tracked as
+     * elastic/esql-planning#1824; until then this is the documented behaviour rather than an oversight.
      */
     Page mapPage(
         Page filePage,
@@ -388,6 +389,9 @@ public final class ColumnMapping implements Writeable {
                 }
             }
             return new Page(positions, blocks);
+        } catch (ElasticsearchException e) {
+            Releasables.closeExpectNoException(blocks);
+            throw e;
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
             throw new RuntimeException("Failed to map page", e);

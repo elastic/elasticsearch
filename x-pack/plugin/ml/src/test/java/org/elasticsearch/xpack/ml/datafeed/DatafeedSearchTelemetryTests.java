@@ -79,7 +79,7 @@ public class DatafeedSearchTelemetryTests extends ESTestCase {
                 DatafeedSearchTelemetry.RESULTS_BUCKET_ATTRIBUTE,
                 "1000",
                 DatafeedSearchTelemetry.PAGE_SIZE_BUCKET_ATTRIBUTE,
-                "eq_1000"
+                "1000"
             )
         );
     }
@@ -148,7 +148,7 @@ public class DatafeedSearchTelemetryTests extends ESTestCase {
                 DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE,
                 ExtractorType.COMPOSITE.attributeValue(),
                 DatafeedSearchTelemetry.PAGE_SIZE_BUCKET_ATTRIBUTE,
-                "eq_1000"
+                "1000"
             )
         );
     }

@@ -56,9 +56,9 @@ public final class DatafeedSearchTelemetry {
 
     public enum PageSizeBucket {
         LT_1000("lt_1000"),
-        EQ_1000("eq_1000"),
+        EQ_1000("1000"),
         GT_1000_LT_10000("1001_9999"),
-        EQ_10000("eq_10000"),
+        EQ_10000("10000"),
         GT_10000_LE_1000000("10001_1000000"),
         GT_1000000("gt_1000000");
 

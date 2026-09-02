@@ -32,7 +32,9 @@ import org.elasticsearch.xpack.esql.datasources.fixtures.DeclaredSchemas;
 import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions;
 import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureExclusions;
 import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
+import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -1143,6 +1145,40 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     protected Map<String, String> vectorSettings() {
         return Map.of();
+    }
+
+    /**
+     * Applies the cluster settings the running vector pins, and puts them back when the case ends.
+     *
+     * <p>A cluster setting is not a per-request knob. It is cluster-wide state that outlives the case that
+     * set it, and these suites share one cluster, so leaving it set makes the NEXT vector run a
+     * configuration it never announced. Restoring in an {@code @After} rather than at the end of the test
+     * body is what makes that hold when a case fails: without it, one failure silently reconfigures every
+     * case behind it, and the run stops meaning what its case names say.
+     *
+     * <p>A vector at its default issues no update at all, so a suite that varies nothing pays nothing and
+     * behaves exactly as it did before this seam existed.
+     */
+    @Before
+    public void applyVectorClusterSettings() throws IOException {
+        Settings.Builder builder = Settings.builder();
+        vectorClusterSettings().forEach(builder::put);
+        if (vectorClusterSettings().isEmpty() == false) {
+            updateClusterSettings(builder.build());
+        }
+    }
+
+    @After
+    public void restoreVectorClusterSettings() throws IOException {
+        Settings.Builder builder = Settings.builder();
+        vectorClusterSettings().keySet().forEach(builder::putNull);
+        if (vectorClusterSettings().isEmpty() == false) {
+            updateClusterSettings(builder.build());
+        }
+    }
+
+    private Map<String, String> vectorClusterSettings() {
+        return FixtureDimensions.get().clusterSettings(vector(), FixtureMatrix.baseFormat(format));
     }
 
     @Override

@@ -985,9 +985,10 @@ public class FileSplitProvider implements SplitProvider {
         // PRE-overlay inferred file types (physical-keyed), or null when no declared overlay ran. The stats-type
         // authority for normalizing footer range stats, not the overlaid readSchema types.
         @Nullable Map<String, DataType> inferredFileTypes,
-        // File-level statistics harvested when this query's schema resolution parsed the file's footer, or null
-        // when resolution served the schema from cache or never saw the file. A harvest whose readableUnitCount
-        // is 1 lets tryRangeAwareSplits emit a whole-file split without opening the footer again.
+        // File-level statistics: a live harvest from this query's schema resolution, or the same
+        // harvest reconstructed from the schema cache's flat _stats.* map. Null when this file was
+        // never harvested (no cache entry). A harvest whose readableUnitCount is 1 lets
+        // tryRangeAwareSplits emit a whole-file split without opening the footer again.
         @Nullable SourceStatistics statistics
     ) {}
 

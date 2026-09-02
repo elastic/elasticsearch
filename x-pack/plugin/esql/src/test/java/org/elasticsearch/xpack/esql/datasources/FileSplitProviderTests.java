@@ -3582,6 +3582,46 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("footer must not be re-fetched for a single-unit harvest", 0, discoverCalls.get());
     }
 
+    public void testRangeAwareSingleUnitCacheReconstructedHarvestSkipsDiscovery() {
+        AtomicInteger discoverCalls = new AtomicInteger();
+        RangeAwareFormatReader mockReader = createMockRangeReader(
+            List.of(new SplitRange(100, 400, Map.of("_stats.row_count", 999L))),
+            discoverCalls
+        );
+        FileSplitProvider splitter = splitterFor(mockReader);
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/wide.parquet"), 80L * 1024 * 1024, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+        // Schema-cache hits store the harvest as flat _stats.* keys, not a live SourceStatistics.
+        // Reconstruction from that map must still skip the second footer open.
+        Map<String, Object> cached = new HashMap<>();
+        cached.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1234L);
+        cached.put(SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT, 1L);
+        SourceStatistics reconstructed = SourceStatisticsSerializer.extractStatistics(cached).orElseThrow();
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, reconstructed)
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            new ExternalSchema(List.of(refAttr("id")))
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+
+        assertEquals(1, splits.size());
+        FileSplit fs = (FileSplit) splits.get(0);
+        assertEquals(0, fs.offset());
+        assertEquals(80L * 1024 * 1024, fs.length());
+        assertEquals(1234L, fs.statistics().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertNull(fs.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
+        assertEquals(0, discoverCalls.get());
+    }
+
     public void testRangeAwareTwoUnitHarvestUsesRangeDiscovery() {
         AtomicInteger discoverCalls = new AtomicInteger();
         RangeAwareFormatReader mockReader = createMockRangeReader(

@@ -2837,10 +2837,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
     // ===== Resolver + Cache integration =====
 
     /**
-     * Cold cacheable multi-file resolves must expose the just-harvested footer statistics on the
-     * returned metadata. {@code cachedResolveSingleSourceAsync} wraps the resolved metadata in a
-     * cache-shaped view that must forward {@code statistics()} on a cold resolve. Warm serves must
-     * stay null because the cached flat stats may include values reconciled from a later scan.
+     * Cacheable multi-file resolves must expose per-file footer statistics on {@code FileSchemaInfo}
+     * for both the cold harvest and a warm schema-cache hit. The warm path reconstructs the typed
+     * view from the cached flat {@code _stats.*} map so split discovery can still skip a second
+     * footer open when {@code readableUnitCount} is 1.
      */
     public void testCacheableColdResolveCarriesHarvestedStatistics() throws Exception {
         List<Attribute> schema = List.of(attr("id", DataType.LONG));
@@ -2858,30 +2858,35 @@ public class ExternalSourceResolverTests extends ESTestCase {
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
         String glob = "s3://bucket/data/*.parquet";
-        Map<String, Map<String, Object>> pathConfigs = Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.STRICT)));
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
             ExternalSourceResolver resolver = createResolverWithReader(
                 provider,
                 new StubFormatReaderWithStats(schemasByPath, rowCountsByPath),
                 cacheService
             );
+            for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
+                Map<String, Map<String, Object>> pathConfigs = Map.of(glob, new HashMap<>(configFor(strategy)));
+                PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
+                resolver.resolve(List.of(glob), pathConfigs, f1);
+                ExternalSourceResolution.ResolvedSource cold = f1.actionGet().resolvedSource(glob);
+                assertEquals("[" + strategy + "]", 2, cold.schemaMap().size());
+                for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : cold.schemaMap().entrySet()) {
+                    SourceStatistics stats = e.getValue().statistics();
+                    assertNotNull("[" + strategy + "] cold resolve must carry harvested statistics for " + e.getKey(), stats);
+                    assertEquals(rowCountsByPath.get(e.getKey().toString()).longValue(), stats.rowCount().getAsLong());
+                    assertEquals(1L, stats.readableUnitCount().orElse(-1));
+                }
 
-            PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
-            resolver.resolve(List.of(glob), pathConfigs, f1);
-            ExternalSourceResolution.ResolvedSource cold = f1.actionGet().resolvedSource(glob);
-            assertEquals(2, cold.schemaMap().size());
-            for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : cold.schemaMap().entrySet()) {
-                SourceStatistics stats = e.getValue().statistics();
-                assertNotNull("cold resolve must carry harvested statistics for " + e.getKey(), stats);
-                assertEquals(rowCountsByPath.get(e.getKey().toString()).longValue(), stats.rowCount().getAsLong());
-            }
-
-            PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
-            resolver.resolve(List.of(glob), pathConfigs, f2);
-            ExternalSourceResolution.ResolvedSource warm = f2.actionGet().resolvedSource(glob);
-            assertEquals(2, warm.schemaMap().size());
-            for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : warm.schemaMap().entrySet()) {
-                assertNull("warm serve must not expose typed statistics for " + e.getKey(), e.getValue().statistics());
+                PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
+                resolver.resolve(List.of(glob), pathConfigs, f2);
+                ExternalSourceResolution.ResolvedSource warm = f2.actionGet().resolvedSource(glob);
+                assertEquals("[" + strategy + "]", 2, warm.schemaMap().size());
+                for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : warm.schemaMap().entrySet()) {
+                    SourceStatistics stats = e.getValue().statistics();
+                    assertNotNull("[" + strategy + "] warm serve must reconstruct typed statistics for " + e.getKey(), stats);
+                    assertEquals(rowCountsByPath.get(e.getKey().toString()).longValue(), stats.rowCount().getAsLong());
+                    assertEquals(1L, stats.readableUnitCount().orElse(-1));
+                }
             }
         }
     }
@@ -2909,10 +2914,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
             SourceStatistics coldStatistics = f1.actionGet().resolvedSource(path).schemaMap().get(storagePath).statistics();
             assertNotNull(coldStatistics);
             assertEquals(11L, coldStatistics.rowCount().getAsLong());
+            assertEquals(1L, coldStatistics.readableUnitCount().orElse(-1));
 
             PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
             resolver.resolve(List.of(path), Map.of(), f2);
-            assertNull(f2.actionGet().resolvedSource(path).schemaMap().get(storagePath).statistics());
+            SourceStatistics warmStatistics = f2.actionGet().resolvedSource(path).schemaMap().get(storagePath).statistics();
+            assertNotNull(warmStatistics);
+            assertEquals(11L, warmStatistics.rowCount().getAsLong());
+            assertEquals(1L, warmStatistics.readableUnitCount().orElse(-1));
         }
     }
 
@@ -4878,6 +4887,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
                         @Override
                         public OptionalLong sizeInBytes() {
                             return OptionalLong.empty();
+                        }
+
+                        @Override
+                        public OptionalLong readableUnitCount() {
+                            return OptionalLong.of(1L);
                         }
 
                         @Override

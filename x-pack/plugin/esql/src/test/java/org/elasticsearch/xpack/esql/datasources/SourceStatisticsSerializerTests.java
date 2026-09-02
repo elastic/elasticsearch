@@ -8,15 +8,18 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 
@@ -971,6 +974,77 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertEquals(1L, embedded.get(SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT));
         SourceStatistics extracted = SourceStatisticsSerializer.extractStatistics(embedded).orElseThrow();
         assertEquals(1L, extracted.readableUnitCount().orElse(-1));
+    }
+
+    public void testFromSourcePrefersTypedThenReconstructsFromFlatMap() {
+        SourceStatistics typed = new SourceStatistics() {
+            @Override
+            public OptionalLong rowCount() {
+                return OptionalLong.of(7L);
+            }
+
+            @Override
+            public OptionalLong sizeInBytes() {
+                return OptionalLong.empty();
+            }
+
+            @Override
+            public OptionalLong readableUnitCount() {
+                return OptionalLong.of(1L);
+            }
+        };
+        SourceMetadata withTyped = new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return List.of();
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://b/f.parquet";
+            }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                return Optional.of(typed);
+            }
+        };
+        assertSame(typed, SourceStatisticsSerializer.fromSource(withTyped));
+
+        Map<String, Object> cached = new HashMap<>();
+        cached.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 7L);
+        cached.put(SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT, 1L);
+        SourceMetadata cacheHit = new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return List.of();
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://b/f.parquet";
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return cached;
+            }
+        };
+        SourceStatistics reconstructed = SourceStatisticsSerializer.fromSource(cacheHit);
+        assertNotNull(reconstructed);
+        assertEquals(7L, reconstructed.rowCount().orElse(-1));
+        assertEquals(1L, reconstructed.readableUnitCount().orElse(-1));
+        assertNull(SourceStatisticsSerializer.fromSource(null));
     }
 
     public void testMergeStatisticsDropsReadableUnitCount() {

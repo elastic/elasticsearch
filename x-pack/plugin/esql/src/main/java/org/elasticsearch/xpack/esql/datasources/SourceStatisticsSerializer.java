@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
@@ -139,6 +140,19 @@ public final class SourceStatisticsSerializer {
             }
         });
         return result;
+    }
+
+    /**
+     * Typed statistics from {@code meta.statistics()}, or the same harvest reconstructed from the
+     * flat {@code _stats.*} keys on {@code sourceMetadata()} when the typed view was not forwarded
+     * (a schema-cache hit). Null when neither channel carries a row count.
+     */
+    @Nullable
+    public static SourceStatistics fromSource(@Nullable SourceMetadata meta) {
+        if (meta == null) {
+            return null;
+        }
+        return meta.statistics().orElseGet(() -> extractStatistics(meta.sourceMetadata()).orElse(null));
     }
 
     /**

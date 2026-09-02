@@ -934,6 +934,36 @@ public class AuthenticationTests extends ESTestCase {
         runWithAuthenticationToXContent(realmTokenAuth, m -> assertThat(m, hasEntry("token", Map.of("managed_by", "elasticsearch"))));
     }
 
+    public void testToXContentWithCloudServiceAccount() throws IOException {
+        final Authentication authentication = AuthenticationTestHelper.randomCloudServiceAccountAuthentication();
+        runWithAuthenticationToXContent(
+            authentication,
+            m -> assertThat(m, hasEntry("token", Map.of("type", "_cloud_service_account", "managed_by", "cloud")))
+        );
+    }
+
+    public void testToXContentWithCloudLimitedByRoles() throws IOException {
+        final List<String> limitedByRoleNames = AuthenticationTestHelper.randomCloudLimitedByRoleNames();
+        final Authentication capped = randomFrom(
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(randomAlphanumericOfLength(20), limitedByRoleNames),
+            randomCloudApiKeyAuthentication(null, null, limitedByRoleNames),
+            AuthenticationTestHelper.randomCloudUserAuthentication(limitedByRoleNames)
+        );
+        runWithAuthenticationToXContent(capped, m -> {
+            assertThat(m, hasEntry("limited_by", limitedByRoleNames));
+            if (capped.isCloudServiceAccount()) {
+                assertThat(m, hasEntry("token", Map.of("type", "_cloud_service_account", "managed_by", "cloud")));
+            }
+        });
+
+        final Authentication uncapped = randomFrom(
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(randomAlphanumericOfLength(20), null),
+            randomCloudApiKeyAuthentication(),
+            AuthenticationTestHelper.randomCloudUserAuthentication(null)
+        );
+        runWithAuthenticationToXContent(uncapped, m -> assertThat(m, not(hasKey("limited_by"))));
+    }
+
     public void testBwcWithStoredAuthenticationHeaders() throws IOException {
         // Version 6.6.1
         final String headerV6 = "p/HxAgANZWxhc3RpYy1hZG1pbgEJc3VwZXJ1c2VyCgAAAAEABG5vZGUFZmlsZTEEZmlsZQA=";

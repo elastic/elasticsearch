@@ -29,8 +29,7 @@ Known issues are significant defects or limitations that may impact your impleme
   and [columnar](https://www.elastic.co/docs/reference/elasticsearch/columnar) indices and data
   streams remain affected for this query shape.
 
-  The full fix, which upgrades Elasticsearch to Lucene 10.5.1 ([apache/lucene#16450](https://github.com/apache/lucene/pull/16450)),
-  is included in a future release.
+  The full fix ([#156643](https://github.com/elastic/elasticsearch/pull/156643)), which upgrades Elasticsearch to Lucene 10.5.1 ([apache/lucene#16450](https://github.com/apache/lucene/pull/16450)), is included in 9.5.2.
 
 * A bulk indexing operation which is being processed on the node holding the primary shard exactly when this node crosses the [indexing pressure limit](/reference/elasticsearch/configuration-reference/indexing-pressure-settings.md) can process some of the bulk items on the primary shard without replicating them, causing the contents of any replicas to diverge from those of the primary. The processed items can be intermittently returned by searches while the divergence persists, but these items were not acknowledged writes and may eventually be discarded. The divergence blocks shards from trimming their [translog](/reference/elasticsearch/index-settings/translog.md), consuming excessive disk space, and can also cause very long-running [recoveries](/reference/elasticsearch/configuration-reference/index-recovery-settings.md) that attempt to replay all operations starting from the ones that were not replicated.
 
@@ -44,7 +43,7 @@ Known issues are significant defects or limitations that may impact your impleme
 
 * Boolean queries containing a `must`, `filter`, or `should` clause, along with a `must_not` clause, on fields with disabled indexing can return false-positive matches. This occurs when a DSL or ES|QL query selects Lucene's bulk-scoring path due to an iterator evaluation defect in Lucene ([apache/lucene#16450](https://github.com/apache/lucene/pull/16450)). [TSDB](https://www.elastic.co/docs/manage-data/data-store/data-streams/time-series-data-stream-tsds) and [columnar](https://www.elastic.co/docs/reference/elasticsearch/columnar) indices and data streams are affected, since they disable indexing on all fields by default.
 
-  The [fix](https://github.com/elastic/elasticsearch/pull/155936) is included in 9.5.1.
+  A [partial fix](https://github.com/elastic/elasticsearch/pull/155936) is included in 9.5.1, addressing `term` and `range` query paths, but missing the multi-value `terms` query. The full fix ([#156643](https://github.com/elastic/elasticsearch/pull/156643)). which upgrades Elasticsearch to Lucene 10.5.1 ([apache/lucene#16450](https://github.com/apache/lucene/pull/16450)), is included in 9.5.2.
 
 * A bulk indexing operation which is being processed on the node holding the primary shard exactly when this node crosses the [indexing pressure limit](/reference/elasticsearch/configuration-reference/indexing-pressure-settings.md) can process some of the bulk items on the primary shard without replicating them, causing the contents of any replicas to diverge from those of the primary. The processed items can be intermittently returned by searches while the divergence persists, but these items were not acknowledged writes and may eventually be discarded. The divergence blocks shards from trimming their [translog](/reference/elasticsearch/index-settings/translog.md), consuming excessive disk space, and can also cause very long-running [recoveries](/reference/elasticsearch/configuration-reference/index-recovery-settings.md) that attempt to replay all operations starting from the ones that were not replicated.
 

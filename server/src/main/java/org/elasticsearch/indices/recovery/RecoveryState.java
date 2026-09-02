@@ -298,8 +298,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Returns a fresh {@link RecoveryState} with all index, verify index and translog information cleared, keeping the original timing
-     * information. The fresh state is at stage {@link Stage#INIT}, since the recovery is already in flight.
+     * Returns a {@link RecoveryState} equivalent to this one with all index, verify index and translog information cleared, keeping the
+     * original timing information and local retry count. The returned state is at stage {@link Stage#INIT}, since the recovery is already
+     * in flight.
      */
     public RecoveryState reset() {
         final RecoveryState freshState = new RecoveryState(

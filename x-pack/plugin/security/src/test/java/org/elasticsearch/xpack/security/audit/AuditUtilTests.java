@@ -196,6 +196,7 @@ public class AuditUtilTests extends ESTestCase {
             return BytesReference.toBytes(BytesReference.bytes(smileBuilder));
         }
     }
+
     public void testHasProtobufContent() {
         assertTrue(AuditUtil.hasProtobufContent(protobufRequest(randomByteArrayOfLength(randomIntBetween(1, 32)))));
 

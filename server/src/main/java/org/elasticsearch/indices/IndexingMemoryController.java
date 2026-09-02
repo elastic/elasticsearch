@@ -12,7 +12,6 @@ package org.elasticsearch.indices;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -281,18 +280,17 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
     }
 
     /**
-     * Batch equivalent of {@link #postIndex(ShardId, Engine.Index, Engine.IndexResult)} call: one summed
+     * Batch equivalent of {@link #postIndex(ShardId, Engine.Index, Engine.IndexResult)} call: one
      * bytes-written record and one segment-writing check per batch, without materializing per-operation
      * {@link Engine.Index} instances.
+     * <p>
+     * TODO: this overestimates when some docs fail — failed docs did not contribute to the Lucene
+     *  commit, but their bytes are still counted. A future BatchResult abstraction should carry a
+     *  success-only byte count to allow precise accounting.
      */
     @Override
     public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, List<Engine.IndexResult> results) {
-        int totalBytes = 0;
-        for (int i = 0; i < results.size(); i++) {
-            if (results.get(i).getResultType() == Engine.Result.Type.SUCCESS) {
-                totalBytes += estimatedSizeInBytes(batch, i);
-            }
-        }
+        final int totalBytes = batch.estimatedBytes();
         if (totalBytes > 0) {
             statusChecker.bytesWritten(totalBytes);
         }
@@ -302,14 +300,6 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
     @Override
     public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, Exception ex) {
         // engine level failure: nothing was written; overridden to avoid the delegating to default
-    }
-
-    /** Mirrors {@link Engine.Index#estimatedSizeInBytes()} using the batch's raw per-document fields.
-     * {@link Engine.Index#estimatedSizeInBytes()} also accounts for SourceRow which is not supported in batch
-     */
-    static int estimatedSizeInBytes(IndexOperationBatch batch, int i) {
-        final BytesReference source = batch.source(i);
-        return (batch.id(i).length() * 2) + (source == null ? 0 : source.length()) + 12;
     }
 
     private void postOperation(Engine.Operation operation, Engine.Result result) {

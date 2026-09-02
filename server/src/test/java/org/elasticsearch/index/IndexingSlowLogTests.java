@@ -46,6 +46,7 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.SearchSlowLogTests.mockLogFieldProvider;
 import static org.hamcrest.Matchers.containsString;
@@ -168,9 +169,11 @@ public class IndexingSlowLogTests extends ESTestCase {
         Index index = new Index("foo", "123");
         SourceToParse.Source source = SourceToParse.Source.fromBytes(new BytesArray("{\"foo\":\"bar\"}"), XContentType.JSON);
 
-        ESLogMessage p = IndexingSlowLogMessage.ofBatch(Map.of(), index, 0L, 5, 100_000);
-        assertThat(p.get("elasticsearch.slowlog.starting_seq_no"), equalTo(0L));
-        assertThat(p.get("elasticsearch.slowlog.took_millis"), equalTo(100));
+        // 100ms average per document, expressed in nanos; ESLogMessage#get returns every field as a String
+        ESLogMessage p = IndexingSlowLogMessage.ofBatch(Map.of(), index, 7L, 5, TimeUnit.MILLISECONDS.toNanos(100));
+        assertThat(p.get("elasticsearch.slowlog.starting_seq_no"), equalTo("7"));
+        assertThat(p.get("elasticsearch.slowlog.doc_count"), equalTo("5"));
+        assertThat(p.get("elasticsearch.slowlog.took_millis"), equalTo("100"));
     }
 
     private static IndexOperationBatch primaryBatch(int docCount) {

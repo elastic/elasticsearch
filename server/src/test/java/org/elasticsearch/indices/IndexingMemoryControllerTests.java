@@ -13,7 +13,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -21,8 +20,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -168,46 +165,37 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         }
     }
 
-    public void testBatchEstimatedSizeMatchesPerOperationEstimate() {
+    public void testBatchEstimatedSizeCountsEncodedIds() {
         final int docCount = randomIntBetween(1, 8);
         final IndexOperationBatch batch = primaryBatch(docCount);
+        // without a SourceBatch the only bytes reaching Lucene are the encoded _id terms
+        int expectedBytes = 0;
         for (int i = 0; i < docCount; i++) {
-            Engine.Index op = new Engine.Index(Uid.encodeId(batch.id(i)), 1L, parsedDoc(batch.id(i), batch.source(i)));
-            assertEquals(op.estimatedSizeInBytes(), IndexingMemoryController.estimatedSizeInBytes(batch, i));
+            expectedBytes += Uid.encodeId(batch.id(i)).length;
         }
+        assertThat(expectedBytes, greaterThan(0));
+        assertThat(batch.estimatedBytes(), equalTo(expectedBytes));
     }
 
-    public void testPostIndexBatchRecordsBytesLikePerOperationMixedSuccess() {
-        MockController perOpController = new MockController(Settings.EMPTY);
+    public void testPostIndexBatchRecordsBytesForFullBatchRegardlessOfFailures() {
         MockController batchController = new MockController(Settings.EMPTY);
         ShardId shardId = new ShardId("index", "_na_", 0);
 
         final int docCount = randomIntBetween(2, 8);
         final IndexOperationBatch batch = primaryBatch(docCount);
-        final List<Engine.IndexResult> results = new ArrayList<>(docCount);
-        // guarantee at least one success and one failure, then randomize the rest
-        results.add(new Engine.IndexResult(1, 1, 0, true, batch.id(0)));
-        results.add(new Engine.IndexResult(new RuntimeException("doc failure"), 1, 1, UNASSIGNED_SEQ_NO, batch.id(1)));
-        for (int i = 2; i < docCount; i++) {
-            results.add(
-                randomBoolean()
-                    ? new Engine.IndexResult(1, 1, i, true, batch.id(i))
-                    : new Engine.IndexResult(new RuntimeException("doc failure"), 1, 1, UNASSIGNED_SEQ_NO, batch.id(i))
-            );
-        }
+        final int expectedBytes = batch.estimatedBytes();
 
+        // all-failure results: batch estimate is still reported (overestimate acknowledged by TODO)
+        final List<Engine.IndexResult> allFailures = new ArrayList<>(docCount);
         for (int i = 0; i < docCount; i++) {
-            Engine.Index op = new Engine.Index(Uid.encodeId(batch.id(i)), 1L, parsedDoc(batch.id(i), batch.source(i)));
-            perOpController.postIndex(shardId, op, results.get(i));
+            allFailures.add(new Engine.IndexResult(new RuntimeException("doc failure"), 1, 1, UNASSIGNED_SEQ_NO, batch.id(i)));
         }
-        batchController.postIndexBatch(shardId, batch, results);
+        batchController.postIndexBatch(shardId, batch, allFailures);
+        assertThat(batchController.getBytesWrittenSinceCheck(), equalTo((long) expectedBytes));
 
-        assertThat(batchController.getBytesWrittenSinceCheck(), equalTo(perOpController.getBytesWrittenSinceCheck()));
-        assertThat(batchController.getBytesWrittenSinceCheck(), greaterThan(0L));
-
-        // engine level failures record nothing
+        // engine level failure: nothing recorded
         batchController.postIndexBatch(shardId, batch, new RuntimeException("engine failure"));
-        assertThat(batchController.getBytesWrittenSinceCheck(), equalTo(perOpController.getBytesWrittenSinceCheck()));
+        assertThat(batchController.getBytesWrittenSinceCheck(), equalTo((long) expectedBytes));
     }
 
     private static IndexOperationBatch primaryBatch(int docCount) {
@@ -220,10 +208,6 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             );
         }
         return IndexOperationBatch.initFromBulk(items, 0, docCount, null, Engine.Operation.Origin.PRIMARY, 1L, 0L);
-    }
-
-    private static ParsedDocument parsedDoc(String id, BytesReference source) {
-        return new ParsedDocument(null, null, id, null, List.of(), SourceToParse.Source.fromBytes(source, XContentType.JSON), null, 0);
     }
 
     public void testShardAdditionAndRemoval() throws IOException {

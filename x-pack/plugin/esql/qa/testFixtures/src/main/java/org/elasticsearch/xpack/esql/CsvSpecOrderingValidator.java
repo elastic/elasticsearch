@@ -13,11 +13,15 @@ import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseLexer;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -26,7 +30,9 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -42,7 +48,8 @@ import java.util.stream.Stream;
  *   <li>A top-level {@code SORT} whose keys tie between two adjacent expected rows, leaving their
  *       relative order undefined.</li>
  * </ol>
- * Both are skipped when the test declares {@code ignoreOrder: true}.
+ * Both are skipped when the test declares {@code ignoreOrder: true}, and so is any test muted in the
+ * {@code muted-tests.yml} passed with {@code --muted-tests=}.
  * <p>
  * Each query is parsed once, straight into an ANTLR tree. Going through {@code EsqlParser} is
  * deliberately avoided: the AST builder emits {@code HeaderWarning} side effects for deprecated
@@ -68,28 +75,55 @@ public class CsvSpecOrderingValidator {
      */
     private static final Set<String> RESULT_DIRECTIVES = Set.of("warning", "warningregex", "ignoreorder", "documents_found");
 
+    /** Command line option pointing at the {@code muted-tests.yml} whose entries are to be skipped. */
+    private static final String MUTED_TESTS_OPTION = "--muted-tests=";
+
+    /**
+     * A mute entry naming a csv-spec test, as the randomized runner formats it: {@code test
+     * {csv-spec:<spec-file>.<test-name>}}. The name may carry a trailing bracketed suffix, which some
+     * runners append to distinguish their parameter combinations, and which is not part of the test.
+     */
+    private static final Pattern MUTED_CSV_SPEC_TEST = Pattern.compile("test \\{csv-spec:([^}\\[]+).*}");
+
     private CsvSpecOrderingValidator() {}
 
     public static void main(String[] args) throws Exception {
         // SpecReader pulls in EsqlTestUtils, whose logger needs the logging SPI bound first.
         LogConfigurator.configureESLogging();
-        if (args.length == 0) {
-            throw new IllegalArgumentException("usage: CsvSpecOrderingValidator <spec-dir> [<spec-dir> ...]");
+        Set<String> mutedTests = Set.of();
+        List<String> specDirs = new ArrayList<>();
+        for (String arg : args) {
+            if (arg.startsWith(MUTED_TESTS_OPTION)) {
+                mutedTests = mutedCsvSpecTests(Path.of(arg.substring(MUTED_TESTS_OPTION.length())));
+            } else {
+                specDirs.add(arg);
+            }
+        }
+        if (specDirs.isEmpty()) {
+            throw new IllegalArgumentException(
+                "usage: CsvSpecOrderingValidator [" + MUTED_TESTS_OPTION + "<file>] <spec-dir> [<spec-dir> ...]"
+            );
         }
 
         List<String> violations = new ArrayList<>();
         int specFiles = 0;
         int testCases = 0;
+        int muted = 0;
 
-        for (String dir : args) {
+        for (String dir : specDirs) {
             for (Path spec : specFilesIn(Path.of(dir))) {
                 specFiles++;
                 for (Object[] parsed : SpecReader.readScriptSpec(List.of(spec.toUri().toURL()), CsvSpecReader::specParser)) {
                     // See SpecReader#makeTestCase: { fileName, groupName, testName, lineNumber, result, instructions }
+                    String groupName = (String) parsed[1];
                     String testName = (String) parsed[2];
                     int lineNumber = (Integer) parsed[3];
                     // Mirrors CsvTestUtils#isEnabled: a "-Ignore" suffix disables the test everywhere.
                     if (testName.endsWith("-Ignore")) {
+                        continue;
+                    }
+                    if (mutedTests.contains(groupName + "." + testName.trim())) {
+                        muted++;
                         continue;
                     }
                     testCases++;
@@ -101,7 +135,9 @@ public class CsvSpecOrderingValidator {
             }
         }
 
-        System.out.println("Checked " + testCases + " test cases in " + specFiles + " csv-spec files.");
+        System.out.println(
+            "Checked " + testCases + " test cases in " + specFiles + " csv-spec files, skipped " + muted + " muted test case(s)."
+        );
         if (violations.isEmpty() == false) {
             System.err.println();
             System.err.println("Found " + violations.size() + " csv-spec test(s) with non-deterministic row order:");
@@ -110,6 +146,47 @@ public class CsvSpecOrderingValidator {
             System.err.println("Add a SORT (or a tiebreaker to the existing SORT) so the order is fully determined,");
             System.err.println("or declare `ignoreOrder: true` when the order genuinely does not matter.");
             System.exit(1);
+        }
+    }
+
+    /**
+     * Reads the csv-spec tests muted in {@code muted-tests.yml}, as {@code <spec-file>.<test-name>}
+     * ids. A muted test does not run, so failing the build over one would take away the very thing
+     * muting is for: keeping the build moving while the issue named in the entry is worked on.
+     * <p>
+     * Each runner of a csv-spec test ({@code CsvTests}, {@code CsvIT}, the cluster spec ITs) mutes
+     * under its own class name. Row order is a property of the spec text rather than of any one runner,
+     * so an entry under any class is taken to cover the test.
+     */
+    static Set<String> mutedCsvSpecTests(Path mutedTestsFile) throws IOException {
+        Set<String> muted = new HashSet<>();
+        try (
+            InputStream in = Files.newInputStream(mutedTestsFile);
+            XContentParser parser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, in)
+        ) {
+            if (parser.map().get("tests") instanceof List<?> entries) {
+                for (Object entry : entries) {
+                    if (entry instanceof Map<?, ?> mute) {
+                        // Both spellings are valid: a single "method" or a list of "methods".
+                        addMutedTests(mute.get("method"), muted);
+                        addMutedTests(mute.get("methods"), muted);
+                    }
+                }
+            }
+        }
+        return muted;
+    }
+
+    private static void addMutedTests(Object method, Set<String> muted) {
+        if (method instanceof List<?> methods) {
+            methods.forEach(m -> addMutedTests(m, muted));
+            return;
+        }
+        if (method instanceof String name) {
+            Matcher matcher = MUTED_CSV_SPEC_TEST.matcher(name);
+            if (matcher.matches()) {
+                muted.add(matcher.group(1).trim());
+            }
         }
     }
 

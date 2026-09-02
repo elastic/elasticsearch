@@ -63,16 +63,21 @@ tasks.register("loadCsvSpecData", JavaExec) {
  *
  * This runs as a precommit check rather than during test execution so the specs are parsed once per
  * build, and not once per test case in each of the csv-spec test tasks.
+ *
+ * Muted tests are skipped: they do not run, so failing the build over one would leave muting unable
+ * to do the job it exists for.
  */
 def specDir = file("src/main/resources")
+def mutedTests = layout.settingsDirectory.file("muted-tests.yml").asFile
 def validateCsvSpecOrdering = tasks.register("validateCsvSpecOrdering", JavaExec) {
   group = "verification"
   description = "Checks that csv-spec tests with ordered expectations have a deterministic SORT"
   classpath = sourceSets.main.runtimeClasspath
   mainClass = "org.elasticsearch.xpack.esql.CsvSpecOrderingValidator"
-  args specDir.absolutePath
+  args "--muted-tests=${mutedTests.absolutePath}", specDir.absolutePath
 
   inputs.dir(specDir).withPropertyName("csvSpecFiles").withPathSensitivity(PathSensitivity.RELATIVE)
+  inputs.file(mutedTests).withPropertyName("mutedTests").withPathSensitivity(PathSensitivity.RELATIVE)
   inputs.files(sourceSets.main.runtimeClasspath).withNormalizer(ClasspathNormalizer)
   // Marker output so the check is skipped entirely when no spec file changed.
   outputs.file(layout.buildDirectory.file("markers/validateCsvSpecOrdering"))

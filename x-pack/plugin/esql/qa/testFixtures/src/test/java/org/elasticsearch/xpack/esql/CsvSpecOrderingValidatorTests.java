@@ -10,7 +10,13 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -241,5 +247,68 @@ public class CsvSpecOrderingValidatorTests extends ESTestCase {
             1         | one
             1         | uno
             """);
+    }
+
+    // Mutes, which take a test out of the check because they take it out of the build
+
+    private static Path mutedTestsFile(String contents) throws IOException {
+        Path file = createTempFile("muted-tests", ".yml");
+        Files.writeString(file, contents);
+        return file;
+    }
+
+    public void testMutedCsvSpecTestsAreCollected() throws IOException {
+        Path file = mutedTestsFile("""
+            tests:
+            - class: org.elasticsearch.xpack.esql.CsvTests
+              method: test {csv-spec:stats.sumWithOverflowGroupingRow}
+              issue: https://github.com/elastic/elasticsearch/issues/1
+            - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+              method: test {csv-spec:change_point.values null column}
+              issue: https://github.com/elastic/elasticsearch/issues/2
+            - class: org.elasticsearch.xpack.esql.CsvIT
+              methods:
+              - test {csv-spec:ints.valuesLongGrouped}
+              - test {csv-spec:date.dateDiffUnitFromField}
+              issue: https://github.com/elastic/elasticsearch/issues/3
+            """);
+        assertThat(
+            CsvSpecOrderingValidator.mutedCsvSpecTests(file),
+            containsInAnyOrder(
+                "stats.sumWithOverflowGroupingRow",
+                "change_point.values null column",
+                "ints.valuesLongGrouped",
+                "date.dateDiffUnitFromField"
+            )
+        );
+    }
+
+    /**
+     * ExternalDistributedSpecIT appends its own parameters to the test name; they are not part of the
+     * test name the spec file declares.
+     */
+    public void testBracketedSuffixIsStrippedFromMutedTestName() throws IOException {
+        Path file = mutedTestsFile("""
+            tests:
+            - class: org.elasticsearch.xpack.esql.qa.multi_node.ExternalDistributedSpecIT
+              method: test {csv-spec:external-basic.lookupJoin [lz4raw/GCS]}
+              issue: https://github.com/elastic/elasticsearch/issues/1
+            """);
+        assertThat(CsvSpecOrderingValidator.mutedCsvSpecTests(file), containsInAnyOrder("external-basic.lookupJoin"));
+    }
+
+    public void testMutesOfOtherTestsAreIgnored() throws IOException {
+        Path file = mutedTestsFile("""
+            tests:
+            - class: org.elasticsearch.xpack.esql.CsvTests
+              issue: https://github.com/elastic/elasticsearch/issues/1
+            - class: org.elasticsearch.xpack.esql.planner.LocalExecutionPlannerTests
+              method: testLuceneTopNSourceOperator {estimatedRowSizeIsHuge=true}
+              issue: https://github.com/elastic/elasticsearch/issues/2
+            - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
+              method: test {yaml=/10_apm/Test template reinstallation}
+              issue: https://github.com/elastic/elasticsearch/issues/3
+            """);
+        assertThat(CsvSpecOrderingValidator.mutedCsvSpecTests(file), emptyIterable());
     }
 }

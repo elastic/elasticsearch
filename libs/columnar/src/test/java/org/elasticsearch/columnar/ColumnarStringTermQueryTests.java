@@ -14,18 +14,19 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LogDocMergePolicy;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
+import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -103,9 +104,8 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
             }
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertEquals("merged into one segment", 1, reader.leaves().size());
-                final org.apache.lucene.index.BinaryDocValues binary = reader.leaves().get(0).reader().getBinaryDocValues(FIELD);
-                final org.elasticsearch.columnar.string.StringColumnReader column =
-                    ((org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues) binary).reader();
+                final BinaryDocValues binary = reader.leaves().get(0).reader().getBinaryDocValues(FIELD);
+                final StringColumnReader column = ((ColumnarStringBinaryDocValues) binary).reader();
                 assertTrue("a merge of sorted segments is still sorted", column.valuesSorted());
 
                 final IndexSearcher searcher = new IndexSearcher(reader);
@@ -142,17 +142,24 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                 writer.forceMerge(1);
             }
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                final IndexSearcher searcher = new IndexSearcher(hideTheColumn(reader));
+                final IndexSearcher searcher = new IndexSearcher(ColumnarTestUtils.hideTheColumn(reader));
                 for (String probe : Arrays.asList("alpha", "alpine", "delta", "absent")) {
                     assertEquals(
-                        "term [" + probe + "] through a wrapper",
+                        "term [" + probe + "] through an overlay",
                         expected(values, probe, true),
                         found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
                     );
                     assertEquals(
-                        "prefix [" + probe + "] through a wrapper",
+                        "prefix [" + probe + "] through an overlay",
                         expected(values, probe, false),
                         found(searcher, ColumnarStringTermQuery.prefix(FIELD, new BytesRef(probe)))
+                    );
+                }
+                for (String probe : Arrays.asList("lph", "alpha", "a", "", "zzz")) {
+                    assertEquals(
+                        "contains [" + probe + "] through an overlay",
+                        containing(values, probe),
+                        found(searcher, ColumnarStringTermQuery.contains(FIELD, new BytesRef(probe)))
                     );
                 }
             }
@@ -178,75 +185,6 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                 assertEquals(List.of(), found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a")));
             }
         }
-    }
-
-    /**
-     * Hides the columnar instance behind a plain {@link BinaryDocValues}, leaving only the surface every
-     * binary doc values has.
-     */
-    private static DirectoryReader hideTheColumn(DirectoryReader in) throws IOException {
-        return new FilterDirectoryReader(in, new FilterDirectoryReader.SubReaderWrapper() {
-            @Override
-            public LeafReader wrap(LeafReader leaf) {
-                return new FilterLeafReader(leaf) {
-                    @Override
-                    public BinaryDocValues getBinaryDocValues(String name) throws IOException {
-                        final BinaryDocValues values = in.leaves().get(0).reader().getBinaryDocValues(name);
-                        return values == null ? null : new BinaryDocValues() {
-                            @Override
-                            public BytesRef binaryValue() throws IOException {
-                                return values.binaryValue();
-                            }
-
-                            @Override
-                            public boolean advanceExact(int target) throws IOException {
-                                return values.advanceExact(target);
-                            }
-
-                            @Override
-                            public int docID() {
-                                return values.docID();
-                            }
-
-                            @Override
-                            public int nextDoc() throws IOException {
-                                return values.nextDoc();
-                            }
-
-                            @Override
-                            public int advance(int target) throws IOException {
-                                return values.advance(target);
-                            }
-
-                            @Override
-                            public long cost() {
-                                return values.cost();
-                            }
-                        };
-                    }
-
-                    @Override
-                    public CacheHelper getCoreCacheHelper() {
-                        return leaf.getCoreCacheHelper();
-                    }
-
-                    @Override
-                    public CacheHelper getReaderCacheHelper() {
-                        return leaf.getReaderCacheHelper();
-                    }
-                };
-            }
-        }) {
-            @Override
-            protected DirectoryReader doWrapDirectoryReader(DirectoryReader reader) {
-                return reader;
-            }
-
-            @Override
-            public CacheHelper getReaderCacheHelper() {
-                return in.getReaderCacheHelper();
-            }
-        };
     }
 
     private interface Value {
@@ -285,12 +223,11 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
             }
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 // Isolate the reader from the query: ask the column directly, the way the query will.
-                final org.apache.lucene.index.LeafReader leaf = reader.leaves().get(0).reader();
-                final org.apache.lucene.index.BinaryDocValues bdv = leaf.getBinaryDocValues(FIELD);
-                final org.elasticsearch.columnar.string.StringColumnReader column =
-                    ((org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues) bdv).reader();
+                final LeafReader leaf = reader.leaves().get(0).reader();
+                final BinaryDocValues bdv = leaf.getBinaryDocValues(FIELD);
+                final StringColumnReader column = ((ColumnarStringBinaryDocValues) bdv).reader();
                 final List<Integer> direct = new ArrayList<>();
-                final org.apache.lucene.search.DocIdSetIterator it = column.matchTerm(new BytesRef("alpha"));
+                final DocIdSetIterator it = column.matchTerm(new BytesRef("alpha"));
                 for (int d = it.nextDoc(); d != org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS; d = it.nextDoc()) {
                     direct.add(d);
                 }
@@ -313,6 +250,17 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /** The documents a search of every value would find. */
+    private static List<Integer> containing(List<String> values, String probe) {
+        final List<Integer> docs = new ArrayList<>();
+        for (int d = 0; d < values.size(); d++) {
+            if (values.get(d) != null && values.get(d).contains(probe)) {
+                docs.add(d);
+            }
+        }
+        return docs;
     }
 
     private static List<Integer> expected(List<String> values, String probe, boolean exact) {

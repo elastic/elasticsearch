@@ -85,6 +85,22 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
     }
 
     /**
+     * Runs longer than a {@link ValueStream#VALUES_PER_BLOCK} block. A run is staged a block at a time, so a
+     * run reaching into the next block is stored again and read at an address the one before it did not have.
+     * Coalescing what arrives together cannot tell that from a new value, so this is the shape that takes a
+     * slot a block rather than a slot a value, and it is the shape a column in term order has most of.
+     */
+    public void testRunsLongerThanABlockKeepOneSlotAValue() throws IOException {
+        final String[] terms = { "aaa", "bbb", "ccc" };
+        final BytesRef[] docValues = new BytesRef[2400];
+        for (int d = 0; d < docValues.length; d++) {
+            // Runs of 300 over blocks of 128, so every run crosses at least two block boundaries.
+            docValues[d] = new BytesRef(terms[(d / 300) % terms.length]);
+        }
+        assertDistinctOrdinals("runs longer than a block", docValues, DictionaryPolicy.NONE, 128, new int[] { 128, 512, 1024 });
+    }
+
+    /**
      * The same, for values the dictionary does not name. Two documents holding the same escaped bytes are
      * one value, and the page has no ordinal to tell it by, only the bytes.
      */
@@ -101,12 +117,29 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
 
     /** Every value of a page appears in its dictionary once, whatever the column's shape. */
     private void assertDistinctOrdinals(String label, BytesRef[] docValues, DictionaryPolicy policy) throws IOException {
-        withColumn(docValues, 512, randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
-            final int pageSize = Math.min(512, docValues.length);
-            final int[] docs = new int[pageSize];
-            for (int d = 0; d < docs.length; d++) {
-                docs[d] = d;
+        assertDistinctOrdinals(label, docValues, policy, 512, new int[] { Math.min(512, docValues.length) });
+    }
+
+    /** The same, over the whole column a page at a time, under a block size the caller chooses. */
+    private void assertDistinctOrdinals(String label, BytesRef[] docValues, DictionaryPolicy policy, int blockSize, int[] pageSizes)
+        throws IOException {
+        withColumn(docValues, blockSize, randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+            for (int pageSize : pageSizes) {
+                for (int from = 0; from < docValues.length; from += pageSize) {
+                    assertPageOfOrdinals(label + " at " + from + " in pages of " + pageSize, docValues, reader, from, pageSize);
+                }
             }
+        });
+    }
+
+    private void assertPageOfOrdinals(String label, BytesRef[] docValues, StringColumnReader reader, int from, int pageSize)
+        throws IOException {
+        final int count = Math.min(pageSize, docValues.length - from);
+        final int[] docs = new int[count];
+        for (int i = 0; i < count; i++) {
+            docs[i] = from + i;
+        }
+        {
             final boolean[] sawOrdinals = { false };
             assertTrue(label + " page", reader.readBlock(docs, 0, docs.length, new StringBlockSink() {
                 @Override
@@ -132,7 +165,7 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
                 }
             }));
             assertTrue(label + " expected a page of ordinals", sawOrdinals[0]);
-        });
+        }
     }
 
     /** Escaped documents are their own entries, and have to rebuild as themselves. */

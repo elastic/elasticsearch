@@ -136,6 +136,43 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
         assertNotEquals(ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a"), ColumnarStringAutomatonQuery.forWildcard("other", "al*a"));
     }
 
+    /**
+     * An updated field, read as an overlay of its layers rather than as the column. The automaton has no
+     * column to run over then, so it runs over the values a document at a time, and has to find the same
+     * documents either way.
+     */
+    public void testMatchesThroughAnOverlaidColumn() throws IOException {
+        final List<String> values = values(between(400, 1200), d -> d % 5 == 0 ? "alpine-" + d : TERMS[d % TERMS.length]);
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
+            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (String value : values) {
+                    final Document doc = new Document();
+                    doc.add(new Field(FIELD, new BytesRef(value), type));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final IndexSearcher searcher = new IndexSearcher(ColumnarTestUtils.hideTheColumn(reader));
+                for (String pattern : PATTERNS) {
+                    assertEquals(
+                        "pattern [" + pattern + "] through an overlay",
+                        accepted(values, pattern),
+                        found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, pattern))
+                    );
+                    // The narrowed shapes go through the overlay too, since forWildcard picks them first.
+                    assertEquals(
+                        "pattern [" + pattern + "] as an automaton through an overlay",
+                        accepted(values, pattern),
+                        found(searcher, automatonFor(pattern))
+                    );
+                }
+            }
+        }
+    }
+
     /** Every pattern, against the documents running Lucene's automaton for it over the values would find. */
     private void assertPatterns(List<String> values) throws IOException {
         try (Directory dir = newDirectory()) {

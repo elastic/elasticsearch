@@ -1110,7 +1110,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
 
 In the `dfs.knn` portion of the response we can see the output the of timings for [query](search-profile.md#query-section), [rewrite](search-profile.md#rewrite-section), and [collector](search-profile.md#collectors-section). Unlike many other queries, kNN search does the bulk of the work during the query rewrite. This means `rewrite_time` represents the time spent on kNN search. The attribute `vector_operations_count` represents the overall count of vector operations performed during the kNN search.
 
-Each entry in the `dfs.knn` array also includes an optional `knn_profile` object that gives a more detailed breakdown of where time was spent during the kNN search. Its contents depend on the underlying vector search algorithm.
+{applies_to}`stack: ga 9.6` Each entry in the `dfs.knn` array also includes an optional `knn_profile` object that gives a more detailed breakdown of where time was spent during the kNN search. Its contents depend on the underlying vector search algorithm.
 
 For an HNSW search, `knn_profile` looks like the following:
 
@@ -1256,14 +1256,14 @@ The common `knn_profile` fields are:
 * `scorer`: for IVF, the vector scorer implementation that actually ran — `native`, `panama` (JDK Vector API), or `scalar`. Absent for HNSW, whose scoring is handled by Lucene.
 * `total_time_ns`: total time spent on the kNN search for this query, in nanoseconds.
 * `segments_searched`: the number of segments (or, for IVF sliced search, per-leaf searches) that were searched.
-* `segments`: a brief per-segment breakdown. Each entry has `name` (Lucene segment name), `doc_count` (live documents in the segment), `size_in_bytes` (on-disk size of the segment), `vector_count` / `vector_bytes` (indexed vectors for the searched field), and `search_time_ns`. HNSW entries also include `nodes_visited` and `results_found` for that leaf. IVF entries may include `visit_ratio_used` for that segment when the ratio is computed dynamically.
+* `segments`: a brief per-segment breakdown. Each entry has `name` (Lucene segment name), `doc_count` (live documents in the segment), `size_in_bytes` (on-disk size of the segment), `vector_count` / `vector_bytes` (indexed vectors for the searched field), and `search_time_ns`. HNSW entries also include `nodes_visited` and `results_found` for that leaf. IVF entries can include `visit_ratio_used` for that segment when the ratio is computed dynamically.
 * `early_terminated`: whether the search terminated early because enough competitive results were collected.
 * `approximate_search_time_ns`: time spent in the per-segment approximate search, summed across segments.
 * `merge_time_ns`: time spent merging per-segment results into the final top-k.
 
 The `hnsw` and `ivf` sections contain algorithm-specific counters and a `timings` sub-object with a finer-grained breakdown. The IVF codec-level timings are only collected when profiling is enabled, so they add no overhead to non-profiled searches.
 
-IVF `timings` are nested, not additive. `posting_visit_ns` includes the inner `doc_id_read_ns`, `query_quantization_ns`, and `scoring_ns`. `reset_postings_scorer_ns` includes `centroid_read_ns`. Inner keys are omitted when the codec visitor did not collect them. `visit_ratio_used` is the maximum per-segment ratio; when segments disagree, `visit_ratio_min` is also present.
+IVF `timings` are nested, not additive. `posting_visit_ns` includes the inner `doc_id_read_ns`, `query_quantization_ns`, and `scoring_ns`. `reset_postings_scorer_ns` includes `centroid_read_ns`. Inner keys are omitted when the codec visitor did not collect them. `visit_ratio_used` is the maximum per-segment ratio. When segments disagree, `visit_ratio_min` is also present.
 
 Both sections report `timings.overhead_ns`: whatever is left of `total_time_ns` after the per-segment approximate search, the merge, and `filter_time_ns`. This is mostly rewrite and thread-pool time, plus any per-segment work outside the measured search window. For IVF that window covers the codec's segment search alone, so the collector drain, the document ID deduplication, and any preconditioner transform are counted here rather than in `approximate_search_time_ns`. It is reported as `0` when segments were searched in parallel and their summed search time exceeds the wall-clock total.
 
@@ -1273,10 +1273,10 @@ When exact rescoring runs, `rescore.type` is `inline` (inner query already retur
 
 Where the `knn_profile` object appears depends on how the kNN search was expressed, because that determines which phase runs it:
 
-* The top-level `knn` search option and the `knn` retriever both run in the DFS phase, so their breakdown appears under `profile.shards[].dfs.knn[].knn_profile`, as shown above.
+* The top-level `knn` search option and the `knn` retriever both run in the DFS phase, so their breakdown appears under `profile.shards[].dfs.knn[].knn_profile`, as shown in the preceding example.
 * A `knn` query used inside the query DSL (`"query": { "knn": { ... } }`) runs in the query phase instead. Its breakdown — together with `vector_operations_count` — appears under `profile.shards[].searches[].knn_profile`, next to the `query` array. The object has the same shape in both cases.
 
-When a single search runs several kNN queries in the query phase (for example a `bool` query with multiple `knn` clauses), each query contributes its own breakdown. In that case `knn_profile` holds a `knn_queries` array with one element per query, each element having the shape described above:
+When a single search runs several kNN queries in the query phase (for example a `bool` query with multiple `knn` clauses), each query contributes its own breakdown. In that case `knn_profile` holds a `knn_queries` array with one element per query, each element having the shape described earlier on this page:
 
 ```js
 "knn_profile" : {

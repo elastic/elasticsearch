@@ -1014,12 +1014,7 @@ public class SharedBlobCacheWarmingService {
         }
     }
 
-    /**
-     * Total number of bytes that offline warming is going to fetch: each {@link WarmTarget#endOffset()} is the exclusive up-to offset of
-     * the prefix to warm in its blob. Reported by {@link #searchRecoveryWarmingListener} when warming times out.
-     * <p>
-     * Visible for testing
-     */
+    // Visible for testing
     protected static long totalBytesToWarm(@Nullable Map<BlobFile, WarmTarget> endTargetsToWarm) {
         return endTargetsToWarm == null ? 0L : endTargetsToWarm.values().stream().mapToLong(WarmTarget::endOffset).sum();
     }

@@ -177,12 +177,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             case LONG, DOUBLE -> writeNumericColumn(field, type, () -> numericMergeCursor(field, mergeState));
             case STRING -> {
                 final DictionaryPolicy policy = stringSelector.select(field.name, type).dictionary();
-                Vocabulary.Terms known = unionOfDictionaries(field, mergeState, policy);
-                if (known == null) {
-                    // No union to take, but the segments may have recorded what they surveyed.
-                    known = combinedSummaries(field, mergeState, policy);
-                }
-                final Vocabulary.Terms vocabulary = known;
+                final Vocabulary.Terms vocabulary = mergedVocabulary(field, mergeState, policy).terms();
                 writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState, vocabulary), vocabulary);
             }
         }
@@ -275,6 +270,37 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      * {@link ColumnarStringBinaryDocValues#directValues}, in merged doc order. A fresh cursor is built per
      * pass — the count, the iterator, then the values.
      */
+    /** Where a merged column's terms came from, and what they were. */
+    record MergedVocabulary(Source source, Vocabulary.Terms terms) {
+        /** The ways of knowing a merged column's terms, in the order they are tried. */
+        enum Source {
+            /** Taken from the segments' own dictionaries, which name every value between them. */
+            DICTIONARY_UNION,
+            /** Summed from what the segments recorded surveying, when their dictionaries do not cover it. */
+            COMBINED_SUMMARIES,
+            /** Neither was available, so the merged values are surveyed as a flush surveys them. */
+            SURVEY
+        }
+    }
+
+    /**
+     * The terms to write the merged column against, and which of the three ways of knowing them was taken.
+     * The result is the same either way; which one runs is what a merge costs, so it is a value here rather
+     * than a shape of the control flow.
+     */
+    MergedVocabulary mergedVocabulary(FieldInfo field, MergeState mergeState, DictionaryPolicy dictionaryPolicy) throws IOException {
+        final Vocabulary.Terms union = unionOfDictionaries(field, mergeState, dictionaryPolicy);
+        if (union != null) {
+            return new MergedVocabulary(MergedVocabulary.Source.DICTIONARY_UNION, union);
+        }
+        // No union to take, but the segments may have recorded what they surveyed.
+        final Vocabulary.Terms summaries = combinedSummaries(field, mergeState, dictionaryPolicy);
+        if (summaries != null) {
+            return new MergedVocabulary(MergedVocabulary.Source.COMBINED_SUMMARIES, summaries);
+        }
+        return new MergedVocabulary(MergedVocabulary.Source.SURVEY, null);
+    }
+
     /**
      * The union of the segments' dictionaries, or null when it cannot stand for the merged column: a
      * segment without a dictionary, or one that let values escape, holds values the union would not name.

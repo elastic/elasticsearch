@@ -28,7 +28,9 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
+import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.test.ESTestCase;
@@ -37,6 +39,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.IntFunction;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
@@ -48,6 +51,7 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
 public class ColumnarStringTermQueryTests extends ESTestCase {
 
     private static final String FIELD = "kw";
+    private static final DictionaryPolicy ROOMY = new DictionaryPolicy(512 * 1024, 0.5, 0.2);
     private static final String[] TERMS = { "alpha", "alpine", "bravo", "charlie", "delta" };
 
     /** Few distinct values, so the column carries a dictionary and terms match over ordinals. */
@@ -186,6 +190,72 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                         expected(values, probe, true),
                         found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
                     );
+                }
+            }
+        }
+    }
+
+    /**
+     * The three ways a merge can know the terms of the column it is writing: taken from the segments'
+     * dictionaries, summed from what they recorded surveying when their dictionaries do not cover it, and
+     * surveyed afresh when neither is available. Which one runs is what the merge costs; what it produces
+     * has to be the same column either way, so each is driven and read back value by value.
+     */
+    public void testMergedColumnIsTheSameWhicheverVocabularyIsUsed() throws IOException {
+        record Shape(String name, DictionaryPolicy policy, IntFunction<String> value) {}
+        final List<Shape> shapes = List.of(
+            // Few terms and nothing escaping, so every segment has a dictionary and their union covers it.
+            new Shape("dictionary union", ROOMY, d -> TERMS[d % TERMS.length]),
+            // A long tail beside them, so a segment lets values escape and the union cannot stand for it.
+            new Shape("combined summaries", ROOMY, d -> d % 9 == 4 ? "tail-" + d : TERMS[d % TERMS.length]),
+            // No dictionary to take or sum, so the merged values are surveyed as a flush surveys them.
+            new Shape("survey", DictionaryPolicy.NONE, d -> TERMS[d % TERMS.length])
+        );
+        for (Shape shape : shapes) {
+            final List<String> values = values(between(900, 2000), shape.value()::apply);
+            try (Directory dir = newDirectory()) {
+                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(
+                    columnarCodec(
+                        new ColumNARDocValuesFormat(
+                            (fieldName, type) -> NumericPipeline::defaultPipeline,
+                            ColumnarFieldType::fromField,
+                            ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
+                            shape.policy()
+                        )
+                    )
+                ).setMergePolicy(new LogDocMergePolicy());
+                final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+                try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                    int written = 0;
+                    for (String value : values) {
+                        if (++written % 200 == 0) {
+                            writer.flush();
+                        }
+                        final Document doc = new Document();
+                        doc.add(new Field(FIELD, new BytesRef(value), type));
+                        writer.addDocument(doc);
+                    }
+                    writer.forceMerge(1);
+                }
+                try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                    assertEquals(shape.name() + " merged into one segment", 1, reader.leaves().size());
+                    final LeafReader leaf = reader.leaves().get(0).reader();
+                    final StringColumnReader column = ((ColumnarStringBinaryDocValues) leaf.getBinaryDocValues(FIELD)).reader();
+                    for (int d = 0; d < values.size(); d++) {
+                        assertEquals(
+                            shape.name() + " value at doc " + d,
+                            values.get(d),
+                            column.valueAt(column.firstValueAddress(d)).utf8ToString()
+                        );
+                    }
+                    final IndexSearcher searcher = new IndexSearcher(reader);
+                    for (String probe : TERMS) {
+                        assertEquals(
+                            shape.name() + " term [" + probe + "]",
+                            expected(values, probe, true),
+                            found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
+                        );
+                    }
                 }
             }
         }

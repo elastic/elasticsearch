@@ -56,7 +56,7 @@ import java.util.function.Predicate;
  * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
  * source shard to the target shard.
  */
-public class PeerRecoverySourceService extends AbstractLifecycleComponent implements IndexEventListener, ClusterStateListener {
+public class PeerRecoverySourceService extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(PeerRecoverySourceService.class);
 
@@ -85,7 +85,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     private final RecoveryPlannerService recoveryPlannerService;
 
     // visible for testing
-    final OngoingRecoveries ongoingRecoveries;
+    @Nullable
+    final ThrottledRecoveries throttledRecoveries;
 
     public PeerRecoverySourceService(
         TransportService transportService,
@@ -100,12 +101,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
         this.recoveryPlannerService = recoveryPlannerService;
-        this.ongoingRecoveries = new OngoingRecoveries(schedulingListeners);
-        clusterService.getClusterSettings()
-            .initializeAndWatchIfRegistered(
-                INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
-                ongoingRecoveries::updateMaxConcurrentOutgoingRecoveries
-            );
+        this.throttledRecoveries = DiscoveryNode.canContainData(clusterService.getSettings())
+            ? new ThrottledRecoveries(clusterService, schedulingListeners)
+            : null;
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source
         // node. Upon receiving START_RECOVERY, the source node will initiate the peer recovery.
         transportService.registerRequestHandler(
@@ -128,44 +126,32 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     @Override
     protected void doStart() {
-        final ClusterService clusterService = indicesService.clusterService();
-        if (DiscoveryNode.canContainData(clusterService.getSettings())) {
-            clusterService.addListener(this);
+        if (throttledRecoveries != null) {
+            clusterService.addListener(throttledRecoveries);
         }
     }
 
     @Override
     protected void doStop() {
-        // Stop accepting new source-side recovery requests and drain the queue of not-yet-started recoveries.
-        ongoingRecoveries.close();
-        ongoingRecoveries.cancelAllPendingRecoveries();
-        final ClusterService clusterService = indicesService.clusterService();
-        if (DiscoveryNode.canContainData(clusterService.getSettings())) {
-            clusterService.removeListener(this);
+        if (throttledRecoveries != null) {
+            // Stop accepting new source-side recovery requests and drain the queue of not-yet-started recoveries.
+            throttledRecoveries.close();
+            throttledRecoveries.cancelAllPendingRecoveries();
+            clusterService.removeListener(throttledRecoveries);
         }
     }
 
     @Override
     protected void doClose() {
-        // Waits for any recoveries that were still active when doStop() drained the queue.
-        assert ongoingRecoveries.queuedRecoveryCount() == 0 : "pending recoveries queue should already be drained";
-        ongoingRecoveries.awaitEmpty();
-    }
-
-    @Override
-    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
-        if (indexShard != null) {
-            ongoingRecoveries.cancel(indexShard);
+        if (throttledRecoveries != null) {
+            // Waits for any recoveries that were still active when doStop() drained the queue.
+            assert throttledRecoveries.queuedRecoveryCount() == 0 : "pending recoveries queue should already be drained";
+            throttledRecoveries.awaitEmpty();
         }
     }
 
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (event.nodesRemoved()) {
-            for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
-                ongoingRecoveries.cancelOnNodeLeft(removedNode);
-            }
-        }
+    public IndexEventListener indexEventListener() {
+        return throttledRecoveries != null ? throttledRecoveries : new IndexEventListener() {};
     }
 
     private void recover(StartRecoveryRequest request, Task task, ActionListener<RecoveryResponse> listener) {
@@ -208,7 +194,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             );
             throw new DelayRecoveryException("source shard is not marked yet as relocating to [" + request.targetNode() + "]");
         }
-        ongoingRecoveries.enqueueRecovery(request, task, shard, listener);
+        assert throttledRecoveries != null : "recovery request received on non-data node";
+        throttledRecoveries.enqueueRecovery(request, task, shard, listener);
     }
 
     private void reestablish(ReestablishRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
@@ -221,10 +208,11 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             request.shardId().id(),
             request.recoveryId()
         );
-        ongoingRecoveries.reestablishRecovery(request, shard, listener);
+        assert throttledRecoveries != null : "reestablish request received on non-data node";
+        throttledRecoveries.reestablishRecovery(request, shard, listener);
     }
 
-    final class OngoingRecoveries {
+    final class ThrottledRecoveries implements IndexEventListener, ClusterStateListener {
 
         private int maxConcurrentOutgoingRecoveries;
 
@@ -240,8 +228,29 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
         private boolean closed = false;
 
-        OngoingRecoveries(CompositeRecoverySchedulingListener schedulingListeners) {
+        ThrottledRecoveries(ClusterService clusterService, CompositeRecoverySchedulingListener schedulingListeners) {
             this.schedulingListeners = schedulingListeners;
+            clusterService.getClusterSettings()
+                .initializeAndWatchIfRegistered(
+                    INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
+                    this::updateMaxConcurrentOutgoingRecoveries
+                );
+        }
+
+        @Override
+        public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+            if (indexShard != null) {
+                cancelRecoveriesOnShardClosed(indexShard);
+            }
+        }
+
+        @Override
+        public void clusterChanged(ClusterChangedEvent event) {
+            if (event.nodesRemoved()) {
+                for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
+                    cancelRecoveriesOnNodeLeft(removedNode);
+                }
+            }
         }
 
         /// Rejects all subsequent [enqueueRecovery] calls. Called when the service stops, before draining the queue.
@@ -306,7 +315,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             return handlers.v1();
         }
 
-        void cancelOnNodeLeft(DiscoveryNode node) {
+        void cancelRecoveriesOnNodeLeft(DiscoveryNode node) {
             final List<PendingRecovery> cancelled;
             synchronized (this) {
                 final Collection<RemoteRecoveryTargetHandler> handlers = nodeToHandlers.get(node);
@@ -458,7 +467,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
         }
 
-        private void cancel(IndexShard shard) {
+        private void cancelRecoveriesOnShardClosed(IndexShard shard) {
             final List<PendingRecovery> cancelled;
             synchronized (this) {
                 final ShardRecoveryContext shardRecoveryContext = activeRecoveries.get(shard);
@@ -586,7 +595,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 Task task,
                 IndexShard shard
             ) {
-                assert Thread.holdsLock(OngoingRecoveries.this);
+                assert Thread.holdsLock(ThrottledRecoveries.this);
                 final Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> handlers = createRecoverySourceHandler(
                     request,
                     task,
@@ -598,7 +607,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
             /// Attaches `listener` to the active handler matching `request`. Returns `false` if no handler matches.
             boolean reestablishRecovery(ReestablishRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
-                assert Thread.holdsLock(OngoingRecoveries.this);
+                assert Thread.holdsLock(ThrottledRecoveries.this);
                 RecoverySourceHandler handler = null;
                 for (RecoverySourceHandler existingHandler : recoveryHandlers.keySet()) {
                     if (existingHandler.getRequest().recoveryId() == request.recoveryId()

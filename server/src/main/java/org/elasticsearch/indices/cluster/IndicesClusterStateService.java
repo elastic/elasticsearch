@@ -223,7 +223,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     ) {
         this.settings = settings;
         this.buildInIndexListener = Arrays.asList(
-            peerRecoverySourceService,
+            peerRecoverySourceService.indexEventListener(),
             recoveryTargetService,
             searchService,
             snapshotShardsService,

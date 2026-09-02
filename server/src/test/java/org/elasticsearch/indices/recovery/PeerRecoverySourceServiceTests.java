@@ -65,16 +65,16 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             var ignored = Releasables.wrap(blockShardRecovery(primary1), blockShardRecovery(primary2))
         ) {
             service.start();
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(2));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(2));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(0));
             assertThat(primary1.recoveryStats().currentAsSource(), equalTo(1));
             assertThat(primary2.recoveryStats().currentAsSource(), equalTo(1));
 
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(2));
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(2));
             assertThat(primary3.recoveryStats().currentAsSourceQueued(), equalTo(1));
 
             closeShards(primary1, primary2, primary3);
@@ -98,9 +98,9 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
         try (var service = newPeerRecoverySourceService(1, schedulingListeners); var block1 = blockShardRecovery(primary1)) {
             service.start();
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
             // The recovery will fail immediately because the fake target allocation ID is not in the shard's routing table
-            service.ongoingRecoveries.enqueueRecovery(
+            service.throttledRecoveries.enqueueRecovery(
                 newStartRecoveryRequest(primary2),
                 task,
                 primary2,
@@ -109,8 +109,8 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
                     exception -> assertThat(exception, instanceOf(DelayRecoveryException.class))
                 )
             );
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(1));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(1));
             assertThat(primary1.recoveryStats().currentAsSource(), equalTo(1));
             assertThat(primary2.recoveryStats().currentAsSourceQueued(), equalTo(1));
 
@@ -118,7 +118,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             block1.close();
             safeAwait(completedListener);
 
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(0));
             assertThat(primary2.recoveryStats().currentAsSourceQueued(), equalTo(0));
             assertTrue(primary1.recoveryStats().noCurrentRecoveries());
             assertTrue(primary2.recoveryStats().noCurrentRecoveries());
@@ -148,13 +148,13 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
         try (var service = newPeerRecoverySourceService(1, schedulingListeners); var block = blockShardRecovery(primary1)) {
             service.start();
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
             assertThat(new ArrayList<>(callOrder), equalTo(List.of("queued", "dequeued")));
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(1));
 
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
             assertThat(new ArrayList<>(callOrder), equalTo(List.of("queued", "dequeued", "queued")));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(1));
             block.close();
             safeAwait(allRecoveriesStarted);
             closeShards(primary1, primary2);
@@ -186,27 +186,27 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             var ignored = blockShardRecovery(primary2)
         ) {
             service.start();
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(
                 newStartRecoveryRequest(primary3),
                 task,
                 primary3,
                 ActionListener.wrap(r -> fail("unexpected success"), e -> callOrder.add(3))
             );
-            service.ongoingRecoveries.enqueueRecovery(
+            service.throttledRecoveries.enqueueRecovery(
                 newStartRecoveryRequest(primary4),
                 task,
                 primary4,
                 ActionListener.wrap(r -> fail("unexpected success"), e -> callOrder.add(4))
             );
-            service.ongoingRecoveries.enqueueRecovery(
+            service.throttledRecoveries.enqueueRecovery(
                 newStartRecoveryRequest(primary5),
                 task,
                 primary5,
                 ActionListener.wrap(r -> fail("unexpected success"), e -> callOrder.add(5))
             );
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(3));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(3));
             assertThat(primary3.recoveryStats().currentAsSourceQueued(), equalTo(1));
             assertThat(primary4.recoveryStats().currentAsSourceQueued(), equalTo(1));
             assertThat(primary5.recoveryStats().currentAsSourceQueued(), equalTo(1));
@@ -229,14 +229,14 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         // Two handlers for the same shard each consume one slot.
         try (var service = newPeerRecoverySourceService(2); var ignored = blockShardRecovery(primary)) {
             service.start();
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary), task, primary, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary), task, primary, ActionListener.noop());
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(2));
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary), task, primary, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary), task, primary, ActionListener.noop());
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(2));
             assertThat(primary.recoveryStats().currentAsSource(), equalTo(2));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(0));
 
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(1));
             assertThat(primary2.recoveryStats().currentAsSourceQueued(), equalTo(1));
 
             closeShards(primary, primary2);
@@ -251,22 +251,22 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
         try (var service = newPeerRecoverySourceService(1); var ignored = blockShardRecovery(primary1)) {
             service.start();
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
 
             // Queue two recoveries for different shards.
             final AtomicReference<Exception> primary2Response = new AtomicReference<>();
-            service.ongoingRecoveries.enqueueRecovery(
+            service.throttledRecoveries.enqueueRecovery(
                 newStartRecoveryRequest(primary2),
                 task,
                 primary2,
                 ActionListener.wrap(r -> fail("unexpected success"), primary2Response::set)
             );
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(1));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(2));
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(2));
             assertThat(primary3.recoveryStats().currentAsSourceQueued(), equalTo(1));
 
-            service.beforeIndexShardClosed(primary2.shardId(), primary2, Settings.EMPTY);
+            service.throttledRecoveries.beforeIndexShardClosed(primary2.shardId(), primary2, Settings.EMPTY);
             assertThat(primary2.recoveryStats().currentAsSourceQueued(), equalTo(0));
             assertThat(primary2.recoveryStats().currentAsSource(), equalTo(0));
             assertNotNull(primary2Response.get());
@@ -274,7 +274,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             assertThat(primary2Response.get().getMessage(), containsString("index shard closed"));
 
             assertThat(primary3.recoveryStats().currentAsSourceQueued(), equalTo(1));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(1));
 
             closeShards(primary1, primary2, primary3);
         }
@@ -287,7 +287,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
         try (var service = newPeerRecoverySourceService(1); var ignored = blockShardRecovery(primary1)) {
             service.start();
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
 
             // Queue a recovery targeting a specific node.
             final DiscoveryNode departedNode = getFakeDiscoNode("departing");
@@ -304,18 +304,18 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
                 true
             );
             final AtomicReference<Exception> primary2Response = new AtomicReference<>();
-            service.ongoingRecoveries.enqueueRecovery(
+            service.throttledRecoveries.enqueueRecovery(
                 requestToDepartingNode,
                 task,
                 primary2,
                 ActionListener.wrap(r -> fail("unexpected success"), primary2Response::set)
             );
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(1));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(1));
 
             // Simulate node departure, the pending entry should fail.
-            service.ongoingRecoveries.cancelOnNodeLeft(departedNode);
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+            service.throttledRecoveries.cancelRecoveriesOnNodeLeft(departedNode);
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(0));
             assertThat(primary2.recoveryStats().currentAsSourceQueued(), equalTo(0));
             assertNotNull(primary2Response.get());
             assertThat(primary2Response.get(), instanceOf(DelayRecoveryException.class));
@@ -336,21 +336,21 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             var ignored = Releasables.wrap(blockShardRecovery(primary1), blockShardRecovery(primary2))
         ) {
             service.start();
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
 
             final AtomicReference<Exception> primary3Response = new AtomicReference<>();
-            service.ongoingRecoveries.enqueueRecovery(
+            service.throttledRecoveries.enqueueRecovery(
                 newStartRecoveryRequest(primary3),
                 task,
                 primary3,
                 ActionListener.wrap(r -> fail("unexpected success"), primary3Response::set)
             );
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(2));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(2));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(1));
 
-            service.ongoingRecoveries.cancelAllPendingRecoveries();
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+            service.throttledRecoveries.cancelAllPendingRecoveries();
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(0));
             assertThat(primary3.recoveryStats().currentAsSourceQueued(), equalTo(0));
             assertNotNull(primary3Response.get());
             assertThat(primary3Response.get().getMessage(), containsString("node is closing"));
@@ -379,7 +379,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
             // Block so the first recovery stays active long enough to test duplicate rejection.
             try (var ignored = blockShardRecovery(primary)) {
-                service.ongoingRecoveries.enqueueRecovery(request, task, primary, ActionListener.noop());
+                service.throttledRecoveries.enqueueRecovery(request, task, primary, ActionListener.noop());
 
                 // Same target allocation ID should be rejected while the recovery is active.
                 final var duplicate = new StartRecoveryRequest(
@@ -396,7 +396,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
                 );
                 final var exception = expectThrows(
                     DelayRecoveryException.class,
-                    () -> service.ongoingRecoveries.enqueueRecovery(duplicate, task, primary, ActionListener.noop())
+                    () -> service.throttledRecoveries.enqueueRecovery(duplicate, task, primary, ActionListener.noop())
                 );
                 assertThat(exception.getMessage(), containsString("recovery with same target already registered"));
             }
@@ -412,7 +412,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
                     secondComplete.countDown();
                 }
             });
-            service.ongoingRecoveries.enqueueRecovery(request, task, primary, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(request, task, primary, ActionListener.noop());
             safeAwait(secondComplete);
 
             closeShards(primary);
@@ -426,12 +426,12 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
         try (var service = newPeerRecoverySourceService(1); var ignored = Releasables.wrap(blockShardRecovery(primary1))) {
             service.start();
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
 
             final var queuedRequest = newStartRecoveryRequest(primary2);
-            service.ongoingRecoveries.enqueueRecovery(queuedRequest, task, primary2, ActionListener.noop());
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(1));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+            service.throttledRecoveries.enqueueRecovery(queuedRequest, task, primary2, ActionListener.noop());
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(1));
 
             // Request for the same target allocation ID should be rejected.
             final var duplicateRequest = new StartRecoveryRequest(
@@ -448,7 +448,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             );
             final var exception = expectThrows(
                 DelayRecoveryException.class,
-                () -> service.ongoingRecoveries.enqueueRecovery(duplicateRequest, task, primary2, ActionListener.noop())
+                () -> service.throttledRecoveries.enqueueRecovery(duplicateRequest, task, primary2, ActionListener.noop())
             );
             assertThat(exception.getMessage(), containsString("recovery with same target already registered"));
 
@@ -468,8 +468,8 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         ) {
             service.start();
             final var activeRequest = newStartRecoveryRequest(primary1);
-            service.ongoingRecoveries.enqueueRecovery(activeRequest, task, primary1, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(activeRequest, task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
 
             final var duplicateOfActive = new StartRecoveryRequest(
                 primary3.shardId(),
@@ -485,10 +485,10 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             );
             final var exception = expectThrows(
                 DelayRecoveryException.class,
-                () -> service.ongoingRecoveries.enqueueRecovery(duplicateOfActive, task, primary3, ActionListener.noop())
+                () -> service.throttledRecoveries.enqueueRecovery(duplicateOfActive, task, primary3, ActionListener.noop())
             );
             assertThat(exception.getMessage(), containsString("recovery with same target already registered"));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(0));
 
             closeShards(primary1, primary2, primary3);
         }
@@ -501,7 +501,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
         try (var service = newPeerRecoverySourceService(Integer.MAX_VALUE); var ignored = blockShardRecovery(primary)) {
             service.start();
-            service.ongoingRecoveries.enqueueRecovery(request, task, primary, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(request, task, primary, ActionListener.noop());
 
             // Reestablish with the correct recovery ID and allocation ID succeeds.
             final var reestablishRequest = new ReestablishRecoveryRequest(
@@ -509,7 +509,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
                 request.shardId(),
                 request.targetAllocationId()
             );
-            service.ongoingRecoveries.reestablishRecovery(reestablishRequest, primary, ActionListener.noop());
+            service.throttledRecoveries.reestablishRecovery(reestablishRequest, primary, ActionListener.noop());
 
             // Wrong recovery ID throws ResourceNotFoundException.
             final var wrongIdRequest = new ReestablishRecoveryRequest(
@@ -519,7 +519,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             );
             expectThrows(
                 ResourceNotFoundException.class,
-                () -> service.ongoingRecoveries.reestablishRecovery(wrongIdRequest, primary, ActionListener.noop())
+                () -> service.throttledRecoveries.reestablishRecovery(wrongIdRequest, primary, ActionListener.noop())
             );
 
             closeShards(primary);
@@ -533,18 +533,18 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
         try (var service = newPeerRecoverySourceService(1); var ignored = blockShardRecovery(primary1)) {
             service.start();
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
 
             // Capture the original listener to verify it is never called prematurely.
             final var request2 = newStartRecoveryRequest(primary2);
             final var oldListenerResponse = new AtomicReference<Exception>();
-            service.ongoingRecoveries.enqueueRecovery(
+            service.throttledRecoveries.enqueueRecovery(
                 request2,
                 task,
                 primary2,
                 ActionListener.wrap(r -> fail("unexpected success"), oldListenerResponse::set)
             );
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(1));
             assertThat(primary2.recoveryStats().currentAsSourceQueued(), equalTo(1));
 
             // Reestablish the pending recovery with a fresh listener.
@@ -554,21 +554,21 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
                 request2.shardId(),
                 request2.targetAllocationId()
             );
-            service.ongoingRecoveries.reestablishRecovery(
+            service.throttledRecoveries.reestablishRecovery(
                 reestablishRequest,
                 primary2,
                 ActionListener.wrap(r -> fail("unexpected success"), newListenerResponse::set)
             );
 
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(1));
             assertThat(primary2.recoveryStats().currentAsSourceQueued(), equalTo(1));
 
             assertNull(oldListenerResponse.get());
             assertNull(newListenerResponse.get());
 
             // Both the old and new listener are notified on completion (here cancellation).
-            service.ongoingRecoveries.cancelAllPendingRecoveries();
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+            service.throttledRecoveries.cancelAllPendingRecoveries();
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(0));
             assertThat(primary2.recoveryStats().currentAsSourceQueued(), equalTo(0));
             assertNotNull("old listener must have been called on cancel", oldListenerResponse.get());
             assertThat(oldListenerResponse.get(), instanceOf(DelayRecoveryException.class));
@@ -579,7 +579,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             // Reestablishing when no matching entry exists throws PeerRecoveryNotFound.
             expectThrows(
                 PeerRecoveryNotFound.class,
-                () -> service.ongoingRecoveries.reestablishRecovery(reestablishRequest, primary2, ActionListener.noop())
+                () -> service.throttledRecoveries.reestablishRecovery(reestablishRequest, primary2, ActionListener.noop())
             );
 
             closeShards(primary1, primary2);
@@ -598,21 +598,21 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         ) {
             service.start();
             // Slot 1: primary1 with allocation ID A (active)
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
             // Slot 2: primary2 fills the remaining slot
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
 
             // Queue a second recovery for primary1 with a different allocation ID.
             final var queuedRequest = newStartRecoveryRequest(primary1);
             final var oldListenerResponse = new AtomicReference<Exception>();
-            service.ongoingRecoveries.enqueueRecovery(
+            service.throttledRecoveries.enqueueRecovery(
                 queuedRequest,
                 task,
                 primary1,
                 ActionListener.wrap(r -> fail("unexpected success"), oldListenerResponse::set)
             );
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(2));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(2));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(1));
 
             final var reestablishRequest = new ReestablishRecoveryRequest(
                 queuedRequest.recoveryId(),
@@ -620,15 +620,15 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
                 queuedRequest.targetAllocationId()
             );
             final var newListenerResponse = new AtomicReference<Exception>();
-            service.ongoingRecoveries.reestablishRecovery(
+            service.throttledRecoveries.reestablishRecovery(
                 reestablishRequest,
                 primary1,
                 ActionListener.wrap(r -> fail("unexpected success"), newListenerResponse::set)
             );
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(1));
 
             // Both the old and new listener are notified on completion (here cancellation).
-            service.ongoingRecoveries.cancelAllPendingRecoveries();
+            service.throttledRecoveries.cancelAllPendingRecoveries();
             assertNotNull("old listener must be called on cancel", oldListenerResponse.get());
             assertThat(oldListenerResponse.get(), instanceOf(DelayRecoveryException.class));
             assertNotNull("new listener must be called on cancel", newListenerResponse.get());
@@ -645,17 +645,17 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         try (var service = newPeerRecoverySourceService(1)) {
             service.start();
             service.stop();
-            assertTrue(service.ongoingRecoveries.closed());
+            assertTrue(service.throttledRecoveries.closed());
 
             final AtomicReference<Exception> response = new AtomicReference<>();
-            service.ongoingRecoveries.enqueueRecovery(
+            service.throttledRecoveries.enqueueRecovery(
                 newStartRecoveryRequest(primary),
                 task,
                 primary,
                 ActionListener.wrap(r -> fail("unexpected success"), response::set)
             );
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(0));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(0));
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(0));
             assertThat(response.get(), instanceOf(DelayRecoveryException.class));
             assertThat(response.get().getMessage(), containsString("source node is closing"));
             assertTrue(primary.recoveryStats().noCurrentRecoveries());
@@ -673,28 +673,28 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final var service = newPeerRecoverySourceService(1);
         try {
             service.start();
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
 
             final AtomicReference<Exception> queuedResponse = new AtomicReference<>();
-            service.ongoingRecoveries.enqueueRecovery(
+            service.throttledRecoveries.enqueueRecovery(
                 newStartRecoveryRequest(primary2),
                 task,
                 primary2,
                 ActionListener.wrap(r -> fail("unexpected success"), queuedResponse::set)
             );
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(1));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(1));
 
             // stop() cancels the queued recovery but returns without waiting for the active one.
             service.stop();
             assertThat(queuedResponse.get(), instanceOf(DelayRecoveryException.class));
             assertThat(queuedResponse.get().getMessage(), containsString("source node is closing"));
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(1));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(0));
 
             // close() waits for the active recovery, which completes once its permit block is released.
             runInParallel(service::close, block::close);
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(0));
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(0));
         } finally {
             closeShards(primary1, primary2);
         }
@@ -716,13 +716,13 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             );
 
             // First request starts immediately under the new lower limit.
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(1));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(0));
 
             // Second request queues because the new limit (1) is already reached.
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(1));
 
             closeShards(primary1, primary2);
         }
@@ -742,23 +742,23 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             var ignored = Releasables.wrap(blockShardRecovery(primary1), blockShardRecovery(primary2), blockShardRecovery(primary3))
         ) {
             service.start();
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(3));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(3));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(0));
 
             // Decreasing the limit below the current active count must not cancel or disturb the in-flight recoveries
             clusterSettings.applySettings(
                 Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1).build()
             );
 
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(3));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(3));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(0));
 
             // New requests queue because active count (3) exceeds the new limit (1)
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary4), task, primary4, ActionListener.noop());
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary4), task, primary4, ActionListener.noop());
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(1));
 
             closeShards(primary1, primary2, primary3, primary4);
         }
@@ -780,12 +780,12 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         ) {
             service.start();
             // Fill all 3 active slots, then queue primary4
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary4), task, primary4, ActionListener.noop());
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(3));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary4), task, primary4, ActionListener.noop());
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(3));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(1));
 
             final var dequeuedCount = new AtomicInteger();
             schedulingListeners.addListener(new RecoverySchedulingListener() {
@@ -801,7 +801,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             );
 
             assertThat(dequeuedCount.get(), equalTo(0));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(1));
 
             closeShards(primary1, primary2, primary3, primary4);
         }
@@ -820,10 +820,10 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             var ignored = Releasables.wrap(blockShardRecovery(primary1), blockShardRecovery(primary2))
         ) {
             service.start();
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(2));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(2));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(0));
 
             final var dequeuedCount = new AtomicInteger();
             schedulingListeners.addListener(new RecoverySchedulingListener() {
@@ -862,20 +862,20 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             )
         ) {
             service.start();
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(2));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(2));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(0));
 
             clusterSettings.applySettings(
                 Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4).build()
             );
 
             // Both new requests must start immediately because active count (2) is below the new higher limit (4)
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary4), task, primary4, ActionListener.noop());
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(4));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary4), task, primary4, ActionListener.noop());
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(4));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(0));
 
             closeShards(primary1, primary2, primary3, primary4);
         }
@@ -906,13 +906,13 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             var ignored = Releasables.wrap(blockShardRecovery(primary1), blockShardRecovery(primary2))
         ) {
             service.start();
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary4), task, primary4, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary5), task, primary5, ActionListener.noop());
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(2));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(3));
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary4), task, primary4, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary5), task, primary5, ActionListener.noop());
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(2));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(3));
 
             // Raising the limit high enough to fit everything drains the entire queue at once
             clusterSettings.applySettings(
@@ -924,8 +924,8 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             // primary1 and primary2 are blocked waiting for their shard's primary operation permits, so
             // recoverToTarget for those two hangs and onRecoveryComplete never fires. They remain active.
             // For the other 3 dequeued requests, recoverToTarget runs and completes immediately.
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(2));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(2));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(0));
             assertTrue(primary3.recoveryStats().noCurrentRecoveries());
             assertTrue(primary4.recoveryStats().noCurrentRecoveries());
             assertTrue(primary5.recoveryStats().noCurrentRecoveries());
@@ -962,14 +962,14 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             var ignored = Releasables.wrap(blockShardRecovery(primary1), blockShardRecovery(primary2))
         ) {
             service.start();
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
             // Queue 3 items. The limit increase opens only 2 initial slots, so the 3rd drains via cascade.
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary4), task, primary4, ActionListener.noop());
-            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary5), task, primary5, ActionListener.noop());
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(2));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(3));
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary4), task, primary4, ActionListener.noop());
+            service.throttledRecoveries.enqueueRecovery(newStartRecoveryRequest(primary5), task, primary5, ActionListener.noop());
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(2));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(3));
             assertThat(primary3.recoveryStats().currentAsSourceQueued(), equalTo(1));
             assertThat(primary4.recoveryStats().currentAsSourceQueued(), equalTo(1));
             assertThat(primary5.recoveryStats().currentAsSourceQueued(), equalTo(1));
@@ -984,8 +984,8 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             // primary1 and primary2 are blocked waiting for their shard's primary operation permits, so
             // recoverToTarget for those two hangs and onRecoveryComplete never fires. They remain active.
             // For the other 3 dequeued requests, recoverToTarget runs and completes immediately.
-            assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(2));
-            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(0));
+            assertThat(service.throttledRecoveries.activeRecoveryCount(), equalTo(2));
+            assertThat(service.throttledRecoveries.queuedRecoveryCount(), equalTo(0));
             assertTrue(primary3.recoveryStats().noCurrentRecoveries());
             assertTrue(primary4.recoveryStats().noCurrentRecoveries());
             assertTrue(primary5.recoveryStats().noCurrentRecoveries());
@@ -1020,11 +1020,16 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             ) {
                 service.start();
 
-                service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(runningShard), task, runningShard, ActionListener.noop());
-                assertEquals(1, service.ongoingRecoveries.activeRecoveryCount());
+                service.throttledRecoveries.enqueueRecovery(
+                    newStartRecoveryRequest(runningShard),
+                    task,
+                    runningShard,
+                    ActionListener.noop()
+                );
+                assertEquals(1, service.throttledRecoveries.activeRecoveryCount());
 
                 for (int i = 0; i < queuedRecoveryCount; i++) {
-                    service.ongoingRecoveries.enqueueRecovery(
+                    service.throttledRecoveries.enqueueRecovery(
                         newStartRecoveryRequest(enqueuedShard),
                         task,
                         enqueuedShard,
@@ -1032,8 +1037,8 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
                     );
                 }
 
-                assertEquals(1, service.ongoingRecoveries.activeRecoveryCount());
-                assertEquals(queuedRecoveryCount, service.ongoingRecoveries.queuedRecoveryCount());
+                assertEquals(1, service.throttledRecoveries.activeRecoveryCount());
+                assertEquals(queuedRecoveryCount, service.throttledRecoveries.queuedRecoveryCount());
 
                 // Close queued shard so recoveries fail synchronously in recoverToTarget
                 closeShards(enqueuedShard);
@@ -1042,7 +1047,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
                 block.close();
 
                 safeAwait(recoveriesCompleted);
-                assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
+                assertEquals(0, service.throttledRecoveries.queuedRecoveryCount());
                 closeShards(runningShard);
             }
         }

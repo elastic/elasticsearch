@@ -99,9 +99,8 @@ public class RestCatRecoveryActionTests extends ESTestCase {
                     case FINALIZE -> state.setStage(RecoveryState.Stage.DONE);
                     case DONE -> fail(
                         Strings.format(
-                            "Walked through all recovery stages without reaching targetStage %s, final state %s: this should be impossible",
-                            targetStage,
-                            state
+                            "Walked through recovery stages and reached DONE without reaching targetStage %s, which should be impossible",
+                            targetStage
                         )
                     );
                 }

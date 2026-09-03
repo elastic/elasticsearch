@@ -465,7 +465,10 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                     }
                 };
             }
-            // With filter: emit compact doc IDs (0-based rank in filter) for each set bit.
+            // With filter: emit compact doc IDs (0-based rank in filter) for each set bit. Unlike
+            // sparse columns, the _id field is always present for every document, so there is no
+            // inner sparse cursor to co-iterate with — we walk the filter bits directly rather than
+            // using FilteredIterator (which exists to intersect a sparse data cursor with a filter).
             return new ObjectTupleCursor<>() {
                 private int compactDoc = -1;
                 private final SyntheticIdField.EmptyTokenStream ts = new SyntheticIdField.EmptyTokenStream();

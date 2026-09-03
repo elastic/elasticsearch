@@ -107,6 +107,17 @@ public final class ChunkedBytesReader {
             return;
         }
         if (codec.isIdentity()) {
+            if (numChunks == 1) {
+                // Everything the stream holds is in that one chunk, so keeping it costs a single read and
+                // every value after the first is a slice of it. A stream of several chunks does not get the
+                // same treatment: nothing says the next value read is in the chunk the last one was, and a
+                // read that misses would copy a whole chunk to hand back a few bytes.
+                ensureChunk(0);
+                dst.bytes = chunk;
+                dst.offset = (int) (offset - cachedStart);
+                dst.length = length;
+                return;
+            }
             // Stored verbatim in the file, so there is no decoded chunk to point into.
             verbatim = ArrayUtil.growNoCopy(verbatim, length);
             data.seek(dataOffset + offset);

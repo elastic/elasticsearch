@@ -223,15 +223,8 @@ public class LocalTimeOffsetTests extends ESTestCase {
     }
 
     /**
-     * Pins the exclusive upper bound of a DST overlap. {@code localToUtc}
-     * treats {@code [firstOverlappingLocalTime, firstNonOverlappingLocalTime)}
-     * as the overlap; the first local millisecond after that interval must
-     * convert with this offset, not the overlap strategy.
-     * <p>
-     * {@link #testOverlap} used to draw this exclusive end because
-     * {@code randomLongBetween} is inclusive, then expect the overlap
-     * strategy and fail with the overlap-end utc millis
-     * ({@code 276048000000L} for this Rome transition). See #158343.
+     * Verifies that {@code localToUtc} treats a DST overlap as
+     * {@code [firstOverlappingLocalTime, firstNonOverlappingLocalTime)}.
      */
     public void testOverlapDoesNotIncludeFirstNonOverlappingLocalTime() {
         ZoneId tz = ZoneId.of("Europe/Rome");

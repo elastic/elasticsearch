@@ -4024,6 +4024,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, ".preview.alerts-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".lists-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".items-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".threat-intel-indicators-" + randomAlphaOfLengthBetween(1, 8));
+        // The bare index carries every space at every confidence level. Only the filtered
+        // per-space aliases are granted, so the trailing hyphen in the pattern is load-bearing.
+        assertNoAccessAllowed(role, ".threat-intel-indicators");
         assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5) + "-transaction-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "logs-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "auditbeat-" + randomIntBetween(0, 5));
@@ -4150,6 +4154,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".siem-signals-" + randomIntBetween(0, 5));
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".lists-" + randomIntBetween(0, 5));
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".items-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".threat-intel-indicators-" + randomAlphaOfLengthBetween(1, 8));
+        assertNoAccessAllowed(role, ".threat-intel-indicators");
         assertReadWriteDocsButNotDeleteIndexAllowed(role, "observability-annotations");
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".alerts-" + randomIntBetween(0, 5));
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".internal.alerts-" + randomIntBetween(0, 5));

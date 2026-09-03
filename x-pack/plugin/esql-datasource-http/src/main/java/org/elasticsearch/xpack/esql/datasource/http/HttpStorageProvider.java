@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -77,6 +78,11 @@ public final class HttpStorageProvider implements StorageProvider {
     @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
         throw new UnsupportedOperationException("HTTP does not support directory listing");
+    }
+
+    @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) {
+        return null; // HTTP has no directory listing at all — callers fall back to explicit paths
     }
 
     @Override

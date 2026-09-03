@@ -329,7 +329,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     // LOOKUP JOIN: the left side's KEEP/DROP constraints must survive the join
     // -----------------------------------------------------------------------
 
-    public void testKeepWildcardBelowLookupJoinIsRespected() {
+    public void testKeepWildcardBeforeLookupJoinIsRespected() {
         UnmappedFieldsPattern pattern = patternForJoin(
             "FROM test | EVAL language_code = languages | KEEP first_name*, language_code | LOOKUP JOIN languages_lookup ON language_code",
             test().addLanguagesLookup()
@@ -342,8 +342,8 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(pattern, "unmapped_extra", "salary_bonus");
     }
 
-    /** A KEEP below the join with a wildcard still restricts — looking at the intersection across the join. */
-    public void testDropWildcardBelowLookupJoinIsRespected() {
+    /** A DROP of a plain name before the join still restricts — the dropped name must stay excluded across the join. */
+    public void testDropBeforeLookupJoinIsRespected() {
         UnmappedFieldsPattern pattern = patternForJoin(
             "FROM test | DROP salary | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
             test().addLanguagesLookup()
@@ -352,6 +352,24 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertKept(pattern, "unmapped_extra", "first_name_suffix");
         assertNotKept(pattern, excl("salary", "language_code", "language_name"));
         assertKeptAnyOtherName(pattern, excl("salary", "language_code", "language_name"));
+    }
+
+    /**
+     * Like {@link #testDropBeforeLookupJoinIsRespected}, but the DROP uses a wildcard: every unmapped name matching it stays
+     * excluded across the join, while non-matching names still expand. No {@code assertKeptAnyOtherName} here — a random name
+     * could match the wildcard exclude.
+     */
+    public void testDropWildcardBeforeLookupJoinIsRespected() {
+        UnmappedFieldsPattern pattern = patternForJoin(
+            "FROM test | DROP first_name* | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+            test().addLanguagesLookup()
+        );
+        // names matching the dropped wildcard stay excluded across the join
+        assertNotKept(pattern, "first_name_suffix", "first_name.sub");
+        // everything else still expands
+        assertKept(pattern, "unmapped_extra", "first_grade", "salary_bonus");
+        // lookup index fields (language_code, language_name) and test-mapped fields are excluded
+        assertNotKept(pattern, excl("language_code", "language_name"));
     }
 
     /**
@@ -430,7 +448,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertKeptAnyOtherName(pattern, excl("language_name"));
     }
 
-    public void testKeepWildcardBelowEnrichIsRespected() {
+    public void testKeepWildcardBeforeEnrichIsRespected() {
         // EVAL a match key before KEEP so the match field (lc) is available after the wildcard KEEP narrows the output.
         UnmappedFieldsPattern pattern = patternForEnrich(
             "FROM test | EVAL lc = languages | KEEP first_name*, lc | ENRICH languages ON lc",

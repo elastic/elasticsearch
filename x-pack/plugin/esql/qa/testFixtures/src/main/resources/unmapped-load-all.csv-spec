@@ -603,7 +603,7 @@ FROM partial_mapping_sample_data
 // KEEP wildcard before the join: the blob is preserved through the KEEP (special handling), and the *message* pattern
 // restricts it so only unmapped_message (which contains "message") expands — other unmapped fields are excluded.
 // message_type is added by the join after the KEEP.
-lookupJoinKeepWildcardBelowJoin
+lookupJoinKeepWildcardBeforeJoin
 required_capability: optional_fields_load_all_join_and_enrich
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -620,7 +620,7 @@ FROM partial_mapping_sample_data
 2024-10-23T13:33:34.937Z | 42                     | numeric              | 43
 ;
 
-lookupJoinDropWildcardBelowJoin
+lookupJoinDropWildcardBeforeJoin
 required_capability: optional_fields_load_all_join_and_enrich
 
 SET unmapped_fields="LOAD_ALL"\;

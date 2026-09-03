@@ -1,0 +1,9 @@
+prs:
+- https://github.com/elastic/elasticsearch/pull/158411
+type: bug-fix
+products:
+- product: elasticsearch
+  lifecycle: ga
+areas:
+- Mapping
+title: Fix NPE in nested inner_hits backward doc access

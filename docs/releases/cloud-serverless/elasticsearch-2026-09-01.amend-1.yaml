@@ -1,0 +1,18 @@
+products:
+- product: cloud-serverless
+  target: 2026-09-01
+  repo: elasticsearch
+  owner: elastic
+entries:
+- file:
+    name: 158411.yaml
+    checksum: 697eb13f212a4fb0b5661eef1fb18af2cd91f4ce
+  type: bug-fix
+  title: Fix NPE in nested inner_hits backward doc access
+  products:
+  - product: elasticsearch
+    lifecycle: ga
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158411

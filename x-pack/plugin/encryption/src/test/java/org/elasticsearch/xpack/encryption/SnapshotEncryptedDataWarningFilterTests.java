@@ -23,15 +23,17 @@ import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
-import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -39,6 +41,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.UnaryOperator;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
@@ -48,161 +51,96 @@ import static org.mockito.Mockito.when;
 
 public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
 
+    private static final EnumSet<Metadata.XContentContext> SNAPSHOT_CONTEXT = EnumSet.of(
+        Metadata.XContentContext.GATEWAY,
+        Metadata.XContentContext.SNAPSHOT
+    );
+
     @Override
     protected boolean enableWarningsCheck() {
         return false;
     }
 
     public void testNoWarningWhenNoEncryptedData() {
-        ClusterState state = stateWithoutCustom();
-        ClusterService clusterService = mockClusterService(state);
-        var registry = new EncryptedDataHandlerRegistry(List.of(handlerFor("test_custom")));
-        var filter = new SnapshotEncryptedDataWarningFilter(clusterService, DefaultProjectResolver.INSTANCE, registry);
-
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        HeaderWarning.setThreadContext(threadContext);
-        try {
-            AtomicBoolean proceeded = new AtomicBoolean();
-            MockLog.assertThatLogger(
-                () -> filter.apply(
-                    mock(Task.class),
-                    "action",
-                    new CreateSnapshotRequest(TimeValue.ZERO, "repo", "snap"),
-                    ActionListener.noop(),
-                    chain(proceeded)
-                ),
-                SnapshotEncryptedDataWarningFilter.class,
-                new MockLog.UnseenEventExpectation("no warning", SnapshotEncryptedDataWarningFilter.class.getName(), Level.WARN, "*")
-            );
-            assertTrue("chain.proceed was not called", proceeded.get());
-            assertThat(threadContext.getResponseHeaders(), not(hasKey("Warning")));
-        } finally {
-            HeaderWarning.removeThreadContext(threadContext);
-        }
+        assertNoWarning(stateWithoutCustom(), new TestHandler(), plainRequest());
     }
 
     public void testWarningEmittedWhenEncryptedDataPresent() {
-        TestCustom custom = new TestCustom();
-        ClusterState state = stateWithCustom(custom);
-        ClusterService clusterService = mockClusterService(state);
-        var registry = new EncryptedDataHandlerRegistry(List.of(handlerFor(TestCustom.TYPE)));
-        var filter = new SnapshotEncryptedDataWarningFilter(clusterService, DefaultProjectResolver.INSTANCE, registry);
+        assertWarningEmitted(stateWithCustom(SNAPSHOT_CONTEXT), new TestHandler(), plainRequest());
+    }
 
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        HeaderWarning.setThreadContext(threadContext);
-        try {
-            AtomicBoolean proceeded = new AtomicBoolean();
-            MockLog.assertThatLogger(
-                () -> filter.apply(
-                    mock(Task.class),
-                    "action",
-                    new CreateSnapshotRequest(TimeValue.ZERO, "repo", "snap"),
-                    ActionListener.noop(),
-                    chain(proceeded)
-                ),
-                SnapshotEncryptedDataWarningFilter.class,
-                new MockLog.SeenEventExpectation(
-                    "warning logged",
-                    SnapshotEncryptedDataWarningFilter.class.getName(),
-                    Level.WARN,
-                    "*Encrypted credentials*"
-                )
-            );
-            assertTrue("chain.proceed was not called", proceeded.get());
-            Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
-            assertThat(responseHeaders, hasKey("Warning"));
-            assertThat(responseHeaders.get("Warning").get(0), containsString("Encrypted credentials"));
-        } finally {
-            HeaderWarning.removeThreadContext(threadContext);
-        }
+    public void testWarningEmittedWhenHandlerNotIncludedInSnapshots() {
+        assertWarningEmitted(stateWithCustom(SNAPSHOT_CONTEXT), new TestHandler(false, true), requestWithEncryptedData());
+    }
+
+    public void testWarningEmittedWhenCustomNotWrittenToSnapshots() {
+        assertWarningEmitted(stateWithCustom(EnumSet.of(Metadata.XContentContext.GATEWAY)), new TestHandler(), requestWithEncryptedData());
+    }
+
+    public void testNoWarningWhenEncryptedDataSupplied() {
+        assumeTrue("only relevant when snapshot encryption feature is enabled", SnapshotEncryptedData.FEATURE_FLAG.isEnabled());
+        assertNoWarning(stateWithCustom(SNAPSHOT_CONTEXT), new TestHandler(), requestWithEncryptedData());
     }
 
     public void testNoWarningWhenIncludeGlobalStateFalse() {
-        TestCustom custom = new TestCustom();
-        ClusterState state = stateWithCustom(custom);
-        ClusterService clusterService = mockClusterService(state);
-        var registry = new EncryptedDataHandlerRegistry(List.of(handlerFor(TestCustom.TYPE)));
-        var filter = new SnapshotEncryptedDataWarningFilter(clusterService, DefaultProjectResolver.INSTANCE, registry);
-
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        HeaderWarning.setThreadContext(threadContext);
-        try {
-            AtomicBoolean proceeded = new AtomicBoolean();
-            CreateSnapshotRequest request = new CreateSnapshotRequest(TimeValue.ZERO, "repo", "snap");
-            request.includeGlobalState(false);
-            MockLog.assertThatLogger(
-                () -> filter.apply(mock(Task.class), "action", request, ActionListener.noop(), chain(proceeded)),
-                SnapshotEncryptedDataWarningFilter.class,
-                new MockLog.UnseenEventExpectation("no warning", SnapshotEncryptedDataWarningFilter.class.getName(), Level.WARN, "*")
-            );
-            assertTrue("chain.proceed was not called", proceeded.get());
-            assertThat(threadContext.getResponseHeaders(), not(hasKey("Warning")));
-        } finally {
-            HeaderWarning.removeThreadContext(threadContext);
-        }
+        assertNoWarning(stateWithCustom(SNAPSHOT_CONTEXT), new TestHandler(), plainRequest().includeGlobalState(false));
     }
 
     public void testNoWarningWhenHandlerReportsNoData() {
-        TestCustom custom = new TestCustom();
-        ClusterState state = stateWithCustom(custom);
-        ClusterService clusterService = mockClusterService(state);
-        // Handler overrides hasData to always return false, simulating an empty-but-present custom.
-        var registry = new EncryptedDataHandlerRegistry(List.of(new EncryptedDataHandler<TestCustom>() {
-            @Override
-            public String customName() {
-                return TestCustom.TYPE;
-            }
-
-            @Override
-            public boolean hasData(TestCustom current) {
-                return false;
-            }
-
-            @Override
-            public TestCustom reEncrypt(TestCustom current, EncryptionService encryptionService, String activeKeyId) {
-                return current;
-            }
-        }));
-        var filter = new SnapshotEncryptedDataWarningFilter(clusterService, DefaultProjectResolver.INSTANCE, registry);
-
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        HeaderWarning.setThreadContext(threadContext);
-        try {
-            AtomicBoolean proceeded = new AtomicBoolean();
-            filter.apply(
-                mock(Task.class),
-                "action",
-                new CreateSnapshotRequest(TimeValue.ZERO, "repo", "snap"),
-                ActionListener.noop(),
-                chain(proceeded)
-            );
-            assertTrue("chain.proceed was not called", proceeded.get());
-            assertThat(threadContext.getResponseHeaders(), not(hasKey("Warning")));
-        } finally {
-            HeaderWarning.removeThreadContext(threadContext);
-        }
+        assertNoWarning(stateWithCustom(SNAPSHOT_CONTEXT), new TestHandler(true, false), plainRequest());
     }
 
-    public void testWarningNotEmittedWhenHandlerCustomAbsentFromState() {
-        ClusterState state = stateWithCustom(new TestCustom());
-        ClusterService clusterService = mockClusterService(state);
-        // Register a handler for a different custom type that is not in the state.
-        var registry = new EncryptedDataHandlerRegistry(List.of(handlerFor("other_custom")));
-        var filter = new SnapshotEncryptedDataWarningFilter(clusterService, DefaultProjectResolver.INSTANCE, registry);
+    private static void assertWarningEmitted(ClusterState state, TestHandler handler, CreateSnapshotRequest request) {
+        final ThreadContext threadContext = applyFilter(
+            state,
+            handler,
+            request,
+            new MockLog.SeenEventExpectation(
+                "warning logged",
+                SnapshotEncryptedDataWarningFilter.class.getName(),
+                Level.WARN,
+                "*Encrypted credentials*"
+            )
+        );
+        final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+        assertThat(responseHeaders, hasKey("Warning"));
+        assertThat(responseHeaders.get("Warning").get(0), containsString("Encrypted credentials"));
+    }
 
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+    private static void assertNoWarning(ClusterState state, TestHandler handler, CreateSnapshotRequest request) {
+        final ThreadContext threadContext = applyFilter(
+            state,
+            handler,
+            request,
+            new MockLog.UnseenEventExpectation("no warning", SnapshotEncryptedDataWarningFilter.class.getName(), Level.WARN, "*")
+        );
+        assertThat(threadContext.getResponseHeaders(), not(hasKey("Warning")));
+    }
+
+    private static ThreadContext applyFilter(
+        ClusterState state,
+        TestHandler handler,
+        CreateSnapshotRequest request,
+        MockLog.LoggingExpectation expectation
+    ) {
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(state);
+        final var filter = new SnapshotEncryptedDataWarningFilter(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            new EncryptedDataHandlerRegistry(List.of(handler))
+        );
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
         try {
-            AtomicBoolean proceeded = new AtomicBoolean();
-            filter.apply(
-                mock(Task.class),
-                "action",
-                new CreateSnapshotRequest(TimeValue.ZERO, "repo", "snap"),
-                ActionListener.noop(),
-                chain(proceeded)
+            final AtomicBoolean proceeded = new AtomicBoolean();
+            MockLog.assertThatLogger(
+                () -> filter.apply(mock(Task.class), "action", request, ActionListener.noop(), chain(proceeded)),
+                SnapshotEncryptedDataWarningFilter.class,
+                expectation
             );
             assertTrue("chain.proceed was not called", proceeded.get());
-            assertThat(threadContext.getResponseHeaders(), not(hasKey("Warning")));
+            return threadContext;
         } finally {
             HeaderWarning.removeThreadContext(threadContext);
         }
@@ -213,29 +151,23 @@ public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder().put(project).build()).build();
     }
 
-    private static ClusterState stateWithCustom(TestCustom custom) {
-        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT).putCustom(TestCustom.TYPE, custom).build();
+    private static ClusterState stateWithCustom(EnumSet<Metadata.XContentContext> context) {
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT).putCustom(TestCustom.TYPE, new TestCustom(context)).build();
         return ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder().put(project).build()).build();
     }
 
-    private static ClusterService mockClusterService(ClusterState state) {
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(state);
-        return clusterService;
+    private static CreateSnapshotRequest plainRequest() {
+        return new CreateSnapshotRequest(TimeValue.ZERO, "repo", "snap");
     }
 
-    private static EncryptedDataHandler<TestCustom> handlerFor(String customName) {
-        return new EncryptedDataHandler<>() {
-            @Override
-            public String customName() {
-                return customName;
-            }
-
-            @Override
-            public TestCustom reEncrypt(TestCustom current, EncryptionService encryptionService, String activeKeyId) {
-                return current;
-            }
-        };
+    private static CreateSnapshotRequest requestWithEncryptedData() {
+        return plainRequest().encryptedData(
+            new SnapshotEncryptedData(
+                SnapshotEncryptedData.TYPE_PASSWORD,
+                new SecureString("correct-horse-battery-staple".toCharArray()),
+                null
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -245,9 +177,37 @@ public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
         return (task, action, request, listener) -> proceeded.set(true);
     }
 
+    private record TestHandler(boolean includedInSnapshots, boolean hasData) implements EncryptedDataHandler<TestCustom> {
+
+        TestHandler() {
+            this(true, true);
+        }
+
+        @Override
+        public String customName() {
+            return TestCustom.TYPE;
+        }
+
+        @Override
+        public boolean hasData(TestCustom current) {
+            return hasData && current != null;
+        }
+
+        @Override
+        public TestCustom reEncrypt(TestCustom current, UnaryOperator<EncryptedData> rewrapper) {
+            return current;
+        }
+    }
+
     private static final class TestCustom extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
         static final String TYPE = "test_encrypted_custom_for_snapshot_warning";
+
+        private final EnumSet<Metadata.XContentContext> context;
+
+        TestCustom(EnumSet<Metadata.XContentContext> context) {
+            this.context = context;
+        }
 
         @Override
         public String getWriteableName() {
@@ -264,7 +224,7 @@ public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
 
         @Override
         public EnumSet<Metadata.XContentContext> context() {
-            return EnumSet.of(Metadata.XContentContext.GATEWAY);
+            return context;
         }
 
         @Override

@@ -11,6 +11,8 @@ package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -18,6 +20,7 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -243,6 +246,24 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                     + "*}]]"
             )
         );
+    }
+
+    public void testEncryptedDataRejectedWithoutTransformer() {
+        assumeTrue("encrypted_data requires the feature flag", SnapshotEncryptedData.FEATURE_FLAG.isEnabled());
+        createRepository("test-repo", "fs");
+        final CreateSnapshotRequest request = new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, "test-repo", "snap").encryptedData(
+            new SnapshotEncryptedData(
+                SnapshotEncryptedData.TYPE_PASSWORD,
+                new SecureString("correct-horse-battery-staple".toCharArray()),
+                null
+            )
+        );
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            client().execute(TransportCreateSnapshotAction.TYPE, request)
+        );
+        assertThat(e.getMessage(), containsString("[encrypted_data] is not supported by this cluster"));
+        deleteRepository("test-repo");
     }
 
 }

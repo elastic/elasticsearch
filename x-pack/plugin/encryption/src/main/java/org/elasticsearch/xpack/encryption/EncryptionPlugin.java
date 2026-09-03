@@ -85,6 +85,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         EncryptionServiceRegistry.setEncryptionService(encryptionService);
         List<EncryptedDataHandler<?>> handlers = encryptedDataHandlerProviders.stream().flatMap(p -> p.getHandlers().stream()).toList();
         EncryptedDataHandlerRegistry handlerRegistry = new EncryptedDataHandlerRegistry(handlers);
+        EncryptedDataHandlerRegistry.setInstance(handlerRegistry);
         snapshotWarningFilter.set(
             new SnapshotEncryptedDataWarningFilter(services.clusterService(), services.projectResolver(), handlerRegistry)
         );

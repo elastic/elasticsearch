@@ -184,6 +184,23 @@ public class NettyAllocatorTests extends ESTestCase {
         after.release();
     }
 
+    public void testRetainedSliceShouldNotTrashContentOnRelease() {
+        var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
+        var buf = alloc.heapBuffer();
+        var data = randomByteArrayOfLength(between(1024, 2048));
+        buf.writeBytes(data);
+
+        var slice = buf.retainedSlice();
+
+        slice.release();
+
+        var actual = new byte[data.length];
+        buf.getBytes(buf.readerIndex(), actual);
+        assertArrayEquals("Original buffer content should be intact after releasing a retained slice", data, actual);
+
+        buf.release();
+    }
+
     public void testTrashingCompositeByteBuf() throws IOException {
         var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
         var compBuf = alloc.compositeHeapBuffer();

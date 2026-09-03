@@ -202,6 +202,12 @@ The direction, the decisions that constrain it, and the build order. Update as d
   consumers (block encoder, skip writer, address table) off shared loop state. A producer/consumer
   split lets each be unit-tested against a controlled `NumericColumnValues` without a `Directory`, and
   removes the round-trip ambiguity where a shared encode/decode bug hides which consumer failed.
+- **Assert which vocabulary a merge takes, not only what it produces**: `mergedVocabulary` returns the
+  terms and which of `DICTIONARY_UNION`, `COMBINED_SUMMARIES` or `SURVEY` found them, and the tests drive
+  all three shapes and read the merged column back value by value. Nothing holds the choice itself, so a
+  column that quietly fell back to a survey would pass all of them while costing the merge the work the
+  other two exist to save. Asserting it needs a `MergeState` a test can build or observe, which is what
+  the seam is meant to make small rather than something to plumb for one assertion.
 
 ## Working agreements
 

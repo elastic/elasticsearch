@@ -915,7 +915,14 @@ avoid this, but there are some basic steps you can take to reduce the chances
 of rejection. Follow the guidelines listed above when preparing your changes.
 You should add tests that correspond with your changes, and your PR should pass
 affected test suites too. It makes it much easier to review if your code is
-formatted correctly and does not include unnecessary extra changes.
+formatted correctly and does not include unnecessary extra changes. The 
+description of your PR should be concise and provide necessary context for the 
+reviewers and future readers. For example, include implementation trade-offs 
+that were considered, unobvious interactions between components, testing notes. 
+Do not paste the output of LLM-based tools verbatim in a PR description. These 
+tools tend to be very verbose, use confusing jargon, and otherwise dilute the 
+attention of the readers. Do not use LLM-based tools for communication with 
+maintainers.
 
 We sometimes reject contributions if we find ourselves performing many review
 iterations without making enough progress. Some iteration is expected,

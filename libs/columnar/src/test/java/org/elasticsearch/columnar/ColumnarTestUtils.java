@@ -12,18 +12,27 @@ package org.elasticsearch.columnar;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
+import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
+import java.util.List;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 
@@ -133,6 +142,29 @@ public final class ColumnarTestUtils {
     /**
      * Returns a {@link Codec} that routes all doc-values fields through {@code fmt}.
      */
+    /**
+     * The columnar format for {@code field} and the default for everything else, for a test that needs a
+     * companion field the columnar format does not write, such as one to sort the index on.
+     */
+    public static Codec columnarCodecForField(final String field) {
+        final Codec base = TestUtil.getDefaultCodec();
+        final DocValuesFormat columnar = new ColumNARDocValuesFormat();
+        final DocValuesFormat fallback = new Lucene90DocValuesFormat();
+        return new FilterCodec(base.getName(), base) {
+            private final DocValuesFormat perField = new PerFieldDocValuesFormat() {
+                @Override
+                public DocValuesFormat getDocValuesFormatForField(String name) {
+                    return name.equals(field) ? columnar : fallback;
+                }
+            };
+
+            @Override
+            public DocValuesFormat docValuesFormat() {
+                return perField;
+            }
+        };
+    }
+
     public static Codec columnarCodec(final DocValuesFormat fmt) {
         final Codec base = TestUtil.getDefaultCodec();
         return new FilterCodec(base.getName(), base) {
@@ -160,6 +192,15 @@ public final class ColumnarTestUtils {
     }
 
     /**
+     * One value as the {@link StringBinaryPayload} a string field is written as. The surface carries slots
+     * rather than bare bytes — the count travels with them, so a document holding several is not a document
+     * holding one long one — so a test building documents encodes even a single value the same way.
+     */
+    public static BytesRef stringPayload(final String value) {
+        return BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(List.of(new BytesRef(value))));
+    }
+
+    /**
      * Opens {@code fileName} from {@code dir}, reads and validates the ColumNAR meta header, reads
      * the {@link NumericColumnMetadata}, validates the footer, and returns the metadata.
      */
@@ -175,5 +216,74 @@ public final class ColumnarTestUtils {
             ColumnarCodecUtil.checkFooter(meta);
             return metadata;
         }
+    }
+
+    /**
+     * Hides the columnar instance behind a plain {@link BinaryDocValues}, leaving only the surface every
+     * binary doc values has.
+     */
+    public static DirectoryReader hideTheColumn(DirectoryReader in) throws IOException {
+        return new FilterDirectoryReader(in, new FilterDirectoryReader.SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader leaf) {
+                return new FilterLeafReader(leaf) {
+                    @Override
+                    public BinaryDocValues getBinaryDocValues(String name) throws IOException {
+                        final BinaryDocValues values = in.leaves().get(0).reader().getBinaryDocValues(name);
+                        return values == null ? null : new BinaryDocValues() {
+                            @Override
+                            public BytesRef binaryValue() throws IOException {
+                                return values.binaryValue();
+                            }
+
+                            @Override
+                            public boolean advanceExact(int target) throws IOException {
+                                return values.advanceExact(target);
+                            }
+
+                            @Override
+                            public int docID() {
+                                return values.docID();
+                            }
+
+                            @Override
+                            public int nextDoc() throws IOException {
+                                return values.nextDoc();
+                            }
+
+                            @Override
+                            public int advance(int target) throws IOException {
+                                return values.advance(target);
+                            }
+
+                            @Override
+                            public long cost() {
+                                return values.cost();
+                            }
+                        };
+                    }
+
+                    @Override
+                    public CacheHelper getCoreCacheHelper() {
+                        return leaf.getCoreCacheHelper();
+                    }
+
+                    @Override
+                    public CacheHelper getReaderCacheHelper() {
+                        return leaf.getReaderCacheHelper();
+                    }
+                };
+            }
+        }) {
+            @Override
+            protected DirectoryReader doWrapDirectoryReader(DirectoryReader reader) {
+                return reader;
+            }
+
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return in.getReaderCacheHelper();
+            }
+        };
     }
 }

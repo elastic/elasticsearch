@@ -294,11 +294,16 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
             assertTrue("doc 2 slot 1 is null", reader.isNullSlot(first + 1));
             assertEquals("the empty string reads back as itself", empty, reader.valueAt(first));
             assertNull("a null reads back as null", reader.valueAt(first + 1));
-            assertNotEquals("a null takes an ordinal the empty term does not", reader.ordinalAt(first), reader.ordinalAt(first + 1));
+            final DictionaryStringColumnReader dictionary = (DictionaryStringColumnReader) reader;
+            assertNotEquals(
+                "a null takes an ordinal the empty term does not",
+                dictionary.ordinalAt(first),
+                dictionary.ordinalAt(first + 1)
+            );
             assertEquals(
                 "and that ordinal is the reserved one, below every term",
                 StringColumnMetadata.Dictionary.NULL_ORDINAL,
-                reader.ordinalAt(first + 1)
+                dictionary.ordinalAt(first + 1)
             );
 
             final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator());
@@ -438,10 +443,11 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         }
         withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
             assertTrue("expected a dictionary", reader.hasDictionary());
+            final DictionaryStringColumnReader dictionary = (DictionaryStringColumnReader) reader;
             // A map that renames every ordinal, so a carried ordinal cannot pass by accident. Indexed by this
             // column's ordinals, which begin above the reserved null.
-            final int[] ordinalMap = new int[reader.dictionarySize() + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL];
-            for (int i = 0; i < reader.dictionarySize(); i++) {
+            final int[] ordinalMap = new int[dictionary.dictionarySize() + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL];
+            for (int i = 0; i < dictionary.dictionarySize(); i++) {
                 final int ordinal = StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL + i;
                 ordinalMap[ordinal] = ordinal + 100;
             }
@@ -459,7 +465,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
                         escaped++;
                         assertEquals("escaped value at doc " + doc, docValues[doc], cursor.value());
                     } else {
-                        reader.termAt(ordinal - 100, term);
+                        dictionary.termAt(ordinal - 100, term);
                         assertEquals("ordinal names the value at doc " + doc, docValues[doc], term);
                         // Reading again does not move the cursor.
                         assertEquals("ordinal is stable until the cursor moves", ordinal, cursor.ordinal());

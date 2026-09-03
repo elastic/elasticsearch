@@ -26,7 +26,7 @@ import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 
 /**
- * Elasticsearch-named counterpart of Lucene's {@link Lucene104Codec}, backing {@link DefaultCompressionPerFieldMapperCodec} and so
+ * Elasticsearch-named counterpart of Lucene's {@link Lucene104Codec}, backing {@link PerFieldMapperCodec} and so
  * {@code index.codec=default}.
  *
  * <p>The name is what makes the codec's own formats reachable on read: a codec is resolved from the name recorded in the segment,
@@ -81,10 +81,32 @@ public class Elasticsearch96Codec extends FilterCodec {
     }
 
     public Elasticsearch96Codec(Lucene104Codec.Mode mode) {
-        super("Elasticsearch96", new Lucene104Codec(mode));
+        this(mode, ElasticsearchStoredFieldsFormat.Mode.LUCENE);
+    }
+
+    /**
+     * @param luceneMode      the Lucene compression level, used when {@code storedFieldsMode} is
+     *                        {@link ElasticsearchStoredFieldsFormat.Mode#LUCENE}
+     * @param storedFieldsMode the stored fields implementation segments are written with
+     */
+    public Elasticsearch96Codec(Lucene104Codec.Mode luceneMode, ElasticsearchStoredFieldsFormat.Mode storedFieldsMode) {
+        this(luceneMode, storedFieldsMode, ElasticsearchStoredFieldsFormat.Mode.LUCENE);
+    }
+
+    /**
+     * @param modeBeforeTheAttribute what a segment recording no stored fields mode was written with, which depends on the codec
+     *                               name the segment carries
+     */
+    public Elasticsearch96Codec(
+        Lucene104Codec.Mode luceneMode,
+        ElasticsearchStoredFieldsFormat.Mode storedFieldsMode,
+        ElasticsearchStoredFieldsFormat.Mode modeBeforeTheAttribute
+    ) {
+        super("Elasticsearch96", new Lucene104Codec(luceneMode));
         this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(delegate.fieldInfosFormat());
         this.storedFieldsFormat = new ElasticsearchStoredFieldsFormat(
-            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+            storedFieldsMode,
+            modeBeforeTheAttribute,
             delegate.storedFieldsFormat()
         );
     }

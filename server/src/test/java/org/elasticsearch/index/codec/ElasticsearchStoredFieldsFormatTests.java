@@ -49,7 +49,7 @@ public class ElasticsearchStoredFieldsFormatTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             SegmentInfo si = segmentInfo(dir, Map.of());
             assertNull(si.getAttribute(ElasticsearchStoredFieldsFormat.MODE_KEY));
-            assertEquals(Mode.LUCENE, ElasticsearchStoredFieldsFormat.modeOf(si));
+            assertEquals(Mode.LUCENE, ElasticsearchStoredFieldsFormat.modeOf(si, Mode.LUCENE));
         }
     }
 
@@ -57,7 +57,7 @@ public class ElasticsearchStoredFieldsFormatTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             for (Mode mode : Mode.values()) {
                 SegmentInfo si = segmentInfo(dir, Map.of(ElasticsearchStoredFieldsFormat.MODE_KEY, mode.name()));
-                assertEquals(mode, ElasticsearchStoredFieldsFormat.modeOf(si));
+                assertEquals(mode, ElasticsearchStoredFieldsFormat.modeOf(si, Mode.LUCENE));
             }
         }
     }
@@ -65,7 +65,7 @@ public class ElasticsearchStoredFieldsFormatTests extends ESTestCase {
     public void testUnknownModeIsRejected() throws Exception {
         try (Directory dir = newDirectory()) {
             SegmentInfo si = segmentInfo(dir, Map.of(ElasticsearchStoredFieldsFormat.MODE_KEY, "NOT_A_MODE"));
-            var e = expectThrows(IllegalStateException.class, () -> ElasticsearchStoredFieldsFormat.modeOf(si));
+            var e = expectThrows(IllegalStateException.class, () -> ElasticsearchStoredFieldsFormat.modeOf(si, Mode.LUCENE));
             assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("unknown stored fields mode [NOT_A_MODE]"));
         }
     }
@@ -73,7 +73,7 @@ public class ElasticsearchStoredFieldsFormatTests extends ESTestCase {
     public void testWritingTwoModesIntoOneSegmentIsRejected() throws Exception {
         try (Directory dir = newDirectory()) {
             SegmentInfo si = segmentInfo(dir, Map.of(ElasticsearchStoredFieldsFormat.MODE_KEY, Mode.ZSTD_BEST_COMPRESSION.name()));
-            var format = new ElasticsearchStoredFieldsFormat(Mode.LUCENE, new Lucene104Codec().storedFieldsFormat());
+            var format = new ElasticsearchStoredFieldsFormat(Mode.LUCENE, Mode.LUCENE, new Lucene104Codec().storedFieldsFormat());
             var e = expectThrows(IllegalStateException.class, () -> format.fieldsWriter(dir, si, org.apache.lucene.store.IOContext.DEFAULT));
             assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("cannot also write it as [LUCENE]"));
         }

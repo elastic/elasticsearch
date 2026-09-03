@@ -10,8 +10,8 @@ package org.elasticsearch.simdvec;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.internal.vectorization.BBQDotProduct;
 import org.elasticsearch.simdvec.internal.vectorization.JdkFeatures;
 
 import java.io.IOException;
@@ -107,6 +107,8 @@ public class ES940OSQVectorsScorer {
     protected final float[] additionalCorrections;
     private final byte[] scratch;
     private final byte[] packedScratch;
+    /** Dot product for the bit-plane encodings; {@code null} for the packed encodings and D7Q7, which are not bit-planes */
+    private final BBQDotProduct dotProduct;
 
     public ES940OSQVectorsScorer(IndexInput in, QuantEncoding encoding, int dimensions, int dataLength, int bulkSize) {
         this.in = in;
@@ -120,6 +122,10 @@ public class ES940OSQVectorsScorer {
         this.bulkSize = bulkSize;
         this.scratch = encoding.indexBits() == 7 ? new byte[dimensions] : null;
         this.packedScratch = encoding.bitEncoding == BitEncoding.PACKED ? new byte[length] : null;
+        this.dotProduct = switch (encoding) {
+            case D1Q1, D1Q4, D2Q4_STRIPED, D4Q4_STRIPED -> BBQDotProduct.create(in, dimensions, encoding.indexBits(), encoding.queryBits());
+            case D2Q4_PACKED, D4Q4_PACKED, D7Q7 -> null;
+        };
     }
 
     public ES940OSQVectorsScorer(
@@ -148,38 +154,16 @@ public class ES940OSQVectorsScorer {
      */
     public long quantizeScore(byte[] q) throws IOException {
         return switch (encoding) {
-            case D1Q1 -> quantized1BitScoreSymmetric(q, length);
-            case D1Q4 -> quantized4BitScore(q, length);
-            case D2Q4_STRIPED -> quantized4BitScore2BitIndexStriped(q);
+            case D1Q1, D1Q4, D2Q4_STRIPED, D4Q4_STRIPED -> dotProduct.dotProduct(q);
             case D2Q4_PACKED -> quantized4BitScore2BitIndexPacked(q);
             case D4Q4_PACKED -> quantized4BitScorePacked(q);
-            case D4Q4_STRIPED -> quantized4BitScoreSymmetric(q);
             case D7Q7 -> quantized7BitScore(q);
         };
-    }
-
-    private long quantized1BitScoreSymmetric(byte[] q, int length) throws IOException {
-        assert q.length == length : "length mismatch q " + q.length + " vs " + length;
-        long score = 0;
-        for (int i = 0; i < length; i++) {
-            score += Long.bitCount((q[i] & in.readByte()) & 0xFF);
-        }
-        return score;
     }
 
     private long quantized7BitScore(byte[] q) throws IOException {
         in.readBytes(scratch, 0, dimensions);
         return VectorUtil.dotProduct(scratch, q);
-    }
-
-    private long quantized4BitScoreSymmetric(byte[] q) throws IOException {
-        assert q.length == length : "length mismatch q " + q.length + " vs " + length;
-        assert length % 4 == 0 : "length must be multiple of 4 for 4-bit index length: " + length + " dimensions: " + dimensions;
-        int stripe0 = (int) quantized4BitScore(q, length / 4);
-        int stripe1 = (int) quantized4BitScore(q, length / 4);
-        int stripe2 = (int) quantized4BitScore(q, length / 4);
-        int stripe3 = (int) quantized4BitScore(q, length / 4);
-        return stripe0 + ((long) stripe1 << 1) + ((long) stripe2 << 2) + ((long) stripe3 << 3);
     }
 
     private long quantized4BitScorePacked(byte[] q) throws IOException {
@@ -197,14 +181,6 @@ public class ES940OSQVectorsScorer {
         return score;
     }
 
-    private long quantized4BitScore2BitIndexStriped(byte[] q) throws IOException {
-        assert q.length == length * 2;
-        assert length % 2 == 0 : "length must be even for 2-bit index length: " + length + " dimensions: " + dimensions;
-        int lower = (int) quantized4BitScore(q, length / 2);
-        int upper = (int) quantized4BitScore(q, length / 2);
-        return lower + ((long) upper << 1);
-    }
-
     private long quantized4BitScore2BitIndexPacked(byte[] q) throws IOException {
         assert q.length == length * 4 : "length mismatch q " + q.length + " vs " + (length * 4);
         in.readBytes(packedScratch, 0, length);
@@ -217,38 +193,6 @@ public class ES940OSQVectorsScorer {
             score += (packed & 0x03) * (q[i + 3 * length] & 0x0F);
         }
         return score;
-    }
-
-    private long quantized4BitScore(byte[] q, int length) throws IOException {
-        assert q.length == length * 4;
-        final int size = length;
-        long subRet0 = 0;
-        long subRet1 = 0;
-        long subRet2 = 0;
-        long subRet3 = 0;
-        int r = 0;
-        for (final int upperBound = size & -Long.BYTES; r < upperBound; r += Long.BYTES) {
-            final long value = in.readLong();
-            subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r) & value);
-            subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + size) & value);
-            subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + 2 * size) & value);
-            subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + 3 * size) & value);
-        }
-        for (final int upperBound = size & -Integer.BYTES; r < upperBound; r += Integer.BYTES) {
-            final int value = in.readInt();
-            subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r) & value);
-            subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r + size) & value);
-            subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r + 2 * size) & value);
-            subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r + 3 * size) & value);
-        }
-        for (; r < size; r++) {
-            final byte value = in.readByte();
-            subRet0 += Integer.bitCount((q[r] & value) & 0xFF);
-            subRet1 += Integer.bitCount((q[r + size] & value) & 0xFF);
-            subRet2 += Integer.bitCount((q[r + 2 * size] & value) & 0xFF);
-            subRet3 += Integer.bitCount((q[r + 3 * size] & value) & 0xFF);
-        }
-        return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
     }
 
     /**

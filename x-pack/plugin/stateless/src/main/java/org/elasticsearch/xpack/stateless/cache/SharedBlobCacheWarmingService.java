@@ -1327,6 +1327,17 @@ public class SharedBlobCacheWarmingService {
         }
     }
 
+    public WarmTarget computeWarmTarget(
+        ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCC,
+        BlobStoreCacheDirectory directory
+    ) {
+        long ccTimestamp = directory.resolveRegionTimestampMillis(
+            referencedCC.statelessCompoundCommitReference().compoundCommit().getTimestampFieldValueRange()
+        );
+        long endOffset = byteRangeToWarmForCC(referencedCC, ccTimestamp).end();
+        return new WarmTarget(endOffset, 0L, ccTimestamp);
+    }
+
     // protected for tests
     protected void warmBlobOffsets(
         IndexShard indexShard,

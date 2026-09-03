@@ -293,7 +293,8 @@ public class ServiceAccountService {
         ActionListener<CreateServiceAccountTokenResponse> listener
     ) {
         if (indexServiceAccountTokenStore == null) {
-            throw new IllegalStateException("Can't create token because index service account token store not configured");
+            listener.onFailure(new IllegalStateException("Can't create token because index service account token store not configured"));
+            return;
         }
         indexServiceAccountTokenStore.createBuiltInToken(authentication, request, listener);
     }
@@ -308,7 +309,8 @@ public class ServiceAccountService {
         ActionListener<CreateServiceAccountTokenResponse> listener
     ) {
         if (indexServiceAccountTokenStore == null) {
-            throw new IllegalStateException("Can't create token because index service account token store not configured");
+            listener.onFailure(new IllegalStateException("Can't create token because index service account token store not configured"));
+            return;
         }
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
         resolveUserManagedAccount(
@@ -325,7 +327,8 @@ public class ServiceAccountService {
      */
     public void deleteBuiltInToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
         if (indexServiceAccountTokenStore == null) {
-            throw new IllegalStateException("Can't delete token because index service account token store not configured");
+            listener.onFailure(new IllegalStateException("Can't delete token because index service account token store not configured"));
+            return;
         }
         indexServiceAccountTokenStore.deleteBuiltInToken(request, listener);
     }
@@ -336,14 +339,16 @@ public class ServiceAccountService {
      */
     public void deleteUserManagedToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
         if (indexServiceAccountTokenStore == null) {
-            throw new IllegalStateException("Can't delete token because index service account token store not configured");
+            listener.onFailure(new IllegalStateException("Can't delete token because index service account token store not configured"));
+            return;
         }
         indexServiceAccountTokenStore.deleteUserManagedToken(request, listener);
     }
 
     public void findTokensFor(GetServiceAccountCredentialsRequest request, ActionListener<GetServiceAccountCredentialsResponse> listener) {
         if (indexServiceAccountTokenStore == null) {
-            throw new IllegalStateException("Can't find tokens because index service account token store not configured");
+            listener.onFailure(new IllegalStateException("Can't find tokens because index service account token store not configured"));
+            return;
         }
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
         findIndexTokens(accountId, listener);

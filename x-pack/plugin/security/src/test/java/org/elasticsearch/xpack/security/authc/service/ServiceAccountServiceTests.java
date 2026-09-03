@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -1005,6 +1006,56 @@ public class ServiceAccountServiceTests extends ESTestCase {
         assertThat(response.getPrincipal(), equalTo(accountId.asPrincipal()));
         assertThat(response.getNodesResponse(), is(fileTokensResponse));
         assertThat(response.getIndexTokenInfos(), equalTo(indexTokenInfos));
+    }
+
+    /**
+     * A security extension that brings its own token store leaves the service without an index-backed one, and the
+     * token APIs stay wired to it. Each has to report that through its listener: a caller that invoked one from
+     * inside another callback would never hear a throw, and would wait on a listener nothing completes.
+     */
+    public void testTheTokenPathsFailWhereTheIndexTokenStoreIsNotConfigured() {
+        final ServiceAccountService service = new ServiceAccountService(client, fileServiceAccountTokenStore);
+        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
+
+        assertTokenStoreUnavailable(
+            (ActionListener<CreateServiceAccountTokenResponse> listener) -> service.createBuiltInToken(
+                authentication,
+                newCreateTokenRequest(BUILT_IN_ACCOUNT_ID),
+                listener
+            ),
+            "Can't create token because index service account token store not configured"
+        );
+        assertTokenStoreUnavailable(
+            (ActionListener<CreateServiceAccountTokenResponse> listener) -> service.createUserManagedToken(
+                authentication,
+                newCreateTokenRequest(USER_MANAGED_ACCOUNT_ID),
+                listener
+            ),
+            "Can't create token because index service account token store not configured"
+        );
+        assertTokenStoreUnavailable(
+            (ActionListener<Boolean> listener) -> service.deleteBuiltInToken(newDeleteTokenRequest(BUILT_IN_ACCOUNT_ID), listener),
+            "Can't delete token because index service account token store not configured"
+        );
+        assertTokenStoreUnavailable(
+            (ActionListener<Boolean> listener) -> service.deleteUserManagedToken(newDeleteTokenRequest(USER_MANAGED_ACCOUNT_ID), listener),
+            "Can't delete token because index service account token store not configured"
+        );
+        final ServiceAccountId accountId = randomFrom(BUILT_IN_ACCOUNT_ID, USER_MANAGED_ACCOUNT_ID);
+        assertTokenStoreUnavailable(
+            (ActionListener<GetServiceAccountCredentialsResponse> listener) -> service.findTokensFor(
+                new GetServiceAccountCredentialsRequest(accountId.namespace(), accountId.serviceName()),
+                listener
+            ),
+            "Can't find tokens because index service account token store not configured"
+        );
+    }
+
+    private static <T> void assertTokenStoreUnavailable(Consumer<ActionListener<T>> call, String message) {
+        final PlainActionFuture<T> future = new PlainActionFuture<>();
+        call.accept(future);
+        final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(e.getMessage(), equalTo(message));
     }
 
     private UserManagedServiceAccount enabledAccount() {

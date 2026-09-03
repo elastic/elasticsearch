@@ -3572,6 +3572,14 @@ public class EsqlCapabilities {
         FIX_PROMQL_QUANTILE_SCALE,
 
         /**
+         * PromQL binary operators between aggregates with the same grouping keys fuse into one aggregate. The fuse renamed
+         * the grouping columns along with the value aggregates, so over a {@code labels.*} passthrough index the command
+         * projection could no longer find the declared label by its canonical name and the plan failed verification with
+         * "missing references". Grouping columns now keep their names through the fuse.
+         */
+        FIX_PROMQL_FUSED_BINARY_OP_LABELS,
+
+        /**
          * Bugfix in query approximation to not rewrite non-approximable FORK branches:
          * <a href="https://github.com/elastic/elasticsearch/issues/149501">#149501</a>
          */

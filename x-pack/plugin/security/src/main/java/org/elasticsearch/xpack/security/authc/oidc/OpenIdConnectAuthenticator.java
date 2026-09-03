@@ -715,7 +715,7 @@ public class OpenIdConnectAuthenticator {
     ConnectionKeepAliveStrategy getKeepAliveStrategy() {
         final long userConfiguredKeepAliveMillis = realmConfig.getSetting(HTTP_CONNECTION_POOL_TTL).millis();
         return (response, context) -> {
-            // Parse Keep-Alive: timeout=X header directly; negative means server did not specify
+            // negative serverMillis means the server sent no Keep-Alive timeout
             long serverMillis = -1;
             final Iterator<HeaderElement> it = MessageSupport.iterate(response, HeaderElements.KEEP_ALIVE);
             while (it.hasNext()) {

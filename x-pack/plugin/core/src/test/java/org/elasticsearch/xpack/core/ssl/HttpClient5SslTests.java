@@ -316,8 +316,6 @@ public class HttpClient5SslTests extends ESTestCase {
         }
     }
 
-    // ---- Tests for connectionSocketFactory5() (HC5 classic / synchronous path) ----
-
     public void testConnectionSocketFactory5CustomServerCertificate() throws Exception {
         final CloseableHttpClient httpClient = buildClassicClient(
             Settings.builder().put("xpack.http.ssl.certificate_authorities", caCertPath)

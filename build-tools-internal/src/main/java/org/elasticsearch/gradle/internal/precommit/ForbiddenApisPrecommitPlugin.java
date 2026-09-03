@@ -23,6 +23,7 @@ import org.gradle.jvm.toolchain.JavaToolchainService;
 
 import java.io.File;
 import java.util.List;
+import java.util.concurrent.Callable;
 
 import javax.inject.Inject;
 
@@ -57,6 +58,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
             t.copy("forbidden/es-all-signatures.txt");
             t.copy("forbidden/es-test-signatures.txt");
             t.copy("forbidden/http-signatures.txt");
+            t.copy("forbidden/http-signatures-hc5.txt");
             t.copy("forbidden/es-server-signatures.txt");
             t.copy("forbidden/jdk-foreign-signatures.txt");
             t.copy("forbidden/jdk-foreign-signatures22.txt");
@@ -101,6 +103,16 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                         t.getSignaturesFiles().plus(project.files(resourcesDir.toPath().resolve("forbidden/es-server-signatures.txt")))
                     );
                 }
+                // HC5 entity signatures only apply when httpcore5 is on the classpath
+                t.setSignaturesFiles(
+                    t.getSignaturesFiles().plus(
+                        project.files(
+                            (Callable<List<File>>) () -> t.getClasspath().getFiles().stream().anyMatch(f -> f.getName().matches("httpcore5-.*\\.jar"))
+                                ? List.of(resourcesDir.toPath().resolve("forbidden/http-signatures-hc5.txt").toFile())
+                                : List.of()
+                        )
+                    )
+                );
             });
             forbiddenTask.configure(t -> t.dependsOn(sourceSetTask));
         });

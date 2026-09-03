@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.tsdb.es95;
 import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 
 /**
  * Two-gate filter for the run-table ordinal layout.
@@ -46,7 +47,7 @@ final class RunTableGate {
      * <ul>
      *   <li>the field is the primary sort field (uses ordinal range encoding instead)</li>
      *   <li>the resolver is {@code null} (run-table ordinal feature is disabled)</li>
-     *   <li>the field is not a TSDB dimension</li>
+     *   <li>the field is neither a TSDB dimension nor {@code _ts_routing_hash}</li>
      *   <li>{@code maxOrd * 2 > maxDoc}: the minimum run count ({@code maxOrd}, one run per unique
      *       value in a perfectly sorted segment) already exceeds the threshold, so no doc walk
      *       can change the outcome</li>
@@ -68,7 +69,12 @@ final class RunTableGate {
         // run-shaped in a TSDB segment. To generalize, replace this check with a broader pre-walk
         // signal (cardinality-to-doc ratio, index sort configuration, or field-level statistics)
         // that bounds the fallback rate without relying on the TSDB dimension predicate.
-        if (resolver == null || resolver.resolve(field.name, blockSize).isDimension() == false) {
+        // NOTE: _ts_routing_hash is admitted by name: it is a metadata field, so its type returns
+        // isDimension() == false, yet it is single-valued and constant per series, so its ordinal
+        // stream is as run-shaped as any dimension.
+        if (resolver == null
+            || (field.name.equals(TimeSeriesRoutingHashFieldMapper.NAME) == false
+                && resolver.resolve(field.name, blockSize).isDimension() == false)) {
             return false;
         }
         return maxOrd > 0 && maxOrd * 2 <= maxDoc;

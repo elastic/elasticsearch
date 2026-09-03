@@ -17,6 +17,7 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -74,6 +75,18 @@ public class RunTableGateTests extends ESTestCase {
         assertFalse(
             new RunTableGate(NON_DIMENSION, primarySort, maxDoc, 1).allow(fieldInfo("cpu", fieldNumber), randomIntBetween(1, maxDoc / 2))
         );
+    }
+
+    public void testAllowRoutingHashAdmittedDespiteNonDimension() {
+        final int maxDoc = randomIntBetween(4, 4096);
+        final int maxOrd = randomIntBetween(1, maxDoc / 2);
+        assertTrue(new RunTableGate(NON_DIMENSION, -1, maxDoc, 1).allow(fieldInfo(TimeSeriesRoutingHashFieldMapper.NAME, 0), maxOrd));
+    }
+
+    public void testAllowRoutingHashRejectedAboveThreshold() {
+        final int maxDoc = randomIntBetween(2, 4096);
+        final int maxOrd = randomIntBetween(maxDoc / 2 + 1, maxDoc);
+        assertFalse(new RunTableGate(NON_DIMENSION, -1, maxDoc, 1).allow(fieldInfo(TimeSeriesRoutingHashFieldMapper.NAME, 0), maxOrd));
     }
 
     public void testAllowMaxOrdExceedsThresholdReturnsFalse() {

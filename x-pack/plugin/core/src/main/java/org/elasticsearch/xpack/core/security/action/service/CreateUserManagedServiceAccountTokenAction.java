@@ -15,12 +15,10 @@ import org.elasticsearch.action.ActionType;
  * names the same namespace, service and token name either way, so both actions take a
  * {@link CreateServiceAccountTokenRequest}.
  */
-public class CreateUserManagedServiceAccountTokenAction extends ActionType<CreateServiceAccountTokenResponse> {
+public class CreateUserManagedServiceAccountTokenAction {
 
     public static final String NAME = "cluster:admin/xpack/security/user_managed_service_account/token/create";
-    public static final CreateUserManagedServiceAccountTokenAction INSTANCE = new CreateUserManagedServiceAccountTokenAction();
+    public static final ActionType<CreateServiceAccountTokenResponse> INSTANCE = new ActionType<>(NAME);
 
-    private CreateUserManagedServiceAccountTokenAction() {
-        super(NAME);
-    }
+    private CreateUserManagedServiceAccountTokenAction() {}
 }

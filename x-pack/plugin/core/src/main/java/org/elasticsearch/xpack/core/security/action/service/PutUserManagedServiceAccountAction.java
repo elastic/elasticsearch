@@ -9,12 +9,10 @@ package org.elasticsearch.xpack.core.security.action.service;
 
 import org.elasticsearch.action.ActionType;
 
-public class PutUserManagedServiceAccountAction extends ActionType<PutUserManagedServiceAccountResponse> {
+public class PutUserManagedServiceAccountAction {
 
     public static final String NAME = "cluster:admin/xpack/security/user_managed_service_account/put";
-    public static final PutUserManagedServiceAccountAction INSTANCE = new PutUserManagedServiceAccountAction();
+    public static final ActionType<PutUserManagedServiceAccountResponse> INSTANCE = new ActionType<>(NAME);
 
-    private PutUserManagedServiceAccountAction() {
-        super(NAME);
-    }
+    private PutUserManagedServiceAccountAction() {}
 }

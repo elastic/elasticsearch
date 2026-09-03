@@ -9,12 +9,10 @@ package org.elasticsearch.xpack.core.security.action.service;
 
 import org.elasticsearch.action.ActionType;
 
-public class DeleteUserManagedServiceAccountAction extends ActionType<DeleteUserManagedServiceAccountResponse> {
+public class DeleteUserManagedServiceAccountAction {
 
     public static final String NAME = "cluster:admin/xpack/security/user_managed_service_account/delete";
-    public static final DeleteUserManagedServiceAccountAction INSTANCE = new DeleteUserManagedServiceAccountAction();
+    public static final ActionType<DeleteUserManagedServiceAccountResponse> INSTANCE = new ActionType<>(NAME);
 
-    private DeleteUserManagedServiceAccountAction() {
-        super(NAME);
-    }
+    private DeleteUserManagedServiceAccountAction() {}
 }

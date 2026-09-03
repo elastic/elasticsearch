@@ -14,12 +14,10 @@ import org.elasticsearch.action.ActionType;
  * {@link DeleteServiceAccountTokenAction} only so that the two kinds of account can be authorized separately, so both
  * actions take a {@link DeleteServiceAccountTokenRequest}.
  */
-public class DeleteUserManagedServiceAccountTokenAction extends ActionType<DeleteServiceAccountTokenResponse> {
+public class DeleteUserManagedServiceAccountTokenAction {
 
     public static final String NAME = "cluster:admin/xpack/security/user_managed_service_account/token/delete";
-    public static final DeleteUserManagedServiceAccountTokenAction INSTANCE = new DeleteUserManagedServiceAccountTokenAction();
+    public static final ActionType<DeleteServiceAccountTokenResponse> INSTANCE = new ActionType<>(NAME);
 
-    private DeleteUserManagedServiceAccountTokenAction() {
-        super(NAME);
-    }
+    private DeleteUserManagedServiceAccountTokenAction() {}
 }

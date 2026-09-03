@@ -11,6 +11,9 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.backward_codecs.lucene100.Lucene100Codec;
 import org.apache.lucene.backward_codecs.lucene912.Lucene912PostingsFormat;
+import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.FieldInfosFormat;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -26,7 +29,7 @@ import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
  * Elasticsearch codec as of 9.0-snapshot relying on Lucene 10.0. This extends the Lucene 10.0 codec to compressed stored fields
  * with ZSTD instead of LZ4/DEFLATE. See {@link Zstd814StoredFieldsFormat}.
  */
-public class Elasticsearch900Codec extends CodecService.DeduplicateFieldInfosCodec {
+public class Elasticsearch900Codec extends FilterCodec {
 
     private final StoredFieldsFormat storedFieldsFormat;
 
@@ -54,6 +57,19 @@ public class Elasticsearch900Codec extends CodecService.DeduplicateFieldInfosCod
         }
     };
 
+    private final FieldInfosFormat fieldInfosFormat;
+
+    /** Shares field infos across the segments of a shard. */
+    @Override
+    public final FieldInfosFormat fieldInfosFormat() {
+        return fieldInfosFormat;
+    }
+
+    /** The Lucene codec this one delegates to. */
+    public final Codec delegate() {
+        return delegate;
+    }
+
     /** Public no-arg constructor, needed for SPI loading at read-time. */
     public Elasticsearch900Codec() {
         this(Zstd814StoredFieldsFormat.Mode.BEST_SPEED);
@@ -65,6 +81,7 @@ public class Elasticsearch900Codec extends CodecService.DeduplicateFieldInfosCod
      */
     public Elasticsearch900Codec(Zstd814StoredFieldsFormat.Mode mode) {
         super("Elasticsearch900", new Lucene100Codec());
+        this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(delegate.fieldInfosFormat());
         this.storedFieldsFormat = mode.getFormat();
         this.defaultPostingsFormat = new Lucene912PostingsFormat();
         this.defaultDVFormat = new Lucene90DocValuesFormat();

@@ -11,6 +11,9 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.backward_codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.backward_codecs.lucene101.Lucene101PostingsFormat;
+import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.FieldInfosFormat;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -26,7 +29,7 @@ import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
  * Elasticsearch codec as of 9.0 relying on Lucene 10.1. This extends the Lucene 10.1 codec to compressed
  * stored fields with ZSTD instead of LZ4/DEFLATE. See {@link Zstd814StoredFieldsFormat}.
  */
-public class Elasticsearch900Lucene101Codec extends CodecService.DeduplicateFieldInfosCodec {
+public class Elasticsearch900Lucene101Codec extends FilterCodec {
 
     static final PostingsFormat DEFAULT_POSTINGS_FORMAT = new Lucene101PostingsFormat();
 
@@ -56,6 +59,19 @@ public class Elasticsearch900Lucene101Codec extends CodecService.DeduplicateFiel
         }
     };
 
+    private final FieldInfosFormat fieldInfosFormat;
+
+    /** Shares field infos across the segments of a shard. */
+    @Override
+    public final FieldInfosFormat fieldInfosFormat() {
+        return fieldInfosFormat;
+    }
+
+    /** The Lucene codec this one delegates to. */
+    public final Codec delegate() {
+        return delegate;
+    }
+
     /** Public no-arg constructor, needed for SPI loading at read-time. */
     public Elasticsearch900Lucene101Codec() {
         this(Zstd814StoredFieldsFormat.Mode.BEST_SPEED);
@@ -67,6 +83,7 @@ public class Elasticsearch900Lucene101Codec extends CodecService.DeduplicateFiel
      */
     public Elasticsearch900Lucene101Codec(Zstd814StoredFieldsFormat.Mode mode) {
         super("Elasticsearch900Lucene101", new Lucene101Codec());
+        this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(delegate.fieldInfosFormat());
         this.storedFieldsFormat = mode.getFormat();
         this.defaultPostingsFormat = DEFAULT_POSTINGS_FORMAT;
         this.defaultDVFormat = new Lucene90DocValuesFormat();

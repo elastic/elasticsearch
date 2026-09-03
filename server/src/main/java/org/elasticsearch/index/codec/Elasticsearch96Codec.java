@@ -9,6 +9,9 @@
 
 package org.elasticsearch.index.codec;
 
+import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.FieldInfosFormat;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PointsFormat;
@@ -26,22 +29,14 @@ import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
  * Elasticsearch-named counterpart of Lucene's {@link Lucene104Codec}, backing {@link DefaultCompressionPerFieldMapperCodec} and so
  * {@code index.codec=default}.
  *
- * <p>Its only reason to exist is the codec name. A codec is resolved on the read path by the name recorded in the segment
- * ({@code SegmentInfos.readCommit} calls {@code Codec.forName}), so a codec that inherits Lucene's own name resolves back to Lucene's
- * plain codec and never sees the {@link CodecService.DeduplicateFieldInfosCodec} wrapper that {@link CodecService} applies when writing.
- * Field infos then get neither the per-directory instance cache nor the node-wide name and attribute interning, and every segment holds
- * its own copies — costly for mappings with many fields, and invisible on the write path, which does go through the wrapper.
+ * <p>The name is what makes the codec's own formats reachable on read: a codec is resolved from the name recorded in the segment,
+ * and of the eleven formats a codec supplies only postings, doc values and knn vectors are {@code NamedSPI} and recorded per field.
+ * This name selects the other eight.
  *
- * <p>The name deliberately carries no Lucene version and no compression: of the eleven formats a codec supplies, only postings, doc
- * values and knn vectors are {@code NamedSPI} and recorded per field, so this name is the sole thing selecting the other eight on read.
- * That makes it the compatibility lever, which is why it is versioned, and why it should not be narrowed to describe today's stored-fields
- * choice — the intent is for it to cover {@code best_compression} too once stored fields become self-describing.
- *
- * <p>Formats are inherited from the delegate except the three per-field ones: Lucene's own dispatch calls back into the delegate rather
- * than this codec, so they are re-declared here to route through {@link #getPostingsFormatForField} and friends. They must stay
- * byte-identical to Lucene's; {@code CodecTests} asserts that.
+ * <p>Postings, doc values and knn vectors are chosen per field. Field infos are shared across a shard's segments, stored fields are
+ * selected per segment, and points size their BKD leaves from the data. The rest come from the Lucene codec unchanged.
  */
-public class Elasticsearch96Codec extends CodecService.DeduplicateFieldInfosCodec {
+public class Elasticsearch96Codec extends FilterCodec {
 
     private final PostingsFormat defaultPostingsFormat = new Lucene104PostingsFormat();
     private final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
@@ -67,6 +62,19 @@ public class Elasticsearch96Codec extends CodecService.DeduplicateFieldInfosCode
         }
     };
 
+    private final FieldInfosFormat fieldInfosFormat;
+
+    /** Shares field infos across the segments of a shard. */
+    @Override
+    public final FieldInfosFormat fieldInfosFormat() {
+        return fieldInfosFormat;
+    }
+
+    /** The Lucene codec this one delegates to. */
+    public final Codec delegate() {
+        return delegate;
+    }
+
     /** Public no-arg constructor, needed for SPI loading at read-time. */
     public Elasticsearch96Codec() {
         this(Lucene104Codec.Mode.BEST_SPEED);
@@ -74,6 +82,7 @@ public class Elasticsearch96Codec extends CodecService.DeduplicateFieldInfosCode
 
     public Elasticsearch96Codec(Lucene104Codec.Mode mode) {
         super("Elasticsearch96", new Lucene104Codec(mode));
+        this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(delegate.fieldInfosFormat());
         this.storedFieldsFormat = new ElasticsearchStoredFieldsFormat(
             ElasticsearchStoredFieldsFormat.Mode.LUCENE,
             delegate.storedFieldsFormat()

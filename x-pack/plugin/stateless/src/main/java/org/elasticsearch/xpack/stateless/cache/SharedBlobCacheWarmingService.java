@@ -938,7 +938,7 @@ public class SharedBlobCacheWarmingService {
                             l1.onResponse(endTargetsToWarm);
                         }
                     }).<Void>andThen((l2, targetsToWarmFinal) -> {
-                        if (searchOfflineWarmingEnabled) {
+                        if (isOfflineWarmingEnabled) {
                             warmBlobOffsets(indexShard, directory, targetsToWarmFinal, l2);
                         } else {
                             l2.onResponse(null);

@@ -3431,6 +3431,11 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, queries using LOOKUP JOIN and ENRICH are now supported.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
+
+        /**
          * Support for {@code STATS} under {@code unmapped_fields="LOAD_ALL"}.
          * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
          */

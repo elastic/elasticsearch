@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.store.FieldInfoCachingDirectory;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.script.ScriptCompiler;
@@ -86,7 +87,9 @@ public class CodecTests extends ESTestCase {
 
             // Named per-field wrappers: the name is what lands in the segment.
             assertEquals(mode.toString(), lucene.postingsFormat().getName(), es.postingsFormat().getName());
-            assertEquals(mode.toString(), lucene.docValuesFormat().getName(), es.docValuesFormat().getName());
+            // The doc values wrapper is the Elasticsearch fork, which is interchangeable with Lucene's: see
+            // XPerFieldDocValuesFormatDuelTests. Its name is neither SPI-registered nor written to a segment.
+            assertThat(es.docValuesFormat(), instanceOf(XPerFieldDocValuesFormat.class));
             assertEquals(mode.toString(), lucene.knnVectorsFormat().getName(), es.knnVectorsFormat().getName());
 
             // Everything else is inherited from the delegate and must stay identical.

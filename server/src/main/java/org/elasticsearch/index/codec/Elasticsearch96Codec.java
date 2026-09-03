@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec;
 
+import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.Codec;
@@ -21,7 +22,6 @@ import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
-import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 
@@ -47,7 +47,7 @@ public class Elasticsearch96Codec extends FilterCodec {
     };
 
     private final DocValuesFormat defaultDVFormat = new Lucene90DocValuesFormat();
-    private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
+    private final DocValuesFormat docValuesFormat = new XPerFieldDocValuesFormat() {
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
             return Elasticsearch96Codec.this.getDocValuesFormatForField(field);

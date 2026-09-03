@@ -432,6 +432,7 @@ public class HashAggregationOperator implements Operator {
                 @Override
                 public void add(int positionOffset, IntVector groupIds) {
                     startAggEndHash();
+                    assert assertGroupAssignments(page, positionOffset, groupIds);
                     for (GroupingAggregatorFunction.AddInput p : prepared) {
                         p.add(positionOffset, groupIds);
                     }
@@ -545,6 +546,10 @@ public class HashAggregationOperator implements Operator {
     protected IntVector customizeSelected(GroupingAggregator aggregator, IntVector selected) {
         selected.incRef();
         return selected;
+    }
+
+    protected boolean assertGroupAssignments(Page page, int positionOffset, IntVector groupIds) {
+        return true;
     }
 
     /**

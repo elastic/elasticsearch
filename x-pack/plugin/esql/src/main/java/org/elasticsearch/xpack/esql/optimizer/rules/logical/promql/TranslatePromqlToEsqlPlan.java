@@ -112,6 +112,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction.withFilter;
@@ -914,14 +915,181 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             IntermediateResult left = childTranslation.translateIntermediate(op.left(), new NameId(), new NameId());
             IntermediateResult right = childTranslation.translateIntermediate(op.right(), new NameId(), new NameId());
 
-            var layout = new VectorBinaryOperatorLayout(op).command(cmd)
-                .configuration(configuration())
-                .stepId(stepAttr().id())
-                .required(header)
-                .left(left)
-                .right(right);
+            // Orientation: the probe side keeps its identities; the build side is re-identified so a self-join of
+            // structurally identical operands has distinct attributes on each side.
+            VectorMatch match = op.match();
+            boolean probeRight = match.grouping() == Joining.RIGHT;
+            IntermediateResult probe = probeRight ? right : left;
+            IntermediateResult build = reidentify(probeRight ? left : right);
+            Expression leftValue = probeRight ? build.value() : probe.value();
+            Expression rightValue = probeRight ? probe.value() : build.value();
 
-            return layout.result();
+            LogicalPlan join = emitJoin(op, probe, build);
+            List<NamedExpression> output = bindJoinOutput(op, header, probe, build);
+            return bindJoinResult(op, header, leftValue, rightValue, probe.step(), join, output);
+        }
+
+        /**
+         * The operator's value computed on the joined rows, then the finished table: value and step exposed under this
+         * frame's identities, null-fills defined, comparison filter mode applied, and everything else projected away.
+         */
+        private IntermediateResult bindJoinResult(
+            VectorBinaryOperator op,
+            Header header,
+            Expression leftValue,
+            Expression rightValue,
+            Attribute step,
+            LogicalPlan join,
+            List<NamedExpression> output
+        ) {
+            Expression lhsExpr = new ToDouble(leftValue.source(), leftValue);
+            Expression rhsExpr = new ToDouble(rightValue.source(), rightValue);
+            Expression value = op.binaryOp().asFunction().create(op.source(), lhsExpr, rhsExpr, configuration());
+            Expression filter = null;
+            if (op instanceof VectorBinaryComparison comparison) {
+                filter = comparison.filterMode() ? value : null;
+                value = comparison.filterMode() ? lhsExpr : new ToDouble(value.source(), value);
+            }
+            // Expose the step under this frame's step identity so enclosing translations (union branches, parent
+            // aggregates) resolve it by id, not just by name.
+            Alias stepAlias = new Alias(step.source(), step.name(), step, stepAttr().id());
+            Alias valueAlias = new Alias(op.source(), cmd.valueColumnName(), value, new NameId());
+            List<Alias> definitions = new ArrayList<>(List.of(valueAlias, stepAlias));
+            definitions.addAll(defined(output));
+            LogicalPlan plan = new Eval(cmd.source(), join, definitions);
+            if (filter != null) {
+                plan = new Filter(op.source(), plan, filter);
+            }
+            List<NamedExpression> projected = new ArrayList<>(List.of(valueAlias.toAttribute(), stepAlias.toAttribute()));
+            output.forEach(column -> projected.add(column.toAttribute()));
+            plan = new Project(cmd.source(), plan, projected);
+            return new IntermediateResult(
+                plan,
+                header,
+                valueAlias.toAttribute(),
+                stepAlias.toAttribute(),
+                null,
+                Kind.AFTER_INITIAL_AGGREGATE
+            );
+        }
+
+        /**
+         * The build operand under fresh identities, so a self-join of structurally identical operands has distinct
+         * attributes on each side. Its value column is also renamed: {@link InnerJoin#output()} merges output by NAME (see
+         * {@code NamedExpressions#mergeOutputAttributes}), so a build-side column still called {@code value} would shadow
+         * the probe side's value column that the operator's expression references.
+         */
+        private IntermediateResult reidentify(IntermediateResult input) {
+            Map<NameId, NameId> ids = new HashMap<>();
+            String valueName = TemporaryNameGenerator.locallyUniqueTemporaryName(cmd.valueColumnName());
+            LogicalPlan plan = input.plan()
+                .transformExpressionsDown(Expression.class, e -> reidExpr(renamed(e, cmd.valueColumnName(), valueName), ids));
+            Expression value = reidExpr(renamed(input.valueColumn(), cmd.valueColumnName(), valueName), ids);
+            Attribute step = (Attribute) reidExpr(input.step(), ids);
+            return new IntermediateResult(plan, input.header(), value, step, input.pendingFilter(), input.kind());
+        }
+
+        /** One side of the join: its plan with the key columns defined, and the fields the join matches on. */
+        private record JoinInput(LogicalPlan plan, List<Attribute> fields) {}
+
+        /** The inner join of the two operands on step plus the packed match key. */
+        private LogicalPlan emitJoin(VectorBinaryOperator op, IntermediateResult probe, IntermediateResult build) {
+            VectorMatch match = op.match();
+            JoinInput probeInput = emitJoinInput(match, probe);
+            JoinInput buildInput = emitJoinInput(match, build);
+
+            // The build side carries its join fields plus what the join adds: its value and the group_x labels. Neither can
+            // already be a join field (the step, or the freshly packed key), so the two lists are disjoint.
+            List<Attribute> added = joinAddedFields(match, build);
+            List<NamedExpression> projection = new ArrayList<>(buildInput.fields());
+            projection.addAll(added);
+            LogicalPlan buildPlan = new Project(cmd.source(), buildInput.plan(), projection);
+
+            return new InnerJoin(
+                cmd.source(),
+                probeInput.plan(),
+                buildPlan,
+                probeInput.fields(),
+                buildInput.fields(),
+                added,
+                match.grouping() == Joining.NONE
+            );
+        }
+
+        /** The columns the join adds from the build side: its value and the labels a group_x modifier copies over. */
+        private List<Attribute> joinAddedFields(VectorMatch match, IntermediateResult build) {
+            List<Attribute> fields = new ArrayList<>();
+            fields.add(build.valueColumn());
+            for (String name : match.groupingLabels()) {
+                Attribute field = build.label(name);
+                if (field != null) {
+                    fields.add(field);
+                }
+            }
+            return fields;
+        }
+
+        private JoinInput emitJoinInput(VectorMatch match, IntermediateResult input) {
+            List<NamedExpression> key = joinKey(match, input);
+            List<Alias> nullFills = defined(key);
+            LogicalPlan plan = nullFills.isEmpty() ? input.plan() : new Eval(cmd.source(), input.plan(), nullFills);
+            if (key.isEmpty()) {
+                return new JoinInput(plan, List.of(input.step()));
+            }
+            List<Attribute> keyColumns = key.stream().map(NamedExpression::toAttribute).toList();
+            Attribute packed = new ReferenceAttribute(cmd.source(), null, PackDims.PACKED_FIELD_NAME, DataType.KEYWORD);
+            return new JoinInput(new PackDims(cmd.source(), plan, keyColumns, packed), List.of(input.step(), packed));
+        }
+
+        /** The operand's match key columns: the labels named by on(...), or its own label set minus the ignored labels. */
+        private List<NamedExpression> joinKey(VectorMatch match, IntermediateResult input) {
+            var key = new ArrayList<NamedExpression>();
+            if (match.filter() == VectorMatch.Filter.ON) {
+                for (String name : match.filterLabels()) {
+                    Attribute attribute = input.label(name);
+                    key.add(attribute != null ? attribute : emitNullExpression(mapToRef(name)));
+                }
+                return key;
+            }
+            Header surviving = input.header().intersect(match.filterLabels());
+            for (Set<String> skip : finestFirst(surviving.skips())) {
+                Attribute packed = input.packed(skip);
+                assert packed != null : "invariant: packing " + skip + " must be carried by the operand";
+                key.add(packed);
+            }
+            for (String label : surviving.labels()) {
+                Attribute attribute = input.label(label);
+                assert attribute != null : "invariant: label [" + label + "] must be carried by the operand";
+                key.add(attribute);
+            }
+            return key;
+        }
+
+        /** The join result's label columns: every required label bound to the operand carrying it, or to null. */
+        private List<NamedExpression> bindJoinOutput(
+            VectorBinaryOperator op,
+            Header header,
+            IntermediateResult probe,
+            IntermediateResult build
+        ) {
+            VectorMatch match = op.match();
+            // The operator's declared output: which labels the match produces, and under which attributes.
+            List<Attribute> declared = op.output();
+            var output = new ArrayList<NamedExpression>();
+            for (String name : header.labels()) {
+                // A label the match semantics dropped (e.g. on(...) narrowing) may still be required by an enclosing
+                // translation; it must come back null rather than leak through from an operand.
+                Attribute declaredAttr = find(declared, name);
+                if (declaredAttr == null) {
+                    output.add(emitNullExpression(mapToRef(name)));
+                    continue;
+                }
+                // Null-fill under the operator's own attribute when the carrying operand lacks the label, so the command
+                // projection binds it by identity.
+                Attribute attribute = match.groupingLabels().contains(name) ? build.label(name) : probe.label(name);
+                output.add(attribute != null ? attribute : emitNullExpression(declaredAttr));
+            }
+            return output;
         }
 
         /** Fold left and right aggregates into a single plan. */
@@ -1154,6 +1322,33 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         aggregates.add(step);
         aggregates.addAll(keys);
         return aggregates;
+    }
+
+    /** The columns among {@code columns} defined inline (aliases) rather than carried by the plan. */
+    private static List<Alias> defined(List<? extends NamedExpression> columns) {
+        return columns.stream().filter(Alias.class::isInstance).map(Alias.class::cast).toList();
+    }
+
+    /** Renames an attribute or alias in a re-identification pass; other expressions pass through unchanged. */
+    private static Expression renamed(Expression e, String from, String to) {
+        if (e instanceof Attribute a && a.name().equals(from)) {
+            return a.withName(to);
+        }
+        if (e instanceof Alias a && a.name().equals(from)) {
+            return new Alias(a.source(), to, a.child(), a.id());
+        }
+        return e;
+    }
+
+    /** Re-ids a single attribute/alias (leaving other expressions untouched), reusing the shared map for consistency. */
+    private static Expression reidExpr(Expression e, Map<NameId, NameId> ids) {
+        if (e instanceof Attribute a) {
+            return a.withId(ids.computeIfAbsent(a.id(), k -> new NameId()));
+        }
+        if (e instanceof Alias a) {
+            return a.withId(ids.computeIfAbsent(a.id(), k -> new NameId()));
+        }
+        return e;
     }
 
     /** The string value of a keyword-literal PromQL function argument. */

@@ -31,6 +31,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -494,6 +495,45 @@ public class GcsStorageObjectTests extends ESTestCase {
         }
         verify(mockReader).seek(10);
         verify(mockReader).limit(15);
+    }
+
+    public void testReadBytesAsyncConstrainsOverAllocatedDestination() throws Exception {
+        byte[] payload = "async".getBytes(StandardCharsets.UTF_8);
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
+        doAnswer(invocation -> {
+            ByteBuffer buffer = invocation.getArgument(0);
+            buffer.put(payload);
+            return payload.length;
+        }).when(mockReader).read(any(ByteBuffer.class));
+
+        AtomicInteger closeCalls = new AtomicInteger();
+        DirectBufferFactory overAllocatingFactory = length -> {
+            ByteBuffer buffer = ByteBuffer.allocate(length + 17);
+            buffer.limit(1);
+            return new DirectReadBuffer(buffer, closeCalls::incrementAndGet);
+        };
+        GcsStorageObject obj = new GcsStorageObject(
+            mockStorage,
+            "my-bucket",
+            "data/file.parquet",
+            StoragePath.of("gs://my-bucket/data/file.parquet")
+        );
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+        AtomicReference<Exception> error = new AtomicReference<>();
+
+        obj.readBytesAsync(10, payload.length, overAllocatingFactory, Runnable::run, ActionListener.wrap(result::set, error::set));
+
+        assertNull(error.get());
+        assertNotNull(result.get());
+        try (DirectReadBuffer drb = result.get()) {
+            assertEquals(payload.length + 17, drb.buffer().capacity());
+            assertEquals(payload.length, drb.buffer().remaining());
+            byte[] actual = new byte[payload.length];
+            drb.buffer().get(actual);
+            assertArrayEquals(payload, actual);
+        }
+        assertEquals(1, closeCalls.get());
     }
 
     public void testReadBytesAsyncNegativePositionFails() throws Exception {

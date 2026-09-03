@@ -27,6 +27,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
@@ -107,6 +108,7 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
                 BigArrays.NON_RECYCLING_INSTANCE,
                 randomIntBetween(1, 8) * 1024,
                 GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE,
+                ByteSizeValue.ofMb(1).getBytes(),
                 BackoffPolicy.noBackoff(),
                 new GcsRepositoryStatsCollector(),
                 null,
@@ -126,7 +128,7 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
     public void testConcurrentWriteBlobAtomicAborted() throws Exception {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
-        final long partSize = GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE;
+        final long partSize = ByteSizeValue.ofMb(1).getBytes();
         // 3 parts: ceil((2*partSize+1) / partSize) = 3
         final long blobSize = partSize * 2 + 1;
         final String uploadId = randomAlphaOfLength(25);
@@ -156,7 +158,7 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
             ? (offset, length) -> { throw providerException; }
             : (offset, length) -> new ByteArrayInputStream(new byte[0]);
 
-        try (GoogleCloudStorageBlobStore blobStore = buildBlobStore(bucketName, meteredStorage)) {
+        try (GoogleCloudStorageBlobStore blobStore = buildBlobStore(bucketName, meteredStorage, partSize)) {
             final IOException e = expectThrows(
                 IOException.class,
                 () -> blobStore.blobContainer(BlobPath.EMPTY)
@@ -194,7 +196,7 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final int nbParts = randomIntBetween(2, 5);
-        final long partSize = GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE;
+        final long partSize = randomLongBetween(100, 1000);
         // nbParts = ceil(blobSize / partSize)
         final long blobSize = randomLongBetween((nbParts - 1) * partSize + 1, nbParts * partSize);
         assert nbParts == (blobSize + partSize - 1) / partSize;
@@ -212,7 +214,7 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         });
 
         final OperationPurpose purpose = randomPurpose();
-        try (GoogleCloudStorageBlobStore blobStore = buildBlobStore(bucketName, meteredStorage)) {
+        try (GoogleCloudStorageBlobStore blobStore = buildBlobStore(bucketName, meteredStorage, partSize)) {
             final ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
             try {
                 executorService.submit(() -> {
@@ -237,7 +239,11 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         }
     }
 
-    private static GoogleCloudStorageBlobStore buildBlobStore(String bucketName, MeteredStorage meteredStorage) throws IOException {
+    private static GoogleCloudStorageBlobStore buildBlobStore(
+        String bucketName,
+        MeteredStorage meteredStorage,
+        long multipartUploadChunkSize
+    ) throws IOException {
         final GoogleCloudStorageService storageService = mock(GoogleCloudStorageService.class);
         when(storageService.client(any(), any(), any(), any())).thenReturn(meteredStorage);
         final GoogleCloudStorageClientSettings clientSettings = mock(GoogleCloudStorageClientSettings.class);
@@ -252,6 +258,7 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             randomIntBetween(1, 8) * 1024,
             GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE,
+            multipartUploadChunkSize,
             BackoffPolicy.noBackoff(),
             new GcsRepositoryStatsCollector(),
             null,

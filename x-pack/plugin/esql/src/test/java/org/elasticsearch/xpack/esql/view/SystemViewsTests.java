@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -26,8 +28,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -47,11 +53,23 @@ public class SystemViewsTests extends ESTestCase {
     private ViewService viewService;
     private SystemViews systemViews;
 
+    /** In-memory backing store for the mocked {@link ViewService}, keyed by view name. */
+    private Map<String, View> views;
+
     @Before
     public void setup() {
         threadPool = new TestThreadPool(getTestName());
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         viewService = mock(ViewService.class);
+        views = new HashMap<>();
+        when(viewService.get(any(), any())).thenAnswer(invocation -> views.get(invocation.<String>getArgument(1)));
+        doAnswer(invocation -> {
+            PutViewAction.Request request = invocation.getArgument(1);
+            views.put(request.view().name(), request.view());
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(viewService).putView(any(), any(), any());
         systemViews = new SystemViews(clusterService, threadPool, viewService);
     }
 
@@ -80,6 +98,7 @@ public class SystemViewsTests extends ESTestCase {
     }
 
     public void testIsIdempotent() {
+        // First change creates the view; the second observes it as up-to-date (via the backing store) and skips the put.
         systemViews.clusterChanged(clusterChangedEvent(true, true));
         flushThreadPoolExecutor(threadPool, ThreadPool.Names.GENERIC);
         systemViews.clusterChanged(clusterChangedEvent(true, true));
@@ -89,15 +108,15 @@ public class SystemViewsTests extends ESTestCase {
 
     public void testUpdatesViewWhenDefinitionDrifts() {
         // The view already exists but with a stale query, so the bootstrap must overwrite it with the current definition.
-        when(viewService.get(any(), any())).thenReturn(new View(EXPECTED_REQUEST.view().name(), "FROM this |s a stale query"));
+        views.put(EXPECTED_REQUEST.view().name(), new View(EXPECTED_REQUEST.view().name(), "FROM this |s a stale query"));
         systemViews.clusterChanged(clusterChangedEvent(true, true));
         flushThreadPoolExecutor(threadPool, ThreadPool.Names.GENERIC);
         verify(viewService, times(1)).putView(eq(ProjectId.DEFAULT), eq(EXPECTED_REQUEST), any());
     }
 
     public void testUpdatesViewWhenDefinitionIsUpToDate() {
-        // The view already exists but with a stale query, so the bootstrap must overwrite it with the current definition.
-        when(viewService.get(any(), any())).thenReturn(EXPECTED_REQUEST.view());
+        // The view already exists with the current definition, so the bootstrap must not overwrite it.
+        views.put(EXPECTED_REQUEST.view().name(), EXPECTED_REQUEST.view());
         systemViews.clusterChanged(clusterChangedEvent(true, true));
         verify(viewService, never()).putView(any(), any(), any());
     }

@@ -1,6 +1,0 @@
-area: Vector Search
-issues:
- - 158309
-pr: 158495
-summary: Validate every dimension of `byte` `rank_vectors` query vectors and reject empty vector arrays
-type: bug

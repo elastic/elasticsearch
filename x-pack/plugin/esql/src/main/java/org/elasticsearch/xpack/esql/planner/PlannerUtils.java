@@ -140,27 +140,65 @@ public class PlannerUtils {
     }
 
     /**
-     * When the plan contains children like {@code MergeExec} resulted from the planning of commands such as FORK,
-     * we need to break the plan into sub plans and a main coordinator plan.
-     * The result pages from each sub plan will be funneled to the main coordinator plan.
-     * To achieve this, we wire each sub plan with a {@code ExchangeSinkExec} and add a {@code ExchangeSourceExec}
-     * to the main coordinator plan.
-     * There is an additional split of each sub plan into a data node plan and coordinator plan.
-     * This split is not done here, but as part of {@code PlannerUtils#breakPlanBetweenCoordinatorAndDataNode}.
+     * Recursively decomposes a physical plan containing nested {@link MergeExec} nodes into an immutable {@link SubPlan} tree. Each
+     * {@link MergeExec} becomes a {@link SubPlan.Merge} node: the merge is replaced by an {@link ExchangeSourceExec} in the coordinator
+     * segment plan, and each of its children is wrapped in an {@link ExchangeSinkExec} before recursion. A plan with no {@link MergeExec}
+     * becomes a {@link SubPlan.Leaf}.
+     * <p>
+     * A coordinator segment may contain only one topmost {@link MergeExec} — encountering a second one at the same level is a planning
+     * error, because one compute context supplies one exchange source to all {@link ExchangeSourceExec} nodes in the segment.
+     * <p>
+     * Example — a 3-level nested plan (outer MergeExec with both leaf and inner MergeExec children):
+     * <pre>
+     * Input physical plan:
+     *   LimitExec
+     *   └─ MergeExec                          ← outer merge
+     *      ├─ LeafA                            ← plain producer branch
+     *      ├─ MergeExec                        ← inner merge A
+     *      │  ├─ LeafB
+     *      │  └─ LeafC
+     *      └─ MergeExec                        ← inner merge B
+     *         ├─ LeafD
+     *         └─ LeafE
+     *
+     * Result SubPlan tree:
+     *   Merge(plan = LimitExec → ExchangeSourceExec)           ← outer merge replaced by ExchangeSourceExec
+     *   ├─ Leaf(plan = ExchangeSinkExec → LeafA)               ← plain leaf wrapped in ExchangeSinkExec
+     *   ├─ Merge(plan = ExchangeSinkExec → ExchangeSourceExec) ← inner merge A: produces to outer (ExchangeSinkExec)
+     *   │  ├─ Leaf(plan = ExchangeSinkExec → LeafB)            │  and consumes from its children (ExchangeSourceExec)
+     *   │  └─ Leaf(plan = ExchangeSinkExec → LeafC)
+     *   └─ Merge(plan = ExchangeSinkExec → ExchangeSourceExec) ← inner merge B: same structure
+     *      ├─ Leaf(plan = ExchangeSinkExec → LeafD)
+     *      └─ Leaf(plan = ExchangeSinkExec → LeafE)
+     * </pre>
+     * <p>
+     * There is an additional split of each leaf into a data-node plan and coordinator plan. That split is performed later by
+     * {@link #breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan, Configuration)}.
      */
-    public static Tuple<List<PhysicalPlan>, PhysicalPlan> breakPlanIntoSubPlansAndMainPlan(PhysicalPlan plan) {
-        var subplans = new Holder<List<PhysicalPlan>>();
-        PhysicalPlan mainPlan = plan.transformUp(MergeExec.class, me -> {
-            subplans.set(
-                me.children()
-                    .stream()
-                    .map(child -> (PhysicalPlan) new ExchangeSinkExec(child.source(), child.output(), false, child))
-                    .toList()
-            );
-            return new ExchangeSourceExec(me.source(), me.output(), false);
+    public static SubPlan buildSubPlan(PhysicalPlan plan) {
+        var topmostMerge = new Holder<MergeExec>();
+        PhysicalPlan segmentPlan = plan.transformDownSkipBranch((p, skipBranch) -> {
+            if (p instanceof MergeExec merge) {
+                if (topmostMerge.get() != null) {
+                    // this plan shape is not possible with the current planner
+                    LOGGER.debug("expected a single topmost MergeExec in a coordinator segment, found multiple in [{}]", plan);
+                    throw new EsqlIllegalArgumentException("expected a single topmost MergeExec in a coordinator segment");
+                }
+                topmostMerge.set(merge);
+                skipBranch.set(true);
+                return new ExchangeSourceExec(merge.source(), merge.output(), false);
+            }
+            return p;
         });
-
-        return new Tuple<>(subplans.get(), mainPlan);
+        if (topmostMerge.get() == null) {
+            return new SubPlan.Leaf(segmentPlan);
+        }
+        List<SubPlan> children = topmostMerge.get()
+            .children()
+            .stream()
+            .map(child -> buildSubPlan(new ExchangeSinkExec(child.source(), child.output(), false, child)))
+            .toList();
+        return new SubPlan.Merge(segmentPlan, children);
     }
 
     public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, Configuration config) {

@@ -1545,6 +1545,13 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL_DEEPLY_NESTED,
 
         /**
+         * Support IN subquery as a direct operand of the {@code ==} and {@code !=} operators, e.g.
+         * {@code WHERE (x IN (FROM sub)) == true}, in the {@code WHERE} and {@code EVAL} commands and in the
+         * {@code STATS} / {@code INLINE STATS} per-aggregate {@code WHERE} filters.
+         */
+        WHERE_IN_SUBQUERY_WITH_EQUALS_NOT_EQUALS,
+
+        /**
          * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
          */
         WHERE_IN_MULTI_COLUMN_SUBQUERY(Build.current().isSnapshot()),
@@ -3430,6 +3437,15 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_STATS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code _source} value that says nothing about its field - {@code null},
+         * {@code []}, {@code {}} and any nesting of those, e.g. {@code [null]} or {@code {"baz":[null],"inga":{}}} - is dropped where
+         * the data node extracts unmapped fields. So a field written that way by every document no longer expands into a column that
+         * is null in every row, and where such a value sits in a column another document did fill it reads as {@code null} instead of
+         * a stringified {@code "[]"}.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_SKIPS_VALUELESS_FIELDS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,
@@ -3825,6 +3841,11 @@ public class EsqlCapabilities {
          * {@code CombineProjections} drops it.
          */
         TS_STATS_LITERAL_AGG_FIX,
+
+        /**
+         * KNN function support for runtime expressions, not just ES mapped fields.
+         */
+        KNN_RUNTIME_FIELD(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

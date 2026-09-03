@@ -49,10 +49,13 @@ public class IndexPropertiesTests extends ESTestCase {
      * produces a shard count of 0 ("unknown").
      */
     public void testDeserializationFromPreShardCountsVersionDefaultsToZero() throws IOException {
-        // Use the version just before SHARD_COUNTS: modern enough to support all IndexModes, but
-        // the wire stream won't include a shard count.
+        // Use the version just before SHARD_COUNTS so the wire stream omits shard count. Skip
+        // IndexModes that cannot be serialized at that version (e.g. vectordb_columnar).
         TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(IndexProperties.SHARD_COUNTS);
-        IndexMode mode = randomFrom(IndexMode.availableModes());
+        IndexMode mode = randomValueOtherThanMany(
+            m -> m.supportsVersion(oldVersion) == false,
+            () -> randomFrom(IndexMode.availableModes())
+        );
         int count = between(1, 1000);
         IndexProperties original = new IndexProperties(mode, count);
 

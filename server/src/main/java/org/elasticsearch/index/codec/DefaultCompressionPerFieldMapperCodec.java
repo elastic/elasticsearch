@@ -20,20 +20,29 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
- * Legacy version of {@link PerFieldMapperCodec}. This codec is preserved to give an escape hatch in case we encounter issues with new
- * changes in {@link PerFieldMapperCodec}.
+ * The codec behind {@code index.codec=default}, keeping Lucene's own stored-fields compression.
+ *
+ * <p>The counterpart is {@link PerFieldMapperCodec}, which is the same thing with ZSTD stored fields and backs
+ * {@code index.codec=best_compression}. Applying ZSTD to the default codec too was tried behind a feature flag and dropped, because
+ * query latencies regressed for random-access use cases; see elastic/elasticsearch#144756. Both remain reachable as
+ * {@code legacy_default} and {@code legacy_best_compression}, names kept for compatibility.
  */
-public final class LegacyPerFieldMapperCodec extends Lucene104Codec {
+public final class DefaultCompressionPerFieldMapperCodec extends Elasticsearch96Codec {
 
     private final PerFieldFormatSupplier formatSupplier;
 
-    public LegacyPerFieldMapperCodec(Mode compressionMode, MapperService mapperService, BigArrays bigArrays, ThreadPool threadPool) {
+    public DefaultCompressionPerFieldMapperCodec(
+        Lucene104Codec.Mode compressionMode,
+        MapperService mapperService,
+        BigArrays bigArrays,
+        ThreadPool threadPool
+    ) {
         super(compressionMode);
         this.formatSupplier = new PerFieldFormatSupplier(mapperService, bigArrays, threadPool);
         // If the below assertion fails, it is a sign that Lucene released a new codec. You must create a copy of the current Elasticsearch
         // codec that delegates to this new Lucene codec, and make PerFieldMapperCodec extend this new Elasticsearch codec.
-        assert Codec.forName(Lucene.LATEST_CODEC).getClass() == getClass().getSuperclass()
-            : "LegacyPerFieldMapperCodec must be on the latest lucene codec: " + Lucene.LATEST_CODEC;
+        assert Codec.forName(Lucene.LATEST_CODEC).getClass() == delegate.getClass()
+            : "DefaultCompressionPerFieldMapperCodec must be on the latest lucene codec: " + Lucene.LATEST_CODEC;
     }
 
     @Override

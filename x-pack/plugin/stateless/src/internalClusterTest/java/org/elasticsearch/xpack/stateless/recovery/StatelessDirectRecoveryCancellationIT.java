@@ -591,8 +591,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
                 @Override
                 public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
-                    if (indexShard.recoveryState() == null
-                        || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER) {
+                    if (indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER) {
                         listener.onResponse(null);
                         return;
                     }

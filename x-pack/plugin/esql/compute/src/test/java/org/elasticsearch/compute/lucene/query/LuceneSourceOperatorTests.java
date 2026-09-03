@@ -21,6 +21,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -37,6 +38,9 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitiveTests;
+import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
@@ -77,6 +81,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
@@ -438,6 +443,83 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         logger.info("{} received={} limit={} numResults={}", factory.dataPartitioning, count, limit, testCase.numResults(numDocs));
         assertThat(count, equalTo(Math.min(limit, testCase.numResults(numDocs))));
         testCase.assertSourceOperator(sourceOperator);
+    }
+
+    /**
+     * Simulates the production {@code TopNOperator → SharedMinCompetitive → LuceneSourceOperator}
+     * side channel by publishing a competitive bound directly, then verifies that
+     * {@link MinCompetitiveQuery} narrows Lucene collection via {@code competitiveIterator}.
+     */
+    public void testMinCompetitiveSkipsDocumentsWithDirectBound() throws IOException {
+        int numDocs = 1_000;
+        int limit = 100;
+        int maxPageSize = 50;
+        // Top-10 DESC over s = 0..999 would publish 990 as the worst kept value; docs with s >= 990
+        // are the only ones still competitive.
+        long minCompetitiveBound = numDocs - 10;
+
+        reader = simpleReader(directory, numDocs, /* commitEvery */ 50);
+        ShardContext ctx = new MockShardContext(reader, 0);
+
+        SharedMinCompetitive.Supplier minCompetitiveSupplier = timestampDescMinCompetitiveSupplier(driverContext().blockFactory());
+        SharedMinCompetitiveTests.offerLongDesc(driverContext().blockFactory(), minCompetitiveSupplier, minCompetitiveBound);
+
+        MinCompetitiveQuery.Factory minCompetitiveFactory = new MinCompetitiveQuery.Factory(minCompetitiveSupplier, (ignored, page) -> {
+            LongBlock block = page.getBlock(0);
+            long bound = block.getLong(0);
+            return SortedNumericDocValuesField.newSlowRangeQuery("s", bound, Long.MAX_VALUE);
+        });
+
+        LuceneSourceOperator.Factory factory = new LuceneSourceOperator.Factory(
+            new IndexedByShardIdFromSingleton<>(ctx),
+            ignored -> TestCase.MATCH_ALL.queryAndExtra(),
+            DataPartitioning.SHARD,
+            DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
+            1,
+            maxPageSize,
+            limit,
+            false,
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT,
+            minCompetitiveFactory
+        );
+
+        DriverContext driverContext = driverContext();
+        List<Page> results = new ArrayList<>();
+        LuceneSourceOperator sourceOperator = (LuceneSourceOperator) factory.get(driverContext);
+        new TestDriverRunner().run(
+            TestDriverFactory.create(driverContext, sourceOperator, List.of(), new TestResultPageSinkOperator(results::add))
+        );
+        OperatorTestCase.assertDriverContext(driverContext);
+
+        int collectedRows = results.stream().mapToInt(Page::getPositionCount).sum();
+        assertThat(collectedRows, equalTo(10));
+        assertThat(collectedRows, lessThan(limit));
+
+        LuceneSourceOperator.Status status = (LuceneSourceOperator.Status) sourceOperator.status();
+        MinCompetitiveQuery.Status minCompetitive = status.minCompetitive();
+        assertThat(minCompetitive, notNullValue());
+        assertThat(minCompetitive.greaterThanMinCompetitive(), greaterThan(0));
+        assertThat(minCompetitive.updateInvocations(), greaterThan(0));
+
+        for (Page page : results) {
+            page.releaseBlocks();
+        }
+        SharedMinCompetitive channel = minCompetitiveSupplier.get();
+        channel.close();
+        channel.close();
+    }
+
+    private static SharedMinCompetitive.Supplier timestampDescMinCompetitiveSupplier(BlockFactory blockFactory) {
+        SharedMinCompetitive.KeyConfig keyConfig = new SharedMinCompetitive.KeyConfig(
+            ElementType.LONG,
+            TopNEncoder.DEFAULT_SORTABLE,
+            false,
+            false
+        );
+        return new SharedMinCompetitive.Supplier(blockFactory.breaker(), List.of(keyConfig));
     }
 
     public void testAccumulateSearchLoad() throws IOException {

@@ -2358,9 +2358,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         // The default codec is a DeduplicateFieldInfosCodec in its own right, so it is only wrapped in one when it is not.
         if (codec instanceof DefaultCompressionPerFieldMapperCodec == false
             && codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-            {
-                codec = deduplicateFieldInfosCodec.delegate();
-            }
+            codec = deduplicateFieldInfosCodec.delegate();
         }
         assertThat(codec, instanceOf(DefaultCompressionPerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((DefaultCompressionPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
@@ -2451,9 +2449,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             // The default codec is a DeduplicateFieldInfosCodec in its own right, so it is only wrapped in one when it is not.
             if (codec instanceof DefaultCompressionPerFieldMapperCodec == false
                 && codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-                {
-                    codec = deduplicateFieldInfosCodec.delegate();
-                }
+                codec = deduplicateFieldInfosCodec.delegate();
             }
             assertThat(codec, instanceOf(DefaultCompressionPerFieldMapperCodec.class));
             KnnVectorsFormat knnVectorsFormat = ((DefaultCompressionPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
@@ -2508,9 +2504,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         // The default codec is a DeduplicateFieldInfosCodec in its own right, so it is only wrapped in one when it is not.
         if (codec instanceof DefaultCompressionPerFieldMapperCodec == false
             && codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-            {
-                codec = deduplicateFieldInfosCodec.delegate();
-            }
+            codec = deduplicateFieldInfosCodec.delegate();
         }
         assertThat(codec, instanceOf(DefaultCompressionPerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((DefaultCompressionPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
@@ -2571,9 +2565,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         // The default codec is a DeduplicateFieldInfosCodec in its own right, so it is only wrapped in one when it is not.
         if (codec instanceof DefaultCompressionPerFieldMapperCodec == false
             && codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-            {
-                codec = deduplicateFieldInfosCodec.delegate();
-            }
+            codec = deduplicateFieldInfosCodec.delegate();
         }
         assertThat(codec, instanceOf(DefaultCompressionPerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((DefaultCompressionPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
@@ -2625,9 +2617,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         // The default codec is a DeduplicateFieldInfosCodec in its own right, so it is only wrapped in one when it is not.
         if (codec instanceof DefaultCompressionPerFieldMapperCodec == false
             && codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-            {
-                codec = deduplicateFieldInfosCodec.delegate();
-            }
+            codec = deduplicateFieldInfosCodec.delegate();
         }
         assertThat(codec, instanceOf(DefaultCompressionPerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((DefaultCompressionPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");

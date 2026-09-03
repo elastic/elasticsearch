@@ -181,11 +181,14 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
         } else if (codec instanceof Elasticsearch96Codec defaultCodec) {
             // Now a DeduplicateFieldInfosCodec in its own right, so CodecService no longer wraps it in one.
             return defaultCodec.getDocValuesFormatForField(field);
-        } else if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-            if (deduplicateFieldInfosCodec.delegate() instanceof ES93TSDBDefaultCompressionLucene103Codec es93TSDB103Codec) {
-                assertThat(es93TSDB103Codec.docValuesFormat(), instanceOf(XPerFieldDocValuesFormat.class));
-                return ((XPerFieldDocValuesFormat) es93TSDB103Codec.docValuesFormat()).getDocValuesFormatForField(field);
-            }
+        }
+        // CodecService only wraps codecs that do not deduplicate field infos already, so the TSDB codec can arrive either way.
+        Codec unwrapped = codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec
+            ? deduplicateFieldInfosCodec.delegate()
+            : codec;
+        if (unwrapped instanceof ES93TSDBDefaultCompressionLucene103Codec es93TSDB103Codec) {
+            assertThat(es93TSDB103Codec.docValuesFormat(), instanceOf(XPerFieldDocValuesFormat.class));
+            return ((XPerFieldDocValuesFormat) es93TSDB103Codec.docValuesFormat()).getDocValuesFormatForField(field);
         }
         fail("Unexpected codec type: " + codec.getClass().getName());
         return null;

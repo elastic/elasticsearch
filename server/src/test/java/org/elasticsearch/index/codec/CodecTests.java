@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.apache.lucene.document.Document;
@@ -71,12 +72,6 @@ public class CodecTests extends ESTestCase {
         assertThat(((CodecService.DeduplicateFieldInfosCodec) codec).delegate(), instanceOf(Lucene104Codec.class));
     }
 
-    /**
-     * The codec used to read a segment is resolved by the name recorded in that segment ({@code SegmentInfos.readCommit} calls
-     * {@code Codec.forName}), so it is never the instance {@link CodecService} built for writing. A codec whose name resolves to one
-     * that does not deduplicate field infos therefore gets no sharing on the read path, and every segment retains its own copies —
-     * expensive for mappings with many fields, and invisible to any test that only exercises writing.
-     */
     /**
      * {@link Elasticsearch96Codec} exists only to give {@link Lucene104Codec} an Elasticsearch name, so it must
      * write exactly what Lucene's codec writes. Every format has to match; {@code fieldInfosFormat} is the single deliberate exception,
@@ -197,6 +192,12 @@ public class CodecTests extends ESTestCase {
         }
     }
 
+    /**
+     * The codec used to read a segment is resolved by the name recorded in that segment ({@code SegmentInfos.readCommit} calls
+     * {@code Codec.forName}), so it is never the instance {@link CodecService} built for writing. A codec whose name resolves to one
+     * that does not deduplicate field infos therefore gets no sharing on the read path, and every segment retains its own copies —
+     * expensive for mappings with many fields, and invisible to any test that only exercises writing.
+     */
     public void testCodecsWeWriteWithStillDeduplicateFieldInfosWhenResolvedByName() throws Exception {
         for (boolean syntheticId : new boolean[] { false, true }) {
             CodecService codecService = createCodecService(syntheticId);
@@ -217,6 +218,39 @@ public class CodecTests extends ESTestCase {
                         + "] on read",
                     readCodec.fieldInfosFormat(),
                     either(instanceOf(CachingFieldInfosFormat.class)).or(instanceOf(DeduplicatingFieldInfosFormat.class))
+                );
+            }
+        }
+    }
+
+    /**
+     * Each layer of deduplication re-interns instances the layer beneath it already made canonical, once per segment open. The
+     * codecs compose — a TSDB synthetic-id codec wraps a per-field codec that deduplicates in its own right — so the wrapping has
+     * to be idempotent, and {@link CodecService} must not add a layer to a codec that carries one already.
+     */
+    public void testFieldInfosAreDeduplicatedExactlyOnce() throws Exception {
+        FieldInfosFormat once = CodecService.deduplicating(new Lucene104Codec().fieldInfosFormat());
+        assertTrue(CodecService.isDeduplicating(once));
+        assertSame("wrapping an already-deduplicating format must be a no-op", once, CodecService.deduplicating(once));
+
+        for (boolean syntheticId : new boolean[] { false, true }) {
+            CodecService codecService = createCodecService(syntheticId);
+            for (String name : new String[] {
+                CodecService.DEFAULT_CODEC,
+                CodecService.BEST_COMPRESSION_CODEC,
+                CodecService.LEGACY_DEFAULT_CODEC,
+                CodecService.LEGACY_BEST_COMPRESSION_CODEC }) {
+                Codec codec = codecService.codec(name);
+                assertTrue(
+                    "codec [" + name + "] (syntheticId=" + syntheticId + ") does not deduplicate field infos",
+                    CodecService.isDeduplicating(codec.fieldInfosFormat())
+                );
+                // A codec that deduplicates in its own right is a *subclass*; an extra layer added by CodecService is the
+                // class itself. Comparing the exact class is what tells the two apart.
+                assertNotEquals(
+                    "codec [" + name + "] (syntheticId=" + syntheticId + ") was wrapped although it deduplicates already",
+                    CodecService.DeduplicateFieldInfosCodec.class,
+                    codec.getClass()
                 );
             }
         }

@@ -88,13 +88,10 @@ public class CodecService implements CodecProvider {
         }
 
         this.codecs = codecs.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
-            Codec codec;
-            if (e.getValue() instanceof DeduplicateFieldInfosCodec dedupCodec) {
-                codec = dedupCodec;
-            } else {
-                codec = new DeduplicateFieldInfosCodec(e.getValue().getName(), e.getValue());
-            }
-            return codec;
+            // Codecs that already expose a deduplicating format (directly, or via a delegate they wrap) must not be wrapped
+            // again: each extra layer re-interns instances that are canonical already, once per segment open.
+            Codec codec = e.getValue();
+            return isDeduplicating(codec.fieldInfosFormat()) ? codec : new DeduplicateFieldInfosCodec(codec.getName(), codec);
         }));
     }
 
@@ -120,9 +117,20 @@ public class CodecService implements CodecProvider {
      * their own {@code fieldInfosFormat()} must route it through here, or their segments get no sharing on the read path.
      */
     public static FieldInfosFormat deduplicating(FieldInfosFormat delegate) {
+        if (isDeduplicating(delegate)) {
+            return delegate;
+        }
         return org.elasticsearch.index.store.FieldInfoCachingDirectory.FEATURE_FLAG.isEnabled()
             ? new CachingFieldInfosFormat(delegate)
             : new DeduplicatingFieldInfosFormat(delegate);
+    }
+
+    /**
+     * Whether {@code format} already shares field infos, so wrapping it again would only re-intern instances that are
+     * canonical already, once per segment open.
+     */
+    public static boolean isDeduplicating(FieldInfosFormat format) {
+        return format instanceof CachingFieldInfosFormat || format instanceof DeduplicatingFieldInfosFormat;
     }
 
     public static class DeduplicateFieldInfosCodec extends FilterCodec {

@@ -66,7 +66,11 @@ abstract class AbstractTSDBSyntheticIdCodec extends FilterCodec {
         // Deduplication has to be part of this format, not left to CodecService: the override below is final, so on the read path —
         // where the codec comes from SPI rather than from CodecService — it is the only fieldInfosFormat there is. Kept outermost so
         // that every codec we write with exposes a deduplicating format directly, which CodecTests asserts.
-        this.fieldInfosFormat = CodecService.deduplicating(new ValidatingFieldInfosFormat(delegate.fieldInfosFormat()));
+        // The delegate may deduplicate already; validate over the format underneath it so the chain keeps a single such layer.
+        FieldInfosFormat delegateFieldInfosFormat = delegate instanceof CodecService.DeduplicateFieldInfosCodec deduplicating
+            ? deduplicating.delegate().fieldInfosFormat()
+            : delegate.fieldInfosFormat();
+        this.fieldInfosFormat = CodecService.deduplicating(new ValidatingFieldInfosFormat(delegateFieldInfosFormat));
         this.docValuesFormat = new XPerFieldDocValuesFormat() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {

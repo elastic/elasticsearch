@@ -14,7 +14,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
-import java.util.concurrent.locks.ReentrantLock;
 
 import static org.elasticsearch.compute.operator.topn.TopNOperator.SMALL_NULL;
 
@@ -57,7 +56,7 @@ public final class SharedGlobalTopK extends SideChannel {
         }
     }
 
-    private final ReentrantLock lock = new ReentrantLock();
+    private final Object lock = new Object();
     private final TopNQueue globalQueue;
     private final SharedMinCompetitive minCompetitive;
     private final CircuitBreaker breaker;
@@ -92,8 +91,7 @@ public final class SharedGlobalTopK extends SideChannel {
         if (newKeys.isEmpty()) {
             return false;
         }
-        lock.lock();
-        try {
+        synchronized (lock) {
             for (BytesRef key : newKeys) {
                 TopNRow copy = new TopNRow(breaker, key.length, 0);
                 boolean success = false;
@@ -111,8 +109,6 @@ public final class SharedGlobalTopK extends SideChannel {
                 }
             }
             return publishIfFull();
-        } finally {
-            lock.unlock();
         }
     }
 

@@ -112,6 +112,19 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
         assertMap(dotted, matchesMap().entry("tags", List.of("a", "b")));
     }
 
+    public void testObjectShipsWhenOnlyItsDescendantsCanMatch() throws IOException {
+        Map<String, Object> filtered = load(
+            UnmappedFieldsPattern.includes(List.of("address.*")),
+            Map.of("address", Map.of("city", "Berlin"), "other", "x")
+        );
+        assertMap(filtered, matchesMap().entry("address", Map.of("city", "Berlin")));
+    }
+
+    /** Same pattern and key as above, but a scalar is gated on the strict {@code matches} rather than shipping leniently. */
+    public void testScalarUnderTheSamePatternIsGatedStrictly() throws IOException {
+        assertThat(load(UnmappedFieldsPattern.includes(List.of("address.*")), Map.of("address", "scalar")), nullValue());
+    }
+
     public void testNonePatternEmitsNull() throws IOException {
         assertThat(load(UnmappedFieldsPattern.NONE, Map.of("a", "1", "b", "2")), nullValue());
     }

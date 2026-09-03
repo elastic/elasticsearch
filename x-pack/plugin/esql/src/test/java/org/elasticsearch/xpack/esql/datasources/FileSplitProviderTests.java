@@ -1107,19 +1107,19 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     public void testDiscoverSplitsAsyncUncapsNativeParquetOnS3() throws Exception {
-        assertPlanningPeak("s3://b/data-", "s3://b/*", 24, 0, true, 24, true);
+        assertPlanningPeak("s3://b/data-", "s3://b/*", 24, 0, true, true, 24, true);
     }
 
     public void testDiscoverSplitsAsyncKeepsGsNativeParquetCapped() throws Exception {
-        assertPlanningPeak("gs://b/data-", "gs://b/*", 24, 0, true, 16, false);
+        assertPlanningPeak("gs://b/data-", "gs://b/*", 24, 0, true, false, 16, false);
     }
 
     public void testDiscoverSplitsAsyncKeepsFileParquetCapped() throws Exception {
-        assertPlanningPeak("file:///tmp/data-", "file:///tmp/*", 24, 0, false, 16, false);
+        assertPlanningPeak("file:///tmp/data-", "file:///tmp/*", 24, 0, false, false, 16, false);
     }
 
     public void testDiscoverSplitsAsyncKeepsMixedParquetCsvCapped() throws Exception {
-        assertPlanningPeak("s3://b/data-", "s3://b/*", 20, 4, true, 16, false);
+        assertPlanningPeak("s3://b/data-", "s3://b/*", 20, 4, true, true, 16, false);
     }
 
     /**
@@ -1132,6 +1132,7 @@ public class FileSplitProviderTests extends ESTestCase {
         int parquetFiles,
         int csvFiles,
         boolean nativeAsync,
+        boolean releasesExecutor,
         int awaitStarted,
         boolean expectAbovePinningCap
     ) throws Exception {
@@ -1155,7 +1156,7 @@ public class FileSplitProviderTests extends ESTestCase {
             FileSplitProvider provider = new FileSplitProvider(
                 FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
                 new DecompressionCodecRegistry(),
-                createMockStorageRegistry(nativeAsync, settings),
+                createMockStorageRegistry(nativeAsync, releasesExecutor, settings),
                 formatRegistry,
                 settings,
                 io
@@ -1270,6 +1271,24 @@ public class FileSplitProviderTests extends ESTestCase {
             assertEquals(s.length(), a.length());
         }
         assertThat("range-aware async discovery must accumulate cpuNanos", asyncResult.cpuNanos(), greaterThan(0L));
+    }
+
+    /**
+     * Invalid Parquet (IAE, even with an {@link IOException} cause) must fail planning. Unwrapping
+     * any {@code IOException} would emit a whole-file split instead.
+     */
+    public void testDiscoverSplitsAsyncInvalidParquetDoesNotFallBackToWholeFile() {
+        IllegalArgumentException invalid = new IllegalArgumentException(
+            "Could not read [s3://b/data-0.parquet] as a Parquet file: expected magic number at tail",
+            new IOException("PARE")
+        );
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(), () -> { throw invalid; });
+        FileSplitProvider provider = rangeAwareProvider(mockReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        provider.discoverSplitsAsync(rangeAwareContext(1), EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        Exception e = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("Could not read"));
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("as a Parquet file"));
     }
 
     private static int probeConcurrencyFor(Settings settings) {
@@ -4472,10 +4491,10 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     private static StorageProviderRegistry createMockStorageRegistry() {
-        return createMockStorageRegistry(false, Settings.EMPTY);
+        return createMockStorageRegistry(false, false, Settings.EMPTY);
     }
 
-    private static StorageProviderRegistry createMockStorageRegistry(boolean nativeAsync, Settings settings) {
+    private static StorageProviderRegistry createMockStorageRegistry(boolean nativeAsync, boolean releasesExecutor, Settings settings) {
         StorageProviderRegistry registry = new StorageProviderRegistry(settings);
         StorageProvider mockProvider = new StorageProvider() {
             @Override
@@ -4524,6 +4543,11 @@ public class FileSplitProviderTests extends ESTestCase {
                     @Override
                     public boolean supportsNativeAsync() {
                         return nativeAsync;
+                    }
+
+                    @Override
+                    public boolean readBytesAsyncReleasesExecutor() {
+                        return releasesExecutor;
                     }
                 };
             }

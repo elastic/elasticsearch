@@ -403,6 +403,11 @@ class RetryableStorageObject implements StorageObject {
     }
 
     @Override
+    public boolean readBytesAsyncReleasesExecutor() {
+        return delegate.readBytesAsyncReleasesExecutor();
+    }
+
+    @Override
     public StorageObjectMetrics metrics() {
         return delegate.metrics().add(retryCounters.snapshot());
     }

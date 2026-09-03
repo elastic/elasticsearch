@@ -816,7 +816,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     }
 
     private static IllegalArgumentException invalidParquet(String uri, String detail) {
-        return newInvalidParquetFileException(uri, new IOException(detail));
+        return new IllegalArgumentException("Could not read [" + uri + "] as a Parquet file: " + detail);
     }
 
     @Override
@@ -949,8 +949,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
     /**
      * Parses {@code tailBytes} when they already cover {@code F+8}, otherwise issues an exact-range
-     * {@link StorageObject#readBytesAsync} for the footer region — including when that region exceeds
-     * {@link FooterByteCache#maxEntryBytes()}. {@link FooterByteCache#put} skips oversized entries.
+     * {@link StorageObject#readBytesAsync} for the footer region. Regions larger than
+     * {@link FooterByteCache#maxEntryBytes()} fail closed; they do not GET and do not fall back to
+     * {@code adapter.newStream()}.
      */
     private void completeFromAvailableTail(
         StorageObject object,
@@ -969,6 +970,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         if (footerRegion > Integer.MAX_VALUE || footerRegion > length) {
             listener.onFailure(
                 invalidParquet(object.path().toString(), "footer length " + footerLength + " exceeds file length " + length)
+            );
+            return;
+        }
+        if (footerRegion > footerBytes.maxEntryBytes()) {
+            listener.onFailure(
+                invalidParquet(
+                    object.path().toString(),
+                    "footer length " + footerLength + " exceeds maximum " + footerBytes.maxEntryBytes()
+                )
             );
             return;
         }

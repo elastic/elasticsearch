@@ -223,6 +223,11 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
     }
 
     @Override
+    public boolean readBytesAsyncReleasesExecutor() {
+        return delegate.readBytesAsyncReleasesExecutor();
+    }
+
+    @Override
     public StorageObjectMetrics metrics() {
         return delegate.metrics();
     }

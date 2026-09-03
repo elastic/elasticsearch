@@ -502,6 +502,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     }
 
     @Override
+    public boolean readBytesAsyncReleasesExecutor() {
+        return s3AsyncClient != null;
+    }
+
+    @Override
     public String toString() {
         return "S3StorageObject{bucket=" + bucket + ", key=" + key + ", path=" + path + "}";
     }

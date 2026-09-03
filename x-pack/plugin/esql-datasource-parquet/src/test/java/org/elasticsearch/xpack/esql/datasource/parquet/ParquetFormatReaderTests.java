@@ -1004,6 +1004,48 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * Trailer {@code F+8} above {@link FooterByteCache#maxEntryBytes()} fails closed: prefetch only,
+     * no exact-range GET of the oversized region, no {@code newStream}.
+     */
+    public void testAsyncRejectsFooterLargerThanCacheEntryWithoutStream() throws Exception {
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        reader.clearFooterCachesForTests();
+        long cap = reader.footerByteCacheForTests().maxEntryBytes();
+        int footerLength = Math.toIntExact(cap + 1);
+        int fileLen = Math.toIntExact((long) footerLength + 8 + 16);
+        byte[] data = new byte[fileLen];
+        ByteBuffer.wrap(data, fileLen - 8, 4).order(ByteOrder.LITTLE_ENDIAN).putInt(footerLength);
+        data[fileLen - 4] = 'P';
+        data[fileLen - 3] = 'A';
+        data[fileLen - 2] = 'R';
+        data[fileLen - 1] = '1';
+
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger asyncReadCount = new AtomicInteger();
+        AtomicInteger streamCount = new AtomicInteger();
+        List<long[]> reads = new CopyOnWriteArrayList<>();
+        try {
+            StorageObject asyncObject = createAsyncStorageObject(data, probePool, asyncReadCount, reads, streamCount);
+            PlainActionFuture<SourceMetadata> meta = new PlainActionFuture<>();
+            reader.metadataAsync(asyncObject, probePool, meta);
+            Exception metaEx = expectThrows(Exception.class, () -> meta.actionGet(30, TimeUnit.SECONDS));
+            assertThat(ExceptionsHelper.stackTrace(metaEx), containsString("Could not read"));
+            assertThat(ExceptionsHelper.stackTrace(metaEx), containsString("exceeds maximum"));
+            assertEquals("oversized footer must not issue an exact-range GET", 1, asyncReadCount.get());
+            assertThat(reads.get(0)[1], lessThan((long) footerLength + 8));
+            assertEquals(0, streamCount.get());
+
+            PlainActionFuture<List<RangeAwareFormatReader.SplitRange>> ranges = new PlainActionFuture<>();
+            reader.discoverSplitRangesAsync(asyncObject, probePool, ranges);
+            Exception rangeEx = expectThrows(Exception.class, () -> ranges.actionGet(30, TimeUnit.SECONDS));
+            assertThat(ExceptionsHelper.stackTrace(rangeEx), containsString("exceeds maximum"));
+            assertEquals(0, streamCount.get());
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
+    /**
      * The {@code with*} copy constructors must thread the SAME cache instances into every derived
      * reader. The registry hands out one root reader per format per node, and pushdown/overlay
      * paths derive copies from it, so a copy that dropped the shared caches would silently

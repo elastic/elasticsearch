@@ -1230,7 +1230,7 @@ public class FileSplitProvider implements SplitProvider {
      * of {@code 0} disables permit limiting altogether rather than meaning "no concurrency", so the
      * ceiling applies as-is.
      * <p>
-     * Parquet planning that {@link #splitDiscoveryReleasesExecutor releases the executor} uses
+     * Parquet planning that {@link StorageObject#readBytesAsyncReleasesExecutor() releases the executor} uses
      * {@link ExternalSourceSettings#externalIoThreads} instead, via {@link #planningDiscoveryConcurrency}.
      * Probes and sync {@link BoundedParallelGather} keep this 16-pin ceiling.
      * <p>
@@ -1245,8 +1245,9 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Planning {@link #gatherAsync} concurrency: when every file is Parquet and
-     * {@link #splitDiscoveryReleasesExecutor} on one peeked {@link StorageProvider#newObject}
-     * per distinct scheme, {@link ExternalSourceSettings#externalIoThreads} (never 0). Otherwise
+     * {@link StorageObject#readBytesAsyncReleasesExecutor()} on one peeked
+     * {@link StorageProvider#newObject} per distinct scheme,
+     * {@link ExternalSourceSettings#externalIoThreads} (never 0). Otherwise
      * {@link #splitDiscoveryConcurrency()}. Any {@code newObject} failure is conservative (16).
      * Probes and sync {@link BoundedParallelGather} keep {@link #splitDiscoveryConcurrency()}.
      */
@@ -1265,7 +1266,7 @@ public class FileSplitProvider implements SplitProvider {
                 }
                 StorageProvider provider = resolveProvider(task.filePath(), task.config(), hoistedProvider);
                 StorageObject object = provider.newObject(task.filePath(), task.fileLength());
-                if (splitDiscoveryReleasesExecutor(task.filePath(), object) == false) {
+                if (object.readBytesAsyncReleasesExecutor() == false) {
                     return splitDiscoveryConcurrency();
                 }
             }
@@ -1273,15 +1274,6 @@ public class FileSplitProvider implements SplitProvider {
         } catch (Exception e) {
             return splitDiscoveryConcurrency();
         }
-    }
-
-    /**
-     * True when Phase-2 footer GETs release {@code esql_external_io} (native {@code readBytesAsync},
-     * not GCS). GCS {@code supportsNativeAsync} is left true for read-path parallel chunks; discovery
-     * still pins the completion executor there.
-     */
-    private static boolean splitDiscoveryReleasesExecutor(StoragePath path, StorageObject object) {
-        return object.supportsNativeAsync() && "gs".equalsIgnoreCase(path.scheme()) == false;
     }
 
     /**
@@ -1968,7 +1960,8 @@ public class FileSplitProvider implements SplitProvider {
                     }
                 });
             }, e -> {
-                if (ExceptionsHelper.unwrap(e, IOException.class) != null) {
+                if (ExceptionsHelper.unwrap(e, IllegalArgumentException.class) == null
+                    && ExceptionsHelper.unwrap(e, IOException.class) != null) {
                     LOGGER.warn("Failed to discover split ranges for [{}], falling back to single split", task.filePath(), e);
                     listener.onResponse(null);
                 } else {

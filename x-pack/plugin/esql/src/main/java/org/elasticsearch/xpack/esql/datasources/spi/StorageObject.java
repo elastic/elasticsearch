@@ -349,6 +349,18 @@ public interface StorageObject {
         return false;
     }
 
+    /**
+     * Whether {@link #readBytesAsync} returns the {@code executor} thread before the GET completes.
+     * The default implementation submits blocking I/O on {@code executor} and returns {@code false}.
+     * Native clients that complete on their own I/O pool (S3, Azure, HTTP) return {@code true}.
+     * GCS overrides {@code readBytesAsync} but still blocks {@code executor}, so it returns
+     * {@code false} even though {@link #supportsNativeAsync()} is {@code true} for read-path
+     * parallel chunks.
+     */
+    default boolean readBytesAsyncReleasesExecutor() {
+        return false;
+    }
+
     // === METRICS API (optional - default returns the zero-valued snapshot) ===
 
     /**

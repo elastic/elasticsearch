@@ -228,10 +228,12 @@ public class RangeStorageObjectTests extends ESTestCase {
         StorageObject syncDelegate = new InMemoryStorageObject(FILE_BYTES);
         RangeStorageObject syncRange = new RangeStorageObject(syncDelegate, 0, 10);
         assertFalse(syncRange.supportsNativeAsync());
+        assertFalse(syncRange.readBytesAsyncReleasesExecutor());
 
         StorageObject asyncDelegate = new AsyncCapableStorageObject(FILE_BYTES);
         RangeStorageObject asyncRange = new RangeStorageObject(asyncDelegate, 0, 10);
         assertTrue(asyncRange.supportsNativeAsync());
+        assertTrue(asyncRange.readBytesAsyncReleasesExecutor());
     }
 
     public void testReadBytesAsyncAdjustsPosition() throws Exception {
@@ -376,6 +378,11 @@ public class RangeStorageObjectTests extends ESTestCase {
 
         @Override
         public boolean supportsNativeAsync() {
+            return true;
+        }
+
+        @Override
+        public boolean readBytesAsyncReleasesExecutor() {
             return true;
         }
     }

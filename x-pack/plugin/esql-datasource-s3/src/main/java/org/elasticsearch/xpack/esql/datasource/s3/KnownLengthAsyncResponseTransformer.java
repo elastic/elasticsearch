@@ -20,6 +20,7 @@ import org.reactivestreams.Subscription;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * An {@link AsyncResponseTransformer} that accumulates the response body into a single, pre-sized
@@ -44,18 +45,30 @@ import java.util.concurrent.CompletableFuture;
  *
  * <p>This transformer takes the expected payload length up front (which we always know for
  * range-read requests, and which the S3 service confirms in {@code Content-Length}), allocates
- * one destination buffer with at least that capacity for each subscription, and copies each
+ * one destination buffer with at least that capacity for its single subscription, and copies each
  * {@code onNext(ByteBuffer)} chunk into the destination at the running offset. That
  * collapses three SDK-internal copies into a single chunk-to-destination copy.
+ *
+ * <p><b>Single execution — no SDK retries:</b> a transformer instance serves exactly one request
+ * attempt. {@link #prepare()} throws if invoked twice, which is how the SDK signals a retry of the
+ * same execution. The client that drives this transformer must therefore be configured with
+ * {@code AwsRetryStrategy.doNotRetry()}; {@code S3StorageObject.readBytesAsync} owns the retry loop
+ * and creates a fresh transformer per attempt. This is deliberate and load-bearing: the SDK reuses
+ * one transformer across retry attempts, but {@link #exceptionOccurred} carries no attempt identity,
+ * and netty can deliver late error notifications for a finished attempt (both the error the
+ * subscriber already handled and a fresh {@code IOException} from the channel-inactive path) after
+ * the SDK has already started the next attempt. A shared transformer cannot attribute such a stale
+ * call, so it would either spuriously fail the next attempt's future and free its buffer, or — if it
+ * ignored the call — hang a genuine pre-stream failure, because the future returned by
+ * {@code prepare()} is the only thing that completes an attempt in the SDK's async pipeline. With
+ * one instance per attempt every callback on this object belongs to its one execution and late
+ * duplicates are no-ops.
  *
  * <p><b>Synchronization:</b> Reactive Streams serializes the {@link Subscriber}'s own signals, but
  * {@link #exceptionOccurred} is a transformer-level callback outside that ordering and can race the
  * terminal subscriber signal (e.g. the SDK drops the publisher on a transport error). The
  * subscriber therefore serializes destination-buffer copies and ownership transitions under a
  * private lock.
- *
- * <p><b>Retries:</b> the SDK calls {@link #prepare()} again on each retry, so a fresh destination
- * buffer is allocated for every attempt. Stale state from a previous attempt is not reused.
  *
  * @param <R> the unmarshalled SDK response type (e.g. {@code GetObjectResponse}).
  */
@@ -64,11 +77,13 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
     private final int expectedLength;
     private final DirectBufferFactory factory;
 
+    private final CompletableFuture<DirectReadBuffer> resultFuture = new CompletableFuture<>();
+    private final AtomicBoolean prepared = new AtomicBoolean();
+
     private volatile R response;
-    private volatile CompletableFuture<DirectReadBuffer> resultFuture;
     // Kept so exceptionOccurred() can release the buffer even if the subscriber's onError
     // is never delivered (e.g. SDK abandons the publisher after a transport error).
-    private volatile ChunkCopyingSubscriber currentSubscriber;
+    private volatile ChunkCopyingSubscriber subscriber;
 
     /**
      * @param expectedLength exact length of the response body in bytes
@@ -101,12 +116,17 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
 
     @Override
     public CompletableFuture<DirectReadBuffer> prepare() {
-        // Allocated lazily here (not in the constructor) because prepare() is invoked again on each
-        // retry; the previous attempt's buffer, if any, must be discarded.
-        CompletableFuture<DirectReadBuffer> bufferFuture = new CompletableFuture<>();
-        this.currentSubscriber = null;
-        this.resultFuture = bufferFuture;
-        return bufferFuture;
+        // A second prepare() means the SDK is retrying with this transformer, which would resurrect
+        // the cross-attempt stale-exceptionOccurred race this class is designed out of (see class
+        // javadoc). Fail the retry loudly rather than silently sharing state across attempts.
+        if (prepared.compareAndSet(false, true) == false) {
+            throw new IllegalStateException(
+                "KnownLengthAsyncResponseTransformer is single-use: prepare() was called more than once. "
+                    + "SDK-level retries must stay disabled on this client; retries are owned by the caller, "
+                    + "which must create a fresh transformer per attempt."
+            );
+        }
+        return resultFuture;
     }
 
     @Override
@@ -116,22 +136,28 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
 
     @Override
     public void onStream(SdkPublisher<ByteBuffer> publisher) {
-        ChunkCopyingSubscriber subscriber = new ChunkCopyingSubscriber(resultFuture, expectedLength, factory);
-        this.currentSubscriber = subscriber;
-        publisher.subscribe(subscriber);
+        ChunkCopyingSubscriber chunkCopyingSubscriber = new ChunkCopyingSubscriber(resultFuture, expectedLength, factory);
+        this.subscriber = chunkCopyingSubscriber;
+        publisher.subscribe(chunkCopyingSubscriber);
     }
 
     @Override
     public void exceptionOccurred(Throwable error) {
-        CompletableFuture<DirectReadBuffer> f = resultFuture;
-        ChunkCopyingSubscriber subscriber = currentSubscriber;
-        if (subscriber != null && subscriber.resultFuture == f) {
+        // Late duplicate notifications are expected: after the subscriber handles its terminal
+        // signal, netty still notifies the response handler (with the same throwable), and the
+        // channel-inactive teardown can follow with a fresh IOException. Both belong to this one
+        // execution (single-use contract), so once the future is done there is nothing left to do.
+        if (resultFuture.isDone()) {
+            return;
+        }
+        ChunkCopyingSubscriber sub = subscriber;
+        if (sub != null) {
             // The subscriber arbitrates this callback with its own terminal signals and closes
             // any published owner before delivering failure.
-            subscriber.fail(error);
-        } else if (f != null) {
-            // No subscriber belongs to this prepared attempt yet.
-            f.completeExceptionally(error);
+            sub.fail(error);
+        } else {
+            // No subscriber was wired yet (pre-stream failure); this is the only completer.
+            resultFuture.completeExceptionally(error);
         }
     }
 

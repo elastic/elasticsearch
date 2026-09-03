@@ -8,7 +8,16 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.http.Abortable;
+import software.amazon.awssdk.retries.api.AcquireInitialTokenRequest;
+import software.amazon.awssdk.retries.api.RecordSuccessRequest;
+import software.amazon.awssdk.retries.api.RefreshRetryTokenRequest;
+import software.amazon.awssdk.retries.api.RefreshRetryTokenResponse;
+import software.amazon.awssdk.retries.api.RetryStrategy;
+import software.amazon.awssdk.retries.api.RetryToken;
+import software.amazon.awssdk.retries.api.TokenAcquisitionFailedException;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -33,9 +42,15 @@ import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * StorageObject implementation for S3 using AWS SDK v2.
@@ -47,8 +62,12 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     // Real SDK chains here are 2-4 deep; this only stops a pathological one.
     private static final int MAX_CAUSE_DEPTH = 12;
 
+    /** Scope key for the async-read retry token bucket; one bucket per {@link RetryStrategy} instance. */
+    private static final String ASYNC_READ_RETRY_SCOPE = "s3-async-read";
+
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
+    private final RetryStrategy asyncRetryStrategy;
     private final String bucket;
     private final String key;
     private final StoragePath path;
@@ -57,17 +76,30 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private volatile Instant cachedLastModified;
     private volatile Boolean cachedExists;
 
-    // Retries: the SDK RetryStrategy at the S3Client layer handles them (pinned to Standard in
-    // S3StorageProvider#configureCommon). The provider-agnostic RetryPolicy + ResumingInputStream layer that
-    // wraps this object adds cross-provider retry/resume on top.
+    // Retries: the sync S3Client path relies on the SDK RetryStrategy (pinned to Standard in
+    // S3StorageProvider#configureCommon). The async client is pinned to doNotRetry and readBytesAsync drives
+    // asyncRetryStrategy (AWS Standard semantics) itself, so that every attempt gets a fresh
+    // KnownLengthAsyncResponseTransformer — see that class's javadoc for why a transformer must not span
+    // attempts. The provider-agnostic RetryPolicy + ResumingInputStream layer that wraps this object adds
+    // cross-provider retry/resume on top.
 
     public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
-        this(s3Client, null, bucket, key, path);
+        this(s3Client, null, null, bucket, key, path);
     }
 
-    public S3StorageObject(S3Client s3Client, S3AsyncClient s3AsyncClient, String bucket, String key, StoragePath path) {
+    public S3StorageObject(
+        S3Client s3Client,
+        S3AsyncClient s3AsyncClient,
+        RetryStrategy asyncRetryStrategy,
+        String bucket,
+        String key,
+        StoragePath path
+    ) {
         if (s3Client == null) {
             throw new IllegalArgumentException("s3Client cannot be null");
+        }
+        if (s3AsyncClient != null && asyncRetryStrategy == null) {
+            throw new IllegalArgumentException("asyncRetryStrategy is required when an async client is provided");
         }
         if (bucket == null || bucket.isEmpty()) {
             throw new IllegalArgumentException("bucket cannot be null or empty");
@@ -80,6 +112,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         }
         this.s3Client = s3Client;
         this.s3AsyncClient = s3AsyncClient;
+        this.asyncRetryStrategy = asyncRetryStrategy;
         this.bucket = bucket;
         this.key = key;
         this.path = path;
@@ -90,8 +123,16 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         this.cachedLength = length;
     }
 
-    public S3StorageObject(S3Client s3Client, S3AsyncClient s3AsyncClient, String bucket, String key, StoragePath path, long length) {
-        this(s3Client, s3AsyncClient, bucket, key, path);
+    public S3StorageObject(
+        S3Client s3Client,
+        S3AsyncClient s3AsyncClient,
+        RetryStrategy asyncRetryStrategy,
+        String bucket,
+        String key,
+        StoragePath path,
+        long length
+    ) {
+        this(s3Client, s3AsyncClient, asyncRetryStrategy, bucket, key, path);
         this.cachedLength = length;
     }
 
@@ -103,13 +144,14 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     public S3StorageObject(
         S3Client s3Client,
         S3AsyncClient s3AsyncClient,
+        RetryStrategy asyncRetryStrategy,
         String bucket,
         String key,
         StoragePath path,
         long length,
         Instant lastModified
     ) {
-        this(s3Client, s3AsyncClient, bucket, key, path, length);
+        this(s3Client, s3AsyncClient, asyncRetryStrategy, bucket, key, path, length);
         this.cachedLastModified = lastModified;
     }
 
@@ -460,23 +502,102 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
         GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
 
+        long startNanos = System.nanoTime();
+        final RetryToken initialToken;
+        final Duration initialDelay;
+        try {
+            var acquired = asyncRetryStrategy.acquireInitialToken(AcquireInitialTokenRequest.create(ASYNC_READ_RETRY_SCOPE));
+            initialToken = acquired.token();
+            initialDelay = acquired.delay();
+        } catch (Exception e) {
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
+            listener.onFailure(mapReadFailure("Failed to read object from", e));
+            return () -> {};
+        }
+        AsyncReadHandle handle = new AsyncReadHandle();
+        scheduleReadAttempt(initialDelay, request, (int) length, factory, executor, listener, initialToken, startNanos, handle);
+        return handle::cancel;
+    }
+
+    /**
+     * Cancellation handle for one logical async read spanning retry attempts: the {@link Releasable}
+     * returned by {@link #startReadBytesAsync} aborts the in-flight SDK future, and an attempt that
+     * would start after cancellation (a retry waiting out its backoff) completes the listener
+     * without issuing another request or consuming retry budget.
+     */
+    private static final class AsyncReadHandle {
+        private volatile boolean cancelled;
+        private final AtomicReference<CompletableFuture<DirectReadBuffer>> inFlight = new AtomicReference<>();
+
+        void register(CompletableFuture<DirectReadBuffer> future) {
+            inFlight.set(future);
+            if (cancelled) {
+                // cancel() may have run between getObject returning and this registration.
+                FutureUtils.cancel(future);
+            }
+        }
+
+        void cancel() {
+            cancelled = true;
+            FutureUtils.cancel(inFlight.get());
+        }
+
+        boolean isCancelled() {
+            return cancelled;
+        }
+    }
+
+    /**
+     * Runs one {@code getObject} attempt. Retries are driven here — with AWS Standard semantics via
+     * {@link #asyncRetryStrategy} — instead of inside the SDK, so that every attempt gets its own
+     * {@link KnownLengthAsyncResponseTransformer}. The SDK reuses a single transformer across its
+     * internal retry attempts, and a stale {@code exceptionOccurred} from a finished attempt (netty
+     * notifies the response handler after the subscriber's terminal signal, and again on channel
+     * teardown) cannot be attributed to an attempt, so a shared transformer could spuriously fail a
+     * healthy retry and free its buffer mid-write. One transformer per attempt removes that class of
+     * race by construction; the async client is pinned to {@code doNotRetry} in
+     * {@code S3StorageProvider}. Trade-off vs SDK-internal retries: no clock-skew adjustment on
+     * retry, and the {@code amz-sdk-request} attempt header always reads {@code attempt=1}.
+     */
+    private void readAttempt(
+        GetObjectRequest request,
+        int length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        RetryToken retryToken,
+        long startNanos,
+        AsyncReadHandle handle
+    ) {
+        if (handle.isCancelled()) {
+            // The caller released the read (e.g. an aborted prefetch) while a retry was waiting out
+            // its backoff; complete the listener without issuing another request.
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
+            listener.onFailure(mapReadFailure("Failed to read object from", new CancellationException("read cancelled")));
+            return;
+        }
         // Use a custom transformer instead of AsyncResponseTransformer.toBytes() so each chunk is
         // copied straight into a pre-sized destination ByteBuffer (single chunk-to-destination copy),
         // rather than the SDK's default BAOS-based pipeline which materializes the body 3+ times.
         // See KnownLengthAsyncResponseTransformer for the full rationale.
-        long startNanos = System.nanoTime();
-        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
-            (int) length,
-            factory
-        );
-        var sdkFuture = s3AsyncClient.getObject(request, transformer);
-        onReadComplete(sdkFuture, (buffer, throwable) -> {
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(length, factory);
+        CompletableFuture<DirectReadBuffer> readFuture;
+        try {
+            readFuture = s3AsyncClient.getObject(request, transformer);
+        } catch (Exception e) {
+            // A synchronous throw (e.g. request signing/validation) is an attempt failure like any other:
+            // route it through the shared retry decision instead of letting it escape the retry loop.
+            onReadAttemptFailure(e, request, length, factory, executor, listener, retryToken, startNanos, handle);
+            return;
+        }
+        handle.register(readFuture);
+        onReadComplete(readFuture, (buffer, throwable) -> {
             if (throwable != null) {
-                counters.addRequest(System.nanoTime() - startNanos, 0L);
-                Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
-                listener.onFailure(mapReadFailure("Failed to read object from", cause));
+                onReadAttemptFailure(throwable, request, length, factory, executor, listener, retryToken, startNanos, handle);
                 return;
             }
+
+            asyncRetryStrategy.recordSuccess(RecordSuccessRequest.create(retryToken));
 
             GetObjectResponse response = transformer.response();
             if (response != null) {
@@ -493,7 +614,110 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
             deliverRead(listener, buffer, startNanos);
         });
-        return () -> FutureUtils.cancel(sdkFuture);
+    }
+
+    /**
+     * Shared failure decision point for {@link #readAttempt}: asks the retry strategy whether to try
+     * again (which also classifies retryability and computes the jittered backoff), and either
+     * schedules the next attempt or surfaces the mapped failure. The failed attempt's transformer
+     * has already released its buffer, so a retry simply allocates a fresh one.
+     */
+    private void onReadAttemptFailure(
+        Throwable throwable,
+        GetObjectRequest request,
+        int length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        RetryToken retryToken,
+        long startNanos,
+        AsyncReadHandle handle
+    ) {
+        if (handle.isCancelled()) {
+            // Deliberate cancellation (the in-flight SDK future was aborted): terminal — do not
+            // consume retry budget or schedule another attempt.
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
+            Throwable cancelCause = throwable.getCause() != null ? throwable.getCause() : throwable;
+            listener.onFailure(mapReadFailure("Failed to read object from", cancelCause));
+            return;
+        }
+        RefreshRetryTokenResponse refresh;
+        try {
+            refresh = asyncRetryStrategy.refreshRetryToken(
+                RefreshRetryTokenRequest.builder()
+                    .token(retryToken)
+                    .failure(asSdkException(throwable))
+                    .suggestedDelay(Duration.ZERO)
+                    .build()
+            );
+        } catch (Exception giveUp) {
+            // TokenAcquisitionFailedException: non-retryable failure, attempts exhausted, or the retry
+            // token bucket circuit-broke. Anything else is unexpected but equally terminal — surface
+            // the read failure either way so the listener is always completed.
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
+            Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
+            Exception mapped = mapReadFailure("Failed to read object from", cause);
+            if (giveUp instanceof TokenAcquisitionFailedException == false) {
+                mapped.addSuppressed(giveUp);
+            }
+            listener.onFailure(mapped);
+            return;
+        }
+        logger.debug("retrying async read for [{}] after [{}]ms: [{}]", path, refresh.delay().toMillis(), throwable.getMessage());
+        scheduleReadAttempt(refresh.delay(), request, length, factory, executor, listener, refresh.token(), startNanos, handle);
+    }
+
+    /**
+     * Runs {@link #readAttempt} after {@code delay}. A zero delay (always the case for the first
+     * attempt under the Standard strategy) runs inline to keep the hot path free of executor hops;
+     * a backoff delay is honored on the JDK's shared delay timer, which then hops to {@code executor}
+     * for the attempt itself so the timer thread is never used for request work.
+     */
+    private void scheduleReadAttempt(
+        Duration delay,
+        GetObjectRequest request,
+        int length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        RetryToken retryToken,
+        long startNanos,
+        AsyncReadHandle handle
+    ) {
+        if (delay.isZero()) {
+            readAttempt(request, length, factory, executor, listener, retryToken, startNanos, handle);
+            return;
+        }
+        // Guard the executor hand-off: CompletableFuture's delayed executor swallows a rejection thrown
+        // when the timer fires (it surfaces only in an ignored ScheduledFuture), which would strand the
+        // listener. Wrapping the executor turns a rejection into a terminal failure instead.
+        Executor rejectionSafeExecutor = command -> {
+            try {
+                executor.execute(command);
+            } catch (Exception rejected) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                listener.onFailure(mapReadFailure("Failed to read object from", rejected));
+            }
+        };
+        CompletableFuture.delayedExecutor(delay.toMillis(), TimeUnit.MILLISECONDS, rejectionSafeExecutor)
+            .execute(() -> readAttempt(request, length, factory, executor, listener, retryToken, startNanos, handle));
+    }
+
+    /**
+     * Normalizes an attempt failure into the {@link SdkException} shape the AWS retry predicates
+     * classify, mirroring the SDK's own {@code RetryableStageHelper#setLastException}: unwrap
+     * {@link CompletionException} layers, pass {@link SdkException}s through, and wrap anything else
+     * in an {@link SdkClientException} so cause-based conditions (e.g. retry-on-IOException) still
+     * apply.
+     */
+    private static SdkException asSdkException(Throwable throwable) {
+        if (throwable instanceof CompletionException && throwable.getCause() != null) {
+            return asSdkException(throwable.getCause());
+        }
+        if (throwable instanceof SdkException sdkException) {
+            return sdkException;
+        }
+        return SdkClientException.create("Unable to execute HTTP request: " + throwable.getMessage(), throwable);
     }
 
     @Override

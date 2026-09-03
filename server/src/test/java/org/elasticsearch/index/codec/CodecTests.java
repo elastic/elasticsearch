@@ -67,9 +67,9 @@ public class CodecTests extends ESTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         var codec = codecService.codec("default");
-        // DefaultCompressionPerFieldMapperCodec is itself a DeduplicateFieldInfosCodec, so CodecService uses it as-is rather than wrapping
+        // PerFieldMapperCodec is itself a DeduplicateFieldInfosCodec, so CodecService uses it as-is rather than wrapping
         // it.
-        assertThat(codec, instanceOf(DefaultCompressionPerFieldMapperCodec.class));
+        assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         assertThat(codec.fieldInfosFormat(), instanceOf(ElasticsearchFieldInfosFormat.class));
         assertThat(((Elasticsearch96Codec) codec).delegate(), instanceOf(Lucene104Codec.class));
     }
@@ -298,7 +298,7 @@ public class CodecTests extends ESTestCase {
         Codec codec = createCodecService().codec("best_compression");
         assertEquals(
             "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=3), chunkSize=245760, maxDocsPerChunk=2048, blockShift=10)",
-            codec.storedFieldsFormat().toString()
+            effectiveStoredFieldsFormat(codec).toString()
         );
     }
 

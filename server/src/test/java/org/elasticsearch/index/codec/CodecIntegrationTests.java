@@ -41,11 +41,12 @@ public class CodecIntegrationTests extends ESSingleNodeTestCase {
 
     public void testDefaultCodecLogsdb() {
         var indexService = createIndex("index1", Settings.builder().put("index.mode", "logsdb").build());
-        var storedFieldsFormat = (Zstd814StoredFieldsFormat) indexService.getShard(0)
+        var codecFormat = (ElasticsearchStoredFieldsFormat) indexService.getShard(0)
             .getEngineOrNull()
             .config()
             .getCodec()
             .storedFieldsFormat();
+        var storedFieldsFormat = (Zstd814StoredFieldsFormat) codecFormat.writeFormat();
         assertThat(storedFieldsFormat.getMode(), equalTo(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION));
     }
 

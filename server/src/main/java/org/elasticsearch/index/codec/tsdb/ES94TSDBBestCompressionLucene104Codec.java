@@ -9,18 +9,19 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
-import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
+import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
 
 public class ES94TSDBBestCompressionLucene104Codec extends AbstractTSDBSyntheticIdCodec {
     public static final String NAME = "ES94TSDBBestCompressionLucene104Codec";
 
     /** Public no-arg constructor, needed for SPI loading at read-time. */
     public ES94TSDBBestCompressionLucene104Codec() {
-        this(new Elasticsearch93Lucene104Codec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION));
+        this(new Elasticsearch96Codec(Lucene104Codec.Mode.BEST_SPEED, ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION, ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION));
     }
 
-    public ES94TSDBBestCompressionLucene104Codec(Elasticsearch93Lucene104Codec delegate) {
+    public ES94TSDBBestCompressionLucene104Codec(Elasticsearch96Codec delegate) {
         super(NAME, delegate, delegate::getDocValuesFormatForField);
     }
 }

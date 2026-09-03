@@ -33,9 +33,6 @@ public final class ElasticsearchStoredFieldsFormat extends StoredFieldsFormat {
     /** Segment attribute holding the {@link Mode} a segment was written with. */
     public static final String MODE_KEY = "es.stored_fields.mode";
 
-    /** Assumed for segments written before {@link #MODE_KEY} was recorded. */
-    static final Mode DEFAULT_MODE = Mode.LUCENE;
-
     public enum Mode {
         /** Lucene's stored fields. */
         LUCENE,
@@ -44,14 +41,18 @@ public final class ElasticsearchStoredFieldsFormat extends StoredFieldsFormat {
     }
 
     private final Mode mode;
+    private final Mode modeBeforeTheAttribute;
     private final StoredFieldsFormat luceneFormat;
 
     /**
-     * @param mode         the mode segments written through this instance use
-     * @param luceneFormat the implementation backing {@link Mode#LUCENE}, which carries the Lucene compression level
+     * @param mode                   the mode segments written through this instance use
+     * @param modeBeforeTheAttribute the mode to read a segment with when it records none, which is what the codec wrote before
+     *                               {@link #MODE_KEY} existed and so differs per codec
+     * @param luceneFormat           the implementation backing {@link Mode#LUCENE}, which carries the Lucene compression level
      */
-    public ElasticsearchStoredFieldsFormat(Mode mode, StoredFieldsFormat luceneFormat) {
+    public ElasticsearchStoredFieldsFormat(Mode mode, Mode modeBeforeTheAttribute, StoredFieldsFormat luceneFormat) {
         this.mode = Objects.requireNonNull(mode);
+        this.modeBeforeTheAttribute = Objects.requireNonNull(modeBeforeTheAttribute);
         this.luceneFormat = Objects.requireNonNull(luceneFormat);
     }
 
@@ -68,14 +69,14 @@ public final class ElasticsearchStoredFieldsFormat extends StoredFieldsFormat {
 
     @Override
     public StoredFieldsReader fieldsReader(Directory directory, SegmentInfo si, FieldInfos fn, IOContext context) throws IOException {
-        return formatFor(modeOf(si)).fieldsReader(directory, si, fn, context);
+        return formatFor(modeOf(si, modeBeforeTheAttribute)).fieldsReader(directory, si, fn, context);
     }
 
-    /** The mode {@code si} was written with, or {@link #DEFAULT_MODE} when the segment records none. */
-    static Mode modeOf(SegmentInfo si) {
+    /** The mode {@code si} was written with, or {@code modeBeforeTheAttribute} when the segment records none. */
+    static Mode modeOf(SegmentInfo si, Mode modeBeforeTheAttribute) {
         final String value = si.getAttribute(MODE_KEY);
         if (value == null) {
-            return DEFAULT_MODE;
+            return modeBeforeTheAttribute;
         }
         try {
             return Mode.valueOf(value);
@@ -98,6 +99,6 @@ public final class ElasticsearchStoredFieldsFormat extends StoredFieldsFormat {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "(mode=" + mode + ")";
+        return getClass().getSimpleName() + "(mode=" + mode + ", before=" + modeBeforeTheAttribute + ")";
     }
 }

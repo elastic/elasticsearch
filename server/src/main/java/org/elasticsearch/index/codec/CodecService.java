@@ -48,8 +48,10 @@ public class CodecService implements CodecProvider {
 
         boolean useSyntheticId = mapperService != null && mapperService.getIndexSettings().useTimeSeriesSyntheticId();
 
-        var bestSpeedCodec = new DefaultCompressionPerFieldMapperCodec(
+        var bestSpeedCodec = new PerFieldMapperCodec(
             Lucene104Codec.Mode.BEST_SPEED,
+            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
             mapperService,
             bigArrays,
             threadPool
@@ -63,8 +65,10 @@ public class CodecService implements CodecProvider {
         // We can't remove this now
         codecs.put(LEGACY_DEFAULT_CODEC, bestSpeedCodec);
 
-        PerFieldMapperCodec bestCompressionCodec = new PerFieldMapperCodec(
-            Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION,
+        var bestCompressionCodec = new PerFieldMapperCodec(
+            Lucene104Codec.Mode.BEST_SPEED,
+            ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION,
+            ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION,
             mapperService,
             bigArrays,
             threadPool
@@ -74,8 +78,10 @@ public class CodecService implements CodecProvider {
         } else {
             codecs.put(BEST_COMPRESSION_CODEC, bestCompressionCodec);
         }
-        Codec legacyBestCompressionCodec = new DefaultCompressionPerFieldMapperCodec(
+        Codec legacyBestCompressionCodec = new PerFieldMapperCodec(
             Lucene104Codec.Mode.BEST_COMPRESSION,
+            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
             mapperService,
             bigArrays,
             threadPool

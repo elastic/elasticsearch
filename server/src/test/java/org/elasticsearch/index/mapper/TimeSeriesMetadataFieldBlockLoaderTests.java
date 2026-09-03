@@ -30,6 +30,8 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -486,7 +488,14 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
             (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
         );
         IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
-            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
+            new PerFieldMapperCodec(
+                Lucene104Codec.Mode.BEST_SPEED,
+                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                mapperService,
+                BigArrays.NON_RECYCLING_INSTANCE,
+                null
+            )
         );
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);

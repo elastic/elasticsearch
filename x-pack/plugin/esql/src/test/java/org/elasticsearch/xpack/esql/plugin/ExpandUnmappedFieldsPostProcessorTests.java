@@ -249,9 +249,8 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
     }
 
     /**
-     * The approximation columns are copied after the expansion, so the guard rail cannot find the expansion by counting back one
-     * column from the end of the schema - doing so would inspect the approximation columns instead and let an all-null expanded
-     * column through whenever they carry a value.
+     * Approximation columns are copied after the expansion, so the expanded columns are neither first nor last in the schema. The
+     * guard rail has to find them wherever they landed, rather than at some fixed offset that only holds without approximation.
      */
     public void testAllNullExpandedColumnTripsGuardRailBehindApproximationColumns() {
         BlockFactory bf = blockFactory();

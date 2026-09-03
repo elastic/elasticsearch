@@ -80,7 +80,7 @@ class ExpandUnmappedFieldsPostProcessor {
             // TODO account for newSchema's field names against the circuit breaker. A wide _source turns into a wide schema, and
             // unlike the pages, the response schema has no breaker-tracked lifetime to release it against today.
             List<Attribute> newSchema = buildSchema(schema, unmappedIdx, sortedFieldNames);
-            List<Page> newPages = rewritePages(result, unmappedIdx, schema, sortedFieldNames, blockFactory, reservationFactor);
+            List<Page> newPages = rewritePages(result, unmappedIdx, schema, newSchema, sortedFieldNames, blockFactory, reservationFactor);
 
             Result expanded = new Result(
                 newSchema,
@@ -194,6 +194,7 @@ class ExpandUnmappedFieldsPostProcessor {
         Result result,
         int unmappedIdx,
         List<Attribute> schema,
+        List<Attribute> newSchema,
         List<String> fieldNames,
         BlockFactory factory,
         double reservationFactor
@@ -204,7 +205,7 @@ class ExpandUnmappedFieldsPostProcessor {
             for (Page p : result.pages()) {
                 newPages.add(rewritePage(unmappedIdx, schema, fieldNames, factory, p, reservationFactor));
             }
-            assert assertNoAllNullExpandedColumn(newPages, dataColumnCount(schema, unmappedIdx), fieldNames);
+            assert assertNoAllNullExpandedColumn(newPages, newSchema, fieldNames);
             success = true;
             return newPages;
         } finally {
@@ -220,14 +221,18 @@ class ExpandUnmappedFieldsPostProcessor {
      * row.
      * <p>
      * Only the expanded columns are checked: a retained column can legitimately be all null, e.g. {@code KEEP field_absent_everywhere}
-     * resolves to a {@code null} literal.
+     * resolves to a {@code null} literal. They are found by name in {@code newSchema}, which {@link #buildSchema} keeps in step with
+     * the blocks {@link #rewritePage} lays out - a name is unambiguous because {@code buildSchema} rejects a field name that collides
+     * with a query column.
      *
      * @return {@code true}, so this can be called from an {@code assert} and skipped entirely in production
      */
-    private static boolean assertNoAllNullExpandedColumn(List<Page> pages, int dataColumnCount, List<String> fieldNames) {
-        for (int i = 0; i < fieldNames.size(); i++) {
-            // Same layout as rewritePage builds: the data columns, then the expansion, then the approximation columns.
-            int column = dataColumnCount + i;
+    private static boolean assertNoAllNullExpandedColumn(List<Page> pages, List<Attribute> newSchema, List<String> fieldNames) {
+        Set<String> expandedNames = new HashSet<>(fieldNames);
+        for (int column = 0; column < newSchema.size(); column++) {
+            if (expandedNames.contains(newSchema.get(column).name()) == false) {
+                continue;
+            }
             boolean allNull = true;
             for (Page page : pages) {
                 if (page.getBlock(column).areAllValuesNull() == false) {
@@ -237,26 +242,11 @@ class ExpandUnmappedFieldsPostProcessor {
             }
             if (allNull) {
                 throw new AssertionError(
-                    Strings.format("Expanded unmapped field '%s' into a column that is null in every row", fieldNames.get(i))
+                    Strings.format("Expanded unmapped field '%s' into a column that is null in every row", newSchema.get(column).name())
                 );
             }
         }
         return true;
-    }
-
-    /**
-     * How many columns {@link #copyRetainedBlocks} lays down before the expansion, i.e. every column that is neither
-     * {@code _unmapped_fields} nor an approximation extra. Not {@code schema.size() - 1}: the approximation columns are copied
-     * after the expansion, not before it.
-     */
-    private static int dataColumnCount(List<Attribute> schema, int unmappedIdx) {
-        int count = 0;
-        for (int i = 0; i < schema.size(); i++) {
-            if (i != unmappedIdx && ApproximationPlan.isApproximationColumn(schema.get(i).name()) == false) {
-                count++;
-            }
-        }
-        return count;
     }
 
     private static Page rewritePage(

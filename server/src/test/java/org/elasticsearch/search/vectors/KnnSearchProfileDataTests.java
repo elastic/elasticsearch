@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CyclicBarrier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -169,33 +168,22 @@ public class KnnSearchProfileDataTests extends ESTestCase {
     }
 
     /**
-     * The accumulator is shared by the parallel per-leaf search tasks, so all threads are released together
-     * on a barrier to make them contend rather than run one after another.
+     * The accumulator is shared by the parallel per-leaf search tasks, so the tasks are released together
+     * to make them contend rather than run one after another.
      */
-    public void testThreadSafeConcurrentAccumulation() throws Exception {
+    public void testThreadSafeConcurrentAccumulation() {
         KnnSearchProfileData data = new KnnSearchProfileData();
         data.setAlgorithm(Algorithm.IVF);
 
         int threadCount = 8;
-        CyclicBarrier barrier = new CyclicBarrier(threadCount);
-        Thread[] threads = new Thread[threadCount];
-        for (int t = 0; t < threadCount; t++) {
-            threads[t] = new Thread(() -> {
-                safeAwait(barrier);
-                data.addIvfLeafSearchForTest(1_000_000, 0.1f);
-                data.addCentroidsEvaluated(5);
-                data.addPostingVisitTimeNs(500_000);
-                data.addPostingsScored(100);
-                data.addDocIdReadTimeNs(50_000);
-                data.addScoringTimeNs(400_000);
-            });
-        }
-        for (Thread t : threads) {
-            t.start();
-        }
-        for (Thread t : threads) {
-            t.join();
-        }
+        startInParallel(threadCount, i -> {
+            data.addIvfLeafSearchForTest(1_000_000, 0.1f);
+            data.addCentroidsEvaluated(5);
+            data.addPostingVisitTimeNs(500_000);
+            data.addPostingsScored(100);
+            data.addDocIdReadTimeNs(50_000);
+            data.addScoringTimeNs(400_000);
+        });
 
         Map<String, Object> map = data.toMap();
         assertThat(map.get("segments_searched"), equalTo(threadCount));

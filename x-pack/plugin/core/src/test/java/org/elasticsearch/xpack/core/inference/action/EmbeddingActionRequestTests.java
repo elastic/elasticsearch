@@ -21,6 +21,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
+import org.elasticsearch.xpack.core.inference.InferenceContextTests;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
@@ -171,6 +172,8 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
         var context = instance.getContext();
         if (version.supports(INFERENCE_CONTEXT) == false) {
             context = InferenceContext.EMPTY_INSTANCE;
+        } else {
+            context = InferenceContextTests.forTransportVersion(context, version);
         }
 
         var timeout = instance.getTimeout();

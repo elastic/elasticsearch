@@ -293,6 +293,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
 
         if (version.supports(INFERENCE_CONTEXT) == false) {
             context = InferenceContext.EMPTY_INSTANCE;
+        } else {
+            context = InferenceContextTests.forTransportVersion(context, version);
         }
         if (version.supports(INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED) == false) {
             if (inferenceTimeout.equals(TIMEOUT_NOT_DETERMINED)) {

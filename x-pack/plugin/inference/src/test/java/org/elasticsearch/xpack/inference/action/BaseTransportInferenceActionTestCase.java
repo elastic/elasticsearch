@@ -349,11 +349,39 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
 
     public void testProductUseCaseHeaderPresentInThreadContextIfPresent() {
         String productUseCase = "product-use-case";
+        String interactionId = "interaction-id";
+        String productSolution = "security";
+        String productFeature = "attack_discovery";
 
-        // We need to use real instances instead of mocks as these are final classes
-        InferenceContext context = new InferenceContext(productUseCase);
+        InferenceContext context = new InferenceContext(productUseCase, interactionId, productSolution, productFeature);
+        ThreadContext threadContext = executeWithInferenceContext(context, new ThreadContext(Settings.EMPTY));
+
+        assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+        assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER), is(interactionId));
+        assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER), is(productSolution));
+        assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER), is(productFeature));
+    }
+
+    public void testExistingThreadContextHeadersTakePrecedenceOverInferenceContext() {
+        InferenceContext context = new InferenceContext("context-use-case", "context-interaction", "context-solution", "context-feature");
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, "existing-use-case");
+        threadContext.putHeader(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, "existing-interaction");
+        threadContext.putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, "existing-solution");
+        threadContext.putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, "existing-feature");
 
+        executeWithInferenceContext(context, threadContext);
+
+        assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is("existing-use-case"));
+        assertThat(
+            threadContext.getHeader(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER),
+            is("existing-interaction")
+        );
+        assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER), is("existing-solution"));
+        assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER), is("existing-feature"));
+    }
+
+    private ThreadContext executeWithInferenceContext(InferenceContext context, ThreadContext threadContext) {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
         mockInferenceEndpointRegistry(taskType);
@@ -365,18 +393,8 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         when(request.getTaskType()).thenReturn(taskType);
         when(request.isStreaming()).thenReturn(false);
 
-        ActionListener<InferenceAction.Response> listener = spy(new ActionListener<>() {
-            @Override
-            public void onResponse(InferenceAction.Response o) {}
-
-            @Override
-            public void onFailure(Exception e) {}
-        });
-
-        action.doExecute(mock(), request, listener);
-
-        // Verify the product use case header was set in the thread context
-        assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+        action.doExecute(mock(), request, ActionListener.noop());
+        return threadContext;
     }
 
     protected Flow.Publisher<InferenceServiceResults.Result> mockStreamResponse(Consumer<Flow.Subscriber<?>> action) {

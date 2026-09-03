@@ -31,6 +31,7 @@ import org.junit.Before;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
@@ -155,86 +156,86 @@ public class BaseInferenceActionTests extends RestActionTestCase {
     }
 
     public void testExtractProductUseCase() {
-        SetOnce<Boolean> executeCalled = new SetOnce<>();
         String productUseCase = "product-use-case";
-
-        verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
-            assertThat(actionRequest, instanceOf(InferenceActionProxy.Request.class));
-
-            var request = (InferenceActionProxy.Request) actionRequest;
-            InferenceContext context = request.getContext();
-            assertNotNull(context);
+        assertExtractedHeaders(Map.of(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of(productUseCase)), context -> {
             assertThat(context.productUseCase(), equalTo(productUseCase));
-
-            executeCalled.set(true);
-            return createResponse();
-        }));
-
-        // Create a request with the product use case header
-        Map<String, List<String>> headers = new HashMap<>();
-        headers.put(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of(productUseCase));
-
-        RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath(route("test"))
-            .withHeaders(headers)
-            .withContent(new BytesArray("{}"), XContentType.JSON)
-            .build();
-
-        dispatchRequest(inferenceRequest);
-        assertThat(executeCalled.get(), equalTo(true));
+            assertThat(context.interactionId(), equalTo(""));
+            assertThat(context.productSolution(), equalTo(""));
+            assertThat(context.productFeature(), equalTo(""));
+        });
     }
 
     public void testExtractProductUseCase_EmptyWhenHeaderMissing() {
-        SetOnce<Boolean> executeCalled = new SetOnce<>();
-
-        verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
-            assertThat(actionRequest, instanceOf(InferenceActionProxy.Request.class));
-
-            var request = (InferenceActionProxy.Request) actionRequest;
-            InferenceContext context = request.getContext();
-            assertNotNull(context);
+        assertExtractedHeaders(Map.of(), context -> {
             assertThat(context.productUseCase(), equalTo(""));
-
-            executeCalled.set(true);
-            return createResponse();
-        }));
-
-        // Create a request without the product use case header
-        RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath(route("test"))
-            .withContent(new BytesArray("{}"), XContentType.JSON)
-            .build();
-
-        dispatchRequest(inferenceRequest);
-        assertThat(executeCalled.get(), equalTo(true));
+            assertThat(context.interactionId(), equalTo(""));
+            assertThat(context.productSolution(), equalTo(""));
+            assertThat(context.productFeature(), equalTo(""));
+        });
     }
 
     public void testExtractProductUseCase_EmptyWhenHeaderValueEmpty() {
+        assertExtractedHeaders(
+            Map.of(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of("")),
+            context -> assertThat(context.productUseCase(), equalTo(""))
+        );
+    }
+
+    public void testExtractInteractionId() {
+        assertExtractedHeaders(
+            Map.of(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, List.of("interaction-id")),
+            context -> assertThat(context.interactionId(), equalTo("interaction-id"))
+        );
+    }
+
+    public void testExtractProductSolution() {
+        assertExtractedHeaders(
+            Map.of(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, List.of("security")),
+            context -> assertThat(context.productSolution(), equalTo("security"))
+        );
+    }
+
+    public void testExtractProductFeature() {
+        assertExtractedHeaders(
+            Map.of(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, List.of("attack_discovery")),
+            context -> assertThat(context.productFeature(), equalTo("attack_discovery"))
+        );
+    }
+
+    public void testExtractAttributionHeaders_EmptyWhenHeaderValueEmpty() {
+        assertExtractedHeaders(
+            Map.of(
+                InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
+                List.of(""),
+                InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
+                List.of(""),
+                InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER,
+                List.of("")
+            ),
+            context -> {
+                assertThat(context.interactionId(), equalTo(""));
+                assertThat(context.productSolution(), equalTo(""));
+                assertThat(context.productFeature(), equalTo(""));
+            }
+        );
+    }
+
+    private void assertExtractedHeaders(Map<String, List<String>> headers, Consumer<InferenceContext> assertion) {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
 
         verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
-            assertThat(actionRequest, instanceOf(InferenceActionProxy.Request.class));
-
-            var request = (InferenceActionProxy.Request) actionRequest;
-            InferenceContext context = request.getContext();
-            assertNotNull(context);
-            assertThat(context.productUseCase(), equalTo(""));
-
+            assertion.accept(((InferenceActionProxy.Request) actionRequest).getContext());
             executeCalled.set(true);
             return createResponse();
         }));
 
-        // Create a request with an empty product use case header value
-        Map<String, List<String>> headers = new HashMap<>();
-        headers.put(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of(""));
-
-        RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath(route("test"))
-            .withHeaders(headers)
-            .withContent(new BytesArray("{}"), XContentType.JSON)
-            .build();
-
-        dispatchRequest(inferenceRequest);
+        dispatchRequest(
+            new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+                .withPath(route("test"))
+                .withHeaders(new HashMap<>(headers))
+                .withContent(new BytesArray("{}"), XContentType.JSON)
+                .build()
+        );
         assertThat(executeCalled.get(), equalTo(true));
     }
 

@@ -27,6 +27,8 @@ import org.elasticsearch.sourcebatch.LuceneColumn;
 
 import java.util.List;
 
+import static org.elasticsearch.escf.EscfColumn.windowValidity;
+
 /**
  * A {@link LongColumn} backed by an {@link EscfLongColumn} (single-value) or {@link EscfArrayColumn}
  * (multi-value). Multi-value columns always use {@link Density#SPARSE}.
@@ -148,8 +150,7 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
     public LuceneLongColumn slice(int from, int count) {
         EscfColumn sliced = data.sliceInternal(from, count);
         Density density = (sliced instanceof EscfLongColumn l && l.validity == null) ? Density.DENSE : Density.SPARSE;
-        FixedBitSet slicedFilter = EscfColumn.windowValidity(filter, from, count);
-        return new LuceneLongColumn(sliced, name(), fieldType(), density, numericKind(), slicedFilter);
+        return new LuceneLongColumn(sliced, name(), fieldType(), density, numericKind(), windowValidity(filter, from, count));
     }
 
     @Override

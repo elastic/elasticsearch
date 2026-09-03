@@ -48,27 +48,6 @@ public interface LuceneColumn extends SliceableColumn {
     }
 
     /**
-     * Windows {@code src} to the range {@code [base, base + count)}, producing a new
-     * {@link FixedBitSet} of size {@code count}. Returns {@code null} when all bits in the
-     * range are set (equivalent to no filter — every doc passes).
-     */
-    static FixedBitSet slicedFilter(FixedBitSet src, int base, int count) {
-        for (int i = 0; i < count; i++) {
-            if (src.get(base + i) == false) {
-                FixedBitSet out = new FixedBitSet(count);
-                out.set(0, i); // bits 0..i-1 were all set
-                for (int j = i + 1; j < count; j++) {
-                    if (src.get(base + j)) {
-                        out.set(j);
-                    }
-                }
-                return out;
-            }
-        }
-        return null;
-    }
-
-    /**
      * Returns a Lucene {@link Column} for this column's current window, for use with
      * {@code IndexWriter.addBatch}.
      */

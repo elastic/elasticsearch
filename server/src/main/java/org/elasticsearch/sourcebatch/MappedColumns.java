@@ -28,6 +28,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.escf.EscfColumn.windowValidity;
+
 public final class MappedColumns {
 
     private final int offset;
@@ -261,8 +263,15 @@ public final class MappedColumns {
         @Override
         public WindowedBinaryColumn slice(int from, int count) {
             Objects.checkFromIndexSize(from, count, this.count);
-            FixedBitSet slicedFilter = filter == null ? null : LuceneColumn.slicedFilter(filter, from, count);
-            return new WindowedBinaryColumn(values, name(), fieldType, this.from + from, count, noOpRowPath, slicedFilter);
+            return new WindowedBinaryColumn(
+                values,
+                name(),
+                fieldType,
+                this.from + from,
+                count,
+                noOpRowPath,
+                windowValidity(filter, from, count)
+            );
         }
 
         @Override

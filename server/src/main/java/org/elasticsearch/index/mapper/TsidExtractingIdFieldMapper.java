@@ -36,6 +36,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.escf.EscfColumn.windowValidity;
+
 /**
  * A mapper for the {@code _id} field that builds the {@code _id} from the
  * {@code _tsid} and {@code @timestamp}.
@@ -435,8 +437,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         @Override
         public LuceneColumn slice(int from, int count) {
             Objects.checkFromIndexSize(from, count, this.count);
-            FixedBitSet slicedFilter = filter == null ? null : LuceneColumn.slicedFilter(filter, from, count);
-            return new SyntheticIdTokenStreamColumn(uids, this.from + from, count, slicedFilter);
+            return new SyntheticIdTokenStreamColumn(uids, this.from + from, count, windowValidity(filter, from, count));
         }
 
         @Override

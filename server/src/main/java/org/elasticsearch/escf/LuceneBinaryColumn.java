@@ -24,6 +24,8 @@ import org.elasticsearch.sourcebatch.LuceneColumn;
 
 import java.util.List;
 
+import static org.elasticsearch.escf.EscfColumn.windowValidity;
+
 /**
  * A {@link BinaryColumn} backed by an ESCF data column. Supports dense STRING/BINARY columns
  * (one value per row) and sparse ARRAY columns (zero or more elements per row, absent rows skipped).
@@ -89,8 +91,7 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
     public LuceneBinaryColumn slice(int from, int count) {
         EscfColumn sliced = data.sliceInternal(from, count);
         Density dataBasedDensity = (sliced instanceof EscfArrayColumn || sliced.validity != null) ? Density.SPARSE : Density.DENSE;
-        FixedBitSet slicedFilter = EscfColumn.windowValidity(filter, from, count);
-        return new LuceneBinaryColumn(sliced, name(), fieldType(), dataBasedDensity, slicedFilter);
+        return new LuceneBinaryColumn(sliced, name(), fieldType(), dataBasedDensity, windowValidity(filter, from, count));
     }
 
     @Override

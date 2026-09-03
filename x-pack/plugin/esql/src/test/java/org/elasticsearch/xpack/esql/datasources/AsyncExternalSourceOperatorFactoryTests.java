@@ -70,6 +70,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.zip.GZIPOutputStream;
 
@@ -3219,7 +3220,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public long[] findBlockBoundaries(StorageObject object, long start, long end) throws IOException {
+        public long[] findBlockBoundaries(StorageObject object, long start, long end, LongConsumer ignored) throws IOException {
             return new long[0];
         }
 

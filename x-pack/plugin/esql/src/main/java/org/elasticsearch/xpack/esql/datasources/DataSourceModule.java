@@ -118,7 +118,8 @@ public final class DataSourceModule implements Closeable {
             environment,
             resourceWatcherService,
             meterRegistry,
-            LocalFileAccess.UNRESTRICTED
+            LocalFileAccess.UNRESTRICTED,
+            null
         );
     }
 
@@ -135,6 +136,43 @@ public final class DataSourceModule implements Closeable {
         @Nullable ResourceWatcherService resourceWatcherService,
         @Nullable MeterRegistry meterRegistry,
         LocalFileAccess localFileAccess
+    ) {
+        this(
+            dataSourcePlugins,
+            capabilities,
+            settings,
+            blockFactory,
+            executor,
+            credentials,
+            managedIdentityEnabled,
+            threadPool,
+            environment,
+            resourceWatcherService,
+            meterRegistry,
+            localFileAccess,
+            null
+        );
+    }
+
+    /**
+     * @param splitDiscoveryExecutor dedicated pool for Phase-2 split discovery (production:
+     *                             {@code esql_external_io}). {@code null} falls back to {@code executor}
+     *                             (the SPI/GENERIC pool, or {@code DIRECT} in short test constructors).
+     */
+    public DataSourceModule(
+        List<DataSourcePlugin> dataSourcePlugins,
+        DataSourceCapabilities capabilities,
+        Settings settings,
+        BlockFactory blockFactory,
+        ExecutorService executor,
+        DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled,
+        @Nullable ThreadPool threadPool,
+        @Nullable Environment environment,
+        @Nullable ResourceWatcherService resourceWatcherService,
+        @Nullable MeterRegistry meterRegistry,
+        LocalFileAccess localFileAccess,
+        @Nullable ExecutorService splitDiscoveryExecutor
     ) {
         this.capabilities = capabilities;
         // Always create a live accumulator so phone-home counters work even when APM is disabled.
@@ -296,7 +334,7 @@ public final class DataSourceModule implements Closeable {
             formatReaderRegistry,
             codecRegistry,
             settings,
-            executor,
+            splitDiscoveryExecutor != null ? splitDiscoveryExecutor : executor,
             blockFactory,
             effectiveLocalFileAccess,
             externalSourceMetrics

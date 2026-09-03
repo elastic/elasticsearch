@@ -67,11 +67,10 @@ abstract class AbstractTSDBSyntheticIdCodec extends FilterCodec {
         this.storedFieldsFormat = delegate.storedFieldsFormat() instanceof TSDBStoredFieldsFormat tsdbStoredFieldsFormat
             ? tsdbStoredFieldsFormat
             : new TSDBStoredFieldsFormat(delegate.storedFieldsFormat());
-        // fieldInfosFormat() below is final, so on the read path -- where the codec comes from SPI -- this is the only one there is.
-        FieldInfosFormat delegateFieldInfosFormat = delegate instanceof Elasticsearch96Codec elasticsearchCodec
-            ? elasticsearchCodec.delegate().fieldInfosFormat()
-            : delegate.fieldInfosFormat();
-        this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(new ValidatingFieldInfosFormat(delegateFieldInfosFormat));
+        // The delegate already shares field infos and validates synthetic ids; a second layer would only repeat both.
+        this.fieldInfosFormat = delegate.fieldInfosFormat() instanceof ElasticsearchFieldInfosFormat elasticsearchFieldInfosFormat
+            ? elasticsearchFieldInfosFormat
+            : new ElasticsearchFieldInfosFormat(new ValidatingFieldInfosFormat(delegate.fieldInfosFormat(), true));
         this.docValuesFormat = new XPerFieldDocValuesFormat() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
@@ -98,83 +97,5 @@ abstract class AbstractTSDBSyntheticIdCodec extends FilterCodec {
     @FunctionalInterface
     interface DocValuesFormatForField {
         DocValuesFormat get(String field);
-    }
-
-    private static class ValidatingFieldInfosFormat extends FieldInfosFormat {
-
-        private static final List<String> REQUIRED_FIELDS = List.of(TS_ID, TIMESTAMP, TS_ROUTING_HASH, SYNTHETIC_ID);
-
-        private final FieldInfosFormat delegate;
-
-        private ValidatingFieldInfosFormat(FieldInfosFormat delegate) {
-            this.delegate = delegate;
-        }
-
-        private void ensureSyntheticIdFields(FieldInfos fieldInfos) {
-            List<String> missingFields = null;
-            for (String fieldName : REQUIRED_FIELDS) {
-                var fi = fieldInfos.fieldInfo(fieldName);
-                if (fi == null) {
-                    if (missingFields == null) {
-                        missingFields = new ArrayList<>(REQUIRED_FIELDS.size());
-                    }
-                    missingFields.add(fieldName);
-                    continue;
-                }
-
-                if (SYNTHETIC_ID.equals(fi.getName())) {
-                    // Ensure _id has correct index options
-                    var idFieldInfo = fieldInfos.fieldInfo(SYNTHETIC_ID);
-                    if (idFieldInfo.getIndexOptions() != IndexOptions.DOCS) {
-                        assert false;
-                        throw new IllegalArgumentException("Field [" + SYNTHETIC_ID + "] has incorrect index options");
-                    }
-                    if (SyntheticIdField.hasSyntheticIdAttributes(idFieldInfo.attributes()) == false) {
-                        throw new IllegalArgumentException("Field [" + SYNTHETIC_ID + "] is not synthetic");
-                    }
-                }
-            }
-
-            if (missingFields != null && missingFields.isEmpty() == false) {
-                // A segment containing only no-op tombstones does not have the fields required
-                // to synthesize the _id, but it has _soft_deletes and _tombstone fields.
-                // See PerThreadIDVersionAndSeqNoLookup for a similar check.
-                if (isNoOpOnlySegment(fieldInfos) == false) {
-                    var message = "Field(s) " + missingFields + " does not exist";
-                    assert false : message;
-                    throw new IllegalArgumentException(message);
-                }
-            }
-        }
-
-        /**
-         * Check if this segment contains only no-op tombstones.
-         * A no-op only segment has _soft_deletes and _tombstone fields with doc values.
-         */
-        private boolean isNoOpOnlySegment(FieldInfos fieldInfos) {
-            var softDeletesField = fieldInfos.fieldInfo(Lucene.SOFT_DELETES_FIELD);
-            if (softDeletesField == null) {
-                return false;
-            }
-            var tombstoneField = fieldInfos.fieldInfo(SeqNoFieldMapper.TOMBSTONE_NAME);
-            if (tombstoneField == null) {
-                return false;
-            }
-            return softDeletesField.getDocValuesType() != DocValuesType.NONE && tombstoneField.getDocValuesType() != DocValuesType.NONE;
-        }
-
-        @Override
-        public void write(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, FieldInfos fieldInfos, IOContext context)
-            throws IOException {
-            ensureSyntheticIdFields(fieldInfos);
-            delegate.write(directory, segmentInfo, segmentSuffix, fieldInfos, context);
-        }
-
-        @Override
-        public FieldInfos read(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, IOContext iocontext) throws IOException {
-            final var fieldInfos = delegate.read(directory, segmentInfo, segmentSuffix, iocontext);
-            ensureSyntheticIdFields(fieldInfos);
-            return fieldInfos;
-        }
     }
 }

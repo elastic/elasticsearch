@@ -474,6 +474,7 @@ public final class ParallelHashAggregationOperator implements Operator {
                     page.allowPassingToDifferentDriver();
                     out.addPage(page);
                 }
+                rowsEmitted += rows;
                 emitNanos += (System.nanoTime() - startNanos);
                 emitCount++;
                 updateStatus();
@@ -481,7 +482,6 @@ public final class ParallelHashAggregationOperator implements Operator {
             if (partitions.completePartition()) {
                 out.finish(false);
             }
-            rowsEmitted += rows;
             return rows;
         }
 

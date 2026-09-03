@@ -8,7 +8,7 @@ setup:
           parameters: [ ]
           capabilities: [ optional_fields_fix_unmapped_object_value ]
       reason: "Loading an unmapped object field as a keyword from stored source must return null, not Java's Map.toString()"
-      # Stored-source twin of 294_unmapped_load_object_from_synthetic_source.yml: the two source modes reach different block loaders,
+      # Stored-source twin of 297_unmapped_load_object_from_synthetic_source.yml: the two source modes reach different block loaders,
       # and the stored one corrupts the value silently rather than failing, so it needs its own coverage.
   - do:
       indices.create:

@@ -13,6 +13,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -53,6 +55,8 @@ public final class BehaviorDuelHarness {
 
     /** The numeric identity field used as the sort tiebreak and retrieval anchor. */
     public static final String DOC_ID_FIELD = "doc_id";
+
+    private static final Logger logger = LogManager.getLogger(BehaviorDuelHarness.class);
 
     private final Client client;
     private final Function<String, IndexSettings> indexSettingsResolver;
@@ -172,21 +176,21 @@ public final class BehaviorDuelHarness {
                 try {
                     check.check(context);
                 } catch (AssertionError e) {
-                    throw new AssertionError(
-                        "baseline validation failed for duel ["
-                            + duelName
-                            + "], scenario ["
-                            + scenario.name()
-                            + "], baseline ["
-                            + baseline.layoutLabel()
-                            + "], check ["
-                            + check.name()
-                            + "], write plan ["
-                            + plan
-                            + "]; this indicates non-deterministic test behavior, a corpus/indexing/check bug, or a"
-                            + " baseline bug, not a ColumNAR contender mismatch",
-                        e
-                    );
+                    final String message = "LIKELY A TEST BUG (not a ColumNAR regression): baseline validation failed for duel ["
+                        + duelName
+                        + "], scenario ["
+                        + scenario.name()
+                        + "], baseline ["
+                        + baseline.layoutLabel()
+                        + "], check ["
+                        + check.name()
+                        + "], write plan ["
+                        + plan
+                        + "]; the baseline disagrees with an identical copy of itself or with the corpus oracle, so this is"
+                        + " most likely non-deterministic test behavior or a corpus/indexing/check/oracle bug rather than a"
+                        + " ColumNAR contender mismatch";
+                    logger.error(message, e);
+                    throw new AssertionError(message, e);
                 }
             }
         } finally {

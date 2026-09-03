@@ -1504,19 +1504,17 @@ public class InternalEngine extends Engine {
         int subBatchSize
     ) {
         assert requiresRowPath(plans, subBatchSize) == false;
-        int excluded = 0;
-        for (int i = 0; i < subBatchSize; i++) {
-            if (allResults[subBatchIdx + i] != null || plans[i].indexIntoLucene == false) {
-                excluded++;
-            }
-        }
-        if (excluded == 0) {
-            return null;
-        }
-        FixedBitSet filter = new FixedBitSet(subBatchSize);
+        FixedBitSet filter = null; // assume we don't have to allocate by default
         for (int i = 0; i < subBatchSize; i++) {
             if (allResults[subBatchIdx + i] == null && plans[i].indexIntoLucene) {
-                filter.set(i);
+                if (filter != null) {
+                    filter.set(i);
+                }
+            } else {
+                if (filter == null) { // actually have to allocate
+                    filter = new FixedBitSet(subBatchSize);
+                    filter.set(0, i); // everything was implicitly included, but now we have to be explicit
+                }
             }
         }
         return filter;

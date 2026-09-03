@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
 public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
 
@@ -35,6 +36,16 @@ public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
         }
     };
 
+    /** Key-rotation rewrapper equivalent to what the coordinator builds for an active-key rotation. */
+    private static UnaryOperator<EncryptedData> keyRotationRewrapper() {
+        return existing -> {
+            if (existing.keyId().equals(ACTIVE_KEY)) {
+                return existing;
+            }
+            return SERVICE.encrypt(SERVICE.decrypt(existing));
+        };
+    }
+
     private final DataSourceEncryptedDataHandler handler = new DataSourceEncryptedDataHandler();
 
     public void testCustomNameMatchesMetadataType() {
@@ -42,9 +53,9 @@ public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
     }
 
     public void testNullAndEmptyAreReturnedAsIs() {
-        assertNull(handler.reEncrypt(null, SERVICE, ACTIVE_KEY));
+        assertNull(handler.reEncrypt(null, keyRotationRewrapper()));
         DataSourceMetadata empty = DataSourceMetadata.EMPTY;
-        assertSame(empty, handler.reEncrypt(empty, SERVICE, ACTIVE_KEY));
+        assertSame(empty, handler.reEncrypt(empty, keyRotationRewrapper()));
     }
 
     public void testOnDestructiveResetNullAndEmptyReturnedAsIs() {
@@ -124,7 +135,7 @@ public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
         );
         DataSourceMetadata before = new DataSourceMetadata(Map.of("s3", ds));
 
-        DataSourceMetadata after = handler.reEncrypt(before, SERVICE, ACTIVE_KEY);
+        DataSourceMetadata after = handler.reEncrypt(before, keyRotationRewrapper());
 
         assertNotSame(before, after);
         DataSourceSetting reKeyed = after.get("s3").settings().get("access_key");
@@ -145,7 +156,7 @@ public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
         );
         DataSourceMetadata before = new DataSourceMetadata(Map.of("s3", ds));
 
-        DataSourceMetadata after = handler.reEncrypt(before, SERVICE, ACTIVE_KEY);
+        DataSourceMetadata after = handler.reEncrypt(before, keyRotationRewrapper());
 
         assertSame("no secret needed re-encryption, so the custom is returned by reference", before, after);
     }
@@ -165,7 +176,7 @@ public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
         );
         DataSourceMetadata before = new DataSourceMetadata(Map.of("stale", stale, "fresh", fresh));
 
-        DataSourceMetadata after = handler.reEncrypt(before, SERVICE, ACTIVE_KEY);
+        DataSourceMetadata after = handler.reEncrypt(before, keyRotationRewrapper());
 
         assertNotSame(before, after);
         assertEquals(ACTIVE_KEY, ((EncryptedData) after.get("stale").settings().get("access_key").rawValue()).keyId());

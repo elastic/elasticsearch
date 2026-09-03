@@ -53,6 +53,10 @@ public final class BoundedParallelGather {
 
     private BoundedParallelGather() {}
 
+    public static <T> boolean executesInline(List<T> items) {
+        return items.size() <= 1;
+    }
+
     /**
      * Applies {@code fn} to each item in {@code items} with at most {@code maxConcurrency}
      * calls in flight simultaneously. Results are returned in the same order as the input list.

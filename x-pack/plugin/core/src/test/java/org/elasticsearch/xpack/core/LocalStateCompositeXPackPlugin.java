@@ -615,8 +615,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
-        final Map<String, RecoveryStateFactory> factories = new HashMap<>();
+    public Map<String, IndexStorePlugin.RecoveryStateFactory> getRecoveryStateFactories() {
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> factories = new HashMap<>();
         filterPlugins(IndexStorePlugin.class).forEach(p -> factories.putAll(p.getRecoveryStateFactories()));
         return factories;
     }

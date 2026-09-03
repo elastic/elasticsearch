@@ -201,6 +201,20 @@ public class NettyAllocatorTests extends ESTestCase {
         buf.release();
     }
 
+    public void testFullyConsumedBufferIsTrashed() throws IOException {
+        var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
+        var size = between(1024, 4096);
+        var root = alloc.heapBuffer(size, size);
+        root.writeBytes(randomByteArrayOfLength(size));
+        var ref = Netty4Utils.toBytesReference(root);
+
+        root.skipBytes(size);
+        assertEquals("reader index must have caught up with writer index", 0, root.readableBytes());
+
+        root.release();
+        assertBufferTrashed(ref);
+    }
+
     public void testTrashingCompositeByteBuf() throws IOException {
         var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
         var compBuf = alloc.compositeHeapBuffer();

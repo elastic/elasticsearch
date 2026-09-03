@@ -157,15 +157,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     @Before
     public void chooseProjects() {
         multiProject = randomBoolean();
-        if (multiProject) {
-            int projectCount = randomIntBetween(1, 5);
-            projectIds = new HashSet<>();
-            while (projectIds.size() < projectCount) {
-                projectIds.add(randomUniqueProjectId());
-            }
-        } else {
-            projectIds = Set.of(randomProjectIdOrDefault());
-        }
+        projectIds = multiProject
+            ? IntStream.range(0, randomIntBetween(1, 5)).mapToObj(i -> randomUniqueProjectId()).collect(toSet())
+            : Set.of(randomProjectIdOrDefault());
     }
 
     /// Available shards keep the indicator green. Relocating shards are still considered available and are counted

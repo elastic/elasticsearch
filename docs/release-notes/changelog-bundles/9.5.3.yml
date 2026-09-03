@@ -49,7 +49,7 @@ changelogs:
     issues:
       - 156411
   - pr: 156980
-    summary: Fix query failures after fusing field extraction into exact-string functions
+    summary: Fix failures in string functions that use extracted fields
     area: ES|QL
     type: bug
     issues: []

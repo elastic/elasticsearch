@@ -55,7 +55,7 @@ Data streams:
 * Fix data stream auto-sharding using stale index settings [#157634](https://github.com/elastic/elasticsearch/pull/157634) (issue: [#134505](https://github.com/elastic/elasticsearch/issues/134505))
 
 ES|QL:
-* Fix query failures after fusing field extraction into exact-string functions [#156980](https://github.com/elastic/elasticsearch/pull/156980)
+* Fix failures in string functions that use extracted fields [#156980](https://github.com/elastic/elasticsearch/pull/156980)
 * Fix query failures when a multi-field sub-field has conflicting types across indices [#156326](https://github.com/elastic/elasticsearch/pull/156326)
 * Fix `ROUND` overflowing integer values when used with negative precision [#156412](https://github.com/elastic/elasticsearch/pull/156412) (issue: [#156411](https://github.com/elastic/elasticsearch/issues/156411))
 * Fix `TS` `STATS` dropping constant literal aggregates [#157148](https://github.com/elastic/elasticsearch/pull/157148) (issue: [#157103](https://github.com/elastic/elasticsearch/issues/157103))

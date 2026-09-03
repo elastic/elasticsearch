@@ -45,6 +45,7 @@ import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -52,6 +53,8 @@ import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -187,6 +190,7 @@ import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.ma
 import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.postSplitRouting;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
@@ -1843,6 +1847,109 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         safeAwait(mgetPrepared);
         final var reshardRequest = new ReshardIndexRequest(indexName, 2);
         client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
+        waitForReshardCompletion(indexName);
+    }
+
+    // test that updates apply correctly during resharding, including noops which could previously fail to revert changes
+    public void testUpdate() {
+        startMasterAndIndexNode();
+        final var coordinator = startSearchNode();
+        ensureStableCluster(2);
+
+        final String indexName = randomIndexName();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+        final var index = resolveIndex(indexName);
+
+        record Update(int shardNum, String origField, String newField) {}
+
+        // original field value -> updated field value
+        final var updates = List.of(
+            new Update(0, "update", "updated"),
+            new Update(0, "noop", "noop"),
+            new Update(1, "update", "updated"),
+            // previously this would have failed this test
+            new Update(1, "noop", "noop")
+        );
+
+        // block coordinator from seeing transition to HANDOFF (update gets are realtime, so not SPLIT),
+        // then wait for move to handoff and issue updates.
+        final var SHARD_UPDATE_ACTION = TransportUpdateAction.TYPE.name() + "[s]";
+        var getPrepared = new CountDownLatch(updates.size());
+        var handoffDone = new CountDownLatch(1);
+        var coordinatorTransportService = MockTransportService.getInstance(coordinator);
+        coordinatorTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            // block GET once it is prepared until resharding completes
+            if ((SHARD_UPDATE_ACTION).equals(action)) {
+                // signal that update has been prepared so resharding can start
+                getPrepared.countDown();
+                safeAwait(handoffDone);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // Generate docs to test normal update and noop update, and then submit updates to them before resharding.
+        // The update requests will route to shard 0 since shard 1 doesn't exist yet.
+        // Actually submitting them to the shard is blocked until reshard advances to handoff so that they will need
+        // rerouting when they arrive.
+        final var routingPostSplit = postSplitRouting(clusterService().state(), index, 2);
+        final var updateResponses = new ArrayList<AtomicReference<UpdateResponse>>(updates.size());
+        final var updateThreads = new ArrayList<Thread>(updates.size());
+        final var updatedDocs = new HashMap<String, String>();
+        for (final var update : updates) {
+            final var docId = makeIdThatRoutesToShard(routingPostSplit, update.shardNum);
+            updatedDocs.put(docId, update.newField);
+            indexDoc(indexName, docId, "field", update.origField);
+            final var updateResponse = new AtomicReference<UpdateResponse>();
+            updateResponses.add(updateResponse);
+            final var updateThread = new Thread(
+                () -> updateResponse.set(
+                    client(coordinator).prepareUpdate(indexName, docId)
+                        .setDoc("field", update.newField)
+                        .execute()
+                        .actionGet(SAFE_AWAIT_TIMEOUT)
+                )
+            );
+            updateThreads.add(updateThread);
+            updateThread.start();
+        }
+
+        safeAwait(getPrepared);
+
+        final var atHandoff = waitForClusterState(clusterState -> {
+            final var reshard = indexMetadata(clusterState, index).getReshardingMetadata();
+            return reshard != null && reshard.getSplit().targetStateAtLeast(1, IndexReshardingState.Split.TargetShardState.HANDOFF);
+        });
+
+        final var reshardRequest = new ReshardIndexRequest(indexName, 2);
+        client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
+
+        // wait for handoff...
+        atHandoff.actionGet(SAFE_AWAIT_TIMEOUT);
+
+        // ... then create conflicting writes for updated docs on the destination shards
+        for (final var docId : updatedDocs.keySet()) {
+            indexDoc(indexName, docId, "field", "conflict");
+        }
+
+        // and then release the queued updates, which will route to the source shard instead of the destination,
+        // but with a stale shard count summary. The shards will fail the request as stale and the coordinator will
+        // handle this with an internal retry.
+        handoffDone.countDown();
+
+        for (var thread : updateThreads) {
+            safeJoin(thread);
+        }
+
+        for (final var responseRef : updateResponses) {
+            assertThat(responseRef.get().getResult(), equalTo(UpdateResponse.Result.UPDATED));
+        }
+        for (final var docId : updatedDocs.keySet()) {
+            final var response = client().prepareGet(indexName, docId).execute().actionGet();
+            assertThat(response.getSource().get("field"), equalTo(updatedDocs.get(docId)));
+        }
+
+        coordinatorTransportService.clearAllRules();
         waitForReshardCompletion(indexName);
     }
 
@@ -5315,6 +5422,58 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             assertThat("Split target state left behind", splitTargetService.getShardsWithOngoingSplits(), empty());
             assertThat("Split source state left behind", splitSourceService.getShardsWithActiveSplitState(), empty());
         });
+    }
+
+    /// An index request with an immediate refresh waits while its target shard is in HANDOFF. If the index is deleted meanwhile, the
+    /// request must receive a terminal response rather than remain pending after cancellation.
+    public void testIndexRequestDuringHandoffIsAnsweredWhenIndexIsDeleted() throws Exception {
+        startMasterOnlyNode();
+        final String indexNode = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        final String indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, 100);
+        final Index index = resolveIndex(indexName);
+        final var routingAfterSplit = postSplitRouting(clusterService().state(), index, 2);
+        final String targetDocumentId = makeIdThatRoutesToShard(routingAfterSplit, 1);
+
+        final CountDownLatch splitAttempted = new CountDownLatch(1);
+        final CountDownLatch releaseSplit = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)
+                && MasterNodeRequestHelper.unwrapTermOverride(request) instanceof SplitStateRequest splitStateRequest
+                && splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                splitAttempted.countDown();
+                safeAwait(releaseSplit);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
+        safeAwait(splitAttempted);
+
+        final var reshardIndexService = internalCluster().getInstance(ReshardIndexService.class, indexNode);
+        try {
+            final var indexRequest = prepareIndex(indexName).setId(targetDocumentId)
+                .setSource("field", "value")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .execute();
+
+            // The write reaches the target in HANDOFF, but its refresh waits for SPLIT, which is where the delete has to unblock it.
+            assertBusy(() -> assertThat(reshardIndexService.getShardsTrackingSplitCompletion(), contains(new ShardId(index, 1))));
+            assertFalse(indexRequest.isDone());
+
+            assertAcked(indicesAdmin().prepareDelete(indexName).get(SAFE_AWAIT_TIMEOUT));
+            assertBusy(() -> assertTrue("index request was never answered after the index was deleted", indexRequest.isDone()));
+        } finally {
+            releaseSplit.countDown();
+        }
+
+        // Answering the request is not enough: a leftover tracker entry leaves the closed IndexShard pinned.
+        assertBusy(() -> assertThat(reshardIndexService.getShardsTrackingSplitCompletion(), empty()));
     }
 
     private static Set<String> getIndexUUIDsInObjectStore() {

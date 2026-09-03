@@ -379,13 +379,16 @@ public class ExternalCsvAggregatePushdownIT extends AbstractExternalDataSourceIT
     }
 
     /**
-     * A non-{@code FAIL_FAST} error policy ({@code skip_row} AND {@code null_field}) drops structurally-malformed
-     * (width-overflow) rows — the CSV reader drops such a row "even under NULL_FIELD" — and the drop count depends on the
-     * declared column count, so the harvested row-count is not guaranteed independent of the declaration. The strict warm
-     * seed is therefore skipped for every non-{@code FAIL_FAST} policy: {@code COUNT(*)} re-scans on every query
-     * ({@code documentsFound == totalRows}) rather than fold a possibly cross-declaration row-count. Guards the
+     * Under a non-{@code FAIL_FAST} error policy ({@code skip_row} AND {@code null_field}) rows can be dropped, so a
+     * committed row-count is a survivor count for the read that produced it rather than the file's physical record
+     * count — and only the physical count is the same number for every declaration. The strict warm seed is therefore
+     * skipped for every non-{@code FAIL_FAST} policy: {@code COUNT(*)} re-scans on every query
+     * ({@code documentsFound == totalRows}) rather than fold a count another declaration's read measured. Guards the
      * {@code warmsRowCountSafely} gate (contrast {@link #testStrictCountStarColdThenWarmShortCircuits}, which warms with
      * the default {@code FAIL_FAST} policy).
+     * <p>
+     * The fixture is clean — it contains no malformed row. The policy alone decides whether the seed is taken, so this
+     * asserts the gate's decision rather than any drop behaviour.
      */
     public void testStrictNonFailFastErrorModesAreNeverWarmed() throws Exception {
         for (String mode : new String[] { "skip_row", "null_field" }) {

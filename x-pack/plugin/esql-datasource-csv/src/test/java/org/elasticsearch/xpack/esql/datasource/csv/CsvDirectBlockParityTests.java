@@ -26,11 +26,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.junit.After;
 import org.junit.Before;
@@ -88,7 +88,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 10),
             null,
             "k:keyword\nhelloworld12\n",
-            "line -1:-1: CSV parse error at row [1]: CSV parse error: String value length (12) exceeds the maximum allowed "
+            "CSV parse error at row [1]: CSV parse error: String value length (12) exceeds the maximum allowed "
                 + "(10, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
                 + "(or null_field) to skip and warn instead of failing"
         );
@@ -101,7 +101,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 5),
             null,
             "k:keyword\n\"helloworld\"\n",
-            "line -1:-1: CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
+            "CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
                 + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
                 + "(or null_field) to skip and warn instead of failing"
         );
@@ -114,7 +114,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 5),
             List.of("a"),
             "a:keyword,b:keyword\nshort,helloworld\n",
-            "line -1:-1: CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
+            "CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
                 + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
                 + "(or null_field) to skip and warn instead of failing"
         );
@@ -136,7 +136,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of(),
             null,
             "k:keyword\n\"x\"y\n",
-            "line -1:-1: CSV parse error at row [1]: CSV parse error: CSV row has unexpected content after a closing "
+            "CSV parse error at row [1]: CSV parse error: CSV row has unexpected content after a closing "
                 + "quote; row: <unparsed>; set error_mode=skip_row (or null_field) to skip and warn "
                 + "instead of failing"
         );
@@ -168,7 +168,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     /**
      * Runs both the direct-block and Jackson arms under FAIL_FAST and asserts each throws a
-     * {@link ParsingException} whose message equals {@code expectedMessage}. Pinning the literal also
+     * {@link ExternalClientException} whose message equals {@code expectedMessage}. Pinning the literal also
      * guards the Jackson baseline: a Jackson upgrade that reworded the constraint message trips this test.
      *
      * <p>Pinned under {@link Locale#ROOT}: Jackson formats the length numbers in this particular message
@@ -196,8 +196,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     private String captureFailFastMessage(CsvFormatReader reader, List<String> projection, String content) throws IOException {
         try {
             drain(reader, projection, 1024, ErrorPolicy.STRICT, content);
-            throw new AssertionError("expected a ParsingException but the read completed");
-        } catch (ParsingException e) {
+            throw new AssertionError("expected an ExternalClientException but the read completed");
+        } catch (ExternalClientException e) {
             return e.getMessage();
         }
     }
@@ -707,7 +707,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testDatetimeFormatUnparseableValueFailFast() throws IOException {
         String content = "id:long,ts:datetime\n1,not-a-date\n";
         CsvFormatReader base = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"));
-        String expected = "line -1:-1: CSV parse error at row [1]: Failed to parse CSV datetime value [not-a-date]; row: ";
+        String expected = "CSV parse error at row [1]: Failed to parse CSV datetime value [not-a-date]; row: ";
         for (boolean directBlock : List.of(false, true)) {
             String message = captureFailFastMessage(base.withDirectBlockEnabled(directBlock), null, content);
             assertTrue("direct_block=" + directBlock + " message: " + message, message.startsWith(expected));
@@ -962,6 +962,18 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testTsvPlainBlankLinesSkipped() throws IOException {
         List<List<Object>> rows = read(true, Map.of(), "a:long\n1\n\n2\n\n");
         assertEquals(List.of(row(1L), row(2L)), rows);
+    }
+
+    public void testTsvSeparatorOnlyRowNotDropped() throws IOException {
+        // A row that is all TAB delimiters (\t\t = 3 fields) must reach the output, not be silently
+        // dropped as blank. TAB (0x09) ≤ space (0x20), so the old delimiter-blind check wrongly skipped
+        // it; the delimiter-aware check must keep it.
+        List<List<Object>> rows = read(true, Map.of(), "a:keyword\tb:keyword\tc:keyword\nx\ty\tz\n\t\t\np\tq\tr\n");
+        assertEquals("separator-only TSV row must not be dropped", 3, rows.size());
+        // The separator row produces three empty/null fields on a keyword schema.
+        assertEquals(br(""), rows.get(1).get(0));
+        assertEquals(br(""), rows.get(1).get(1));
+        assertEquals(br(""), rows.get(1).get(2));
     }
 
     public void testTsvPlainCommentLinesSkipped() throws IOException {

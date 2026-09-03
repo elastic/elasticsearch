@@ -552,6 +552,29 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("target_split_size", "1024")));
     }
 
+    public void testValidateDatasetMaxSplitProbesAboveTheCeilingRejected() {
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_split_probes", "10001")));
+    }
+
+    /**
+     * A window that fits the budget against the default probe count, and one that does not. The absent key has to
+     * be resolved to its default for the second to be caught here rather than at query time.
+     */
+    public void testValidateDatasetProbeBudgetCountsTheAbsentKeysDefault() {
+        assertEquals("4mb", validator.validateDataset(Map.of(), "s3://b/p", Map.of("split_probe_window", "4mb")).get("split_probe_window"));
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("split_probe_window", "8mb")));
+    }
+
+    /** Two values each acceptable alone, rejected for the reads they ask for together. */
+    public void testValidateDatasetProbeBudgetRejectsTheProductOfTwoValidKeys() {
+        assertEquals("1mb", validator.validateDataset(Map.of(), "s3://b/p", Map.of("split_probe_window", "1mb")).get("split_probe_window"));
+        assertEquals("8000", validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_split_probes", "8000")).get("max_split_probes"));
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("split_probe_window", "1mb", "max_split_probes", "8000"))
+        );
+    }
+
     public void testReaderStaysExternalOnly() {
         // reader remains an EXTERNAL-only dev knob: it is never accepted as a dataset setting, with or
         // without a format-aware validator.
@@ -718,8 +741,19 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
         assertThat(e.validationErrors(), hasSize(2));
         assertThat(e.validationErrors(), hasItem("[resource] is required"));
-        // The "known settings: [...]" suffix lists an unordered set, so match only the stable prefix.
+        // The "known settings: [...]" suffix is sorted, so it is stable across JVM runs and can be matched
+        // in full. Matching only the prefix would let the list go back to Set.of iteration order unnoticed.
         assertThat(e.validationErrors(), hasItem(containsString("unknown setting [delimiter]")));
+        assertThat(
+            e.validationErrors(),
+            hasItem(
+                containsString(
+                    "known settings: [error_mode, file_exclusions, format, hive_partitioning, max_error_ratio, "
+                        + "max_errors, max_split_probes, partition_detection, partition_path, schema_resolution, "
+                        + "schema_sample_size, split_probe_window, target_split_size]"
+                )
+            )
+        );
     }
 
     public void testUnknownExplicitFormatRejected() {
@@ -789,4 +823,31 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "auto", "delimiter", "|"))
         );
     }
+
+    public void testUnsupportedSchemeListsTheSchemesInAStableOrder() {
+        // Nine schemes declared out of order. Set.of salts its iteration per JVM run; over nine elements the sorted
+        // arrangement is not among the orderings it can produce, so with the renderer's sort removed this fails every
+        // time. A three-element set does reach sorted order, which is why one is not a gate.
+        DataSourceValidator manySchemes = new FileDataSourceValidator(
+            "s3",
+            S3Configuration::fromMap,
+            Set.of("s3n", "s3a", "zs3", "ms3", "as3", "s3", "ks3", "bs3", "ys3")
+        );
+
+        var e = expectThrows(
+            ValidationException.class,
+            () -> manySchemes.validateDataset(Map.of(), "ftp://bucket/data/good.csv", Map.of())
+        );
+
+        assertThat(
+            e.validationErrors(),
+            hasItem(
+                containsString(
+                    "[resource] must use one of the supported URI schemes "
+                        + "[as3://, bs3://, ks3://, ms3://, s3://, s3a://, s3n://, ys3://, zs3://]"
+                )
+            )
+        );
+    }
+
 }

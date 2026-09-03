@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.action.service;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EnumSerializationTestUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -24,6 +25,18 @@ public class ServiceAccountManagedByTests extends ESTestCase {
         assertThat(
             Arrays.stream(ServiceAccountManagedBy.values()).map(ServiceAccountManagedBy::value).toList(),
             equalTo(List.of("elastic", "user"))
+        );
+    }
+
+    /**
+     * The wire form is the ordinal, and {@link ServiceAccountInfo} reads it to decide which kind of account follows,
+     * so a reordering would have an older node read one kind as the other rather than fail.
+     */
+    public void testSerialization() {
+        EnumSerializationTestUtils.assertEnumSerialization(
+            ServiceAccountManagedBy.class,
+            ServiceAccountManagedBy.ELASTIC,
+            ServiceAccountManagedBy.USER
         );
     }
 

@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.inference.services.tencentcloud.request;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
@@ -21,7 +19,6 @@ import org.elasticsearch.xpack.inference.external.request.OutboundUnifiedComplet
 import org.elasticsearch.xpack.inference.external.request.RequestUtils;
 import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionModel;
 
-import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
@@ -51,13 +48,9 @@ public class TencentCloudChatCompletionRequest implements OutboundUnifiedComplet
     }
 
     private ByteArrayEntity createEntity() {
-        try (var builder = JsonXContent.contentBuilder()) {
-            return new ByteArrayEntity(
-                Strings.toString(new TencentCloudChatCompletionRequestEntity(unifiedChatInput, model)).getBytes(StandardCharsets.UTF_8)
-            );
-        } catch (IOException e) {
-            throw new ElasticsearchException("Failed to serialize TencentCloud chat completion request payload.", e);
-        }
+        return new ByteArrayEntity(
+            Strings.toString(new TencentCloudChatCompletionRequestEntity(unifiedChatInput, model)).getBytes(StandardCharsets.UTF_8)
+        );
     }
 
     @Override

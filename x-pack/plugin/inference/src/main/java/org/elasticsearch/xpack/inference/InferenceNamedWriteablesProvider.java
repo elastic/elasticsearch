@@ -138,6 +138,7 @@ import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSche
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankServiceSettings;
@@ -254,6 +255,13 @@ public class InferenceNamedWriteablesProvider {
                 ServiceSettings.class,
                 TencentCloudChatCompletionServiceSettings.NAME,
                 TencentCloudChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                TencentCloudChatCompletionTaskSettings.NAME,
+                TencentCloudChatCompletionTaskSettings::new
             )
         );
         namedWriteables.add(

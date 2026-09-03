@@ -49,6 +49,9 @@ public class TencentCloudRerankResponseEntity {
     }
 
     private record Response(List<ResultItem> results) {
+
+        private static final ParseField RESULTS = new ParseField("results");
+
         @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
             Response.class.getSimpleName(),
@@ -57,7 +60,7 @@ public class TencentCloudRerankResponseEntity {
         );
 
         static {
-            PARSER.declareObjectArray(constructorArg(), ResultItem.PARSER::apply, new ParseField("results"));
+            PARSER.declareObjectArray(constructorArg(), ResultItem.PARSER::apply, RESULTS);
         }
 
         public RankedDocsResults toRankedDocsResults() {
@@ -69,6 +72,11 @@ public class TencentCloudRerankResponseEntity {
     }
 
     private record ResultItem(int index, float relevanceScore, @Nullable String document) {
+
+        private static final ParseField INDEX = new ParseField("index");
+        private static final ParseField RELEVANCE_SCORE = new ParseField("relevance_score");
+        private static final ParseField DOCUMENT = new ParseField("document");
+
         public static final ConstructingObjectParser<ResultItem, Void> PARSER = new ConstructingObjectParser<>(
             ResultItem.class.getSimpleName(),
             true,
@@ -76,14 +84,9 @@ public class TencentCloudRerankResponseEntity {
         );
 
         static {
-            PARSER.declareInt(constructorArg(), new ParseField("index"));
-            PARSER.declareFloat(constructorArg(), new ParseField("relevance_score"));
-            PARSER.declareField(
-                optionalConstructorArg(),
-                (p, c) -> parseDocument(p),
-                new ParseField("document"),
-                ObjectParser.ValueType.OBJECT_OR_STRING
-            );
+            PARSER.declareInt(constructorArg(), INDEX);
+            PARSER.declareFloat(constructorArg(), RELEVANCE_SCORE);
+            PARSER.declareField(optionalConstructorArg(), (p, c) -> parseDocument(p), DOCUMENT, ObjectParser.ValueType.OBJECT_OR_STRING);
         }
     }
 
@@ -98,6 +101,9 @@ public class TencentCloudRerankResponseEntity {
     }
 
     private record DocumentObject(String text) {
+
+        private static final ParseField TEXT = new ParseField("text");
+
         public static final ConstructingObjectParser<DocumentObject, Void> PARSER = new ConstructingObjectParser<>(
             DocumentObject.class.getSimpleName(),
             true,
@@ -105,7 +111,7 @@ public class TencentCloudRerankResponseEntity {
         );
 
         static {
-            PARSER.declareString(constructorArg(), new ParseField("text"));
+            PARSER.declareString(constructorArg(), TEXT);
         }
     }
 

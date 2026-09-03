@@ -126,6 +126,9 @@ public abstract class TencentCloudCommonServiceSettings extends FilteredXContent
      */
     public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
         RateLimitSettings.declareUpdatableRateLimitSettings(parser, CommonUpdate::setRateLimitSettings);
+        // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
+        // Declare it here as a no-op so the strict update parser does not reject it as an unknown field.
+        parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
     }
 
     /**

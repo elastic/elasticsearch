@@ -29,3 +29,30 @@ count:long | languages:integer
 21         | 5
 10         | null
 ;
+
+// The NDJSON copy of the shared external-hive-partitioned-payload case, which NDJSON cannot join.
+//
+// This pins the fix for elastic/esql-planning#1769: filtering a payload column alongside the
+// path-derived partition column while projecting neither used to fail inside the reader with
+// "output schema size [1] does not match mapping width [23]". elastic/elasticsearch#157982 fixed it and
+// the count below is now correct on NDJSON. The ticket says routing the shared spec to NDJSON is the
+// whole of its verification; that turned out not to work, because NDJSON emits a warning no other
+// format does and a shared spec declares one warning set for every format that runs it. So the case
+// lives here, where the warning is declarable, and the shared spec's NDJSON absence is declared in
+// fixture-matrix.properties.
+//
+// The warning is not incidental to the fix -- it is the same sparse-column property this whole file
+// exists for. `languages` is absent from the files in the __HIVE_DEFAULT_PARTITION__ bucket because
+// NDJSON omits null keys, so the reconciled schema names a column some files do not carry.
+hivePartitionConsistentWithPayload
+required_capability: dataset_in_from_command
+dataset: employees_hive_payload: "{{employees_hive}}"
+
+FROM employees_hive_payload
+| WHERE lang IS NULL AND languages IS NULL
+| STATS count = COUNT(*);
+warningRegex:declared column \[languages\] is not present in some source files and reads null there
+
+count:long
+10
+;

@@ -1,13 +1,15 @@
-// Hive-partition cases that also filter on a PAYLOAD column, not just the path-derived
-// partition column. Kept apart from external-hive-partitioned.csv-spec because NDJSON cannot
-// run them yet: filtering a payload column alongside the partition column, while projecting
-// neither, fails inside the reader with "output schema size [1] does not match mapping width".
-// The sibling case that filters only the partition column passes on NDJSON, so the trigger is
-// the payload reference, not the partitioning.
+// Hive-partition cases that also filter on a PAYLOAD column, not just the path-derived partition
+// column. Kept apart from external-hive-partitioned.csv-spec because this shape once failed inside the
+// reader with "output schema size [1] does not match mapping width" -- elastic/esql-planning#1769.
+//
+// That defect is FIXED (elastic/elasticsearch#157982), and NDJSON now returns the right count here. The
+// file stays separate for a different reason: NDJSON also emits a warning no other format does, because
+// it omits absent keys entirely, so `languages` is genuinely missing from some files. A shared spec
+// declares one warning set for every format that runs it, so NDJSON cannot join this one. Its copy of
+// the case, with the warning declared, lives in ndjson-sparse-columns.csv-spec.
 //
 // Routing: ORC, Parquet and parquet-rs glob external-*.csv-spec and pick this up; TSV names it
-// explicitly. NDJSON deliberately does not list it, so this file is the one place to remove
-// that exclusion once the reader is fixed.
+// explicitly. NDJSON's absence is declared in fixture-matrix.properties rather than left implicit.
 
 hivePartitionConsistentWithPayload
 required_capability: dataset_in_from_command

@@ -221,7 +221,6 @@ public class StatelessPrimaryRelocationSourceService {
         indexShard.recoveryStats().sourceRecoveryStarted();
         schedulingListeners.onPeerRecoveryStartedOnSource();
 
-
         // Wait for the current commit to be durably uploaded before acquiring permits so the upload queue drains first.
         // If this takes longer than preFlushSlowUploadQueueThreshold set waitIfOnGoing=true so the accumulated BCC uploads
         // in the queue are uploaded before we acquire the permits. NB the flush has force=false so may do nothing.

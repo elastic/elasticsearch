@@ -20,6 +20,8 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.concurrent.Executor;
 
 /**
@@ -40,6 +43,9 @@ import java.util.concurrent.Executor;
  */
 public final class S3StorageObject extends AbstractMeteredStorageObject {
     private static final Logger logger = LogManager.getLogger(S3StorageObject.class);
+
+    // Real SDK chains here are 2-4 deep; this only stops a pathological one.
+    private static final int MAX_CAUSE_DEPTH = 12;
 
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
@@ -136,25 +142,83 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     /**
      * Maps a failure from the S3 client into the exception to surface to ES|QL. A retryable transport
      * status (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may succeed on
-     * retry); a missing object or any other failure becomes an {@link IOException}, which the external
-     * source operator classifies as a client-class 400. Returns the exception (never throws) so both
-     * the synchronous and async read paths can route it.
+     * retry). A closed HTTP client ({@code Connection pool shut down} / client-closed
+     * {@link IllegalStateException}) is the same 503: the client is gone, not the object. Other
+     * {@link IllegalStateException}s are returned as-is (HTTP 500 via classify) so a programming
+     * error is not retried and is not disguised as a client 400. A missing object or any other
+     * failure becomes an {@link IOException},
+     * which the external source operator classifies as a client-class 400. Returns the exception
+     * (never throws) so both the synchronous and async read paths can route it.
      */
     private Exception mapReadFailure(String context, Throwable cause) {
         if (cause instanceof S3Exception s3 && ExternalUnavailableException.isRetryableStatus(s3.statusCode())) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(s3.statusCode());
+            long retryAfterMs = 0L;
+            if (throttling && s3.awsErrorDetails() != null && s3.awsErrorDetails().sdkHttpResponse() != null) {
+                retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
+                    s3.awsErrorDetails().sdkHttpResponse().firstMatchingHeader("Retry-After").orElse(null)
+                );
+            }
             return new ExternalUnavailableException(
                 throttling,
+                retryAfterMs,
                 cause,
                 "S3 store unavailable reading [{}] (HTTP {})",
                 path,
                 s3.statusCode()
             );
         }
+        if (cause instanceof S3Exception denied && denied.statusCode() == 403) {
+            // Follows the listing-403 wording in S3StorageProvider: name what was refused, then what to change.
+            // The read path cannot say which credential is wrong -- S3 answers a bad key and an anonymous request
+            // against an authenticated bucket with the same 403 -- so it names both remedies.
+            return new IOException(
+                "Access denied reading ["
+                    + path
+                    + "] ("
+                    + S3FailureDetail.of(denied)
+                    + "). Verify the access_key and secret_key configured on the data source, "
+                    + "or set auth=anonymous if the bucket is public.",
+                cause
+            );
+        }
         if (cause instanceof NoSuchKeyException) {
             return new IOException("Object not found: " + path, cause);
         }
+        if (isClosedClient(cause)) {
+            return new ExternalUnavailableException(
+                false,
+                cause,
+                "S3 client unavailable reading [{}]: {}",
+                path,
+                S3FailureDetail.of(cause)
+            );
+        }
+        if (cause instanceof IllegalStateException ise) {
+            return ise;
+        }
         return new IOException(context + " " + path + ": " + S3FailureDetail.of(cause), cause);
+    }
+
+    private static boolean isClosedClient(Throwable cause) {
+        Throwable current = cause;
+        for (int depth = 0; depth < MAX_CAUSE_DEPTH && current != null; depth++) {
+            if (current instanceof IllegalStateException) {
+                String message = current.getMessage();
+                if (message != null) {
+                    String lower = message.toLowerCase(Locale.ROOT);
+                    if (lower.contains("pool shut down") || lower.contains("client is closed")) {
+                        return true;
+                    }
+                }
+            }
+            Throwable next = current.getCause();
+            if (next == null || next == current) {
+                break;
+            }
+            current = next;
+        }
+        return false;
     }
 
     /**
@@ -297,6 +361,8 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             } else {
                 fetchMetadataViaHead();
             }
+        } catch (Exception e) {
+            throw throwReadFailure("Failed to read object metadata for", e);
         }
     }
 
@@ -314,7 +380,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
                 fetchMetadataViaRangeGet();
             } else {
-                throw new IOException("HeadObject request failed for " + path + ": " + S3FailureDetail.of(e), e);
+                throw throwReadFailure("HeadObject request failed for", e);
             }
         }
     }
@@ -340,10 +406,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (e instanceof NoSuchKeyException) {
                 setNotFound();
             } else {
-                throw new IOException(
-                    "Failed to get metadata for " + path + " (HEAD denied, range GET also failed): " + S3FailureDetail.of(e),
-                    e
-                );
+                throw throwReadFailure("Failed to get metadata for", e);
             }
         }
     }
@@ -370,25 +433,40 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (s3AsyncClient == null) {
+            // Must call super.readBytesAsync (the StorageObject default via AbstractMeteredStorageObject),
+            // not super.startReadBytesAsync: this class's readBytesAsync delegates here, so the default
+            // start would recurse until the stack overflows. StorageObject.super is illegal here because
+            // this class does not implement StorageObject directly.
             super.readBytesAsync(position, length, factory, executor, listener);
-            return;
+            return () -> {};
         }
 
         if (position < 0) {
             listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
-            return;
+            return () -> {};
         }
         if (length <= 0) {
             listener.onFailure(new IllegalArgumentException("length must be positive, got: " + length));
-            return;
+            return () -> {};
         }
         if (length > Integer.MAX_VALUE) {
-            // The async path materializes the response into a single direct ByteBuffer; ranges larger than 2 GiB
+            // The async path materializes the response into a single ByteBuffer; ranges larger than 2 GiB
             // are not supportable here. Callers needing larger reads must split the range or fall
             // back to the streaming sync path via newStream(position, length).
             listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
-            return;
+            return () -> {};
         }
 
         long endPosition = position + length - 1;
@@ -397,7 +475,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
 
         // Use a custom transformer instead of AsyncResponseTransformer.toBytes() so each chunk is
-        // copied straight into a pre-sized direct ByteBuffer (single chunk-to-destination copy),
+        // copied straight into a pre-sized destination ByteBuffer (single chunk-to-destination copy),
         // rather than the SDK's default BAOS-based pipeline which materializes the body 3+ times.
         // See KnownLengthAsyncResponseTransformer for the full rationale.
         long startNanos = System.nanoTime();
@@ -405,7 +483,8 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             (int) length,
             factory
         );
-        onReadComplete(s3AsyncClient.getObject(request, transformer), (buffer, throwable) -> {
+        var sdkFuture = s3AsyncClient.getObject(request, transformer);
+        onReadComplete(sdkFuture, (buffer, throwable) -> {
             if (throwable != null) {
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
                 Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
@@ -428,6 +507,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
             deliverRead(listener, buffer, startNanos);
         });
+        return () -> FutureUtils.cancel(sdkFuture);
     }
 
     @Override

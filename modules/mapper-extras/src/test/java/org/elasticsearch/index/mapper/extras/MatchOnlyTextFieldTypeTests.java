@@ -61,9 +61,9 @@ import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesAutomatonQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
-import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
@@ -628,10 +628,10 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         // SortedSet DV, case-insensitive: script-backed query
         assertThat(sortedSet.wildcardQuery("foo*", null, true, MOCK_CONTEXT), Matchers.instanceOf(StringScriptFieldWildcardQuery.class));
 
-        // Binary DV: ScanningBinaryDocValuesWildcardQuery
+        // Binary DV: ScanningBinaryDocValuesAutomatonQuery
         assertThat(
             binary.wildcardQuery("foo*", null, false, MOCK_CONTEXT),
-            Matchers.instanceOf(ScanningBinaryDocValuesWildcardQuery.class)
+            Matchers.instanceOf(ScanningBinaryDocValuesAutomatonQuery.class)
         );
 
         // Doc-values only, expensive queries disabled

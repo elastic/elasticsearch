@@ -146,13 +146,13 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         for (int i = 0; i < IndexBalanceMetricsComputer.BUCKET_DEFINITIONS.length; i++) {
             final int bucket = i;
             final var label = IndexBalanceMetricsComputer.BUCKET_DEFINITIONS[i].label();
-            meterRegistry.registerLongsGauge(
+            meterRegistry.registerLongsAsyncGauge(
                 primaryMetricNames[i],
                 "Number of indices with " + label + " primary shard imbalance",
                 "{index}",
                 () -> publishIfNotEmpty(executorNodeTask, true, bucket)
             );
-            meterRegistry.registerLongsGauge(
+            meterRegistry.registerLongsAsyncGauge(
                 replicaMetricNames[i],
                 "Number of indices with " + label + " replica shard imbalance",
                 "{index}",

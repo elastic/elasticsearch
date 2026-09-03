@@ -21,7 +21,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -83,7 +83,7 @@ import java.util.concurrent.TimeUnit;
 public class ScriptScoreBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private final ScriptModule scriptModule = loadScriptModule();
@@ -115,7 +115,7 @@ public class ScriptScoreBenchmark {
         fieldTypes::get,
         (mft, lookup, fdo) -> mft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "benchmark"))
             .build(fieldDataCache, breakerService),
-        SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+        SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP, null)
     );
 
     @Param({ "expression", "metal", "painless_cast", "painless_def" })

@@ -439,16 +439,13 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             storageService.get(),
                             bigArrays,
                             randomIntBetween(1, 8) * 1024,
+                            ByteSizeUnit.MB.toBytes(1),
+                            ByteSizeValue.ofMb(1).getBytes(),
                             BackoffPolicy.noBackoff(),
                             this.statsCollector(),
                             null,
                             null
-                        ) {
-                            @Override
-                            long getLargeBlobThresholdInBytes() {
-                                return ByteSizeUnit.MB.toBytes(1);
-                            }
-                        };
+                        );
                     }
                 }
             );

@@ -96,19 +96,6 @@ public final class IndicesRequestCache implements Closeable {
     }
 
     /**
-     * Get or compute a cache entry without cancellation support (backward compatible).
-     */
-    BytesReference getOrCompute(
-        CacheEntity cacheEntity,
-        CheckedSupplier<BytesReference, IOException> loader,
-        MappingLookup.CacheKey mappingCacheKey,
-        DirectoryReader reader,
-        BytesReference cacheKey
-    ) throws Exception {
-        return getOrCompute(cacheEntity, loader, mappingCacheKey, reader, cacheKey, null);
-    }
-
-    /**
      * Get or compute a cache entry with cancellation support.
      *
      * @param cacheEntity           the cache entity

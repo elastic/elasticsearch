@@ -19,7 +19,9 @@ import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.simdvec.internal.ESDefaultFlatVectorScorer;
+import org.elasticsearch.simdvec.internal.vectorization.BBQDotProduct;
 import org.elasticsearch.simdvec.internal.vectorization.DefaultES93BinaryQuantizedVectorScorer;
+import org.elasticsearch.simdvec.internal.vectorization.ESNextAshBBQVectorsScorer;
 
 import java.util.Optional;
 
@@ -54,6 +56,16 @@ final class DefaultVectorScorerFactory implements VectorScorerFactory {
     }
 
     @Override
+    public AshScorer<float[]> newESNextAshFloatVectorsScorer(IndexInput input, int nDims, int bitsPerDim) {
+        return ESNextAshVectorsScorer.createFloat(input, nDims, bitsPerDim);
+    }
+
+    @Override
+    public AshScorer<byte[]> newESNextAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim) {
+        return new ESNextAshBBQVectorsScorer(BBQDotProduct.create(input, nDims, bitsPerDim, queryBitsPerDim));
+    }
+
+    @Override
     public ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(IndexInput input, int dimension, int vectorLengthInBytes) {
         return new DefaultES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
     }
@@ -61,6 +73,16 @@ final class DefaultVectorScorerFactory implements VectorScorerFactory {
     @Override
     public FlatVectorsScorer newFlatVectorsScorer() {
         return new ESDefaultFlatVectorScorer();
+    }
+
+    @Override
+    public OptimizedScalarQuantization newOptimizedScalarQuantization() {
+        return new OptimizedScalarQuantization();
+    }
+
+    @Override
+    public AshSphericalScalarQuantizer newAshSphericalScalarQuantizer(int bitsPerDim) {
+        return new AshSphericalScalarQuantizer(bitsPerDim);
     }
 
     @Override

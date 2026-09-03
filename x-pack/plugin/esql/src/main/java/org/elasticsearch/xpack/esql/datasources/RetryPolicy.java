@@ -20,21 +20,28 @@ import java.net.ConnectException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
+import java.util.function.LongSupplier;
 
 /**
  * Retry policy with exponential backoff and jitter for transient storage failures.
- * Supports separate retry budgets for throttling errors (429/503/SlowDown) versus
+ * Supports separate retry semantics for throttling errors (429/503/SlowDown) versus
  * other transient errors (connection reset, socket timeout).
  * <p>
- * Throttling errors are expected under high parallelism and are always transient,
- * so they get a higher retry budget (default 10) with longer backoff delays.
- * Non-throttle transient errors use the standard budget (default 3).
+ * <b>Throttle arm:</b> governed by a wall-clock time budget
+ * ({@code esql.external.throttle_max_retry_duration}, default 30 s). Within the budget the
+ * delay is either the server-supplied {@code Retry-After} hint (when the exception carries one) or the
+ * computed exponential backoff, truncated to the remaining budget so the sleep never overshoots.
+ * {@link #THROTTLE_RETRIES_SANITY_CAP} is a safety backstop; under typical cloud-provider
+ * behaviour the time budget is the effective bound. When the budget is disabled
+ * ({@code esql.external.throttle_max_retry_duration=0}), {@code StorageProviderRegistry} caps
+ * throttle retries at 10, so the worst-case delay is 10 × {@link #DEFAULT_THROTTLE_MAX_DELAY_MS}
+ * (≈5 min) rather than hours.
  * <p>
- * Optionally integrates with {@link AdaptiveBackoff} to scale throttle retry delays
- * based on the global throttling pressure observed across all requests on the same provider.
+ * <b>Non-throttle transient arm:</b> bounded by attempt count (default {@link #DEFAULT_MAX_RETRIES})
+ * with an optional secondary time budget check — semantics unchanged from the original design.
  * <p>
- * A total duration budget can also be applied to cap the cumulative time spent retrying,
- * regardless of remaining attempt count.
+ * Optionally integrates with {@link AdaptiveBackoff} to scale throttle retry delays based on
+ * the global throttling pressure observed across all requests on the same provider.
  */
 class RetryPolicy {
 
@@ -44,7 +51,13 @@ class RetryPolicy {
     static final long DEFAULT_INITIAL_DELAY_MS = 200;
     static final long DEFAULT_MAX_DELAY_MS = 5000;
 
-    static final int DEFAULT_THROTTLE_MAX_RETRIES = 10;
+    /**
+     * Sanity backstop on the number of throttle retries — guards against an infinite loop when the clock
+     * is broken or Retry-After hints are unexpectedly small. Under typical cloud-provider behaviour
+     * (Retry-After ≥ 1 s or exponential back-off from the 500 ms default), the time budget is reached
+     * well before this cap.
+     */
+    static final int THROTTLE_RETRIES_SANITY_CAP = 500;
     static final long DEFAULT_THROTTLE_INITIAL_DELAY_MS = 500;
     static final long DEFAULT_THROTTLE_MAX_DELAY_MS = 30_000;
 
@@ -56,7 +69,7 @@ class RetryPolicy {
         DEFAULT_MAX_RETRIES,
         DEFAULT_INITIAL_DELAY_MS,
         DEFAULT_MAX_DELAY_MS,
-        DEFAULT_THROTTLE_MAX_RETRIES,
+        THROTTLE_RETRIES_SANITY_CAP,
         DEFAULT_THROTTLE_INITIAL_DELAY_MS,
         DEFAULT_THROTTLE_MAX_DELAY_MS,
         NO_BUDGET,
@@ -71,6 +84,7 @@ class RetryPolicy {
     private final long throttleMaxDelayMs;
     private final long maxTotalDurationMs;
     private final AdaptiveBackoff adaptiveBackoff;
+    private final LongSupplier clockNanos;
 
     RetryPolicy(
         int maxRetries,
@@ -82,6 +96,30 @@ class RetryPolicy {
         long maxTotalDurationMs,
         AdaptiveBackoff adaptiveBackoff
     ) {
+        this(
+            maxRetries,
+            initialDelayMs,
+            maxDelayMs,
+            throttleMaxRetries,
+            throttleInitialDelayMs,
+            throttleMaxDelayMs,
+            maxTotalDurationMs,
+            adaptiveBackoff,
+            null
+        );
+    }
+
+    private RetryPolicy(
+        int maxRetries,
+        long initialDelayMs,
+        long maxDelayMs,
+        int throttleMaxRetries,
+        long throttleInitialDelayMs,
+        long throttleMaxDelayMs,
+        long maxTotalDurationMs,
+        AdaptiveBackoff adaptiveBackoff,
+        LongSupplier clockNanos
+    ) {
         this.maxRetries = maxRetries;
         this.initialDelayMs = initialDelayMs;
         this.maxDelayMs = maxDelayMs;
@@ -90,6 +128,7 @@ class RetryPolicy {
         this.throttleMaxDelayMs = throttleMaxDelayMs;
         this.maxTotalDurationMs = maxTotalDurationMs;
         this.adaptiveBackoff = adaptiveBackoff;
+        this.clockNanos = clockNanos != null ? clockNanos : System::nanoTime;
     }
 
     RetryPolicy(int maxRetries, long initialDelayMs, long maxDelayMs) {
@@ -102,8 +141,8 @@ class RetryPolicy {
 
     /**
      * Returns a new policy with the same retry parameters but constrained by a total duration budget.
-     * When the elapsed time plus the next delay would exceed the budget, the operation fails immediately
-     * rather than sleeping and retrying.
+     * For the throttle arm the budget is the primary bound: the delay is truncated to the remaining budget
+     * rather than causing a refusal, so the budget is genuinely spent before giving up.
      */
     RetryPolicy withTotalDurationBudget(long budgetMs) {
         return new RetryPolicy(
@@ -114,7 +153,8 @@ class RetryPolicy {
             throttleInitialDelayMs,
             throttleMaxDelayMs,
             budgetMs,
-            adaptiveBackoff
+            adaptiveBackoff,
+            clockNanos
         );
     }
 
@@ -127,7 +167,8 @@ class RetryPolicy {
             throttleInitialDelayMs,
             throttleMaxDelayMs,
             maxTotalDurationMs,
-            backoff
+            backoff,
+            clockNanos
         );
     }
 
@@ -140,7 +181,23 @@ class RetryPolicy {
             throttleInitialMs,
             throttleMaxMs,
             maxTotalDurationMs,
-            adaptiveBackoff
+            adaptiveBackoff,
+            clockNanos
+        );
+    }
+
+    /** Returns a new policy that uses the given clock supplier instead of {@code System::nanoTime}. For testing only. */
+    RetryPolicy withClock(LongSupplier clock) {
+        return new RetryPolicy(
+            maxRetries,
+            initialDelayMs,
+            maxDelayMs,
+            throttleMaxRetries,
+            throttleInitialDelayMs,
+            throttleMaxDelayMs,
+            maxTotalDurationMs,
+            adaptiveBackoff,
+            clock
         );
     }
 
@@ -163,7 +220,9 @@ class RetryPolicy {
         long effectiveInitial = isThrottle ? throttleInitialDelayMs : initialDelayMs;
         long effectiveMax = isThrottle ? throttleMaxDelayMs : maxDelayMs;
 
-        long baseDelay = effectiveInitial * (1L << attempt);
+        long shift = Math.min(attempt, 62); // 1L<<63 == Long.MIN_VALUE; cap to 62
+        long baseDelay = effectiveInitial * (1L << shift);
+        if (baseDelay <= 0) baseDelay = Long.MAX_VALUE; // overflow guard (wraps negative or zero at shift=62)
         long capped = Math.min(baseDelay, effectiveMax);
         long jitter = Randomness.get().nextLong(capped / 4 + 1);
         long delay = Math.min(effectiveMax, capped + jitter);
@@ -209,29 +268,81 @@ class RetryPolicy {
 
     /**
      * The shared retry decision used by every retry driver — sync {@link #execute}, async reads, and the
-     * mid-read resume. Classifies the fault, applies the throttle-vs-normal budget against {@code attempt}
-     * (retries already made), feeds the adaptive backoff on a throttle, and checks the total-time budget against
-     * {@code startNanos}. Returns the backoff to wait before retrying, or {@link RetryDecision#GIVE_UP}. Having
-     * one decision point keeps every driver's classification/budget/backoff identical (the throttle signal that
-     * used to drift between hand-rolled loops cannot diverge here).
+     * mid-read resume. Classifies the fault, applies the appropriate bound against {@code attempt}
+     * (retries already made), feeds the adaptive backoff on a throttle, and checks the time budget against
+     * {@code startNanos}. Returns the backoff to wait before retrying, or {@link RetryDecision#GIVE_UP}.
+     * Having one decision point keeps every driver's classification/budget/backoff identical.
+     * <p>
+     * <b>Throttle arm:</b> the time budget is the primary bound. The delay is truncated to the remaining
+     * budget rather than causing a refusal, so the budget is genuinely spent before giving up. When the
+     * exception carries a server-supplied {@code Retry-After} hint, that hint is used as the delay; if it
+     * exceeds the remaining budget the operation gives up immediately (retrying before the store's stated
+     * wait is spam, not resilience). {@link #throttleMaxRetries} acts as a sanity cap only.
+     * <p>
+     * <b>Non-throttle arm:</b> attempt count is the primary bound; the time budget is a secondary check.
      */
     RetryDecision decide(Throwable e, int attempt, long startNanos) {
         boolean isThrottle = isThrottlingError(e);
         boolean isTransient = isThrottle || isTransientStorageError(e);
-        int effectiveMaxRetries = isThrottle ? throttleMaxRetries : maxRetries;
-        if (isTransient == false || attempt >= effectiveMaxRetries) {
+        if (isTransient == false) {
             return RetryDecision.GIVE_UP;
         }
-        long delay = delayMillis(attempt, isThrottle);
-        if (maxTotalDurationMs > 0 && (System.nanoTime() - startNanos) / 1_000_000 + delay > maxTotalDurationMs) {
-            return RetryDecision.GIVE_UP;
+
+        if (isThrottle) {
+            // Throttle arm: budget-governed; attempt count is a sanity backstop only.
+            if (attempt >= throttleMaxRetries) {
+                return RetryDecision.GIVE_UP;
+            }
+            long retryAfterMs = retryAfterMsFromChain(e);
+            long elapsedMs = (clockNanos.getAsLong() - startNanos) / 1_000_000;
+
+            long delay;
+            if (retryAfterMs > 0) {
+                // Honor the server's hint, capped at our maximum configured delay so a broken server cannot
+                // cause an unbounded sleep. If the capped hint still exceeds the remaining budget, give up:
+                // retrying before the store's stated wait is spam, not resilience.
+                long cappedHint = Math.min(retryAfterMs, throttleMaxDelayMs);
+                if (maxTotalDurationMs > 0 && elapsedMs + cappedHint > maxTotalDurationMs) {
+                    return RetryDecision.GIVE_UP;
+                }
+                delay = cappedHint;
+            } else {
+                long computed = delayMillis(attempt, true);
+                if (maxTotalDurationMs > 0) {
+                    long remainingMs = maxTotalDurationMs - elapsedMs;
+                    if (remainingMs < throttleInitialDelayMs) {
+                        // Remaining budget is less than the minimum meaningful retry sleep. Starting
+                        // another attempt only to truncate the delay to near-zero is wasteful; treat the
+                        // budget as spent. The hint path uses a tighter test (hint > remaining) because
+                        // the server told us exactly how long to wait — a partial hint is useless.
+                        return RetryDecision.GIVE_UP;
+                    }
+                    // Truncate to remaining budget so the sleep never overshoots.
+                    delay = Math.min(computed, remainingMs);
+                } else {
+                    delay = computed;
+                }
+            }
+
+            // Feed the cross-request adaptive backoff only once we've committed to retrying.
+            // Intentionally fires for hint-guided retries too: the multiplier accumulates across
+            // both paths so sustained throttling always increases computed delays, even when the
+            // current delay came from a Retry-After hint rather than the exponential schedule.
+            if (adaptiveBackoff != null) {
+                adaptiveBackoff.onThrottled();
+            }
+            return new RetryDecision(true, delay);
+        } else {
+            // Non-throttle transient arm: attempt count is the effective bound.
+            if (attempt >= maxRetries) {
+                return RetryDecision.GIVE_UP;
+            }
+            long delay = delayMillis(attempt, false);
+            if (maxTotalDurationMs > 0 && (clockNanos.getAsLong() - startNanos) / 1_000_000 + delay > maxTotalDurationMs) {
+                return RetryDecision.GIVE_UP;
+            }
+            return new RetryDecision(true, delay);
         }
-        // Feed the cross-request adaptive backoff only once we've committed to retrying — no point ramping it
-        // when we're about to give up on the budget or the time limit.
-        if (isThrottle && adaptiveBackoff != null) {
-            adaptiveBackoff.onThrottled();
-        }
-        return new RetryDecision(true, delay);
     }
 
     <T> T execute(IOSupplier<T> operation, String operationName, StoragePath path) throws IOException {
@@ -271,7 +382,7 @@ class RetryPolicy {
                 throw e;
             }
         }
-        long startNanos = System.nanoTime();
+        long startNanos = clockNanos.getAsLong();
         long totalBackoffMillis = 0;
         int maxAttempts = Math.max(maxRetries, throttleMaxRetries);
         for (int attempt = 0; attempt <= maxAttempts; attempt++) {
@@ -321,6 +432,16 @@ class RetryPolicy {
         if (adaptiveBackoff != null) {
             adaptiveBackoff.onSuccess();
         }
+    }
+
+    /** Walks the cause chain to extract a server-supplied {@code Retry-After} hint, mirroring {@link #isThrottlingError}. */
+    private static long retryAfterMsFromChain(Throwable e) {
+        for (Throwable current = e; current != null; current = current.getCause()) {
+            if (current instanceof ExternalUnavailableException eue && eue.retryAfterMs() > 0) {
+                return eue.retryAfterMs();
+            }
+        }
+        return 0L;
     }
 
     static boolean isThrottlingError(Throwable t) {

@@ -120,10 +120,11 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
                         // A scalar becomes its own leaf column and must match the full pattern; an object or array can flatten to dotted
                         // descendant leaves the coordinator filters per name, so it ships leniently (see objectSubfieldsCouldMatch).
                         Object value = entry.getValue();
-                        boolean keep = value instanceof Map || value instanceof List
+                        boolean matched = value instanceof Map || value instanceof List
                             ? pattern.objectSubfieldsCouldMatch(entry.getKey())
-                            : pattern.matches(entry.getKey()) && prune(entry.getValue());
-                        if (keep) {
+                            : pattern.matches(entry.getKey());
+                        // The pattern decides whether the key is wanted; prune decides whether what is under it says anything at all.
+                        if (matched && prune(value)) {
                             anyMatch = true;
                             json.field(entry.getKey(), value);
                         }

@@ -114,6 +114,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 result,
                 unmappedIdx,
                 expandedFieldNames,
+                layout.schema(),
                 layout.blockOrder(),
                 blockFactory,
                 reservationFactor
@@ -292,6 +293,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
         Result result,
         int unmappedIdx,
         List<String> expandedFieldsNames,
+        List<Attribute> newSchema,
         int[] blockOrder,
         BlockFactory factory,
         double reservationFactor
@@ -306,7 +308,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
                     rewritePage(unmappedIdx, keep, expandedFieldsNames, blockOrder, originalColumnCount, factory, p, reservationFactor)
                 );
             }
-            assert assertNoAllNullExpandedColumn(newPages, newSchema, fieldNames);
+            assert assertNoAllNullExpandedColumn(newPages, newSchema, expandedFieldsNames);
             success = true;
             return newPages;
         } finally {
@@ -322,8 +324,8 @@ public final class ExpandUnmappedFieldsPostProcessor {
      * row.
      * <p>
      * Only the expanded columns are checked: a retained column can legitimately be all null, e.g. {@code KEEP field_absent_everywhere}
-     * resolves to a {@code null} literal. They are found by name in {@code newSchema}, which {@link #buildSchema} keeps in step with
-     * the blocks {@link #rewritePage} lays out - a name is unambiguous because {@code buildSchema} rejects a field name that collides
+     * resolves to a {@code null} literal. They are found by name in {@code newSchema}, which {@link #computeLayout} keeps in step with
+     * the blocks {@link #rewritePage} lays out - a name is unambiguous because {@code computeLayout} rejects a field name that collides
      * with a query column.
      *
      * @return {@code true}, so this can be called from an {@code assert} and skipped entirely in production
@@ -451,10 +453,9 @@ public final class ExpandUnmappedFieldsPostProcessor {
             } else if (valueScratch.size() == 1) {
                 builders[i].appendBytesRef(valueScratch.get(0));
             } else {
-                assert assertPruned(fieldNames.get(i), value);
                 builders[i].beginPositionEntry();
-                for (BytesRef value : valueScratch) {
-                    builders[i].appendBytesRef(value);
+                for (BytesRef scratched : valueScratch) {
+                    builders[i].appendBytesRef(scratched);
                 }
                 builders[i].endPositionEntry();
             }
@@ -503,6 +504,9 @@ public final class ExpandUnmappedFieldsPostProcessor {
     private static void collectLeaves(String prefix, Map<?, ?> map, BiConsumer<String, Object> sink) {
         for (Map.Entry<?, ?> entry : map.entrySet()) {
             String name = prefix.isEmpty() ? String.valueOf(entry.getKey()) : prefix + "." + entry.getKey();
+            // Top level only: the block loader prunes whole _source keys, so that is the granularity its promise is made at. A bare
+            // null is left to assertNoAllNullExpandedColumn, which reports it as the all-null column it actually becomes.
+            assert prefix.isEmpty() == false || entry.getValue() == null || assertPruned(name, entry.getValue());
             collectValue(name, entry.getValue(), sink);
         }
     }

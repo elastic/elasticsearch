@@ -372,7 +372,7 @@ public class ViewResolver {
                 );
                 default -> planListener.onResponse(p);
             }
-        }, listener);
+        }, executor, listener);
     }
 
     private void replaceViewsFork(

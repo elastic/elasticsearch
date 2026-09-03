@@ -982,7 +982,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testOnFailureIgnoreMultiFieldStillReceivesRejectedValue() throws Exception {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> {
             b.startObject("field");
@@ -1024,7 +1023,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * parent's {@code multi_value: false} does not override it.
      */
     public void testOnFailureIgnoreMultiFieldWithExplicitMultiValueTrueKeepsBothValues() throws Exception {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> {
             b.startObject("field");
@@ -1073,7 +1071,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * sub-field are recorded in {@code _ignored}.
      */
     public void testOnFailureIgnoreMultiFieldWithOwnConstraintRedirectsIndependently() throws Exception {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> {
             b.startObject("field");
@@ -1123,7 +1120,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * setting is evaluated independently.
      */
     public void testMultiFieldOnFailureFailRejectsDocumentEvenWhenParentIgnores() throws Exception {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> {
             b.startObject("field");
@@ -1166,7 +1162,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * included. This is the one path where a sub-field picks up the constraint without explicitly naming it.
      */
     public void testIndexLevelMultiValueAndOnFailureSettingsApplyToMultiFields() throws Exception {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)

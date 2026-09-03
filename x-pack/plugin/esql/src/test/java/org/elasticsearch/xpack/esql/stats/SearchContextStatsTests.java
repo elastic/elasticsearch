@@ -480,6 +480,72 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         }
     }
 
+    /**
+     * Reproduces the mixed-index-mapping bug reported in review: when a query spans two indices
+     * where the same field has different storage characteristics — points in one, doc-values skipper
+     * in the other — {@code isSingleValue} picks the {@code MappedFieldType} from the first mapped
+     * context (points) and applies its tester to <em>all</em> leaf readers via {@code doWithContexts}.
+     * For the skipper-backed leaves, {@code getPointValues(name)} returns {@code null}, which the
+     * points tester misreads as "field absent → single-valued". The result is a false positive even
+     * though the skipper-backed index contains multi-valued documents.
+     */
+    public void testMixedIndexMappingPointsVsSkipperIsNotFalselyDetectedAsSingleValued() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final List<SearchExecutionContext> contexts = new ArrayList<>();
+        final List<Closeable> toClose = new ArrayList<>();
+
+        try {
+            // Index A: standard long with a points index (hasPoints=true, hasDocValuesSkipper=false).
+            // Placed first so its MappedFieldType is picked by the contexts loop.
+            final MapperService mapperServiceA = mapperHelper.createMapperService("""
+                { "doc": { "properties": { "n": { "type": "long" } } } }""");
+            final Directory dirA = newDirectory();
+            final IndexReader readerA;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dirA)) {
+                writer.addDocument(List.of(new LongField("n", 1L, Field.Store.NO)));
+                writer.forceMerge(1);
+                readerA = writer.getReader();
+            }
+            toClose.add(readerA);
+            toClose.add(mapperServiceA);
+            toClose.add(dirA);
+            contexts.add(mapperHelper.createSearchExecutionContext(mapperServiceA, newSearcher(readerA)));
+
+            // Index B: long field backed by a doc-values skipper (index:false + USE_DOC_VALUES_SKIPPER),
+            // with at least one multi-valued document.
+            final Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+            final MapperService mapperServiceB = createMapperService(settings, """
+                { "doc": { "properties": { "n": { "type": "long", "index": false } } } }""");
+            final Directory dirB = newDirectory();
+            final IndexReader readerB;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dirB)) {
+                writer.addDocument(
+                    List.of(SortedNumericDocValuesField.indexedField("n", 1L), SortedNumericDocValuesField.indexedField("n", 2L))
+                );
+                writer.addDocument(List.of(SortedNumericDocValuesField.indexedField("n", 3L)));
+                writer.forceMerge(1);
+                readerB = writer.getReader();
+            }
+            toClose.add(readerB);
+            toClose.add(mapperServiceB);
+            toClose.add(dirB);
+            contexts.add(createSearchExecutionContext(mapperServiceB, newSearcher(readerB)));
+
+            // Confirm the structural premise: index B has a skipper but no points for "n".
+            LeafReader leafB = ((DirectoryReader) readerB).leaves().get(0).reader();
+            assertNotNull("index B must have a DocValuesSkipper for 'n'", leafB.getDocValuesSkipper("n"));
+            assertNull("index B must have no PointValues for 'n'", leafB.getPointValues("n"));
+
+            final SearchStats stats = SearchContextStats.from(contexts);
+            assertFalse(
+                "'n' is multi-valued in index B — must not be reported as single-valued across mixed-mapping indices",
+                stats.isSingleValue(new FieldAttribute.FieldName("n"))
+            );
+        } finally {
+            IOUtils.close(toClose);
+        }
+    }
+
     @After
     public void cleanup() throws IOException {
         IOUtils.close(readers);

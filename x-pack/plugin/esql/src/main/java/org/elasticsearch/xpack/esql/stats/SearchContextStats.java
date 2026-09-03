@@ -354,16 +354,25 @@ public class SearchContextStats implements SearchStats {
             } else {
                 // fields are MV per default
                 var sv = new boolean[] { false };
-                for (SearchExecutionContext context : contexts) {
-                    MappedFieldType mappedType = context.isFieldMapped(fieldName) ? context.getFieldType(fieldName) : null;
-                    if (mappedType != null) {
+                try {
+                    for (SearchExecutionContext context : contexts) {
+                        MappedFieldType mappedType = context.isFieldMapped(fieldName) ? context.getFieldType(fieldName) : null;
+                        if (mappedType == null) {
+                            continue;
+                        }
                         sv[0] = true;
-                        doWithContexts(r -> {
-                            sv[0] &= detectSingleValue(r, mappedType, fieldName);
-                            return sv[0];
-                        }, true);
-                        break;
+                        for (LeafReaderContext leafCtx : context.searcher().getLeafContexts()) {
+                            if (detectSingleValue(leafCtx.reader(), mappedType, fieldName) == false) {
+                                sv[0] = false;
+                                break;
+                            }
+                        }
+                        if (sv[0] == false) {
+                            break;
+                        }
                     }
+                } catch (IOException ex) {
+                    throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
                 }
                 stat.singleValue = sv[0];
             }

@@ -615,7 +615,7 @@ public final class GlobExpander {
      * ({@link #doExpandCommaSeparated}) and the identity that names its result ({@link #effectiveWholePathPattern}),
      * so the two cannot disagree on which segments a path has.
      */
-    private static List<String> commaSegments(String pathList) {
+    public static List<String> commaSegments(String pathList) {
         String[] raw = pathList.split(",");
         List<String> segments = new ArrayList<>(raw.length);
         for (String segment : raw) {

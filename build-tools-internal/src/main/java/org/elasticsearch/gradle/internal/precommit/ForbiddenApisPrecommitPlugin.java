@@ -105,13 +105,17 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                 }
                 // HC5 entity signatures only apply when httpcore5 is on the classpath
                 t.setSignaturesFiles(
-                    t.getSignaturesFiles().plus(
-                        project.files(
-                            (Callable<List<File>>) () -> t.getClasspath().getFiles().stream().anyMatch(f -> f.getName().matches("httpcore5-.*\\.jar"))
-                                ? List.of(resourcesDir.toPath().resolve("forbidden/http-signatures-hc5.txt").toFile())
-                                : List.of()
+                    t.getSignaturesFiles()
+                        .plus(
+                            project.files(
+                                (Callable<List<File>>) () -> t.getClasspath()
+                                    .getFiles()
+                                    .stream()
+                                    .anyMatch(f -> f.getName().matches("httpcore5-.*\\.jar"))
+                                        ? List.of(resourcesDir.toPath().resolve("forbidden/http-signatures-hc5.txt").toFile())
+                                        : List.of()
+                            )
                         )
-                    )
                 );
             });
             forbiddenTask.configure(t -> t.dependsOn(sourceSetTask));

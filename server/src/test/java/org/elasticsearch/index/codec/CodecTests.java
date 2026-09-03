@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
@@ -89,18 +90,19 @@ public class CodecTests extends ESTestCase {
 
             // Everything else is inherited from the delegate and must stay identical.
             assertEquals(mode.toString(), lucene.storedFieldsFormat().getClass(), es.storedFieldsFormat().getClass());
-            assertEquals(mode.toString(), lucene.pointsFormat().getClass(), es.pointsFormat().getClass());
             assertEquals(mode.toString(), lucene.termVectorsFormat().getClass(), es.termVectorsFormat().getClass());
             assertEquals(mode.toString(), lucene.normsFormat().getClass(), es.normsFormat().getClass());
             assertEquals(mode.toString(), lucene.segmentInfoFormat().getClass(), es.segmentInfoFormat().getClass());
             assertEquals(mode.toString(), lucene.liveDocsFormat().getClass(), es.liveDocsFormat().getClass());
             assertEquals(mode.toString(), lucene.compoundFormat().getClass(), es.compoundFormat().getClass());
 
-            // The one intended difference.
+            // The intended differences. Both change how a segment is produced or read back, not the bytes on disk:
+            // adaptive points writes Lucene90 point files with data-driven leaf sizes and reads with Lucene's own reader.
             assertThat(
                 es.fieldInfosFormat(),
                 either(instanceOf(CachingFieldInfosFormat.class)).or(instanceOf(DeduplicatingFieldInfosFormat.class))
             );
+            assertSame(mode.toString(), Elasticsearch900AdaptivePointsFormat.INSTANCE, es.pointsFormat());
         }
     }
 
@@ -110,6 +112,29 @@ public class CodecTests extends ESTestCase {
      * Elasticsearch name it reached neither format, so segments shared nothing at all — this half of the fix is invisible to the test
      * above, which requires the flag.
      */
+    /**
+     * Adaptive points only changes how BKD leaves are sized while writing; the files are Lucene90 point files and the reader is
+     * Lucene's own. Segments written with it therefore have to stay queryable.
+     */
+    public void testAdaptivePointsSegmentsStayQueryable() throws Exception {
+        Codec codec = createCodecService().codec(CodecService.DEFAULT_CODEC);
+        assertSame(Elasticsearch900AdaptivePointsFormat.INSTANCE, codec.pointsFormat());
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setCodec(codec))) {
+                for (int i = 0; i < 200; i++) {
+                    Document doc = new Document();
+                    doc.add(new IntField("int_field", i, Field.Store.NO));
+                    w.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                assertEquals(200, searcher.count(IntField.newRangeQuery("int_field", 0, 199)));
+                assertEquals(10, searcher.count(IntField.newRangeQuery("int_field", 5, 14)));
+            }
+        }
+    }
+
     public void testDefaultCodecInternsFieldNamesWithoutTheCache() throws Exception {
         assumeFalse("covers the path taken when the per-Directory cache is off", FieldInfoCachingDirectory.FEATURE_FLAG.isEnabled());
         Codec codec = createCodecService().codec(CodecService.DEFAULT_CODEC);

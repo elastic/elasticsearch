@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.PointsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
@@ -72,6 +73,15 @@ public class Elasticsearch96Codec extends CodecService.DeduplicateFieldInfosCode
 
     public Elasticsearch96Codec(Lucene104Codec.Mode mode) {
         super("Elasticsearch96", new Lucene104Codec(mode));
+    }
+
+    /**
+     * Sizes BKD leaves from the data rather than using a fixed maximum. The on-disk format is unchanged and the reader is Lucene's,
+     * so segments written either way are readable by both.
+     */
+    @Override
+    public final PointsFormat pointsFormat() {
+        return Elasticsearch900AdaptivePointsFormat.INSTANCE;
     }
 
     @Override

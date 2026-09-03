@@ -27,6 +27,7 @@ ROW emb_hex = "400000"
 | EVAL dv = to_dense_vector(emb_hex)
 | WHERE knn(dv, [64, 0, 0])
 | KEEP dv
+| LIMIT 10
 ;
 
 dv:dense_vector

@@ -47,7 +47,13 @@ public final class SharedGlobalTopK extends SideChannel {
 
         @Override
         protected SharedGlobalTopK build() {
-            return new SharedGlobalTopK(breaker, topCount, minCompetitive.get(), this);
+            SharedMinCompetitive mc = minCompetitive.get();
+            try {
+                return new SharedGlobalTopK(breaker, topCount, mc, this);
+            } catch (Exception e) {
+                Releasables.closeExpectNoException(mc);
+                throw e;
+            }
         }
     }
 
@@ -90,10 +96,18 @@ public final class SharedGlobalTopK extends SideChannel {
         try {
             for (BytesRef key : newKeys) {
                 TopNRow copy = new TopNRow(breaker, key.length, 0);
-                copy.keys.append(key);
-                TopNRow leftover = globalQueue.addRow(copy);
-                if (leftover != null) {
-                    leftover.close();
+                boolean success = false;
+                try {
+                    copy.keys.append(key);
+                    TopNRow leftover = globalQueue.addRow(copy);
+                    success = true;
+                    if (leftover != null) {
+                        leftover.close();
+                    }
+                } finally {
+                    if (success == false) {
+                        copy.close();
+                    }
                 }
             }
             return publishIfFull();

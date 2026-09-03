@@ -443,12 +443,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
     // shared across the parallel {@link CsvBatchIterator} segments spawned by {@link #read}.
     private final CsvReaderCounters counters;
     /**
-     * A notice about this reader's own config, raised when the config was parsed and surfaced through
-     * {@link SourceMetadata#warnings()} at resolve time. Not emitted where parsed: config parsing runs on the resolver's
-     * executor and again on every data node, neither of which can reach the client's response headers.
+     * Notices this reader can raise about its own {@code WITH} options (today one: {@code mode: escaped} with a
+     * {@code quote} override, which switches the escaped decode off). They are known when the options are parsed, but
+     * parsing runs on the resolver's executor and again on every data node, and neither can reach the client. So they
+     * are kept here and handed out through {@link SourceMetadata#warnings()} by {@link #metadata}, which the resolver
+     * delivers and caches with the schema. Empty when the options raise nothing.
      */
-    @Nullable
-    private final String configWarning;
+    private final List<String> configWarnings;
     /**
      * ErrorPolicy used by the planning-time {@link #metadata} call (which has no per-query
      * {@link FormatReadContext}). Resolved from the {@code WITH} options in {@link #withConfig}
@@ -514,7 +515,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             true,
             Map.of(),
             false,
-            null
+            List.of()
         );
     }
 
@@ -532,7 +533,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             true,
             Map.of(),
             false,
-            null
+            List.of()
         );
     }
 
@@ -550,7 +551,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             true,
             Map.of(),
             false,
-            null
+            List.of()
         );
     }
 
@@ -567,7 +568,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean directBlockEnabled,
         Map<String, String> declaredDateFormats,
         boolean declaredProvenanceBinding,
-        @Nullable String configWarning
+        List<String> configWarnings
     ) {
         this(
             blockFactory,
@@ -583,7 +584,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             declaredDateFormats,
             declaredProvenanceBinding,
             null,
-            configWarning
+            configWarnings
         );
     }
 
@@ -606,7 +607,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Map<String, String> declaredDateFormats,
         boolean declaredProvenanceBinding,
         CsvReaderCounters sharedCounters,
-        @Nullable String configWarning
+        List<String> configWarnings
     ) {
         this.blockFactory = blockFactory;
         this.options = options;
@@ -621,7 +622,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
         this.declaredProvenanceBinding = declaredProvenanceBinding;
         this.counters = sharedCounters != null ? sharedCounters : new CsvReaderCounters(format);
-        this.configWarning = configWarning;
+        this.configWarnings = List.copyOf(configWarnings);
         this.sharedCsvMapper = createMapper(options);
     }
 
@@ -646,7 +647,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             enabled,
             declaredDateFormats,
             declaredProvenanceBinding,
-            configWarning
+            configWarnings
         );
     }
 
@@ -695,8 +696,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return mapper;
     }
 
-    /** The options a config resolves to ({@code null} when unchanged from the baseline) plus any notice about that config. */
-    private record ParsedOptions(@Nullable CsvFormatOptions options, @Nullable String configWarning) {}
+    /** The options a config resolves to ({@code null} when unchanged from the baseline) plus any notices about that config. */
+    private record ParsedOptions(@Nullable CsvFormatOptions options, List<String> configWarnings) {}
 
     /**
      * Merge {@code WITH} options into {@code baseline} (the reader's current {@link CsvFormatOptions}).
@@ -704,7 +705,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * is overridden.
      */
     private static ParsedOptions parseOptionsFromConfig(Map<String, Object> config, CsvFormatOptions baseline) {
-        String configWarning = null;
+        List<String> configWarnings = new ArrayList<>();
         // `mode` is a named preset over the (quoting, escaping) pair; explicit quote/escape keys then
         // override whatever the preset (or the extension baseline) chose. Overrides always win — we no
         // longer reject an "incoherent" combination, so a resulting silent misread is the user's to own.
@@ -769,10 +770,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // which resolves to (true, true) and hands the escape char to Jackson — so \N/\t are no
             // longer C-style-decoded. The data-driven null-marker warning can't catch this (Jackson
             // rewrites \N to N before the sample is built), so it is decided deterministically here and
-            // surfaced with the metadata (see configWarning).
-            configWarning = "Mode [escaped] with a quote override turns quoting on, which disables the escaped-mode decode "
-                + "(\\N to null, \\t to tab). To keep decoding, do not set quote; "
-                + "keep it to parse quoted fields instead.";
+            // surfaced with the metadata (see configWarnings).
+            configWarnings.add(
+                "Mode [escaped] with a quote override turns quoting on, which disables the escaped-mode decode "
+                    + "(\\N to null, \\t to tab). To keep decoding, do not set quote; "
+                    + "keep it to parse quoted fields instead."
+            );
         }
 
         char delimiter = parseChar(config.get(CONFIG_DELIMITER), baseline.delimiter());
@@ -801,7 +804,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             escaping,
             trimSpaces
         );
-        return new ParsedOptions(merged.equals(baseline) ? null : merged, configWarning);
+        return new ParsedOptions(merged.equals(baseline) ? null : merged, configWarnings);
     }
 
     /** An option counts as user-supplied only when present AND non-empty (empty string = "use the default"). */
@@ -945,7 +948,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
-            configWarning
+            configWarnings
         );
     }
 
@@ -964,7 +967,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
-            configWarning
+            configWarnings
         );
     }
 
@@ -986,7 +989,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             binding,
-            configWarning
+            configWarnings
         );
     }
 
@@ -1117,7 +1120,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             physicalNameToPattern,
             declaredProvenanceBinding,
-            configWarning
+            configWarnings
         );
     }
 
@@ -1143,7 +1146,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             declaredDateFormats,
             declaredProvenanceBinding,
             counters,
-            configWarning
+            configWarnings
         );
     }
 
@@ -1175,7 +1178,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             result.directBlockEnabled,
             result.declaredDateFormats,
             result.declaredProvenanceBinding,
-            parsedOptions.configWarning()
+            parsedOptions.configWarnings()
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
@@ -1185,9 +1188,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // Resolve-time notices ride on the metadata (see SourceMetadata#warnings): this runs on the resolver's executor,
         // where a header is lost, and the resolver replays them from the schema cache so a warm run warns like a cold one.
         List<String> warnings = new ArrayList<>();
-        if (configWarning != null) {
-            warnings.add(configWarning);
-        }
+        warnings.addAll(configWarnings);
         List<Attribute> schema = readSchema(object, warnings::add);
         String location = object.path().toString();
         // mtime required for cache participation; sizeInBytes best-effort (stream-only sources throw from length()).

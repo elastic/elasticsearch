@@ -47,20 +47,6 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
     private final DLMFrozenTransitionExecutor transitionExecutor;
     private final DLMFrozenTransitionSettings transitionSettings;
 
-    /**
-     * Whether a scan has done all the submitting it could since this node became master. Reset on every start of the
-     * service, so that after a master failover it stays {@code false} until the new master has re-submitted the
-     * outstanding marked indices. The health publisher uses it to decide when marked-but-unsubmitted indices are worth
-     * reporting.
-     *
-     * <p>{@link DLMFrozenTransitionPlugin} must keep registering this service as a cluster-state listener before
-     * {@link DLMFrozenTransitionHealthInfoPublisher}. Listeners run in registration order, so that order guarantees
-     * this reset happens before the publisher records the start of the new master's tenure. In the opposite order, a
-     * node that was master before would combine a fresh tenure start with a {@code true} flag left over from the
-     * previous tenure, and report a marked index as stalled for one publish cycle before its first scan.
-     */
-    private volatile boolean completedScanSinceStart = false;
-
     DLMFrozenTransitionService(
         ClusterService clusterService,
         Client client,
@@ -112,7 +98,6 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
 
     @Override
     void onStart() {
-        completedScanSinceStart = false;
         transitionExecutor.start();
     }
 
@@ -121,17 +106,9 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
         transitionExecutor.stop();
     }
 
-    // visible for testing
+    // Visible for testing
     DLMFrozenTransitionExecutor getTransitionExecutor() {
         return transitionExecutor;
-    }
-
-    /**
-     * Has a scan completed since this node became master, submitting all the marked indices it could.
-     * Used by the health indicators to prevent an immediate YELLOW status on master failover
-     */
-    boolean hasCompletedScanSinceStart() {
-        return completedScanSinceStart;
     }
 
     // visible for testing
@@ -173,7 +150,6 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
                     continue;
                 } else if (transitionExecutor.hasCapacity() == false) {
                     logger.debug("No transition threads available. Stopping loop at {}", indexName);
-                    completedScanSinceStart = true;
                     return;
                 }
                 try {
@@ -190,6 +166,5 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
                 }
             }
         }
-        completedScanSinceStart = true;
     }
 }

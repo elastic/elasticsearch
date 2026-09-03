@@ -36,7 +36,7 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.health.node.DlmFrozenTransitionsHealthInfo;
-import org.elasticsearch.health.node.StalledIndices;
+import org.elasticsearch.health.node.DlmFrozenTransitionsHealthInfo.TransitionState;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
@@ -58,8 +58,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -197,18 +196,7 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
         assertThat(info.defaultRepositoryConfigured(), is(true));
     }
 
-    public void testMarkedIndicesCount() {
-        ProjectId projectId = randomProjectIdOrDefault();
-        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
-        addDataStreamWithFrozenLifecycle(projectBuilder, "ds-1", oldIndexTime(), true, TimeValue.timeValueDays(30));
-        addDataStreamWithFrozenLifecycle(projectBuilder, "ds-2", oldIndexTime(), true, TimeValue.timeValueDays(30));
-        setProjectState(projectBuilder);
-
-        DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
-        assertThat(info.markedIndicesCount(), is(2));
-    }
-
-    public void testEligibleUnmarkedIndicesReportedWhenStuckLongerThanThreshold() {
+    public void testOverdueUnmarkedIndexReportedAsUnmarked() {
         ProjectId projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
         String oldIndexName = addDataStreamWithFrozenLifecycle(
@@ -221,25 +209,43 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
         setProjectState(projectBuilder);
 
         DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
-        assertThat(info.eligibleUnmarked().totalCount(), is(1));
-        assertThat(info.eligibleUnmarked().sample().stream().map(i -> i.indexName()).toList(), containsInAnyOrder(oldIndexName));
-        assertThat(info.notStartedMarked(), is(StalledIndices.EMPTY));
-        assertThat(info.queuedMarked(), is(StalledIndices.EMPTY));
+        assertThat(info.totalOverdueIndicesCount(), is(1));
+        assertThat(info.overdueIndices().get(projectId), equalTo(Map.of(oldIndexName, TransitionState.UNMARKED)));
     }
 
-    public void testEligibleUnmarkedIndexNotYetPastThresholdIsNotReported() {
+    public void testEligibleIndexNotYetPastThresholdIsNotReported() {
         ProjectId projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
-        // eligible since (now - 1h) + frozenAfter is far less than the 24h default stuck threshold: barely eligible, not yet stuck
+        // eligible since (now - 1h) + frozenAfter is far less than the 24h default stuck threshold: barely eligible, not yet overdue
         long recentEligibleTime = now.get() - TimeValue.timeValueHours(1).millis();
         addDataStreamWithFrozenLifecycle(projectBuilder, "fresh-ds", recentEligibleTime, false, TimeValue.timeValueSeconds(1));
         setProjectState(projectBuilder);
 
         DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
-        assertThat(info.eligibleUnmarked().totalCount(), is(0));
+        assertThat(info.totalOverdueIndicesCount(), is(0));
     }
 
-    public void testMarkedIndexNotStalledWhenTransitionIsRunning() throws Exception {
+    public void testMarkedIndexNotSubmittedReportedAsMarked() {
+        // Recording an error against a marked index must not suppress reporting: it should still
+        // appear as MARKED once it is overdue.
+        ProjectId projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
+        String markedIndexName = addDataStreamWithFrozenLifecycle(
+            projectBuilder,
+            "marked-ds",
+            oldIndexTime(),
+            true,
+            TimeValue.timeValueDays(30)
+        );
+        setProjectState(projectBuilder);
+        errorStore.recordError(projectId, markedIndexName, new RuntimeException("some failure"));
+
+        DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
+        assertThat(info.totalOverdueIndicesCount(), is(1));
+        assertThat(info.overdueIndices().get(projectId), equalTo(Map.of(markedIndexName, TransitionState.MARKED)));
+    }
+
+    public void testMarkedIndexReportedAsRunningWhenTransitionIsRunning() throws Exception {
         ProjectId projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
         String markedIndexName = addDataStreamWithFrozenLifecycle(
@@ -258,8 +264,7 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
             safeAwait(task.started);
 
             DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
-            assertThat(info.notStartedMarked(), is(StalledIndices.EMPTY));
-            assertThat(info.queuedMarked(), is(StalledIndices.EMPTY));
+            assertThat(info.overdueIndices().get(projectId), equalTo(Map.of(markedIndexName, TransitionState.RUNNING)));
         } finally {
             task.blockUntil.countDown();
         }
@@ -290,164 +295,9 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
             transitionExecutor.submit(target);
 
             DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
-            assertThat(info.notStartedMarked(), is(StalledIndices.EMPTY));
-            assertThat(info.queuedMarked().totalCount(), is(1));
-            assertThat(info.queuedMarked().sample().stream().map(i -> i.indexName()).toList(), containsInAnyOrder(markedIndexName));
+            assertThat(info.overdueIndices().get(projectId), equalTo(Map.of(markedIndexName, TransitionState.QUEUED)));
         } finally {
             fillerRelease.countDown();
-        }
-    }
-
-    public void testErroringMarkedIndexIsReportedAsStalled() {
-        // Recording an error against a marked index must not suppress the stall check; the index
-        // should appear in notStartedMarked once the stall threshold elapses.
-        ProjectId projectId = randomProjectIdOrDefault();
-        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
-        String markedIndexName = addDataStreamWithFrozenLifecycle(
-            projectBuilder,
-            "erroring-ds",
-            oldIndexTime(),
-            true,
-            TimeValue.timeValueDays(30)
-        );
-        setProjectState(projectBuilder);
-        errorStore.recordError(projectId, markedIndexName, new RuntimeException("some failure"));
-
-        // Advance past the 24-hour stall threshold so the index is eligible for stall reporting.
-        now.addAndGet(TimeValue.timeValueHours(25).millis());
-
-        DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
-        assertThat(info.notStartedMarked().totalCount(), is(1));
-        assertThat(info.queuedMarked(), is(StalledIndices.EMPTY));
-    }
-
-    /**
-     * When the transition service never completes a scan after a failover, the stuck threshold measured from the start
-     * of the master's tenure is the fallback that eventually surfaces marked-but-unsubmitted indices.
-     */
-    public void testStallSuppressedAfterFailoverUntilThresholdWhenNoScanCompletes() {
-        // With masterTenureStartMillis == 0 (node has never been master), a marked old index is reported as stalled.
-        ProjectId projectId = randomProjectIdOrDefault();
-        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
-        addDataStreamWithFrozenLifecycle(projectBuilder, "grace-ds", oldIndexTime(), true, TimeValue.timeValueDays(30));
-        setProjectState(projectBuilder);
-
-        DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
-        assertThat(info.notStartedMarked().totalCount(), is(1));
-
-        // When this node becomes master, onStart() records masterTenureStartMillis = now, which starts the window in
-        // which reporting waits for the transition service's first scan. The service never scans in this test.
-        publisher.clusterChanged(createMasterEvent(true));
-        info = publisher.buildHealthInfo(clusterService.state());
-        assertThat(
-            "freshly-elected master should not report stalled indices before its first scan",
-            info.notStartedMarked().totalCount(),
-            is(0)
-        );
-
-        // Advance the clock past the 24-hour default stuck threshold from the tenure start.
-        now.addAndGet(TimeValue.timeValueHours(25).millis());
-        info = publisher.buildHealthInfo(clusterService.state());
-        assertThat(
-            "stall should be reported once the threshold elapses from tenure start without a completed scan",
-            info.notStartedMarked().totalCount(),
-            is(1)
-        );
-    }
-
-    /**
-     * Once the transition service has re-submitted everything it could after a failover, a still-unsubmitted marked
-     * index is a real signal and must be reported at once, without waiting for the stuck threshold.
-     */
-    public void testCompletedScanLiftsStallSuppressionForNewMaster() throws Exception {
-        ProjectId projectId = randomProjectIdOrDefault();
-        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
-        String markedIndexName = addDataStreamWithFrozenLifecycle(
-            projectBuilder,
-            "scan-ds",
-            oldIndexTime(),
-            true,
-            TimeValue.timeValueDays(30)
-        );
-        setProjectState(projectBuilder);
-
-        publisher.clusterChanged(createMasterEvent(true));
-        assertThat(
-            "suppressed while the new master has not completed a scan",
-            publisher.buildHealthInfo(clusterService.state()).notStartedMarked().totalCount(),
-            is(0)
-        );
-
-        // Saturate the executor so the scan stops at the capacity check without submitting the marked index. That
-        // still counts as a completed scan: it submitted everything capacity allowed.
-        CountDownLatch fillerRelease = new CountDownLatch(1);
-        try {
-            for (int i = 0; i < TEST_MAX_CONCURRENCY + TEST_MAX_QUEUE_SIZE; i++) {
-                var filler = new DLMFrozenTransitionExecutorTestCase.TestDLMFrozenTransitionRunnable("filler-" + i, projectId);
-                filler.blockUntil = fillerRelease;
-                transitionExecutor.submit(filler);
-            }
-            assertFalse(transitionExecutor.hasCapacity());
-
-            transitionService.checkForFrozenIndices();
-            assertTrue(transitionService.hasCompletedScanSinceStart());
-
-            DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
-            assertThat(info.notStartedMarked().totalCount(), is(1));
-            assertThat(info.notStartedMarked().sample().stream().map(i -> i.indexName()).toList(), containsInAnyOrder(markedIndexName));
-            assertThat(
-                "stalled_since should be the eligibility time, not the master tenure start",
-                info.notStartedMarked().sample().get(0).stalledSinceMillis(),
-                is(now.get() - TimeValue.timeValueDays(70).millis())
-            );
-        } finally {
-            fillerRelease.countDown();
-        }
-    }
-
-    /**
-     * The scan-completion lift applies only to marked-but-unsubmitted indices. A queued transition keeps the
-     * tenure-clamped threshold, because a fresh master's queue is expected to drain rather than to be stalled.
-     */
-    public void testCompletedScanDoesNotLiftClampForQueuedTransitions() throws Exception {
-        ProjectId projectId = randomProjectIdOrDefault();
-        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
-        String markedIndexName = addDataStreamWithFrozenLifecycle(
-            projectBuilder,
-            "queued-scan-ds",
-            oldIndexTime(),
-            true,
-            TimeValue.timeValueDays(30)
-        );
-        setProjectState(projectBuilder);
-
-        publisher.clusterChanged(createMasterEvent(true));
-
-        CountDownLatch release = new CountDownLatch(1);
-        try {
-            // Saturate the single transition thread so the target lands in the queue rather than running.
-            var filler = new DLMFrozenTransitionExecutorTestCase.TestDLMFrozenTransitionRunnable("filler", projectId);
-            filler.blockUntil = release;
-            transitionExecutor.submit(filler);
-            safeAwait(filler.started);
-
-            var target = new DLMFrozenTransitionExecutorTestCase.TestDLMFrozenTransitionRunnable(markedIndexName, projectId);
-            target.blockUntil = release;
-            transitionExecutor.submit(target);
-
-            // The scan finds the target already submitted and runs to the end of its loop.
-            transitionService.checkForFrozenIndices();
-            assertTrue(transitionService.hasCompletedScanSinceStart());
-
-            DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
-            assertThat("a queued transition stays clamped to the tenure start", info.queuedMarked(), is(StalledIndices.EMPTY));
-            assertThat(info.notStartedMarked(), is(StalledIndices.EMPTY));
-
-            now.addAndGet(TimeValue.timeValueHours(25).millis());
-            info = publisher.buildHealthInfo(clusterService.state());
-            assertThat(info.queuedMarked().totalCount(), is(1));
-        } finally {
-            release.countDown();
         }
     }
 
@@ -461,8 +311,9 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
         setProjectState(projectBuilder);
 
         DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
-        assertThat(info.eligibleUnmarked().totalCount(), is(overLimit));
-        assertThat(info.eligibleUnmarked().sample(), hasSize(DLMFrozenTransitionHealthInfoPublisher.MAX_INDICES_TO_PUBLISH));
+        assertThat(info.totalOverdueIndicesCount(), is(overLimit));
+        int sampledCount = info.overdueIndices().values().stream().mapToInt(Map::size).sum();
+        assertThat(sampledCount, is(DLMFrozenTransitionHealthInfoPublisher.MAX_INDICES_TO_PUBLISH));
     }
 
     public void testCompletedTransitionsAreSkipped() {
@@ -483,21 +334,7 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
         setProjectState(projectBuilder);
 
         DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
-        assertThat(
-            "completed frozen-transition index should be excluded from eligible-unmarked count",
-            info.eligibleUnmarked().totalCount(),
-            is(0)
-        );
-        assertThat(
-            "completed frozen-transition index should be excluded from not-started-marked count",
-            info.notStartedMarked().totalCount(),
-            is(0)
-        );
-        assertThat(
-            "completed frozen-transition index should be excluded from queued-marked count",
-            info.queuedMarked().totalCount(),
-            is(0)
-        );
+        assertThat("completed frozen-transition index should be excluded from overdue indices", info.totalOverdueIndicesCount(), is(0));
     }
 
     public void testMultipleProjectsAggregateCorrectly() {
@@ -514,8 +351,9 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
 
         DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
 
-        assertThat(info.eligibleUnmarked().totalCount(), is(2));
-        assertThat(info.eligibleUnmarked().sample().stream().map(i -> i.indexName()).toList(), containsInAnyOrder(indexName1, indexName2));
+        assertThat(info.totalOverdueIndicesCount(), is(2));
+        assertThat(info.overdueIndices().get(projectId1), equalTo(Map.of(indexName1, TransitionState.UNMARKED)));
+        assertThat(info.overdueIndices().get(projectId2), equalTo(Map.of(indexName2, TransitionState.UNMARKED)));
     }
 
     public void testPublishHealthInfoSendsRequestToHealthNode() {

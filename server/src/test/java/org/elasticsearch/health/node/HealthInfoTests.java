@@ -10,6 +10,7 @@
 package org.elasticsearch.health.node;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -112,23 +113,24 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            randomIntBetween(0, 100),
-            randomStalledIndices(),
-            randomStalledIndices(),
-            randomStalledIndices(),
+            randomOverdueIndices(),
+            // generated independently of overdueIndices' size so a swapped read/write order would be caught
+            // by the wire round-trip test.
+            randomIntBetween(0, 200),
             randomNonNegativeLong(),
             randomNonNegativeLong()
         );
     }
 
-    public static StalledIndices randomStalledIndices() {
-        // totalCount is generated independently of sample.size() so that a swapped read/write order
-        // between the three StalledIndices fields would be caught by the wire round-trip test.
-        return new StalledIndices(randomIntBetween(0, 100), randomList(5, HealthInfoTests::randomDlmFrozenTransitionIndexInfo));
-    }
-
-    public static DlmFrozenTransitionIndexInfo randomDlmFrozenTransitionIndexInfo() {
-        return new DlmFrozenTransitionIndexInfo(randomProjectIdOrDefault(), randomAlphaOfLength(10), randomNonNegativeLong());
+    public static Map<ProjectId, Map<String, DlmFrozenTransitionsHealthInfo.TransitionState>> randomOverdueIndices() {
+        return randomMap(
+            0,
+            3,
+            () -> tuple(
+                randomProjectIdOrDefault(),
+                randomMap(0, 5, () -> tuple(randomAlphaOfLength(10), randomFrom(DlmFrozenTransitionsHealthInfo.TransitionState.values())))
+            )
+        );
     }
 
     static FileSettingsHealthInfo mutateFileSettingsHealthInfo(FileSettingsHealthInfo original) {

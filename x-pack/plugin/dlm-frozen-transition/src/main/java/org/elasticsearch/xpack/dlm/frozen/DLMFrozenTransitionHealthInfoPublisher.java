@@ -21,18 +21,19 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
-import org.elasticsearch.health.node.DlmFrozenTransitionIndexInfo;
+import org.elasticsearch.datastreams.lifecycle.FrozenTransitionInfoProvider;
 import org.elasticsearch.health.node.DlmFrozenTransitionsHealthInfo;
-import org.elasticsearch.health.node.StalledIndices;
+import org.elasticsearch.health.node.DlmFrozenTransitionsHealthInfo.TransitionState;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.RepositoriesService;
 
-import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.cluster.metadata.DataStream.DatastreamIndexTypes.BACKING_INDICES;
@@ -63,13 +64,6 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
     private final DLMFrozenTransitionExecutor transitionExecutor;
     private final DLMFrozenTransitionSettings transitionSettings;
     private final LongSupplier nowSupplier;
-
-    /**
-     * The time at which this node most recently became master (i.e. the start of the current master's tenure over frozen transitions),
-     * or {@code 0} if this node has never been master. Used as the reference point for as a refference for stall checks to ensure
-     * master failover does not trigger false positives for "marked but not started" stalled indices.
-     */
-    private volatile long masterTenureStartMillis = 0;
 
     public DLMFrozenTransitionHealthInfoPublisher(
         ClusterService clusterService,
@@ -118,13 +112,6 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
         return "dlm-frozen-health-publisher";
     }
 
-    @Override
-    void onStart() {
-        // Record the start of this master's tenure so the "marked but not started" stall check does not fire before a
-        // freshly-elected master has had a threshold's worth of time to attempt outstanding transitions.
-        masterTenureStartMillis = nowSupplier.getAsLong();
-    }
-
     // visible for testing
     void publishHealthInfo() {
         ClusterState state = clusterService.state();
@@ -161,69 +148,32 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
         long now = nowSupplier.getAsLong();
         long thresholdMillis = transitionSettings.getHealthStuckThreshold().millis();
 
-        // Don't indicate if master has failed over and new scan for marked indices has not run unless it's not run for
-        // more than threshold time
-        boolean initialScanPending = transitionService.hasCompletedScanSinceStart() == false
-            && now - masterTenureStartMillis <= thresholdMillis;
-
-        int markedIndicesCount = 0;
-        StalledBucket eligibleUnmarked = new StalledBucket();
-        StalledBucket notStartedMarked = new StalledBucket();
-        StalledBucket queuedMarked = new StalledBucket();
+        OverdueIndices overdueIndices = new OverdueIndices();
 
         for (ProjectMetadata projectMetadata : state.metadata().projects().values()) {
             ProjectId projectId = projectMetadata.id();
-            // Count all marked indices regardless of the current service config
-            // This is what drives the "transitions disabled but pending work" YELLOW signal.
-            for (IndexMetadata indexMetadata : projectMetadata.indices().values()) {
-                if (DataStreamLifecycleService.indexMarkedForFrozen(indexMetadata)) {
-                    markedIndicesCount++;
-                }
-            }
 
             for (DataStream dataStream : projectMetadata.dataStreams().values()) {
                 DataStreamLifecycle lifecycle = dataStream.getDataLifecycle();
                 if (lifecycle == null || lifecycle.enabled() == false || lifecycle.frozenAfter() == null) {
                     continue;
                 }
-                TimeValue frozenAfter = lifecycle.frozenAfter();
+                // An index is overdue once it has been eligible (past frozen_after) for longer than the stuck threshold.
+                TimeValue overdueAfter = TimeValue.timeValueMillis(lifecycle.frozenAfter().millis() + thresholdMillis);
 
-                List<Index> eligibleIndices = dataStream.getIndicesOlderThan(
+                List<Index> overdueCandidates = dataStream.getIndicesOlderThan(
                     projectMetadata::index,
                     nowSupplier,
-                    frozenAfter,
+                    overdueAfter,
                     BACKING_INDICES
                 ).stream().sorted(Comparator.comparing(Index::getName)).toList();
 
-                for (Index index : eligibleIndices) {
+                for (Index index : overdueCandidates) {
                     IndexMetadata indexMetadata = projectMetadata.index(index);
                     if (indexMetadata == null || DataStreamLifecycleService.frozenTransitionCompleted(indexMetadata)) {
                         continue;
                     }
-                    long eligibleSinceMillis = dataStream.getGenerationLifecycleDate(indexMetadata).millis() + frozenAfter.millis();
-                    boolean marked = DataStreamLifecycleService.indexMarkedForFrozen(indexMetadata);
-                    if (marked == false) {
-                        if (now - eligibleSinceMillis > thresholdMillis) {
-                            eligibleUnmarked.add(projectId, index.getName(), eligibleSinceMillis);
-                        }
-                    } else if (now - eligibleSinceMillis > thresholdMillis) {
-                        switch (transitionExecutor.getTransitionStatus(projectId, index.getName())) {
-                            case NOT_STARTED -> {
-                                if (initialScanPending == false) {
-                                    notStartedMarked.add(projectId, index.getName(), eligibleSinceMillis);
-                                }
-                            }
-                            case QUEUED -> {
-                                long stalledSinceMillis = Math.max(eligibleSinceMillis, masterTenureStartMillis);
-                                if (now - stalledSinceMillis > thresholdMillis) {
-                                    queuedMarked.add(projectId, index.getName(), stalledSinceMillis);
-                                }
-                            }
-                            // A running transition is making progress, so it is by definition not stalled.
-                            case RUNNING -> {
-                            }
-                        }
-                    }
+                    overdueIndices.add(projectId, index.getName(), transitionStateFor(projectId, indexMetadata));
                 }
             }
         }
@@ -232,35 +182,51 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
             transitionsEnabled,
             serviceRunning,
             defaultRepositoryConfigured,
-            markedIndicesCount,
-            eligibleUnmarked.build(),
-            notStartedMarked.build(),
-            queuedMarked.build(),
+            overdueIndices.sample(),
+            overdueIndices.totalCount(),
             now,
             getPollInterval().millis()
         );
     }
 
-    /**
-     * Mutable accumulator for one category of stalled indices. Tracks the total count independently of the capped
-     * sample so that callers can distinguish "no stalled indices" from "stalled indices that didn't fit in the sample".
-     *
-     * <p>The cap is applied per-bucket: in the worst case up to {@link #MAX_INDICES_TO_PUBLISH} entries are
-     * collected per stall category.
-     */
-    private static final class StalledBucket {
-        private int totalCount;
-        private final List<DlmFrozenTransitionIndexInfo> sample = new ArrayList<>();
+    private TransitionState transitionStateFor(ProjectId projectId, IndexMetadata indexMetadata) {
+        if (DataStreamLifecycleService.indexMarkedForFrozen(indexMetadata) == false) {
+            return TransitionState.UNMARKED;
+        }
 
-        void add(ProjectId projectId, String indexName, long stalledSinceMillis) {
+        String indexName = indexMetadata.getIndex().getName();
+        FrozenTransitionInfoProvider.Status status = transitionExecutor.getTransitionStatus(projectId, indexName);
+        return switch (status) {
+            case NOT_STARTED -> TransitionState.MARKED;
+            case QUEUED -> TransitionState.QUEUED;
+            case RUNNING -> TransitionState.RUNNING;
+        };
+    }
+
+    /**
+     * Mutable accumulator for overdue indices. Tracks the total count independently of the capped sample so that
+     * callers can distinguish "no overdue indices" from "overdue indices that didn't fit in the sample". The cap
+     * ({@link #MAX_INDICES_TO_PUBLISH}) is applied across all projects combined, not per project.
+     */
+    private static final class OverdueIndices {
+        private int totalCount;
+        private int sampledCount;
+        private final Map<ProjectId, Map<String, TransitionState>> sample = new HashMap<>();
+
+        void add(ProjectId projectId, String indexName, TransitionState state) {
             totalCount++;
-            if (sample.size() < MAX_INDICES_TO_PUBLISH) {
-                sample.add(new DlmFrozenTransitionIndexInfo(projectId, indexName, stalledSinceMillis));
+            if (sampledCount < MAX_INDICES_TO_PUBLISH) {
+                sample.computeIfAbsent(projectId, ignored -> new HashMap<>()).put(indexName, state);
+                sampledCount++;
             }
         }
 
-        StalledIndices build() {
-            return new StalledIndices(totalCount, sample);
+        Map<ProjectId, Map<String, TransitionState>> sample() {
+            return sample;
+        }
+
+        int totalCount() {
+            return totalCount;
         }
     }
 }

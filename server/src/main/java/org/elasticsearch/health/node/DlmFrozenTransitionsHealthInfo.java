@@ -9,11 +9,15 @@
 
 package org.elasticsearch.health.node;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Represents the health of the DLM (data stream lifecycle) frozen-tier transition feature, as evaluated on the
@@ -27,18 +31,12 @@ import java.io.IOException;
  *                                    {@link Error}, which {@code isShutdown()} on the executor cannot detect.
  * @param defaultRepositoryConfigured Whether a default snapshot repository ({@code repositories.default_repository}) is
  *                                    configured. Without one, eligible indices cannot be marked for frozen conversion.
- * @param markedIndicesCount          Total number of indices currently marked for frozen-tier conversion across all
- *                                    projects, regardless of lifecycle configuration. Drives the "transitions disabled
- *                                    but pending work" YELLOW signal.
- * @param eligibleUnmarked            Indices past their {@code frozen_after} age for longer than the configured stall
- *                                    threshold, but not yet marked — typically because no default repository is
- *                                    configured. {@link StalledIndices#totalCount()} may exceed the sample size.
- * @param notStartedMarked            Marked indices that have not been submitted to the transition executor and whose
- *                                    stall duration exceeds the threshold. The stall reference point is
- *                                    {@code max(eligibleSince, masterTenureStart)}, so this count intentionally resets
- *                                    for one threshold period after a master failover.
- * @param queuedMarked                Marked indices that have been submitted to the transition executor and are waiting
- *                                    in its queue, but have not started, for longer than the stall threshold.
+ * @param overdueIndices              A capped sample of indices, keyed by project then index name, that are past their
+ *                                    {@code frozen_after} age by more than the configured stuck threshold and have not
+ *                                    completed their frozen-tier transition, together with their current transition
+ *                                    state. {@code totalOverdueIndicesCount} may exceed the number of entries here.
+ * @param totalOverdueIndicesCount    The total number of overdue indices found across all projects, regardless of
+ *                                    whether they fit in {@code overdueIndices}.
  * @param generatedAtMillis           Epoch-millisecond timestamp at which the master built this snapshot. Used to
  *                                    detect stale data (e.g. after a master failover before the new master has
  *                                    published its first snapshot).
@@ -49,23 +47,25 @@ public record DlmFrozenTransitionsHealthInfo(
     boolean transitionsEnabled,
     boolean serviceRunning,
     boolean defaultRepositoryConfigured,
-    int markedIndicesCount,
-    StalledIndices eligibleUnmarked,
-    StalledIndices notStartedMarked,
-    StalledIndices queuedMarked,
+    Map<ProjectId, Map<String, TransitionState>> overdueIndices,
+    int totalOverdueIndicesCount,
     long generatedAtMillis,
     long publishIntervalMillis
 ) implements Writeable {
+
+    public DlmFrozenTransitionsHealthInfo {
+        overdueIndices = overdueIndices.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> Map.copyOf(e.getValue())));
+    }
 
     public DlmFrozenTransitionsHealthInfo(StreamInput in) throws IOException {
         this(
             in.readBoolean(),
             in.readBoolean(),
             in.readBoolean(),
+            in.readMap(ProjectId::readFrom, i -> i.readMap(v -> v.readEnum(TransitionState.class))),
             in.readVInt(),
-            new StalledIndices(in),
-            new StalledIndices(in),
-            new StalledIndices(in),
             in.readVLong(),
             in.readVLong()
         );
@@ -76,11 +76,26 @@ public record DlmFrozenTransitionsHealthInfo(
         out.writeBoolean(transitionsEnabled);
         out.writeBoolean(serviceRunning);
         out.writeBoolean(defaultRepositoryConfigured);
-        out.writeVInt(markedIndicesCount);
-        eligibleUnmarked.writeTo(out);
-        notStartedMarked.writeTo(out);
-        queuedMarked.writeTo(out);
+        out.writeMap(overdueIndices, (o, id) -> id.writeTo(o), (o, m) -> o.writeMap(m, StreamOutput::writeEnum));
+        out.writeVInt(totalOverdueIndicesCount);
         out.writeVLong(generatedAtMillis);
         out.writeVLong(publishIntervalMillis);
+    }
+
+    /**
+     * The transition state of an overdue index, as tracked by the transition executor on the current master node.
+     * {@code UNMARKED} and {@code MARKED} are derived from durable cluster state; {@code QUEUED} and {@code RUNNING}
+     * are best-effort and reset to {@code MARKED} across a master failover.
+     */
+    public enum TransitionState {
+        UNMARKED,
+        MARKED,
+        QUEUED,
+        RUNNING;
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
     }
 }

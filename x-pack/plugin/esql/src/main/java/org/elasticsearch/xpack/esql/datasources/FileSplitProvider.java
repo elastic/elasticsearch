@@ -13,6 +13,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -70,6 +72,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 
@@ -271,6 +274,7 @@ public class FileSplitProvider implements SplitProvider {
     private final Settings settings;
     @Nullable
     private final Executor executor;
+    private final AtomicLong splitDiscoveryCpuNanos = new AtomicLong();
 
     public FileSplitProvider() {
         this(DEFAULT_TARGET_SPLIT_SIZE, null, null, null, Settings.EMPTY, null);
@@ -479,7 +483,7 @@ public class FileSplitProvider implements SplitProvider {
                 // An unresolved or already-empty file list is not a prune (fileCount == 0). A skip that
                 // is not counted above leaves certifiedSkips < fileCount and falls back to a full read.
                 boolean exhaustivelyPruned = fileList.fileCount() > 0 && certifiedSkips == fileList.fileCount();
-                return new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned);
+                return new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned, 0L);
             }
 
             // Phase 2: I/O-bound split planning, parallelized across files when an executor is available. Files
@@ -502,15 +506,19 @@ public class FileSplitProvider implements SplitProvider {
                     CONFIG_MAX_SPLIT_PROBES
                 );
             }
+            // Only single split discovery is performed on each FileSplitProvider at a time
+            splitDiscoveryCpuNanos.set(0L);
             List<PlanResult> planResults;
             try {
                 if (executor != null && tasks.size() > 1) {
-                    planResults = BoundedParallelGather.gather(
-                        tasks,
-                        task -> processFileForSplits(task, hoistedProvider, strideBytes, isCancelled),
-                        splitDiscoveryConcurrency(),
-                        executor
-                    );
+                    planResults = BoundedParallelGather.gather(tasks, task -> {
+                        long cpuStart = ThreadCpuTimer.currentNanos();
+                        try {
+                            return processFileForSplits(task, hoistedProvider, strideBytes, isCancelled);
+                        } finally {
+                            if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
+                        }
+                    }, splitDiscoveryConcurrency(), executor);
                 } else {
                     planResults = new ArrayList<>(tasks.size());
                     for (FileTask task : tasks) {
@@ -537,7 +545,7 @@ public class FileSplitProvider implements SplitProvider {
 
             // Each surviving task produces at least one split, so the task count is the number of
             // distinct files that are actually scanned after coordinator-side pruning.
-            return new SplitDiscoveryResult(splits, tasks.size());
+            return new SplitDiscoveryResult(splits, tasks.size(), false, splitDiscoveryCpuNanos.get());
         } finally {
             StorageProviderCache.closeLease(sharedProvider);
         }
@@ -883,7 +891,8 @@ public class FileSplitProvider implements SplitProvider {
                         probeTasks.add(new ProbeTask(deferred, position));
                     }
                 }
-                List<RecordBoundaryProbe.Outcome> outcomes = BoundedParallelGather.gather(
+
+                List<RecordBoundaryProbe.Outcome> outcomes = runGather(
                     probeTasks,
                     probe -> runProbe(probe, probeWindowBytes, isCancelled),
                     splitDiscoveryConcurrency(),
@@ -904,6 +913,22 @@ public class FileSplitProvider implements SplitProvider {
             return outcomesByFile;
         } catch (Exception e) {
             throw ExternalFailures.surface(e, "Failed to discover splits");
+        }
+    }
+
+    private <T, R> List<R> runGather(List<T> items, CheckedFunction<T, R, Exception> task, int concurrency, Executor executor)
+        throws Exception {
+        if (BoundedParallelGather.executesInline(items)) {
+            return BoundedParallelGather.gather(items, task, concurrency, executor);
+        } else {
+            return BoundedParallelGather.gather(items, (T probe) -> {
+                long cpuStart = ThreadCpuTimer.currentNanos();
+                try {
+                    return task.apply(probe);
+                } finally {
+                    if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
+                }
+            }, concurrency, executor);
         }
     }
 
@@ -1341,7 +1366,7 @@ public class FileSplitProvider implements SplitProvider {
             // per file. Fall back to the registry for zero-config or legacy callers.
             StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
             StorageObject object = provider.newObject(filePath, fileLength);
-            long[] boundaries = splittableCodec.findBlockBoundaries(object, 0, fileLength);
+            long[] boundaries = splittableCodec.findBlockBoundaries(object, 0, fileLength, splitDiscoveryCpuNanos::addAndGet);
 
             if (boundaries.length == 0) {
                 splits.add(wholeFileSplit(filePath, fileLength, format, config, partitionValues, columnMapping, readSchema));

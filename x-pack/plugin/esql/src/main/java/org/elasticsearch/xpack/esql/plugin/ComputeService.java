@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -294,6 +295,9 @@ public class ComputeService {
     private static void recordExternalScanStats(EsqlExecutionInfo execInfo, SplitDiscoveryPhase.Result result) {
         if (execInfo != null && result.splitsScanned() > 0) {
             execInfo.queryProfile().addExternalScanStats(result.filesScanned(), result.splitsScanned(), result.bytesScanned());
+        }
+        if (execInfo != null && result.cpuNanos() > 0) {
+            execInfo.queryProfile().addSplitDiscoveryCpuNanos(result.cpuNanos());
         }
     }
 
@@ -927,6 +931,7 @@ public class ComputeService {
         final PhysicalPlan splitPlan;
         final ExternalDistributionResult distributionResult;
         long splitDiscoveryStart = System.nanoTime();
+        long splitDiscoveryCpuStart = ThreadCpuTimer.currentNanos();
         try {
             // Phase 2 split discovery runs synchronously here and can be long (thousands of footer
             // reads); thread the query's cancellation signal so a cancel aborts it promptly. A cancel
@@ -935,6 +940,9 @@ public class ComputeService {
             distributionResult = applyExternalDistributionStrategy(splitPlan, configuration, execInfo, rootTask::isCancelled);
             if (execInfo != null
                 && (distributionResult.coordinatorSplits.isEmpty() == false || distributionResult.distributionPlan() != null)) {
+                if (splitDiscoveryCpuStart >= 0) {
+                    execInfo.queryProfile().addSplitDiscoveryCpuNanos(ThreadCpuTimer.elapsedNanos(splitDiscoveryCpuStart));
+                }
                 execInfo.queryProfile().addSplitDiscoveryNanos(System.nanoTime() - splitDiscoveryStart);
             }
         } catch (Exception e) {

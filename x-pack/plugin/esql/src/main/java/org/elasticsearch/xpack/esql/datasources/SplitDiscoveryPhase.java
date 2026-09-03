@@ -124,13 +124,19 @@ public final class SplitDiscoveryPhase {
      *                      listed file sizes for a whole-list fall-through; either way only positive sizes are
      *                      summed
      */
-    public record Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned) {}
+    public record Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned, long cpuNanos) {
+        /** Backwards-compatible constructor without cpuNanos (defaults to 0). */
+        public Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned) {
+            this(plan, filesScanned, splitsScanned, bytesScanned, 0L);
+        }
+    }
 
     /** Mutable accumulator threaded through the recursive walk. */
     private static final class ScanStats {
         private int filesScanned;
         private int splitsScanned;
         private long bytesScanned;
+        private long cpuNanos;
     }
 
     public static PhysicalPlan resolveExternalSplits(PhysicalPlan plan, Map<String, ExternalSourceFactory> sourceFactories) {
@@ -197,7 +203,7 @@ public final class SplitDiscoveryPhase {
     ) {
         ScanStats stats = new ScanStats();
         PhysicalPlan resolved = resolveRecursive(plan, seedFilters, sourceFactories, maxRecordBytes, stats, isCancelled);
-        return new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned);
+        return new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned, stats.cpuNanos);
     }
 
     private static PhysicalPlan resolveRecursive(
@@ -349,6 +355,7 @@ public final class SplitDiscoveryPhase {
         }
         stats.filesScanned += result.filesScanned();
         stats.splitsScanned += splits.size();
+        stats.cpuNanos += result.cpuNanos();
         for (ExternalSplit split : splits) {
             long sizeInBytes = split.estimatedSizeInBytes();
             if (sizeInBytes > 0) {

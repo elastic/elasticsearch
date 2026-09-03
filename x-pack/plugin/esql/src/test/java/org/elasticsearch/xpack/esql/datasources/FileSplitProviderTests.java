@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -91,6 +92,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
+import java.util.function.LongConsumer;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -1078,6 +1080,42 @@ public class FileSplitProviderTests extends ESTestCase {
         assertThat("both files must macro-split", serial.size(), greaterThan(2));
         assertEquals("parallel probing must not change the split set", describe(serial), describe(parallel));
         assertThat("probes must overlap when an executor is available", tracking.peakInFlight.get(), greaterThan(1));
+    }
+
+    /**
+     * Verifies that {@link SplitDiscoveryResult#cpuNanos()} is populated by the BPG executor-thread path when
+     * multiple files are discovered in parallel. The coordinator-level CPU wrap in {@code ComputeService} is not
+     * involved here — only the per-file accumulation inside the BPG lambda in {@link FileSplitProvider}.
+     */
+    public void testMultiFileParallelDiscoveryAccumulatesCpuNanos() throws Exception {
+        Map<String, byte[]> payloads = Map.of("one.csv", delimitedPayload("a,b,c\n"), "two.csv", delimitedPayload("d,e,f\n"));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        SplitDiscoveryResult result;
+        try {
+            result = discoverPlainCsvSplitsResult(payloads, CSV_MIN_SEGMENT_BYTES, executor);
+        } finally {
+            executor.shutdown();
+        }
+        assertThat("BPG executor threads must accumulate cpuNanos", result.cpuNanos(), greaterThan(0L));
+    }
+
+    /**
+     * Verifies that Phase 3 (parallel boundary probing) accumulates CPU into {@link SplitDiscoveryResult#cpuNanos()}
+     * when multiple files are large enough to require newline boundary probing and an executor is available.
+     * The BPG lambda in {@code probeDeferredBoundaries} must wrap each probe with {@link ThreadCpuTimer}.
+     */
+    public void testMultiFileParallelProbeAccumulatesCpuNanos() throws Exception {
+        // Files ~3.5x stride → each file needs exactly one probe position in Phase 3.
+        long stride = 2 * CSV_MIN_SEGMENT_BYTES;
+        Map<String, byte[]> payloads = Map.of("one.csv", delimitedPayload("a,b,c\n"), "two.csv", delimitedPayload("d,e,f\n"));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        SplitDiscoveryResult result;
+        try {
+            result = discoverPlainCsvSplitsResult(payloads, stride, executor);
+        } finally {
+            executor.shutdown();
+        }
+        assertThat("Phase 3 BPG probe threads must accumulate cpuNanos", result.cpuNanos(), greaterThan(0L));
     }
 
     /**
@@ -2137,6 +2175,24 @@ public class FileSplitProviderTests extends ESTestCase {
         return discoverCsvSplits(payloads, targetStrideBytes, executor, tracking, settings, isCancelled, Map.of("mode", "plain"));
     }
 
+    /** As {@link #discoverPlainCsvSplits} but returns the full {@link SplitDiscoveryResult} to allow asserting {@code cpuNanos}. */
+    private static SplitDiscoveryResult discoverPlainCsvSplitsResult(
+        Map<String, byte[]> payloads,
+        long targetStrideBytes,
+        @Nullable Executor executor
+    ) {
+        return discoverCsvSplits(
+            payloads,
+            targetStrideBytes,
+            executor,
+            null,
+            Settings.EMPTY,
+            () -> false,
+            Map.of("mode", "plain"),
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+    }
+
     /** As {@link #discoverPlainCsvSplits}, with dataset keys of the caller's choosing alongside {@code mode=plain}. */
     private static List<ExternalSplit> discoverPlainCsvSplitsWithConfig(
         Map<String, byte[]> payloads,
@@ -2160,7 +2216,7 @@ public class FileSplitProviderTests extends ESTestCase {
     ) {
         Map<String, Object> csvConfig = new HashMap<>(config);
         csvConfig.put("mode", "plain");
-        return discoverCsvSplits(payloads, targetStrideBytes, null, null, Settings.EMPTY, () -> false, csvConfig, maxRecordBytes);
+        return discoverCsvSplits(payloads, targetStrideBytes, null, null, Settings.EMPTY, () -> false, csvConfig, maxRecordBytes).splits();
     }
 
     /**
@@ -2185,10 +2241,10 @@ public class FileSplitProviderTests extends ESTestCase {
             isCancelled,
             csvConfig,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
-        );
+        ).splits();
     }
 
-    private static List<ExternalSplit> discoverCsvSplits(
+    private static SplitDiscoveryResult discoverCsvSplits(
         Map<String, byte[]> payloads,
         long targetStrideBytes,
         @Nullable Executor executor,
@@ -2235,7 +2291,7 @@ public class FileSplitProviderTests extends ESTestCase {
             isCancelled,
             DeclaredReadSpec.NONE
         );
-        return provider.discoverSplits(ctx).splits();
+        return provider.discoverSplits(ctx);
     }
 
     /**
@@ -4744,7 +4800,7 @@ public class FileSplitProviderTests extends ESTestCase {
         }
 
         @Override
-        public long[] findBlockBoundaries(StorageObject object, long start, long end) {
+        public long[] findBlockBoundaries(StorageObject object, long start, long end, LongConsumer ignored) {
             return boundaries.clone();
         }
 

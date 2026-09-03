@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
+import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.store.FieldInfoCachingDirectory;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.script.ScriptCompiler;
@@ -359,6 +360,9 @@ public class CodecTests extends ESTestCase {
      */
     private static StoredFieldsFormat effectiveStoredFieldsFormat(Codec codec) {
         StoredFieldsFormat format = codec.storedFieldsFormat();
+        if (format instanceof TSDBStoredFieldsFormat tsdbFormat) {
+            format = tsdbFormat.delegate();
+        }
         return format instanceof ElasticsearchStoredFieldsFormat elasticsearchFormat ? elasticsearchFormat.writeFormat() : format;
     }
 

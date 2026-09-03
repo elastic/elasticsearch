@@ -13,6 +13,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.LicenseStateListener;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.hamcrest.Matcher;
 import org.junit.AfterClass;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -43,6 +46,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomizeCase;
@@ -56,6 +60,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class QuerySettingsTests extends ESTestCase {
 
@@ -718,6 +724,57 @@ public class QuerySettingsTests extends ESTestCase {
                 Level.WARN,
                 "*" + key + "*not usable*fall back*Invalid unmapped_fields resolution*"
             )
+        );
+    }
+
+    public void testLicenceLapseIsReportedThroughTheRegisteredLicenceListener() {
+        // Captures the listener the production code registers, so this pins the registration and not just the method
+        // body — the same reason the settings-update test above drives the real consumer. A listener that was never
+        // registered would leave the drop completely silent, which is exactly the failure being guarded against.
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        ArgumentCaptor<LicenseStateListener> captor = ArgumentCaptor.forClass(LicenseStateListener.class);
+        AtomicBoolean licensed = new AtomicBoolean(true);
+        String key = QuerySettingDef.CLUSTER_SETTING_PREFIX + QuerySettings.APPROXIMATION.name();
+        Settings operatorOn = Settings.builder().put(key, "true").build();
+
+        QuerySettings.watchApproximationLicense(licenseState, licensed::get, () -> operatorOn, Settings.EMPTY);
+        verify(licenseState).addListener(captor.capture());
+        LicenseStateListener listener = captor.getValue();
+
+        // Still licensed: a transition says nothing.
+        MockLog.assertThatLogger(
+            listener::licenseStateChanged,
+            QuerySettings.class,
+            new MockLog.UnseenEventExpectation("licensed, no warning", QuerySettings.class.getCanonicalName(), Level.WARN, "*")
+        );
+
+        // Licence lapses while the operator default is on: the operator is told, on the transition.
+        licensed.set(false);
+        MockLog.assertThatLogger(
+            listener::licenseStateChanged,
+            QuerySettings.class,
+            new MockLog.SeenEventExpectation(
+                "licence lapsed under an operator approximation default",
+                QuerySettings.class.getCanonicalName(),
+                Level.WARN,
+                "*" + key + "*licence does not permit approximation*"
+            )
+        );
+    }
+
+    public void testLicenceLapseIsSilentWhenNoOperatorDefaultIsOn() {
+        // The mutation proving the warning is conditional on the operator default, not fired by any unlicensed
+        // transition. Without this, a warning hard-coded to every lapse would pass the test above.
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        ArgumentCaptor<LicenseStateListener> captor = ArgumentCaptor.forClass(LicenseStateListener.class);
+
+        QuerySettings.watchApproximationLicense(licenseState, () -> false, () -> Settings.EMPTY, Settings.EMPTY);
+        verify(licenseState).addListener(captor.capture());
+
+        MockLog.assertThatLogger(
+            captor.getValue()::licenseStateChanged,
+            QuerySettings.class,
+            new MockLog.UnseenEventExpectation("no operator default", QuerySettings.class.getCanonicalName(), Level.WARN, "*")
         );
     }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -33,6 +34,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /**
  * The catalog of registered ES|QL query settings.
@@ -426,6 +429,39 @@ public final class QuerySettings {
      */
     public static void watchClusterDefaults(ClusterSettings clusterSettings) {
         clusterSettings.addSettingsUpdateConsumer(QuerySettings::warnUnusableClusterDefaults, QuerySettings.clusterSettings());
+    }
+
+    /**
+     * Warn the operator when a cluster-wide {@code approximation} default stops applying because the licence no
+     * longer permits it.
+     * <p>
+     * {@link #warnUnusableClusterDefaults} cannot cover this: it runs only when a setting is updated, and a licence
+     * expiring updates no setting. The per-query drop site cannot log it either — it runs on every query, and a
+     * misconfigured cluster would flood the log. A licence listener fires once per transition, which is exactly the
+     * granularity the operator needs and costs the query path nothing.
+     * <p>
+     * The licence is supplied as a predicate rather than by importing the checker, so this package keeps knowing
+     * only about settings.
+     */
+    public static void watchApproximationLicense(
+        XPackLicenseState licenseState,
+        BooleanSupplier approximationLicensed,
+        Supplier<Settings> clusterStateSettings,
+        Settings nodeSettings
+    ) {
+        licenseState.addListener(() -> {
+            if (approximationLicensed.getAsBoolean()) {
+                return;
+            }
+            if (ApproximationSettings.isOn(APPROXIMATION.effectiveDefault(clusterStateSettings.get(), nodeSettings))) {
+                logger.warn(
+                    "Cluster setting [{}{}] is configured but this cluster's licence does not permit approximation; "
+                        + "queries that did not ask for it run exactly. A query that asks for it explicitly still fails.",
+                    QuerySettingDef.CLUSTER_SETTING_PREFIX,
+                    APPROXIMATION.name()
+                );
+            }
+        });
     }
 
     /** Resolve with no operator defaults in play. */

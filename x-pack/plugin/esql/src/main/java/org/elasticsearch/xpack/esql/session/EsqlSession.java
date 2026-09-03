@@ -401,7 +401,8 @@ public class EsqlSession {
         // resolved values (default < cluster < request body < in-query SET) and never re-derives precedence. This also
         // runs each setting's validator (e.g. the project_routing cross-project gate) over the values the user
         // supplied, before any view-resolution work. An operator's cluster default can never fail a query here: if it
-        // is no longer usable the setting falls back to its built-in default, and the operator is told separately.
+        // is no longer usable the setting falls back to its built-in default, and the operator is warned on the
+        // settings-update or licence-transition path rather than in the request.
         ResolvedSettings resolved = applyApproximationLicense(
             QuerySettings.resolve(
                 clusterService.state().metadata().settings(),
@@ -1376,8 +1377,10 @@ public class EsqlSession {
      * A user who asked — in the request body or with {@code SET} — gets today's licensing error, unchanged: they
      * requested a paid feature this cluster does not have. An operator's cluster-wide default is different. The
      * operator is not in the request path, so failing would break every query on the cluster for people who never
-     * asked and cannot turn it off. Instead the default simply does not apply, the query runs exactly, and the
-     * operator is told separately.
+     * asked and cannot turn it off. Instead the default simply does not apply and the query runs exactly.
+     * <p>
+     * The operator learns of it from {@code QuerySettings.watchApproximationLicense}, which logs once when the
+     * licence transitions. It cannot be logged here: this runs on every query.
      * <p>
      * Licences change under a running cluster, so this cannot be settled when the setting is written: the value is
      * valid, and it is the entitlement that comes and goes.

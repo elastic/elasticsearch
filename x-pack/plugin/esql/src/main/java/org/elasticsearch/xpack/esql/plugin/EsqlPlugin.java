@@ -147,6 +147,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
+import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
@@ -451,6 +452,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // An operator default this node cannot use is ignored at resolution and the built-in default applies, so
         // without this warning the operator would see their configuration silently not take effect.
         QuerySettings.watchClusterDefaults(services.clusterService().getClusterSettings());
+
+        // A licence lapse silently stops a cluster-wide approximation default from applying. No setting changes, so
+        // the consumer above never fires; this listener is the only place the operator can learn of it.
+        QuerySettings.watchApproximationLicense(
+            getLicenseState(),
+            () -> EsqlLicenseChecker.isQueryApproximationAllowed(getLicenseState()),
+            () -> services.clusterService().state().metadata().settings(),
+            services.clusterService().getSettings()
+        );
 
         // Create DataSourceModule with all discovered plugins.
         // This executor backs SPI coordination, decompression, and async-I/O plugin callbacks (e.g. the HTTP

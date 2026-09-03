@@ -820,7 +820,7 @@ FROM partial_mapping_sample_data
 | EVAL lc = 1
 | ENRICH languages_policy ON lc
 | LOOKUP JOIN partial_message_types_lookup ON message
-| KEEP @timestamp, language_name, message_type, unmapped_message
+| KEEP @timestamp, language_name*, *message_type, unmapped_message*
 | SORT @timestamp DESC
 | LIMIT 3
 ;

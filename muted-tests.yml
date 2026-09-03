@@ -456,9 +456,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecChangePointIT
   method: test {csv-spec:change_point.values null column}
   issue: https://github.com/elastic/elasticsearch/issues/157163
-- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
-  method: testDeleteBackingIndexDuringForceMerge
-  issue: https://github.com/elastic/elasticsearch/issues/157257
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testUnreferencedCommitsAreReleasedAfterRecovery
   issue: https://github.com/elastic/elasticsearch/issues/157299
@@ -501,3 +498,6 @@ tests:
 - class: org.elasticsearch.common.LocalTimeOffsetTests
   method: testOverlap
   issue: https://github.com/elastic/elasticsearch/issues/158343
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testStressWithRelocationOrObjectStoreFailures
+  issue: https://github.com/elastic/elasticsearch/issues/156569

@@ -14,7 +14,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.telemetry.InferenceProductContext;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
@@ -23,10 +22,6 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationA
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_ES_VERSION;
 
 public abstract class ElasticInferenceServiceRequest implements OutboundRequest {
@@ -62,33 +57,12 @@ public abstract class ElasticInferenceServiceRequest implements OutboundRequest 
         HttpRequestBase request = createHttpRequestBase();
         // TODO: consider moving tracing here, too
 
-        var productOrigin = metadata.context().productOrigin();
-        var productUseCase = metadata.context().productUseCase();
-        var productSolution = metadata.context().productSolution();
-        var productFeature = metadata.context().productFeature();
-        var interactionId = metadata.context().interactionId();
+        // addHeader, not setHeader: createHttpRequestBase may already have set one of these, and the metadata value is meant to
+        // be an additional value rather than a replacement. The sparse and dense embeddings requests depend on this to send both
+        // the input type and the caller's product use case under X-elastic-product-use-case.
+        metadata.context().headers().forEach(request::addHeader);
+
         var esVersion = metadata.esVersion();
-
-        if (Strings.isNullOrEmpty(productOrigin) == false) {
-            request.setHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, productOrigin);
-        }
-
-        if (Strings.isNullOrEmpty(productUseCase) == false) {
-            request.addHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
-        }
-
-        if (Strings.isNullOrEmpty(productSolution) == false) {
-            request.addHeader(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, productSolution);
-        }
-
-        if (Strings.isNullOrEmpty(productFeature) == false) {
-            request.addHeader(X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, productFeature);
-        }
-
-        if (Strings.isNullOrEmpty(interactionId) == false) {
-            request.addHeader(X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, interactionId);
-        }
-
         if (Strings.isNullOrEmpty(esVersion) == false) {
             request.addHeader(X_ELASTIC_ES_VERSION, esVersion);
         }

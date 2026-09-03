@@ -9,9 +9,14 @@
 
 package org.elasticsearch.inference.telemetry;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Carries per-request product attribution context.
@@ -39,11 +44,18 @@ public record InferenceProductContext(
     public static final String X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER = "X-elastic-product-feature";
     public static final String X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER = "X-Elastic-Inference-Interaction-Id";
 
-    public static final InferenceProductContext EMPTY = new InferenceProductContext(null, null, null, null, null);
+    /**
+     * The inference-specific attribution headers. {@code X-elastic-product-origin} is deliberately absent: it is core-owned
+     * ({@link Task#X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER}) and registered by the server rather than by the inference plugin.
+     */
+    public static final List<String> ATTRIBUTION_HEADERS = List.of(
+        X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
+        X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
+        X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER,
+        X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER
+    );
 
-    public InferenceProductContext(@Nullable String productUseCase, @Nullable String productOrigin) {
-        this(productUseCase, productOrigin, null, null, null);
-    }
+    public static final InferenceProductContext EMPTY = new InferenceProductContext(null, null, null, null, null);
 
     /**
      * Creates an {@link InferenceProductContext} by reading the product attribution headers from the given thread context.
@@ -60,5 +72,26 @@ public record InferenceProductContext(
         }
 
         return new InferenceProductContext(useCase, origin, solution, feature, interactionId);
+    }
+
+    /**
+     * The attribution values that are set, keyed by the header carrying them, in the order they should be forwarded. This is the
+     * single place the field to header mapping is declared; callers forwarding attribution onwards should iterate this rather
+     * than reading the components individually.
+     */
+    public Map<String, String> headers() {
+        Map<String, String> headers = new LinkedHashMap<>();
+        putIfPresent(headers, Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, productOrigin);
+        putIfPresent(headers, X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+        putIfPresent(headers, X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, productSolution);
+        putIfPresent(headers, X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, productFeature);
+        putIfPresent(headers, X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, interactionId);
+        return headers;
+    }
+
+    private static void putIfPresent(Map<String, String> headers, String name, @Nullable String value) {
+        if (Strings.isNullOrEmpty(value) == false) {
+            headers.put(name, value);
+        }
     }
 }

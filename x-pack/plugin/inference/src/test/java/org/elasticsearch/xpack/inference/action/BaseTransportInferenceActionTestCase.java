@@ -353,7 +353,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         String productSolution = "security";
         String productFeature = "attack_discovery";
 
-        InferenceContext context = new InferenceContext(productUseCase, interactionId, productSolution, productFeature);
+        InferenceContext context = new InferenceContext(productUseCase, productSolution, productFeature, interactionId);
         ThreadContext threadContext = executeWithInferenceContext(context, new ThreadContext(Settings.EMPTY));
 
         assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
@@ -363,7 +363,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     }
 
     public void testExistingThreadContextHeadersTakePrecedenceOverInferenceContext() {
-        InferenceContext context = new InferenceContext("context-use-case", "context-interaction", "context-solution", "context-feature");
+        InferenceContext context = new InferenceContext("context-use-case", "context-solution", "context-feature", "context-interaction");
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, "existing-use-case");
         threadContext.putHeader(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, "existing-interaction");

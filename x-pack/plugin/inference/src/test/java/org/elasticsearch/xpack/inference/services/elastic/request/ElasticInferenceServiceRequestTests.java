@@ -32,6 +32,7 @@ import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_EL
 import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
 import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
 import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContextTests.productContext;
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_ES_VERSION;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,7 +44,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         var secret = "secret";
         var productOrigin = "elastic";
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
-            new ElasticInferenceServiceRequestMetadata(new InferenceProductContext(null, productOrigin), null),
+            new ElasticInferenceServiceRequestMetadata(productContext(null, productOrigin), null),
             null,
             new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(new SecureString(secret.toCharArray()))
         );
@@ -56,7 +57,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithProductOrigin() {
         var productOrigin = "elastic";
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
-            new ElasticInferenceServiceRequestMetadata(new InferenceProductContext(null, productOrigin), null)
+            new ElasticInferenceServiceRequestMetadata(productContext(null, productOrigin), null)
         );
         var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
         var productOriginHeader = httpRequest.httpRequestBase().getFirstHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
@@ -75,7 +76,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         var interactionId = "interaction-id";
 
         for (var testCase : List.of(
-            new Case(new InferenceProductContext(productUseCase, null), X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase),
+            new Case(productContext(productUseCase, null), X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase),
             new Case(
                 new InferenceProductContext(null, null, productSolution, null, null),
                 X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,

@@ -35,6 +35,7 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.inference.telemetry.NodeTelemetryAttributes;
 import org.elasticsearch.license.License;
@@ -1021,12 +1022,7 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Collection<String> getTaskHeaders() {
-        return Set.of(
-            X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
-            X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
-            X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
-            X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER
-        );
+        return InferenceProductContext.ATTRIBUTION_HEADERS;
     }
 
     protected SSLService getSslService() {

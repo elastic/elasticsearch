@@ -85,7 +85,7 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
             this.stream = false;
 
             if (in.getTransportVersion().supports(INFERENCE_CONTEXT)) {
-                this.context = new InferenceContext(in);
+                this.context = InferenceContext.readFrom(in);
             } else {
                 this.context = InferenceContext.EMPTY_INSTANCE;
             }

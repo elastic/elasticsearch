@@ -13,13 +13,20 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.core.inference.InferenceContext.INFERENCE_ATTRIBUTION_HEADERS_ADDED;
+import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceContextTests extends AbstractWireSerializingTestCase<InferenceContext> {
     @Override
     protected Writeable.Reader<InferenceContext> instanceReader() {
-        return InferenceContext::new;
+        return InferenceContext::readFrom;
     }
 
     @Override
@@ -32,56 +39,78 @@ public class InferenceContextTests extends AbstractWireSerializingTestCase<Infer
     }
 
     /**
-     * Drops fields that a peer on {@code version} cannot serialize.
+     * Drops the components that a peer on {@code version} cannot deserialize.
      */
     public static InferenceContext forTransportVersion(InferenceContext context, TransportVersion version) {
-        if (version.supports(INFERENCE_ATTRIBUTION_HEADERS_ADDED) == false) {
-            return new InferenceContext(context.productUseCase());
-        }
-        return context;
+        return version.supports(INFERENCE_ATTRIBUTION_HEADERS_ADDED) ? context : new InferenceContext(context.productUseCase());
     }
 
     @Override
     protected InferenceContext mutateInstance(InferenceContext instance) throws IOException {
-        return switch (randomIntBetween(0, 3)) {
-            case 0 -> new InferenceContext(
-                randomValueOtherThan(instance.productUseCase(), () -> randomAlphaOfLength(10)),
-                instance.interactionId(),
-                instance.productSolution(),
-                instance.productFeature()
-            );
-            case 1 -> new InferenceContext(
-                instance.productUseCase(),
-                randomValueOtherThan(instance.interactionId(), () -> randomAlphaOfLength(10)),
-                instance.productSolution(),
-                instance.productFeature()
-            );
-            case 2 -> new InferenceContext(
-                instance.productUseCase(),
-                instance.interactionId(),
-                randomValueOtherThan(instance.productSolution(), () -> randomAlphaOfLength(10)),
-                instance.productFeature()
-            );
-            default -> new InferenceContext(
-                instance.productUseCase(),
-                instance.interactionId(),
-                instance.productSolution(),
-                randomValueOtherThan(instance.productFeature(), () -> randomAlphaOfLength(10))
-            );
-        };
+        var components = new String[] {
+            instance.productUseCase(),
+            instance.productSolution(),
+            instance.productFeature(),
+            instance.interactionId() };
+        var i = randomIntBetween(0, components.length - 1);
+        components[i] = randomValueOtherThan(components[i], () -> randomAlphaOfLength(10));
+
+        return new InferenceContext(components[0], components[1], components[2], components[3]);
     }
 
-    public void testNewFieldsDroppedForOlderTransportVersion() throws IOException {
+    public void testNewComponentsDroppedForOlderTransportVersion() throws IOException {
         var context = createRandom();
-        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(INFERENCE_ATTRIBUTION_HEADERS_ADDED);
+        var oldVersion = TransportVersionUtils.getPreviousVersion(INFERENCE_ATTRIBUTION_HEADERS_ADDED);
 
-        assertEquals(new InferenceContext(context.productUseCase()), copyInstance(context, oldVersion));
+        assertThat(copyInstance(context, oldVersion), equalTo(new InferenceContext(context.productUseCase())));
     }
 
-    public void testRejectsNullFields() {
-        expectThrows(NullPointerException.class, () -> new InferenceContext(null, "id", "solution", "feature"));
-        expectThrows(NullPointerException.class, () -> new InferenceContext("use-case", null, "solution", "feature"));
-        expectThrows(NullPointerException.class, () -> new InferenceContext("use-case", "id", null, "feature"));
-        expectThrows(NullPointerException.class, () -> new InferenceContext("use-case", "id", "solution", null));
+    public void testRejectsNullComponents() {
+        expectThrows(NullPointerException.class, () -> new InferenceContext(null, "solution", "feature", "id"));
+        expectThrows(NullPointerException.class, () -> new InferenceContext("use-case", null, "feature", "id"));
+        expectThrows(NullPointerException.class, () -> new InferenceContext("use-case", "solution", null, "id"));
+        expectThrows(NullPointerException.class, () -> new InferenceContext("use-case", "solution", "feature", null));
+    }
+
+    public void testFromHeaders() {
+        var context = InferenceContext.fromHeaders(
+            Map.of(
+                X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
+                List.of("use-case"),
+                X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
+                List.of("security"),
+                X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER,
+                List.of("attack_discovery"),
+                X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
+                List.of("interaction-id")
+            )
+        );
+
+        assertThat(context, equalTo(new InferenceContext("use-case", "security", "attack_discovery", "interaction-id")));
+    }
+
+    public void testFromHeaders_UsesFirstValueOfEachHeader() {
+        var headers = Map.of(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of("first", "second"));
+
+        assertThat(InferenceContext.fromHeaders(headers).productUseCase(), equalTo("first"));
+    }
+
+    public void testFromHeaders_EmptyWhenHeadersAbsentOrValueless() {
+        assertThat(InferenceContext.fromHeaders(null), equalTo(InferenceContext.EMPTY_INSTANCE));
+        assertThat(InferenceContext.fromHeaders(Map.of()), equalTo(InferenceContext.EMPTY_INSTANCE));
+        assertThat(
+            InferenceContext.fromHeaders(Map.of(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of())),
+            equalTo(InferenceContext.EMPTY_INSTANCE)
+        );
+    }
+
+    public void testAttributionHeadersOmitsUnsetComponents() {
+        assertThat(
+            new InferenceContext("use-case", "", "", "interaction-id").attributionHeaders(),
+            equalTo(
+                Map.of(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, "use-case", X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, "interaction-id")
+            )
+        );
+        assertThat(InferenceContext.EMPTY_INSTANCE.attributionHeaders(), equalTo(Map.of()));
     }
 }

@@ -1019,6 +1019,23 @@ public class ComputeService {
             execInfo.markEndQuery();
             return new Result(mainPlan.output(), collectedPages, null, configuration, profiles, execInfo, null);
         }))) {
+            // Hold the main exchange open before the coordinator starts, then dispatch branches. Index
+            // CCQ remotes are independent of federation and must still run.
+            SubPlansExecutor subPlansExecutor = new SubPlansExecutor(
+                subplans,
+                localListener,
+                sessionId,
+                rootTask,
+                flags,
+                configuration,
+                foldContext,
+                execInfo,
+                queryPragmas,
+                mainExchangeSource,
+                initialClusterStatuses,
+                sourceProducerRunner,
+                sourceOutcomes
+            );
             runCompute(
                 rootTask,
                 computeContext,
@@ -1037,21 +1054,6 @@ public class ComputeService {
                     initialClusterStatuses
                 );
             }
-            SubPlansExecutor subPlansExecutor = new SubPlansExecutor(
-                subplans,
-                localListener,
-                sessionId,
-                rootTask,
-                flags,
-                configuration,
-                foldContext,
-                execInfo,
-                queryPragmas,
-                mainExchangeSource,
-                initialClusterStatuses,
-                sourceProducerRunner,
-                sourceOutcomes
-            );
             subPlansExecutor.execute(branchParallelDegree);
         }
     }
@@ -1133,7 +1135,7 @@ public class ComputeService {
                 subPlanListener = subPlanListeners.get(subPlanIndex);
                 if (rootTask.isCancelled()) {
                     subPlanListener.onFailure(new TaskCancelledException(rootTask.getReasonCancelled()));
-                } else if (execInfo.isStopped() || mainExchangeSource.isFinished()) {
+                } else if (execInfo.isStopped()) {
                     subPlanListener.onResponse(DriverCompletionInfo.EMPTY);
                 } else {
                     break;
@@ -1528,7 +1530,7 @@ public class ComputeService {
                     EsqlExecutionInfo.Cluster.Status clusterStatus = exchangeSinkSupplier != null
                         ? initialClusterStatuses.get(clusterAlias)
                         : execInfo.getCluster(clusterAlias).getStatus();
-                    if (clusterStatus != EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                    if (shouldSkipRemoteCluster(clusterStatus)) {
                         // if the cluster is already in the terminal state from the planning stage, no need to call it
                         // the initial cluster status is collected before the query is executed
                         LOGGER.trace(
@@ -1887,7 +1889,7 @@ public class ComputeService {
             }
             for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
                 String clusterAlias = cluster.clusterAlias();
-                if (initialClusterStatuses.get(clusterAlias) != EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                if (shouldSkipRemoteCluster(initialClusterStatuses.get(clusterAlias))) {
                     continue;
                 }
                 ActionListener<DriverCompletionInfo> remoteListener = producerComputeListener.acquireCompute().delegateResponse((l, e) -> {
@@ -2595,6 +2597,14 @@ public class ComputeService {
         public String getDescription() {
             return "group [" + parentDescription.get() + "]";
         }
+    }
+
+    /**
+     * Skip a remote only when planning already put it in a terminal state. A missing snapshot entry
+     * is not terminal: the cluster still appears in the physical plan and must run.
+     */
+    static boolean shouldSkipRemoteCluster(EsqlExecutionInfo.Cluster.Status clusterStatus) {
+        return clusterStatus != null && clusterStatus != EsqlExecutionInfo.Cluster.Status.RUNNING;
     }
 
     private static Map<String, OriginalIndices> getIndices(PhysicalPlan plan, Function<EsRelation, Map<String, List<String>>> getter) {

@@ -20,6 +20,14 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ComputeServiceSourceOutcomeTests extends ESTestCase {
 
+    public void testMissingInitialClusterStatusDoesNotSkipRemote() {
+        assertFalse(ComputeService.shouldSkipRemoteCluster(null));
+        assertFalse(ComputeService.shouldSkipRemoteCluster(EsqlExecutionInfo.Cluster.Status.RUNNING));
+        assertTrue(ComputeService.shouldSkipRemoteCluster(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        assertTrue(ComputeService.shouldSkipRemoteCluster(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+        assertTrue(ComputeService.shouldSkipRemoteCluster(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+    }
+
     public void testRepeatedProducerAttemptsDoNotMultiplyShardCounts() {
         EsqlExecutionInfo executionInfo = executionInfo();
         ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();

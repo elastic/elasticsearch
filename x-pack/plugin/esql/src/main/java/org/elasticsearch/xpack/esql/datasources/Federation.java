@@ -205,4 +205,15 @@ public final class Federation {
     public static ElasticsearchStatusException notAvailableException() {
         return new ElasticsearchStatusException("external data sources are not available", RestStatus.BAD_REQUEST);
     }
+
+    /**
+     * True when {@code throwable} is the 400 raised by {@link #notAvailableException()}. Used to keep that
+     * refusal fatal under partial-results: it is a node-level "feature not present" answer, not a
+     * skippable shard failure.
+     */
+    public static boolean isNotAvailableException(Throwable throwable) {
+        return throwable instanceof ElasticsearchStatusException statusException
+            && statusException.status() == RestStatus.BAD_REQUEST
+            && "external data sources are not available".equals(statusException.getMessage());
+    }
 }

@@ -322,10 +322,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     failedNodes.incrementAndGet();
                 }
                 if (completedNodes.incrementAndGet() == expectedNodes && completed.compareAndSet(false, true)) {
-                    if (successfulNodes.get() == 0
-                        && executionStopped.getAsBoolean() == false
-                        && exchangeSource.isFinished() == false
-                        && parentTask.isCancelled() == false) {
+                    // Failures close their exchange sinks, so isFinished() is often already true here.
+                    // That is not evidence the query already had enough rows (a satisfied LIMIT).
+                    if (successfulNodes.get() == 0 && executionStopped.getAsBoolean() == false && parentTask.isCancelled() == false) {
                         var failure = new IllegalStateException("all [" + failedNodes.get() + "] nodes assigned external splits failed");
                         if (allowPartial && tolerateAllNodesFailure) {
                             allNodesFailureConsumer.accept(failure);

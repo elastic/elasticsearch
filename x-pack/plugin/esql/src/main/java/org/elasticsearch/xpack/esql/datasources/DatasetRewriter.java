@@ -20,6 +20,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -242,10 +243,11 @@ public final class DatasetRewriter {
     }
 
     /**
-     * A view whose body is already a multi-source {@code FROM} becomes a {@link SourceFanInUnionAll}
+     * A view whose body is already a mixed dataset+index {@code FROM} becomes a {@link SourceFanInUnionAll}
      * child of a {@link ViewUnionAll} when composed with another source. Lift those children into one
-     * source fan-in so Mapper sees independently distributable producers. Only rewrite when every
-     * child is itself a source producer; a pipeline sibling stays a {@link ViewUnionAll}.
+     * union so Mapper sees independently distributable producers. Dataset-only leaves stay a
+     * {@link UnionAll}. Only rewrite when every child is itself a source producer; a pipeline sibling
+     * stays a {@link ViewUnionAll}.
      */
     static LogicalPlan flattenViewUnionAllWithSourceFanIn(LogicalPlan plan) {
         return plan.transformUp(ViewUnionAll.class, union -> {
@@ -271,7 +273,7 @@ public final class DatasetRewriter {
                     leaves.add(unwrapped);
                 }
             }
-            return new SourceFanInUnionAll(union.source(), leaves, union.output());
+            return unionForExpandedFrom(union.source(), leaves, union.output());
         });
     }
 
@@ -379,7 +381,47 @@ public final class DatasetRewriter {
         if (children.size() == 1) {
             return children.get(0);
         }
-        return new SourceFanInUnionAll(relation.source(), children, List.of());
+        return unionForExpandedFrom(relation.source(), children, List.of());
+    }
+
+    /**
+     * Dataset-only expansion stays a {@link UnionAll} so the existing subquery merge path and
+     * {@code PushAggregateThroughUnionAll} apply. {@link SourceFanInUnionAll} is only for a mix of
+     * a dataset and an index-side child ({@link UnresolvedRelation} or {@link DatasetShadowRelation}),
+     * which needs independently prepared producers.
+     */
+    private static LogicalPlan unionForExpandedFrom(Source source, List<LogicalPlan> children, List<Attribute> output) {
+        if (needsSourceFanIn(children)) {
+            return new SourceFanInUnionAll(source, children, output);
+        }
+        return new UnionAll(source, children, output);
+    }
+
+    private static boolean needsSourceFanIn(List<LogicalPlan> children) {
+        boolean hasDataset = false;
+        boolean hasIndexSide = false;
+        for (LogicalPlan child : children) {
+            if (isDatasetSource(child)) {
+                hasDataset = true;
+            } else {
+                hasIndexSide = true;
+            }
+        }
+        return hasDataset && hasIndexSide;
+    }
+
+    private static boolean isDatasetSource(LogicalPlan plan) {
+        if (plan instanceof UnresolvedExternalRelation) {
+            return true;
+        }
+        if (plan instanceof SourceFanInUnionAll fanIn) {
+            for (LogicalPlan child : fanIn.children()) {
+                if (isDatasetSource(child)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

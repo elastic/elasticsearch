@@ -13,6 +13,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
@@ -45,6 +48,8 @@ import static org.hamcrest.Matchers.not;
  * rail with {@link RemoteDatasetNotSupportedException} ("remote datasets are not supported"), while a plain
  * {@code FROM cluster-a:<index>} still succeeds. This is the dataset analogue of CrossClusterViewIT's
  * {@code testRemoteViewConcreteMatchFailsQuery}/{@code testRemoteViewWildcardMatchFailsQuery}.
+ * {@code testLocalDatasetAndRemoteIndex} covers the mixed case: a local dataset plus a remote CCQ index
+ * as separate FROM relations.
  *
  * <p>Multi-node remotes are safe: the diff-apply indices-lookup reuse guard now accounts for dataset metadata.
  */
@@ -54,6 +59,10 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
     private static final String REMOTE_DATASET = "remote_employees";
     private static final String REMOTE_DATASET_2 = "remote_employees_b";
     private static final String REMOTE_PLAIN_INDEX = "logs_idx";
+    private static final String LOCAL_DATASET = "local_employees";
+    private static final String LOCAL_DATA_SOURCE = "local_ds";
+
+    private Path csvFixture;
 
     /** Minimal pass-through validator registered for type {@code test}; accepts any resource scheme. */
     public static final class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
@@ -92,7 +101,11 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
     protected Settings nodeSettings() {
         // Both the local and the remote nodes need federation on: the remote reports its datasets during field
         // resolution only when it is available there, and the local coordinator only asks when it is available here.
-        return Settings.builder().put(super.nodeSettings()).put(Federation.FEDERATION_ENABLED.getKey(), true).build();
+        return Settings.builder()
+            .put(super.nodeSettings())
+            .put(Federation.FEDERATION_ENABLED.getKey(), true)
+            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
+            .build();
     }
 
     @Override
@@ -100,6 +113,10 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
         // The dataset lives on the remote, so its data-source validator must be installed there (and harmlessly
         // everywhere). AbstractCrossClusterTestCase already installs the EncryptionService binding the CRUD actions need.
+        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
+        plugins.add(AbstractExternalDataSourceIT.EsqlEnterpriseWithDatasourceExtensions.class);
+        plugins.add(HttpDataSourcePlugin.class);
+        plugins.add(CsvDataSourcePlugin.class);
         plugins.add(TestDataSourcePlugin.class);
         return plugins;
     }
@@ -113,7 +130,7 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
         populateRemoteIndices(REMOTE_CLUSTER_1, REMOTE_PLAIN_INDEX, randomIntBetween(1, 3));
 
         // A CSV fixture on the shared (single-host) filesystem; reachable from every remote node via file://.
-        Path csvFixture = createTempFile("ccs-dataset-", ".csv");
+        csvFixture = createTempFile("ccs-dataset-", ".csv");
         Files.writeString(csvFixture, String.join("\n", "emp_no:integer,first_name:keyword", "1,Alice", "2,Bob", "3,Carol") + "\n");
 
         // Register the data source + dataset on the REMOTE cluster (root user via the remote client).
@@ -138,6 +155,19 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
             client(REMOTE_CLUSTER_2).execute(
                 PutDatasetAction.INSTANCE,
                 putDatasetRequest(REMOTE_DATASET_2, "remote_ds_b", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            ).actionGet(30, TimeUnit.SECONDS)
+        );
+
+        // A local CSV dataset so mixed local-dataset + remote-index queries have a real federation scan
+        // on the coordinating cluster.
+        assertAcked(
+            client(LOCAL_CLUSTER).execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(LOCAL_DATA_SOURCE, Map.of()))
+                .actionGet(30, TimeUnit.SECONDS)
+        );
+        assertAcked(
+            client(LOCAL_CLUSTER).execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(LOCAL_DATASET, LOCAL_DATA_SOURCE, csvFixture.toUri().toString(), Map.of("format", "csv"))
             ).actionGet(30, TimeUnit.SECONDS)
         );
     }
@@ -168,6 +198,38 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
         // And a non-aggregating read returns the remote rows (populateRemoteIndices writes 10 docs).
         try (var resp = runQuery("FROM " + REMOTE_CLUSTER_1 + ":" + REMOTE_PLAIN_INDEX + " | KEEP id | LIMIT 100", null)) {
             assertThat(getValuesList(resp).size(), greaterThan(0));
+        }
+    }
+
+    /**
+     * Local dataset plus a remote CCQ index as separate FROM relations. The rewriter only rewrites
+     * local-only patterns, so the mixed query has to be two relations: the local dataset stands
+     * alone (or in its own subquery) and the remote index is a CCQ subquery. A single
+     * {@code FROM local_ds, cluster-a:idx} relation bails so CCS sees the original pattern.
+     */
+    public void testLocalDatasetAndRemoteIndex() {
+        assumeTrue("requires subquery in FROM command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+
+        try (var resp = runQuery("FROM " + LOCAL_DATASET + " | STATS c = COUNT(*)", null)) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(3L))));
+        }
+
+        String mixed = LOCAL_DATASET + ", (FROM " + REMOTE_CLUSTER_1 + ":" + REMOTE_PLAIN_INDEX + ")";
+        assertLocalDatasetAndRemoteIndex(mixed);
+
+        String bothSubqueries = "(FROM " + LOCAL_DATASET + "), (FROM " + REMOTE_CLUSTER_1 + ":" + REMOTE_PLAIN_INDEX + ")";
+        assertLocalDatasetAndRemoteIndex(bothSubqueries);
+    }
+
+    private void assertLocalDatasetAndRemoteIndex(String fromSources) {
+        try (var resp = runQuery("FROM " + fromSources + " | STATS employees = COUNT(emp_no), remotes = COUNT(id)", true)) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(3L, 10L))));
+            assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
+            assertThat(
+                resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1).getStatus(),
+                equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+            );
         }
     }
 

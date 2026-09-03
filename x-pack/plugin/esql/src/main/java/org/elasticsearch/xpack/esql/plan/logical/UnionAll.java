@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 public class UnionAll extends Fork implements PostOptimizationPlanVerificationAware {
 
     /**
-     * Builds a relational union. Dataset source expansion uses {@link SourceFanInUnionAll}.
+     * Builds a relational union. A mixed dataset+index {@code FROM} uses {@link SourceFanInUnionAll}.
      */
     public UnionAll(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children, output);

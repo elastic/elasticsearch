@@ -63,9 +63,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 RemoteClusterOutcome {}
 
         /**
-         * The remote was not started because the query already stopped or the coordinator
-         * exchange finished. STOP records {@code PARTIAL}; LIMIT records {@code SUCCESSFUL}.
-         * skip-unavailable uses {@code SKIPPED}. Not a failure.
+         * The remote was not started because the query already stopped. STOP records
+         * {@code PARTIAL}. skip-unavailable uses {@code SKIPPED}. Not a failure.
          */
         record Skipped(EsqlExecutionInfo.Cluster.Status status) implements RemoteClusterOutcome {}
     }
@@ -133,20 +132,14 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             searchExecutor,
             listener.delegateFailureAndWrap((l, unused) -> {
                 boolean cancelled = rootTask.isCancelled();
-                if (cancelled || executionInfo.isStopped() || exchangeSource.isFinished()) {
+                if (cancelled || executionInfo.isStopped()) {
                     var remoteSink = exchangeService.newRemoteSink(rootTask, childSessionId, transportService, cluster.connection);
                     final var terminalListener = l;
                     remoteSink.close(ActionListener.wrap(ignored -> {
                         if (cancelled) {
                             terminalListener.onFailure(new TaskCancelledException(rootTask.getReasonCancelled()));
                         } else {
-                            outcomeConsumer.accept(
-                                new RemoteClusterOutcome.Skipped(
-                                    executionInfo.isStopped()
-                                        ? EsqlExecutionInfo.Cluster.Status.PARTIAL
-                                        : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL
-                                )
-                            );
+                            outcomeConsumer.accept(new RemoteClusterOutcome.Skipped(EsqlExecutionInfo.Cluster.Status.PARTIAL));
                             terminalListener.onResponse(DriverCompletionInfo.EMPTY);
                         }
                     }, terminalListener::onFailure));

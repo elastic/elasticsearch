@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
@@ -18,6 +19,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -31,6 +33,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -64,6 +67,13 @@ public class EsqlCCSUtilsTests extends ESTestCase {
     private final String LOCAL_CLUSTER_ALIAS = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
     private final String REMOTE1_ALIAS = "remote1";
     private final String REMOTE2_ALIAS = "remote2";
+
+    public void testCanAllowPartialKeepsFederationUnavailableFatal() {
+        assertFalse(EsqlCCSUtils.canAllowPartial(Federation.notAvailableException()));
+        assertFalse(EsqlCCSUtils.canAllowPartial(new IndexNotFoundException("idx")));
+        assertFalse(EsqlCCSUtils.canAllowPartial(new ElasticsearchSecurityException("denied")));
+        assertTrue(EsqlCCSUtils.canAllowPartial(new IllegalStateException("shard failed")));
+    }
 
     public void testCreateQualifiedLookupIndexExpressionFromAvailableClusters() {
 

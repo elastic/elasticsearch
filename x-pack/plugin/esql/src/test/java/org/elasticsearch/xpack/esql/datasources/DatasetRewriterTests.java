@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class DatasetRewriterTests extends ESTestCase {
 
@@ -133,7 +134,8 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("ds1,ds2"), project);
 
-        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, not(instanceOf(SourceFanInUnionAll.class)));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
         assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
@@ -143,11 +145,10 @@ public class DatasetRewriterTests extends ESTestCase {
     public void testViewUnionAllWithNestedSourceFanInFlattens() {
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
-        Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
         Dataset ds3 = new Dataset("ds3", new DataSourceReference("s3_parent"), "s3://c/", null, Map.of());
-        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2, "ds3", ds3));
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds3", ds3), Set.of("some_idx"));
 
-        LogicalPlan inner = rewrite(relationOf("ds1,ds2"), project);
+        LogicalPlan inner = rewrite(relationOf("some_idx,ds1"), project);
         LogicalPlan sibling = rewrite(relationOf("ds3"), project);
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put("view", inner);
@@ -211,7 +212,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("idx1,idx2,ds1,ds2"), project);
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         // 1 index branch + 2 dataset branches = 3 children
         assertThat(union.children(), hasSize(3));
@@ -362,7 +363,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("my_closed_index,logs"), project);
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
         assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
@@ -379,7 +380,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
         assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
@@ -396,7 +397,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("logs_*"), project, Set.of("logs_dataset"));
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         List<LogicalPlan> children = rewritten.children();
         assertThat(children, hasSize(2));
         assertThat(children.get(0), instanceOf(UnresolvedExternalRelation.class));
@@ -427,7 +428,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("logs_dataset"), project, Set.of("logs_dataset"));
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         List<LogicalPlan> children = rewritten.children();
         assertThat(children, hasSize(2));
         assertThat(children.get(0), instanceOf(UnresolvedExternalRelation.class));
@@ -477,7 +478,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("ds1,ds2"), project, Set.of("ds1", "ds2"));
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         List<LogicalPlan> children = rewritten.children();
         assertThat(children, hasSize(4));
         long externalCount = children.stream().filter(c -> c instanceof UnresolvedExternalRelation).count();
@@ -516,7 +517,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("some_idx,logs_dataset"), project, Set.of("logs_dataset"));
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         List<LogicalPlan> children = rewritten.children();
         // external(logs_dataset) + index branch(some_idx) + shadow(logs_dataset)
         assertThat(children, hasSize(3));

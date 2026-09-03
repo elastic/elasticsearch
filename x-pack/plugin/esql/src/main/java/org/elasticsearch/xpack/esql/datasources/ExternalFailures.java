@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
@@ -211,7 +212,13 @@ public final class ExternalFailures {
      * so the path is not printed twice. Callers that have already resolved their own detail string use this
      * directly rather than re-deriving it from the cause.
      */
-    public static String locate(String prefix, String location, String detail) {
+    public static String locate(String prefix, String location, @Nullable String detail) {
+        if (detail == null) {
+            // A message-less throwable reaches here from the arms that pass getMessage() straight in --
+            // EsRejectedExecutionException has a no-argument constructor. Name the location and stop, rather
+            // than appending the word "null".
+            return prefix + " [" + location + "]";
+        }
         // contains() is deliberately loose: it is inherited from resolutionFailureMessage, and a location that is a
         // strict prefix of the one named in the detail would suppress the prefix wrongly. No path produces that
         // today -- both come from the same StoragePath -- so tightening it is not worth a behaviour change here.

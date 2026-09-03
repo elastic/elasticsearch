@@ -290,6 +290,77 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("query a dataset that was deleted", 400)
     );
 
+    /**
+     * The {@code error.type} every probe is expected to return. Clients read this alongside the status, so a rename
+     * is as visible as a status change and is pinned the same way -- this PR's own CSV faults moved from
+     * {@code parsing_exception} to {@code external_client_exception}, which nothing would otherwise have caught.
+     */
+    private static final Map<String, String> EXPECTED_TYPE = Map.ofEntries(
+        entry("tsv object does not exist", "external_client_exception"),
+        entry("tsv object is empty", "illegal_argument_exception"),
+        entry("tsv declared as parquet", "illegal_argument_exception"),
+        entry("tsv under a data source with the wrong credentials", "illegal_argument_exception"),
+        entry("object key does not exist", "external_client_exception"),
+        entry("bucket does not exist", "external_client_exception"),
+        entry("key is a prefix, not an object", "external_client_exception"),
+        entry("unsupported URI scheme", "validation_exception"),
+        entry("scheme with no host or key", "illegal_argument_exception"),
+        entry("URI with no scheme at all", "validation_exception"),
+        entry("endpoint refuses connections", "external_client_exception"),
+        entry("wrong access key", "external_client_exception"),
+        entry("anonymous access against an authenticated endpoint", "external_client_exception"),
+        entry("no extension and no explicit format", "illegal_argument_exception"),
+        entry("unknown extension and no explicit format", "illegal_argument_exception"),
+        entry("explicit format contradicts the bytes (parquet declared, CSV content)", "illegal_argument_exception"),
+        entry("unknown explicit format name", "validation_exception"),
+        entry("parquet extension over non-parquet bytes", "illegal_argument_exception"),
+        entry("parquet with correct magic but truncated body", "illegal_argument_exception"),
+        entry("zero-byte object", "illegal_argument_exception"),
+        entry("unknown setting key on the dataset", "validation_exception"),
+        entry("multi-character delimiter", "<none>"),
+        entry("invalid encoding name", "illegal_argument_exception"),
+        entry("invalid datetime format pattern", "illegal_argument_exception"),
+        entry("non-boolean header_row", "illegal_argument_exception"),
+        entry("negative schema_sample_size", "validation_exception"),
+        entry("multi-character quote character", "<none>"),
+        entry("unknown error_mode value", "validation_exception"),
+        entry("row with more fields than the header", "external_client_exception"),
+        entry("declared column of an undeclarable type", "illegal_argument_exception"),
+        entry("unknown key inside the mappings block", "x_content_parse_exception"),
+        entry("_id.path points at a column that is not declared", "illegal_argument_exception"),
+        entry("two declared columns resolving to one physical column", "illegal_argument_exception"),
+        entry("date format declared on a non-date column", "illegal_argument_exception"),
+        entry("strict declaration with no columns", "illegal_argument_exception"),
+        entry("declared type not coercible from the bytes", "external_client_exception"),
+        entry("glob matches nothing", "illegal_argument_exception"),
+        entry("glob over incompatible schemas", "<none>"),
+        entry("glob over a bucket that does not exist", "external_client_exception"),
+        entry("put dataset referencing an unknown data source", "resource_not_found_exception"),
+        entry("put dataset with no resource", "illegal_argument_exception"),
+        entry("put dataset with an empty resource", "action_request_validation_exception"),
+        entry("put dataset with an unknown top-level field", "x_content_parse_exception"),
+        entry("put dataset with malformed JSON", "x_content_e_o_f_exception"),
+        entry("put dataset whose name contains a comma", "action_request_validation_exception"),
+        entry("put dataset whose name is uppercase", "action_request_validation_exception"),
+        entry("put dataset whose name starts with an underscore", "action_request_validation_exception"),
+        entry("put dataset colliding with an existing index name", "resource_already_exists_exception"),
+        entry("put dataset shadowing a secret parent setting", "validation_exception"),
+        entry("get an unknown dataset", "resource_not_found_exception"),
+        entry("delete an unknown dataset", "resource_not_found_exception"),
+        entry("query an unknown dataset", "verification_exception"),
+        entry("put data source with an unknown type", "illegal_argument_exception"),
+        entry("put data source with no type", "illegal_argument_exception"),
+        entry("put s3 data source with an unknown setting", "validation_exception"),
+        entry("put s3 data source with anonymous auth plus credentials", "validation_exception"),
+        entry("put s3 data source with an access key and no secret key", "validation_exception"),
+        entry("put s3 data source with a malformed endpoint", "<none>"),
+        entry("get an unknown data source", "resource_not_found_exception"),
+        entry("delete an unknown data source", "resource_not_found_exception"),
+        entry("delete a data source that still has datasets", "status_exception"),
+        entry("delete a data source after its datasets are gone", "<none>"),
+        entry("query a dataset that was deleted", "verification_exception")
+    );
+
     // ---------------------------------------------------------------------------------------------
     // The matrix.
     // ---------------------------------------------------------------------------------------------
@@ -1230,6 +1301,14 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
                 violations.add("no expected status recorded for [" + p.group() + "/" + p.name() + "]");
             } else if (expected != p.status()) {
                 violations.add("status changed for [" + p.group() + "/" + p.name() + "]: expected " + expected + ", got " + p.status());
+            }
+            String expectedType = EXPECTED_TYPE.get(p.name());
+            if (expectedType == null) {
+                violations.add("no expected error.type recorded for [" + p.group() + "/" + p.name() + "]");
+            } else if (expectedType.equals(p.type()) == false) {
+                violations.add(
+                    "error.type changed for [" + p.group() + "/" + p.name() + "]: expected " + expectedType + ", got " + p.type()
+                );
             }
         }
 

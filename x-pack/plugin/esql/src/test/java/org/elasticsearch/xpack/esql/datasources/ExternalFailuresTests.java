@@ -246,6 +246,15 @@ public class ExternalFailuresTests extends ESTestCase {
         );
     }
 
+    public void testLocateHandlesAMessagelessFailure() {
+        // EsRejectedExecutionException has a no-argument constructor, and the rejection arm passes getMessage()
+        // straight into locate -- so a null detail is reachable, not hypothetical.
+        assertEquals(
+            "Failed to resolve external source [s3://bucket/data/good.csv]",
+            ExternalFailures.locate("Failed to resolve external source", "s3://bucket/data/good.csv", null)
+        );
+    }
+
     public void testRootCauseStepsThroughAToStringDerivedWrapper() {
         IOException real = new IOException("Object not found: s3://bucket/x.csv");
         // The shape the resolver sees: a JDK ExecutionException whose message is the cause's toString(). It is not

@@ -36,7 +36,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -49,8 +48,6 @@ public class RestCatRecoveryActionTests extends ESTestCase {
         final int failedShards = totalShards - successfulShards;
         final Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
         final List<RecoveryState> recoveryStates = new ArrayList<>();
-        // A nano-time clock used for Timer.time() calls, which we can advance deterministically.
-        final AtomicLong nanoTime = new AtomicLong(1_000_000_000L);
 
         for (int i = 0; i < successfulShards; i++) {
             final RecoverySource recoverySource = TestShardRouting.buildRecoverySource();
@@ -75,7 +72,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
                 ShardRoutingState.INITIALIZING,
                 recoverySource
             );
-            final RecoveryState state = new RecoveryState(shardRouting, targetNode, sourceNode, nanoTime::get);
+            final RecoveryState state = new RecoveryState(shardRouting, targetNode, sourceNode);
             state.setLocalRetries(randomIntBetween(0, 10));
 
             // Walk the state machine to a randomly chosen target stage. Declaration order matches traversal order.
@@ -109,13 +106,9 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             if (targetStage.ordinal() >= RecoveryState.Stage.FINALIZE.ordinal()) {
                 state.setStage(RecoveryState.Stage.FINALIZE);
             }
-            // Advance the nano-time clock so that running-timer states report a non-zero elapsed time.
-            // Do this before moving to DONE so that we capture the elapsed time in stop().
-            nanoTime.addAndGet(randomLongBetween(1_000_000L, 30_000_000_000L));
             if (targetStage.ordinal() >= RecoveryState.Stage.DONE.ordinal()) {
                 state.setStage(RecoveryState.Stage.DONE);
             }
-
             recoveryStates.add(state);
         }
 
@@ -131,6 +124,12 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             shardRecoveryStates,
             shardFailures
         );
+        // Stop any timers that are running, so the time() captured when building the table matches that asserted below:
+        recoveryStates.forEach(state -> {
+            if (state.getTimer().startTime() > 0 && state.getTimer().stopTime() == 0) {
+                state.getTimer().stop();
+            }
+        });
         final Table table = action.buildRecoveryTable(null, response);
 
         assertNotNull(table);

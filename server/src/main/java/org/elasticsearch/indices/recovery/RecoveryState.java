@@ -32,7 +32,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * Keeps track of state related to shard recovery.
@@ -129,26 +128,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode, Index index) {
-        this(shardRouting, targetNode, sourceNode, index, System::nanoTime);
-    }
-
-    /// Creates a RecoveryState with an injectable nano-time clock, for use in tests that need deterministic timer behaviour.
-    public RecoveryState(
-        ShardRouting shardRouting,
-        DiscoveryNode targetNode,
-        @Nullable DiscoveryNode sourceNode,
-        Supplier<Long> nanoClock
-    ) {
-        this(shardRouting, targetNode, sourceNode, new Index(), nanoClock);
-    }
-
-    private RecoveryState(
-        ShardRouting shardRouting,
-        DiscoveryNode targetNode,
-        @Nullable DiscoveryNode sourceNode,
-        Index index,
-        Supplier<Long> nanoClock
-    ) {
         this(
             shardRouting.shardId(),
             shardRouting.primary(),
@@ -157,7 +136,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             sourceNode,
             targetNode,
             index,
-            new Timer(nanoClock)
+            new Timer()
         );
         assert shardRouting.initializing() : "only allow initializing shard routing to be recovered: " + shardRouting;
         assert shardRouting.recoverySource().getType() != RecoverySource.Type.PEER || sourceNode != null
@@ -518,22 +497,14 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public static class Timer implements Writeable {
-        private final Supplier<Long> nanoClock;
         protected long startTime = 0;
         protected long startNanoTime = 0;
         protected long time = -1;
         protected long stopTime = 0;
 
-        public Timer() {
-            this(System::nanoTime);
-        }
-
-        Timer(Supplier<Long> nanoClock) {
-            this.nanoClock = nanoClock;
-        }
+        public Timer() {}
 
         public Timer(StreamInput in) throws IOException {
-            this.nanoClock = System::nanoTime;
             startTime = in.readVLong();
             startNanoTime = in.readVLong();
             stopTime = in.readVLong();
@@ -552,7 +523,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public synchronized void start() {
             assert startTime == 0 : "already started";
             startTime = System.currentTimeMillis();
-            startNanoTime = nanoClock.get();
+            startNanoTime = System.nanoTime();
         }
 
         /** Returns start time in millis */
@@ -568,7 +539,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             if (time >= 0) {
                 return time;
             }
-            return Math.max(0, TimeValue.nsecToMSec(nanoClock.get() - startNanoTime));
+            return Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - startNanoTime));
         }
 
         /** Returns stop time in millis */
@@ -579,7 +550,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public synchronized void stop() {
             assert stopTime == 0 : "already stopped";
             stopTime = Math.max(System.currentTimeMillis(), startTime);
-            time = TimeValue.nsecToMSec(nanoClock.get() - startNanoTime);
+            time = TimeValue.nsecToMSec(System.nanoTime() - startNanoTime);
             assert time >= 0;
         }
 

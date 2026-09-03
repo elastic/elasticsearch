@@ -8,14 +8,19 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 
 public class SourceStatisticsSerializerTests extends ESTestCase {
@@ -945,6 +950,115 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertFalse(
             "one unlicensed input withdraws the licence from the sum",
             partly.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)
+        );
+    }
+
+    public void testEmbedAndExtractReadableUnitCount() {
+        SourceStatistics stats = new SourceStatistics() {
+            @Override
+            public OptionalLong rowCount() {
+                return OptionalLong.of(10L);
+            }
+
+            @Override
+            public OptionalLong sizeInBytes() {
+                return OptionalLong.of(100L);
+            }
+
+            @Override
+            public OptionalLong readableUnitCount() {
+                return OptionalLong.of(1L);
+            }
+        };
+        Map<String, Object> embedded = SourceStatisticsSerializer.embedStatistics(Map.of(), stats);
+        assertEquals(1L, embedded.get(SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT));
+        SourceStatistics extracted = SourceStatisticsSerializer.extractStatistics(embedded).orElseThrow();
+        assertEquals(1L, extracted.readableUnitCount().orElse(-1));
+    }
+
+    public void testFromSourcePrefersTypedThenReconstructsFromFlatMap() {
+        SourceStatistics typed = new SourceStatistics() {
+            @Override
+            public OptionalLong rowCount() {
+                return OptionalLong.of(7L);
+            }
+
+            @Override
+            public OptionalLong sizeInBytes() {
+                return OptionalLong.empty();
+            }
+
+            @Override
+            public OptionalLong readableUnitCount() {
+                return OptionalLong.of(1L);
+            }
+        };
+        SourceMetadata withTyped = new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return List.of();
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://b/f.parquet";
+            }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                return Optional.of(typed);
+            }
+        };
+        assertSame(typed, SourceStatisticsSerializer.fromSource(withTyped));
+
+        Map<String, Object> cached = new HashMap<>();
+        cached.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 7L);
+        cached.put(SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT, 1L);
+        SourceMetadata cacheHit = new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return List.of();
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://b/f.parquet";
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return cached;
+            }
+        };
+        SourceStatistics reconstructed = SourceStatisticsSerializer.fromSource(cacheHit);
+        assertNotNull(reconstructed);
+        assertEquals(7L, reconstructed.rowCount().orElse(-1));
+        assertEquals(1L, reconstructed.readableUnitCount().orElse(-1));
+        assertNull(SourceStatisticsSerializer.fromSource(null));
+    }
+
+    public void testMergeStatisticsDropsReadableUnitCount() {
+        Map<String, Object> a = new HashMap<>();
+        a.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+        a.put(SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT, 1L);
+        Map<String, Object> b = new HashMap<>();
+        b.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 20L);
+        b.put(SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT, 1L);
+        Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(List.of(a, b));
+        assertEquals(30L, merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertFalse(
+            "readable unit count is per-file shape and must not fold into a dataset total",
+            merged.containsKey(SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT)
         );
     }
 

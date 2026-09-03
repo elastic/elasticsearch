@@ -113,6 +113,15 @@ public class SharedMinCompetitive extends SideChannel {
     }
 
     /**
+     * Generation of the current competitive bound. Incremented on every accepted {@link #offer}.
+     */
+    public long generation() {
+        synchronized (value) {
+            return generation;
+        }
+    }
+
+    /**
      * Read the min competitive value. This will return {@code null} if there
      * isn't yet a min competitive value. Otherwise, this will return a
      * {@link Page} that contains single-position, single-valued {@link Block}s.

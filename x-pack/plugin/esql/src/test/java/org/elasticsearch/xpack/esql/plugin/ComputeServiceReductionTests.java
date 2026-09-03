@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.IndexMode;
@@ -283,7 +282,8 @@ public class ComputeServiceReductionTests extends ESTestCase {
     }
 
     private static Configuration remoteFetchConfiguration() {
-        return EsqlTestUtils.configuration(new QueryPragmas(Settings.builder().put(QueryPragmas.REMOTE_FETCH_TOPN.getKey(), true).build()));
+        assumeTrue("test requires remote fetch topn feature flag", RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_FEATURE_FLAG.isEnabled());
+        return EsqlTestUtils.configuration(QueryPragmas.EMPTY);
     }
 
     private static ExchangeSinkExec remoteFetchDataPlan(Configuration configuration) {

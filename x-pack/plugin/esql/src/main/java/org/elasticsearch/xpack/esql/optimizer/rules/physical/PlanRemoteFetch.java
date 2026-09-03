@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -69,7 +70,7 @@ import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
 public final class PlanRemoteFetch extends ParameterizedRule<PhysicalPlan, PhysicalPlan, PhysicalOptimizerContext> {
     @Override
     public PhysicalPlan apply(PhysicalPlan plan, PhysicalOptimizerContext context) {
-        if (context.configuration().pragmas().remoteFetchTopN() == false
+        if (EsqlCapabilities.Cap.REMOTE_FETCH_TOPN_FETCH_PHASE.isEnabled() == false
             || context.configuration().pragmas().nodeLevelReduction() == false
             || context.configuration().pragmas().fieldExtractPreference() != MappedFieldType.FieldExtractPreference.NONE
             || context.minimumVersion().supports(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION) == false) {

@@ -76,8 +76,6 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
 
-    public static final Setting<Boolean> REMOTE_FETCH_TOPN = Setting.boolSetting("remote_fetch_topn", false);
-
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
 
     public static final Setting<MappedFieldType.FieldExtractPreference> FIELD_EXTRACT_PREFERENCE = Setting.enumSetting(
@@ -205,7 +203,6 @@ public final class QueryPragmas implements Writeable {
         MAX_CONCURRENT_SHARDS_PER_NODE,
         UNAVAILABLE_SHARD_RESOLUTION_ATTEMPTS,
         NODE_LEVEL_REDUCTION,
-        REMOTE_FETCH_TOPN,
         FOLD_LIMIT,
         FIELD_EXTRACT_PREFERENCE,
         ROUNDTO_PUSHDOWN_THRESHOLD,
@@ -319,13 +316,6 @@ public final class QueryPragmas implements Writeable {
      */
     public boolean nodeLevelReduction() {
         return NODE_LEVEL_REDUCTION.get(settings);
-    }
-
-    /**
-     * Experimental opt-in for fetching deferred TopN fields from retained shard contexts after coordinator reduction.
-     */
-    public boolean remoteFetchTopN() {
-        return REMOTE_FETCH_TOPN.get(settings);
     }
 
     /**

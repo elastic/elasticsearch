@@ -970,6 +970,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         if (retainSearchContexts == false) {
             throw new IllegalStateException("remote-fetch boundary requires retained search contexts");
         }
+        if (EsqlCapabilities.Cap.REMOTE_FETCH_TOPN_FETCH_PHASE.isEnabled() == false) {
+            throw new IllegalStateException(
+                "remote-fetch boundary requires feature flag [" + RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_FEATURE_FLAG + "]"
+            );
+        }
         if (transportVersion.supports(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION) == false) {
             throw new IllegalStateException(
                 "remote-fetch boundary requires transport version ["

@@ -370,11 +370,8 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
     }
 
     private void runRemoteFetchGoldenTest(String query) {
-        builder(query).stages(STAGES)
-            .searchStats(unindexedStats())
-            .remoteFetchTopN()
-            .since(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION)
-            .run();
+        assumeTrue("test requires remote fetch topn feature flag", RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_FEATURE_FLAG.isEnabled());
+        builder(query).stages(STAGES).searchStats(unindexedStats()).since(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION).run();
     }
 
     // Returns false for exists() for the specified field, simulating a missing field on the data node.

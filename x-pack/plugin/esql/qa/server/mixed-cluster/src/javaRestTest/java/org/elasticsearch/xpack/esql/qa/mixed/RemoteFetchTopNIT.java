@@ -18,6 +18,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.ClassRule;
@@ -30,6 +31,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeFalse;
+import static org.junit.Assume.assumeTrue;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class RemoteFetchTopNIT extends ESRestTestCase {
@@ -46,6 +48,10 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
     }
 
     public void testRemoteFetchTopNFallsBackWhenAnyDataNodeIsOld() throws Exception {
+        assumeTrue(
+            "test requires remote fetch topn feature flag",
+            RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_FEATURE_FLAG.isEnabled()
+        );
         assertTrue(
             "the current version must support remote-fetch TopN",
             TransportVersion.current().supports(REMOTE_FETCH_TOPN_TRANSPORT_VERSION)
@@ -150,7 +156,6 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
             builder.field("profile", true);
             builder.field("accept_pragma_risks", true);
             builder.startObject("pragma");
-            builder.field("remote_fetch_topn", true);
             // Keep the data path deterministic and ensure the test exercises shard-level node reduction.
             builder.field("data_partitioning", "shard");
             builder.field("task_concurrency", 1);

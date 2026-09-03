@@ -13,7 +13,6 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -210,7 +209,6 @@ public abstract class GoldenTestCase extends ESTestCase {
         private ProjectMetadata datasetMetadata;
         private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
         private Map<String, String> views = Map.of();
-        private boolean remoteFetchTopN;
 
         private TestBuilder(
             String esqlQuery,
@@ -360,11 +358,6 @@ public abstract class GoldenTestCase extends ESTestCase {
             return this;
         }
 
-        public TestBuilder remoteFetchTopN() {
-            this.remoteFetchTopN = true;
-            return this;
-        }
-
         public void run() {
             String testName = RANDOMIZED_RUNNER_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
             if (explicitTransportVersion && (since != null || labels.isEmpty() == false)) {
@@ -506,8 +499,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 aliasFilter,
                 datasetMetadata,
                 externalSourceResolution,
-                views,
-                remoteFetchTopN
+                views
             );
         }
 
@@ -648,8 +640,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         AliasFilter aliasFilter,
         ProjectMetadata datasetMetadata,
         ExternalSourceResolution externalSourceResolution,
-        Map<String, String> views,
-        boolean remoteFetchTopN
+        Map<String, String> views
     ) {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
@@ -702,10 +693,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             if (stages.equals(EnumSet.of(Stage.ANALYSIS))) {
                 return result;
             }
-            Settings pragmaSettings = remoteFetchTopN
-                ? Settings.builder().put(QueryPragmas.REMOTE_FETCH_TOPN.getKey(), true).build()
-                : Settings.EMPTY;
-            var configuration = EsqlTestUtils.configuration(new QueryPragmas(pragmaSettings), esqlQuery, statement);
+            var configuration = EsqlTestUtils.configuration(QueryPragmas.EMPTY, esqlQuery, statement);
             var optimizerContext = new LogicalOptimizerContext(configuration, FoldContext.small(), transportVersion);
             var optimizer = optimizerFactory != null
                 ? optimizerFactory.apply(optimizerContext)

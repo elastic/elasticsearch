@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
+import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
@@ -93,6 +94,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunct
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatchers;
@@ -124,6 +126,9 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.Transl
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.mapToRef;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.open;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType.SCALAR;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan.getType;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch.Joining;
 
 /**
  * Translates PromQL logical plan into ESQL plan. Runs before {@link TranslateTimeSeriesAggregate} to convert
@@ -191,6 +196,13 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         }
 
         LogicalPlan translateFinal() {
+            if (cmd.promqlPlan() instanceof VectorBinaryOperator op) {
+                VectorMatch match = op.match();
+                if (match.filter() != VectorMatch.Filter.NONE || match.grouping() != Joining.NONE) {
+                    return doTranslateFinal(doTranslateBinOpInnerJoin(op).plan(), false);
+                }
+            }
+
             // `or` is the only set operator that adds rows (more series), requiring a top-level multi-branch `UnionAll` that
             // cannot compose as a single-value sub-expression.
             // PromQL `or` is left-associative, so flatten the top-level chain into independent branches.
@@ -290,7 +302,10 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
             var plan = ir.plan();
             var value = ir.value();
-            var filter = combineAndNullable(Arrays.asList(ir.pendingFilter(), emitBySrcTimeFilter(branch)));
+            // A vector match self-filters each operand's own source with that operand's own @timestamp; a combined outer
+            // source-time filter would push one operand's @timestamp across both sources - skip over InnerJoin.
+            Expression timeFilter = plan.anyMatch(p -> p instanceof InnerJoin) ? null : emitBySrcTimeFilter(branch);
+            var filter = combineAndNullable(Arrays.asList(ir.pendingFilter(), timeFilter));
             if (filter != null) {
                 plan = pushDownSrcTimestampFilter(plan, filter);
             }
@@ -304,10 +319,14 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                     value = collapsed.value();
                 }
                 if (branch instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
-                    // Filter-mode comparison (metric > x): keep the left operand's value, filter rows by the comparison.
-                    ToDouble right = new ToDouble(comparison.right().source(), ((LiteralSelector) comparison.right()).literal());
-                    var condition = comparison.op().asFunction().create(comparison.source(), value, right, configuration());
-                    plan = new Filter(comparison.source(), plan, condition);
+                    VectorMatch match = comparison.match();
+                    if ((match.filter() != VectorMatch.Filter.NONE || match.grouping() != Joining.NONE) == false) {
+                        // Filter-mode comparison (metric > x): keep the left operand's value, filter rows by the comparison.
+                        // A vector-matched comparison already applied its filter inside the join translation.
+                        ToDouble right = new ToDouble(comparison.right().source(), ((LiteralSelector) comparison.right()).literal());
+                        var condition = comparison.op().asFunction().create(comparison.source(), value, right, configuration());
+                        plan = new Filter(comparison.source(), plan, condition);
+                    }
                 }
             }
 
@@ -831,8 +850,21 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             return new IntermediateResult(cmd.child(), Header.EMPTY, function, stepAttr());
         }
 
+        /** Translates explicit vector matching as a join; other binary operators compose over a shared frame. */
+        private IntermediateResult doTranslateBinaryOp(VectorBinaryOperator op) {
+            if (op.match().filter() == VectorMatch.Filter.NONE && op.match().grouping() == Joining.NONE) {
+                if (op.left().resolved() && getType(op.left()) == SCALAR
+                    || op.right().resolved() && getType(op.right()) == SCALAR
+                    || (anyMatchVectorBinaryOperator(op.left()) == false && anyMatchVectorBinaryOperator(op.right()) == false)) {
+                    // Fold binary operator as aggregate expression
+                    return doTranslateBinaryOpAggregate(op);
+                }
+            }
+            return doTranslateBinOpInnerJoin(op);
+        }
+
         /** Composes a binary operator as an expression over the operands' shared aggregate. */
-        private IntermediateResult doTranslateBinaryOp(VectorBinaryOperator binaryOp) {
+        private IntermediateResult doTranslateBinaryOpAggregate(VectorBinaryOperator binaryOp) {
             IntermediateResult left = doTranslateNode(binaryOp.left());
             Expression leftExpr = new ToDouble(left.value().source(), left.value());
             if (binaryOp instanceof VectorBinaryComparison comp && comp.filterMode()) {
@@ -858,6 +890,38 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 : Kind.BEFORE_INITIAL_AGGREGATE;
             IntermediateResult result = new IntermediateResult(plan, shape, null, left.step(), filter, kind);
             return doTranslateAddValueEval(result, binaryExpr);
+        }
+
+        /**
+         * Translates a vector-matched join operator into an {@link InnerJoin}: each operand becomes an independent series
+         * pipeline, joined on shared {@code step} + label keys, and the result value is computed on the joined rows.
+         * The operands compile against the labels the join requires, like any other header push-down: a required label
+         * comes back as a concrete column wherever the operand can carry it, and a label the operand dropped stays
+         * absent and null-fills at the join.
+         */
+        private IntermediateResult doTranslateBinOpInnerJoin(VectorBinaryOperator op) {
+            // A join result is finite: its label set is the operator header plus whatever the enclosing translation asks
+            // for by name (null-filled when the match dropped it). Packed columns stop here as they do at a `by`.
+            Header header = finite(mapFinite(op.output())).union(finite(required.labels()));
+            Header childHeader = header;
+            if (op.match().filter() == VectorMatch.Filter.ON) {
+                childHeader = childHeader.union(finite(op.match().filterLabels()));
+            } else if (op.match().filter() == VectorMatch.Filter.IGNORING) {
+                // The key is each operand's own label set minus the ignored labels: a packed column for an opaque operand.
+                childHeader = childHeader.union(open(op.match().filterLabels()));
+            }
+            Translation childTranslation = new Translation(cmd, analyzer, stepBucketAlias, childHeader, time);
+            IntermediateResult left = childTranslation.translateIntermediate(op.left(), new NameId(), new NameId());
+            IntermediateResult right = childTranslation.translateIntermediate(op.right(), new NameId(), new NameId());
+
+            var layout = new VectorBinaryOperatorLayout(op).command(cmd)
+                .configuration(configuration())
+                .stepId(stepAttr().id())
+                .required(header)
+                .left(left)
+                .right(right);
+
+            return layout.result();
         }
 
         /** Fold left and right aggregates into a single plan. */
@@ -1095,6 +1159,16 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     /** The string value of a keyword-literal PromQL function argument. */
     private static String literalString(Expression literal) {
         return BytesRefs.toString(((Literal) literal).value());
+    }
+
+    private static boolean anyMatchVectorBinaryOperator(LogicalPlan plan) {
+        return plan.anyMatch(p -> {
+            if (p instanceof VectorBinaryOperator vbo) {
+                VectorMatch match = vbo.match();
+                return match.filter() != VectorMatch.Filter.NONE || match.grouping() != Joining.NONE;
+            }
+            return false;
+        });
     }
 
     /** Flattens a left-associative top-level {@code or} chain into branches; branch 0 has the highest precedence. */

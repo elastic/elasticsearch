@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -468,7 +469,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
      * Returns the pattern on the non-LOOKUP relation (the primary index).
      * Automatically skips when {@code OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH} is disabled.
      */
-    private static UnmappedFieldsPattern patternForJoin(String query, org.elasticsearch.xpack.esql.TestAnalyzer analyzer) {
+    private static UnmappedFieldsPattern patternForJoin(String query, TestAnalyzer analyzer) {
         assumeTrue(
             "Requires OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH",
             EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH.isEnabled()
@@ -483,10 +484,10 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     /**
-     * Like {@link #patternFor(String, org.elasticsearch.xpack.esql.TestAnalyzer)}, but for queries using ENRICH.
+     * Like {@link #patternFor(String, TestAnalyzer)}, but for queries using ENRICH.
      * Automatically skips when {@code OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH} is disabled.
      */
-    private static UnmappedFieldsPattern patternForEnrich(String query, org.elasticsearch.xpack.esql.TestAnalyzer analyzer) {
+    private static UnmappedFieldsPattern patternForEnrich(String query, TestAnalyzer analyzer) {
         assumeTrue(
             "Requires OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH",
             EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH.isEnabled()
@@ -495,7 +496,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     /** Like {@link #patternFor(String)}, but accepts a pre-configured analyzer (e.g. one with extra enrich policies). */
-    private static UnmappedFieldsPattern patternFor(String query, org.elasticsearch.xpack.esql.TestAnalyzer analyzer) {
+    private static UnmappedFieldsPattern patternFor(String query, TestAnalyzer analyzer) {
         LogicalPlan plan = analyzer.statement(setUnmappedLoadAll(query));
         EsRelation relation = EsqlTestUtils.singleValue(plan.collect(EsRelation.class));
         return EsqlTestUtils.singleValue(CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)).pattern();

@@ -1,0 +1,6 @@
+Limit[1000[INTEGER],false,false]
+\_LookupJoin[LEFT,[lc{r}#0],[language_code{f}#1],lc{r}#0 == language_code{f}#1,ANY]
+  |_Project[[@timestamp{f}#2, client_ip{f}#3, event_duration{f}#4, message{f}#5, lc{r}#0, $$unmapped_fields{m}#6]]
+  | \_Eval[[TO_INTEGER(language_code{f(PotentiallyUnmappedKeywordEsField)}#7) AS lc#0]]
+  |   \_EsRelation[partial_mapping_sample_data][@timestamp{f}#2, client_ip{f}#3, event_duration{f}#4, message{f}#5, language_code{f(PotentiallyUnmappedKeywordEsField)}#7, $$unmapped_fields{m}#6]
+  \_EsRelation[languages_lookup][LOOKUP][language_code{f}#1, language_name{f}#8]

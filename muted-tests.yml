@@ -244,18 +244,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDateRangeIT
   method: test {csv-spec:date_range.rangeWithinPointMultiValueSomeMatch}
   issue: https://github.com/elastic/elasticsearch/issues/152267
-- class: org.elasticsearch.reindex.management.CancelTasksRelocationIT
-  method: testCancelAllReindexTasksByActionWithMixedRelocationState
-  issue: https://github.com/elastic/elasticsearch/issues/152291
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=ml/delete_expired_data/Test delete expired data with path parameters}
   issue: https://github.com/elastic/elasticsearch/issues/152311
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/152914
-- class: org.elasticsearch.reindex.management.ReindexCancelRelocationIT
-  method: testCancelReindexCancelsRelocatedTaskByOriginalTaskId
-  issue: https://github.com/elastic/elasticsearch/issues/152925
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromRightSideWhenNotKept}
   issue: https://github.com/elastic/elasticsearch/issues/153046
@@ -382,9 +376,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithEnabledTests
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/154731
-- class: org.elasticsearch.xpack.esql.action.ExternalCsvHivePartitionedIT
-  method: testCommaSeparatedResourceFirstFileWinsRoundTrips
-  issue: https://github.com/elastic/elasticsearch/issues/154662
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:change_point.values null column}
   issue: https://github.com/elastic/elasticsearch/issues/154877
@@ -562,12 +553,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDenseVectorAggsIT
   method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
   issue: https://github.com/elastic/elasticsearch/issues/156194
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerSubqueryTests
-  method: testTSSubqueryWithConflictingTypesInUnionAll
-  issue: https://github.com/elastic/elasticsearch/issues/156226
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerSubqueryTests
-  method: testTSSubqueryWithConflictingTypesAndExplicitCast
-  issue: https://github.com/elastic/elasticsearch/issues/156229
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationIT
   method: test {csv-spec:approximation.Inline stats by}
   issue: https://github.com/elastic/elasticsearch/issues/156264
@@ -635,9 +620,6 @@ tests:
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=ml/ml_standard_analyze/Test analyze API with the standard 7.16 ML analyzer}
   issue: https://github.com/elastic/elasticsearch/issues/156878
-- class: org.elasticsearch.reindex.management.ReindexDoubleRelocationIT
-  method: testDoubleRelocationWithManagementEndpoints
-  issue: https://github.com/elastic/elasticsearch/issues/156929
 - class: org.elasticsearch.entitlement.qa.EntitlementAgentAttachLoggingIT
   method: testEntitlementAgentAttachLineIsLogged
   issue: https://github.com/elastic/elasticsearch/issues/156950
@@ -731,9 +713,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.ReadConfigFingerprintDerivationSitesTests
   method: testEveryDerivationSiteIsDeclared
   issue: https://github.com/elastic/elasticsearch/issues/157937
-- class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
-  method: testEstimatedHeapAllocationDecider
-  issue: https://github.com/elastic/elasticsearch/issues/157939
 - class: org.elasticsearch.action.bulk.ShardBatchIndexerCanUseBatchTests
   method: testDynamicSettingUpdate
   issue: https://github.com/elastic/elasticsearch/issues/157947
@@ -758,24 +737,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
   method: test {csv-spec:tdigest.count with bucket, time, and instance in FROM}
   issue: https://github.com/elastic/elasticsearch/issues/158089
-- class: org.elasticsearch.xpack.esql.action.CsvExternalReadConfigParityIT
-  method: testDuplicateListingColdEqualsWarm
-  issue: https://github.com/elastic/elasticsearch/issues/157988
-- class: org.elasticsearch.xpack.esql.action.ExternalReadConfigContaminationIT
-  method: testLicensedCountStillCrossesTheMultiFileFold
-  issue: https://github.com/elastic/elasticsearch/issues/157990
-- class: org.elasticsearch.xpack.esql.action.ExternalReadConfigContaminationIT
-  method: testHeterogeneousMultiFileFoldIsNotServedAcrossConfigurations
-  issue: https://github.com/elastic/elasticsearch/issues/157991
-- class: org.elasticsearch.xpack.esql.action.ExternalReadConfigContaminationIT
-  method: testDeclaredMultiFileReadIsNotServedTheInferredFold
-  issue: https://github.com/elastic/elasticsearch/issues/157992
-- class: org.elasticsearch.xpack.esql.action.NdjsonExternalReadConfigParityIT
-  method: testDuplicateListingColdEqualsWarm
-  issue: https://github.com/elastic/elasticsearch/issues/157989
-- class: org.elasticsearch.xpack.esql.action.TsvExternalReadConfigParityIT
-  method: testDuplicateListingColdEqualsWarm
-  issue: https://github.com/elastic/elasticsearch/issues/157993
 - class: org.elasticsearch.foreign.processor.BoundsCheckGeneratedClassBehaviorTests
   method: testSlicedSegmentCheckThrowsWhenSliceExceedsSegment
   issue: https://github.com/elastic/elasticsearch/issues/158125
@@ -785,9 +746,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexTests
   method: testEvaluateBlockWithoutNulls {TestCase=geo_shape with literal precision and bounds}
   issue: https://github.com/elastic/elasticsearch/issues/158128
-- class: org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReaderTests
-  method: testSyntheticSourceWithCopyToKeywordDestinationAndFLSDocValues
-  issue: https://github.com/elastic/elasticsearch/issues/158222
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   issue: https://github.com/elastic/elasticsearch/issues/158224
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetNullListElementWarningIT
@@ -810,3 +768,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
+- class: org.elasticsearch.script.mustache.MultiSearchTemplateIT
+  method: testLargeMsearchTemplateDoesNotOom
+  issue: https://github.com/elastic/elasticsearch/issues/158428
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:SUBQUERIES}
+  issue: https://github.com/elastic/elasticsearch/issues/149681
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
+  method: testPrewarmAndHandoffTaskAreChildrenOfStartRelocationTask
+  issue: https://github.com/elastic/elasticsearch/issues/158470

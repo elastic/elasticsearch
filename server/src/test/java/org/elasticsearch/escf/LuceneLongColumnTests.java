@@ -216,15 +216,14 @@ public class LuceneLongColumnTests extends ESTestCase {
         assertEquals(Map.of(0, 10L, 1, 20L, 2, 30L), result);
     }
 
-    public void testWithFilterNullRemovesFilter() {
+    public void testWithFilterNullIsNoOp() {
+        // withFilter(null) on a column that already has a filter preserves the existing filter.
         LuceneLongColumn col = buildDenseColumn(10L, 20L, 30L);
         FixedBitSet filter = new FixedBitSet(3);
         filter.set(1);
         LuceneLongColumn filtered = col.withFilter(filter);
-        LuceneLongColumn unfiltered = filtered.withFilter(null);
-        assertEquals(Column.Density.DENSE, unfiltered.density());
-        Map<Integer, Long> result = drainTuples(unfiltered);
-        assertEquals(Map.of(0, 10L, 1, 20L, 2, 30L), result);
+        LuceneLongColumn stillFiltered = filtered.withFilter(null);
+        assertEquals(drainTuples(filtered), drainTuples(stillFiltered));
     }
 
     public void testTuplesAndRowCursorAgreeWithFilter() {

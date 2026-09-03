@@ -429,7 +429,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         @Override
         public LuceneColumn withFilter(FixedBitSet newFilter) {
             assert newFilter == null || newFilter.length() == count;
-            return new SyntheticIdTokenStreamColumn(uids, from, count, newFilter);
+            return new SyntheticIdTokenStreamColumn(uids, from, count, LuceneColumn.singleFilter(filter, newFilter));
         }
 
         @Override

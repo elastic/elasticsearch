@@ -82,7 +82,7 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
     public LuceneBinaryColumn withFilter(FixedBitSet filter) {
         assert filter == null || filter.length() == data.docCount;
         Density dataBasedDensity = (data instanceof EscfArrayColumn || data.validity != null) ? Density.SPARSE : Density.DENSE;
-        return new LuceneBinaryColumn(data, name(), fieldType(), dataBasedDensity, filter);
+        return new LuceneBinaryColumn(data, name(), fieldType(), dataBasedDensity, LuceneColumn.singleFilter(this.filter, filter));
     }
 
     @Override

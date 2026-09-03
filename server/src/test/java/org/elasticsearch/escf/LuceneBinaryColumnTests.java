@@ -304,15 +304,14 @@ public class LuceneBinaryColumnTests extends ESTestCase {
         assertEquals(Map.of(0, List.of("a"), 1, List.of("b"), 2, List.of("c")), result);
     }
 
-    public void testWithFilterNullRemovesFilter() {
+    public void testWithFilterNullIsNoOp() {
+        // withFilter(null) on a column that already has a filter preserves the existing filter.
         LuceneBinaryColumn col = buildStringColumn("a", "b", "c");
         FixedBitSet filter = new FixedBitSet(3);
         filter.set(1);
         LuceneBinaryColumn filtered = col.withFilter(filter);
-        LuceneBinaryColumn unfiltered = filtered.withFilter(null);
-        assertEquals(Column.Density.DENSE, unfiltered.density());
-        Map<Integer, List<String>> result = drainTupleCursor(unfiltered);
-        assertEquals(Map.of(0, List.of("a"), 1, List.of("b"), 2, List.of("c")), result);
+        LuceneBinaryColumn stillFiltered = filtered.withFilter(null);
+        assertEquals(drainTupleCursor(filtered), drainTupleCursor(stillFiltered));
     }
 
     public void testFilterTuplesAndRowCursorAgree() {

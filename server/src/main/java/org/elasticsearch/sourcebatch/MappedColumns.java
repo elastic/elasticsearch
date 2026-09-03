@@ -247,7 +247,7 @@ public final class MappedColumns {
         @Override
         public WindowedBinaryColumn withFilter(FixedBitSet newFilter) {
             assert newFilter == null || newFilter.length() == count;
-            return new WindowedBinaryColumn(values, name(), fieldType, from, count, noOpRowPath, newFilter);
+            return new WindowedBinaryColumn(values, name(), fieldType, from, count, noOpRowPath, LuceneColumn.singleFilter(filter, newFilter));
         }
 
         @Override

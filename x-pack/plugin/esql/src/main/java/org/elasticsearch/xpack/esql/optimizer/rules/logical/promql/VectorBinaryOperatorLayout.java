@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.emitNullExpression;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.find;
@@ -120,9 +121,26 @@ final class VectorBinaryOperatorLayout {
         Expression leftValue = probeRight ? build.value() : probe.value();
         Expression rightValue = probeRight ? probe.value() : build.value();
 
-        LogicalPlan join = emitJoin(probe, build);
+        LogicalPlan join = emitJoin(probe, build, keyLabels());
         List<NamedExpression> output = bindOutput(probe, build);
         return bindResult(leftValue, rightValue, probe.step(), join, output);
+    }
+
+    /**
+     * The labels both sides pack into the match key, in one shared order: the on(...) labels as written, otherwise the
+     * union of the operands' labels minus the ignored ones, sorted by name. A side that lacks a key label packs null
+     * there, so the key behaves like a Prometheus signature: a label absent on both sides does not discriminate, a label
+     * present on one side only never matches. Operands over different label sets therefore evaluate to the empty
+     * vector, and the order in which each operand declares its labels is irrelevant.
+     */
+    private List<String> keyLabels() {
+        if (match.filter() == VectorMatch.Filter.ON) {
+            return List.copyOf(match.filterLabels());
+        }
+        var names = new TreeSet<>(left.header().labels());
+        names.addAll(right.header().labels());
+        names.removeAll(match.filterLabels());
+        return List.copyOf(names);
     }
 
     /**
@@ -178,9 +196,9 @@ final class VectorBinaryOperatorLayout {
     }
 
     /** The inner join of the two operands on step plus the packed match key. */
-    private LogicalPlan emitJoin(IntermediateResult probe, IntermediateResult build) {
-        Input probeInput = emitInput(probe);
-        Input buildInput = emitInput(build);
+    private LogicalPlan emitJoin(IntermediateResult probe, IntermediateResult build, List<String> keyLabels) {
+        Input probeInput = emitInput(probe, keyLabels);
+        Input buildInput = emitInput(build, keyLabels);
 
         // The build side carries its join fields plus what the join adds: its value and the group_x labels. Neither can
         // already be a join field (the step, or the freshly packed key), so the two lists are disjoint.
@@ -214,8 +232,8 @@ final class VectorBinaryOperatorLayout {
     }
 
     /** One side's plan with its match key defined and packed next to step; step alone when the key is empty. */
-    private Input emitInput(IntermediateResult input) {
-        List<NamedExpression> key = joinKey(input);
+    private Input emitInput(IntermediateResult input, List<String> keyLabels) {
+        List<NamedExpression> key = joinKey(input, keyLabels);
         List<Alias> nullFills = defined(key);
         LogicalPlan plan = nullFills.isEmpty() ? input.plan() : new Eval(cmd.source(), input.plan(), nullFills);
         if (key.isEmpty()) {
@@ -226,26 +244,23 @@ final class VectorBinaryOperatorLayout {
         return new Input(new PackDims(cmd.source(), plan, keyColumns, packed), List.of(input.step(), packed));
     }
 
-    /** The operand's match key columns: the labels named by on(...), or its own label set minus the ignored labels. */
-    private List<NamedExpression> joinKey(IntermediateResult input) {
+    /**
+     * The operand's match key columns: its packed columns surviving the ignored labels (an opaque operand under
+     * ignoring), then the shared key labels, each as the operand's own column or a null where it lacks the label.
+     */
+    private List<NamedExpression> joinKey(IntermediateResult input, List<String> keyLabels) {
         var key = new ArrayList<NamedExpression>();
-        if (match.filter() == VectorMatch.Filter.ON) {
-            for (String name : match.filterLabels()) {
-                Attribute attribute = input.label(name);
-                key.add(attribute != null ? attribute : emitNullExpression(mapToRef(name)));
+        if (match.filter() != VectorMatch.Filter.ON) {
+            Header surviving = input.header().intersect(match.filterLabels());
+            for (Set<String> skip : finestFirst(surviving.skips())) {
+                Attribute packed = input.packed(skip);
+                assert packed != null : "invariant: packing " + skip + " must be carried by the operand";
+                key.add(packed);
             }
-            return key;
         }
-        Header surviving = input.header().intersect(match.filterLabels());
-        for (Set<String> skip : finestFirst(surviving.skips())) {
-            Attribute packed = input.packed(skip);
-            assert packed != null : "invariant: packing " + skip + " must be carried by the operand";
-            key.add(packed);
-        }
-        for (String label : surviving.labels()) {
-            Attribute attribute = input.label(label);
-            assert attribute != null : "invariant: label [" + label + "] must be carried by the operand";
-            key.add(attribute);
+        for (String name : keyLabels) {
+            Attribute attribute = input.label(name);
+            key.add(attribute != null ? attribute : emitNullExpression(mapToRef(name)));
         }
         return key;
     }

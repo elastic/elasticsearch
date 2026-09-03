@@ -1154,3 +1154,76 @@ result:double      | step:datetime            | cluster:keyword
 1.1411513859275053 | 2024-05-10T00:20:00.000Z | prod
 1.16072408118486   | 2024-05-10T00:30:00.000Z | prod
 ;
+
+// Labels are a set in PromQL: the match key packs both sides' label values in one shared order, so the order in which
+// each operand lists its grouping labels does not matter. Same result as vector_match_on_two_labels.
+vector_match_ignoring_empty_by_order_swapped
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster, pod) (network.eth0.tx) / ignoring () sum by (pod, cluster) (network.eth0.rx))
+| SORT cluster, pod, step;
+
+result:double      | step:datetime            | cluster:keyword | pod:keyword
+0.9295454545454546 | 2024-05-10T00:10:00.000Z | prod            | one
+1.054054054054054  | 2024-05-10T00:20:00.000Z | prod            | one
+1.0560661764705883 | 2024-05-10T00:30:00.000Z | prod            | one
+0.978319783197832  | 2024-05-10T00:10:00.000Z | prod            | three
+1.1571072319201996 | 2024-05-10T00:20:00.000Z | prod            | three
+1.8742138364779874 | 2024-05-10T00:10:00.000Z | prod            | two
+1.2633390705679863 | 2024-05-10T00:20:00.000Z | prod            | two
+1.3156462585034014 | 2024-05-10T00:30:00.000Z | prod            | two
+0.6185819070904646 | 2024-05-10T00:10:00.000Z | qa              | one
+0.9889064976228209 | 2024-05-10T00:20:00.000Z | qa              | one
+0.9871244635193133 | 2024-05-10T00:30:00.000Z | qa              | one
+0.945179584120983  | 2024-05-10T00:10:00.000Z | qa              | three
+1.1121408711770158 | 2024-05-10T00:20:00.000Z | qa              | three
+1.1240942028985508 | 2024-05-10T00:30:00.000Z | qa              | three
+1.4645161290322581 | 2024-05-10T00:10:00.000Z | qa              | two
+1.600187265917603  | 2024-05-10T00:20:00.000Z | qa              | two
+1.5039439088518842 | 2024-05-10T00:30:00.000Z | qa              | two
+0.9505494505494505 | 2024-05-10T00:10:00.000Z | staging         | one
+0.891846921797005  | 2024-05-10T00:20:00.000Z | staging         | one
+0.8671641791044776 | 2024-05-10T00:30:00.000Z | staging         | one
+1.1546391752577319 | 2024-05-10T00:10:00.000Z | staging         | three
+1.232181425485961  | 2024-05-10T00:20:00.000Z | staging         | three
+1.0775401069518717 | 2024-05-10T00:30:00.000Z | staging         | three
+0.7827529021558872 | 2024-05-10T00:10:00.000Z | staging         | two
+0.9469525959367946 | 2024-05-10T00:20:00.000Z | staging         | two
+0.9749498997995992 | 2024-05-10T00:30:00.000Z | staging         | two
+;
+
+// The same through default matching, which folds both operands into one shared aggregate.
+vector_match_default_by_order_swapped
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster, pod) (network.eth0.tx) / sum by (pod, cluster) (network.eth0.rx))
+| SORT cluster, pod, step;
+
+result:double      | step:datetime            | cluster:keyword | pod:keyword
+0.9295454545454546 | 2024-05-10T00:10:00.000Z | prod            | one
+1.054054054054054  | 2024-05-10T00:20:00.000Z | prod            | one
+1.0560661764705883 | 2024-05-10T00:30:00.000Z | prod            | one
+0.978319783197832  | 2024-05-10T00:10:00.000Z | prod            | three
+1.1571072319201996 | 2024-05-10T00:20:00.000Z | prod            | three
+1.8742138364779874 | 2024-05-10T00:10:00.000Z | prod            | two
+1.2633390705679863 | 2024-05-10T00:20:00.000Z | prod            | two
+1.3156462585034014 | 2024-05-10T00:30:00.000Z | prod            | two
+0.6185819070904646 | 2024-05-10T00:10:00.000Z | qa              | one
+0.9889064976228209 | 2024-05-10T00:20:00.000Z | qa              | one
+0.9871244635193133 | 2024-05-10T00:30:00.000Z | qa              | one
+0.945179584120983  | 2024-05-10T00:10:00.000Z | qa              | three
+1.1121408711770158 | 2024-05-10T00:20:00.000Z | qa              | three
+1.1240942028985508 | 2024-05-10T00:30:00.000Z | qa              | three
+1.4645161290322581 | 2024-05-10T00:10:00.000Z | qa              | two
+1.600187265917603  | 2024-05-10T00:20:00.000Z | qa              | two
+1.5039439088518842 | 2024-05-10T00:30:00.000Z | qa              | two
+0.9505494505494505 | 2024-05-10T00:10:00.000Z | staging         | one
+0.891846921797005  | 2024-05-10T00:20:00.000Z | staging         | one
+0.8671641791044776 | 2024-05-10T00:30:00.000Z | staging         | one
+1.1546391752577319 | 2024-05-10T00:10:00.000Z | staging         | three
+1.232181425485961  | 2024-05-10T00:20:00.000Z | staging         | three
+1.0775401069518717 | 2024-05-10T00:30:00.000Z | staging         | three
+0.7827529021558872 | 2024-05-10T00:10:00.000Z | staging         | two
+0.9469525959367946 | 2024-05-10T00:20:00.000Z | staging         | two
+0.9749498997995992 | 2024-05-10T00:30:00.000Z | staging         | two
+;

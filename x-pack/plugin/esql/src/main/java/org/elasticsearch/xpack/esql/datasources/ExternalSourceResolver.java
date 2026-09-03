@@ -677,6 +677,7 @@ public class ExternalSourceResolver {
 
             ExternalSourceMetadata extMetadata;
             StorageEntry storageEntry;
+            SourceStatistics harvestedStatistics = null;
             if (isCacheable(provider)) {
                 // Warm path is zero-I/O: the file-metadata cache holds {length, mtime} within the schema TTL, so a warm
                 // single-file resolve never touches a live object (fileMetadataOf). mtime is the cache key's version token;
@@ -684,14 +685,21 @@ public class ExternalSourceResolver {
                 FileMetadata meta = fileMetadataOf(storagePath, provider, config);
                 String formatType = detectFormatType(storagePath);
                 SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), meta.mtimeMillis(), formatType, config);
+                SourceStatistics[] computedStatistics = new SourceStatistics[1];
                 SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                    return stampInferredReadConfig(SchemaCacheEntry.from(resolveSingleSource(path, config)));
+                    SourceMetadata metadata = resolveSingleSource(path, config);
+                    computedStatistics[0] = metadata.statistics().orElse(null);
+                    return stampInferredReadConfig(SchemaCacheEntry.from(metadata));
                 });
+                harvestedStatistics = computedStatistics[0];
                 List<Attribute> schema = schemaEntry.toAttributes();
-                extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
+                extMetadata = buildMetadataFromCache(schemaEntry, schema, config, harvestedStatistics);
                 storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
             } else {
                 SourceMetadata metadata = resolveSingleSource(path, config);
+                // Read the statistics off the reader's metadata before wrapping: wrapAsExternalSourceMetadata folds
+                // them into sourceMetadata() but does not override statistics(), so they are unreachable afterwards.
+                harvestedStatistics = metadata.statistics().orElse(null);
                 extMetadata = wrapAsExternalSourceMetadata(metadata, config, declaredReadSpecOf(declaredMapping));
                 StorageObject object = provider.newObject(storagePath);
                 storageEntry = new StorageEntry(storagePath, object.length(), object.lastModified());
@@ -704,8 +712,12 @@ public class ExternalSourceResolver {
             List<Attribute> fileSchema = extMetadata.schema();
 
             FileList singletonList = GlobExpander.fileListOf(List.of(storageEntry), path);
-            // Single-file: degenerate case of the general flow — one-entry schemaMap, identity mapping.
-            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, fileSchema);
+            // Single-file: degenerate case of the general flow, with a one-entry schemaMap and identity mapping.
+            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(
+                storagePath,
+                fileSchema,
+                SourceStatisticsSerializer.fromSource(extMetadata)
+            );
             listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap));
         } finally {
             StorageProviderCache.closeLease(provider);
@@ -714,13 +726,14 @@ public class ExternalSourceResolver {
 
     private static Map<StoragePath, SchemaReconciliation.FileSchemaInfo> singleEntrySchemaMap(
         StoragePath path,
-        @Nullable List<Attribute> schema
+        @Nullable List<Attribute> schema,
+        @Nullable SourceStatistics statistics
     ) {
         if (schema == null || schema.isEmpty()) {
             return Map.of();
         }
         ColumnMapping identityMapping = new ColumnMapping(identityMapping(schema.size()), null);
-        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(schema), identityMapping, null));
+        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(schema), identityMapping, statistics));
     }
 
     private void resolveMultiFileSource(
@@ -854,7 +867,7 @@ public class ExternalSourceResolver {
                             base,
                             config
                         );
-                        listener.onResponse(finishFirstFileWins(listing, applyFirstFileWinsAggregatedStats(base, effective)));
+                        listener.onResponse(finishFirstFileWins(listing, applyFirstFileWinsAggregatedStats(base, effective), config));
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }
@@ -869,9 +882,9 @@ public class ExternalSourceResolver {
                 // representative of the whole glob, so mark them partial — exactly the state the failed-aggregation
                 // path produces, which downstream already handles (SplitStats.resolveEffectiveStats returns null
                 // rather than consuming anchor stats as global). STATS_FILE_COUNT, stamped above, is preserved.
-                listener.onResponse(finishFirstFileWins(listing, markStatsAsPartial(base)));
+                listener.onResponse(finishFirstFileWins(listing, markStatsAsPartial(base), config));
             } else {
-                listener.onResponse(finishFirstFileWins(listing, base));
+                listener.onResponse(finishFirstFileWins(listing, base, config));
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -956,7 +969,11 @@ public class ExternalSourceResolver {
      * coordinator schema with partition columns, and pins the anchor's physical schema for every file via an
      * (identity or narrowing) per-file mapping. Purely CPU-bound.
      */
-    private ExternalSourceResolution.ResolvedSource finishFirstFileWins(FileList listing, ExternalSourceMetadata extMetadata) {
+    private ExternalSourceResolution.ResolvedSource finishFirstFileWins(
+        FileList listing,
+        ExternalSourceMetadata extMetadata,
+        Map<String, Object> config
+    ) {
         // The anchor's pre-enrichment schema is the physical read schema every file's reader parses. Partition
         // columns are path-derived (injected by VirtualColumnIterator at read time), so they are never part of the
         // physical read schema; the data-only view below drives the mapping output width.
@@ -988,7 +1005,18 @@ public class ExternalSourceResolver {
                 ? new ColumnMapping(identityMapping(physicalSchema.size()), null)
                 : SchemaReconciliation.computeMapping(dataOnlySchema, physicalSchema);
             for (int i = 0; i < listing.fileCount(); i++) {
-                perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(fileSchema, mapping, null));
+                // The dataset-level aggregate on extMetadata is a fold and cannot be assigned to an
+                // individual file. Each file's own harvest lives on its schema-cache entry (and, for a
+                // one-file listing, on the anchor metadata). That per-file harvest is what split
+                // discovery uses to skip a second footer open when readableUnitCount is 1.
+                perFileInfo.put(
+                    listing.path(i),
+                    new SchemaReconciliation.FileSchemaInfo(
+                        fileSchema,
+                        mapping,
+                        fileStatisticsForFirstFileWins(listing, i, extMetadata, config)
+                    )
+                );
             }
             schemaMap = Collections.unmodifiableMap(perFileInfo);
         } else {
@@ -996,6 +1024,46 @@ public class ExternalSourceResolver {
         }
 
         return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);
+    }
+
+    /**
+     * Per-file harvest for the FIRST_FILE_WINS schema map. Prefers the schema-cache entry for this
+     * path (populated by an eager gather or a previous resolve). A one-file listing falls back to
+     * the anchor metadata: that harvest is the file's own, not a cross-file fold.
+     */
+    @Nullable
+    private SourceStatistics fileStatisticsForFirstFileWins(
+        FileList listing,
+        int index,
+        ExternalSourceMetadata extMetadata,
+        @Nullable Map<String, Object> config
+    ) {
+        SourceStatistics cached = fileStatisticsFromCache(listing.path(index), listing.lastModifiedMillis(index), config);
+        if (cached != null) {
+            return cached;
+        }
+        if (listing.fileCount() == 1) {
+            return SourceStatisticsSerializer.fromSource(extMetadata);
+        }
+        return null;
+    }
+
+    /**
+     * Reconstructs this file's harvest from the schema cache, or null when the cache is off or
+     * this path has no entry. Zero I/O: a miss leaves FileSchemaInfo.statistics null and split
+     * discovery opens the footer.
+     */
+    @Nullable
+    private SourceStatistics fileStatisticsFromCache(StoragePath path, long mtimeMillis, @Nullable Map<String, Object> config) {
+        if (cacheService == null || cacheService.isEnabled() == false) {
+            return null;
+        }
+        SchemaCacheKey key = SchemaCacheKey.build(path.toString(), mtimeMillis, detectFormatType(path), config);
+        SchemaCacheEntry entry = cacheService.getSchemaIfPresent(key);
+        if (entry == null) {
+            return null;
+        }
+        return SourceStatisticsSerializer.extractStatistics(entry.safeMetadata()).orElse(null);
     }
 
     private static int[] identityMapping(int n) {
@@ -1190,6 +1258,15 @@ public class ExternalSourceResolver {
         List<Attribute> schema,
         Map<String, Object> queryConfig
     ) {
+        return buildMetadataFromCache(entry, schema, queryConfig, null);
+    }
+
+    private static ExternalSourceMetadata buildMetadataFromCache(
+        SchemaCacheEntry entry,
+        List<Attribute> schema,
+        Map<String, Object> queryConfig,
+        @Nullable SourceStatistics harvestedStatistics
+    ) {
         // Merge cached connector config (e.g. Flight endpoint/target) with query-level params.
         // Query-level params take precedence, matching the merge in wrapAsExternalSourceMetadata.
         Map<String, Object> cachedConnectorConfig = entry.connectorConfig();
@@ -1237,6 +1314,11 @@ public class ExternalSourceResolver {
             @Override
             public Map<String, Object> config() {
                 return mergedConfig;
+            }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                return Optional.ofNullable(harvestedStatistics);
             }
         };
     }
@@ -1698,7 +1780,7 @@ public class ExternalSourceResolver {
         resolveSingleSourceAsync(filePath.toString(), hint, config, listener.map(meta -> {
             SchemaCacheEntry entry = stampInferredReadConfig(SchemaCacheEntry.from(meta));
             cacheService.putSchema(schemaKey, entry);
-            return buildMetadataFromCache(entry, entry.toAttributes(), config);
+            return buildMetadataFromCache(entry, entry.toAttributes(), config, meta.statistics().orElse(null));
         }));
     }
 
@@ -2515,7 +2597,8 @@ public class ExternalSourceResolver {
             List.of(new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()))),
             path
         );
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, logicalSchema);
+        // Strict declares the whole schema, so no per-file footer statistics were harvested.
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, logicalSchema, null);
         return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
     }
 
@@ -2757,7 +2840,8 @@ public class ExternalSourceResolver {
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = new HashMap<>();
         for (int i = 0; i < listing.fileCount(); i++) {
-            schemaMap.putAll(singleEntrySchemaMap(listing.path(i), logicalSchema));
+            // Strict reads only the anchor's footer for the coercibility check, so no file has harvested statistics.
+            schemaMap.putAll(singleEntrySchemaMap(listing.path(i), logicalSchema, null));
         }
         return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);
     }

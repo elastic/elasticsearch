@@ -2683,6 +2683,31 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * The store's own unavailable message already names the object, so the 503 wrapper must not name it again.
+     * The message-content assertions elsewhere pass either way; only the count discriminates.
+     */
+    public void testTheUnavailableArmNamesThePathOnce() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        String path = "s3://b/x.parquet";
+        ExternalUnavailableException store = new ExternalUnavailableException(
+            false,
+            (Throwable) null,
+            "S3 store unavailable reading [{}] (HTTP {})",
+            path,
+            503
+        );
+
+        RuntimeException mapped = resolver.mapResolveFailure(path, new ExecutionException(store));
+
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(mapped));
+        assertEquals(
+            "the object is named once, not once by the store and again by the wrapper",
+            mapped.getMessage().indexOf(path),
+            mapped.getMessage().lastIndexOf(path)
+        );
+    }
+
+    /**
      * A fault with no arm of its own falls to the terminal 500. The cache wraps loader failures in an
      * {@code ExecutionException} whose message is the cause's {@code toString()}, so chaining the wrapper puts a JVM
      * type name in the user's {@code caused_by}. This pins the call site, not just the helper it delegates to.

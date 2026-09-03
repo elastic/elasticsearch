@@ -234,7 +234,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         // A provider that exhaustively prunes: zero splits out, reported as a row-count-safe prune.
         Map<String, ExternalSourceFactory> factories = Map.of(
             "parquet",
-            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, true)))
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, true, 0L)))
         );
 
         SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
@@ -263,7 +263,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         // Zero splits, but explicitly NOT an exhaustive prune.
         Map<String, ExternalSourceFactory> factories = Map.of(
             "parquet",
-            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false)))
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false, 0L)))
         );
 
         PhysicalPlan result = SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
@@ -277,7 +277,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
         Map<String, ExternalSourceFactory> factories = Map.of(
             "parquet",
-            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false)))
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false, 0L)))
         );
 
         SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
@@ -303,7 +303,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
         Map<String, ExternalSourceFactory> factories = Map.of(
             "parquet",
-            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false)))
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false, 0L)))
         );
 
         SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(

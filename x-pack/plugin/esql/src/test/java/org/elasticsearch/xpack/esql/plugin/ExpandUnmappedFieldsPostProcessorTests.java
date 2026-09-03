@@ -74,7 +74,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testReturnsSameResultWhenNoUnmappedFieldsAttribute() {
         BlockFactory bf = blockFactory();
-        Result result = result(List.of(intAttr()), List.of(page(bf, List.of(row(1)))));
+        Result result = singlePage(bf, List.of(intAttr()), row(1));
 
         Result expanded = expand(result, bf);
         try {
@@ -86,9 +86,12 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testNullAndEmptyUnmappedValuesContributeNoFields() {
         BlockFactory bf = blockFactory();
-        Result result = result(
+        Result result = singlePage(
+            bf,
             List.of(intAttr(), unmappedAttr()),
-            List.of(page(bf, List.of(row(1, null), row(2, jsonObject("{}")), row(3, jsonObject("{'a':'x'}")))))
+            row(1, null),
+            row(2, jsonObject("{}")),
+            row(3, jsonObject("{'a':'x'}"))
         );
 
         Result expanded = expand(result, bf);
@@ -105,7 +108,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testAllNullUnmappedProducesNoExpandedColumns() {
         BlockFactory bf = blockFactory();
-        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, null), row(2, null)))));
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, null), row(2, null));
 
         Result expanded = expand(result, bf);
         try {
@@ -119,10 +122,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testNetZeroProjectionEmptyJsonProducesZeroColumns() {
         BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(unmappedAttr()),
-            List.of(page(bf, List.of(row(jsonObject("{}")), row(jsonObject("{}")), row(jsonObject("{}")))))
-        );
+        Result result = singlePage(bf, List.of(unmappedAttr()), row(jsonObject("{}")), row(jsonObject("{}")), row(jsonObject("{}")));
 
         Result expanded = expand(result, bf);
         try {
@@ -154,10 +154,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testNetZeroProjectionWithUnmappedNamesExpandsToUnmappedColumnsOnly() {
         BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(unmappedAttr()),
-            List.of(page(bf, List.of(row(jsonObject("{'a':'x','b':'y'}")), row(jsonObject("{'a':'z'}")))))
-        );
+        Result result = singlePage(bf, List.of(unmappedAttr()), row(jsonObject("{'a':'x','b':'y'}")), row(jsonObject("{'a':'z'}")));
 
         Result expanded = expand(result, bf);
         try {
@@ -170,10 +167,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testRetainedColumnWithEmptyJsonRowsProducesNoExpandedColumns() {
         BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(intAttr(), unmappedAttr()),
-            List.of(page(bf, List.of(row(1, jsonObject("{}")), row(2, jsonObject("{}")))))
-        );
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{}")), row(2, jsonObject("{}")));
 
         Result expanded = expand(result, bf);
         try {
@@ -188,9 +182,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         BlockFactory bf = blockFactory();
         String ci = ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX + "extra)";
         String certified = ApproximationPlan.CERTIFIED_COLUMN_PREFIX + "extra)";
-        Result result = result(
+        Result result = singlePage(
+            bf,
             List.of(intAttr(), unmappedAttr(), keywordAttr("extra"), keywordAttr(ci), keywordAttr(certified)),
-            List.of(page(bf, List.of(row(1, jsonObject("{'pet':'Rex','city':'Berlin'}"), "after", "ci", "yes"))))
+            row(1, jsonObject("{'pet':'Rex','city':'Berlin'}"), "after", "ci", "yes")
         );
 
         Result expanded = expand(result, bf);
@@ -230,9 +225,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testNestedObjectFlattensToLeafAndScalarsStringify() {
         BlockFactory bf = blockFactory();
-        Result result = result(
+        Result result = singlePage(
+            bf,
             List.of(intAttr(), unmappedAttr()),
-            List.of(page(bf, List.of(row(1, jsonObject("{'count':5,'active':true,'nested':{'x':1}}")))))
+            row(1, jsonObject("{'count':5,'active':true,'nested':{'x':1}}"))
         );
 
         Result expanded = expand(result, bf);
@@ -277,9 +273,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testFlattenedLeafCollidingWithQueryColumnIsDropped() {
         BlockFactory bf = blockFactory();
-        Result result = result(
+        Result result = singlePage(
+            bf,
             List.of(keywordAttr("network.eth0.rx"), unmappedAttr()),
-            List.of(page(bf, List.of(row("7", jsonObject("{'network':{'bytes_in':10,'eth0':{'tx':5,'rx':7}}}")))))
+            row("7", jsonObject("{'network':{'bytes_in':10,'eth0':{'tx':5,'rx':7}}}"))
         );
 
         Result expanded = expand(result, bf);
@@ -296,9 +293,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testArrayOfObjectsFlattensElementWiseToDottedLeafMultivalue() {
         BlockFactory bf = blockFactory();
-        Result result = result(
+        Result result = singlePage(
+            bf,
             List.of(intAttr(), unmappedAttr()),
-            List.of(page(bf, List.of(row(1, jsonObject("{'tags':['a','b'],'samples':[{'nested':'x'},{'nested':'y'}]}")))))
+            row(1, jsonObject("{'tags':['a','b'],'samples':[{'nested':'x'},{'nested':'y'}]}"))
         );
 
         Result expanded = expand(result, bf);
@@ -319,10 +317,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testArrayRecursionFlattensNestedArraysAndMixedScalarObjectElements() {
         BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(intAttr(), unmappedAttr()),
-            List.of(page(bf, List.of(row(1, jsonObject("{'a':['s',{'b':'o'}],'nums':[[1,2],[3]]}")))))
-        );
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{'a':['s',{'b':'o'}],'nums':[[1,2],[3]]}")));
 
         Result expanded = expand(result, bf);
         try {
@@ -343,10 +338,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testDuplicateLeafFromLiteralAndNestedKeyMergesToMultivalue() {
         BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(intAttr(), unmappedAttr()),
-            List.of(page(bf, List.of(row(1, jsonObject("{'a.b':'literal','a':{'b':'nested'}}")))))
-        );
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{'a.b':'literal','a':{'b':'nested'}}")));
 
         Result expanded = expand(result, bf);
         try {
@@ -362,9 +354,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testExactExcludeOfParentStillKeepsObjectDottedLeaves() {
         BlockFactory bf = blockFactory();
-        Result result = result(
+        Result result = singlePage(
+            bf,
             List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("unmapped", INT_ATTR)))),
-            List.of(page(bf, List.of(row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'}}}")))))
+            row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'}}}"))
         );
 
         Result expanded = expand(result, bf);
@@ -378,9 +371,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testChildWildcardIncludeExpandsObjectLeavesAndDropsSiblings() {
         BlockFactory bf = blockFactory();
-        Result result = result(
+        Result result = singlePage(
+            bf,
             List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.includes(List.of("unmapped.*")))),
-            List.of(page(bf, List.of(row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'},'foo':'f'},'other':'o'}")))))
+            row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'},'foo':'f'},'other':'o'}"))
         );
 
         Result expanded = expand(result, bf);
@@ -397,9 +391,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testNestedWildcardDropRemovesOnlyItsSubtree() {
         BlockFactory bf = blockFactory();
-        Result result = result(
+        Result result = singlePage(
+            bf,
             List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("unmapped.deep*", INT_ATTR)))),
-            List.of(page(bf, List.of(row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'},'foo':'f'}}")))))
+            row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'},'foo':'f'}}"))
         );
 
         Result expanded = expand(result, bf);
@@ -413,9 +408,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testFixedSuffixExcludeKeepsObjectLeavesThatDoNotShareTheSuffix() {
         BlockFactory bf = blockFactory();
-        Result result = result(
+        Result result = singlePage(
+            bf,
             List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("*ped", INT_ATTR)))),
-            List.of(page(bf, List.of(row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'}}}")))))
+            row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'}}}"))
         );
 
         Result expanded = expand(result, bf);
@@ -430,9 +426,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
     public void testPrefixConstrainedChildWildcardExpandsOnlyMatchingLeaves() {
         BlockFactory bf = blockFactory();
         // "samples.n*" should expand "samples.nested" but not "samples.value".
-        Result result = result(
+        Result result = singlePage(
+            bf,
             List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.includes(List.of("samples.n*")))),
-            List.of(page(bf, List.of(row(1, jsonObject("{'samples':{'nested':'x','value':'y'}}")))))
+            row(1, jsonObject("{'samples':{'nested':'x','value':'y'}}"))
         );
 
         Result expanded = expand(result, bf);
@@ -446,9 +443,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testExactObjectFieldNameProducesNoColumn() {
         BlockFactory bf = blockFactory();
-        Result result = result(
+        Result result = singlePage(
+            bf,
             List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.includes(List.of("samples")))),
-            List.of(page(bf, List.of(row(1, jsonObject("{'samples':{'nested':'x'}}")))))
+            row(1, jsonObject("{'samples':{'nested':'x'}}"))
         );
 
         Result expanded = expand(result, bf);
@@ -493,6 +491,13 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     private static Result result(List<Attribute> schema, List<Page> pages) {
         return new Result(schema, pages, Map.of(), EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, null, null);
+    }
+
+    /** A {@link Result} of one {@link #page}: what most of these tests need, without nesting {@link #row}s two lists deep. */
+    @SafeVarargs
+    @SuppressWarnings("varargs") // rows is only read, never stored or published, so passing it on cannot pollute the heap
+    private static Result singlePage(BlockFactory bf, List<Attribute> schema, List<Object>... rows) {
+        return result(schema, List.of(page(bf, List.of(rows))));
     }
 
     private static Attribute intAttr() {

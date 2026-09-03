@@ -3854,6 +3854,11 @@ public class EsqlCapabilities {
          */
         FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS(INLINE_STATS.enabled),
 
+        /**
+         * System-defined view on ML anomaly detection results.
+         */
+        ML_ANOMALIES,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

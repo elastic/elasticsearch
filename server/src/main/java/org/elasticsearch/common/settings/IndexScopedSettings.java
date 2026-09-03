@@ -164,6 +164,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_SEARCH_IDLE_AFTER,
                 IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING,
                 IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT,
+                IndexSettings.DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD,
                 DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
                 DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
                 DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD,

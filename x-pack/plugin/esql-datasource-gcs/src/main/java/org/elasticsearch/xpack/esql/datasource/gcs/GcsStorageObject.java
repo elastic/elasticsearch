@@ -221,7 +221,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         int len = Math.toIntExact(length);
         final DirectReadBuffer drb;
         try {
-            drb = factory.allocate(len);
+            drb = factory.allocateWritableWindow(len);
         } catch (Exception e) {
             listener.onFailure(e);
             return;

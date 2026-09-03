@@ -301,7 +301,12 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 var ir = intermediateResults.get(i);
                 LogicalPlan branchPlan = emitNullsFilter(source, ir.plan(), ir.valueColumn());
                 var branchTagExpression = new Alias(source, cmd.branchColumnName(), new Literal(source, i, DataType.INTEGER));
-                branchPlans.add(new Eval(source, branchPlan, List.of(branchTagExpression)));
+                LogicalPlan tagged = new Eval(source, branchPlan, List.of(branchTagExpression));
+                // Each branch executes as an independent sub plan whose result pages cross an exchange, and the
+                // consumer assumes their layout matches output() exactly. An Eval below (e.g. the value double-cast)
+                // can name-shadow an existing column: the shadowed attribute leaves output() but its channel stays
+                // in the page. An explicit projection pins the page layout to the branch output (see #158164).
+                branchPlans.add(new Project(source, tagged, tagged.output()));
             }
 
             // The attribute ids chosen here are preserved by name when the analyzer later recomputes the UnionAll output,

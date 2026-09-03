@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
@@ -47,6 +49,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -74,6 +77,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiConsumer;
@@ -283,6 +287,7 @@ public class FileSplitProvider implements SplitProvider {
     private final Settings settings;
     @Nullable
     private final Executor executor;
+    private final AtomicLong splitDiscoveryCpuNanos = new AtomicLong();
 
     public FileSplitProvider() {
         this(DEFAULT_TARGET_SPLIT_SIZE, null, null, null, Settings.EMPTY, null);
@@ -355,7 +360,7 @@ public class FileSplitProvider implements SplitProvider {
                 // An unresolved or already-empty file list is not a prune (fileCount == 0). A skip that
                 // is not counted above leaves certifiedSkips < fileCount and falls back to a full read.
                 boolean exhaustivelyPruned = fileList.fileCount() > 0 && certifiedSkips == fileList.fileCount();
-                return new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned);
+                return new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned, 0L);
             }
 
             // Phase 2: I/O-bound split planning, parallelized across files when an executor is available. Files
@@ -378,15 +383,19 @@ public class FileSplitProvider implements SplitProvider {
                     CONFIG_MAX_SPLIT_PROBES
                 );
             }
+            // Only single split discovery is performed on each FileSplitProvider at a time
+            splitDiscoveryCpuNanos.set(0L);
             List<PlanResult> planResults;
             try {
                 if (executor != null && tasks.size() > 1) {
-                    planResults = BoundedParallelGather.gather(
-                        tasks,
-                        task -> processFileForSplits(task, hoistedProvider, strideBytes, isCancelled),
-                        splitDiscoveryConcurrency(),
-                        executor
-                    );
+                    planResults = BoundedParallelGather.gather(tasks, task -> {
+                        long cpuStart = ThreadCpuTimer.currentNanos();
+                        try {
+                            return processFileForSplits(task, hoistedProvider, strideBytes, isCancelled);
+                        } finally {
+                            if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
+                        }
+                    }, splitDiscoveryConcurrency(), executor);
                 } else {
                     planResults = new ArrayList<>(tasks.size());
                     for (FileTask task : tasks) {
@@ -413,7 +422,7 @@ public class FileSplitProvider implements SplitProvider {
 
             // Each surviving task produces at least one split, so the task count is the number of
             // distinct files that are actually scanned after coordinator-side pruning.
-            return new SplitDiscoveryResult(splits, tasks.size());
+            return new SplitDiscoveryResult(splits, tasks.size(), false, splitDiscoveryCpuNanos.get());
         } finally {
             StorageProviderCache.closeLease(sharedProvider);
         }
@@ -459,7 +468,7 @@ public class FileSplitProvider implements SplitProvider {
             List<FileTask> tasks = batch.tasks();
             if (tasks.isEmpty()) {
                 boolean exhaustivelyPruned = fileList.fileCount() > 0 && batch.certifiedSkips() == fileList.fileCount();
-                listener.onResponse(new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned));
+                listener.onResponse(new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned, 0L));
                 return;
             }
 
@@ -467,6 +476,7 @@ public class FileSplitProvider implements SplitProvider {
             final BooleanSupplier isCancelled = context.isCancelled();
             final long strideBytes = strideBoundedByProbeBudget(requestedStrideBytes, batch.probedFileBytes(), maxSplitProbes);
             warnIfStrideWidened(requestedStrideBytes, strideBytes, maxSplitProbes, batch.probedFileBytes());
+            splitDiscoveryCpuNanos.set(0L);
             Executor fanOut = withStorageRetryCancellation(discoveryFanOutExecutor(requestedExecutor), isCancelled);
             ActionListener<SplitDiscoveryResult> completion = ActionListener.runAfter(
                 listener,
@@ -494,7 +504,7 @@ public class FileSplitProvider implements SplitProvider {
                                     return;
                                 }
                                 List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes, probeWindowBytes);
-                                completion.onResponse(new SplitDiscoveryResult(splits, tasks.size()));
+                                completion.onResponse(new SplitDiscoveryResult(splits, tasks.size(), false, splitDiscoveryCpuNanos.get()));
                             } catch (Exception e) {
                                 completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits"));
                             }
@@ -585,8 +595,10 @@ public class FileSplitProvider implements SplitProvider {
             ColumnMapping columnMapping = null;
             List<Attribute> readSchema = null;
             Map<String, DataType> inferredFileTypes = null;
+            SourceStatistics fileStatistics = null;
             if (fileSchemaInfo != null) {
                 inferredFileTypes = fileSchemaInfo.inferredTypes();
+                fileStatistics = fileSchemaInfo.statistics();
                 ColumnMapping mapping = fileSchemaInfo.mapping();
                 if (mapping != null && unifiedSchema != null && fileBackedQuerySchema.isEmpty() == false) {
                     mapping = mapping.pruneToPerFileQuery(unifiedSchema, fileSchemaInfo.fileSchema(), fileBackedQuerySchema);
@@ -609,7 +621,8 @@ public class FileSplitProvider implements SplitProvider {
                     unifiedSchema != null ? attributesToTypeMap(unifiedSchema.attributes()) : null,
                     context.maxRecordBytes(),
                     context.declaredReadSpec(),
-                    inferredFileTypes
+                    inferredFileTypes,
+                    fileStatistics
                 )
             );
         }
@@ -1052,7 +1065,8 @@ public class FileSplitProvider implements SplitProvider {
                         probeTasks.add(new ProbeTask(deferred, position));
                     }
                 }
-                List<RecordBoundaryProbe.Outcome> outcomes = BoundedParallelGather.gather(
+
+                List<RecordBoundaryProbe.Outcome> outcomes = runGather(
                     probeTasks,
                     probe -> runProbe(probe, probeWindowBytes, isCancelled),
                     splitDiscoveryConcurrency(),
@@ -1109,10 +1123,15 @@ public class FileSplitProvider implements SplitProvider {
         gatherAsync(probeTasks, (ProbeTask probe, ActionListener<RecordBoundaryProbe.Outcome> itemListener) -> {
             try {
                 fanOut.execute(() -> {
+                    long cpuStart = ThreadCpuTimer.currentNanos();
                     try {
                         itemListener.onResponse(runProbe(probe, probeWindowBytes, isCancelled));
                     } catch (Exception e) {
                         itemListener.onFailure(e);
+                    } finally {
+                        if (cpuStart >= 0) {
+                            splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
+                        }
                     }
                 });
             } catch (Exception e) {
@@ -1129,6 +1148,22 @@ public class FileSplitProvider implements SplitProvider {
             }
             listener.onResponse(outcomesByFile);
         }, listener::onFailure));
+    }
+
+    private <T, R> List<R> runGather(List<T> items, CheckedFunction<T, R, Exception> task, int concurrency, Executor executor)
+        throws Exception {
+        if (BoundedParallelGather.executesInline(items)) {
+            return BoundedParallelGather.gather(items, task, concurrency, executor);
+        } else {
+            return BoundedParallelGather.gather(items, (T probe) -> {
+                long cpuStart = ThreadCpuTimer.currentNanos();
+                try {
+                    return task.apply(probe);
+                } finally {
+                    if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
+                }
+            }, concurrency, executor);
+        }
     }
 
     /**
@@ -1208,8 +1243,13 @@ public class FileSplitProvider implements SplitProvider {
         int maxRecordBytes,
         DeclaredReadSpec declaredReadSpec,
         // PRE-overlay inferred file types (physical-keyed), or null when no declared overlay ran. The stats-type
-        // authority for normalizing footer range stats — NOT the overlaid readSchema types.
-        @Nullable Map<String, DataType> inferredFileTypes
+        // authority for normalizing footer range stats, not the overlaid readSchema types.
+        @Nullable Map<String, DataType> inferredFileTypes,
+        // File-level statistics: a live harvest from this query's schema resolution, or the same
+        // harvest reconstructed from the schema cache's flat _stats.* map. Null when this file was
+        // never harvested (no cache entry). A harvest whose readableUnitCount is 1 lets
+        // tryRangeAwareSplits emit a whole-file split without opening the footer again.
+        @Nullable SourceStatistics statistics
     ) {}
 
     /**
@@ -1439,6 +1479,7 @@ public class FileSplitProvider implements SplitProvider {
             task.reconciledTypes(),
             task.declaredReadSpec(),
             task.inferredFileTypes(),
+            task.statistics(),
             fileSplits,
             hoistedProvider
         )) {
@@ -1641,7 +1682,7 @@ public class FileSplitProvider implements SplitProvider {
             // per file. Fall back to the registry for zero-config or legacy callers.
             StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
             StorageObject object = provider.newObject(filePath, fileLength);
-            long[] boundaries = splittableCodec.findBlockBoundaries(object, 0, fileLength);
+            long[] boundaries = splittableCodec.findBlockBoundaries(object, 0, fileLength, splitDiscoveryCpuNanos::addAndGet);
 
             if (boundaries.length == 0) {
                 splits.add(wholeFileSplit(filePath, fileLength, format, config, partitionValues, columnMapping, readSchema));
@@ -1723,6 +1764,7 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable Map<String, DataType> reconciledTypes,
         DeclaredReadSpec declaredReadSpec,
         @Nullable Map<String, DataType> inferredFileTypes,
+        @Nullable SourceStatistics fileStatistics,
         List<ExternalSplit> splits,
         @Nullable StorageProvider hoistedProvider
     ) {
@@ -1741,6 +1783,34 @@ public class FileSplitProvider implements SplitProvider {
             return false;
         }
         RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) reader;
+
+        // One independently readable unit (one Parquet row group / ORC stripe): discovery would
+        // reopen the same footer only to emit a single range. The file-level harvest is that
+        // unit's extrema, so emit the whole-file split and skip the open.
+        if (fileStatistics != null && fileStatistics.readableUnitCount().orElse(-1) == 1) {
+            Map<String, Object> stats = normalizeSplitStats(
+                SourceStatisticsSerializer.embedStatistics(Map.of(), fileStatistics),
+                readSchema,
+                reconciledTypes,
+                declaredReadSpec,
+                inferredFileTypes
+            );
+            splits.add(
+                FileSplit.withStatisticsAndReadSchema(
+                    "file",
+                    filePath,
+                    0,
+                    fileLength,
+                    format,
+                    wholeFileSplitConfig(config),
+                    partitionValues,
+                    columnMapping,
+                    stats,
+                    readSchema
+                )
+            );
+            return true;
+        }
 
         try {
             StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
@@ -1914,6 +1984,69 @@ public class FileSplitProvider implements SplitProvider {
                 )
             );
         }
+    }
+
+    /**
+     * Normalizes raw footer statistics (the {@code _stats.*} map) for stamping onto a split: applies the
+     * declared-overlay rekey/poison when a declaration ran, then unit-normalizes values to the reconciled query
+     * types. Returns {@code null} for absent/empty stats and the stats untouched when the read schema or
+     * reconciled types are unknown (nothing to normalize against). Shared by the per-range path and the
+     * single-unit discovery skip in {@link #tryRangeAwareSplits} so both stamp identical stats for one unit.
+     */
+    @Nullable
+    private static Map<String, Object> normalizeSplitStats(
+        @Nullable Map<String, Object> rawStats,
+        @Nullable List<Attribute> readSchema,
+        @Nullable Map<String, DataType> reconciledTypes,
+        DeclaredReadSpec declaredReadSpec,
+        @Nullable Map<String, DataType> inferredFileTypes
+    ) {
+        Map<String, Object> stats = rawStats == null || rawStats.isEmpty() ? null : rawStats;
+        if (stats == null || readSchema == null || reconciledTypes == null) {
+            return stats;
+        }
+        // The type authority for normalizing footer range stats. Without a declaration the footer values ARE
+        // in the readSchema (inferred) types — today's behavior. With a declaration, readSchema is the OVERLAID
+        // (declared) schema, so it lies about the raw footer values; use the file's PRE-overlay inferred types.
+        Map<String, DataType> statsFileTypes;
+        if (declaredReadSpec.isEmpty()) {
+            statsFileTypes = attributesToTypeMap(readSchema);
+        } else {
+            // S1 boundary, split edition. Rekey the `path` renames (a pure move changes no value, so rekeyed
+            // stats stay exact) and poison declared-retyped / date-format columns (the scan's per-value
+            // coercion makes pre-coercion stats untrustworthy), BEFORE unit-normalizing.
+            Map<String, String> physicalToLogical = PhysicalNames.inverse(declaredReadSpec.renames());
+            Set<String> poison = new HashSet<>(declaredReadSpec.dateFormats().keySet());
+            if (inferredFileTypes != null) {
+                Map<String, DataType> overlaidTypes = attributesToTypeMap(readSchema); // logical, declared types
+                for (String logical : declaredReadSpec.declaredTypeColumns()) {
+                    String physical = declaredReadSpec.renames().getOrDefault(logical, logical);
+                    DataType inferredType = inferredFileTypes.get(physical);
+                    // Absent from THIS file (lenient union-by-name overlay skipped it): no footer stat exists
+                    // for it here either, so nothing to poison.
+                    if (inferredType != null && inferredType != overlaidTypes.get(logical)) {
+                        poison.add(logical);
+                    }
+                }
+                stats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, physicalToLogical, poison);
+                // Inferred file types, rekeyed to logical so they align with the rekeyed stats + reconciledTypes.
+                statsFileTypes = new HashMap<>(inferredFileTypes.size());
+                for (Map.Entry<String, DataType> e : inferredFileTypes.entrySet()) {
+                    statsFileTypes.put(physicalToLogical.getOrDefault(e.getKey(), e.getKey()), e.getValue());
+                }
+            } else {
+                // Declared read but no captured inference (strict paths skip inference): the declared-vs-inferred
+                // comparison is impossible, so conservatively poison EVERY declared column. row_count survives.
+                poison.addAll(declaredReadSpec.declaredTypeColumns());
+                stats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, physicalToLogical, poison);
+                statsFileTypes = attributesToTypeMap(readSchema);
+            }
+        }
+        // Footer stats are in each file's LOCAL unit/representation; normalize to the reconciled query type so
+        // the split-filter classifier (which compares a reconciled-unit literal) and the filtered merge
+        // compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos) files, not unit-blind. A
+        // non-normalizable representation safe-misses via the marker.
+        return SourceStatisticsSerializer.normalizeStatsToReconciled(stats, statsFileTypes, reconciledTypes);
     }
 
     /**

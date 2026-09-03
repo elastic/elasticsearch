@@ -343,6 +343,9 @@ public class ComputeService {
         if (execInfo != null && result.splitsScanned() > 0) {
             execInfo.queryProfile().addExternalScanStats(result.filesScanned(), result.splitsScanned(), result.bytesScanned());
         }
+        if (execInfo != null && result.cpuNanos() > 0) {
+            execInfo.queryProfile().addSplitDiscoveryCpuNanos(result.cpuNanos());
+        }
     }
 
     /**

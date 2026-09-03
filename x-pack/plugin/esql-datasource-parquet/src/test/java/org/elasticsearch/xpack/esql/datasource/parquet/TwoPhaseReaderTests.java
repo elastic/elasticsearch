@@ -11,10 +11,13 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.example.GroupReadSupport;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
@@ -23,8 +26,13 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -37,6 +45,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -58,12 +67,16 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.IntFunction;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
@@ -81,6 +94,13 @@ import static org.hamcrest.Matchers.lessThan;
  * </ul>
  */
 public class TwoPhaseReaderTests extends ESTestCase {
+
+    /**
+     * Footer byte cache handed to every adapter this test constructs. In production the owning
+     * format reader supplies its instance; a fresh per-test-class cache gives the same sharing
+     * within a test and automatic isolation between tests.
+     */
+    private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
 
     private BlockFactory blockFactory;
 
@@ -132,6 +152,331 @@ public class TwoPhaseReaderTests extends ESTestCase {
         assertEquals("id sets differ", singleIds, twoIds);
     }
 
+    public void testSinglePhaseFilteredReadMatchesWhenInitialPrefetchFails() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("value")
+            .named("fallback_schema");
+        byte[] parquetData = buildParquetWithoutDictionary(schema, 500, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+            return factory.newGroup().append("id", (long) i).append("value", i * 10);
+        });
+        ReferenceAttribute id = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(
+            List.of(new LessThan(Source.EMPTY, id, new Literal(Source.EMPTY, 50L, DataType.LONG), null))
+        );
+
+        List<Page> expected = readAllPages(
+            new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed),
+            new CountingStorageObject(parquetData, false)
+        );
+        FailingChunkPrefetchStorageObject failing = new FailingChunkPrefetchStorageObject(
+            parquetData,
+            false,
+            columnChunkRanges(parquetData),
+            1
+        );
+        List<Page> actual = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), failing);
+        try {
+            assertEquals(collectIds(expected), collectIds(actual));
+            assertEquals(50, actual.stream().mapToInt(Page::getPositionCount).sum());
+            assertEquals(1, failing.failedChunkReads.get());
+        } finally {
+            expected.forEach(Page::releaseBlocks);
+            actual.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testTwoPhaseReadMatchesWhenPhaseOnePrefetchFails() throws Exception {
+        assertPhaseOneFallbackParity(false);
+    }
+
+    public void testTriviallyPassesReadMatchesWhenPhaseOnePrefetchFails() throws Exception {
+        assertPhaseOneFallbackParity(true);
+    }
+
+    public void testPageFilteredPhaseTwoFallbackMatchesAsyncRead() throws Exception {
+        assertPhaseTwoFallbackParity(PhaseTwoFallbackShape.PAGE_FILTERED);
+    }
+
+    public void testFullProjectionPhaseTwoFallbackMatchesAsyncRead() throws Exception {
+        assertPhaseTwoFallbackParity(PhaseTwoFallbackShape.FULL_PROJECTION);
+    }
+
+    public void testTriviallyPassesPhaseTwoFallbackMatchesAsyncRead() throws Exception {
+        assertPhaseTwoFallbackParity(PhaseTwoFallbackShape.TRIVIALLY_PASSES);
+    }
+
+    public void testTwoPhaseAllFilteredFallbackRefillsPrefetchQueue() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("pred")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("two_phase_refill_schema");
+        int rowCount = 5_000;
+        int matchingRows = 1_000;
+        byte[] parquetData = buildParquetWithoutDictionary(schema, rowCount, 32 * 1024L, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+            String pred = i < rowCount - matchingRows ? "no" : "yes";
+            return factory.newGroup().append("pred", pred).append("label", repeat('x', 256) + "_" + i);
+        });
+        ReferenceAttribute pred = new ReferenceAttribute(Source.EMPTY, "pred", DataType.KEYWORD);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(
+            List.of(new WildcardLike(Source.EMPTY, pred, new WildcardPattern("y*")))
+        );
+        assertNull(pushed.toFilterPredicate(schema));
+        List<long[]> chunkRanges = columnChunkRanges(parquetData);
+        assertTrue("fixture must contain several row groups", chunkRanges.size() >= 6);
+        FailingChunkPrefetchStorageObject storage = new FailingChunkPrefetchStorageObject(parquetData, true, chunkRanges, 1);
+
+        List<Page> pages = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), storage);
+        try {
+            assertEquals(matchingRows, pages.stream().mapToInt(Page::getPositionCount).sum());
+            assertEquals(1, storage.failedChunkReads.get());
+            assertEquals("only the row group whose prefetch failed should use sync Phase 1", 1, storage.syncChunkReads.get());
+            assertTrue("later row groups should return to asynchronous prefetch", storage.successfulChunkReads.get() > 0);
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
+    }
+
+    private void assertPhaseOneFallbackParity(boolean triviallyPasses) throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("two_phase_fallback_schema");
+        int rowCount = 500;
+        byte[] parquetData = buildParquetWithoutDictionary(schema, rowCount, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+            return factory.newGroup().append("id", (long) i).append("label", repeat('x', 256) + "_" + i);
+        });
+        long upperBound = triviallyPasses ? rowCount + 1L : 50L;
+        ReferenceAttribute id = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(
+            List.of(new LessThan(Source.EMPTY, id, new Literal(Source.EMPTY, upperBound, DataType.LONG), null))
+        );
+
+        List<Page> expected = readAllPages(
+            new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed),
+            new CountingStorageObject(parquetData, true)
+        );
+        FailingChunkPrefetchStorageObject failing = new FailingChunkPrefetchStorageObject(
+            parquetData,
+            true,
+            columnChunkRanges(parquetData),
+            1
+        );
+        List<Page> actual = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), failing);
+        try {
+            assertEquals(collectIds(expected), collectIds(actual));
+            assertEquals(triviallyPasses ? rowCount : 50, actual.stream().mapToInt(Page::getPositionCount).sum());
+            assertEquals(1, failing.failedChunkReads.get());
+        } finally {
+            expected.forEach(Page::releaseBlocks);
+            actual.forEach(Page::releaseBlocks);
+        }
+    }
+
+    private void assertPhaseTwoFallbackParity(PhaseTwoFallbackShape shape) throws Exception {
+        int rowCount = 500;
+        long upperBound = switch (shape) {
+            case PAGE_FILTERED -> 50L;
+            case FULL_PROJECTION -> 450L;
+            case TRIVIALLY_PASSES -> rowCount + 1L;
+        };
+        PhaseTwoFixture fixture = createPhaseTwoFixture(rowCount, upperBound);
+        byte[] parquetData = fixture.parquetData();
+        ParquetPushedExpressions pushed = fixture.pushed();
+
+        List<Page> expected = readAllPages(
+            new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed),
+            new CountingStorageObject(parquetData, true)
+        );
+        List<long[]> projectionRanges = columnChunkRanges(parquetData, Set.of("label"));
+        assertEquals("single-row-group fixture must have one projection chunk", 1, projectionRanges.size());
+        long[] projectionRange = projectionRanges.getFirst();
+        FailingChunkPrefetchStorageObject failing = new FailingChunkPrefetchStorageObject(parquetData, true, projectionRanges, 1);
+        List<Page> actual = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), failing);
+        try {
+            assertEquals(collectIds(expected), collectIds(actual));
+            assertEquals(Math.min(upperBound, rowCount), actual.stream().mapToInt(Page::getPositionCount).sum());
+            assertEquals(1, failing.failedChunkReads.get());
+            assertEquals(
+                "synchronous retry must use the same Phase-2 ranges as the failed async attempt",
+                failing.attemptedAsyncRequests,
+                failing.syncRequests
+            );
+            assertFalse("Phase-2 fallback must issue at least one synchronous request", failing.syncRequests.isEmpty());
+            assertTrue(
+                "every fallback request must stay inside the projection-only column",
+                failing.syncRequests.stream().allMatch(request -> request.isWithin(projectionRange))
+            );
+
+            long fallbackBytes = failing.syncRequests.stream().mapToLong(RequestSpan::length).sum();
+            long projectionBytes = projectionRange[1] - projectionRange[0];
+            if (shape == PhaseTwoFallbackShape.PAGE_FILTERED) {
+                assertThat(
+                    "page-filtered fallback must be narrower than the whole projection chunk",
+                    fallbackBytes,
+                    lessThan(projectionBytes)
+                );
+            } else {
+                assertEquals("whole-chunk Phase-2 fallback must fetch the complete projection chunk", projectionBytes, fallbackBytes);
+            }
+            if (shape == PhaseTwoFallbackShape.TRIVIALLY_PASSES) {
+                long[] predicateRange = columnChunkRanges(parquetData, Set.of("id")).getFirst();
+                assertTrue(
+                    "trivially-passes path must retain its Phase-1 predicate chunks",
+                    failing.successfulAsyncRequests.stream().anyMatch(request -> request.isWithin(predicateRange))
+                );
+                assertEquals(
+                    "merged trivially-passes output must contain predicate and projection columns",
+                    2,
+                    actual.getFirst().getBlockCount()
+                );
+            }
+        } finally {
+            expected.forEach(Page::releaseBlocks);
+            actual.forEach(Page::releaseBlocks);
+        }
+    }
+
+    private enum PhaseTwoFallbackShape {
+        PAGE_FILTERED,
+        FULL_PROJECTION,
+        TRIVIALLY_PASSES
+    }
+
+    public void testAlwaysFailingAsyncReadsFallBackThroughBothPhases() throws Exception {
+        PhaseTwoFixture fixture = createPhaseTwoFixture(500, 50L);
+        AlwaysFailingAsyncStorageObject storage = new AlwaysFailingAsyncStorageObject(fixture.parquetData());
+
+        List<Page> pages = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(fixture.pushed()), storage);
+        try {
+            assertEquals(50, pages.stream().mapToInt(Page::getPositionCount).sum());
+            assertEquals(50, collectIds(pages).size());
+            assertTrue("both Phase 1 and Phase 2 must encounter the async failure", storage.asyncFailures.get() >= 2);
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testPhaseTwoSyncFallbackIsExactlyBreakerAccounted() throws Exception {
+        PhaseTwoFixture fixture = createPhaseTwoFixture(500, 501L);
+        List<long[]> projectionRanges = columnChunkRanges(fixture.parquetData(), Set.of("label"));
+        long expectedFallbackBytes = projectionRanges.getFirst()[1] - projectionRanges.getFirst()[0];
+        StorageReadTrackingBreaker trackingBreaker = new StorageReadTrackingBreaker("phase-two-accounting", ByteSizeValue.ofMb(64));
+        BlockFactory trackingBlockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(trackingBreaker).build();
+        FailingChunkPrefetchStorageObject storage = new FailingChunkPrefetchStorageObject(fixture.parquetData(), true, projectionRanges, 1);
+
+        try (
+            ParquetFormatReader reader = new ParquetFormatReader(trackingBlockFactory, true).withPushedFilter(fixture.pushed());
+            CloseableIterator<Page> iterator = reader.read(storage, FormatReadContext.builder().batchSize(1024).build())
+        ) {
+            long afterOpen = trackingBreaker.storageReadReservations.get();
+            assertTrue(iterator.hasNext());
+            assertEquals(
+                "the only post-open storage-buffer reservation must be the whole projection chunk fallback",
+                expectedFallbackBytes,
+                trackingBreaker.storageReadReservations.get() - afterOpen
+            );
+            do {
+                Page page = iterator.next();
+                page.releaseBlocks();
+            } while (iterator.hasNext());
+        }
+        assertEquals("all fallback and decode reservations must be released", 0L, trackingBreaker.getUsed());
+    }
+
+    public void testPhaseTwoSyncFallbackBreakerRefusalKeepsAsyncFailureSuppressed() throws Exception {
+        PhaseTwoFixture fixture = createPhaseTwoFixture(500, 501L);
+        List<long[]> projectionRanges = columnChunkRanges(fixture.parquetData(), Set.of("label"));
+        StorageReadTrackingBreaker trackingBreaker = new StorageReadTrackingBreaker("phase-two-refusal", ByteSizeValue.ofMb(64));
+        BlockFactory trackingBlockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(trackingBreaker).build();
+        FailingChunkPrefetchStorageObject storage = new FailingChunkPrefetchStorageObject(fixture.parquetData(), true, projectionRanges, 1);
+
+        try (
+            ParquetFormatReader reader = new ParquetFormatReader(trackingBlockFactory, true).withPushedFilter(fixture.pushed());
+            CloseableIterator<Page> iterator = reader.read(storage, FormatReadContext.builder().batchSize(1024).build())
+        ) {
+            trackingBreaker.rejectStorageReads = true;
+            CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, iterator::hasNext);
+            assertEquals(1, exception.getSuppressed().length);
+            assertThat(exception.getSuppressed()[0].getMessage(), containsString("Trivially-passes Phase-2 fetch failed"));
+        }
+        assertEquals("refused fallback and iterator close must release every reservation", 0L, trackingBreaker.getUsed());
+    }
+
+    public void testWrappedErrorFromPhaseTwoAsyncFetchEscapesWithoutRetry() throws Exception {
+        PhaseTwoFixture fixture = createPhaseTwoFixture(500, 50L);
+        AssertionError injected = new AssertionError("injected wrapped Phase-2 error");
+        PhaseTwoExceptionalStorageObject storage = new PhaseTwoExceptionalStorageObject(
+            fixture.parquetData(),
+            columnChunkRanges(fixture.parquetData(), Set.of("label")),
+            new CompletionException(injected),
+            null
+        );
+
+        try (
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(fixture.pushed());
+            CloseableIterator<Page> iterator = reader.read(storage, FormatReadContext.builder().batchSize(1024).build())
+        ) {
+            AssertionError actual = expectThrows(AssertionError.class, iterator::hasNext);
+            assertSame(injected, actual);
+            assertEquals("wrapped Error classification must happen before synchronous retry", 0, storage.syncAttempts.get());
+        }
+    }
+
+    public void testPhaseTwoRetryDoesNotSelfSuppressSharedFailure() throws Exception {
+        PhaseTwoFixture fixture = createPhaseTwoFixture(500, 50L);
+        IllegalStateException injected = new IllegalStateException("same async and sync failure");
+        PhaseTwoExceptionalStorageObject storage = new PhaseTwoExceptionalStorageObject(
+            fixture.parquetData(),
+            columnChunkRanges(fixture.parquetData(), Set.of("label")),
+            injected,
+            injected
+        );
+
+        try (
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(fixture.pushed());
+            CloseableIterator<Page> iterator = reader.read(storage, FormatReadContext.builder().batchSize(1024).build())
+        ) {
+            IllegalStateException actual = expectThrows(IllegalStateException.class, iterator::hasNext);
+            assertSame(injected, actual);
+            assertEquals(0, actual.getSuppressed().length);
+            assertEquals(1, storage.syncAttempts.get());
+        }
+    }
+
+    private PhaseTwoFixture createPhaseTwoFixture(int rowCount, long upperBound) throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("phase_two_fallback_schema");
+        byte[] parquetData = buildParquetWithoutDictionary(schema, rowCount, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+            return factory.newGroup().append("id", (long) i).append("label", repeat('x', 256) + "_" + i);
+        });
+        ReferenceAttribute id = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(
+            List.of(new LessThan(Source.EMPTY, id, new Literal(Source.EMPTY, upperBound, DataType.LONG), null))
+        );
+        return new PhaseTwoFixture(parquetData, pushed);
+    }
+
+    private record PhaseTwoFixture(byte[] parquetData, ParquetPushedExpressions pushed) {}
+
     public void testTwoPhaseFetchesFewerProjectionBytesThanSinglePhase() throws Exception {
         // Selective filter on a small predicate column with a much larger projection column.
         // We expect two-phase to skip pages of the label column for filtered-out rows.
@@ -150,6 +495,9 @@ public class TwoPhaseReaderTests extends ESTestCase {
             g.add("label", repeat('z', 512) + "_" + i);
             return g;
         });
+        // Whole-file window fill would charge both paths a GET of [0, length) and make two-phase's
+        // extra page GETs look like more I/O, not less.
+        assertThat(parquetData.length, greaterThan(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE));
 
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 100L, DataType.LONG), null);
@@ -169,6 +517,86 @@ public class TwoPhaseReaderTests extends ESTestCase {
         long single = singlePhaseObj.totalBytesRead.get();
         long two = twoPhaseObj.totalBytesRead.get();
         assertThat("two-phase should read fewer bytes than single-phase: " + two + " vs " + single, two, lessThan(single));
+    }
+
+    /**
+     * The two-phase route over a keyword predicate column whose batches decode entirely null.
+     *
+     * <p>Two-phase and single-phase share {@code evaluateFilter}, so both reach the same
+     * all-null hazard, but every other test of that hazard drives the single-phase route -
+     * {@code shouldUseTwoPhase} requires {@link StorageObject#supportsNativeAsync()}, which
+     * defaults to false. This is the two-phase half, and it fails on the parent commit with the
+     * same {@code ClassCastException} (elastic/elasticsearch#157313).
+     *
+     * <p>Scope note: this pins correctness only. An earlier revision also asserted that two-phase
+     * reads fewer bytes than single-phase for this shape; with the layout pinned it does not, so
+     * the claim was removed rather than tuned into passing. The projection-decode skip on a
+     * survivor-free batch is real (see {@code OptimizedParquetColumnIterator}'s
+     * {@code survivorCount == 0} branch), but total bytes read is not a faithful proxy for it and
+     * this module has no counter that is.
+     */
+    public void testTwoPhaseKeywordFilterOverAllNullPredicateBatches() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("code")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("two_phase_all_null_schema");
+
+        final int rowCount = 8192;
+        final int nullRun = 1024;
+        // code is null for the overwhelming majority of the file and valued only in a short run at
+        // the end, so most batches decode all-null and produce no survivors. label is the bulky
+        // projection-only column whose fetch those survivor-free batches should avoid entirely.
+        // Layout pinned deliberately, and the null runs sized against it. Row groups are large
+        // enough to hold several read batches, so every row group carries both null and valued
+        // `code` values — otherwise the Parquet row-group filter prunes the all-null groups on
+        // statistics and the evaluator never sees a null block, which silently turns this from a
+        // regression test into a pin. The null runs are aligned to the read batch size so whole
+        // decoded batches are null within a surviving row group.
+        byte[] parquetData = buildParquetWithLayout(schema, rowCount, 8L * 1024 * 1024, 1024, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+            Group g = factory.newGroup();
+            g.add("id", (long) i);
+            if ((i / nullRun) % 2 == 1) {
+                g.add("code", i % 2 == 0 ? "US" : "CA");
+            }
+            g.add("label", repeat('z', 512) + "_" + i);
+            return g;
+        });
+
+        ReferenceAttribute codeAttr = new ReferenceAttribute(Source.EMPTY, "code", DataType.KEYWORD);
+        Expression filter = new Equals(Source.EMPTY, codeAttr, new Literal(Source.EMPTY, new BytesRef("US"), DataType.KEYWORD), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        CountingStorageObject twoPhaseObj = new CountingStorageObject(parquetData, true);
+        List<Page> pages = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), twoPhaseObj);
+
+        List<Long> survivingIds = new ArrayList<>();
+        try {
+            for (Page page : pages) {
+                LongBlock idBlock = page.getBlock(0);
+                for (int pos = 0; pos < page.getPositionCount(); pos++) {
+                    survivingIds.add(idBlock.getLong(pos));
+                }
+            }
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
+
+        List<Long> expected = new ArrayList<>();
+        for (int i = 0; i < rowCount; i++) {
+            if ((i / nullRun) % 2 == 1 && i % 2 == 0) {
+                expected.add((long) i);
+            }
+        }
+        assertThat("survivors must come only from the valued runs", survivingIds, equalTo(expected));
+        assertFalse("the fixture must actually produce survivors", expected.isEmpty());
+
     }
 
     public void testFilterEvaluatedWhenNoProjectionOnlyColumn() throws Exception {
@@ -368,7 +796,9 @@ public class TwoPhaseReaderTests extends ESTestCase {
      * projection-only {@code label} column is null on the first surviving row (null-leading) and
      * interleaves null / value across the cluster — the exact shape that threw "can't append
      * non-null values to a null block" before the concat fix. {@code label} is deliberately wide so
-     * the predicate-byte ratio gate lets two-phase engage.
+     * the predicate-byte ratio gate lets two-phase engage and so the file exceeds
+     * {@link ParquetStorageObjectAdapter#DEFAULT_WINDOW_SIZE} (a whole-file window GET would hide
+     * page-skipping in the byte totals).
      */
     public void testTwoPhaseSparseNullLeadingProjectionColumn() throws Exception {
         MessageType schema = Types.buildMessage()
@@ -381,6 +811,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
             .named("test_schema");
 
         int rowCount = 3_000;
+        int labelWidth = 2048;
         // Survivors: a tight non-contiguous cluster {1000, 1002, 1004, 1006}. Everything before row
         // 1000 is skipped (page-filtering), and the gap-1 spacing inside the cluster yields four
         // separate readBatchSparse runs. label is null on the first (1000) and a later (1004)
@@ -392,10 +823,11 @@ public class TwoPhaseReaderTests extends ESTestCase {
             Group g = factory.newGroup();
             g.add("pred", survivorRows.contains(i) ? "" : "x_" + i);
             if (labelNullRows.contains(i) == false) {
-                g.add("label", repeat('l', 256) + "_" + i);
+                g.add("label", repeat('l', labelWidth) + "_" + i);
             }
             return g;
         });
+        assertThat(parquetData.length, greaterThan(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE));
 
         ReferenceAttribute predAttr = new ReferenceAttribute(Source.EMPTY, "pred", DataType.KEYWORD);
         Expression filter = new Equals(Source.EMPTY, predAttr, new Literal(Source.EMPTY, new BytesRef(""), DataType.KEYWORD), null);
@@ -405,7 +837,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         int expectedLabelNulls = labelNullRows.size();
         // Non-null survivors carry their exact wide label value; asserting the values (not just the
         // null count) catches any concat mis-ordering or value scrambling.
-        Set<String> expectedLabels = Set.of(repeat('l', 256) + "_1002", repeat('l', 256) + "_1006");
+        Set<String> expectedLabels = Set.of(repeat('l', labelWidth) + "_1002", repeat('l', labelWidth) + "_1006");
 
         // Two-phase path (native async) must not throw and must produce every survivor, with the
         // null-leading projection column faithfully preserving its nulls and values.
@@ -1280,7 +1712,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         throws IOException {
         StorageObject storage = new CountingStorageObject(parquetData, false);
         ParquetReader.Builder<Group> builder = new ParquetReader.Builder<Group>(
-            new ParquetStorageObjectAdapter(storage, blockFactory.arrowAllocator()),
+            new ParquetStorageObjectAdapter(storage, footerByteCache, blockFactory.breaker()),
             new PlainParquetConfiguration()
         ) {
             @Override
@@ -1307,7 +1739,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         throws IOException {
         StorageObject storage = new CountingStorageObject(parquetData, false);
         ParquetReader.Builder<Group> builder = new ParquetReader.Builder<Group>(
-            new ParquetStorageObjectAdapter(storage, blockFactory.arrowAllocator()),
+            new ParquetStorageObjectAdapter(storage, footerByteCache, blockFactory.breaker()),
             new PlainParquetConfiguration()
         ) {
             @Override
@@ -1327,12 +1759,8 @@ public class TwoPhaseReaderTests extends ESTestCase {
         return ids;
     }
 
-    private byte[] buildParquetWithPageSize(
-        MessageType schema,
-        int rowCount,
-        int pageSize,
-        java.util.function.IntFunction<Group> rowFactory
-    ) throws IOException {
+    private byte[] buildParquetWithPageSize(MessageType schema, int rowCount, int pageSize, IntFunction<Group> rowFactory)
+        throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         OutputFile out = buildOutputFile(baos);
         try (
@@ -1350,7 +1778,28 @@ public class TwoPhaseReaderTests extends ESTestCase {
         return baos.toByteArray();
     }
 
-    private byte[] buildParquet(MessageType schema, int rowCount, java.util.function.IntFunction<Group> rowFactory) throws IOException {
+    /** Pins BOTH row-group and page size, so a test's layout claims are what actually gets written. */
+    private byte[] buildParquetWithLayout(MessageType schema, int rowCount, long rowGroupSize, int pageSize, IntFunction<Group> rowFactory)
+        throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        OutputFile out = buildOutputFile(baos);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(out)
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withRowGroupSize(rowGroupSize)
+                .withPageSize(pageSize)
+                .withConf(new PlainParquetConfiguration())
+                .build()
+        ) {
+            for (int i = 0; i < rowCount; i++) {
+                writer.write(rowFactory.apply(i));
+            }
+        }
+        return baos.toByteArray();
+    }
+
+    private byte[] buildParquet(MessageType schema, int rowCount, IntFunction<Group> rowFactory) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         OutputFile out = buildOutputFile(baos);
         try (
@@ -1365,6 +1814,62 @@ public class TwoPhaseReaderTests extends ESTestCase {
             }
         }
         return baos.toByteArray();
+    }
+
+    private byte[] buildParquetWithoutDictionary(MessageType schema, int rowCount, IntFunction<Group> rowFactory) throws IOException {
+        return buildParquetWithoutDictionary(schema, rowCount, ParquetWriter.DEFAULT_BLOCK_SIZE, rowFactory);
+    }
+
+    private byte[] buildParquetWithoutDictionary(MessageType schema, int rowCount, long rowGroupSize, IntFunction<Group> rowFactory)
+        throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        OutputFile out = buildOutputFile(baos);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(out)
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(false)
+                .withRowGroupSize(rowGroupSize)
+                .withPageSize(256)
+                .withConf(new PlainParquetConfiguration())
+                .build()
+        ) {
+            for (int i = 0; i < rowCount; i++) {
+                writer.write(rowFactory.apply(i));
+            }
+        }
+        return baos.toByteArray();
+    }
+
+    private List<long[]> columnChunkRanges(byte[] parquetData) throws IOException {
+        return columnChunkRanges(parquetData, null);
+    }
+
+    private List<long[]> columnChunkRanges(byte[] parquetData, Set<String> columns) throws IOException {
+        PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(
+                    new CountingStorageObject(parquetData, false),
+                    footerByteCache,
+                    new NoopCircuitBreaker("chunk-ranges")
+                ),
+                PlainParquetReadOptions.builder(codecFactory).build()
+            )
+        ) {
+            List<long[]> ranges = new ArrayList<>();
+            for (BlockMetaData block : reader.getRowGroups()) {
+                for (ColumnChunkMetaData column : block.getColumns()) {
+                    if (columns != null && columns.contains(column.getPath().toDotString()) == false) {
+                        continue;
+                    }
+                    ranges.add(new long[] { column.getStartingPos(), column.getStartingPos() + column.getTotalSize() });
+                }
+            }
+            return ranges;
+        } finally {
+            codecFactory.release();
+        }
     }
 
     private static OutputFile buildOutputFile(ByteArrayOutputStream baos) {
@@ -1422,7 +1927,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
     private static String repeat(char c, int n) {
         char[] arr = new char[n];
-        java.util.Arrays.fill(arr, c);
+        Arrays.fill(arr, c);
         return new String(arr);
     }
 
@@ -1448,10 +1953,11 @@ public class TwoPhaseReaderTests extends ESTestCase {
      * {@link StorageObject#supportsNativeAsync()} as true so two-phase activates; otherwise it
      * stays on the single-phase path.
      */
-    private static final class CountingStorageObject implements StorageObject {
+    private static class CountingStorageObject implements StorageObject {
         private final byte[] data;
         private final boolean nativeAsync;
         final AtomicLong totalBytesRead = new AtomicLong();
+        final List<RequestSpan> successfulAsyncRequests = new ArrayList<>();
 
         CountingStorageObject(byte[] data, boolean nativeAsync) {
             this.data = data;
@@ -1509,10 +2015,163 @@ public class TwoPhaseReaderTests extends ESTestCase {
             // implementation: count once, copy once.
             try (InputStream stream = newStream(position, length)) {
                 byte[] bytes = stream.readAllBytes();
+                successfulAsyncRequests.add(new RequestSpan(position, length));
                 listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap(bytes), () -> {}));
             } catch (Exception e) {
                 listener.onFailure(e);
             }
+        }
+    }
+
+    private static final class FailingChunkPrefetchStorageObject extends CountingStorageObject {
+        private final List<long[]> failureRanges;
+        private final AtomicLong failuresRemaining;
+        private final AtomicLong failedChunkReads = new AtomicLong();
+        private final AtomicLong successfulChunkReads = new AtomicLong();
+        private final AtomicLong syncChunkReads = new AtomicLong();
+        private final List<RequestSpan> attemptedAsyncRequests = new ArrayList<>();
+        private final List<RequestSpan> syncRequests = new ArrayList<>();
+
+        private FailingChunkPrefetchStorageObject(byte[] data, boolean nativeAsync, List<long[]> failureRanges, long failures) {
+            super(data, nativeAsync);
+            this.failureRanges = failureRanges;
+            this.failuresRemaining = new AtomicLong(failures);
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            boolean columnChunkRead = isTargetRead(position);
+            if (columnChunkRead) {
+                attemptedAsyncRequests.add(new RequestSpan(position, length));
+            }
+            if (columnChunkRead && failuresRemaining.getAndUpdate(remaining -> Math.max(0, remaining - 1)) > 0) {
+                failedChunkReads.incrementAndGet();
+                listener.onFailure(new IOException("injected column-chunk prefetch failure"));
+                return;
+            }
+            if (columnChunkRead) {
+                successfulChunkReads.incrementAndGet();
+            }
+            super.readBytesAsync(position, length, factory, executor, listener);
+        }
+
+        @Override
+        public int readBytes(long position, ByteBuffer target) throws IOException {
+            if (isTargetRead(position)) {
+                syncChunkReads.incrementAndGet();
+                syncRequests.add(new RequestSpan(position, target.remaining()));
+            }
+            return super.readBytes(position, target);
+        }
+
+        private boolean isTargetRead(long position) {
+            return failureRanges.stream().anyMatch(range -> position >= range[0] && position < range[1]);
+        }
+    }
+
+    private static final class AlwaysFailingAsyncStorageObject extends CountingStorageObject {
+        private final AtomicLong asyncFailures = new AtomicLong();
+
+        private AlwaysFailingAsyncStorageObject(byte[] data) {
+            super(data, true);
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            asyncFailures.incrementAndGet();
+            listener.onFailure(new IOException("injected persistent async failure"));
+        }
+    }
+
+    private static final class PhaseTwoExceptionalStorageObject extends CountingStorageObject {
+        private final List<long[]> projectionRanges;
+        private final Exception asyncFailure;
+        private final RuntimeException syncFailure;
+        private final AtomicLong syncAttempts = new AtomicLong();
+
+        private PhaseTwoExceptionalStorageObject(
+            byte[] data,
+            List<long[]> projectionRanges,
+            Exception asyncFailure,
+            RuntimeException syncFailure
+        ) {
+            super(data, true);
+            this.projectionRanges = projectionRanges;
+            this.asyncFailure = asyncFailure;
+            this.syncFailure = syncFailure;
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            if (isProjectionRead(position)) {
+                listener.onFailure(asyncFailure);
+                return;
+            }
+            super.readBytesAsync(position, length, factory, executor, listener);
+        }
+
+        @Override
+        public int readBytes(long position, ByteBuffer target) throws IOException {
+            if (isProjectionRead(position)) {
+                syncAttempts.incrementAndGet();
+                if (syncFailure != null) {
+                    throw syncFailure;
+                }
+            }
+            return super.readBytes(position, target);
+        }
+
+        private boolean isProjectionRead(long position) {
+            return projectionRanges.stream().anyMatch(range -> position >= range[0] && position < range[1]);
+        }
+    }
+
+    private static final class StorageReadTrackingBreaker extends LimitedBreaker {
+        private final AtomicLong storageReadReservations = new AtomicLong();
+        private volatile boolean rejectStorageReads;
+
+        private StorageReadTrackingBreaker(String name, ByteSizeValue limit) {
+            super(name, limit);
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            if (rejectStorageReads && "storage read buffer".equals(label)) {
+                throw new CircuitBreakingException(
+                    "forced Phase-2 storage-read rejection",
+                    bytes,
+                    getLimit(),
+                    CircuitBreaker.Durability.TRANSIENT
+                );
+            }
+            super.addEstimateBytesAndMaybeBreak(bytes, label);
+            if ("storage read buffer".equals(label)) {
+                storageReadReservations.addAndGet(bytes);
+            }
+        }
+    }
+
+    private record RequestSpan(long position, long length) {
+        private boolean isWithin(long[] range) {
+            return position >= range[0] && position + length <= range[1];
         }
     }
 }

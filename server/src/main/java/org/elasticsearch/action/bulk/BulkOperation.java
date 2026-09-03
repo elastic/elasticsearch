@@ -109,7 +109,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final FailureStoreMetrics failureStoreMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final boolean clusterHasFailureStoreFeature;
-    private final BulkBatchEncoders batchEncoders;
+    @Nullable
+    private final BatchModeRouter router;
 
     BulkOperation(
         Task task,
@@ -126,7 +127,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ActionListener<BulkResponse> listener,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        boolean clusterHasFailureStoreFeature
+        boolean clusterHasFailureStoreFeature,
+        BatchIndexingEnabled batchIndexingEnabled
     ) {
         this(
             task,
@@ -145,7 +147,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             new FailureStoreDocumentConverter(),
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
-            clusterHasFailureStoreFeature
+            clusterHasFailureStoreFeature,
+            batchIndexingEnabled
         );
     }
 
@@ -166,7 +169,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         FailureStoreDocumentConverter failureStoreDocumentConverter,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        boolean clusterHasFailureStoreFeature
+        boolean clusterHasFailureStoreFeature,
+        BatchIndexingEnabled batchIndexingEnabled
     ) {
         super(listener);
         this.task = task;
@@ -188,18 +192,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.failureStoreMetrics = failureStoreMetrics;
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.clusterHasFailureStoreFeature = clusterHasFailureStoreFeature;
-        // Single-pass encoder is only eligible when batch indexing is on cluster-wide AND every
-        // item in this bulk is structurally batchable. Mixed bulks (UpdateRequest/DeleteRequest
-        // interleaved with IndexRequests) take the inline-source path end-to-end — there is no
-        // per-shard fallback that would batch the all-IndexRequest shards in a mixed bulk.
-        if (ShardBatchIndexer.BATCH_INDEXING.get(clusterService.getSettings())
-            && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_BATCH)
-            && ShardBatchIndexer.BATCH_INDEXING_FEATURE_FLAG.isEnabled()
-            && BulkBatchEncoders.isBulkBatchEligible(bulkRequest)) {
-            batchEncoders = new BulkBatchEncoders();
-        } else {
-            batchEncoders = null;
-        }
+        this.router = BatchModeRouter.create(bulkRequest, ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService));
     }
 
     @Override
@@ -296,7 +289,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             clusterState,
             Iterators.enumerate(bulkRequest.requests.iterator(), BulkItemRequest::new),
             BulkOperation::validateWriteIndex,
-            batchEncoders
+            router
         );
     }
 
@@ -305,7 +298,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             clusterState,
             Iterators.fromSupplier(failureStoreRedirects::poll),
             (ia, ignore) -> validateRedirectIndex(ia),
-            null
+            null   // failure-store redirects always carry inline source
         );
     }
 
@@ -313,7 +306,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ClusterState clusterState,
         Iterator<BulkItemRequest> it,
         BiConsumer<IndexAbstraction, DocWriteRequest<?>> indexOperationValidator,
-        @Nullable BulkBatchEncoders encoders
+        @Nullable BatchModeRouter batchRouter
     ) {
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         final ConcreteIndices concreteIndices = new ConcreteIndices(project, indexNameExpressionResolver);
@@ -352,20 +345,14 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     continue;
                 }
                 IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
-                docWriteRequest.preRoutingProcess(indexRouting);
                 int shardId;
-                if (encoders != null && encoders.disabled() == false) {
-                    // The pre-scan in doRun() guarantees every item is an IndexRequest with inline
-                    // source and a known content type, so we don't need to re-check eligibility
-                    // here. The only way we fall through is a runtime encoder failure, which
-                    // disables the helper for the rest of the bulk and routes this item via the
-                    // inline-source path.
-                    int encoded = encoders.tryEncodeAndRoute((IndexRequest) docWriteRequest, concreteIndex, indexRouting);
-                    shardId = (encoded == BulkBatchEncoders.NOT_BATCHABLE) ? docWriteRequest.route(indexRouting) : encoded;
-                } else {
+                if (batchRouter == null) {
+                    docWriteRequest.preRoutingProcess(indexRouting);
                     shardId = docWriteRequest.route(indexRouting);
+                    docWriteRequest.postRoutingProcess(indexRouting);
+                } else {
+                    shardId = batchRouter.route(docWriteRequest, ia, concreteIndex, indexRouting, project);
                 }
-                docWriteRequest.postRoutingProcess(indexRouting);
                 List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
                     new ShardId(concreteIndex, shardId),
                     shard -> new ArrayList<>()
@@ -428,9 +415,11 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             return;
         }
 
-        // Build per-shard EIRF batches for shards that ended up batchable (initial-pass only). For
-        // shards marked non-batchable, no batch is produced and the items keep their inline source.
-        Map<ShardId, SourceBatch> shardBatches = batchEncoders == null ? Collections.emptyMap() : batchEncoders.finalizeBatches();
+        // Build per-shard source batches. For the inline-encoder path, batches are finalized here
+        // (rows were accumulated during routing). For provided-batch mode the source is scattered here.
+        Map<ShardId, SourceBatch> shardBatches = router != null ? router.shardBatches() : Collections.emptyMap();
+
+        BatchModeRouter.validateBatchAlignment(requestsByShard, shardBatches);
 
         String nodeId = clusterService.localNode().getId();
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
@@ -473,11 +462,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private void closeBatchEncoders() {
-        if (batchEncoders != null) {
-            // Partitions whose bytes were already moved out via buildPartition handle this safely;
-            // unused partitions (those for shards that were marked non-batchable) get their pages
-            // released here.
-            batchEncoders.close();
+        if (router != null) {
+            router.close();
         }
     }
 
@@ -542,7 +528,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             );
             releaseOnFinish.close();
         } else {
-            client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
+            client.execute(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
                 // Lazily get the project metadata to avoid keeping it around longer than it is needed
                 private ProjectMetadata projectMetadata = null;
 
@@ -727,8 +713,14 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         // Convert the document into a failure document
         IndexRequest failureStoreRequest;
         try {
+            // If the original request carries only a row reference (no inline bytes), materialize
+            // the source now so that transformFailedRequest can read the document content.
+            IndexRequest writeRequest = TransportBulkAction.getIndexWriteRequest(request.request());
+            if (writeRequest != null && writeRequest.indexSource().hasSourceRow()) {
+                writeRequest.indexSource().ensureInlineSource();
+            }
             failureStoreRequest = failureStoreDocumentConverter.transformFailedRequest(
-                TransportBulkAction.getIndexWriteRequest(request.request()),
+                writeRequest,
                 cause,
                 failureStoreReference,
                 threadPool::absoluteTimeInMillis

@@ -61,12 +61,16 @@ final class AzureTransientTypingInputStream extends FilterInputStream {
         // rather than reading only the immediate cause. Absent a BlobStorageException, a mid-read transport fault
         // is still transient, just not throttling.
         boolean throttling = false;
+        long retryAfterMs = 0L;
         for (Throwable c = e.getCause(); c != null; c = c.getCause()) {
             if (c instanceof BlobStorageException bse) {
                 throttling = ExternalUnavailableException.isThrottlingStatus(bse.getStatusCode());
+                if (throttling && bse.getResponse() != null) {
+                    retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(bse.getResponse().getHeaderValue("Retry-After"));
+                }
                 break;
             }
         }
-        return new ExternalUnavailableException(throttling, e, "transient read failure for [{}]", path);
+        return new ExternalUnavailableException(throttling, retryAfterMs, e, "transient read failure for [{}]", path);
     }
 }

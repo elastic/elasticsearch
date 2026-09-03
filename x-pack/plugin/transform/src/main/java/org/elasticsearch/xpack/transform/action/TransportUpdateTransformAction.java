@@ -220,6 +220,20 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                             isRunning
                         );
 
+                        // Nothing was persisted. On the CPS path the no-op check deliberately
+                        // ignores headers, so the caller's security headers can differ from what
+                        // is stored with no write having happened — there is nothing to push to a
+                        // running task and no auth state worth persisting. A non-CPS header-only
+                        // _update never lands here (isNoop includes headers, so it is
+                        // Status.UPDATED), which keeps the re-authorize-by-empty-update behaviour
+                        // intact. Gated on changesHeaders: when headers are also unchanged there
+                        // is nothing to skip, and the existing chain handles it correctly.
+                        if (updateResult.getStatus() == TransformUpdater.UpdateResult.Status.NONE
+                            && update.changesHeaders(originalConfig)) {
+                            afterCredentialCleanup.onResponse(new Response(updatedConfig));
+                            return;
+                        }
+
                         boolean updateChangesSettings = update.changesSettings(originalConfig);
                         boolean updateChangesHeaders = update.changesHeaders(originalConfig);
                         boolean updateChangesDestIndex = update.changesDestIndex(originalConfig);

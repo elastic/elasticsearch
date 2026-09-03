@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
@@ -159,6 +160,7 @@ import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.elasticsearch.xpack.esql.view.ViewService;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -180,6 +182,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
     /**
+     * EWMA alpha for the {@code esql_worker} pool's per-task execution-time tracking.
+     */
+    static final double ESQL_WORKER_EXECUTION_TIME_EWMA_ALPHA = 0.1;
+
+    /**
      * Name of the dedicated thread pool backing all external blob-store access: metadata discovery (glob expansion,
      * footer reads, and schema reconciliation performed by
      * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver}) as well as the blocking data reads and
@@ -190,7 +197,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
      * This is a separate pool from {@link #computePool()} on purpose. These tasks block their thread on network I/O
      * (a sequential decompressed stream read pulls compressed bytes from the object store) and on the parser's bounded
      * hand-off queues; the compute {@code Driver} that consumes the parsed pages runs on {@link #computePool()}. If the
-     * two shared a fixed pool, the segmentator plus {@code parsing_parallelism} parser tasks would occupy every slot
+     * two shared a fixed pool, the segmentator plus {@code external_parsing_parallelism} parser tasks would occupy every slot
      * and starve their own consumer, deadlocking the query (observed as a stalled heap-attack external query). Keeping
      * them apart also prevents a single heavy external query from starving compute. In-flight cloud API calls are still
      * bounded by the per-scheme permit semaphore in {@code StorageProviderRegistry}; the permits and this pool solve
@@ -373,6 +380,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 .bytesRefRamOverestimateThreshold(PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.get(settings))
                 .bytesRefRamOverestimateFactor(PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR.get(settings))
         );
+        setupSharedSecrets();
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
             .toList();
@@ -440,10 +448,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         services.clusterService().getClusterSettings().addSettingsUpdateConsumer(FLATTENED_ENABLED, flattenedDataTypeEnabled::set);
 
         // Create DataSourceModule with all discovered plugins.
-        // This executor backs SPI coordination, decompression, and async-I/O plugin callbacks (e.g. the HTTP
-        // client) — NOT the file-read path. Blocking external reads run on the esql_worker pool via
-        // OperatorFactoryRegistry#fileReadExecutor (wired in TransportEsqlQueryAction), bounded by the per-scheme
-        // permit semaphore in StorageProviderRegistry rather than a dedicated thread pool.
+        // The GENERIC executor backs SPI coordination, decompression, and async-I/O plugin callbacks
+        // (e.g. the HTTP client) — NOT object-store GETs. File-read and Phase-2 split discovery
+        // (footer/probe) run on esql_external_io: SEARCH and GENERIC must not issue those GETs, and
+        // esql_external_io must not join its own fan-out (Phase-2 uses ThrottledIterator + ActionListener).
+        // Blocking data reads are bounded by the per-scheme permit semaphore in StorageProviderRegistry.
         dataSourceModule = new DataSourceModule(
             allDataSourcePlugins,
             dataSourceCapabilities,
@@ -456,7 +465,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.environment(),
             services.resourceWatcherService(),
             services.telemetryProvider().getMeterRegistry(),
-            localFileAccess
+            localFileAccess,
+            services.threadPool().executor(externalBlobStorePool())
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -593,6 +603,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new DatasetService(services.clusterService(), crudValidators),
             new PluginComponentBinding<>(QueryMetricsListener.class, collector)
         );
+    }
+
+    private void setupSharedSecrets() {
+        try {
+            // EsqlQueryRequestBuilder.<clinit> initializes the shared secret access
+            MethodHandles.lookup().ensureInitialized(EsqlQueryRequestBuilder.class);
+        } catch (IllegalAccessException e) {
+            throw new AssertionError(e);
+        }
     }
 
     protected BlockFactoryProvider blockFactoryProvider(BlockFactoryBuilder builder) {
@@ -794,7 +813,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 poolSize,
                 queueSize,
                 ESQL_WORKER_THREAD_POOL_NAME,
-                EsExecutors.TaskTrackingConfig.DEFAULT
+                EsExecutors.TaskTrackingConfig.builder()
+                    .trackOngoingTasks()
+                    .trackExecutionTime(ESQL_WORKER_EXECUTION_TIME_EWMA_ALPHA)
+                    .build()
             ),
             // Dedicated scaling pool for blocking external blob-store I/O and the streaming parse pipeline, kept
             // separate from esql_worker so the segmentator/parser tasks cannot starve the compute drivers that

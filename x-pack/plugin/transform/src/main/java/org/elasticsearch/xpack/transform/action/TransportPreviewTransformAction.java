@@ -250,6 +250,9 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         // another transform node. Its SecureString is released once by the releasingListener that
         // wraps the request in doExecute; no further releaseAfter needed here.
         var parentTaskClient = cloudCredentialManager.wrapWithUiamIfPresent(rawClient, callerCredential);
+        // Preview runs under the caller's live credential (not stored config headers). Scope
+        // cross-project resolution to whether that credential can actually fan out.
+        var sourceIndicesOptions = source.indicesOptions(callerCredential != null);
 
         final var mappings = new SetOnce<Map<String, String>>();
 
@@ -294,6 +297,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 timeout,
                 filteredHeaders,
                 source,
+                sourceIndicesOptions,
                 // Use deduced mappings for generating preview even if "settings.deduce_mappings" is set to false
                 deducedMappings,
                 NUMBER_OF_PREVIEW_BUCKETS,
@@ -301,7 +305,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             );
         });
 
-        function.deduceMappings(parentTaskClient, filteredHeaders, transformId, source, deduceMappingsListener);
+        function.deduceMappings(parentTaskClient, filteredHeaders, transformId, source, sourceIndicesOptions, deduceMappingsListener);
     }
 
     @SuppressWarnings("unchecked")

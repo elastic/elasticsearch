@@ -5,13 +5,10 @@
 * `count_values`
 * `double_exponential_smoothing`
 * `group`
-* `histogram_fraction`
 * `histogram_stddev`
 * `histogram_stdvar`
 * `holt_winters`
 * `info`
-* `label_join`
-* `label_replace`
 * `limit_ratio`
 * `mad_over_time`
 * `predict_linear`

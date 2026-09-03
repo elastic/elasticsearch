@@ -43,6 +43,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.OperationListener;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
@@ -291,11 +292,24 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     }
 
     public void add(final ShardId shardId, final Translog.Serialized operation, final long seqNo, final Translog.Location location) {
+        addRecord(shardId, operation, new long[] { seqNo }, location);
+    }
+
+    /**
+     * Adds a record carrying one or more operations ({@code seqNos} has one entry per operation).
+     * Calls {@link NodeTranslogBuffer#writeToBuffer}.
+     */
+    public void addRecord(
+        final ShardId shardId,
+        final Translog.Serialized operation,
+        final long[] seqNos,
+        final Translog.Location location
+    ) {
         try {
             ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
             while (true) {
                 NodeTranslogBuffer nodeTranslogBuffer = getNodeTranslogBuffer();
-                if (nodeTranslogBuffer.writeToBuffer(shardSyncState, operation, seqNo, location)) {
+                if (nodeTranslogBuffer.writeToBuffer(shardSyncState, operation, seqNos, location)) {
                     if (nodeTranslogBuffer.shouldFlushBufferDueToSize()) {
                         executor.execute(new FlushTask(nodeTranslogBuffer));
                     }
@@ -311,7 +325,15 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             assert false;
             throw new UncheckedIOException(e);
         }
+    }
 
+    /**
+     * Returns an {@link OperationListener}, bound to the given shard, that forwards translog writes to this replicator. The
+     * {@code shardId} is captured because a single {@link TranslogReplicator} is shared by every shard on the node and must be told
+     * which shard each write belongs to.
+     */
+    public OperationListener listenerFor(ShardId shardId) {
+        return (operation, seqNos, location) -> addRecord(shardId, operation, seqNos, location);
     }
 
     private NodeTranslogBuffer getNodeTranslogBuffer() {
@@ -698,6 +720,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         private final AtomicLong currentGeneration = new AtomicLong(0);
         private final PriorityQueue<UploadTranslogTask> ongoingUploads = new PriorityQueue<>();
+        private boolean closed = false;
 
         private final AtomicLong validateClusterStateGeneration = new AtomicLong(0);
         private final PriorityQueue<ValidateClusterStateForUploadTask> ongoingValidateClusterState = new PriorityQueue<>();
@@ -706,8 +729,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         private void markUploadStarting(final UploadTranslogTask uploadTranslogTask) {
             synchronized (ongoingUploads) {
-                ongoingUploads.add(uploadTranslogTask);
+                if (closed) {
+                    uploadTranslogTask.cancel(new ElasticsearchException("Node shutting down"));
+                    return;
+                }
 
+                ongoingUploads.add(uploadTranslogTask);
                 BlobTranslogFileImpl translogFile = uploadTranslogTask.translogFile;
                 CompoundTranslogMetadata metadata = uploadTranslogTask.translog.metadata();
                 for (Map.Entry<ShardId, ShardSyncState.SyncMarker> entry : metadata.syncedLocations().entrySet()) {
@@ -968,6 +995,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         public void close() {
             synchronized (ongoingUploads) {
+                closed = true;
                 // Don't remove. Just cancel since this only happens on shutdown.
                 ongoingUploads.forEach(r -> r.cancel(new ElasticsearchException("Node shutting down")));
             }

@@ -704,10 +704,10 @@ public abstract class FullTextFunction extends Function
         return (logicalPlan, failures) -> {
             if (logicalPlan instanceof Filter f) {
                 checkFullTextFunctionsInFilter(f, failures, true);
-                // After optimization, if this filter is still directly above a coordinator join, the push-down
-                // optimizer could not move it to the data nodes. Full-text functions require a Lucene shard
-                // context that the coordinator does not have for the data-side index.
-                if (f.child() instanceof Join join && join.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR) {
+                // After optimization, if a coordinator-executed join still sits anywhere beneath this filter
+                // (not just as a direct child), the push-down optimizer could not move the filter to the data
+                // nodes. Full-text functions require a Lucene shard context that the coordinator does not have.
+                if (f.anyMatch(p -> p instanceof Join join && join.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)) {
                     failures.add(
                         fail(
                             this,
@@ -731,26 +731,14 @@ public abstract class FullTextFunction extends Function
      * Check if the full-text function exists only in the current node (not in child nodes)
      */
     private static boolean isInCurrentNode(LogicalPlan plan, FullTextFunction function) {
-        final Holder<Boolean> found = new Holder<>(false);
-        plan.forEachExpression(FullTextFunction.class, ftf -> {
-            if (ftf == function) {
-                found.set(true);
-            }
-        });
-        return found.get();
+        return plan.expressions().stream().anyMatch(e -> e.anyMatch(c -> c == function));
     }
 
     /**
      * Checks if there is a subquery in the children plans.
      */
     private static boolean hasSubqueryInChildrenPlans(LogicalPlan plan) {
-        Holder<Boolean> hasSubquery = new Holder<>(false);
-        plan.forEachDown(p -> {
-            if (p instanceof UnionAll) {
-                hasSubquery.set(true);
-            }
-        });
-        return hasSubquery.get();
+        return plan.anyMatch(p -> p instanceof UnionAll);
     }
 
     private static boolean hasFilterPushdownTarget(LogicalPlan plan) {

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -23,10 +24,14 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -44,11 +49,12 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
@@ -56,12 +62,17 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 
 public class InSubqueryParserTests extends AbstractStatementParserTests {
 
-    @Before
-    public void checkSubqueryInFromCommandSupport() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+    private static void checkLambda() {
+        assumeTrue("Requires Lambda syntax support", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+    }
+
+    private static void checkMultiColumnInSubquery() {
+        assumeTrue("multi-column IN subquery", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
     }
 
     /*
@@ -883,6 +894,58 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
     }
 
     /*
+     * EVAL whose field definition compares an IN subquery with == or !=:
+     * {@code FROM main | EVAL is_match = (x IN (FROM sub)) == true}
+     *
+     * Eval[is_match = Equals[InSubquery[?x, UnresolvedRelation[sub_index]], true]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithInSubqueryWithEquals() {
+        boolean notEquals = randomBoolean();
+        String query = "FROM main_index | EVAL is_match = (x IN (FROM sub_index)) " + (notEquals ? "!= false" : "== true");
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias alias = eval.fields().get(0);
+        assertEquals("is_match", alias.name());
+
+        // `!=` is desugared by the parser into NOT(Equals(...))
+        Equals equals = notEquals ? as(as(alias.child(), Not.class).field(), Equals.class) : as(alias.child(), Equals.class);
+        assertEquals(notEquals ? false : true, as(equals.right(), Literal.class).value());
+        InSubquery inSubquery = as(equals.left(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main_index", as(eval.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * EVAL whose field definition nests an IN-subquery == / != comparison inside CASE:
+     * {@code FROM main | EVAL is_match = CASE((x IN (FROM sub)) == true, true, false)}
+     */
+    public void testEvalWithInSubqueryWithEqualsNestedInCase() {
+        boolean notEquals = randomBoolean();
+        String query = "FROM main_index | EVAL is_match = CASE((x IN (FROM sub_index)) "
+            + (notEquals ? "!= false" : "== true")
+            + ", true, false)";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        assertEquals("is_match", alias.name());
+        UnresolvedFunction caseFunc = as(alias.child(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+
+        Equals equals = notEquals
+            ? as(as(caseFunc.children().get(0), Not.class).field(), Equals.class)
+            : as(caseFunc.children().get(0), Equals.class);
+        assertEquals(notEquals ? false : true, as(equals.right(), Literal.class).value());
+        InSubquery inSubquery = as(equals.left(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
      * EVAL with (NOT) IN subquery as an implicit field name (no alias):
      * {@code FROM main | EVAL x IN (FROM sub)}
      *
@@ -1025,6 +1088,350 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
 
         UnresolvedRelation mainRelation = as(aggregate.child(), UnresolvedRelation.class);
         assertEquals("main_index", mainRelation.indexPattern().indexPattern());
+    }
+
+    /*
+     * STATS aggregation filter with a conjunctive (NOT) IN subquery mixed with other predicates:
+     * {@code FROM main | STATS c = COUNT(*) WHERE a > 5 AND x IN (FROM sub) AND b == 10}
+     *
+     * Aggregate[c = COUNT(*) WHERE And[And[?a > 5, (NOT) InSubquery[?x, UnresolvedRelation[sub_index]]], ?b == 10]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testStatsAggFilterWithConjunctiveInSubquery() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | STATS c = COUNT(*) WHERE a > 5 AND x " + notClause + "IN (FROM sub_index) AND b == 10";
+
+        LogicalPlan plan = query(query);
+        Aggregate aggregate = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        And outerAnd = as(filtered.filter(), And.class);
+        as(outerAnd.right(), Equals.class);
+        And innerAnd = as(outerAnd.left(), And.class);
+        as(innerAnd.left(), GreaterThan.class);
+        InSubquery inSubquery;
+        if (negated) {
+            inSubquery = as(as(innerAnd.right(), Not.class).field(), InSubquery.class);
+        } else {
+            inSubquery = as(innerAnd.right(), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * STATS aggregation filter with a disjunctive (NOT) IN subquery mixed with another predicate:
+     * {@code FROM main | STATS c = COUNT(*) WHERE x IN (FROM sub) OR y > 5}
+     *
+     * Aggregate[c = COUNT(*) WHERE Or[(NOT) InSubquery[?x, UnresolvedRelation[sub_index]], ?y > 5]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testStatsAggFilterWithDisjunctiveInSubquery() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | STATS c = COUNT(*) WHERE x " + notClause + "IN (FROM sub_index) OR y > 5";
+
+        LogicalPlan plan = query(query);
+        Aggregate aggregate = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        Or or = as(filtered.filter(), Or.class);
+        as(or.right(), GreaterThan.class);
+        InSubquery inSubquery;
+        if (negated) {
+            inSubquery = as(as(or.left(), Not.class).field(), InSubquery.class);
+        } else {
+            inSubquery = as(or.left(), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * STATS aggregation filter mixing conjunction and disjunction with two IN subqueries:
+     * {@code FROM main | STATS c = COUNT(*) WHERE (x IN (FROM sub1) OR a > 5) AND y NOT IN (FROM sub2)}
+     *
+     * Aggregate[c = COUNT(*) WHERE And[Or[InSubquery[?x, sub1], ?a > 5], Not[InSubquery[?y, sub2]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testStatsAggFilterWithMixedConjunctiveDisjunctiveInSubqueries() {
+        String query = "FROM main_index | STATS c = COUNT(*) WHERE (x IN (FROM sub1) OR a > 5) AND y NOT IN (FROM sub2)";
+
+        LogicalPlan plan = query(query);
+        Aggregate aggregate = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        And and = as(filtered.filter(), And.class);
+        Or or = as(and.left(), Or.class);
+        InSubquery firstIn = as(or.left(), InSubquery.class);
+        assertEquals("x", as(firstIn.value(), Attribute.class).name());
+        assertEquals("sub1", as(firstIn.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+        as(or.right(), GreaterThan.class);
+
+        InSubquery secondIn = as(as(and.right(), Not.class).field(), InSubquery.class);
+        assertEquals("y", as(secondIn.value(), Attribute.class).name());
+        assertEquals("sub2", as(secondIn.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * STATS aggregation filter with a CASE referencing a (NOT) IN subquery:
+     * {@code FROM main | STATS c = COUNT(*) WHERE CASE(x IN (FROM sub), a > 5, false)}
+     *
+     * Aggregate[c = COUNT(*) WHERE CASE[(NOT) InSubquery[?x, UnresolvedRelation[sub_index]], ?a > 5, false]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testStatsAggFilterWithCaseReferencingInSubquery() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | STATS c = COUNT(*) WHERE CASE(x " + notClause + "IN (FROM sub_index), a > 5, false)";
+
+        LogicalPlan plan = query(query);
+        Aggregate aggregate = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        UnresolvedFunction caseFunction = as(filtered.filter(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunction.name());
+        assertEquals(3, caseFunction.children().size());
+        InSubquery inSubquery;
+        if (negated) {
+            inSubquery = as(as(caseFunction.children().get(0), Not.class).field(), InSubquery.class);
+        } else {
+            inSubquery = as(caseFunction.children().get(0), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+        as(caseFunction.children().get(1), GreaterThan.class);
+        as(caseFunction.children().get(2), Literal.class);
+    }
+
+    /*
+     * STATS aggregation filter with a COALESCE referencing a (NOT) IN subquery:
+     * {@code FROM main | STATS c = COUNT(*) WHERE COALESCE(x IN (FROM sub), false)}
+     *
+     * Aggregate[c = COUNT(*) WHERE COALESCE[(NOT) InSubquery[?x, UnresolvedRelation[sub_index]], false]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testStatsAggFilterWithCoalesceReferencingInSubquery() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | STATS c = COUNT(*) WHERE COALESCE(x " + notClause + "IN (FROM sub_index), false)";
+
+        LogicalPlan plan = query(query);
+        Aggregate aggregate = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        UnresolvedFunction coalesce = as(filtered.filter(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesce.name());
+        assertEquals(2, coalesce.children().size());
+        InSubquery inSubquery;
+        if (negated) {
+            inSubquery = as(as(coalesce.children().get(0), Not.class).field(), InSubquery.class);
+        } else {
+            inSubquery = as(coalesce.children().get(0), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+        as(coalesce.children().get(1), Literal.class);
+    }
+
+    /*
+     * STATS aggregation filter with IS [NOT] NULL over an IN subquery:
+     * {@code FROM main | STATS c = COUNT(*) WHERE (x IN (FROM sub)) IS [NOT] NULL}
+     *
+     * Aggregate[c = COUNT(*) WHERE Is(Not)Null[InSubquery[?x, UnresolvedRelation[sub_index]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testStatsAggFilterWithIsNullReferencingInSubquery() {
+        boolean isNotNull = randomBoolean();
+        String nullClause = isNotNull ? "IS NOT NULL" : "IS NULL";
+        String query = "FROM main_index | STATS c = COUNT(*) WHERE (x IN (FROM sub_index)) " + nullClause;
+
+        LogicalPlan plan = query(query);
+        Aggregate aggregate = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        InSubquery inSubquery;
+        if (isNotNull) {
+            inSubquery = as(as(filtered.filter(), IsNotNull.class).field(), InSubquery.class);
+        } else {
+            inSubquery = as(as(filtered.filter(), IsNull.class).field(), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * STATS aggregation filter comparing an IN subquery with == or !=:
+     * {@code FROM main | STATS c = COUNT(*) WHERE (x IN (FROM sub)) == true}
+     *
+     * Aggregate[c = COUNT(*) WHERE Equals[InSubquery[?x, UnresolvedRelation[sub_index]], true]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testStatsAggFilterWithEqualsReferencingInSubquery() {
+        boolean notEquals = randomBoolean();
+        String query = "FROM main_index | STATS c = COUNT(*) WHERE (x IN (FROM sub_index)) " + (notEquals ? "!= false" : "== true");
+
+        LogicalPlan plan = query(query);
+        Aggregate aggregate = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        // `!=` is desugared by the parser into NOT(Equals(...))
+        Equals equals = notEquals ? as(as(filtered.filter(), Not.class).field(), Equals.class) : as(filtered.filter(), Equals.class);
+        assertEquals(notEquals ? false : true, as(equals.right(), Literal.class).value());
+        InSubquery inSubquery = as(equals.left(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * STATS aggregation filter nesting an IN-subquery == / != comparison inside COALESCE:
+     * {@code FROM main | STATS c = COUNT(*) WHERE COALESCE((x IN (FROM sub)) == true, false)}
+     */
+    public void testStatsAggFilterWithEqualsNestedInCoalesce() {
+        boolean notEquals = randomBoolean();
+        String query = "FROM main_index | STATS c = COUNT(*) WHERE COALESCE((x IN (FROM sub_index)) "
+            + (notEquals ? "!= false" : "== true")
+            + ", false)";
+
+        LogicalPlan plan = query(query);
+        Aggregate aggregate = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        UnresolvedFunction coalesce = as(filtered.filter(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesce.name());
+
+        Equals equals = notEquals
+            ? as(as(coalesce.children().get(0), Not.class).field(), Equals.class)
+            : as(coalesce.children().get(0), Equals.class);
+        assertEquals(notEquals ? false : true, as(equals.right(), Literal.class).value());
+        InSubquery inSubquery = as(equals.left(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * STATS aggregation filter with a single-column IN subquery using ROW source:
+     * {@code FROM main | STATS c = COUNT(*) WHERE x IN (ROW a = 1 | KEEP a)}
+     */
+    public void testStatsAggFilterWithRowInSubquery() {
+        String query = "FROM main | STATS c = COUNT(*) WHERE x IN (ROW a = 1 | KEEP a)";
+
+        LogicalPlan plan = query(query);
+        Aggregate aggregate = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        InSubquery inSubquery = as(filtered.filter(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        Keep keep = as(inSubquery.subquery(), Keep.class);
+        as(keep.child(), Row.class);
+    }
+
+    /*
+     * STATS aggregation filter with a single-column IN subquery using TS source:
+     * {@code FROM main | STATS c = COUNT(*) WHERE x IN (TS sub_source | STATS max(rate(val)) BY ts | KEEP a)}
+     */
+    public void testStatsAggFilterWithTsInSubquery() {
+        String query = "FROM main | STATS c = COUNT(*) WHERE x IN (TS sub_source | STATS max(rate(val)) BY ts | KEEP a)";
+
+        LogicalPlan plan = query(query);
+        Aggregate aggregate = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        InSubquery inSubquery = as(filtered.filter(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        Keep keep = as(inSubquery.subquery(), Keep.class);
+        as(keep.child(), TimeSeriesAggregate.class);
+    }
+
+    /*
+     * STATS aggregation filter with a multi-column IN subquery using ROW source:
+     * {@code FROM main | STATS c = COUNT(*) WHERE (x, y) IN (ROW a = 1, b = 2 | KEEP a, b)}
+     */
+    public void testStatsAggFilterWithMultiColumnRowInSubquery() {
+        checkMultiColumnInSubquery();
+        String query = "FROM main | STATS c = COUNT(*) WHERE (x, y) IN (ROW a = 1, b = 2 | KEEP a, b)";
+
+        LogicalPlan plan = query(query);
+        Aggregate aggregate = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        MultiColumnInSubquery mcs = as(filtered.filter(), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        Keep keep = as(mcs.subquery(), Keep.class);
+        as(keep.child(), Row.class);
+    }
+
+    /*
+     * STATS aggregation filter with a multi-column IN subquery using TS source:
+     * {@code FROM main | STATS c = COUNT(*) WHERE (x, y) IN (TS sub_source | STATS max(rate(val)) BY ts | KEEP a, b)}
+     */
+    public void testStatsAggFilterWithMultiColumnTsInSubquery() {
+        checkMultiColumnInSubquery();
+        String query = "FROM main | STATS c = COUNT(*) WHERE (x, y) IN (TS sub_source | STATS max(rate(val)) BY ts | KEEP a, b)";
+
+        LogicalPlan plan = query(query);
+        Aggregate aggregate = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        MultiColumnInSubquery mcs = as(filtered.filter(), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        Keep keep = as(mcs.subquery(), Keep.class);
+        as(keep.child(), TimeSeriesAggregate.class);
+    }
+
+    /*
+     * STATS aggregation filter with an IN subquery nested inside complex functions:
+     */
+    public void testStatsAggFilterWithInSubqueryInNestedFunctions() {
+        checkMultiColumnInSubquery();
+        String query = """
+            FROM main
+            | STATS c = COUNT(*) WHERE COALESCE(CASE(x IN (ROW a = 1 | KEEP a),
+                                                     true,
+                                                     (y, z) IN (TS sub | STATS max(rate(val)) BY ts | KEEP b, c)),
+                                                false)""";
+
+        LogicalPlan plan = query(query);
+        Aggregate aggregate = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        UnresolvedFunction coalesce = as(filtered.filter(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesce.name());
+        UnresolvedFunction caseFunc = as(coalesce.children().get(0), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+
+        // CASE condition: x IN (ROW ...)
+        InSubquery firstIn = as(caseFunc.children().get(0), InSubquery.class);
+        as(as(firstIn.subquery(), Keep.class).child(), Row.class);
+
+        // CASE else: (y, z) IN (TS ...)
+        MultiColumnInSubquery secondIn = as(caseFunc.children().get(2), MultiColumnInSubquery.class);
+        as(as(secondIn.subquery(), Keep.class).child(), TimeSeriesAggregate.class);
+    }
+
+    /*
+     * STATS aggregation filter with IN subqueries nested inside IS NULL and IS NOT NULL:
+     */
+    public void testStatsAggFilterWithInSubqueryInNullPredicates() {
+        checkMultiColumnInSubquery();
+        String query = """
+            FROM main
+            | STATS c = COUNT(*) WHERE (x IN (ROW a = 1 | KEEP a)) IS NULL
+                                   OR ((y, z) IN (TS sub | STATS max(rate(val)) BY ts | KEEP b, c)) IS NOT NULL""";
+
+        LogicalPlan plan = query(query);
+        Aggregate aggregate = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        Or or = as(filtered.filter(), Or.class);
+
+        // Left: (x IN (ROW ...)) IS NULL
+        IsNull isNull = as(or.left(), IsNull.class);
+        as(isNull.field(), InSubquery.class);
+
+        // Right: ((y, z) IN (TS ...)) IS NOT NULL
+        IsNotNull isNotNull = as(or.right(), IsNotNull.class);
+        as(isNotNull.field(), MultiColumnInSubquery.class);
     }
 
     /*
@@ -1388,6 +1795,284 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
+    public void testInSubqueryNestedInsideCaseAddAndEquals() {
+        String query = "FROM main | WHERE (CASE(x IN (FROM sub), 1, 0) + 1) == 2";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        // Add
+        Add add = as(equals.left(), Add.class);
+        // CASE
+        UnresolvedFunction caseFunc = as(add.left(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+        // InSubquery
+        InSubquery inSubquery = as(caseFunc.children().get(0), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    public void testInSubqueryNestedInsideCoalesceAddAndEquals() {
+        String query = "FROM main | WHERE (CASE(COALESCE(x IN (FROM sub), false), 1, 0) + 1) == 2";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        // Add
+        Add add = as(equals.left(), Add.class);
+        // CASE
+        UnresolvedFunction caseFunc = as(add.left(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+        // COALESCE
+        UnresolvedFunction coalesceFunc = as(caseFunc.children().get(0), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesceFunc.name());
+        // InSubquery
+        InSubquery inSubquery = as(coalesceFunc.children().get(0), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    public void testInSubqueryNestedInsideNotAndCase() {
+        String query = "FROM main | WHERE CASE(NOT(x IN (FROM sub)), true, false)";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction caseFunc = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+        Not not = as(caseFunc.children().get(0), Not.class);
+        InSubquery inSubquery = as(not.field(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * IN subquery as a direct operand of == or !=:
+     * {@code FROM main | WHERE (x IN (FROM sub)) == true}
+     * {@code FROM main | WHERE (x IN (FROM sub)) != false}
+     *
+     * Filter[Equals[(NOT) InSubquery[?x, UnresolvedRelation[sub_index]], true]]
+     * \_UnresolvedRelation[main_index]
+     *
+     * {@code !=} is desugared by the parser into {@code NOT(Equals(...))}.
+     */
+    public void testWhereInSubqueryWithEquals() {
+        boolean negated = randomBoolean();
+        boolean notEquals = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | WHERE (x " + notClause + "IN (FROM sub_index)) " + (notEquals ? "!= false" : "== true");
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Equals equals = notEquals ? as(as(filter.condition(), Not.class).field(), Equals.class) : as(filter.condition(), Equals.class);
+        assertEquals(notEquals ? false : true, as(equals.right(), Literal.class).value());
+
+        InSubquery inSubquery;
+        if (negated) {
+            inSubquery = as(as(equals.left(), Not.class).field(), InSubquery.class);
+        } else {
+            inSubquery = as(equals.left(), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main_index", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code WHERE CASE((x IN (FROM sub)) == true, true, false)}
+     * {@code WHERE CASE((x IN (FROM sub)) != false, true, false)}
+     *
+     * Filter[CASE[Equals[InSubquery[?x, UnresolvedRelation[sub_index]], true], true, false]]
+     */
+    public void testWhereInSubqueryWithEqualsNestedInCase() {
+        boolean notEquals = randomBoolean();
+        String query = "FROM main_index | WHERE CASE((x IN (FROM sub_index)) " + (notEquals ? "!= false" : "== true") + ", true, false)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction caseFunc = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+        assertEquals(3, caseFunc.children().size());
+
+        Equals equals = notEquals
+            ? as(as(caseFunc.children().get(0), Not.class).field(), Equals.class)
+            : as(caseFunc.children().get(0), Equals.class);
+        assertEquals(notEquals ? false : true, as(equals.right(), Literal.class).value());
+        InSubquery inSubquery = as(equals.left(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main_index", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code WHERE COALESCE((x IN (FROM sub)) == true, false)}
+     * {@code WHERE COALESCE((x IN (FROM sub)) != false, false)}
+     *
+     * Filter[COALESCE[Equals[InSubquery[?x, UnresolvedRelation[sub_index]], true], false]]
+     */
+    public void testWhereInSubqueryWithEqualsNestedInCoalesce() {
+        boolean notEquals = randomBoolean();
+        String query = "FROM main_index | WHERE COALESCE((x IN (FROM sub_index)) " + (notEquals ? "!= false" : "== true") + ", false)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction coalesce = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesce.name());
+        assertEquals(2, coalesce.children().size());
+
+        Equals equals = notEquals
+            ? as(as(coalesce.children().get(0), Not.class).field(), Equals.class)
+            : as(coalesce.children().get(0), Equals.class);
+        assertEquals(notEquals ? false : true, as(equals.right(), Literal.class).value());
+        InSubquery inSubquery = as(equals.left(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+        as(coalesce.children().get(1), Literal.class);
+        assertEquals("main_index", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code WHERE ((x IN (FROM sub)) == true) IS [NOT] NULL}
+     * {@code WHERE ((x IN (FROM sub)) != false) IS [NOT] NULL}
+     *
+     * Filter[Is(Not)Null[Equals[InSubquery[?x, UnresolvedRelation[sub_index]], true]]]
+     */
+    public void testWhereInSubqueryWithEqualsNestedInIsNull() {
+        boolean notEquals = randomBoolean();
+        boolean isNotNull = randomBoolean();
+        String query = "FROM main_index | WHERE ((x IN (FROM sub_index)) "
+            + (notEquals ? "!= false" : "== true")
+            + ") "
+            + (isNotNull ? "IS NOT NULL" : "IS NULL");
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Expression nullPredicate = isNotNull
+            ? as(filter.condition(), IsNotNull.class).field()
+            : as(filter.condition(), IsNull.class).field();
+        Equals equals = notEquals ? as(as(nullPredicate, Not.class).field(), Equals.class) : as(nullPredicate, Equals.class);
+        assertEquals(notEquals ? false : true, as(equals.right(), Literal.class).value());
+        InSubquery inSubquery = as(equals.left(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main_index", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code WHERE TO_STRING((x IN (FROM sub)) == true)}
+     * {@code WHERE TO_STRING((x IN (FROM sub)) != false)}
+     *
+     * Filter[TO_STRING[Equals[InSubquery[?x, UnresolvedRelation[sub_index]], true]]]
+     */
+    public void testWhereInSubqueryWithEqualsNestedInToString() {
+        boolean notEquals = randomBoolean();
+        String query = "FROM main_index | WHERE TO_STRING((x IN (FROM sub_index)) " + (notEquals ? "!= false" : "== true") + ")";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction toString = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("TO_STRING", toString.name());
+        assertEquals(1, toString.children().size());
+
+        Equals equals = notEquals
+            ? as(as(toString.children().get(0), Not.class).field(), Equals.class)
+            : as(toString.children().get(0), Equals.class);
+        assertEquals(notEquals ? false : true, as(equals.right(), Literal.class).value());
+        InSubquery inSubquery = as(equals.left(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main_index", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code WHERE CASE(COALESCE((x IN (FROM sub)) == true, false), 1, 0)}
+     *
+     * Filter[CASE[COALESCE[Equals[InSubquery[?x, UnresolvedRelation[sub_index]], true], false], 1, 0]]
+     */
+    public void testWhereInSubqueryWithEqualsNestedInCoalesceInsideCase() {
+        boolean notEquals = randomBoolean();
+        String query = "FROM main_index | WHERE CASE(COALESCE((x IN (FROM sub_index)) "
+            + (notEquals ? "!= false" : "== true")
+            + ", false), 1, 0)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction caseFunc = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+        UnresolvedFunction coalesce = as(caseFunc.children().get(0), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesce.name());
+
+        Equals equals = notEquals
+            ? as(as(coalesce.children().get(0), Not.class).field(), Equals.class)
+            : as(coalesce.children().get(0), Equals.class);
+        assertEquals(notEquals ? false : true, as(equals.right(), Literal.class).value());
+        InSubquery inSubquery = as(equals.left(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code FROM main | WHERE true == (x IN (FROM sub))}: the subquery may sit on either side of the operator.
+     */
+    public void testWhereInSubqueryOnRightHandSideOfEquals() {
+        String query = "FROM main_index | WHERE true == (x IN (FROM sub_index))";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        assertEquals(true, as(equals.left(), Literal.class).value());
+        InSubquery inSubquery = as(equals.right(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code FROM main | WHERE (x IN (FROM sub1)) == (y IN (FROM sub2))}: both operands are IN subqueries.
+     */
+    public void testWhereInSubqueriesOnBothSidesOfEquals() {
+        String query = "FROM main_index | WHERE (x IN (FROM sub_index1)) == (y IN (FROM sub_index2))";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+
+        InSubquery left = as(equals.left(), InSubquery.class);
+        assertEquals("x", as(left.value(), Attribute.class).name());
+        assertEquals("sub_index1", as(left.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        InSubquery right = as(equals.right(), InSubquery.class);
+        assertEquals("y", as(right.value(), Attribute.class).name());
+        assertEquals("sub_index2", as(right.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    public void testWhereInSubqueryInsideLambda() {
+        checkLambda();
+        String query = "FROM main | WHERE filter(a, x -> x IN (FROM sub))";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction filterFunc = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("filter", filterFunc.name());
+        // Lambda
+        Lambda lambda = as(filterFunc.children().get(1), Lambda.class);
+        InSubquery inSubquery = as(lambda.body(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    public void testWhereInSubqueryInsideCoalesceInsideLambda() {
+        checkLambda();
+        String query = "FROM main | WHERE filter(a, x -> COALESCE(x IN (FROM sub), false))";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction filterFunc = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("filter", filterFunc.name());
+        // Lambda
+        Lambda lambda = as(filterFunc.children().get(1), Lambda.class);
+        // COALESCE
+        UnresolvedFunction coalesceFunc = as(lambda.body(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesceFunc.name());
+        // InSubquery
+        InSubquery inSubquery = as(coalesceFunc.children().get(0), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
     // ---- WHERE IN subquery negative tests ----
 
     public void testWhereInSubqueryRejectsShowSourceCommand() {
@@ -1422,7 +2107,830 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assertThat(e.getMessage(), containsString("mismatched input 'FROM'"));
     }
 
-    // ---- helpers ----
+    // ---- multi-column IN subquery tests ----
+
+    /*
+     * Filter[MultiColumnInSubquery[[?emp_no, ?salary], Keep[UnresolvedRelation[employees]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testMultiColumnInSubquery() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | WHERE (emp_no, salary) " + notClause + "IN (FROM sub_index | KEEP emp_no, salary)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Expression condition = filter.condition();
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(condition, Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(condition, MultiColumnInSubquery.class);
+        }
+        assertThat(mcs.values().size(), equalTo(2));
+        Keep keep = as(mcs.subquery(), Keep.class);
+        UnresolvedRelation relation = as(keep.child(), UnresolvedRelation.class);
+        assertEquals("sub_index", relation.indexPattern().indexPattern());
+        relation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", relation.indexPattern().indexPattern());
+    }
+
+    /*
+     * Filter[MultiColumnInSubquery[[?emp_no, ?salary, ?hire_date], Keep[UnresolvedRelation[employees]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testMultiColumnInSubqueryThreeColumns() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | WHERE (emp_no, salary, hire_date) "
+            + notClause
+            + "IN (FROM sub_index | KEEP emp_no, salary, hire_date)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Expression condition = filter.condition();
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(condition, Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(condition, MultiColumnInSubquery.class);
+        }
+        assertThat(mcs.values().size(), equalTo(3));
+        Keep keep = as(mcs.subquery(), Keep.class);
+        UnresolvedRelation relation = as(keep.child(), UnresolvedRelation.class);
+        assertEquals("sub_index", relation.indexPattern().indexPattern());
+        relation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", relation.indexPattern().indexPattern());
+    }
+
+    /*
+     * Filter[InSubquery[[?emp_no], Keep[UnresolvedRelation[employees]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testMultiColumnInSubquerySingleColumn() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | WHERE (emp_no) " + notClause + "IN (FROM sub_index | KEEP emp_no)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Expression condition = filter.condition();
+        InSubquery inSubquery;
+        if (negated) {
+            Not not = as(condition, Not.class);
+            inSubquery = as(not.field(), InSubquery.class);
+        } else {
+            inSubquery = as(condition, InSubquery.class);
+        }
+        Keep keep = as(inSubquery.subquery(), Keep.class);
+        UnresolvedRelation relation = as(keep.child(), UnresolvedRelation.class);
+        assertEquals("sub_index", relation.indexPattern().indexPattern());
+        relation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", relation.indexPattern().indexPattern());
+    }
+
+    // ---- mixed single-column and multi-column IN subquery tests ----
+
+    /*
+     * Filter[And[InSubquery[?x, Keep[UnresolvedRelation[sub1]]],
+     *            (NOT) MultiColumnInSubquery[[?f1, ?f2], Keep[UnresolvedRelation[sub2]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testMixedSingleAndMultiColumnInSubqueryWithAnd() {
+        checkMultiColumnInSubquery();
+        boolean multiNegated = randomBoolean();
+        String notClause = multiNegated ? "NOT " : "";
+        String query = "FROM main_index | WHERE x IN (FROM sub1 | KEEP a) AND (f1, f2) " + notClause + "IN (FROM sub2 | KEEP f1, f2)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        And and = as(filter.condition(), And.class);
+
+        InSubquery inSubquery = as(and.left(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub1", as(as(inSubquery.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        MultiColumnInSubquery mcs;
+        if (multiNegated) {
+            mcs = as(as(and.right(), Not.class).field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(and.right(), MultiColumnInSubquery.class);
+        }
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub2", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        assertEquals("main_index", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * Filter[Or[(NOT) MultiColumnInSubquery[[?f1, ?f2], Keep[UnresolvedRelation[sub1]]],
+     *           (NOT) InSubquery[?y, Keep[UnresolvedRelation[sub2]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testMixedMultiAndSingleColumnInSubqueryWithOr() {
+        checkMultiColumnInSubquery();
+        boolean multiNegated = randomBoolean();
+        boolean singleNegated = randomBoolean();
+        String multiNot = multiNegated ? "NOT " : "";
+        String singleNot = singleNegated ? "NOT " : "";
+        String query = "FROM main_index | WHERE (f1, f2) "
+            + multiNot
+            + "IN (FROM sub1 | KEEP f1, f2) OR y "
+            + singleNot
+            + "IN (FROM sub2 | KEEP b)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Or or = as(filter.condition(), Or.class);
+
+        MultiColumnInSubquery mcs;
+        if (multiNegated) {
+            mcs = as(as(or.left(), Not.class).field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(or.left(), MultiColumnInSubquery.class);
+        }
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub1", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        InSubquery inSubquery;
+        if (singleNegated) {
+            inSubquery = as(as(or.right(), Not.class).field(), InSubquery.class);
+        } else {
+            inSubquery = as(or.right(), InSubquery.class);
+        }
+        assertEquals("y", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub2", as(as(inSubquery.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        assertEquals("main_index", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * Filter[Or[And[InSubquery[?x, Keep[UnresolvedRelation[sub1]]],
+     *               Not[MultiColumnInSubquery[[?f1, ?f2], Keep[UnresolvedRelation[sub2]]]]],
+     *           InSubquery[?y, Keep[UnresolvedRelation[sub3]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testMixedSingleAndMultiColumnInSubqueryWithAndOr() {
+        checkMultiColumnInSubquery();
+        String query = """
+            FROM main_index
+            | WHERE x IN (FROM sub1 | KEEP a)
+              AND (f1, f2) NOT IN (FROM sub2 | KEEP f1, f2)
+              OR y IN (FROM sub3 | KEEP b)
+            """;
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        And and = as(or.left(), And.class);
+
+        InSubquery firstIn = as(and.left(), InSubquery.class);
+        assertEquals("x", as(firstIn.value(), Attribute.class).name());
+        assertEquals("sub1", as(as(firstIn.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        MultiColumnInSubquery mcs = as(as(and.right(), Not.class).field(), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub2", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        InSubquery thirdIn = as(or.right(), InSubquery.class);
+        assertEquals("y", as(thirdIn.value(), Attribute.class).name());
+        assertEquals("sub3", as(as(thirdIn.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        assertEquals("main_index", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * Precedence: AND binds tighter than OR, resulting in:
+     * Filter[Or[And[And[Not[MultiColumnInSubquery[2]], InSubquery[?x]], MultiColumnInSubquery[3]],
+     *           Not[InSubquery[?y]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testMixedSubqueryChainWithAndOr() {
+        checkMultiColumnInSubquery();
+        String query = """
+            FROM main_index
+            | WHERE (f1, f2) NOT IN (FROM sub1 | KEEP f1, f2)
+              AND x IN (FROM sub2 | KEEP a)
+              AND (f1, f2, f3) IN (FROM sub3 | KEEP f1, f2, f3)
+              OR y NOT IN (FROM sub4 | KEEP b)
+            """;
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Or or = as(filter.condition(), Or.class);
+
+        Not outerNot = as(or.right(), Not.class);
+        InSubquery lastIn = as(outerNot.field(), InSubquery.class);
+        assertEquals("y", as(lastIn.value(), Attribute.class).name());
+        assertEquals("sub4", as(as(lastIn.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        And outerAnd = as(or.left(), And.class);
+
+        MultiColumnInSubquery mcs3 = as(outerAnd.right(), MultiColumnInSubquery.class);
+        assertEquals(3, mcs3.values().size());
+        assertEquals("sub3", as(as(mcs3.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        And innerAnd = as(outerAnd.left(), And.class);
+        MultiColumnInSubquery mcs1 = as(as(innerAnd.left(), Not.class).field(), MultiColumnInSubquery.class);
+        assertEquals(2, mcs1.values().size());
+        assertEquals("sub1", as(as(mcs1.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        InSubquery xIn = as(innerAnd.right(), InSubquery.class);
+        assertEquals("x", as(xIn.value(), Attribute.class).name());
+        assertEquals("sub2", as(as(xIn.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        assertEquals("main_index", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    // ---- nested multi-column IN subquery tests ----
+
+    /*
+     * Filter[(NOT) MultiColumnInSubquery[[?f1, ?f2],
+     *   Keep[Filter[(NOT) MultiColumnInSubquery[[?g1, ?g2], Keep[UnresolvedRelation[sub2]]]]
+     *              [UnresolvedRelation[sub1]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testNestedMultiColumnInSubqueryInsideMultiColumnInSubquery() {
+        checkMultiColumnInSubquery();
+        boolean outerNegated = randomBoolean();
+        boolean innerNegated = randomBoolean();
+        String outerNot = outerNegated ? "NOT " : "";
+        String innerNot = innerNegated ? "NOT " : "";
+        String query = "FROM main_index | WHERE (f1, f2) "
+            + outerNot
+            + "IN (FROM sub1 | WHERE (g1, g2) "
+            + innerNot
+            + "IN (FROM sub2 | KEEP g1, g2) | KEEP f1, f2)";
+
+        LogicalPlan plan = query(query);
+        Filter outerFilter = as(plan, Filter.class);
+
+        MultiColumnInSubquery outerMcs;
+        if (outerNegated) {
+            outerMcs = as(as(outerFilter.condition(), Not.class).field(), MultiColumnInSubquery.class);
+        } else {
+            outerMcs = as(outerFilter.condition(), MultiColumnInSubquery.class);
+        }
+        assertEquals(2, outerMcs.values().size());
+        assertEquals("f1", as(outerMcs.values().get(0), Attribute.class).name());
+        assertEquals("f2", as(outerMcs.values().get(1), Attribute.class).name());
+
+        Keep outerKeep = as(outerMcs.subquery(), Keep.class);
+        Filter innerFilter = as(outerKeep.child(), Filter.class);
+
+        MultiColumnInSubquery innerMcs;
+        if (innerNegated) {
+            innerMcs = as(as(innerFilter.condition(), Not.class).field(), MultiColumnInSubquery.class);
+        } else {
+            innerMcs = as(innerFilter.condition(), MultiColumnInSubquery.class);
+        }
+        assertEquals(2, innerMcs.values().size());
+        assertEquals("g1", as(innerMcs.values().get(0), Attribute.class).name());
+        assertEquals("g2", as(innerMcs.values().get(1), Attribute.class).name());
+        assertEquals("sub2", as(as(innerMcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("sub1", as(innerFilter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main_index", as(outerFilter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * Filter[(NOT) MultiColumnInSubquery[[?f1, ?f2],
+     *   Keep[Filter[(NOT) InSubquery[?x, Keep[UnresolvedRelation[sub2]]]]
+     *              [UnresolvedRelation[sub1]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testNestedSingleColumnInSubqueryInsideMultiColumnInSubquery() {
+        checkMultiColumnInSubquery();
+        boolean outerNegated = randomBoolean();
+        boolean innerNegated = randomBoolean();
+        String outerNot = outerNegated ? "NOT " : "";
+        String innerNot = innerNegated ? "NOT " : "";
+        String query = "FROM main_index | WHERE (f1, f2) "
+            + outerNot
+            + "IN (FROM sub1 | WHERE x "
+            + innerNot
+            + "IN (FROM sub2 | KEEP b) | KEEP f1, f2)";
+
+        LogicalPlan plan = query(query);
+        Filter outerFilter = as(plan, Filter.class);
+
+        MultiColumnInSubquery outerMcs;
+        if (outerNegated) {
+            outerMcs = as(as(outerFilter.condition(), Not.class).field(), MultiColumnInSubquery.class);
+        } else {
+            outerMcs = as(outerFilter.condition(), MultiColumnInSubquery.class);
+        }
+        assertEquals(2, outerMcs.values().size());
+        assertEquals("f1", as(outerMcs.values().get(0), Attribute.class).name());
+        assertEquals("f2", as(outerMcs.values().get(1), Attribute.class).name());
+
+        Keep outerKeep = as(outerMcs.subquery(), Keep.class);
+        Filter innerFilter = as(outerKeep.child(), Filter.class);
+
+        InSubquery innerIn;
+        if (innerNegated) {
+            innerIn = as(as(innerFilter.condition(), Not.class).field(), InSubquery.class);
+        } else {
+            innerIn = as(innerFilter.condition(), InSubquery.class);
+        }
+        assertEquals("x", as(innerIn.value(), Attribute.class).name());
+        assertEquals("sub2", as(as(innerIn.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("sub1", as(innerFilter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main_index", as(outerFilter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * Filter[(NOT) InSubquery[?x,
+     *   Keep[Filter[(NOT) MultiColumnInSubquery[[?g1, ?g2], Keep[UnresolvedRelation[sub2]]]]
+     *              [UnresolvedRelation[sub1]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testNestedMultiColumnInSubqueryInsideSingleColumnInSubquery() {
+        checkMultiColumnInSubquery();
+        boolean outerNegated = randomBoolean();
+        boolean innerNegated = randomBoolean();
+        String outerNot = outerNegated ? "NOT " : "";
+        String innerNot = innerNegated ? "NOT " : "";
+        String query = "FROM main_index | WHERE x "
+            + outerNot
+            + "IN (FROM sub1 | WHERE (g1, g2) "
+            + innerNot
+            + "IN (FROM sub2 | KEEP g1, g2) | KEEP a)";
+
+        LogicalPlan plan = query(query);
+        Filter outerFilter = as(plan, Filter.class);
+
+        InSubquery outerIn;
+        if (outerNegated) {
+            outerIn = as(as(outerFilter.condition(), Not.class).field(), InSubquery.class);
+        } else {
+            outerIn = as(outerFilter.condition(), InSubquery.class);
+        }
+        assertEquals("x", as(outerIn.value(), Attribute.class).name());
+
+        Keep outerKeep = as(outerIn.subquery(), Keep.class);
+        Filter innerFilter = as(outerKeep.child(), Filter.class);
+
+        MultiColumnInSubquery innerMcs;
+        if (innerNegated) {
+            innerMcs = as(as(innerFilter.condition(), Not.class).field(), MultiColumnInSubquery.class);
+        } else {
+            innerMcs = as(innerFilter.condition(), MultiColumnInSubquery.class);
+        }
+        assertEquals(2, innerMcs.values().size());
+        assertEquals("g1", as(innerMcs.values().get(0), Attribute.class).name());
+        assertEquals("g2", as(innerMcs.values().get(1), Attribute.class).name());
+        assertEquals("sub2", as(as(innerMcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("sub1", as(innerFilter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main_index", as(outerFilter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code FROM main | WHERE CASE((a, b) IN (FROM sub), true, false)}
+     */
+    public void testMultiColumnInSubqueryInCaseFunction() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | WHERE CASE((a, b) " + notClause + "IN (FROM sub_index | KEEP a, b), true, false)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction caseFunc = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(caseFunc.children().get(0), Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(caseFunc.children().get(0), MultiColumnInSubquery.class);
+        }
+        assertEquals(2, mcs.values().size());
+        assertEquals("a", as(mcs.values().get(0), Attribute.class).name());
+        assertEquals("b", as(mcs.values().get(1), Attribute.class).name());
+        assertEquals("sub_index", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main_index", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code FROM main | WHERE COALESCE((a, b) IN (FROM sub), false)}
+     */
+    public void testMultiColumnInSubqueryInCoalesceFunction() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | WHERE COALESCE((a, b) " + notClause + "IN (FROM sub_index | KEEP a, b), false)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction coalesceFunc = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesceFunc.name());
+
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(coalesceFunc.children().get(0), Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(coalesceFunc.children().get(0), MultiColumnInSubquery.class);
+        }
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub_index", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main_index", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code WHERE ((a, b) IN (FROM sub)) IS NULL}
+     */
+    public void testMultiColumnInSubqueryWithIsNull() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | WHERE ((a, b) " + notClause + "IN (FROM sub_index | KEEP a, b)) IS NULL";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        IsNull isNull = as(filter.condition(), IsNull.class);
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(isNull.field(), Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(isNull.field(), MultiColumnInSubquery.class);
+        }
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub_index", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main_index", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code WHERE ((a, b) IN (FROM sub)) IS NOT NULL}
+     */
+    public void testMultiColumnInSubqueryWithIsNotNull() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | WHERE ((a, b) " + notClause + "IN (FROM sub_index | KEEP a, b)) IS NOT NULL";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        IsNotNull isNotNull = as(filter.condition(), IsNotNull.class);
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(isNotNull.field(), Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(isNotNull.field(), MultiColumnInSubquery.class);
+        }
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub_index", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main_index", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code WHERE (CASE((a, b) IN (FROM sub), 1, 0) + 1) == 2}
+     */
+    public void testMultiColumnInSubqueryNestedInsideCaseAddAndEquals() {
+        checkMultiColumnInSubquery();
+        String query = "FROM main | WHERE (CASE((a, b) IN (FROM sub | KEEP a, b), 1, 0) + 1) == 2";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        Add add = as(equals.left(), Add.class);
+        UnresolvedFunction caseFunc = as(add.left(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+        MultiColumnInSubquery mcs = as(caseFunc.children().get(0), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code WHERE (CASE(COALESCE((a, b) IN (FROM sub), false), 1, 0) + 1) == 2}
+     */
+    public void testMultiColumnInSubqueryNestedInsideCoalesceAddAndEquals() {
+        checkMultiColumnInSubquery();
+        String query = "FROM main | WHERE (CASE(COALESCE((a, b) IN (FROM sub | KEEP a, b), false), 1, 0) + 1) == 2";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        Add add = as(equals.left(), Add.class);
+        UnresolvedFunction caseFunc = as(add.left(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+        UnresolvedFunction coalesceFunc = as(caseFunc.children().get(0), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesceFunc.name());
+        MultiColumnInSubquery mcs = as(coalesceFunc.children().get(0), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code WHERE CASE((a, b) IN (FROM sub), 1, 0) != 0}
+     */
+    public void testMultiColumnInSubqueryNestedInsideCaseAndNotEquals() {
+        checkMultiColumnInSubquery();
+        String query = "FROM main | WHERE CASE((a, b) IN (FROM sub | KEEP a, b), 1, 0) != 0";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Not not = as(filter.condition(), Not.class);
+        Equals equals = as(not.field(), Equals.class);
+        UnresolvedFunction caseFunc = as(equals.left(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+        MultiColumnInSubquery mcs = as(caseFunc.children().get(0), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * Multi-column IN subquery as a direct operand of == / !=:
+     * {@code WHERE ((a, b) IN (FROM sub)) == true}
+     */
+    public void testMultiColumnInSubqueryDirectlyInEquals() {
+        checkMultiColumnInSubquery();
+        boolean notEquals = randomBoolean();
+        String query = "FROM main | WHERE ((a, b) IN (FROM sub | KEEP a, b)) " + (notEquals ? "!= false" : "== true");
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        // `!=` is desugared by the parser into NOT(Equals(...))
+        Equals equals = notEquals ? as(as(filter.condition(), Not.class).field(), Equals.class) : as(filter.condition(), Equals.class);
+        assertEquals(notEquals ? false : true, as(equals.right(), Literal.class).value());
+        MultiColumnInSubquery mcs = as(equals.left(), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code WHERE CASE(((a, b) IN (FROM sub)) == true, true, false)}
+     * {@code WHERE CASE(((a, b) IN (FROM sub)) != false, true, false)}
+     */
+    public void testMultiColumnInSubqueryWithEqualsNestedInCase() {
+        checkMultiColumnInSubquery();
+        boolean notEquals = randomBoolean();
+        String query = "FROM main | WHERE CASE(((a, b) IN (FROM sub | KEEP a, b)) "
+            + (notEquals ? "!= false" : "== true")
+            + ", true, false)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction caseFunc = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+        Equals equals = notEquals
+            ? as(as(caseFunc.children().get(0), Not.class).field(), Equals.class)
+            : as(caseFunc.children().get(0), Equals.class);
+        assertEquals(notEquals ? false : true, as(equals.right(), Literal.class).value());
+        MultiColumnInSubquery mcs = as(equals.left(), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code WHERE COALESCE(((a, b) IN (FROM sub)) == true, false)}
+     * {@code WHERE COALESCE(((a, b) IN (FROM sub)) != false, false)}
+     */
+    public void testMultiColumnInSubqueryWithEqualsNestedInCoalesce() {
+        checkMultiColumnInSubquery();
+        boolean notEquals = randomBoolean();
+        String query = "FROM main | WHERE COALESCE(((a, b) IN (FROM sub | KEEP a, b)) " + (notEquals ? "!= false" : "== true") + ", false)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction coalesce = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesce.name());
+        Equals equals = notEquals
+            ? as(as(coalesce.children().get(0), Not.class).field(), Equals.class)
+            : as(coalesce.children().get(0), Equals.class);
+        assertEquals(notEquals ? false : true, as(equals.right(), Literal.class).value());
+        MultiColumnInSubquery mcs = as(equals.left(), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code WHERE (((a, b) IN (FROM sub)) == true) IS [NOT] NULL}
+     * {@code WHERE (((a, b) IN (FROM sub)) != false) IS [NOT] NULL}
+     */
+    public void testMultiColumnInSubqueryWithEqualsNestedInIsNull() {
+        checkMultiColumnInSubquery();
+        boolean notEquals = randomBoolean();
+        boolean isNotNull = randomBoolean();
+        String query = "FROM main | WHERE (((a, b) IN (FROM sub | KEEP a, b)) "
+            + (notEquals ? "!= false" : "== true")
+            + ") "
+            + (isNotNull ? "IS NOT NULL" : "IS NULL");
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Expression nullPredicate = isNotNull
+            ? as(filter.condition(), IsNotNull.class).field()
+            : as(filter.condition(), IsNull.class).field();
+        Equals equals = notEquals ? as(as(nullPredicate, Not.class).field(), Equals.class) : as(nullPredicate, Equals.class);
+        assertEquals(notEquals ? false : true, as(equals.right(), Literal.class).value());
+        MultiColumnInSubquery mcs = as(equals.left(), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code WHERE TO_STRING(((a, b) IN (FROM sub)) == true)}
+     * {@code WHERE TO_STRING(((a, b) IN (FROM sub)) != false)}
+     */
+    public void testMultiColumnInSubqueryWithEqualsNestedInToString() {
+        checkMultiColumnInSubquery();
+        boolean notEquals = randomBoolean();
+        String query = "FROM main | WHERE TO_STRING(((a, b) IN (FROM sub | KEEP a, b)) " + (notEquals ? "!= false" : "== true") + ")";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction toString = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("TO_STRING", toString.name());
+        Equals equals = notEquals
+            ? as(as(toString.children().get(0), Not.class).field(), Equals.class)
+            : as(toString.children().get(0), Equals.class);
+        assertEquals(notEquals ? false : true, as(equals.right(), Literal.class).value());
+        MultiColumnInSubquery mcs = as(equals.left(), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code EVAL m = ((a, b) IN (FROM sub)) == true}
+     */
+    public void testEvalWithMultiColumnInSubqueryInEquals() {
+        checkMultiColumnInSubquery();
+        String query = "FROM main | EVAL m = ((a, b) IN (FROM sub | KEEP a, b)) == true";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        assertEquals("m", eval.fields().get(0).name());
+        Equals equals = as(eval.fields().get(0).child(), Equals.class);
+        MultiColumnInSubquery mcs = as(equals.left(), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code STATS c = COUNT(*) WHERE ((a, b) IN (FROM sub)) == true}
+     */
+    public void testStatsAggFilterWithMultiColumnInSubqueryInEquals() {
+        checkMultiColumnInSubquery();
+        String query = "FROM main | STATS c = COUNT(*) WHERE ((a, b) IN (FROM sub | KEEP a, b)) == true";
+
+        LogicalPlan plan = query(query);
+        Aggregate aggregate = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Equals equals = as(filtered.filter(), Equals.class);
+        MultiColumnInSubquery mcs = as(equals.left(), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code INLINE STATS c = COUNT(*) WHERE ((a, b) IN (FROM sub)) != false}
+     */
+    public void testInlineStatsAggFilterWithMultiColumnInSubqueryInNotEquals() {
+        checkMultiColumnInSubquery();
+        String query = "FROM main | INLINE STATS c = COUNT(*) WHERE ((a, b) IN (FROM sub | KEEP a, b)) != false";
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Equals equals = as(as(filtered.filter(), Not.class).field(), Equals.class);
+        MultiColumnInSubquery mcs = as(equals.left(), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code WHERE CASE(NOT((a, b) IN (FROM sub)), true, false)}
+     */
+    public void testMultiColumnInSubqueryNestedInsideNotAndCase() {
+        checkMultiColumnInSubquery();
+        String query = "FROM main | WHERE CASE(NOT((a, b) IN (FROM sub | KEEP a, b)), true, false)";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction caseFunc = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+        Not not = as(caseFunc.children().get(0), Not.class);
+        MultiColumnInSubquery mcs = as(not.field(), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code WHERE filter(a, x -> (x, b) IN (FROM sub))}
+     */
+    public void testWhereMultiColumnInSubqueryInsideLambda() {
+        checkLambda();
+        checkMultiColumnInSubquery();
+        String query = "FROM main | WHERE filter(a, x -> (x, b) IN (FROM sub | KEEP x, b))";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction filterFunc = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("filter", filterFunc.name());
+        // Lambda
+        Lambda lambda = as(filterFunc.children().get(1), Lambda.class);
+        MultiColumnInSubquery mcs = as(lambda.body(), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        assertEquals("x", as(mcs.values().get(0), UnresolvedAttribute.class).name());
+        assertEquals("b", as(mcs.values().get(1), UnresolvedAttribute.class).name());
+        assertEquals("sub", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code WHERE filter(a, x -> COALESCE((x, b) IN (FROM sub), false))}
+     */
+    public void testWhereMultiColumnInSubqueryInsideCoalesceInsideLambda() {
+        checkLambda();
+        checkMultiColumnInSubquery();
+        String query = "FROM main | WHERE filter(a, x -> COALESCE((x, b) IN (FROM sub | KEEP x, b), false))";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction filterFunc = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("filter", filterFunc.name());
+        // Lambda
+        Lambda lambda = as(filterFunc.children().get(1), Lambda.class);
+        // COALESCE
+        UnresolvedFunction coalesceFunc = as(lambda.body(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesceFunc.name());
+        // MultiColumnInSubquery
+        MultiColumnInSubquery mcs = as(coalesceFunc.children().get(0), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * Multi-column IN subquery inside CASE connected with AND:
+     * {@code WHERE CASE((a, b) IN (FROM sub), true, false) AND c > 0}
+     */
+    public void testMultiColumnInSubqueryInCaseWithAnd() {
+        checkMultiColumnInSubquery();
+        String query = "FROM main | WHERE CASE((a, b) IN (FROM sub | KEEP a, b), true, false) AND c > 0";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        And and = as(filter.condition(), And.class);
+        UnresolvedFunction caseFunc = as(and.left(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+        as(and.right(), GreaterThan.class);
+        MultiColumnInSubquery mcs = as(caseFunc.children().get(0), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+    }
+
+    /*
+     * Multi-column IN subquery inside COALESCE connected with OR:
+     * {@code WHERE COALESCE((a, b) IN (FROM sub), false) OR c < 0}
+     */
+    public void testMultiColumnInSubqueryInCoalesceWithOr() {
+        checkMultiColumnInSubquery();
+        String query = "FROM main | WHERE COALESCE((a, b) IN (FROM sub | KEEP a, b), false) OR c < 0";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        UnresolvedFunction coalesceFunc = as(or.left(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesceFunc.name());
+        as(or.right(), LessThan.class);
+        MultiColumnInSubquery mcs = as(coalesceFunc.children().get(0), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+    }
+
+    /*
+     * Multi-column IN subquery with IS NULL and other predicates:
+     * {@code WHERE (a > 0 AND ((b, c) IN (FROM sub1) IS NULL)) OR ((d, e) IN (FROM sub2) IS NOT NULL AND f < 0)}
+     */
+    public void testComplexBooleanWithMultiColumnInSubqueryAndNullPredicates() {
+        checkMultiColumnInSubquery();
+        String query = """
+            FROM main
+            | WHERE (a > 0 AND ((b, c) IN (FROM sub1 | KEEP b, c)) IS NULL)
+                OR (((d, e) IN (FROM sub2 | KEEP d, e)) IS NOT NULL AND f < 0)""";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Or topOr = as(filter.condition(), Or.class);
+
+        // Left side of OR: (a > 0 AND (((b, c) IN (FROM sub1) IS NULL)))
+        And leftAnd = as(topOr.left(), And.class);
+        as(leftAnd.left(), GreaterThan.class);
+        IsNull isNull = as(leftAnd.right(), IsNull.class);
+        MultiColumnInSubquery mcs1 = as(isNull.field(), MultiColumnInSubquery.class);
+        assertEquals("sub1", as(as(mcs1.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        // Right side of OR: (((d, e) IN (FROM sub2) IS NOT NULL) AND f < 0)
+        And rightAnd = as(topOr.right(), And.class);
+        IsNotNull isNotNull = as(rightAnd.left(), IsNotNull.class);
+        as(rightAnd.right(), LessThan.class);
+        MultiColumnInSubquery mcs2 = as(isNotNull.field(), MultiColumnInSubquery.class);
+        assertEquals("sub2", as(as(mcs2.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
 
     private void assertInPredicate(Expression expr, boolean negated, boolean isSubquery, String expectedIndex) {
         Expression inner = negated ? as(expr, Not.class).field() : expr;
@@ -1434,5 +2942,703 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         } else {
             as(inner, In.class);
         }
+    }
+
+    /*
+     * {@code FROM main | EVAL is_match = (f1, f2) IN (FROM sub | KEEP f1, f2)}
+     *
+     * Eval[is_match = (NOT) MultiColumnInSubquery[[?f1, ?f2], Keep[UnresolvedRelation[sub_index]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithMultiColumnInSubquery() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | EVAL is_match = (f1, f2) " + notClause + "IN (FROM sub_index | KEEP f1, f2)";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias alias = eval.fields().get(0);
+        assertEquals("is_match", alias.name());
+
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(alias.child(), Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(alias.child(), MultiColumnInSubquery.class);
+        }
+        assertThat(mcs.values().size(), equalTo(2));
+        assertEquals("f1", as(mcs.values().get(0), Attribute.class).name());
+        assertEquals("f2", as(mcs.values().get(1), Attribute.class).name());
+
+        Keep keep = as(mcs.subquery(), Keep.class);
+        UnresolvedRelation subqueryRelation = as(keep.child(), UnresolvedRelation.class);
+        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+
+        UnresolvedRelation mainRelation = as(eval.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code FROM main | EVAL is_match = CASE((f1, f2) IN (FROM sub), true, false)}
+     *
+     * Eval[is_match = CASE((NOT) MultiColumnInSubquery[[?f1, ?f2], UnresolvedRelation[sub_index]], true, false)]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithMultiColumnInSubqueryNestedInCase() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | EVAL is_match = CASE((f1, f2) " + notClause + "IN (FROM sub_index | KEEP f1, f2), true, false)";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        UnresolvedFunction caseFunc = as(alias.child(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(caseFunc.children().get(0), Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(caseFunc.children().get(0), MultiColumnInSubquery.class);
+        }
+        assertThat(mcs.values().size(), equalTo(2));
+    }
+
+    /*
+     * {@code FROM main | EVAL is_match = COALESCE((f1, f2) IN (FROM sub), false)}
+     *
+     * Eval[is_match = COALESCE((NOT) MultiColumnInSubquery[[?f1, ?f2], UnresolvedRelation[sub_index]], false)]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithMultiColumnInSubqueryNestedInCoalesce() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | EVAL is_match = COALESCE((f1, f2) " + notClause + "IN (FROM sub_index | KEEP f1, f2), false)";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        UnresolvedFunction coalesce = as(alias.child(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesce.name());
+
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(coalesce.children().get(0), Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(coalesce.children().get(0), MultiColumnInSubquery.class);
+        }
+        assertThat(mcs.values().size(), equalTo(2));
+    }
+
+    /*
+     * {@code FROM main | EVAL is_match = ISNULL((f1, f2) IN (FROM sub))}
+     *
+     * Eval[is_match = ISNULL((NOT) MultiColumnInSubquery[[?f1, ?f2], UnresolvedRelation[sub_index]])]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithMultiColumnInSubqueryNestedInIsNull() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | EVAL is_match = ISNULL((f1, f2) " + notClause + "IN (FROM sub_index | KEEP f1, f2))";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        UnresolvedFunction isnull = as(alias.child(), UnresolvedFunction.class);
+        assertEquals("ISNULL", isnull.name());
+
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(isnull.children().get(0), Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(isnull.children().get(0), MultiColumnInSubquery.class);
+        }
+        assertThat(mcs.values().size(), equalTo(2));
+    }
+
+    /*
+     * {@code FROM main | EVAL is_match = ISNOTNULL((f1, f2) IN (FROM sub))}
+     *
+     * Eval[is_match = ISNOTNULL((NOT) MultiColumnInSubquery[[?f1, ?f2], UnresolvedRelation[sub_index]])]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithMultiColumnInSubqueryNestedInIsNotNull() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | EVAL is_match = ISNOTNULL((f1, f2) " + notClause + "IN (FROM sub_index | KEEP f1, f2))";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        UnresolvedFunction isnotnull = as(alias.child(), UnresolvedFunction.class);
+        assertEquals("ISNOTNULL", isnotnull.name());
+
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(isnotnull.children().get(0), Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(isnotnull.children().get(0), MultiColumnInSubquery.class);
+        }
+        assertThat(mcs.values().size(), equalTo(2));
+    }
+
+    /*
+     * {@code FROM main | EVAL is_match = x IN (TS sub)}
+     *
+     * Eval[is_match = InSubquery[?x, UnresolvedRelation[TS sub_index]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithInTsSubquery() {
+        String query = "FROM main_index | EVAL is_match = x IN (TS sub_index)";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        InSubquery inSubquery = as(alias.child(), InSubquery.class);
+        UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
+        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+        assertEquals("TS", subqueryRelation.telemetryLabel());
+    }
+
+    /*
+     * {@code FROM main | EVAL is_match = (f1, f2) IN (TS sub | KEEP f1, f2)}
+     *
+     * Eval[is_match = MultiColumnInSubquery[[?f1, ?f2], Keep[UnresolvedRelation[TS sub_index]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithMultiColumnInTsSubquery() {
+        checkMultiColumnInSubquery();
+        String query = "FROM main_index | EVAL is_match = (f1, f2) IN (TS sub_index | KEEP f1, f2)";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        MultiColumnInSubquery mcs = as(alias.child(), MultiColumnInSubquery.class);
+        assertThat(mcs.values().size(), equalTo(2));
+        Keep keep = as(mcs.subquery(), Keep.class);
+        UnresolvedRelation subqueryRelation = as(keep.child(), UnresolvedRelation.class);
+        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+        assertEquals("TS", subqueryRelation.telemetryLabel());
+    }
+
+    /*
+     * {@code FROM main | EVAL is_match = x IN (ROW a = 1)}
+     *
+     * Eval[is_match = InSubquery[?x, Row[a = 1]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithInRowSubquery() {
+        String query = "FROM main_index | EVAL is_match = x IN (ROW a = 1)";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        InSubquery inSubquery = as(alias.child(), InSubquery.class);
+        Row row = as(inSubquery.subquery(), Row.class);
+        assertEquals(1, row.fields().size());
+        assertEquals("a", row.fields().get(0).name());
+    }
+
+    /*
+     * {@code FROM main | EVAL is_match = (f1, f2) IN (ROW f1 = 1, f2 = 2)}
+     *
+     * Eval[is_match = MultiColumnInSubquery[[?f1, ?f2], Row[f1 = 1, f2 = 2]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithMultiColumnInRowSubquery() {
+        checkMultiColumnInSubquery();
+        String query = "FROM main_index | EVAL is_match = (f1, f2) IN (ROW f1 = 1, f2 = 2)";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        MultiColumnInSubquery mcs = as(alias.child(), MultiColumnInSubquery.class);
+        assertThat(mcs.values().size(), equalTo(2));
+        Row row = as(mcs.subquery(), Row.class);
+        assertEquals(2, row.fields().size());
+        assertEquals("f1", row.fields().get(0).name());
+        assertEquals("f2", row.fields().get(1).name());
+    }
+
+    /*
+     * INLINE STATS aggregation with (NOT) IN subquery in the WHERE filter:
+     * {@code FROM main | INLINE STATS c = COUNT(*) WHERE x IN (FROM sub)}
+     *
+     * InlineStats
+     * \_Aggregate[c = COUNT(*) WHERE (NOT) InSubquery[?x, UnresolvedRelation[sub_index]]]
+     *   \_UnresolvedRelation[main_index]
+     */
+    public void testInlineStatsAggFilterWithInSubquery() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | INLINE STATS c = COUNT(*) WHERE x " + notClause + "IN (FROM sub_index)";
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        assertEquals(0, aggregate.groupings().size());
+        assertEquals(1, aggregate.aggregates().size());
+
+        Alias alias = as(aggregate.aggregates().get(0), Alias.class);
+        assertEquals("c", alias.name());
+        FilteredExpression filtered = as(alias.child(), FilteredExpression.class);
+        as(filtered.delegate(), UnresolvedFunction.class);
+
+        InSubquery inSubquery;
+        if (negated) {
+            inSubquery = as(as(filtered.filter(), Not.class).field(), InSubquery.class);
+        } else {
+            inSubquery = as(filtered.filter(), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        UnresolvedRelation mainRelation = as(aggregate.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
+    }
+
+    /*
+     * INLINE STATS aggregation filter with a conjunctive (NOT) IN subquery mixed with other predicates:
+     * {@code FROM main | INLINE STATS c = COUNT(*) WHERE a > 5 AND x IN (FROM sub) AND b == 10}
+     *
+     * InlineStats
+     * \_Aggregate[c = COUNT(*) WHERE And[And[?a > 5, (NOT) InSubquery[?x, sub_index]], ?b == 10]]
+     *   \_UnresolvedRelation[main_index]
+     */
+    public void testInlineStatsAggFilterWithConjunctiveInSubquery() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | INLINE STATS c = COUNT(*) WHERE a > 5 AND x " + notClause + "IN (FROM sub_index) AND b == 10";
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        And outerAnd = as(filtered.filter(), And.class);
+        as(outerAnd.right(), Equals.class);
+        And innerAnd = as(outerAnd.left(), And.class);
+        as(innerAnd.left(), GreaterThan.class);
+        InSubquery inSubquery;
+        if (negated) {
+            inSubquery = as(as(innerAnd.right(), Not.class).field(), InSubquery.class);
+        } else {
+            inSubquery = as(innerAnd.right(), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * INLINE STATS aggregation filter with a disjunctive (NOT) IN subquery mixed with another predicate:
+     * {@code FROM main | INLINE STATS c = COUNT(*) WHERE x IN (FROM sub) OR y > 5}
+     *
+     * InlineStats
+     * \_Aggregate[c = COUNT(*) WHERE Or[(NOT) InSubquery[?x, sub_index], ?y > 5]]
+     *   \_UnresolvedRelation[main_index]
+     */
+    public void testInlineStatsAggFilterWithDisjunctiveInSubquery() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | INLINE STATS c = COUNT(*) WHERE x " + notClause + "IN (FROM sub_index) OR y > 5";
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        Or or = as(filtered.filter(), Or.class);
+        as(or.right(), GreaterThan.class);
+        InSubquery inSubquery;
+        if (negated) {
+            inSubquery = as(as(or.left(), Not.class).field(), InSubquery.class);
+        } else {
+            inSubquery = as(or.left(), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * INLINE STATS aggregation filter mixing conjunction and disjunction with two IN subqueries:
+     * {@code FROM main | INLINE STATS c = COUNT(*) WHERE (x IN (FROM sub1) OR a > 5) AND y NOT IN (FROM sub2)}
+     *
+     * InlineStats
+     * \_Aggregate[c = COUNT(*) WHERE And[Or[InSubquery[?x, sub1], ?a > 5], Not[InSubquery[?y, sub2]]]]
+     *   \_UnresolvedRelation[main_index]
+     */
+    public void testInlineStatsAggFilterWithMixedConjunctiveDisjunctiveInSubqueries() {
+        String query = "FROM main_index | INLINE STATS c = COUNT(*) WHERE (x IN (FROM sub1) OR a > 5) AND y NOT IN (FROM sub2)";
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        And and = as(filtered.filter(), And.class);
+        Or or = as(and.left(), Or.class);
+        InSubquery firstIn = as(or.left(), InSubquery.class);
+        assertEquals("x", as(firstIn.value(), Attribute.class).name());
+        assertEquals("sub1", as(firstIn.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+        as(or.right(), GreaterThan.class);
+
+        InSubquery secondIn = as(as(and.right(), Not.class).field(), InSubquery.class);
+        assertEquals("y", as(secondIn.value(), Attribute.class).name());
+        assertEquals("sub2", as(secondIn.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * INLINE STATS aggregation filter with a CASE referencing a (NOT) IN subquery:
+     * {@code FROM main | INLINE STATS c = COUNT(*) WHERE CASE(x IN (FROM sub), a > 5, false)}
+     *
+     * InlineStats
+     * \_Aggregate[c = COUNT(*) WHERE CASE[(NOT) InSubquery[?x, sub_index], ?a > 5, false]]
+     *   \_UnresolvedRelation[main_index]
+     */
+    public void testInlineStatsAggFilterWithCaseReferencingInSubquery() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | INLINE STATS c = COUNT(*) WHERE CASE(x " + notClause + "IN (FROM sub_index), a > 5, false)";
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        UnresolvedFunction caseFunction = as(filtered.filter(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunction.name());
+        assertEquals(3, caseFunction.children().size());
+        InSubquery inSubquery;
+        if (negated) {
+            inSubquery = as(as(caseFunction.children().get(0), Not.class).field(), InSubquery.class);
+        } else {
+            inSubquery = as(caseFunction.children().get(0), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+        as(caseFunction.children().get(1), GreaterThan.class);
+        as(caseFunction.children().get(2), Literal.class);
+    }
+
+    /*
+     * INLINE STATS aggregation filter with a COALESCE referencing a (NOT) IN subquery:
+     * {@code FROM main | INLINE STATS c = COUNT(*) WHERE COALESCE(x IN (FROM sub), false)}
+     *
+     * InlineStats
+     * \_Aggregate[c = COUNT(*) WHERE COALESCE[(NOT) InSubquery[?x, sub_index], false]]
+     *   \_UnresolvedRelation[main_index]
+     */
+    public void testInlineStatsAggFilterWithCoalesceReferencingInSubquery() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | INLINE STATS c = COUNT(*) WHERE COALESCE(x " + notClause + "IN (FROM sub_index), false)";
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        UnresolvedFunction coalesce = as(filtered.filter(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesce.name());
+        assertEquals(2, coalesce.children().size());
+        InSubquery inSubquery;
+        if (negated) {
+            inSubquery = as(as(coalesce.children().get(0), Not.class).field(), InSubquery.class);
+        } else {
+            inSubquery = as(coalesce.children().get(0), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+        as(coalesce.children().get(1), Literal.class);
+    }
+
+    /*
+     * INLINE STATS aggregation filter with IS [NOT] NULL over an IN subquery:
+     * {@code FROM main | INLINE STATS c = COUNT(*) WHERE (x IN (FROM sub)) IS [NOT] NULL}
+     *
+     * InlineStats
+     * \_Aggregate[c = COUNT(*) WHERE Is(Not)Null[InSubquery[?x, UnresolvedRelation[sub_index]]]]
+     *   \_UnresolvedRelation[main_index]
+     */
+    public void testInlineStatsAggFilterWithIsNullReferencingInSubquery() {
+        boolean isNotNull = randomBoolean();
+        String nullClause = isNotNull ? "IS NOT NULL" : "IS NULL";
+        String query = "FROM main_index | INLINE STATS c = COUNT(*) WHERE (x IN (FROM sub_index)) " + nullClause;
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        InSubquery inSubquery;
+        if (isNotNull) {
+            inSubquery = as(as(filtered.filter(), IsNotNull.class).field(), InSubquery.class);
+        } else {
+            inSubquery = as(as(filtered.filter(), IsNull.class).field(), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * INLINE STATS aggregation filter comparing an IN subquery with == or !=:
+     * {@code FROM main | INLINE STATS c = COUNT(*) WHERE (x IN (FROM sub)) == true}
+     *
+     * InlineStats
+     * \_Aggregate[c = COUNT(*) WHERE Equals[InSubquery[?x, UnresolvedRelation[sub_index]], true]]
+     *   \_UnresolvedRelation[main_index]
+     */
+    public void testInlineStatsAggFilterWithEqualsReferencingInSubquery() {
+        boolean notEquals = randomBoolean();
+        String query = "FROM main_index | INLINE STATS c = COUNT(*) WHERE (x IN (FROM sub_index)) " + (notEquals ? "!= false" : "== true");
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        // `!=` is desugared by the parser into NOT(Equals(...))
+        Equals equals = notEquals ? as(as(filtered.filter(), Not.class).field(), Equals.class) : as(filtered.filter(), Equals.class);
+        assertEquals(notEquals ? false : true, as(equals.right(), Literal.class).value());
+        InSubquery inSubquery = as(equals.left(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * INLINE STATS aggregation filter nesting an IN-subquery == / != comparison inside IS [NOT] NULL:
+     * {@code FROM main | INLINE STATS c = COUNT(*) WHERE ((x IN (FROM sub)) == true) IS [NOT] NULL}
+     */
+    public void testInlineStatsAggFilterWithEqualsNestedInIsNull() {
+        boolean notEquals = randomBoolean();
+        boolean isNotNull = randomBoolean();
+        String query = "FROM main_index | INLINE STATS c = COUNT(*) WHERE ((x IN (FROM sub_index)) "
+            + (notEquals ? "!= false" : "== true")
+            + ") "
+            + (isNotNull ? "IS NOT NULL" : "IS NULL");
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Expression nullPredicate = isNotNull ? as(filtered.filter(), IsNotNull.class).field() : as(filtered.filter(), IsNull.class).field();
+        Equals equals = notEquals ? as(as(nullPredicate, Not.class).field(), Equals.class) : as(nullPredicate, Equals.class);
+        assertEquals(notEquals ? false : true, as(equals.right(), Literal.class).value());
+        InSubquery inSubquery = as(equals.left(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * INLINE STATS aggregation with (NOT) IN subquery in the WHERE filter using ROW source:
+     * {@code FROM main | INLINE STATS c = COUNT(*) WHERE x IN (ROW a = 1 | KEEP a)}
+     *
+     * InlineStats[Aggregate[c = COUNT(*) WHERE (NOT) InSubquery[?x, Keep[Row[...]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testInlineStatsAggFilterWithRowInSubquery() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | INLINE STATS c = COUNT(*) WHERE x " + notClause + "IN (ROW a = 1 | KEEP a)";
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        InSubquery inSubquery;
+        if (negated) {
+            inSubquery = as(as(filtered.filter(), Not.class).field(), InSubquery.class);
+        } else {
+            inSubquery = as(filtered.filter(), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        Keep keep = as(inSubquery.subquery(), Keep.class);
+        as(keep.child(), Row.class);
+    }
+
+    /*
+     * INLINE STATS aggregation with (NOT) IN subquery in the WHERE filter using TS source and rate aggregation:
+     * {@code FROM main | INLINE STATS c = COUNT(*) WHERE x IN (TS sub_index | STATS r = avg(rate(foo)) BY bar | KEEP r)}
+     *
+     * InlineStats[Aggregate[c = COUNT(*) WHERE (NOT) InSubquery[?x, Keep[Aggregate[...]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testInlineStatsAggFilterWithTsInSubquery() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | INLINE STATS c = COUNT(*) WHERE x "
+            + notClause
+            + "IN (TS sub_index | STATS r = avg(rate(foo)) BY bar | KEEP r)";
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        InSubquery inSubquery;
+        if (negated) {
+            inSubquery = as(as(filtered.filter(), Not.class).field(), InSubquery.class);
+        } else {
+            inSubquery = as(filtered.filter(), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        Keep keep = as(inSubquery.subquery(), Keep.class);
+        Aggregate subAggregate = as(keep.child(), Aggregate.class);
+        UnresolvedRelation subRelation = as(subAggregate.child(), UnresolvedRelation.class);
+        assertEquals("sub_index", subRelation.indexPattern().indexPattern());
+
+        Alias alias = as(subAggregate.aggregates().get(0), Alias.class);
+        assertEquals("r", alias.name());
+        UnresolvedFunction avg = as(alias.child(), UnresolvedFunction.class);
+        assertEquals("avg", avg.name());
+        UnresolvedFunction rate = as(avg.children().get(0), UnresolvedFunction.class);
+        assertEquals("rate", rate.name());
+    }
+
+    /*
+     * INLINE STATS aggregation with (NOT) IN multi-column subquery in the WHERE filter using ROW source:
+     * {@code FROM main | INLINE STATS c = COUNT(*) WHERE (x, y) IN (ROW a = 1, b = 2 | KEEP a, b)}
+     *
+     * InlineStats[Aggregate[c = COUNT(*) WHERE (NOT) MultiColumnInSubquery[[?x, ?y], Keep[Row[...]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testInlineStatsAggFilterWithRowMultiColumnInSubquery() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | INLINE STATS c = COUNT(*) WHERE (x, y) " + notClause + "IN (ROW a = 1, b = 2 | KEEP a, b)";
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            mcs = as(as(filtered.filter(), Not.class).field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(filtered.filter(), MultiColumnInSubquery.class);
+        }
+        assertEquals(2, mcs.values().size());
+        assertEquals("x", as(mcs.values().get(0), Attribute.class).name());
+        assertEquals("y", as(mcs.values().get(1), Attribute.class).name());
+
+        Keep keep = as(mcs.subquery(), Keep.class);
+        as(keep.child(), Row.class);
+    }
+
+    /*
+     * INLINE STATS aggregation filter with a CASE referencing an IN subquery with ROW source:
+     * {@code FROM main | INLINE STATS c = COUNT(*) WHERE CASE(x IN (ROW a = 1 | KEEP a), a > 5, false)}
+     *
+     * InlineStats[Aggregate[c = COUNT(*) WHERE CASE(InSubquery[?x, Keep[Row[...]]], ...)]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testInlineStatsAggFilterWithCaseRowInSubquery() {
+        String query = """
+            FROM main_index
+            | INLINE STATS c = COUNT(*) WHERE CASE(x IN (ROW a = 1 | KEEP a), a > 5, false)""";
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        UnresolvedFunction caseFunction = as(filtered.filter(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunction.name());
+        InSubquery inSubquery = as(caseFunction.children().get(0), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        Keep keep = as(inSubquery.subquery(), Keep.class);
+        as(keep.child(), Row.class);
+    }
+
+    /*
+     * INLINE STATS aggregation filter with a COALESCE referencing an IN subquery with TS source and avg_over_time:
+     * {@code FROM main
+     *        | INLINE STATS c = COUNT(*) WHERE COALESCE(x IN (TS sub_index | STATS r = avg(avg_over_time(foo)) BY bar | KEEP r), false)}
+     *
+     * InlineStats[Aggregate[c = COUNT(*) WHERE COALESCE(InSubquery[?x, Keep[Aggregate[...]]], ...)]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testInlineStatsAggFilterWithCoalesceTsInSubquery() {
+        String query = "FROM main_index | INLINE STATS c = COUNT(*) WHERE COALESCE(x IN (TS sub_index | STATS r = "
+            + "avg(avg_over_time(foo)) BY bar | KEEP r), false)";
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        UnresolvedFunction coalesce = as(filtered.filter(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesce.name());
+        InSubquery inSubquery = as(coalesce.children().get(0), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        Keep keep = as(inSubquery.subquery(), Keep.class);
+        Aggregate subAggregate = as(keep.child(), Aggregate.class);
+        as(subAggregate.child(), UnresolvedRelation.class);
+
+        Alias alias = as(subAggregate.aggregates().get(0), Alias.class);
+        UnresolvedFunction avg = as(alias.child(), UnresolvedFunction.class);
+        assertEquals("avg", avg.name());
+        UnresolvedFunction aot = as(avg.children().get(0), UnresolvedFunction.class);
+        assertEquals("avg_over_time", aot.name());
+    }
+
+    /*
+     * INLINE STATS aggregation filter with IS NULL over an IN subquery with TS source:
+     * {@code FROM main | INLINE STATS c = COUNT(*) WHERE (x IN (TS sub_index | STATS r = avg(rate(foo)) BY bar | KEEP r)) IS NULL}
+     *
+     * InlineStats[Aggregate[c = COUNT(*) WHERE IsNull[InSubquery[?x, Keep[Aggregate[...]]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testInlineStatsAggFilterWithIsNullTsInSubquery() {
+        String query = "FROM main_index | INLINE STATS c = COUNT(*) WHERE (x IN (TS sub_index | STATS r = "
+            + "avg(rate(foo)) BY bar | KEEP r)) IS NULL";
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        IsNull isNull = as(filtered.filter(), IsNull.class);
+        InSubquery inSubquery = as(isNull.field(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        Keep keep = as(inSubquery.subquery(), Keep.class);
+        Aggregate subAggregate = as(keep.child(), Aggregate.class);
+        as(subAggregate.child(), UnresolvedRelation.class);
+    }
+
+    /*
+     * INLINE STATS aggregation filter with IS NOT NULL over an IN subquery with ROW source:
+     * {@code FROM main | INLINE STATS c = COUNT(*) WHERE (x IN (ROW a = 1 | KEEP a)) IS NOT NULL}
+     *
+     * InlineStats[Aggregate[c = COUNT(*) WHERE IsNotNull[InSubquery[?x, Keep[Row[...]]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testInlineStatsAggFilterWithIsNotNullRowInSubquery() {
+        String query = "FROM main_index | INLINE STATS c = COUNT(*) WHERE (x IN (ROW a = 1 | KEEP a)) IS NOT NULL";
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(aggregate.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+
+        IsNotNull isNotNull = as(filtered.filter(), IsNotNull.class);
+        InSubquery inSubquery = as(isNotNull.field(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        Keep keep = as(inSubquery.subquery(), Keep.class);
+        as(keep.child(), Row.class);
     }
 }

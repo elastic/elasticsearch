@@ -93,7 +93,7 @@ public class Clusters {
             // override it with either form: explicit settings win over suppliers regardless of order, and among
             // suppliers the last one applied wins.
             builder.setting(Federation.FEDERATION_ENABLED.getKey(), () -> "true")
-                .setting("esql.datasource.local_allowed_paths", csvDataPath::toString);
+                .setting("esql.external.local_allowed_paths", csvDataPath::toString);
         }
         builder.apply(() -> configProvider);
         if (securityEnabled) {

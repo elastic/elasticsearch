@@ -38,8 +38,9 @@ public abstract class IgnoreMalformedStoredValues {
 
     /**
      * Stores a malformed value in binary doc values (new indices) or in stored fields (old indices) in order to support synthetic source.
+     * Use {@link FallbackPostMapper#capture(DocumentParserContext, String, FallbackPostMapper.Reason)} from outside this package.
      */
-    public static void storeMalformedValueForSyntheticSource(DocumentParserContext context, String fieldPath, XContentParser parser)
+    static void storeMalformedValueForSyntheticSource(DocumentParserContext context, String fieldPath, XContentParser parser)
         throws IOException {
         IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
         if (indexVersion.onOrAfter(IndexVersions.STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES)) {
@@ -52,8 +53,11 @@ public abstract class IgnoreMalformedStoredValues {
 
     /**
      * Stores a malformed value in binary doc values (new indices) or in stored fields (old indices) in order to support synthetic source.
+     * Use {@link FallbackPostMapper#capture(DocumentParserContext, String, FallbackPostMapper.Reason,
+     * org.elasticsearch.xcontent.XContentBuilder)}
+     * from outside this package.
      */
-    public static void storeMalformedValueForSyntheticSource(DocumentParserContext context, String fieldPath, XContentBuilder builder)
+    static void storeMalformedValueForSyntheticSource(DocumentParserContext context, String fieldPath, XContentBuilder builder)
         throws IOException {
         IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
         if (indexVersion.onOrAfter(IndexVersions.STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES)) {

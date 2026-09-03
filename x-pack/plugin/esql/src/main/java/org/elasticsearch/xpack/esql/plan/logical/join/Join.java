@@ -369,21 +369,36 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     }
 
     private void checkRemoteJoin(Failures failures) {
-        this.forEachUp(LogicalPlan.class, u -> {
-            if (u == Join.this) {
-                return; // skip myself
+        checkForRemoteJoinBlockers(this, failures);
+    }
+
+    private void checkForRemoteJoinBlockers(LogicalPlan plan, Failures failures) {
+        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+            // The right side is an independent subquery; do not traverse into it.
+            checkForRemoteJoinBlockers(subqueryJoin.left(), failures);
+        } else {
+            if (plan != this) {
+                if (plan instanceof Limit == false) {
+                    // Limit is ok because it can be moved in by the optimizer
+                    // We check LIMITs in LookupJoin pre-optimization so they are still not allowed there
+                    if (plan instanceof PipelineBreaker
+                        || (plan instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR)) {
+                        failures.add(
+                            fail(
+                                this,
+                                "LOOKUP JOIN with remote indices can't be executed after ["
+                                    + plan.source().text()
+                                    + "]"
+                                    + plan.source().source()
+                            )
+                        );
+                    }
+                }
             }
-            if (u instanceof Limit) {
-                // Limit is ok because it can be moved in by the optimizer
-                // We check LIMITs in LookupJoin pre-optimization so they are still not allowed there
-                return;
+            for (LogicalPlan child : plan.children()) {
+                checkForRemoteJoinBlockers(child, failures);
             }
-            if (u instanceof PipelineBreaker || (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR)) {
-                failures.add(
-                    fail(this, "LOOKUP JOIN with remote indices can't be executed after [" + u.source().text() + "]" + u.source().source())
-                );
-            }
-        });
+        }
     }
 
     @Override

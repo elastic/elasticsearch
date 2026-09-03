@@ -20,12 +20,14 @@ import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderE
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
@@ -142,7 +144,14 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
 
         private PhysicalPlan doRule(PhysicalPlan plan) {
             addedNewAttribute = false;
-            if (plan instanceof EvalExec || plan instanceof FilterExec || plan instanceof AggregateExec) {
+            // RegexExtractExec (DISSECT/GROK) and CompoundOutputEvalExec (URI_PARTS/REGISTERED_DOMAIN/USER_AGENT) both
+            // carry their parsed value in an input expression, another position where a pushable expression such as
+            // field_extract(<flattened>, "<key>") can be folded into the field load.
+            if (plan instanceof EvalExec
+                || plan instanceof FilterExec
+                || plan instanceof AggregateExec
+                || plan instanceof RegexExtractExec
+                || plan instanceof CompoundOutputEvalExec) {
                 return transformPotentialInvocation(plan);
             }
             if (addedAttrs.isEmpty()) {

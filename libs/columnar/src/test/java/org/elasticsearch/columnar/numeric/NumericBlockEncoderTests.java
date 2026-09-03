@@ -17,6 +17,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
+
 /**
  * Round-trips {@link NumericBlockEncoder} over
  * full blocks that exercise its delta / offset / GCD / bit-pack paths and value extremes.
@@ -235,10 +237,6 @@ public class NumericBlockEncoderTests extends ESTestCase {
         long[] decoded = new long[blockSize];
         new NumericBlockEncoder(read, blockSize).decode(new ByteArrayDataInput(out.toArrayCopy()), blockSize, decoded);
         assertArrayEquals(block, decoded);
-    }
-
-    private static int randomValidBlockSize() {
-        return 128 << randomIntBetween(0, 6);
     }
 
     private static long[] filled(long value, int blockSize) {

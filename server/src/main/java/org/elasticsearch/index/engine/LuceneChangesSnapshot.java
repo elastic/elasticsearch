@@ -206,8 +206,12 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                         parallelArray.routingOrdinals[index] = -1;
                     }
                 }
-                if (idDocValues != null && idDocValues.advanceExact(segmentDocID)) {
-                    parallelArray.columnarIds[index] = BytesRef.deepCopyOf(idDocValues.binaryValue());
+                if (idDocValues != null) {
+                    if (idDocValues.advanceExact(segmentDocID)) {
+                        parallelArray.columnarIds[index] = BytesRef.deepCopyOf(idDocValues.binaryValue());
+                    } else {
+                        parallelArray.columnarIds[index] = null;
+                    }
                 }
             }
             // now sort back based on the shardIndex. we use this to store the previous index

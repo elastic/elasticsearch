@@ -196,7 +196,7 @@ public class DocValuesLoaderBenchmark extends AbstractStatelessQueryBenchmark {
         String mappings = buildMappings();
         Settings indexSettings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
         MapperService mapperService = MapperServiceFactory.create(mappings, Collections.emptyList(), indexSettings);
-        sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+        sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
 
         Random rng = new Random(SEED ^ 0xCAFE);
         docIdBatch = new int[batchSize];
@@ -209,7 +209,7 @@ public class DocValuesLoaderBenchmark extends AbstractStatelessQueryBenchmark {
     @Override
     protected Object runQuery(IndexSearcher searcher) throws IOException {
         LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
-        SourceLoader.Leaf leaf = sourceLoader.leaf(ctx.reader(), docIdBatch);
+        SourceLoader.Leaf leaf = sourceLoader.leaf(ctx, docIdBatch);
         var storedFieldLoader = StoredFieldLoader.empty().getLoader(ctx, null);
 
         int loaded = 0;

@@ -90,4 +90,16 @@ public record TargetProjects(
     public boolean isEmpty() {
         return originProject == null && (linkedProjects != null && linkedProjects.isEmpty());
     }
+
+    /**
+     * Returns a {@code TargetProjects} containing only the given origin project (empty linked
+     * projects list) with the supplied routing info and {@code hasLinkedProjects} flag.
+     */
+    public static TargetProjects originOnly(
+        ProjectRoutingInfo originProject,
+        ProjectRoutingRequestInfo routingInfo,
+        boolean hasLinkedProjects
+    ) {
+        return new TargetProjects(originProject, List.of(), routingInfo, hasLinkedProjects);
+    }
 }

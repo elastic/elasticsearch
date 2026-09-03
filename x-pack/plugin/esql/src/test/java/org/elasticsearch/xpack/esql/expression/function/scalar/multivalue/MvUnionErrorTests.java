@@ -58,7 +58,8 @@ public class MvUnionErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             DataType.EXPONENTIAL_HISTOGRAM,
             DataType.HISTOGRAM,
             DataType.TDIGEST,
-            DataType.DATE_RANGE
+            DataType.DATE_RANGE,
+            DataType.DOUBLE_RANGE
         );
         if (signature.getFirst() == DataType.NULL && unsupportedTypes.contains(signature.get(1))) {
             // resolveType() checks the non-null (second) arg; the error names that arg's type, not "null"

@@ -12,21 +12,34 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
-## 9.5.1 [elasticsearch-9.5.1-breaking-changes]
+## 9.5.3 [elasticsearch-9.5.3-breaking-changes]
 ```{applies_to}
-stack: ga 9.5.1
+stack: ga 9.5.3
 ```
 
-ILM:
-* When `number_of_replicas` is specified in the ILM `allocate` action, `auto_expand_replicas` is now explicitly removed from the index settings. [#155279](https://github.com/elastic/elasticsearch/pull/155279) (issue: [#150407](https://github.com/elastic/elasticsearch/issues/150407))
+There are no breaking changes associated with this release.
+
+## 9.4.6 [elasticsearch-9.4.6-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.5.2 [elasticsearch-9.5.2-breaking-changes]
+
+There are no breaking changes associated with this release.
 
 ## 9.4.5 [elasticsearch-9.4.5-breaking-changes]
-```{applies_to}
-stack: ga 9.4.5
-```
 
 ILM:
 * When `number_of_replicas` is specified in the ILM `allocate` action, `auto_expand_replicas` is now explicitly removed from the index settings. [#155279](https://github.com/elastic/elasticsearch/pull/155279) (issue: [#150407](https://github.com/elastic/elasticsearch/issues/150407))
+
+
+
+## 9.5.1 [elasticsearch-9.5.1-breaking-changes]
+
+ILM:
+* When `number_of_replicas` is specified in the ILM `allocate` action, `auto_expand_replicas` is now explicitly removed from the index settings. [#155279](https://github.com/elastic/elasticsearch/pull/155279) (issue: [#150407](https://github.com/elastic/elasticsearch/issues/150407))
+
+
 
 ## 9.5.0 [elasticsearch-9.5.0-breaking-changes]
 

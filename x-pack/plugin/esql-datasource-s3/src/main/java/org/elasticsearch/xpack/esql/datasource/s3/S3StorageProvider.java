@@ -503,6 +503,12 @@ public class S3StorageProvider implements StorageProvider {
                 continuationToken = response.nextContinuationToken();
             } while (continuationToken != null);
         } catch (Exception e) {
+            // Same typing as the other list sites: a 503/429 must surface as ExternalUnavailableException so the
+            // retry layer re-attempts it and the adaptive backoff hears about it.
+            ExternalUnavailableException unavailable = mapResolveFailure(prefix, e);
+            if (unavailable != null) {
+                throw unavailable;
+            }
             throw new IOException(
                 "Failed to list children in bucket [" + bucket + "] with prefix [" + keyPrefix + "]: " + S3FailureDetail.of(e),
                 e

@@ -36,10 +36,11 @@ import java.util.Set;
  * <p><b>Fail-closed.</b> Returning {@code null} means "use the flat listing", always correct since the walk is only
  * an optimisation. The walk declines when the provider cannot enumerate directories (or a directory exceeds
  * {@link #MAX_LISTED_CHILDREN}), when a listing fails mid-walk, and after one probe listing when no level matched a
- * hint (typically a data-column filter). Once a hint has matched it may cross unhinted levels — {@code year} and
- * {@code hour} hints prune both ends of a {@code year=/month=/day=/hour=} tree — bounded by
- * {@link #MAX_DIRECTORY_LISTINGS}. Survivors are finished with one recursive listing each, but only when something
- * was pruned and they fit the remaining budget; otherwise one flat listing is cheaper.
+ * hint (typically a data-column filter), and at the first level no pending hint matches — whether a pending hint
+ * is a deeper partition key or a data column is unknowable without listing every level in between, and
+ * {@code WHERE <partition> AND <data column>} is the everyday shape, so the walk never descends speculatively.
+ * Survivors are finished with one recursive listing each, but only when something was pruned and they fit what
+ * remains of {@link #MAX_DIRECTORY_LISTINGS}; otherwise one flat listing is cheaper.
  *
  * <p><b>Trust boundary.</b> Pruning on {@code year} is sound only if {@code year} really is a partition column, and
  * the walk cannot see inside pruned folders. The caller must therefore verify that every {@link
@@ -52,11 +53,10 @@ final class PartitionPruningWalk {
     private static final Logger logger = LogManager.getLogger(PartitionPruningWalk.class);
 
     /**
-     * Ceiling on listings in one walk (per-directory and survivor-finishing alike), so a wide or deep tree cannot
-     * turn the walk into more LIST requests than the flat listing it replaces. Sized against that comparison: a
-     * flat listing pages ~1000 keys per request (~100 requests for 100k objects), and walking a realistic Hive tree
-     * with a leading-key filter takes tens to low hundreds of listings — so 512 fits the legitimate deep-tree case
-     * while capping a walk that speculates wrongly at the same order of cost as the flat listing it falls back to.
+     * Ceiling on listings in one walk (per-directory and survivor-finishing alike). The walk pays one LIST round
+     * trip per directory where the flat listing pays one per ~1000 objects, so this cap does not make a misguided
+     * walk as cheap as flat — it bounds the damage to a fixed number of requests, once, before the flat fallback.
+     * 512 fits realistic Hive trees with a leading-key filter (tens to low hundreds of listings).
      */
     static final int MAX_DIRECTORY_LISTINGS = 512;
 
@@ -202,19 +202,25 @@ final class PartitionPruningWalk {
                 }
             }
 
-            if (hintedLevel == false && anyLevelHinted == false) {
-                // No level has matched a hint yet — typically a data-column filter, where walking on would spend a
-                // LIST per folder for nothing. Withdrawing after one probe also forfeits pruning for partition
-                // folders nested below a non-partition root, which is what they got before the walk existed.
-                return null;
-            }
-            anyLevelHinted |= hintedLevel;
-
             for (int i = 0; i < keep.length; i++) {
                 if (keep[i]) {
                     next.add(shapedDirs.get(i));
                 }
             }
+            if (hintedLevel == false) {
+                if (anyLevelHinted == false) {
+                    // No level has matched a hint yet — typically a data-column filter, where walking on would
+                    // spend a LIST per folder for nothing. Withdrawing after one probe also forfeits pruning for
+                    // partition folders nested below a non-partition root, which is what they got before the walk.
+                    return null;
+                }
+                // Some level already pruned, but this one matches no pending hint. Whether a pending hint is a
+                // deeper partition key or a data column is unknowable without listing every level in between — a
+                // LIST per directory — and `WHERE <partition> AND <data column>` is the everyday shape. Keep the
+                // pruning already done and finish here.
+                return finishSurvivors(collector, provider, next, prunedColumns, listings);
+            }
+            anyLevelHinted = true;
             dirs = next;
         }
         return collector.result(prunedColumns);

@@ -19,9 +19,13 @@ import java.util.List;
 /**
  * The one comparison of a partition value against a filter literal, shared by the two layers that prune by it:
  * {@link FileSplitProvider} (files) and the listing walk in {@code GlobExpander} (folders). A folder skipped at
- * listing time is unrecoverable downstream, so the two layers must agree — guaranteed by sharing this code.
- * {@link #matchesFolders} is the listing entry point; evaluation is three-valued, and "cannot decide" (e.g. a
- * NULL partition) always means keep.
+ * listing time is unrecoverable downstream, so where the layers cannot be proven to agree, the walk must not
+ * prune. Sharing this code covers the comparator; the LITERAL is the remaining gap — the analyzer implicitly
+ * casts string literals for some column types (boolean among them), so the read layer may compare a cast value
+ * where a pre-resolution hint still holds the raw string. Hence the kind guard: a hint whose literal's kind
+ * (number/boolean/text) differs from the typed folder value's is undecidable, never an exclusion.
+ * {@link #matchesFolders} is the listing entry point; evaluation is three-valued, and "cannot decide" (a NULL
+ * partition, a kind mismatch) always means keep.
  */
 public final class PartitionValueMatcher {
 
@@ -66,27 +70,37 @@ public final class PartitionValueMatcher {
     }
 
     /**
-     * Whether a typed partition value satisfies one hint, three-valued: {@code null} (a NULL partition value or a
-     * malformed hint) means the caller must not prune. Mirrors {@link FileSplitProvider#evaluateFilter}.
+     * Whether a typed partition value satisfies one hint, three-valued: {@code null} (a NULL partition value, a
+     * malformed hint, or a literal whose kind differs from the value's) means the caller must not prune. The kind
+     * guard is what keeps a raw string hint from disagreeing with the read layer's implicitly-cast literal:
+     * {@code WHERE flag IN ("True", "false")} reaches the walk as text against a boolean-typed folder value, and
+     * text-vs-boolean must be "cannot decide", not {@code "true".equals("True")}. Mirrors
+     * {@link FileSplitProvider#evaluateFilter} for the kinds it can decide.
      */
     @Nullable
     static Boolean matches(@Nullable Object partitionValue, PartitionFilterHint hint) {
         if (partitionValue == null || hint.values().isEmpty()) {
             return null;
         }
+        Kind valueKind = kindOf(partitionValue);
+        if (valueKind == Kind.OTHER) {
+            return null;
+        }
         if (hint.operator() == PartitionFilterHintExtractor.Operator.IN) {
+            boolean undecidable = false;
             for (Object candidate : hint.values()) {
-                if (candidate == null) {
-                    return null;
+                if (candidate == null || kindOf(candidate) != valueKind) {
+                    undecidable = true;
+                    continue;
                 }
                 if (compareEquals(partitionValue, candidate)) {
                     return true;
                 }
             }
-            return false;
+            return undecidable ? null : false;
         }
         Object literal = hint.values().get(0);
-        if (literal == null) {
+        if (literal == null || kindOf(literal) != valueKind) {
             return null;
         }
         return switch (hint.operator()) {
@@ -98,6 +112,27 @@ public final class PartitionValueMatcher {
             case LESS_THAN_OR_EQUAL -> compareValues(partitionValue, literal) <= 0;
             case IN -> null; // handled above
         };
+    }
+
+    /** The comparison classes a folder value or hint literal can belong to; only equal kinds are comparable. */
+    private enum Kind {
+        NUMBER,
+        BOOLEAN,
+        TEXT,
+        OTHER
+    }
+
+    private static Kind kindOf(Object value) {
+        if (value instanceof Number) {
+            return Kind.NUMBER;
+        }
+        if (value instanceof Boolean) {
+            return Kind.BOOLEAN;
+        }
+        if (value instanceof String || value instanceof BytesRef) {
+            return Kind.TEXT;
+        }
+        return Kind.OTHER;
     }
 
     /**

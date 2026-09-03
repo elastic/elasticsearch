@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -73,7 +74,7 @@ public final class LocalStorageProvider implements StorageProvider {
     @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
         validateFileScheme(prefix);
-        Path dirPath = toFilePath(prefix);
+        Path dirPath = toListablePath(prefix);
 
         if (Files.exists(dirPath) == false) {
             throw new IOException("Directory does not exist: " + dirPath);
@@ -89,7 +90,7 @@ public final class LocalStorageProvider implements StorageProvider {
     @Override
     public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
         validateFileScheme(prefix);
-        Path dirPath = toFilePath(prefix);
+        Path dirPath = toListablePath(prefix);
 
         if (Files.exists(dirPath) == false) {
             throw new IOException("Directory does not exist: " + dirPath);
@@ -106,7 +107,9 @@ public final class LocalStorageProvider implements StorageProvider {
                     return null; // too wide to buffer; the caller falls back to listObjects
                 }
                 try {
-                    BasicFileAttributes attrs = Files.readAttributes(entry, BasicFileAttributes.class);
+                    // NOFOLLOW_LINKS matches the recursive listObjects walk (two-arg walkFileTree), so the same
+                    // dataset yields the same files whether or not a partition filter routed it through here.
+                    BasicFileAttributes attrs = Files.readAttributes(entry, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
                     if (attrs.isRegularFile()) {
                         files.add(new StorageEntry(toStoragePath(entry), attrs.size(), attrs.lastModifiedTime().toInstant()));
                     } else if (attrs.isDirectory()) {
@@ -145,6 +148,20 @@ public final class LocalStorageProvider implements StorageProvider {
         if (scheme.equals("file") == false) {
             throw new IllegalArgumentException("LocalStorageProvider only supports file:// scheme, got: " + scheme);
         }
+    }
+
+    /**
+     * Path conversion for listing calls. Unlike {@link #toFilePath} it accepts names that merely contain glob
+     * metacharacters: the partition-pruning walk feeds directory names this provider itself listed (a literal
+     * {@code _tmp[0]}, say) back into {@link #listChildren}/{@link #listObjects}, and those are paths, not patterns.
+     */
+    @SuppressForbidden(reason = "LocalStorageProvider converts user-supplied file:// URIs to Path objects")
+    private static Path toListablePath(StoragePath storagePath) {
+        String pathStr = storagePath.localPath();
+        if (pathStr == null || pathStr.isEmpty()) {
+            throw new IllegalArgumentException("Path cannot be empty for file:// scheme");
+        }
+        return PathUtils.get(pathStr);
     }
 
     /**

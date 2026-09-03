@@ -508,30 +508,42 @@ public final class AzureStorageProvider implements StorageProvider {
         BlobContainerClient containerClient = clients(account).sync().getBlobContainerClient(parsed.container);
         ListBlobsOptions options = new ListBlobsOptions().setPrefix(parsed.blobName);
 
-        List<StorageEntry> files = new ArrayList<>();
-        List<StoragePath> directories = new ArrayList<>();
-        String pathPrefix = blobPathPrefix(prefix, parsed.container);
         try {
-            for (BlobItem item : containerClient.listBlobsByHierarchy("/", options, null)) {
-                if (files.size() + directories.size() >= limit) {
-                    return null; // too wide to buffer; the caller falls back to listObjects, which pages lazily
-                }
-                String name = item.getName();
-                if (name == null) {
-                    continue;
-                }
-                if (Boolean.TRUE.equals(item.isPrefix())) {
-                    String dirName = name.endsWith(StoragePath.PATH_SEPARATOR) ? name.substring(0, name.length() - 1) : name;
-                    directories.add(StoragePath.of(pathPrefix + dirName));
-                } else if (name.endsWith(StoragePath.PATH_SEPARATOR) == false) {
-                    files.add(toStorageEntry(item, pathPrefix));
-                }
-            }
+            return collectChildren(
+                containerClient.listBlobsByHierarchy("/", options, null),
+                blobPathPrefix(prefix, parsed.container),
+                limit
+            );
         } catch (Exception e) {
             throw new IOException(
                 "Failed to list children in container [" + parsed.container + "] with prefix [" + parsed.blobName + "]" + credentialHint(),
                 e
             );
+        }
+    }
+
+    /**
+     * Splits one hierarchy-listing level into files and subdirectories ({@code isPrefix} items), or {@code null}
+     * past {@code limit}. Package-private so tests can drive it from a synthetic {@code Iterable<BlobItem>}, like
+     * {@link AzureStorageIterator}.
+     */
+    static StorageChildren collectChildren(Iterable<BlobItem> items, String pathPrefix, int limit) {
+        List<StorageEntry> files = new ArrayList<>();
+        List<StoragePath> directories = new ArrayList<>();
+        for (BlobItem item : items) {
+            if (files.size() + directories.size() >= limit) {
+                return null; // too wide to buffer; the caller falls back to listObjects, which pages lazily
+            }
+            String name = item.getName();
+            if (name == null) {
+                continue;
+            }
+            if (Boolean.TRUE.equals(item.isPrefix())) {
+                String dirName = name.endsWith(StoragePath.PATH_SEPARATOR) ? name.substring(0, name.length() - 1) : name;
+                directories.add(StoragePath.of(pathPrefix + dirName));
+            } else if (name.endsWith(StoragePath.PATH_SEPARATOR) == false) {
+                files.add(toStorageEntry(item, pathPrefix));
+            }
         }
         return new StorageChildren(files, directories);
     }

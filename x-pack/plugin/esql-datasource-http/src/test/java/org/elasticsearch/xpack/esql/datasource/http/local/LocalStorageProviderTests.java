@@ -158,6 +158,85 @@ public class LocalStorageProviderTests extends ESTestCase {
         assertEquals(List.of("year=2024", "year=2025"), dirNames);
     }
 
+    /**
+     * The walk feeds provider-produced child directory names back into the listing calls, so a directory whose name
+     * merely contains glob metacharacters must list fine — it is a path, not a pattern.
+     */
+    public void testListingToleratesGlobMetacharacterNames() throws IOException {
+        Path tempDir = createTempDir();
+        Path weird = tempDir.resolve("_tmp[0]");
+        Files.createDirectories(weird);
+        Files.writeString(weird.resolve("f.txt"), "x");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StorageChildren children = provider.listChildren(StoragePath.of(StoragePath.fileUri(tempDir)), 10_000);
+        StoragePath weirdPath = children.directories()
+            .stream()
+            .filter(d -> d.objectName().equals("_tmp[0]"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("bracket directory not listed"));
+
+        StorageChildren inside = provider.listChildren(weirdPath, 10_000);
+        assertTrue(inside.files().stream().anyMatch(e -> e.path().objectName().equals("f.txt")));
+
+        List<String> names = new ArrayList<>();
+        try (StorageIterator it = provider.listObjects(weirdPath, true)) {
+            while (it.hasNext()) {
+                names.add(it.next().path().objectName());
+            }
+        }
+        assertTrue(names.contains("f.txt"));
+    }
+
+    /** Exactly {@code limit} children are allowed; one over withdraws to {@code null} (the flat-listing fallback). */
+    public void testListChildrenPastLimitReturnsNull() throws IOException {
+        Path tempDir = createTempDir();
+        for (int i = 0; i < 5; i++) {
+            Files.writeString(tempDir.resolve("f" + i + ".txt"), "x");
+        }
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath dir = StoragePath.of(StoragePath.fileUri(tempDir));
+
+        // Count via an unbounded call first: the test framework's ExtraFS may add files of its own.
+        StorageChildren all = provider.listChildren(dir, 10_000);
+        int count = all.files().size() + all.directories().size();
+
+        assertNotNull("exactly the child count must be allowed", provider.listChildren(dir, count));
+        assertNull("one child over the limit must withdraw", provider.listChildren(dir, count - 1));
+    }
+
+    /**
+     * The recursive flat listing (two-arg walkFileTree) does not follow symlinks, and a walked listing must return
+     * the same files, or the same dataset yields different rows depending on whether a partition filter was present.
+     */
+    public void testListChildrenDoesNotFollowSymlinks() throws IOException {
+        Path tempDir = createTempDir();
+        Files.writeString(tempDir.resolve("real.txt"), "x");
+        Path linkTarget = createTempDir();
+        Files.writeString(linkTarget.resolve("hidden.txt"), "y");
+        try {
+            Files.createSymbolicLink(tempDir.resolve("filelink.txt"), tempDir.resolve("real.txt"));
+            Files.createSymbolicLink(tempDir.resolve("dirlink"), linkTarget);
+        } catch (UnsupportedOperationException | IOException e) {
+            assumeNoException("filesystem without symlink support", e);
+        }
+
+        StorageChildren children = new LocalStorageProvider().listChildren(StoragePath.of(StoragePath.fileUri(tempDir)), 10_000);
+        List<String> fileNames = children.files()
+            .stream()
+            .map(e -> e.path().objectName())
+            .filter(name -> name.startsWith(".") == false && name.startsWith("extra") == false)
+            .sorted()
+            .toList();
+        List<String> dirNames = children.directories()
+            .stream()
+            .map(StoragePath::objectName)
+            .filter(name -> name.startsWith(".") == false && name.startsWith("extra") == false)
+            .toList();
+        assertEquals("symlinked files are skipped, as the recursive flat walk skips them", List.of("real.txt"), fileNames);
+        assertEquals("symlinked directories are not descended", List.of(), dirNames);
+    }
+
     public void testListChildrenOnMissingDirectoryThrows() {
         Path tempDir = createTempDir();
         LocalStorageProvider provider = new LocalStorageProvider();

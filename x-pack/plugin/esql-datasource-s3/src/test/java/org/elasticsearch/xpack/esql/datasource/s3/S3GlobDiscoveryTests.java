@@ -159,6 +159,16 @@ public class S3GlobDiscoveryTests extends ESTestCase {
         assertEquals(List.of("a.bin", "b.bin", "c.txt"), flat.files().stream().map(e -> e.path().objectName()).sorted().toList());
     }
 
+    /**
+     * A directory wider than {@code limit} withdraws to {@code null} rather than buffering; exactly {@code limit}
+     * is allowed (S3 checks after each page, so the boundary is inclusive like the other providers').
+     */
+    public void testS3ListChildrenPastLimitReturnsNull() throws IOException {
+        StoragePath flat = StoragePath.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/flat");
+        assertNotNull("exactly the child count must be allowed", provider.listChildren(flat, 3));
+        assertNull("one child over the limit must withdraw", provider.listChildren(flat, 2));
+    }
+
     private static void addBlob(String key, byte[] content) {
         s3Fixture.handler().blobs().put("/" + BUCKET + "/" + key, new BlobEntry(new BytesArray(content), "STANDARD"));
     }

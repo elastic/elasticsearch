@@ -522,4 +522,27 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
             batch("half_float stored", 1L, doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":1.5}"))
         );
     }
+
+    /**
+     * A {@code long} parent stringifies into its keyword sub-field on both paths. Kept to scalar values: mixing a scalar and an
+     * array promotes the ESCF column to UNION, which {@code NumberFieldMapper#mapColumnBatch} does not handle yet and rejects by
+     * throwing so the batch falls back — a pre-existing limitation of that mapper, unrelated to multi-fields.
+     */
+    public void testLongParentWithKeywordSubField() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "long");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "long parent, keyword sub-field",
+                1L,
+                doc("d1", 1L, "{\"f\":42}"),
+                doc("d2", 2L, "{\"f\":-7}"),
+                doc("d3", 3L, "{\"f\":9876543210}"),
+                doc("d4", 4L, "{}")
+            )
+        );
+    }
 }

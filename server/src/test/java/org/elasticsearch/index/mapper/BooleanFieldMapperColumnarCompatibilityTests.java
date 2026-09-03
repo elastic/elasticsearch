@@ -333,4 +333,21 @@ public class BooleanFieldMapperColumnarCompatibilityTests extends AbstractColumn
             )
         );
     }
+
+    public void testBooleanParentWithKeywordSubField() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "boolean");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "boolean parent, keyword sub-field",
+                1L,
+                doc("d1", 1L, "{\"f\":true}"),
+                doc("d2", 2L, "{\"f\":false}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
 }

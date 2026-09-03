@@ -522,18 +522,8 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         if (cmdText.contains("FIRST(") || cmdText.contains("LAST(")) {
             return false;
         }
-        // Commands whose output order or aggregate semantics depend on per-segment or per-shard
-        // execution order, or whose aggregation behaviour differs between standard and columnar mode.
-        // INLINE STATS without BY has a mode-specific COUNT discrepancy on multi-index wildcard
-        // queries (standard returns a different global count than columnar); gated until root-caused.
-        // STATS without BY (global aggregate): when a STATS alias reuses an original field name,
-        // a subsequent EVAL can cause the optimizer to incorrectly re-resolve the alias to the
-        // original field, silently corrupting the aggregated value (returns 0 instead of N). Close
-        // the gate for global STATS to prevent these false positives; gated until root-caused.
-        if ("sample".equals(cmdName)
-            || "fork".equals(cmdName)
-            || "change_point".equals(cmdName)
-            || (("inline_stats".equals(cmdName) || "stats".equals(cmdName)) && cmdText.contains(" BY ") == false)) {
+        // Commands whose output order depends on per-segment or per-shard execution order.
+        if ("sample".equals(cmdName) || "fork".equals(cmdName) || "change_point".equals(cmdName)) {
             return false;
         }
         // DEDUP deduplicates rows by all column values. Columnar mode preserves MV fields in

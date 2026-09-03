@@ -22,7 +22,9 @@ import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
@@ -150,5 +152,9 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         var e = new IllegalStateException(directory.getClass() + " cannot be unwrapped as " + IndexBlobStoreCacheDirectory.class);
         assert false : e;
         throw e;
+    }
+
+    public Map<String, BlobFileRanges> getCurrentMetadata() {
+        return currentMetadata;
     }
 }

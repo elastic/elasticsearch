@@ -1,6 +1,6 @@
 area: Machine Learning
 issues:
  - 157288
-pr: 158470
+pr: 158503
 summary: Fix a null pointer exception setting similarity on an nvidia text_embedding endpoint
 type: bug

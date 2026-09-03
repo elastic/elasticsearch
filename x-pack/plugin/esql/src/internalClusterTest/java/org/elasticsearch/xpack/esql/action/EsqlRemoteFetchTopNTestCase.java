@@ -121,6 +121,51 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
         }
     }
 
+    public void testRemoteFetchTopNAfterMvExpandAllowsDuplicateDocs() {
+        String regressionIndex = indexName + "_mv_expand";
+        client().admin()
+            .indices()
+            .prepareCreate(regressionIndex)
+            .setSettings(indexSettings(1, 0))
+            .setMapping("unique_sort", "type=long", "tags", "type=keyword", "payload", "type=keyword")
+            .get();
+
+        client().prepareIndex(regressionIndex)
+            .setId("0")
+            .setSource("unique_sort", 0, "tags", List.of("a", "b", "c"), "payload", "payload-0")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        client().prepareIndex(regressionIndex)
+            .setId("1")
+            .setSource("unique_sort", 1, "tags", List.of("d"), "payload", "payload-1")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (
+            EsqlQueryResponse response = runQuery(
+                "FROM "
+                    + regressionIndex
+                    + " | MV_EXPAND tags | SORT unique_sort + 0 ASC, tags ASC | LIMIT 4 | KEEP tags, unique_sort, payload"
+            )
+        ) {
+            assertThat(
+                EsqlTestUtils.getValuesList(response),
+                equalTo(
+                    List.of(
+                        List.of("a", 0L, "payload-0"),
+                        List.of("b", 0L, "payload-0"),
+                        List.of("c", 0L, "payload-0"),
+                        List.of("d", 1L, "payload-1")
+                    )
+                )
+            );
+            assertRemoteFetchRows(response, 4);
+            assertFieldLoadedBeforeFetch(response, "unique_sort");
+            assertFieldLoadedBeforeFetch(response, "tags");
+            assertFieldNotLoadedBeforeFetch(response, "payload");
+        }
+    }
+
     public void testRemoteFetchTopNWithoutKeepPreservesOutput() {
         String regressionIndex = indexName + "_without_keep";
         client().admin()

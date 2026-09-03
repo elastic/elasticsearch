@@ -73,16 +73,14 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * {@code Verifier}'s {@code LOAD_ALL} command allow-list.
      */
     private static UnmappedFieldsPattern computeUnmappedFieldsToKeep(LogicalPlan plan) {
-        if (plan instanceof InlineStats inlineStats) {
-            // INLINE STATS preserves input rows via a left join with its Aggregate. Walk the input, not the
-            // Aggregate: that node returns NONE so STATS can drop expansion, which must not apply here.
-            UnmappedFieldsPattern fromChild = computeUnmappedFieldsToKeep(inlineStats.aggregate().child());
-            return fromChild.withAdditionalExcludes(Expressions.names(plan.output()));
-        }
         if (plan instanceof Aggregate) {
             return UnmappedFieldsPattern.NONE;
         }
         UnmappedFieldsPattern fromChild = switch (plan) {
+            // INLINE STATS preserves input rows via a left join with its Aggregate, which is also its child - so walk the
+            // input, i.e. the grandchild. Recursing into the Aggregate would return NONE, which is right for STATS
+            // (expansion can be dropped) but not here.
+            case InlineStats inlineStats -> computeUnmappedFieldsToKeep(inlineStats.aggregate().child());
             case UnaryPlan unary -> computeUnmappedFieldsToKeep(unary.child());
             // Only the left side can carry the $$unmapped_fields column: apply() skips IndexMode.LOOKUP
             // relations, so the right-hand lookup index never contributes unmapped source fields.

@@ -581,11 +581,9 @@ public class Verifier {
     }
 
     private static boolean supportedInLoadAllMode(LogicalPlan plan) {
-        // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
-        // InlineStats is visited by forEachDown, so it must be allowed explicitly. Its child Aggregate is
-        // already covered by allowing Aggregate (STATS).
         return (plan instanceof EsRelation esr && esr.indexMode().isTsdb() == false)
             || plan instanceof Project
+            // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
             || plan instanceof Keep
             || plan instanceof Drop
             || plan instanceof Rename
@@ -594,6 +592,7 @@ public class Verifier {
             || plan instanceof OrderBy
             || plan instanceof Limit
             || plan instanceof Aggregate
+            // InlineStats must be listed explicitly because forEachDown visits it; allowing Aggregate (STATS) only covers its child.
             || plan instanceof InlineStats
             // LookupJoin (not Join) because verification runs on the analyzed plan, before SurrogateLogicalPlan expansion,
             // so a LOOKUP JOIN is still a LookupJoin node here and other Join subclasses (InlineJoin etc.) are not admitted.

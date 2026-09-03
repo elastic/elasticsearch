@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +26,7 @@ import java.util.Map;
 public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase {
     private static final String COMPACT_MULTI_TYPE_ES_FIELD = "compact_multi_type_es_field";
     private static final String PACK_DIMS_AGG = "pack_dims_agg";
+    private static final EnumSet<Stage> ANALYSIS_AND_LOCAL_PHYSICAL = EnumSet.of(Stage.ANALYSIS, Stage.LOCAL_PHYSICAL_OPTIMIZATION);
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -1420,6 +1422,46 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             | FORK (WHERE emp_no > 3 | SORT does_not_exist2 | LIMIT 7)
                    (WHERE emp_no > 2 | EVAL xyz = does_not_exist3::KEYWORD)
             """);
+    }
+
+    /**
+     * Coordinator-side LOOKUP JOIN under LOAD_ALL mode. The join runs on the coordinator, so the
+     * data-node fragment must include {@code $$unmapped_fields} in the exchange output for the
+     * coordinator to attach unmapped source fields to each joined row.
+     * Captures both analysis and local-physical-optimization stages to verify the exchange boundary.
+     */
+    public void testLoadAllLookupJoinCoordinator() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH.isEnabled()
+        );
+        loadAll(ANALYSIS_AND_LOCAL_PHYSICAL, """
+            FROM partial_mapping_sample_data
+            | EVAL lc = language_code::integer
+            | DROP language_code
+            | LOOKUP JOIN languages_lookup ON lc == language_code
+            """).run();
+    }
+
+    /**
+     * Data-node-side LOOKUP JOIN under LOAD_ALL mode. A {@code SORT} on a lookup-added field
+     * ({@code language_name}) forces the join to execute on data nodes rather than on the
+     * coordinator, exercising the alternative plan shape and confirming that {@code $$unmapped_fields}
+     * is still present in the plan after the join.
+     * Captures both analysis and local-physical-optimization stages to verify the exchange boundary.
+     */
+    public void testLoadAllLookupJoinDataNode() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH.isEnabled()
+        );
+        loadAll(ANALYSIS_AND_LOCAL_PHYSICAL, """
+            FROM partial_mapping_sample_data
+            | EVAL lc = language_code::integer
+            | DROP language_code
+            | LOOKUP JOIN languages_lookup ON lc == language_code
+            | SORT language_name
+            """).run();
     }
 
 }

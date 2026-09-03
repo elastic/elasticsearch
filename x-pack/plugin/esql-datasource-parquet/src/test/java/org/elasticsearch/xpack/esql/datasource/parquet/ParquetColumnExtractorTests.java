@@ -26,6 +26,7 @@ import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -35,6 +36,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -73,11 +75,17 @@ import static org.hamcrest.Matchers.hasItem;
  */
 public class ParquetColumnExtractorTests extends ESTestCase {
 
+    /**
+     * Footer byte cache handed to every adapter this test constructs. In production the owning
+     * format reader supplies its instance; a fresh per-test-class cache gives the same sharing
+     * within a test and automatic isolation between tests.
+     */
+    private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
+
     private BlockFactory blockFactory;
 
     @Before
     public void initBlockFactory() throws Exception {
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -115,7 +123,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     private ParquetMetadata loadFooter(StorageObject so) throws IOException {
         try (
             ParquetFileReader fr = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(so, blockFactory.breaker()),
+                new ParquetStorageObjectAdapter(so, footerByteCache, blockFactory.breaker()),
                 PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
             )
         ) {

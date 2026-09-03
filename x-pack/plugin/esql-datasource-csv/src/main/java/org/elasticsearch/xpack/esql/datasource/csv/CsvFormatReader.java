@@ -185,9 +185,9 @@ import java.util.function.Consumer;
  *   <tr><th>{@code (quoting, escaping)}</th><th>Reached by</th><th>Behavior</th></tr>
  *   <tr><td>{@code (true, true)}</td><td>{@code mode: quoted} (default for {@code .csv})</td>
  *       <td>RFC 4180 quoting; backslash escapes inside quoted fields (spreadsheet / enclosed-and-escaped)</td></tr>
-     *   <tr><td>{@code (false, true)}</td><td>{@code mode: escaped}</td>
-     *       <td>No quoting; escape + delimiter stays in one field; C-style value decode
-     *       ({@code \t \n \\}, {@code \N} → null; database text exports)</td></tr>
+ *   <tr><td>{@code (false, true)}</td><td>{@code mode: escaped}</td>
+ *       <td>No quoting; escape + delimiter stays in one field; C-style value decode
+ *       ({@code \t \n \\}, {@code \N} → null; database text exports)</td></tr>
  *   <tr><td>{@code (false, false)}</td><td>{@code mode: plain} (default for {@code .tsv})</td>
  *       <td>No quoting, no escaping; every byte literal — a field cannot contain the delimiter or a
  *           newline. Never silently corrupts input.</td></tr>
@@ -631,12 +631,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * even under trim: Jackson's escape both protects and decodes, so installing the escape char would
      * drop the slash before {@link #decodeFieldValue} and lose whole-field {@code \N} and C-style
      * {@code \b}/{@code \f}. The house scan is protect-only; decode stays in {@code decodeFieldValue}.
-     * Direct walkers still exclude escaped mode ({@code decodeFieldValue} is non-identity and there is
+     * Direct walkers exclude escaped mode ({@code decodeFieldValue} is non-identity and there is
      * no escaped walker to mirror).
      *
      * <p>Escaped no-trim therefore uses the house grammar, which preserves first-column leading
-     * whitespace (unlike Jackson {@code SKIP_EMPTY_LINES}). Pinned by
-     * {@code CsvModeReadTests.testEscapedModePreservesColumnZeroLeadingWhitespaceUnderNoTrim}.
+     * whitespace (unlike Jackson {@code SKIP_EMPTY_LINES}).
      */
     private boolean jacksonGrammarApplies() {
         return options.trimSpaces() && options.decodesEscapes() == false;
@@ -2803,7 +2802,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         while (true) {
             long scan = CsvTokenizerKernel.scanUnquotedField(record, i, len, delim, esc, true);
             int fieldEnd = CsvTokenizerKernel.scanFieldEnd(scan);
-            fields.add(emitEscapedSplitField(record, i, fieldEnd, delim, trimSpaces, maxFieldChars));
+            fields.add(emitEscapedSplitField(record, i, fieldEnd, delim, esc, trimSpaces, maxFieldChars));
             if (fieldEnd >= len) {
                 break;
             }
@@ -2814,16 +2813,27 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * Raw substring of an escaped-mode field {@code record[start, end)}. Under {@code trim_spaces},
-     * surrounding {@code c <= ' '} is stripped except the delimiter itself: an escaped whitespace
-     * delimiter (tab or space) is in-field data and must survive trim. The cap governs the emitted
-     * length. C-style decode is left to {@link #decodeFieldValue}.
+     * surrounding {@code c <= ' '} is stripped except the delimiter itself and whitespace protected
+     * by an unpaired escape: those are in-field data and must survive trim. The cap governs the
+     * emitted length. C-style decode is left to {@link #decodeFieldValue}.
      */
-    private static String emitEscapedSplitField(String record, int start, int end, char delim, boolean trimSpaces, int maxFieldChars) {
+    private static String emitEscapedSplitField(
+        String record,
+        int start,
+        int end,
+        char delim,
+        char esc,
+        boolean trimSpaces,
+        int maxFieldChars
+    ) {
         if (trimSpaces) {
             while (start < end && record.charAt(start) <= ' ' && record.charAt(start) != delim) {
                 start++;
             }
-            while (end > start && record.charAt(end - 1) <= ' ' && record.charAt(end - 1) != delim) {
+            while (end > start
+                && record.charAt(end - 1) <= ' '
+                && record.charAt(end - 1) != delim
+                && escapedAt(record, start, end - 1, esc) == false) {
                 end--;
             }
         }
@@ -2832,6 +2842,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
             throw new MalformedRowException(fieldSizeExceededDetail(fieldLen, maxFieldChars));
         }
         return record.substring(start, end);
+    }
+
+    /** True when {@code record[pos]} is protected by an unpaired {@code esc} in {@code [fieldStart, pos)}. */
+    private static boolean escapedAt(String record, int fieldStart, int pos, char esc) {
+        int n = 0;
+        for (int i = pos - 1; i >= fieldStart && record.charAt(i) == esc; i--) {
+            n++;
+        }
+        return n % 2 == 1;
     }
 
     /**

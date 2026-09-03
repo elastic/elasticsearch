@@ -7433,7 +7433,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Declared and inferred bindings must agree on row-width rejection for both remaining grammars:
+     * Declared and inferred bindings must agree on row-width rejection for both grammars:
      * Jackson ({@code trim_spaces}) and the house escaped tokenizer.
      */
     public void testDeclaredBindingRowWidthValidationUnderJacksonGrammar() throws Exception {

@@ -180,6 +180,18 @@ public class CsvModeReadTests extends ESTestCase {
         assertEquals("ok", values.get(0).get(1));
     }
 
+    public void testEscapedNonDelimTabAtFieldEdgeSurvivesTrimSpaces() throws IOException {
+        String csv = "a:keyword,b:keyword\nhello\\\t,ok\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped", "trim_spaces", true)), csv);
+        assertEquals(List.of("hello\t", "ok"), values.get(0));
+    }
+
+    public void testEscapedDoubledEscapeThenNonDelimTabStillTrims() throws IOException {
+        String csv = "a:keyword,b:keyword\nhello\\\\\t,ok\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped", "trim_spaces", true)), csv);
+        assertEquals(List.of("hello\\", "ok"), values.get(0));
+    }
+
     public void testEscapedBackslashThenDelimiterStillSplits() throws IOException {
         String csv = "a:keyword;b:keyword\nfoo\\\\;bar\n";
         List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped", "delimiter", ";")), csv);

@@ -11,7 +11,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceExtension;
-import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -125,7 +124,15 @@ public class InferencePluginTests extends ESTestCase {
 
     public void testAttributionHeadersArePropagatedAsTaskHeaders() {
         try (var plugin = new InferencePlugin(Settings.EMPTY)) {
-            assertThat(plugin.getTaskHeaders(), containsInAnyOrder(InferenceProductContext.ATTRIBUTION_HEADERS.toArray()));
+            assertThat(
+                plugin.getTaskHeaders(),
+                containsInAnyOrder(
+                    X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
+                    X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
+                    X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
+                    X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER
+                )
+            );
         }
     }
 }

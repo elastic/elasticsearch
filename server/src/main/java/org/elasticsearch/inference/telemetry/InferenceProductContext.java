@@ -13,8 +13,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 
-import java.util.List;
-
 /**
  * Carries per-request product attribution context.
  *
@@ -40,17 +38,6 @@ public record InferenceProductContext(
     public static final String X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER = "X-elastic-product-solution";
     public static final String X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER = "X-elastic-product-feature";
     public static final String X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER = "X-Elastic-Inference-Interaction-Id";
-
-    /**
-     * The inference-specific attribution headers. {@code X-elastic-product-origin} is deliberately absent: it is core-owned
-     * ({@link Task#X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER}) and registered by the server rather than by the inference plugin.
-     */
-    public static final List<String> ATTRIBUTION_HEADERS = List.of(
-        X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
-        X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
-        X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER,
-        X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER
-    );
 
     public static final InferenceProductContext EMPTY = new InferenceProductContext(null, null, null, null, null);
 

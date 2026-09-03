@@ -51,7 +51,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -77,15 +79,9 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
     @Before
     public void chooseProjects() {
         multiProject = randomBoolean();
-        if (multiProject) {
-            int projectCount = randomIntBetween(1, 5);
-            projectIds = new HashSet<>();
-            while (projectIds.size() < projectCount) {
-                projectIds.add(randomUniqueProjectId());
-            }
-        } else {
-            projectIds = Set.of(randomProjectIdOrDefault());
-        }
+        projectIds = multiProject
+            ? IntStream.range(0, randomIntBetween(1, 5)).mapToObj(i -> randomUniqueProjectId()).collect(toSet())
+            : Set.of(randomProjectIdOrDefault());
     }
 
     private record InactiveShard(ShardRoutingState state, UnassignedInfo unassignedInfo) {}
@@ -140,10 +136,10 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
         assertThat(details.get("indices_with_unavailable_primaries"), nullValue());
         assertThat(details.get("indices_with_provisionally_unavailable_primaries"), nullValue());
 
-        assertThat(details.get("creating_replicas"), equalTo(scale(expectedCreatingReplicas)));
-        assertThat(details.get("initializing_replicas"), equalTo(scale(expectedInitializingReplicas)));
-        assertThat(details.get("unassigned_replicas"), equalTo(scale(expectedUnassignedReplicas)));
-        assertThat(details.get("started_replicas"), equalTo(scale(activeReplicaCount)));
+        assertThat(details.get("creating_replicas"), equalTo(expectedCreatingReplicas * projectIds.size()));
+        assertThat(details.get("initializing_replicas"), equalTo(expectedInitializingReplicas * projectIds.size()));
+        assertThat(details.get("unassigned_replicas"), equalTo(expectedUnassignedReplicas * projectIds.size()));
+        assertThat(details.get("started_replicas"), equalTo(activeReplicaCount * projectIds.size()));
 
         if (inactiveReplicaCount == 0) {
             assertThat(result.status(), equalTo(HealthStatus.GREEN));
@@ -289,9 +285,50 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
      * and cancels start-split). Those must stay provisional/GREEN rather than RED while the source still serves the data.
      */
     public void testHealthWhileReshardSplitTargetShardsInactive() {
-        final boolean initializeTargetPrimary = randomBoolean();
-        final boolean reshardAddedReason = randomBoolean();
-        final var state = clusterState(() -> reshardSplitRoutingTable(initializeTargetPrimary, reshardAddedReason));
+        final var indexMetadata = IndexMetadata.builder(INDEX_NAME)
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+            .numberOfShards(2)
+            .numberOfReplicas(1)
+            .build();
+        var nodeA = randomNodeId();
+        var nodeB = randomNodeId();
+        final var index = indexMetadata.getIndex();
+        final var sourceShardId = new ShardId(index.getName(), index.getUUID(), 0);
+        final var sourceShardPrimary = shardRouting(sourceShardId, true, nodeA, null, STARTED);
+        final var sourceShardReplica = shardRouting(sourceShardId, false, nodeB, null, STARTED);
+        final var targetShardId = new ShardId(index.getName(), index.getUUID(), 1);
+        final var unassignedAt = new TimeValue(System.currentTimeMillis() - TimeValue.timeValueMinutes(5).millis(), TimeUnit.MILLISECONDS);
+        // Include ALLOCATION_FAILED so failedAllocations > 0 still stays provisional for RESHARD_SPLIT targets.
+        final var targetPrimaryUnassignedInfo = randomBoolean()
+            ? unassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, unassignedAt)
+            : unassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, unassignedAt, UnassignedInfo.AllocationStatus.NO_ATTEMPT);
+        var targetShardPrimary = newUnassigned(
+            targetShardId,
+            true,
+            new RecoverySource.ReshardSplitRecoverySource(sourceShardId),
+            targetPrimaryUnassignedInfo,
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+        );
+        var targetShardReplica = newUnassigned(
+            targetShardId,
+            false,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            unassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, unassignedAt),
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+        );
+        if (randomBoolean()) {
+            targetShardPrimary = targetShardPrimary.initialize(nodeB, null, 0);
+        }
+        var routingTable = IndexRoutingTable.builder(index)
+            .addShard(sourceShardPrimary)
+            .addShard(sourceShardReplica)
+            .addShard(targetShardPrimary)
+            .addShard(targetShardReplica)
+            .build();
+
+        final var state = clusterState(() -> routingTable);
         final var service = createStatelessIndicator(
             Settings.builder()
                 .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME.getKey(), "0s")
@@ -374,10 +411,6 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
         );
     }
 
-    private int scale(int perProject) {
-        return perProject * projectIds.size();
-    }
-
     private String indexNames(ClusterState state) {
         final Set<ProjectIndexName> indices = new HashSet<>();
         for (ProjectId projectId : projectIds) {
@@ -407,51 +440,6 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
             .metadata(metadata.build())
             .routingTable(globalRouting.build())
             .nodes(DiscoveryNodes.builder().build())
-            .build();
-    }
-
-    private static IndexRoutingTable reshardSplitRoutingTable(boolean initializeTargetPrimary, boolean reshardAddedReason) {
-        final var indexMetadata = IndexMetadata.builder(INDEX_NAME)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-            .numberOfShards(2)
-            .numberOfReplicas(1)
-            .build();
-        var nodeA = randomNodeId();
-        var nodeB = randomNodeId();
-        final var index = indexMetadata.getIndex();
-        final var sourceShardId = new ShardId(index.getName(), index.getUUID(), 0);
-        final var sourceShardPrimary = shardRouting(sourceShardId, true, nodeA, null, STARTED);
-        final var sourceShardReplica = shardRouting(sourceShardId, false, nodeB, null, STARTED);
-        final var targetShardId = new ShardId(index.getName(), index.getUUID(), 1);
-        final var unassignedAt = new TimeValue(System.currentTimeMillis() - TimeValue.timeValueMinutes(5).millis(), TimeUnit.MILLISECONDS);
-        // Include ALLOCATION_FAILED so failedAllocations > 0 still stays provisional for RESHARD_SPLIT targets.
-        final var targetPrimaryUnassignedInfo = reshardAddedReason
-            ? unassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, unassignedAt)
-            : unassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, unassignedAt, UnassignedInfo.AllocationStatus.NO_ATTEMPT);
-        var targetShardPrimary = newUnassigned(
-            targetShardId,
-            true,
-            new RecoverySource.ReshardSplitRecoverySource(sourceShardId),
-            targetPrimaryUnassignedInfo,
-            ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
-        );
-        var targetShardReplica = newUnassigned(
-            targetShardId,
-            false,
-            RecoverySource.PeerRecoverySource.INSTANCE,
-            unassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, unassignedAt),
-            ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
-        );
-        if (initializeTargetPrimary) {
-            targetShardPrimary = targetShardPrimary.initialize(nodeB, null, 0);
-        }
-        return IndexRoutingTable.builder(index)
-            .addShard(sourceShardPrimary)
-            .addShard(sourceShardReplica)
-            .addShard(targetShardPrimary)
-            .addShard(targetShardReplica)
             .build();
     }
 

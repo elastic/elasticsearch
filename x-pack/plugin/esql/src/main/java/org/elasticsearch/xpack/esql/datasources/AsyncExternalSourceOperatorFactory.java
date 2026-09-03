@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.SourceReadStats;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.core.IOUtils;
@@ -78,6 +79,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -124,7 +126,11 @@ import static org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils.
  * @see AsyncExternalSourceBuffer
  * @see AsyncExternalSourceOperator
  */
-public class AsyncExternalSourceOperatorFactory implements SourceOperator.SourceOperatorFactory, DeferredExtractionCapable {
+public class AsyncExternalSourceOperatorFactory
+    implements
+        SourceOperator.SourceOperatorFactory,
+        DeferredExtractionCapable,
+        SourceReadStats {
 
     private static final Logger logger = LogManager.getLogger(AsyncExternalSourceOperatorFactory.class);
 
@@ -268,6 +274,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final FilterPushdownSupport pushdownSupport;
     private final Closeable onClose;
     private final AtomicInteger operatorRefCount = new AtomicInteger(0);
+    // Time spent reading from the external source by formatReader
+    private final AtomicLong readNanos = new AtomicLong();
+    // CPU time spent reading from the external source by formatReader
+    private final AtomicLong readCpuNanos = new AtomicLong();
     /**
      * Refcount controlling when {@link #onClose} runs when {@link #deferredExtraction} is on.
      * Increments: one for the factory itself (held while any source operator is in flight; released
@@ -2656,6 +2666,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     private void releaseOperator() {
         if (operatorRefCount.decrementAndGet() == 0) {
+            snapshotFinalReaderStats();
             closeDynamicThreshold();
             if (onClose != null) {
                 if (deferredExtraction) {
@@ -2669,6 +2680,36 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
             }
         }
+    }
+
+    private void snapshotFinalReaderStats() {
+        if (formatReader == null) {
+            return;
+        }
+        try {
+            var s = formatReader.statusSnapshot();
+            if (s != null) {
+                readNanos.set(s.readNanos());
+                readCpuNanos.set(s.readCpuNanos());
+            }
+        } catch (Exception e) {
+            logger.trace("telemetry: final format-reader statusSnapshot failed", e);
+        }
+    }
+
+    @Override
+    public String sourceIdentifier() {
+        return datasetName != null ? datasetName : path.toString();
+    }
+
+    @Override
+    public long readNanos() {
+        return readNanos.get();
+    }
+
+    @Override
+    public long readCpuNanos() {
+        return readCpuNanos.get();
     }
 
     private static void closeQuietly(Closeable closeable) {

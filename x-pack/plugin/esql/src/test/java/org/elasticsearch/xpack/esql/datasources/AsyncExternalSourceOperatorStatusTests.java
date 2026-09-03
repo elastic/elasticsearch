@@ -55,8 +55,6 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             randomNonNegativeInt(),
             randomNonNegativeInt(),
             randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
             randomFormatReader(),
             randomCapturedSourceMetadata(),
             randomBoolean()
@@ -146,8 +144,6 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             splitsTotal,
             currentSplit,
             bytesRead,
-            0L,
-            0L,
             formatReader,
             capturedSourceMetadata,
             partial
@@ -168,8 +164,6 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
                     4,
                     3,
                     8192L,
-                    0L,
-                    0L,
                     new NdJsonReaderStatus(7L, 0L, 0L, 0L),
                     Map.of(),
                     false
@@ -178,7 +172,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             equalTo(
                 "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
                     + "\"process_nanos\":1000000,\"splits_processed\":2,\"splits_total\":4,\"current_split\":3,"
-                    + "\"bytes_read\":8192,\"read_nanos\":0,\"read_cpu_nanos\":0,\"stripes_committed\":0,\"partial\":false,"
+                    + "\"bytes_read\":8192,\"stripes_committed\":0,\"partial\":false,"
                     + "\"format_reader\":{\"format\":\"ndjson\",\"rows_emitted\":7,\"parse_errors\":0,\"read_nanos\":0,"
                     + "\"read_cpu_nanos\":0}}"
             )
@@ -210,7 +204,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
     }
 
     private static AsyncExternalSourceOperator.Status statusWithCaptured(Map<String, List<Map<String, Object>>> captured) {
-        return new AsyncExternalSourceOperator.Status(0, 0, 0, 0, null, 0L, 0, 0, 0, 0L, 0L, 0L, null, captured, false);
+        return new AsyncExternalSourceOperator.Status(0, 0, 0, 0, null, 0L, 0, 0, 0, 0L, null, captured, false);
     }
 
     private static Map<String, Object> stripeContribution(long ordinal) {
@@ -241,8 +235,6 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
                     0,
                     0,
                     0L,
-                    0L,
-                    0L,
                     null,
                     Map.of(),
                     true
@@ -251,7 +243,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             equalTo(
                 "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
                     + "\"process_nanos\":0,\"splits_processed\":0,\"splits_total\":0,\"current_split\":0,"
-                    + "\"bytes_read\":0,\"read_nanos\":0,\"read_cpu_nanos\":0,\"stripes_committed\":0,\"partial\":true,"
+                    + "\"bytes_read\":0,\"stripes_committed\":0,\"partial\":true,"
                     + "\"format_reader\":{},\"failure\":\"boom\"}"
             )
         );
@@ -269,8 +261,6 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             4,
             3,
             8192L,
-            0L,
-            0L,
             new NdJsonReaderStatus(7L, 0L, 0L, 0L),
             Map.of(),
             true
@@ -305,8 +295,6 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             4,
             3,
             8192L,
-            0L,
-            0L,
             new NdJsonReaderStatus(7L, 0L, 0L, 0L),
             Map.of(),
             true
@@ -317,32 +305,6 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
         assertThat(copy.bytesRead(), equalTo(8192L));
         // partial was not yet on the wire, so it defaults to false
         assertThat(copy.partial(), equalTo(false));
-    }
-
-    public void testReadFromBwcVersionPriorToReadCpuNanos() throws IOException {
-        AsyncExternalSourceOperator.Status original = new AsyncExternalSourceOperator.Status(
-            5,
-            10,
-            111,
-            2048,
-            null,
-            1_000_000L,
-            2,
-            4,
-            3,
-            8192L,
-            42_000L,
-            777L,
-            new NdJsonReaderStatus(7L, 0L, 0L, 0L),
-            Map.of(),
-            false
-        );
-        TransportVersion preReadCpuNanos = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_read_cpu_nanos"));
-        AsyncExternalSourceOperator.Status copy = copyInstance(original, preReadCpuNanos);
-        // readNanos still round-trips (ESQL_EXTERNAL_SOURCE_PROFILE predates ESQL_READ_CPU_NANOS)
-        assertThat(copy.readNanos(), equalTo(42_000L));
-        // readCpuNanos was not on the wire yet, defaults to 0
-        assertThat(copy.readCpuNanos(), equalTo(0L));
     }
 
     public void testTypedFormatReaderRoundTrip() throws IOException {
@@ -357,8 +319,6 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             7,
             8,
             9L,
-            10L,
-            3L,
             new CsvReaderStatus("tsv", 42L, 3L, true, 123_456L, 34_567L),
             Map.of(),
             true

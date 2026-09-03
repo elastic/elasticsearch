@@ -28,6 +28,8 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.compute.operator.SourceReadStats;
+import org.elasticsearch.compute.operator.SourceReaderProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -1828,7 +1830,8 @@ public class ComputeService {
                 logicalPlanString,
                 planTimeProfile,
                 planningBytesRead,
-                approximationApplied
+                approximationApplied,
+                localExecutionPlan.sourceReadStats()
             );
             driverRunner.executeDrivers(
                 task,
@@ -1860,7 +1863,8 @@ public class ComputeService {
         String logicalPlanString,
         PlanTimeProfile planTimeProfile,
         long planningBytesRead,
-        boolean approximated
+        boolean approximated,
+        List<SourceReadStats> sourceReadStatsList
     ) {
         /*
          * We *really* don't want to close over the localPlan because it can
@@ -1869,6 +1873,7 @@ public class ComputeService {
         boolean needPlanString = LOGGER.isDebugEnabled() || context.configuration().profile();
         String planString = needPlanString ? localPlan.toString() : null;
         return listener.map(ignored -> {
+            List<SourceReaderProfile> sourceReaderProfiles = buildSourceReaderProfiles(sourceReadStatsList);
             if (LOGGER.isDebugEnabled() || context.configuration().profile()) {
                 DriverCompletionInfo driverCompletionInfo = DriverCompletionInfo.includingProfiles(
                     drivers,
@@ -1879,7 +1884,8 @@ public class ComputeService {
                     logicalPlanString,
                     planTimeProfile,
                     planningBytesRead,
-                    approximated
+                    approximated,
+                    sourceReaderProfiles
                 );
                 LOGGER.debug("finished {}", driverCompletionInfo);
                 if (context.configuration().profile()) {
@@ -1892,8 +1898,19 @@ public class ComputeService {
                 }
             }
 
-            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, approximated);
+            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, approximated, sourceReaderProfiles);
         });
+    }
+
+    private static List<SourceReaderProfile> buildSourceReaderProfiles(List<SourceReadStats> sourceReadStatsList) {
+        if (sourceReadStatsList == null || sourceReadStatsList.isEmpty()) {
+            return List.of();
+        }
+        List<SourceReaderProfile> profiles = new ArrayList<>(sourceReadStatsList.size());
+        for (SourceReadStats stats : sourceReadStatsList) {
+            profiles.add(new SourceReaderProfile(stats.sourceIdentifier(), stats.readNanos(), stats.readCpuNanos()));
+        }
+        return profiles;
     }
 
     /**

@@ -76,6 +76,7 @@ public record DriverCompletionInfo(
     List<DriverProfile> driverProfiles,
     List<PlanProfile> planProfiles,
     Map<String, List<Map<String, Object>>> capturedSourceMetadata,
+    List<SourceReaderProfile> sourceReaderProfiles,
     boolean partial,
     boolean approximationApplied,
     Set<String> warnings
@@ -97,6 +98,7 @@ public record DriverCompletionInfo(
         List.of(),
         List.of(),
         Map.of(),
+        List.of(),
         false,
         false,
         Set.of()
@@ -104,6 +106,7 @@ public record DriverCompletionInfo(
 
     public DriverCompletionInfo {
         capturedSourceMetadata = capturedSourceMetadata == null ? Map.of() : capturedSourceMetadata;
+        sourceReaderProfiles = sourceReaderProfiles == null ? List.of() : sourceReaderProfiles;
         warnings = warnings == null ? Set.of() : warnings;
     }
 
@@ -122,6 +125,7 @@ public record DriverCompletionInfo(
             driverProfiles,
             planProfiles,
             capturedSourceMetadata,
+            sourceReaderProfiles,
             partial,
             false,
             warnings
@@ -145,14 +149,13 @@ public record DriverCompletionInfo(
         String logicalPlanTree,
         PlanTimeProfile planTimeProfile,
         long planningBytesRead,
-        boolean approximationApplied
+        boolean approximationApplied,
+        List<SourceReaderProfile> sourceReaderProfiles
     ) {
         long documentsFound = 0;
         long valuesLoaded = 0;
         long rowsEmitted = 0;
         long bytesRead = planningBytesRead;
-        long readNanos = 0;
-        long readCpuNanos = 0;
         long cpuNanos = 0;
         List<DriverProfile> collectedProfiles = new ArrayList<>(drivers.size());
         for (Driver d : drivers) {
@@ -162,11 +165,15 @@ public record DriverCompletionInfo(
                 valuesLoaded += o.valuesLoaded();
                 rowsEmitted += o.rowsEmitted();
                 bytesRead += o.bytesRead();
-                readNanos += o.readNanos();
-                readCpuNanos += o.readCpuNanos();
             }
             cpuNanos += p.cpuNanos();
             collectedProfiles.add(p);
+        }
+        long readNanos = 0;
+        long readCpuNanos = 0;
+        for (SourceReaderProfile srp : sourceReaderProfiles) {
+            readNanos += srp.readNanos();
+            readCpuNanos += srp.readCpuNanos();
         }
         return new DriverCompletionInfo(
             documentsFound,
@@ -179,6 +186,7 @@ public record DriverCompletionInfo(
             collectedProfiles,
             List.of(new PlanProfile(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile)),
             collectCapturedSourceMetadata(drivers),
+            sourceReaderProfiles,
             collectPartial(drivers),
             approximationApplied,
             collectWarnings(drivers)
@@ -193,13 +201,16 @@ public record DriverCompletionInfo(
      *                          sort builders, etc.) before drivers were dispatched. Added to the
      *                          aggregate {@code bytesRead}.
      */
-    public static DriverCompletionInfo excludingProfiles(List<Driver> drivers, long planningBytesRead, boolean approximationApplied) {
+    public static DriverCompletionInfo excludingProfiles(
+        List<Driver> drivers,
+        long planningBytesRead,
+        boolean approximationApplied,
+        List<SourceReaderProfile> sourceReaderProfiles
+    ) {
         long documentsFound = 0;
         long valuesLoaded = 0;
         long rowsEmitted = 0;
         long bytesRead = planningBytesRead;
-        long readNanos = 0;
-        long readCpuNanos = 0;
         long cpuNanos = 0;
         for (Driver d : drivers) {
             DriverStatus s = d.status();
@@ -209,10 +220,14 @@ public record DriverCompletionInfo(
                 valuesLoaded += o.valuesLoaded();
                 rowsEmitted += o.rowsEmitted();
                 bytesRead += o.bytesRead();
-                readNanos += o.readNanos();
-                readCpuNanos += o.readCpuNanos();
             }
             cpuNanos += s.cpuNanos();
+        }
+        long readNanos = 0;
+        long readCpuNanos = 0;
+        for (SourceReaderProfile srp : sourceReaderProfiles) {
+            readNanos += srp.readNanos();
+            readCpuNanos += srp.readCpuNanos();
         }
         return new DriverCompletionInfo(
             documentsFound,
@@ -225,6 +240,7 @@ public record DriverCompletionInfo(
             List.of(),
             List.of(),
             collectCapturedSourceMetadata(drivers),
+            sourceReaderProfiles,
             collectPartial(drivers),
             approximationApplied,
             collectWarnings(drivers)
@@ -302,6 +318,7 @@ public record DriverCompletionInfo(
     public static final TransportVersion ESQL_DRIVER_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
     private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
     private static final TransportVersion ESQL_APPROXIMATION_APPLIED = TransportVersion.fromName("esql_approximation_applied");
+    private static final TransportVersion ESQL_SOURCE_READER_PROFILES = TransportVersion.fromName("esql_source_reader_profiles");
 
     public static DriverCompletionInfo readFrom(StreamInput in, ThreadContext threadContext) throws IOException {
         long documentsFound = in.readVLong();
@@ -363,6 +380,12 @@ public record DriverCompletionInfo(
                 warnings = parsed;
             }
         }
+        List<SourceReaderProfile> sourceReaderProfiles;
+        if (in.getTransportVersion().supports(ESQL_SOURCE_READER_PROFILES)) {
+            sourceReaderProfiles = in.readCollectionAsImmutableList(SourceReaderProfile::readFrom);
+        } else {
+            sourceReaderProfiles = List.of();
+        }
         return new DriverCompletionInfo(
             documentsFound,
             valuesLoaded,
@@ -374,6 +397,7 @@ public record DriverCompletionInfo(
             driverProfiles,
             planProfiles,
             captured,
+            sourceReaderProfiles,
             partial,
             approximationApplied,
             warnings
@@ -417,6 +441,9 @@ public record DriverCompletionInfo(
         if (out.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
             out.writeStringCollection(warnings);
         }
+        if (out.getTransportVersion().supports(ESQL_SOURCE_READER_PROFILES)) {
+            out.writeCollection(sourceReaderProfiles);
+        }
     }
 
     public static class Accumulator {
@@ -430,6 +457,7 @@ public record DriverCompletionInfo(
         private final List<DriverProfile> driverProfiles = new ArrayList<>();
         private final List<PlanProfile> planProfiles = new ArrayList<>();
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata = new HashMap<>();
+        private final List<SourceReaderProfile> sourceReaderProfiles = new ArrayList<>();
         private boolean partial;
         private final Set<String> warnings = new LinkedHashSet<>();
         private boolean approximationApplied;
@@ -445,6 +473,7 @@ public record DriverCompletionInfo(
             this.driverProfiles.addAll(info.driverProfiles);
             this.planProfiles.addAll(info.planProfiles);
             mergeCapturedSourceMetadata(capturedSourceMetadata, info.capturedSourceMetadata);
+            this.sourceReaderProfiles.addAll(info.sourceReaderProfiles);
             this.partial |= info.partial;
             this.warnings.addAll(info.warnings);
             this.approximationApplied |= info.approximationApplied;
@@ -462,6 +491,7 @@ public record DriverCompletionInfo(
                 driverProfiles,
                 planProfiles,
                 capturedSourceMetadata.isEmpty() ? Map.of() : new HashMap<>(capturedSourceMetadata),
+                List.copyOf(sourceReaderProfiles),
                 partial,
                 approximationApplied,
                 warnings.isEmpty() ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(warnings))
@@ -480,6 +510,7 @@ public record DriverCompletionInfo(
         private final List<DriverProfile> collectedProfiles = Collections.synchronizedList(new ArrayList<>());
         private final List<PlanProfile> planProfiles = Collections.synchronizedList(new ArrayList<>());
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata = new HashMap<>();
+        private final List<SourceReaderProfile> sourceReaderProfiles = Collections.synchronizedList(new ArrayList<>());
         private final AtomicBoolean partial = new AtomicBoolean();
         private final AtomicBoolean approximationApplied = new AtomicBoolean();
         private final Set<String> warnings = Collections.synchronizedSet(new LinkedHashSet<>());
@@ -497,6 +528,7 @@ public record DriverCompletionInfo(
             synchronized (capturedSourceMetadata) {
                 mergeCapturedSourceMetadata(capturedSourceMetadata, info.capturedSourceMetadata);
             }
+            this.sourceReaderProfiles.addAll(info.sourceReaderProfiles);
             if (info.partial) {
                 this.partial.set(true);
             }
@@ -532,6 +564,7 @@ public record DriverCompletionInfo(
                 collectedProfiles,
                 planProfiles,
                 snapshot,
+                List.copyOf(sourceReaderProfiles),
                 partial.get(),
                 approximationApplied.get(),
                 warningsSnapshot

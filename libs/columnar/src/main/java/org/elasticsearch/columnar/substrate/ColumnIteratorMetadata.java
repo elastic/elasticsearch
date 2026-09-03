@@ -22,7 +22,7 @@ import java.io.IOException;
  * <ul>
  *   <li>{@link #OFFSET_EMPTY} — no document has a value; nothing is written to the data file.</li>
  *   <li>{@link #OFFSET_DENSE} — every document has a value; nothing is written to the data file
- *       because the document id is its own value ordinal.</li>
+ *       because the document id is its own rank.</li>
  *   <li>a non-negative offset — a sparse structure written at {@code [offset, offset + length)}.</li>
  * </ul>
  *

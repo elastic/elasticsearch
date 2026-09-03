@@ -308,7 +308,12 @@ public class IvfAutoCalibration {
             doPreconditionResult,
             calibratedSegments
         );
-        return new IvfSegmentConfig(CentroidIndexFormat.FLAT, bestEncoding, doPreconditionResult, avgOversample, null);
+        return new IvfSegmentConfig(
+            CentroidIndexFormat.FLAT,
+            new IvfSegmentConfig.OsqConfig(bestEncoding),
+            doPreconditionResult,
+            avgOversample
+        );
     }
 
     /** Per-encoding accumulator for {@link #selectFromMergeState}: live-vector-weighted oversample and precondition votes. */
@@ -387,7 +392,7 @@ public class IvfAutoCalibration {
                 () -> format(
                     "Selected: encoding [%s] docs per cluster %d preconditioning %s %d query bits %d document bits"
                         + " rerank %d candidates (expected recall %.2f%%)",
-                    outcome.config().quantEncoding(),
+                    outcome.config().osqEncoding(),
                     vectorsPerCluster,
                     outcome.config().usePrecondition(),
                     s.qbits(),
@@ -399,7 +404,7 @@ public class IvfAutoCalibration {
             case SweepOutcome.BestEffort b -> logger.debug(
                 "No encoding met target recall [{}], selecting best [{}] with oversample [{}] precondition [{}] and recall [{}]",
                 targetRecall,
-                outcome.config().quantEncoding(),
+                outcome.config().osqEncoding(),
                 outcome.config().rescoreOversample(),
                 outcome.config().usePrecondition(),
                 b.bestRecall()
@@ -600,10 +605,9 @@ public class IvfAutoCalibration {
                 if (expected >= targetRecall) {
                     IvfSegmentConfig config = new IvfSegmentConfig(
                         CentroidIndexFormat.FLAT,
-                        candidate.encoding(),
+                        new IvfSegmentConfig.OsqConfig(candidate.encoding()),
                         precondition,
-                        oversample,
-                        null
+                        oversample
                     );
                     return new SweepOutcome.Success(config, expected, candidate.qbits(), candidate.dbits(), rerankVal);
                 }
@@ -617,7 +621,7 @@ public class IvfAutoCalibration {
         }
 
         return new SweepOutcome.BestEffort(
-            new IvfSegmentConfig(CentroidIndexFormat.FLAT, bestEncoding, bestPrecondition, bestOversample, null),
+            new IvfSegmentConfig(CentroidIndexFormat.FLAT, new IvfSegmentConfig.OsqConfig(bestEncoding), bestPrecondition, bestOversample),
             bestRecall
         );
     }

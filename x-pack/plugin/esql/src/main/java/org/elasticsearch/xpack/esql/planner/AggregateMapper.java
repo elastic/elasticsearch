@@ -76,14 +76,7 @@ public final class AggregateMapper {
     }
 
     private static List<NamedExpression> entryForAgg(String aggAlias, AggregateFunction aggregateFunction, boolean grouping) {
-        List<IntermediateStateDesc> intermediateState;
-        if (aggregateFunction instanceof ToAggregator toAggregator) {
-            var supplier = toAggregator.supplier();
-            intermediateState = grouping ? supplier.groupingIntermediateStateDesc() : supplier.nonGroupingIntermediateStateDesc();
-        } else {
-            throw new EsqlIllegalArgumentException("Aggregate has no defined intermediate state: " + aggregateFunction);
-        }
-        return intermediateStateToNamedExpressions(intermediateState, aggAlias).toList();
+        return intermediateStateToNamedExpressions(intermediateStateDesc(aggregateFunction, grouping), aggAlias).toList();
     }
 
     /** Maps intermediate state description to named expressions.  */

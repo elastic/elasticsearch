@@ -36,6 +36,8 @@ import org.elasticsearch.simdvec.internal.MemorySegmentES92NativeInt7VectorsScor
 import org.elasticsearch.simdvec.internal.PanamaFlatVectorScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.NativeBinaryQuantizedVectorScorer;
+import org.elasticsearch.simdvec.internal.vectorization.PanamaAshSphericalScalarQuantizer;
+import org.elasticsearch.simdvec.internal.vectorization.PanamaOptimizedScalarQuantization;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants;
 
 import java.io.IOException;
@@ -96,6 +98,17 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     }
 
     @Override
+    public AshScorer<float[]> newESNextAshFloatVectorsScorer(IndexInput input, int nDims, int bitsPerDim) throws IOException {
+        return new PanamaVectorScorerFactory().newESNextAshFloatVectorsScorer(input, nDims, bitsPerDim);
+    }
+
+    @Override
+    public AshScorer<byte[]> newESNextAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
+        throws IOException {
+        return new PanamaVectorScorerFactory().newESNextAshIntegerVectorsScorer(input, nDims, bitsPerDim, queryBitsPerDim);
+    }
+
+    @Override
     public ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(IndexInput input, int dimensions, int vectorLengthInBytes)
         throws IOException {
         IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
@@ -106,6 +119,16 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     @Override
     public FlatVectorsScorer newFlatVectorsScorer() {
         return new PanamaFlatVectorScorer();
+    }
+
+    @Override
+    public OptimizedScalarQuantization newOptimizedScalarQuantization() {
+        return new PanamaOptimizedScalarQuantization();
+    }
+
+    @Override
+    public AshSphericalScalarQuantizer newAshSphericalScalarQuantizer(int bitsPerDim) {
+        return new PanamaAshSphericalScalarQuantizer(bitsPerDim);
     }
 
     @Override

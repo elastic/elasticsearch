@@ -33,8 +33,8 @@ import java.util.Objects;
  * and delegates to the PromqlFunctionRegistry for validation and ESQL function construction.
  */
 public abstract sealed class PromqlFunctionCall extends UnaryPlan implements PromqlPlan permits AcrossSeriesAggregate,
-    AcrossSeriesReduction, HistogramQuantile, ScalarConversionFunction, WithinSeriesAggregate, ValueTransformationFunction,
-    VectorConversionFunction {
+    AcrossSeriesReduction, HistogramFunctionCall, MetadataManipulationFunction, ScalarConversionFunction, WithinSeriesAggregate,
+    ValueTransformationFunction, VectorConversionFunction {
     // implements TelemetryAware {
 
     private final List<Expression> parameters;
@@ -129,6 +129,16 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
     }
 
     public abstract FunctionType functionType();
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Re-declared abstract on the {@link PromqlFunctionCall} hierarchy so every PromQL function node classifies itself
+     * explicitly instead of silently inheriting the transparent default: adding a new function node fails to compile until
+     * its relabel-placement semantics are decided.
+     */
+    @Override
+    public abstract boolean isIdentityTransparent();
 
     @Override
     public final PromqlDataType returnType() {

@@ -167,9 +167,11 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     }
 
     /**
-     * Coordinated handler pairing two decisions that otherwise run independently: it forces {@code doc_values.multi_value: false} on
-     * single-value-enforcing fields and, in lock-step, never wraps values into arrays of length two or more. Without the coupling the
-     * enforced mapping would reject any document the array wrapper happened to make multi-valued.
+     * Coordinated handler pairing two decisions that otherwise run independently: it forces {@code doc_values.multi_value: false}
+     * (optionally combined with {@code on_failure: ignore} when the feature flag is enabled) on single-value-enforcing fields and, in
+     * lock-step, never wraps values into arrays of length two or more. Without the coupling the enforced mapping would reject (or redirect)
+     * any document the array wrapper happened to make multi-valued. Because documents are kept single-valued by construction, the
+     * {@code ._on_failure} redirect path is never triggered and {@code expected()} needs no knowledge of it.
      */
     private static final class SingleValueDocValuesDataSourceHandler implements DataSourceHandler {
         @Override
@@ -187,7 +189,12 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             }
             return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
                 var mapping = new HashMap<>(defaults.mappingGenerator().get());
-                mapping.put("doc_values", Map.of("multi_value", false));
+                mapping.put(
+                    "doc_values",
+                    FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled() && randomBoolean()
+                        ? Map.of("multi_value", false, "on_failure", "ignore")
+                        : Map.of("multi_value", false)
+                );
                 return mapping;
             });
         }

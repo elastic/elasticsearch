@@ -76,7 +76,7 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
                 SearchLookup searchLookup = new SearchLookup(
                     null,
                     null,
-                    SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+                    SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP, null)
                 );
                 Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new DateFieldScript(
                     "test",

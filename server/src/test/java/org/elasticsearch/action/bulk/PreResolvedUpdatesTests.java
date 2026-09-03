@@ -769,7 +769,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
             null, // shard state action is unused: no replication or failure reporting in these tests
             new ShardMappingUpdatedAction(primary),
             updateHelper,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             new IndexingPressure(settings),
             EmptySystemIndices.INSTANCE,
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,

@@ -5,16 +5,14 @@
  * 2.0.
  */
 
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
-  javaRestTestImplementation(project(':modules:lang-mustache'))
+  clusterModules(project(':modules:lang-mustache'))
 }
 
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("ml disabled tests require the default distribution to test xpack.ml.enabled=false behaviour")
 }
 
 if (buildParams.inFipsJvm){

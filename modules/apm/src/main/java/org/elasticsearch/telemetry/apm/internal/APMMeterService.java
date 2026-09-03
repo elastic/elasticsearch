@@ -20,11 +20,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportMeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
+import org.elasticsearch.telemetry.apm.internal.metrics.APMMeterRegistry;
 
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;

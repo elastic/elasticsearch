@@ -85,13 +85,17 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     /** Up-front reservation made by {@link PreallocatedCircuitBreakerService} (label is {@code preallocate[<detail>]}). */
     public static final String CATEGORY_PREALLOCATE = "preallocate";
 
+    /** Coordinating-node buffer for multi-search sub-responses (label is {@code msearch[<detail>]}). */
+    public static final String CATEGORY_MSEARCH = "msearch";
+
     private static final Set<String> KNOWN_CATEGORIES = Set.of(
         CATEGORY_QUERY,
         CATEGORY_FETCH,
         CATEGORY_WILDCARD,
         CATEGORY_REGEXP,
         CATEGORY_RANGE,
-        CATEGORY_PREALLOCATE
+        CATEGORY_PREALLOCATE,
+        CATEGORY_MSEARCH
     );
 
     /**

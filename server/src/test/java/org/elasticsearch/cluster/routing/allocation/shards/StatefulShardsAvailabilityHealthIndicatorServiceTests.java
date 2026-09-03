@@ -85,7 +85,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -157,15 +156,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     @Before
     public void chooseProjects() {
         multiProject = randomBoolean();
-        if (multiProject) {
-            int projectCount = randomIntBetween(1, 5);
-            projectIds = new HashSet<>();
-            while (projectIds.size() < projectCount) {
-                projectIds.add(randomUniqueProjectId());
-            }
-        } else {
-            projectIds = Set.of(randomProjectIdOrDefault());
-        }
+        projectIds = multiProject
+            ? IntStream.range(0, randomIntBetween(1, 5)).mapToObj(i -> randomUniqueProjectId()).collect(toSet())
+            : Set.of(randomProjectIdOrDefault());
     }
 
     /// Available shards keep the indicator green. Relocating shards are still considered available and are counted
@@ -1328,7 +1321,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                             unassignedTimeWithinGracePeriod.millis(),
                             false,
                             UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                            Collections.emptySet(),
+                            failedAllocations > 0 ? Set.of(randomNodeId()) : Collections.emptySet(),
                             null
                         )
                     )
@@ -1389,8 +1382,6 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         }
     }
 
-    /// Documents current behavior for master directly cancelled recoveries ({@link UnassignedInfo.Reason#RECOVERY_CANCELLED}).
-    /// Direct cancellation is still disabled by default.
     public void testRecoveryCancelledReplicaGracePeriodBehavior() {
         final var indexName = randomIndexName();
         final var unassignedTimeWithinGracePeriod = new TimeValue(
@@ -1415,7 +1406,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                             unassignedTimeWithinGracePeriod.millis(),
                             false,
                             UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                            Collections.emptySet(),
+                            failedAllocations > 0 ? Set.of(randomNodeId()) : Collections.emptySet(),
                             null
                         )
                     )

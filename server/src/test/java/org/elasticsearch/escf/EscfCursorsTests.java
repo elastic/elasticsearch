@@ -244,6 +244,29 @@ public class EscfCursorsTests extends ESTestCase {
         assertLongTuple(2, 3, tuples.get(2));
     }
 
+    /**
+     * A DOUBLE child is a fixed-64 column too, so it shares the long cursor. As with a scalar DOUBLE
+     * column, the yielded word is the raw {@code doubleToRawLongBits} of each element.
+     */
+    public void testDoubleArrayTupleCursorYieldsRawBits() {
+        // 3 rows: [[1.5, -2.25], [], [0.0, Double.NaN]]
+        int[] rowOffsets = { 0, 2, 2, 4 };
+        double[] elements = { 1.5, -2.25, 0.0, Double.NaN };
+        long[] raw = new long[elements.length];
+        for (int i = 0; i < elements.length; i++) {
+            raw[i] = Double.doubleToRawLongBits(elements[i]);
+        }
+        EscfColumn child = EscfColumn.from(EscfColumnData.ofFixed64(EscfColumnKind.DOUBLE, raw.length, null, longBytes(raw)));
+        EscfArrayColumn array = new EscfArrayColumn(3, null, child, intsRef(rowOffsets));
+
+        List<long[]> tuples = drainLongTuples(array.longCursor());
+        assertEquals(4, tuples.size());
+        assertLongTuple(0, raw[0], tuples.get(0));
+        assertLongTuple(0, raw[1], tuples.get(1));
+        assertLongTuple(2, raw[2], tuples.get(2));
+        assertLongTuple(2, raw[3], tuples.get(3));
+    }
+
     public void testLongArrayTupleCursorWrongChildKindThrows() {
         // Build an ARRAY column with a STRING child — longCursor() should throw
         int[] rowOffsets = { 0, 1 };
@@ -776,6 +799,50 @@ public class EscfCursorsTests extends ESTestCase {
             ByteUtils.writeLongLE(values[i], bytes, i * 8);
         }
         return new BytesArray(bytes);
+    }
+
+    public void testGetLongValueDense() {
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
+        b.addLong(10);
+        b.addLong(20);
+        b.addLong(30);
+        EscfLongColumn col = (EscfLongColumn) EscfColumn.from(b.finish(3));
+
+        assertNull("dense column has no validity bitset", col.toColumnData().validity());
+        assertEquals(10L, col.getLongValue(0));
+        assertEquals(20L, col.getLongValue(1));
+        assertEquals(30L, col.getLongValue(2));
+    }
+
+    public void testGetLongValueSparse() {
+        // Docs: [10, absent, 30]
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
+        b.addLong(10);
+        b.addAbsent();
+        b.addLong(30);
+        EscfLongColumn col = (EscfLongColumn) EscfColumn.from(b.finish(3));
+
+        assertTrue(col.isPresent(0));
+        assertFalse(col.isPresent(1));
+        assertTrue(col.isPresent(2));
+        assertEquals(10L, col.getLongValue(0));
+        assertEquals(30L, col.getLongValue(2));
+    }
+
+    public void testGetLongValueBoundaryValues() {
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
+        b.addLong(Long.MIN_VALUE);
+        b.addLong(-1L);
+        b.addLong(0L);
+        b.addLong(1L);
+        b.addLong(Long.MAX_VALUE);
+        EscfLongColumn col = (EscfLongColumn) EscfColumn.from(b.finish(5));
+
+        assertEquals(Long.MIN_VALUE, col.getLongValue(0));
+        assertEquals(-1L, col.getLongValue(1));
+        assertEquals(0L, col.getLongValue(2));
+        assertEquals(1L, col.getLongValue(3));
+        assertEquals(Long.MAX_VALUE, col.getLongValue(4));
     }
 
     /** Packs a long array into little-endian bytes suitable for {@link EscfColumnData#ofFixed64}. */

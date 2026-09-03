@@ -53,7 +53,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             final RecoverySource recoverySource = TestShardRouting.buildRecoverySource();
             final DiscoveryNode sourceNode = switch (recoverySource.getType()) {
                 case PEER, RESHARD_SPLIT -> DiscoveryNodeUtils.randomDiscoveryNode();
-                default -> null;
+                case EMPTY_STORE, EXISTING_STORE, LOCAL_SHARDS, SNAPSHOT -> null;
             };
             final DiscoveryNode targetNode = DiscoveryNodeUtils.randomDiscoveryNode();
             final boolean primary = recoverySource.getType() == RecoverySource.Type.PEER

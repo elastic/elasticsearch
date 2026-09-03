@@ -163,8 +163,7 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
 
     @Override
     public boolean isHidden() {
-        // Dot-prefixed views are hidden by default, mirroring the convention for internal/system indices.
-        return name.startsWith(".");
+        return false;
     }
 
     @Override

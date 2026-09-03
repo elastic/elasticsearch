@@ -321,19 +321,17 @@ public class IndexAbstractionResolver {
         if (indexAbstraction == null) {
             throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
         }
-        boolean isVisible = isWildcardExpression == false
-            || indexAbstraction.isHidden() == false
-            || indicesOptions.expandWildcardsHidden()
-            || isVisibleDueToImplicitHidden(expression, index);
         if (indexAbstraction.getType() == IndexAbstraction.Type.VIEW) {
-            if (indicesOptions.indexAbstractionOptions().resolveViews() == false) {
-                return false;
-            }
-            return isVisible;
+            return indicesOptions.indexAbstractionOptions().resolveViews();
         }
         if (indexAbstraction.getType() == IndexAbstraction.Type.DATASET) {
             return indicesOptions.indexAbstractionOptions().resolveDatasets();
         }
+        final boolean isHidden = indexAbstraction.isHidden();
+        boolean isVisible = isWildcardExpression == false
+            || isHidden == false
+            || indicesOptions.expandWildcardsHidden()
+            || isVisibleDueToImplicitHidden(expression, index);
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
             // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
             // it's complicated to support those options with aliases pointing to multiple indices...

@@ -43,7 +43,9 @@ public abstract class AbstractEmbeddingRequestIterator implements BulkInferenceR
     private final PositionValueCountsBuilder positionValueCountsBuilder;
 
     protected AbstractEmbeddingRequestIterator(String inferenceId, TaskType taskType, BytesRefBlock textBlock, int batchSize) {
-        assert batchSize >= 1 : "batchSize must be at least 1";
+        if (batchSize < 1) {
+            throw new IllegalArgumentException("batchSize must be at least 1 but was [" + batchSize + "]");
+        }
         this.inferenceId = inferenceId;
         this.taskType = taskType;
         this.textReader = new InputTextReader(textBlock);

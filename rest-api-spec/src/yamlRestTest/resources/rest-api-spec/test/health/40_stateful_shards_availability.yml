@@ -84,7 +84,7 @@ teardown:
 
   - do:
       indices.create:
-        index: red_cluster_index
+        index: red_index
         master_timeout: 1s
         timeout: 1s
         wait_for_active_shards: 0
@@ -139,7 +139,7 @@ teardown:
 
   - do:
       indices.create:
-        index: red_replica_index
+        index: yellow_index
         master_timeout: 1s
         timeout: 1s
         wait_for_active_shards: 1
@@ -151,7 +151,7 @@ teardown:
 
   - do:
       cluster.health:
-        index: red_replica_index
+        index: yellow_index
         wait_for_status: yellow
         wait_for_active_shards: 1
         wait_for_no_initializing_shards: true

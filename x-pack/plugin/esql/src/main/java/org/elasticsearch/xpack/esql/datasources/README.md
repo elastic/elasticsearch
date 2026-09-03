@@ -205,13 +205,15 @@ StorageProvider provider = storageProviderRegistry.getProvider(path);
 FormatReader reader = formatReaderRegistry.getByExtension(path.objectName());
 
 // Create operator factory
-AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
     provider,
     reader,
     path,
     attributes,
-    1000  // batch size
-);
+    1000,   // batch size
+    maxBufferSize,
+    readExecutor
+).build();
 ```
 
 ### Example 2: Reading a Parquet file from S3
@@ -223,13 +225,15 @@ StoragePath path = StoragePath.of("s3://my-bucket/data/sales.parquet");
 StorageProvider provider = storageProviderRegistry.getProvider(path);  // S3StorageProvider
 FormatReader reader = formatReaderRegistry.getByExtension(".parquet"); // ParquetFormatReader
 
-AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
     provider,
     reader,
     path,
     attributes,
-    5000
-);
+    5000,
+    maxBufferSize,
+    readExecutor
+).build();
 ```
 
 ### Example 3: Reading an Iceberg table

@@ -1236,6 +1236,10 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         // A renamed or deleted probe leaves its entry behind, exempting nothing and pinning a condition that no
         // longer runs. The forward check above cannot see that, so walk the other way too.
         Set<String> probed = probes.stream().map(Probe::name).collect(Collectors.toSet());
+        // Two probes sharing a name would satisfy both directions below while one of them goes unchecked.
+        if (probed.size() != probes.size()) {
+            violations.add("probe names are not unique: " + probes.size() + " probes, " + probed.size() + " distinct names");
+        }
         for (String recorded : EXPECTED_STATUS.keySet()) {
             if (probed.contains(recorded) == false) {
                 violations.add("EXPECTED_STATUS entry [" + recorded + "] matches no probe -- remove it");

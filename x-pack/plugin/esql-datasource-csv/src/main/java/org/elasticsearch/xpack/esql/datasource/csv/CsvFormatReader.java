@@ -894,11 +894,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         } catch (Exception e) {
             // The pattern is already named in this message, and DateFormatter's own wrapper repeats it
             // ("Invalid format: [<pattern>]: <reason>"), so take the root cause's reason rather than its message.
+            // Bounded and cycle-guarded: a self-referential or deeply nested cause must not hang the read.
             Throwable root = e;
-            while (root.getCause() != null) {
+            for (int depth = 0; depth < 10 && root.getCause() != null && root.getCause() != root; depth++) {
                 root = root.getCause();
             }
-            throw new IllegalArgumentException("Invalid datetime format [" + value + "]: " + root.getMessage(), e);
+            String reason = root.getMessage() != null ? root.getMessage() : root.getClass().getSimpleName();
+            throw new IllegalArgumentException("Invalid datetime format [" + value + "]: " + reason, e);
         }
     }
 

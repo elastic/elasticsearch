@@ -825,15 +825,27 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testUnsupportedSchemeListsTheSchemesInAStableOrder() {
+        // Nine schemes declared out of order. Set.of salts its iteration per JVM run, so with the renderer's sort
+        // removed this asserts one arrangement out of 9! -- it cannot pass by luck the way a three-element set can.
+        DataSourceValidator manySchemes = new FileDataSourceValidator(
+            "s3",
+            S3Configuration::fromMap,
+            Set.of("s3n", "s3a", "zs3", "ms3", "as3", "s3", "ks3", "bs3", "ys3")
+        );
+
         var e = expectThrows(
             ValidationException.class,
-            () -> formatAwareValidator.validateDataset(Map.of(), "ftp://bucket/data/good.csv", Map.of())
+            () -> manySchemes.validateDataset(Map.of(), "ftp://bucket/data/good.csv", Map.of())
         );
-        // The scheme set is a Set.of, whose iteration order the JDK salts per JVM run. Sorted, the message is
-        // identical on every node; matching it in full is what stops it drifting back.
+
         assertThat(
             e.validationErrors(),
-            hasItem(containsString("[resource] must use one of the supported URI schemes [s3://, s3a://, s3n://]"))
+            hasItem(
+                containsString(
+                    "[resource] must use one of the supported URI schemes "
+                        + "[as3://, bs3://, ks3://, ms3://, s3://, s3a://, s3n://, ys3://, zs3://]"
+                )
+            )
         );
     }
 

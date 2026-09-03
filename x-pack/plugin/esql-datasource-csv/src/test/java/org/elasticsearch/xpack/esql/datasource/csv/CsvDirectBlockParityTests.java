@@ -196,7 +196,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     private String captureFailFastMessage(CsvFormatReader reader, List<String> projection, String content) throws IOException {
         try {
             drain(reader, projection, 1024, ErrorPolicy.STRICT, content);
-            throw new AssertionError("expected a ExternalClientException but the read completed");
+            throw new AssertionError("expected an ExternalClientException but the read completed");
         } catch (ExternalClientException e) {
             return e.getMessage();
         }

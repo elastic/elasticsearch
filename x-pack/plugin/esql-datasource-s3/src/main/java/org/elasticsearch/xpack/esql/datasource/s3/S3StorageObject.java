@@ -505,5 +505,4 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     public String toString() {
         return "S3StorageObject{bucket=" + bucket + ", key=" + key + ", path=" + path + "}";
     }
-
 }

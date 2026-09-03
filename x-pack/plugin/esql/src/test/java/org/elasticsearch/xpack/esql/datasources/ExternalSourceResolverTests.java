@@ -2683,6 +2683,24 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * A fault with no arm of its own falls to the terminal 500. The cache wraps loader failures in an
+     * {@code ExecutionException} whose message is the cause's {@code toString()}, so chaining the wrapper puts a JVM
+     * type name in the user's {@code caused_by}. This pins the call site, not just the helper it delegates to.
+     */
+    public void testTheTerminalArmChainsTheCauseNotTheCacheWrapper() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        IllegalStateException original = new IllegalStateException("broken");
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.parquet", new ExecutionException(original));
+
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(mapped));
+        assertSame("the cause must be the fault itself, not the cache's wrapper", original, mapped.getCause());
+        for (Throwable c = mapped.getCause(); c != null; c = c.getCause()) {
+            assertThat(String.valueOf(c.getMessage()), not(containsString("java.lang.")));
+        }
+    }
+
+    /**
      * An IOException buried in the cache's {@code ExecutionException} must be a 400: a missing object or
      * access-denied is the caller's fault regardless of which rail (cacheable vs non-cacheable) the resolution
      * ran on.

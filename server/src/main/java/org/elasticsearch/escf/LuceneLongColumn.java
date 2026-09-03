@@ -17,7 +17,6 @@ import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
@@ -25,6 +24,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.sourcebatch.LuceneColumn;
+import org.elasticsearch.sourcebatch.LuceneColumn.FilteredIterator;
 
 import java.util.List;
 
@@ -200,31 +200,14 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
         if (filter == null) {
             return inner;
         }
-        // Co-iterate the inner cursor (which emits original doc IDs) with the filter's bit positions.
-        // For each inner doc that aligns with a filter bit, return the compact doc ID (0-based rank).
         return new LongTupleCursor() {
-            private final BitSetIterator filterBits = new BitSetIterator(filter, filter.cardinality());
-            private int filterBit = filterBits.nextDoc();
-            private int compactDoc = 0;
+            private final FilteredIterator fi = new FilteredIterator(filter);
 
             @Override
             public int nextDoc() {
                 while (true) {
-                    int innerDoc = inner.nextDoc();
-                    if (innerDoc == DocIdSetIterator.NO_MORE_DOCS || filterBit == DocIdSetIterator.NO_MORE_DOCS) {
-                        return DocIdSetIterator.NO_MORE_DOCS;
-                    }
-                    while (filterBit < innerDoc) {
-                        filterBit = filterBits.nextDoc();
-                        compactDoc++;
-                        if (filterBit == DocIdSetIterator.NO_MORE_DOCS) {
-                            return DocIdSetIterator.NO_MORE_DOCS;
-                        }
-                    }
-                    if (filterBit == innerDoc) {
-                        return compactDoc;
-                    }
-                    // filterBit > innerDoc: innerDoc is excluded by filter; advance inner.
+                    int compact = fi.advancePast(inner.nextDoc());
+                    if (compact != FilteredIterator.EXCLUDED) return compact;
                 }
             }
 

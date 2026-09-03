@@ -12,6 +12,7 @@ package org.elasticsearch.sourcebatch;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
 
 import java.util.List;
@@ -45,6 +46,60 @@ public interface LuceneColumn extends SliceableColumn {
     static FixedBitSet singleFilter(FixedBitSet existing, FixedBitSet replacement) {
         assert existing == null || replacement == null : "cannot apply a filter to a column that already has one";
         return replacement != null ? replacement : existing;
+    }
+
+    /**
+     * Stateful helper for co-iterating a sparse data cursor with a filter bitset and mapping
+     * matching positions to compact doc IDs (0-based rank within the filter). One instance is
+     * created per filtered cursor; it is consumed in a single forward pass and must not be shared.
+     *
+     * <p>Typical usage:
+     * <pre>{@code
+     * FilteredIterator fi = new FilteredIterator(filter);
+     * // inside nextDoc():
+     * while (true) {
+     *     int compact = fi.advancePast(inner.nextDoc());
+     *     if (compact != LuceneColumn.FilteredIterator.EXCLUDED) return compact;
+     * }
+     * }</pre>
+     */
+    final class FilteredIterator {
+
+        /** Returned by {@link #advancePast} when {@code innerDoc} is excluded by the filter. */
+        public static final int EXCLUDED = -1;
+
+        private final BitSetIterator filterBits;
+        private int filterBit;
+        private int compactDoc = 0;
+
+        public FilteredIterator(FixedBitSet filter) {
+            filterBits = new BitSetIterator(filter, filter.cardinality());
+            filterBit = filterBits.nextDoc();
+        }
+
+        /**
+         * Advances the filter iterator to catch up with {@code innerDoc}, then returns:
+         * <ul>
+         *   <li>the compact doc ID if {@code innerDoc} is a set bit in the filter,</li>
+         *   <li>{@link #EXCLUDED} if {@code innerDoc} is excluded by the filter (caller should
+         *       advance the data cursor and retry), or</li>
+         *   <li>{@link DocIdSetIterator#NO_MORE_DOCS} if either the data or filter is
+         *       exhausted.</li>
+         * </ul>
+         */
+        public int advancePast(int innerDoc) {
+            if (innerDoc == DocIdSetIterator.NO_MORE_DOCS || filterBit == DocIdSetIterator.NO_MORE_DOCS) {
+                return DocIdSetIterator.NO_MORE_DOCS;
+            }
+            while (filterBit < innerDoc) {
+                filterBit = filterBits.nextDoc();
+                compactDoc++;
+                if (filterBit == DocIdSetIterator.NO_MORE_DOCS) {
+                    return DocIdSetIterator.NO_MORE_DOCS;
+                }
+            }
+            return filterBit == innerDoc ? compactDoc : EXCLUDED;
+        }
     }
 
     /**

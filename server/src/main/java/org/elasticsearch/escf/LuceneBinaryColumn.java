@@ -17,11 +17,11 @@ import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.sourcebatch.LuceneColumn;
+import org.elasticsearch.sourcebatch.LuceneColumn.FilteredIterator;
 
 import java.util.List;
 
@@ -108,31 +108,16 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
         // retainValues=true: see appendCurrentFields below — the emitted Fields outlive the cursor position.
         final ObjectTupleCursor<BytesRef> cursor = data.bytesRefCursor(true);
         return new LuceneColumn.RowFieldCursor() {
-            // Same co-iteration as tuples(): emit compact doc IDs when filter is active.
-            private final BitSetIterator filterBits = filter != null ? new BitSetIterator(filter, filter.cardinality()) : null;
-            private int filterBit = filter != null ? filterBits.nextDoc() : 0;
-            private int compactDoc = 0;
+            private final FilteredIterator fi = filter != null ? new FilteredIterator(filter) : null;
 
             @Override
             public int nextDoc() {
-                if (filter == null) {
+                if (fi == null) {
                     return cursor.nextDoc();
                 }
                 while (true) {
-                    int innerDoc = cursor.nextDoc();
-                    if (innerDoc == DocIdSetIterator.NO_MORE_DOCS || filterBit == DocIdSetIterator.NO_MORE_DOCS) {
-                        return DocIdSetIterator.NO_MORE_DOCS;
-                    }
-                    while (filterBit < innerDoc) {
-                        filterBit = filterBits.nextDoc();
-                        compactDoc++;
-                        if (filterBit == DocIdSetIterator.NO_MORE_DOCS) {
-                            return DocIdSetIterator.NO_MORE_DOCS;
-                        }
-                    }
-                    if (filterBit == innerDoc) {
-                        return compactDoc;
-                    }
+                    int compact = fi.advancePast(cursor.nextDoc());
+                    if (compact != FilteredIterator.EXCLUDED) return compact;
                 }
             }
 
@@ -163,31 +148,14 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
         if (filter == null) {
             return inner;
         }
-        // Co-iterate the inner cursor (which emits original doc IDs) with the filter's bit positions.
-        // For each inner doc that aligns with a filter bit, return the compact doc ID (0-based rank).
         return new ObjectTupleCursor<>() {
-            private final BitSetIterator filterBits = new BitSetIterator(filter, filter.cardinality());
-            private int filterBit = filterBits.nextDoc();
-            private int compactDoc = 0;
+            private final FilteredIterator fi = new FilteredIterator(filter);
 
             @Override
             public int nextDoc() {
                 while (true) {
-                    int innerDoc = inner.nextDoc();
-                    if (innerDoc == DocIdSetIterator.NO_MORE_DOCS || filterBit == DocIdSetIterator.NO_MORE_DOCS) {
-                        return DocIdSetIterator.NO_MORE_DOCS;
-                    }
-                    while (filterBit < innerDoc) {
-                        filterBit = filterBits.nextDoc();
-                        compactDoc++;
-                        if (filterBit == DocIdSetIterator.NO_MORE_DOCS) {
-                            return DocIdSetIterator.NO_MORE_DOCS;
-                        }
-                    }
-                    if (filterBit == innerDoc) {
-                        return compactDoc;
-                    }
-                    // filterBit > innerDoc: innerDoc is excluded by filter; advance inner.
+                    int compact = fi.advancePast(inner.nextDoc());
+                    if (compact != FilteredIterator.EXCLUDED) return compact;
                 }
             }
 

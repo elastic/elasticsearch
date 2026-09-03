@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.escf.LuceneLongColumn;
+import org.elasticsearch.sourcebatch.LuceneColumn.FilteredIterator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -349,9 +350,7 @@ public final class MappedColumns {
             // With filter: co-iterate srcIdx with filter bits, emitting compact doc IDs (0-based rank).
             return new ObjectTupleCursor<>() {
                 private int srcIdx = from - 1;
-                private final BitSetIterator filterBits = new BitSetIterator(filter, filter.cardinality());
-                private int filterBit = filterBits.nextDoc();
-                private int compactDoc = 0;
+                private final FilteredIterator fi = new FilteredIterator(filter);
 
                 @Override
                 public int nextDoc() {
@@ -361,21 +360,9 @@ public final class MappedColumns {
                         while (srcIdx < end && values[srcIdx] == null) {
                             srcIdx++;
                         }
-                        if (srcIdx >= end || filterBit == DocIdSetIterator.NO_MORE_DOCS) {
-                            return DocIdSetIterator.NO_MORE_DOCS;
-                        }
-                        int doc = srcIdx - from;
-                        while (filterBit < doc) {
-                            filterBit = filterBits.nextDoc();
-                            compactDoc++;
-                            if (filterBit == DocIdSetIterator.NO_MORE_DOCS) {
-                                return DocIdSetIterator.NO_MORE_DOCS;
-                            }
-                        }
-                        if (filterBit == doc) {
-                            return compactDoc;
-                        }
-                        // filterBit > doc: this value is excluded by filter; continue outer loop.
+                        if (srcIdx >= end) return DocIdSetIterator.NO_MORE_DOCS;
+                        int compact = fi.advancePast(srcIdx - from);
+                        if (compact != FilteredIterator.EXCLUDED) return compact;
                     }
                 }
 

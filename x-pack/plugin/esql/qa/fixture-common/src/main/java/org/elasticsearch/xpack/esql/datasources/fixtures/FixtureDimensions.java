@@ -1291,7 +1291,13 @@ public final class FixtureDimensions {
                 local = generated;
                 if (local == null) {
                     List<Map<String, String>> built = new ArrayList<>();
-                    generateVectors(built::add);
+                    // Frozen per vector, not just the list. List.copyOf makes the LIST immutable while every
+                    // element stays the mutable LinkedHashMap the generator built, and this memo is handed to
+                    // every caller in the JVM for the rest of the run -- one stray put would silently
+                    // reconfigure every later suite. Insertion order is preserved rather than using Map.copyOf:
+                    // render() walks the declared name list so it does not care, but the settings accessors walk
+                    // entrySet and their order reaches the injected directive JSON.
+                    generateVectors(vector -> built.add(Collections.unmodifiableMap(new LinkedHashMap<>(vector))));
                     generated = local = List.copyOf(built);
                 }
             }

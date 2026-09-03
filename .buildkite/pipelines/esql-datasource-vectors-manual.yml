@@ -36,6 +36,7 @@ steps:
               - esql-datasource-csv
               - esql-datasource-ndjson
               - esql-datasource-parquet
+              - esql-datasource-orc
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils.DataSourcesGcsHttpFixture;
+import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
@@ -302,7 +303,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         int unrepresentable = 0;
         for (Object[] baseTest : baseTests) {
             for (Map<String, String> vector : vectors) {
-                if (directivePins(baseTest, dimensions.directiveSettings(vector))) {
+                if (directivePins(baseTest, vectorInjectedSettings(dimensions, vector))) {
                     pinned++;
                     continue;
                 }
@@ -310,7 +311,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                     unrepresentable++;
                     continue;
                 }
-                if (partitionDetectionCannotCarry(baseTest, vector)) {
+                if (partitionDetectionCannotCarry(baseTest, vector, vectorInjectedSettings(dimensions, vector))) {
                     unrepresentable++;
                     continue;
                 }
@@ -374,14 +375,29 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * parquet failures on the first run afterwards. Enumerating the twelve cases across four suites would
      * need redoing for the next format or the next hive spec; asking the layout does not.
      */
-    private static boolean partitionDetectionCannotCarry(Object[] baseTest, Map<String, String> vector) {
-        String detection = vector.get("partition_detection");
-        if (detection == null) {
-            return false;
-        }
+    /**
+     * Whether a vector's partition settings contradict what a case's own directive already pins.
+     *
+     * <p>Two arms, and they answer to different authorities. The first is a harness fact the reader cannot
+     * know: a layout whose DIRECTORIES carry the partition column cannot be read with detection off, so
+     * the rows would simply not have the column.
+     *
+     * <p>The second asks the reader instead of restating it. It builds the config the dataset would
+     * actually register with -- every partition key the reader recognises, taking the case's own value
+     * where it declares one, because {@link #injectSetting} leaves a declared key untouched -- and hands
+     * it to {@link PartitionConfig#fromConfig}. If that throws, registration would 400 and the dataset
+     * would never exist, so the pairing cannot run.
+     *
+     * <p>Restating the rule here was wrong twice over, and both ways were live. It compared the vector's
+     * SLOT rather than what gets injected, and every vector carries a partition_detection slot -- most at
+     * the default {@code auto}, which injects nothing -- so a case pinning hive partitioning off was
+     * filtered out of every vector including the ones the reader accepts. And it matched {@code "false"}
+     * exactly while the reader compares case-insensitively, so a directive spelling it {@code False}
+     * would have slipped through. Asking the component removes both classes of drift at once.
+     */
+    private static boolean partitionDetectionCannotCarry(Object[] baseTest, Map<String, String> vector, Map<String, String> injected) {
         CsvTestCase testCase = (CsvTestCase) baseTest[4];
-        if ("none".equals(detection)) {
-            // A layout whose directories carry the partition column cannot be read with detection off.
+        if ("none".equals(vector.get("partition_detection"))) {
             for (DatasetSource source : testCase.datasetSources) {
                 String template = templateNameIn(source.resource());
                 if (template != null && MATRIX.partitionColumnFor(template) != null) {
@@ -390,14 +406,18 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             }
             return false;
         }
-        // The mirror case, and the reader states the rule rather than us restating it: PartitionConfig
-        // rejects `hive_partitioning: false` alongside any detection strategy other than none. A case that
-        // pins hive partitioning off therefore contradicts every other value this dimension can carry, and
-        // the contradiction is a registration 400 -- the dataset never exists, so no row is ever read.
-        // Keyed on the VALUE, not on the key being present: `hive_partitioning: true` collides with
-        // nothing, and filtering on presence alone would retire coverage the reader accepts.
         for (DatasetSource source : testCase.datasetSources) {
-            if ("false".equals(DatasetRegistry.declaredSetting(source.withJson(), "hive_partitioning"))) {
+            Map<String, Object> merged = new LinkedHashMap<>();
+            for (String key : PartitionConfig.CONFIG_KEYS) {
+                String declared = DatasetRegistry.declaredSetting(source.withJson(), key);
+                String value = declared != null ? declared : injected.get(key);
+                if (value != null) {
+                    merged.put(key, value);
+                }
+            }
+            try {
+                PartitionConfig.fromConfig(merged);
+            } catch (IllegalArgumentException e) {
                 return true;
             }
         }
@@ -517,6 +537,28 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * under a name claiming a configuration it never ran. That is the silent misbind this contract
      * exists to catch, and here it would be manufactured by the crossing itself.
      */
+    /**
+     * Every setting a vector would inject into a dataset directive: the directive-bound slots AND the
+     * read keys of the fixture-bound ones.
+     *
+     * <p>Both travel through {@link #injectSetting}, which leaves the JSON untouched when the case already
+     * declares that key. Gating on the directive settings alone therefore missed the read keys entirely,
+     * and the gap is not theoretical: mv_syntax binds to the FIXTURE seam and announces itself through the
+     * read key {@code multi_value_syntax}, so a case declaring that key crossed with a vector pinning
+     * brackets registered happily, had its bytes redirected to the bracket-written tree, and had the
+     * announcement dropped -- the reader parsed bracket bytes while being told {@code none}. Green, under
+     * a name claiming a configuration the reader never saw. That silent pass is the single failure this
+     * crossing exists to prevent, so the pin check must consult the same set that gets injected.
+     *
+     * <p>The vector's own {@code format} slot supplies the per-format defaults, which is what decides
+     * whether a slot sits off default and is therefore injected at all.
+     */
+    private static Map<String, String> vectorInjectedSettings(FixtureDimensions dimensions, Map<String, String> vector) {
+        Map<String, String> injected = new LinkedHashMap<>(dimensions.directiveSettings(vector));
+        injected.putAll(dimensions.readSettings(vector, vector.get("format")));
+        return injected;
+    }
+
     private static boolean directivePins(Object[] baseTest, Map<String, String> vectorSettings) {
         if (vectorSettings.isEmpty()) {
             return false;

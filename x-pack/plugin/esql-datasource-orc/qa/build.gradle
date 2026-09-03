@@ -212,7 +212,13 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
 
 
 // The full vector crossing for ORC. Deliberately NOT wired into `check` -- it is invoked by the
-// esql-datasource-vectors-manual pipeline, matching how csv, tsv, ndjson and parquet expose theirs.
+// esql-datasource-vectors-manual pipeline, whose matrix names this module explicitly.
+//
+// The task existing is not the same as the task running. When this landed, the pipeline matrix listed
+// csv, ndjson and parquet only, so this suite was invoked by nothing -- while the capability rows had
+// already been told ORC renders its format cell, so the contract audit reported ORC covered and the
+// discrimination test asserted its cells were carried. Every gate was green over zero ORC cases. Adding
+// a suite means adding it to the matrix in the same change.
 //
 // ORC needs no fixture variants: every fixture-bound dimension is scoped away from it, so the vectors
 // vary only format-agnostic axes and generateOrcFixtures serves all of them. That is why this arrives as

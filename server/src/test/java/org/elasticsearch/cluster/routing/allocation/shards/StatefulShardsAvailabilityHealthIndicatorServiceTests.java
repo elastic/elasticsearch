@@ -3212,10 +3212,6 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         return names;
     }
 
-    private ProjectResolver projectResolver() {
-        return multiProject ? TestProjectResolvers.allProjects() : TestProjectResolvers.singleProjectOnly(projectIds.iterator().next());
-    }
-
     private Map<ProjectId, List<IndexRoutingTable>> routes(Supplier<List<IndexRoutingTable>> perProject) {
         Map<ProjectId, List<IndexRoutingTable>> map = new HashMap<>();
         for (ProjectId id : projectIds) {
@@ -3641,7 +3637,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             clusterState,
             decisions,
             new SystemIndices(List.of()),
-            projectResolver()
+            multiProject ? TestProjectResolvers.allProjects() : TestProjectResolvers.singleProjectOnly(projectIds.iterator().next())
         );
     }
 

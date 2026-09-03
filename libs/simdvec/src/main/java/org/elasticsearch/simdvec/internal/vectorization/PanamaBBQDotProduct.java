@@ -70,8 +70,8 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
             return BBQDotProduct.create(in, nDims, docBits, queryBits);
         }
         return switch (queryBits) {
-            case 1 -> new Q1DxImpl(in, docBits, planeBytes);
-            case 4 -> new Q4DxImpl(in, docBits, planeBytes);
+            case 1 -> new DxQ1Impl(in, docBits, planeBytes);
+            case 4 -> new DxQ4Impl(in, docBits, planeBytes);
             default -> throw new AssertionError("unreachable, supports() restricts queryBits to 1 or 4: " + queryBits);
         };
     }
@@ -80,61 +80,109 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
         super(in, docBits, queryBits, planeBytes);
     }
 
-    /**
-     * Scores the data vector at {@code offset} in {@code segment}
+    /*
+     * Here, each method is explicitly written out to eliminate virtual method calls in the hot loops, and to move
+     * the vector size decision to as early as possible.
      */
-    abstract long dotProductAt(byte[] query, MemorySegment segment, long offset);
 
     @Override
-    public final long dotProduct(byte[] query) throws IOException {
-        assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
-        return IndexInputUtils.withSlice(in, docBytes, scratch, segment -> dotProductAt(query, segment, 0L));
-    }
+    public abstract long dotProduct(byte[] query) throws IOException;
 
     @Override
-    public final void dotProductBulk(byte[] query, int count, float[] scores) throws IOException {
-        assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
-        IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
-            for (int i = 0; i < count; i++) {
-                scores[i] = dotProductAt(query, segment, (long) i * docBytes);
-            }
-        });
-    }
+    public abstract void dotProductBulk(byte[] query, int count, float[] scores) throws IOException;
 
     @Override
-    public final void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
-        assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
-        // one slice covers the whole block, so skipped vectors are simply not scored
-        IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
-            int next = 0;
-            for (int i = 0; i < count; i++) {
-                if (next < offsetsCount && offsets[next] == i) {
-                    next++;
-                    scores[i] = dotProductAt(query, segment, (long) i * docBytes);
-                }
-            }
-        });
-    }
+    public abstract void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException;
 
-    private static class Q1DxImpl extends PanamaBBQDotProduct {
+    private static final class DxQ1Impl extends PanamaBBQDotProduct {
 
-        Q1DxImpl(IndexInput in, int docBits, int planeBytes) {
+        DxQ1Impl(IndexInput in, int docBits, int planeBytes) {
             super(in, docBits, 1, planeBytes);
         }
 
         @Override
-        long dotProductAt(byte[] query, MemorySegment segment, long offset) {
-            long dot = 0;
+        public long dotProduct(byte[] query) throws IOException {
+            assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
+            return IndexInputUtils.withSlice(in, docBytes, scratch, segment -> {
+                long dot = 0;
+                if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
+                    for (int dp = 0; dp < docBits; dp++) {
+                        dot += dotProduct256(query, segment, (long) dp * planeBytes, planeBytes) << dp;
+                    }
+                } else {
+                    for (int dp = 0; dp < docBits; dp++) {
+                        dot += dotProduct128(query, segment, (long) dp * planeBytes, planeBytes) << dp;
+                    }
+                }
+                return dot;
+            });
+        }
+
+        @Override
+        public void dotProductBulk(byte[] query, int count, float[] scores) throws IOException {
+            assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
-                for (int dp = 0; dp < docBits; dp++) {
-                    dot += dotProduct256(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
-                }
+                IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
+                    for (int i = 0; i < count; i++) {
+                        long offset = (long) i * docBytes;
+                        long dot = 0;
+                        for (int dp = 0; dp < docBits; dp++) {
+                            dot += dotProduct256(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
+                        }
+                        scores[i] = dot;
+                    }
+                });
             } else {
-                for (int dp = 0; dp < docBits; dp++) {
-                    dot += dotProduct128(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
-                }
+                IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
+                    for (int i = 0; i < count; i++) {
+                        long offset = (long) i * docBytes;
+                        long dot = 0;
+                        for (int dp = 0; dp < docBits; dp++) {
+                            dot += dotProduct128(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
+                        }
+                        scores[i] = dot;
+                    }
+                });
             }
-            return dot;
+        }
+
+        @Override
+        public void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
+            assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
+            // one slice covers the whole block, so skipped vectors are simply not scored
+            if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
+                IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
+                    int next = 0;
+                    for (int i = 0; i < count; i++) {
+                        if (next < offsetsCount && offsets[next] == i) {
+                            next++;
+
+                            long offset = (long) i * docBytes;
+                            long dot = 0;
+                            for (int dp = 0; dp < docBits; dp++) {
+                                dot += dotProduct256(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
+                            }
+                            scores[i] = dot;
+                        }
+                    }
+                });
+            } else {
+                IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
+                    int next = 0;
+                    for (int i = 0; i < count; i++) {
+                        if (next < offsetsCount && offsets[next] == i) {
+                            next++;
+
+                            long offset = (long) i * docBytes;
+                            long dot = 0;
+                            for (int dp = 0; dp < docBits; dp++) {
+                                dot += dotProduct128(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
+                            }
+                            scores[i] = dot;
+                        }
+                    }
+                });
+            }
         }
 
         private static long dotProduct256(byte[] q, MemorySegment segment, long baseOffset, int size) {
@@ -193,25 +241,95 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
         }
     }
 
-    private static class Q4DxImpl extends PanamaBBQDotProduct {
+    private static final class DxQ4Impl extends PanamaBBQDotProduct {
 
-        Q4DxImpl(IndexInput in, int docBits, int planeBytes) {
+        DxQ4Impl(IndexInput in, int docBits, int planeBytes) {
             super(in, docBits, 4, planeBytes);
         }
 
         @Override
-        long dotProductAt(byte[] query, MemorySegment segment, long offset) {
-            long dot = 0;
+        public long dotProduct(byte[] query) throws IOException {
+            assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
+            return IndexInputUtils.withSlice(in, docBytes, scratch, segment -> {
+                long dot = 0;
+                if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
+                    for (int dp = 0; dp < docBits; dp++) {
+                        dot += dotProduct256(query, segment, (long) dp * planeBytes, planeBytes) << dp;
+                    }
+                } else {
+                    for (int dp = 0; dp < docBits; dp++) {
+                        dot += dotProduct128(query, segment, (long) dp * planeBytes, planeBytes) << dp;
+                    }
+                }
+                return dot;
+            });
+        }
+
+        @Override
+        public void dotProductBulk(byte[] query, int count, float[] scores) throws IOException {
+            assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
-                for (int dp = 0; dp < docBits; dp++) {
-                    dot += dotProduct256(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
-                }
+                IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
+                    for (int i = 0; i < count; i++) {
+                        long offset = (long) i * docBytes;
+                        long dot = 0;
+                        for (int dp = 0; dp < docBits; dp++) {
+                            dot += dotProduct256(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
+                        }
+                        scores[i] = dot;
+                    }
+                });
             } else {
-                for (int dp = 0; dp < docBits; dp++) {
-                    dot += dotProduct128(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
-                }
+                IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
+                    for (int i = 0; i < count; i++) {
+                        long offset = (long) i * docBytes;
+                        long dot = 0;
+                        for (int dp = 0; dp < docBits; dp++) {
+                            dot += dotProduct128(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
+                        }
+                        scores[i] = dot;
+                    }
+                });
             }
-            return dot;
+        }
+
+        @Override
+        public void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
+            assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
+            // one slice covers the whole block, so skipped vectors are simply not scored
+            if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
+                IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
+                    int next = 0;
+                    for (int i = 0; i < count; i++) {
+                        if (next < offsetsCount && offsets[next] == i) {
+                            next++;
+
+                            long offset = (long) i * docBytes;
+                            long dot = 0;
+                            for (int dp = 0; dp < docBits; dp++) {
+                                dot += dotProduct256(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
+                            }
+                            scores[i] = dot;
+                        }
+                    }
+                });
+            } else {
+                IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
+                    int next = 0;
+                    for (int i = 0; i < count; i++) {
+                        if (next < offsetsCount && offsets[next] == i) {
+                            next++;
+
+                            long offset = (long) i * docBytes;
+                            long dot = 0;
+                            for (int dp = 0; dp < docBits; dp++) {
+                                dot += dotProduct128(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
+                            }
+                            scores[i] = dot;
+                        }
+                    }
+                });
+            }
         }
 
         private static long dotProduct256(byte[] q, MemorySegment segment, long baseOffset, int size) {
@@ -331,5 +449,4 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
             return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
         }
     }
-
 }

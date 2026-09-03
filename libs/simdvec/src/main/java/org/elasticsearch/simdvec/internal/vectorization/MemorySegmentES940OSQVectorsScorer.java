@@ -8,10 +8,8 @@
  */
 package org.elasticsearch.simdvec.internal.vectorization;
 
-import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.IntVector;
-import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
 
@@ -273,17 +271,8 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         static final float SEVEN_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[6];
 
         static final VectorSpecies<Integer> INT_SPECIES = IntVector.SPECIES_PREFERRED;
-        static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
-
-        static final VectorSpecies<Long> LONG_SPECIES_128 = LongVector.SPECIES_128;
-        static final VectorSpecies<Long> LONG_SPECIES_256 = LongVector.SPECIES_256;
-
-        static final VectorSpecies<Byte> BYTE_SPECIES_128 = ByteVector.SPECIES_128;
-        static final VectorSpecies<Byte> BYTE_SPECIES_256 = ByteVector.SPECIES_256;
-
         static final VectorSpecies<Float> FLOAT_SPECIES = FloatVector.SPECIES_PREFERRED;
 
-        static final ValueLayout.OfLong LAYOUT_LE_LONG = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
         static final ValueLayout.OfInt LAYOUT_LE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
         static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 

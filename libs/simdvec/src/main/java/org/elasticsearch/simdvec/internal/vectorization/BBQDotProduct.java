@@ -59,11 +59,11 @@ public class BBQDotProduct {
      */
     public static BBQDotProduct create(IndexInput in, int nDims, int docBits, int queryBits) {
         int planeBytes = planeBytes(nDims);
-        // a single-plane query already needs only one pass per data plane, so it gains nothing from a specialisation
-        if (queryBits == 4) {
-            return new Q4DxImpl(in, docBits, planeBytes);
-        }
-        return new BBQDotProduct(in, docBits, queryBits, planeBytes);
+        return switch (queryBits) {
+            case 1 -> new DxQ1Impl(in, docBits, planeBytes);
+            case 4 -> new DxQ4Impl(in, docBits, planeBytes);
+            default -> new BBQDotProduct(in, docBits, queryBits, planeBytes);
+        };
     }
 
     public static int planeBytes(int nDims) {
@@ -105,9 +105,21 @@ public class BBQDotProduct {
      */
     public long dotProduct(byte[] query) throws IOException {
         assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
+
         byte[] data = scratch.apply(docBytes);
         in.readBytes(data, 0, docBytes);
-        return dotProduct(query, data);
+
+        /*
+         * Basic generalized dot-product implementation using AND popcount
+         */
+        long dot = 0;
+        for (int qp = 0; qp < queryBits; qp++) {
+            for (int dp = 0; dp < docBits; dp++) {
+                int popCount = ESVectorUtil.andBitCount(query, qp * planeBytes, data, dp * planeBytes, planeBytes);
+                dot += (long) popCount << (qp + dp);
+            }
+        }
+        return dot;
     }
 
     /**
@@ -141,63 +153,83 @@ public class BBQDotProduct {
         }
     }
 
-    /**
-     * Basic generalized dot-product implementation using AND popcount, over a data vector already read
-     * into {@code data}.
-     */
-    long dotProduct(byte[] query, byte[] data) {
-        long dot = 0;
-        for (int qp = 0; qp < queryBits; qp++) {
-            for (int dp = 0; dp < docBits; dp++) {
-                int popCount = ESVectorUtil.andBitCount(query, qp * planeBytes, data, dp * planeBytes, planeBytes);
-                dot += (long) popCount << (qp + dp);
-            }
-        }
-        return dot;
-    }
+    private static final class DxQ1Impl extends BBQDotProduct {
 
-    /** Holds an accumulator per query plane, so each data plane is read once rather than once per query plane */
-    private static final class Q4DxImpl extends BBQDotProduct {
-
-        Q4DxImpl(IndexInput in, int docBits, int planeBytes) {
-            super(in, docBits, 4, planeBytes);
+        DxQ1Impl(IndexInput in, int docBits, int planeBytes) {
+            super(in, docBits, 1, planeBytes);
         }
 
         @Override
-        long dotProduct(byte[] query, byte[] data) {
+        public long dotProduct(byte[] query) throws IOException {
             long dot = 0;
             for (int dp = 0; dp < docBits; dp++) {
-                dot += dotProduct(query, data, dp * planeBytes, planeBytes) << dp;
+                dot += dotProductImpl(query) << dp;
             }
             return dot;
         }
 
-        private static long dotProduct(byte[] q, byte[] data, int dataOffset, int size) {
+        private long dotProductImpl(byte[] q) throws IOException {
+            assert q.length == planeBytes : "length mismatch q " + q.length + " vs " + planeBytes;
+            long ret = 0;
+            int r = 0;
+            for (final int upperBound = planeBytes & -Long.BYTES; r < upperBound; r += Long.BYTES) {
+                final long value = in.readLong();
+                ret += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r) & value);
+            }
+            for (final int upperBound = planeBytes & -Integer.BYTES; r < upperBound; r += Integer.BYTES) {
+                final int value = in.readInt();
+                ret += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r) & value);
+            }
+            for (; r < planeBytes; r++) {
+                final byte value = in.readByte();
+                ret += Integer.bitCount((q[r] & value) & 0xFF);
+            }
+            return ret;
+        }
+    }
+
+    private static final class DxQ4Impl extends BBQDotProduct {
+
+        DxQ4Impl(IndexInput in, int docBits, int planeBytes) {
+            super(in, docBits, 4, planeBytes);
+        }
+
+        @Override
+        public long dotProduct(byte[] query) throws IOException {
+            long dot = 0;
+            for (int dp = 0; dp < docBits; dp++) {
+                dot += dotProductImpl(query) << dp;
+            }
+            return dot;
+        }
+
+        private long dotProductImpl(byte[] q) throws IOException {
+            assert q.length == planeBytes * 4;
             long subRet0 = 0;
             long subRet1 = 0;
             long subRet2 = 0;
             long subRet3 = 0;
-            int i = 0;
-            for (final int upperBound = size & -Long.BYTES; i < upperBound; i += Long.BYTES) {
-                final long value = (long) BitUtil.VH_LE_LONG.get(data, dataOffset + i);
-                subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
-                subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + size) & value);
-                subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * size) & value);
-                subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * size) & value);
+            int r = 0;
+            for (final int upperBound = planeBytes & -Long.BYTES; r < upperBound; r += Long.BYTES) {
+                final long value = in.readLong();
+                subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r) & value);
+                subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + planeBytes) & value);
+                subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + 2 * planeBytes) & value);
+                subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + 3 * planeBytes) & value);
             }
-            for (final int upperBound = size & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-                final int value = (int) BitUtil.VH_LE_INT.get(data, dataOffset + i);
-                subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
-                subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + size) & value);
-                subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * size) & value);
-                subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * size) & value);
+            for (final int upperBound = planeBytes & -Integer.BYTES; r < upperBound; r += Integer.BYTES) {
+                final int value = in.readInt();
+                subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r) & value);
+                subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r + planeBytes) & value);
+                subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r + 2 * planeBytes) & value);
+                subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r + 3 * planeBytes) & value);
             }
-            for (; i < size; i++) {
-                final int value = data[dataOffset + i] & 0xFF;
-                subRet0 += Integer.bitCount((q[i] & value) & 0xFF);
-                subRet1 += Integer.bitCount((q[i + size] & value) & 0xFF);
-                subRet2 += Integer.bitCount((q[i + 2 * size] & value) & 0xFF);
-                subRet3 += Integer.bitCount((q[i + 3 * size] & value) & 0xFF);
+            for (; r < planeBytes; r++) {
+                final byte value = in.readByte();
+                subRet0 += Integer.bitCount((q[r] & value) & 0xFF);
+                subRet1 += Integer.bitCount((q[r + planeBytes] & value) & 0xFF);
+                subRet2 += Integer.bitCount((q[r + 2 * planeBytes] & value) & 0xFF);
+                subRet3 += Integer.bitCount((q[r + 3 * planeBytes] & value) & 0xFF);
             }
             return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
         }

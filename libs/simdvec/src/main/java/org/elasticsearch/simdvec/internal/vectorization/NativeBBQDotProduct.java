@@ -181,14 +181,14 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
                 );
             }
         });
-        repositionScoresMatchingOffsets(offsets, offsetsCount, scores, count);
+        repositionScoresMatchingOffsets(offsets, offsetsCount, scores);
     }
 
     /**
      * The native methods put their scores all at the start of {@code scores}.
      * So we need to move each score to the correct position in {@code scores}.
      */
-    private static void repositionScoresMatchingOffsets(int[] offsets, int offsetsCount, float[] scores, int count) {
+    private static void repositionScoresMatchingOffsets(int[] offsets, int offsetsCount, float[] scores) {
         for (int i = offsetsCount - 1; i >= 0; i--) {
             int finalScoreIndex = offsets[i];
             if (i < finalScoreIndex) {

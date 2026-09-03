@@ -35,14 +35,18 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.codec.columnar.DuelAssertions.assertCount;
 import static org.elasticsearch.test.codec.columnar.DuelAssertions.assertEqualBuckets;
+import static org.elasticsearch.test.codec.columnar.DuelAssertions.assertEquals;
 import static org.elasticsearch.test.codec.columnar.DuelAssertions.assertSameElements;
 import static org.elasticsearch.test.codec.columnar.DuelAssertions.assertSameKeys;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 /**
  * DSL analytics-path keyword behavior checks: terms, cardinality, value_count, and composite aggregations,
- * plus {@code docvalue_fields} retrieval. Aggregation checks compare bucket key and count pairs ignoring bucket
- * order; retrieval compares each document's distinct values. The value-multiplicity checks (value_count and
+ * plus {@code docvalue_fields} and {@code _source} retrieval. Aggregation checks compare bucket key and count
+ * pairs ignoring bucket order; {@code docvalue_fields} compares each document's distinct values. The
+ * {@code _source} round-trip compares each document's values in source order keeping duplicates, so it asserts
+ * the array order and multiplicity the columnar {@code ArrayOrderInlineNull} layout reconstructs, which the
+ * order- and multiplicity-insensitive checks do not cover. The value-multiplicity checks (value_count and
  * composite) count every value occurrence including intra-document duplicates, which both strict columnar
  * layouts keep, so they prove the baseline and ColumNAR agree on duplicate handling. Cardinality is an
  * approximate aggregation, so it is compared contender to baseline rather than to an exact oracle; the remaining
@@ -62,7 +66,8 @@ public final class DslKeywordAnalyticsChecks {
             new CardinalityCheck(),
             new ValueCountCheck(),
             new CompositeAggregationCheck(),
-            new DocValueFieldsCheck()
+            new DocValueFieldsCheck(),
+            new SourceRoundTripCheck()
         );
     }
 
@@ -148,6 +153,36 @@ public final class DslKeywordAnalyticsChecks {
                 final String context = ctx.failureContext(name() + "[doc=" + docId + "]");
                 assertSameElements(context + " stage=[baseline-oracle]", entry.getValue(), baseline.getOrDefault(docId, List.of()));
                 assertSameElements(
+                    context + " stage=[contender-vs-baseline]",
+                    baseline.getOrDefault(docId, List.of()),
+                    contender.getOrDefault(docId, List.of())
+                );
+            }
+        }
+    }
+
+    static final class SourceRoundTripCheck implements BehaviorCheck {
+        @Override
+        public String name() {
+            return "dsl_source_round_trip";
+        }
+
+        @Override
+        public void check(final DuelContext ctx) {
+            final Map<Long, List<String>> expected = ctx.perDocOrderedValues();
+            final Map<Long, List<String>> baseline = sourceValues(ctx.client(), ctx.baselineIndex(), ctx.keywordField(), ctx.docIdField());
+            final Map<Long, List<String>> contender = sourceValues(
+                ctx.client(),
+                ctx.contenderIndex(),
+                ctx.keywordField(),
+                ctx.docIdField()
+            );
+            assertSameKeys(ctx.failureContext(name()), expected.keySet(), baseline.keySet(), contender.keySet());
+            for (final Map.Entry<Long, List<String>> entry : expected.entrySet()) {
+                final Long docId = entry.getKey();
+                final String context = ctx.failureContext(name() + "[doc=" + docId + "]");
+                assertEquals(context + " stage=[baseline-oracle]", entry.getValue(), baseline.getOrDefault(docId, List.of()));
+                assertEquals(
                     context + " stage=[contender-vs-baseline]",
                     baseline.getOrDefault(docId, List.of()),
                     contender.getOrDefault(docId, List.of())
@@ -251,5 +286,44 @@ public final class DslKeywordAnalyticsChecks {
             }
         );
         return byDoc;
+    }
+
+    private static Map<Long, List<String>> sourceValues(
+        final Client client,
+        final String index,
+        final String keywordField,
+        final String docIdField
+    ) {
+        final Map<Long, List<String>> byDoc = new TreeMap<>();
+        assertResponse(
+            client.prepareSearch(index)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .setSize(MAX_HITS)
+                .addDocValueField(docIdField)
+                .addSort(SortBuilders.fieldSort(docIdField).order(SortOrder.ASC)),
+            response -> {
+                for (final SearchHit hit : response.getHits().getHits()) {
+                    final long docId = ((Number) hit.field(docIdField).getValue()).longValue();
+                    byDoc.put(docId, sourceKeyword(hit, keywordField));
+                }
+            }
+        );
+        return byDoc;
+    }
+
+    private static List<String> sourceKeyword(final SearchHit hit, final String keywordField) {
+        final Map<String, Object> source = hit.getSourceAsMap();
+        final Object raw = source == null ? null : source.get(keywordField);
+        if (raw == null) {
+            return List.of();
+        }
+        if (raw instanceof List<?> list) {
+            final List<String> values = new ArrayList<>(list.size());
+            for (final Object element : list) {
+                values.add(element == null ? null : String.valueOf(element));
+            }
+            return values;
+        }
+        return List.of(String.valueOf(raw));
     }
 }

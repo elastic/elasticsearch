@@ -258,4 +258,18 @@ public record DuelContext(
         }
         return byDoc;
     }
+
+    /**
+     * @return each document's values in source order, keyed by doc id, keeping duplicates and inline nulls in
+     *         place, with an absent field mapped to an empty list (the {@code _source} round-trip oracle: the
+     *         document-order array the columnar {@code ArrayOrderInlineNull} layout reconstructs). Inline nulls
+     *         are preserved because Elasticsearch keeps them in the reconstructed {@code _source} array.
+     */
+    public Map<Long, List<String>> perDocOrderedValues() {
+        final Map<Long, List<String>> byDoc = new TreeMap<>();
+        for (final KeywordDoc doc : docs) {
+            byDoc.put(doc.docId(), doc.values() == null ? List.of() : doc.values());
+        }
+        return byDoc;
+    }
 }

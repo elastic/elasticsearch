@@ -668,15 +668,27 @@ public class ComputeService {
         PhysicalPlan plan,
         Configuration configuration,
         EsqlExecutionInfo execInfo,
-        BooleanSupplier isCancelled
+        BooleanSupplier isCancelled,
+        int producerIndex
     ) {
-        return applyExternalDistributionStrategy(collectExternalSplits(plan, configuration, execInfo, isCancelled), configuration);
+        return applyExternalDistributionStrategy(
+            collectExternalSplits(plan, configuration, execInfo, isCancelled),
+            configuration,
+            producerIndex
+        );
     }
 
     /**
      * CPU-only distribution after splits are already collected. Must not perform object-store IO.
+     *
+     * @param producerIndex position of this producer among a fan-in's source producers, which the strategy uses to
+     *                      offset its node selection; zero when the query has a single external source.
      */
-    ExternalDistributionResult applyExternalDistributionStrategy(CollectedSplits collected, Configuration configuration) {
+    ExternalDistributionResult applyExternalDistributionStrategy(
+        CollectedSplits collected,
+        Configuration configuration,
+        int producerIndex
+    ) {
         // Fragment-path discovery may have rewritten exhaustively-pruned relations to FileList.EMPTY; use the
         // rewritten plan from here on so the empty-splits (coordinator-local) and distributed paths both read nothing
         // for those relations instead of scanning the whole dataset only to have a downstream row filter drop it all.
@@ -691,7 +703,8 @@ public class ComputeService {
             resolvedPlan,
             externalSplits,
             clusterService.state().nodes(),
-            configuration.pragmas()
+            configuration.pragmas(),
+            producerIndex
         );
 
         ExternalDistributionPlan distributionPlan = strategy.planDistribution(context);
@@ -1574,7 +1587,8 @@ public class ComputeService {
             // already landed via recordExternalScanStats from the fan-out executor. Do not start
             // this timer before the hop: start and completion would be different threads.
             long splitDiscoveryCpuStart = ThreadCpuTimer.currentNanos();
-            distributionResult = applyExternalDistributionStrategy(collected, configuration);
+            // Single external source, so there are no siblings to spread against.
+            distributionResult = applyExternalDistributionStrategy(collected, configuration, 0);
             if (execInfo != null
                 && (distributionResult.coordinatorSplits.isEmpty() == false || distributionResult.distributionPlan() != null)) {
                 if (splitDiscoveryCpuStart >= 0) {
@@ -2009,7 +2023,7 @@ public class ComputeService {
         BooleanSupplier preparationCancelled = () -> rootTask.isCancelled() || execInfo.isStopped() || exchangeSource.isFinished();
         try {
             PhysicalPlan splitPlan = discoverSplits(producer, configuration, execInfo, preparationCancelled);
-            distributionResult = applyExternalDistributionStrategy(splitPlan, configuration, execInfo, preparationCancelled);
+            distributionResult = applyExternalDistributionStrategy(splitPlan, configuration, execInfo, preparationCancelled, producerIndex);
             if (distributionResult.coordinatorSplits().isEmpty() == false || distributionResult.distributionPlan() != null) {
                 execInfo.queryProfile().addSplitDiscoveryNanos(System.nanoTime() - splitDiscoveryStart);
             }

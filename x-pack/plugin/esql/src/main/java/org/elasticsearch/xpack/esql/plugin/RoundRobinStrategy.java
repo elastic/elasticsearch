@@ -46,16 +46,27 @@ public final class RoundRobinStrategy implements ExternalDistributionStrategy {
             return ExternalDistributionPlan.LOCAL;
         }
 
-        return assignRoundRobin(splits, nodes);
+        return assignRoundRobin(splits, nodes, context.producerIndex());
     }
 
     static ExternalDistributionPlan assignRoundRobin(List<ExternalSplit> splits, List<DiscoveryNode> nodes) {
+        return assignRoundRobin(splits, nodes, 0);
+    }
+
+    /**
+     * Assigns splits round-robin beginning at {@code rotation} rather than at the first node, so that callers planning
+     * several producers independently can offset each one and spread their first splits instead of piling them onto one
+     * node. Splits remain evenly spread within this call for any rotation, and the assignment map keeps the node order
+     * it was given: rotation changes which node receives a split, not the shape or ordering of the result.
+     */
+    static ExternalDistributionPlan assignRoundRobin(List<ExternalSplit> splits, List<DiscoveryNode> nodes, int rotation) {
         Map<String, List<ExternalSplit>> assignments = new LinkedHashMap<>();
         for (DiscoveryNode node : nodes) {
             assignments.put(node.getId(), new ArrayList<>());
         }
+        int offset = Math.floorMod(rotation, nodes.size());
         for (int i = 0; i < splits.size(); i++) {
-            String nodeId = nodes.get(i % nodes.size()).getId();
+            String nodeId = nodes.get((i + offset) % nodes.size()).getId();
             assignments.get(nodeId).add(splits.get(i));
         }
         return new ExternalDistributionPlan(assignments, true);

@@ -58,13 +58,23 @@ public final class WeightedRoundRobinStrategy implements ExternalDistributionStr
         }
 
         if (allHaveSize == false) {
-            return RoundRobinStrategy.assignRoundRobin(splits, nodes);
+            return RoundRobinStrategy.assignRoundRobin(splits, nodes, context.producerIndex());
         }
 
-        return assignByWeight(splits, nodes);
+        return assignByWeight(splits, nodes, context.producerIndex());
     }
 
     static ExternalDistributionPlan assignByWeight(List<ExternalSplit> splits, List<DiscoveryNode> nodes) {
+        return assignByWeight(splits, nodes, 0);
+    }
+
+    /**
+     * Packs splits largest-first onto the least-loaded node, resolving ties toward {@code rotation} rather than toward
+     * the first node. Every node starts at zero load, so the largest split is always a tie: a fixed resolution sends the
+     * largest split of every independently planned producer to the same node. Rotation moves only which node wins a
+     * tie. Each split still lands on a least-loaded node, so the packing is as balanced for any rotation.
+     */
+    static ExternalDistributionPlan assignByWeight(List<ExternalSplit> splits, List<DiscoveryNode> nodes, int rotation) {
         List<ExternalSplit> sorted = new ArrayList<>(splits);
         sorted.sort(Comparator.comparingLong(ExternalSplit::estimatedSizeInBytes).reversed());
 
@@ -74,11 +84,13 @@ public final class WeightedRoundRobinStrategy implements ExternalDistributionStr
             assignments.put(node.getId(), new ArrayList<>());
         }
 
+        int offset = Math.floorMod(rotation, nodes.size());
         for (ExternalSplit split : sorted) {
-            int minIdx = 0;
-            for (int i = 1; i < nodeLoads.length; i++) {
-                if (nodeLoads[i] < nodeLoads[minIdx]) {
-                    minIdx = i;
+            int minIdx = offset;
+            for (int step = 1; step < nodeLoads.length; step++) {
+                int candidate = (offset + step) % nodeLoads.length;
+                if (nodeLoads[candidate] < nodeLoads[minIdx]) {
+                    minIdx = candidate;
                 }
             }
             assignments.get(nodes.get(minIdx).getId()).add(split);

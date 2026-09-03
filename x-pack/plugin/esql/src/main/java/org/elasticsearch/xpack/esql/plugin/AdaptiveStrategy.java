@@ -68,9 +68,9 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
                 }
             }
             if (allHaveSize) {
-                return WeightedRoundRobinStrategy.assignByWeight(splits, nodes);
+                return WeightedRoundRobinStrategy.assignByWeight(splits, nodes, context.producerIndex());
             }
-            return RoundRobinStrategy.assignRoundRobin(splits, nodes);
+            return RoundRobinStrategy.assignRoundRobin(splits, nodes, context.producerIndex());
         }
 
         return ExternalDistributionPlan.LOCAL;

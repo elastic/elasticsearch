@@ -7,3 +7,6 @@ products:
 areas:
 - Mapping
 title: Fix NPE in nested inner_hits backward doc access
+description: Fixes a `NullPointerException` that occurred when running queries with
+  nested `inner_hits` against index segments that contain no nested documents for
+  the queried field path.

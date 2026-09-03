@@ -313,7 +313,7 @@ public class PlannerSettings {
      */
     public static final Setting<Integer> MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS = Setting.intSetting(
         "esql.min_competitive.global_merge.max_pending_keys",
-        1000,
+        20000,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

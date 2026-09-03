@@ -43,8 +43,7 @@ public interface LuceneColumn extends SliceableColumn {
      * discarded.
      */
     static FixedBitSet singleFilter(FixedBitSet existing, FixedBitSet replacement) {
-        assert existing == null || replacement == null
-            : "cannot apply a filter to a column that already has one";
+        assert existing == null || replacement == null : "cannot apply a filter to a column that already has one";
         return replacement != null ? replacement : existing;
     }
 

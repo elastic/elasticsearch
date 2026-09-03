@@ -134,7 +134,14 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
     public LuceneLongColumn withFilter(FixedBitSet filter) {
         assert filter == null || filter.length() == data.docCount;
         Density dataBasedDensity = (data instanceof EscfLongColumn l && l.validity == null) ? Density.DENSE : Density.SPARSE;
-        return new LuceneLongColumn(data, name(), fieldType(), dataBasedDensity, numericKind(), LuceneColumn.singleFilter(this.filter, filter));
+        return new LuceneLongColumn(
+            data,
+            name(),
+            fieldType(),
+            dataBasedDensity,
+            numericKind(),
+            LuceneColumn.singleFilter(this.filter, filter)
+        );
     }
 
     @Override

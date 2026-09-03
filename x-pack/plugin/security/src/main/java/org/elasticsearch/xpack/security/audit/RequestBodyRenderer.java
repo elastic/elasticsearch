@@ -63,7 +63,16 @@ public final class RequestBodyRenderer implements Releasable {
                     builder.copyCurrentStructure(parser);
                 }
             }
-            return os.toString(StandardCharsets.UTF_8);
+            // Buffer and result String coexist during toString; charge for both before allocating.
+            final int renderedSize = os.size();
+            charge(renderedSize);
+            String result = os.toString(StandardCharsets.UTF_8);
+            // Buffer leaves scope here; release its portion, retaining only the String's charge.
+            if (breaker != null) {
+                breaker.addWithoutBreaking(-renderedSize, label);
+                chargedBytes -= renderedSize;
+            }
+            return result;
         }
     }
 

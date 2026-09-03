@@ -1618,10 +1618,10 @@ public class EsqlSession {
                 return r;
             })
             .<PreAnalysisResult>andThen(
-                (l, r) -> preAnalyzeExternalSources(externalSourceResolver, parsed, preAnalysis, r, l.map(result -> {
-                    ExternalSourceResolution resolution = result.externalSourceResolution();
+                (l, r) -> preAnalyzeExternalSources(externalSourceResolver, parsed, preAnalysis, r, l.map(preAnalysisResult -> {
+                    ExternalSourceResolution resolution = preAnalysisResult.externalSourceResolution();
                     externalSourceWarnings = resolution == null ? List.of() : resolution.warnings();
-                    return result;
+                    return preAnalysisResult;
                 }))
             )
             .<PreAnalysisResult>andThen((l, r) -> {

@@ -940,7 +940,8 @@ public class LocalExecutionPlanner {
                     && common.limit > 1) {
                     globalTopKMerge = new TopNOperator.GlobalTopKMergeConfig(
                         luceneMinCompetitivePilot.globalTopK(),
-                        context.plannerSettings().minCompetitiveGlobalMergeBatchPages()
+                        context.plannerSettings().minCompetitiveGlobalMergeBatchPages(),
+                        context.plannerSettings().minCompetitiveGlobalMergeMaxPendingKeys()
                     );
                 }
             }

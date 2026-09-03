@@ -312,6 +312,20 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Maximum number of sort keys a driver may accumulate in its local pending-keys list before
+     * flushing to the shared global heap mid-page. Bounding this caps both per-driver memory and
+     * the number of heap insertions performed under the global lock per flush, regardless of page
+     * size or {@link #MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES}.
+     */
+    public static final Setting<Integer> MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS = Setting.intSetting(
+        "esql.min_competitive.global_merge.max_pending_keys",
+        1000,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             DEFAULT_DATA_PARTITIONING,
@@ -336,7 +350,8 @@ public class PlannerSettings {
             IN_SUBQUERY_HASH_JOIN_THRESHOLD,
             MIN_COMPETITIVE_TIMESTAMP_OPTIMIZATION_ENABLED,
             MIN_COMPETITIVE_GLOBAL_MERGE_ENABLED,
-            MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES
+            MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES,
+            MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS
         );
     }
 
@@ -409,6 +424,10 @@ public class PlannerSettings {
                 MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES,
                 v -> settings.updateAndGet(s -> s.minCompetitiveGlobalMergeBatchPages(v))
             );
+            clusterSettings.initializeAndWatch(
+                MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS,
+                v -> settings.updateAndGet(s -> s.minCompetitiveGlobalMergeMaxPendingKeys(v))
+            );
         }
 
         public PlannerSettings get() {
@@ -438,6 +457,7 @@ public class PlannerSettings {
     private final boolean minCompetitiveTimestampOptimizationEnabled;
     private final boolean minCompetitiveGlobalMergeEnabled;
     private final int minCompetitiveGlobalMergeBatchPages;
+    private final int minCompetitiveGlobalMergeMaxPendingKeys;
 
     /**
      * Defaults.
@@ -464,7 +484,8 @@ public class PlannerSettings {
         IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY),
         MIN_COMPETITIVE_TIMESTAMP_OPTIMIZATION_ENABLED.getDefault(Settings.EMPTY),
         MIN_COMPETITIVE_GLOBAL_MERGE_ENABLED.getDefault(Settings.EMPTY),
-        MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES.getDefault(Settings.EMPTY)
+        MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES.getDefault(Settings.EMPTY),
+        MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS.getDefault(Settings.EMPTY)
     );
 
     /**
@@ -492,7 +513,8 @@ public class PlannerSettings {
         int inSubqueryHashJoinThreshold,
         boolean minCompetitiveTimestampOptimizationEnabled,
         boolean minCompetitiveGlobalMergeEnabled,
-        int minCompetitiveGlobalMergeBatchPages
+        int minCompetitiveGlobalMergeBatchPages,
+        int minCompetitiveGlobalMergeMaxPendingKeys
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.docsThresholdForAutoPartitioning = docsThresholdForAutoPartitioning;
@@ -516,6 +538,7 @@ public class PlannerSettings {
         this.minCompetitiveTimestampOptimizationEnabled = minCompetitiveTimestampOptimizationEnabled;
         this.minCompetitiveGlobalMergeEnabled = minCompetitiveGlobalMergeEnabled;
         this.minCompetitiveGlobalMergeBatchPages = minCompetitiveGlobalMergeBatchPages;
+        this.minCompetitiveGlobalMergeMaxPendingKeys = minCompetitiveGlobalMergeMaxPendingKeys;
     }
 
     public PlannerSettings defaultDataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -541,7 +564,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -572,7 +596,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -603,7 +628,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -648,7 +674,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -679,7 +706,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -710,7 +738,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -741,7 +770,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -772,7 +802,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -810,7 +841,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -844,7 +876,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -878,7 +911,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -909,7 +943,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -940,7 +975,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -971,7 +1007,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -1002,7 +1039,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -1033,7 +1071,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -1064,7 +1103,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -1095,7 +1135,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -1126,7 +1167,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -1157,7 +1199,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -1188,7 +1231,8 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
@@ -1219,11 +1263,44 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
         );
     }
 
     public int minCompetitiveGlobalMergeBatchPages() {
         return minCompetitiveGlobalMergeBatchPages;
+    }
+
+    public PlannerSettings minCompetitiveGlobalMergeMaxPendingKeys(int minCompetitiveGlobalMergeMaxPendingKeys) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys
+        );
+    }
+
+    public int minCompetitiveGlobalMergeMaxPendingKeys() {
+        return minCompetitiveGlobalMergeMaxPendingKeys;
     }
 }

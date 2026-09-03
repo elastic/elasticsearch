@@ -46,9 +46,10 @@ public class TopNOperator implements Operator, Accountable {
 
     /**
      * Configures the cross-driver global top-K merge: a {@link SharedGlobalTopK} shared across all
-     * drivers, merged every {@code batchPages} pages.
+     * drivers, merged every {@code batchPages} pages or whenever a driver's pending-keys list reaches
+     * {@code maxPendingKeys} entries, whichever comes first.
      */
-    public record GlobalTopKMergeConfig(SharedGlobalTopK.Supplier globalTopK, int batchPages) {}
+    public record GlobalTopKMergeConfig(SharedGlobalTopK.Supplier globalTopK, int batchPages, int maxPendingKeys) {}
 
     public enum InputOrdering {
         SORTED,
@@ -292,6 +293,7 @@ public class TopNOperator implements Operator, Accountable {
     private final List<BytesRef> pendingGlobalKeys;
 
     private int globalTopKBatchPages;
+    private int globalTopKMaxPendingKeys;
 
     /**
      * How many times {@link #minCompetitive} was updated.
@@ -380,6 +382,7 @@ public class TopNOperator implements Operator, Accountable {
             if (globalTopKMergeConfig != null) {
                 globalTopK = globalTopKMergeConfig.globalTopK().get();
                 globalTopKBatchPages = globalTopKMergeConfig.batchPages();
+                globalTopKMaxPendingKeys = globalTopKMergeConfig.maxPendingKeys();
             }
             success = true;
         } finally {
@@ -449,6 +452,9 @@ public class TopNOperator implements Operator, Accountable {
                     rowFiller.writeValues(i, spare);
                     if (pendingGlobalKeys != null) {
                         pendingGlobalKeys.add(BytesRef.deepCopyOf(spare.keys.bytesRefView()));
+                        if (pendingGlobalKeys.size() >= globalTopKMaxPendingKeys) {
+                            flushPendingGlobalKeys();
+                        }
                     }
                     inputQueue.add(spare);
                     spare = null;
@@ -459,6 +465,9 @@ public class TopNOperator implements Operator, Accountable {
                     rowFiller.writeValues(i, spare);
                     if (pendingGlobalKeys != null) {
                         pendingGlobalKeys.add(BytesRef.deepCopyOf(spare.keys.bytesRefView()));
+                        if (pendingGlobalKeys.size() >= globalTopKMaxPendingKeys) {
+                            flushPendingGlobalKeys();
+                        }
                     }
                     inputQueue.updateTop(spare);
                     spare = nextSpare;
@@ -493,6 +502,10 @@ public class TopNOperator implements Operator, Accountable {
         if (globalTopK == null || globalTopKBatchPages <= 0 || pagesReceived % globalTopKBatchPages != 0) {
             return;
         }
+        flushPendingGlobalKeys();
+    }
+
+    private void flushPendingGlobalKeys() {
         if (pendingGlobalKeys != null && pendingGlobalKeys.isEmpty() == false) {
             if (globalTopK.mergeKeys(pendingGlobalKeys)) {
                 minCompetitiveUpdates++;

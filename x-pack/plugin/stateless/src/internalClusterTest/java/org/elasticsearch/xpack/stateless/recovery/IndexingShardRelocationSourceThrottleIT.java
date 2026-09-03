@@ -103,7 +103,7 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
         final var proceedWithHandoff = new CountDownLatch(1);
         MockTransportService.getInstance(targetNode)
             .addRequestHandlingBehavior(
-                TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
+                TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
                 (handler, request, channel, task) -> {
                     safeAwait(proceedWithHandoff);
                     handler.messageReceived(request, channel, task);
@@ -142,7 +142,7 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
         // Stall on the source (not the target) so stopping the target does not leave a blocked handler on a dying node.
         final var proceedWithHandoff = new CountDownLatch(1);
         MockTransportService.getInstance(sourceNode).addSendBehavior((connection, requestId, action, request, options) -> {
-            if (action.equals(TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME)) {
+            if (action.equals(TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME)) {
                 safeAwait(proceedWithHandoff);
             }
             connection.sendRequest(requestId, action, request, options);
@@ -188,7 +188,7 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
         final var proceedWithHandoffs = new CountDownLatch(1);
         MockTransportService.getInstance(targetNode)
             .addRequestHandlingBehavior(
-                TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
+                TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
                 (handler, request, channel, task) -> {
                     safeAwait(proceedWithHandoffs);
                     handler.messageReceived(request, channel, task);
@@ -229,7 +229,7 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
         final var handoffReached = new CountDownLatch(1);
         final var proceedWithHandoff = new CountDownLatch(1);
         MockTransportService.getInstance(sourceNode).addSendBehavior((connection, requestId, action, request, options) -> {
-            if (action.equals(TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME)) {
+            if (action.equals(TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME)) {
                 handoffReached.countDown();
                 safeAwait(proceedWithHandoff, TimeValue.THIRTY_SECONDS);
             }
@@ -281,7 +281,7 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
         final var proceedWithHandoff = new CountDownLatch(1);
         MockTransportService.getInstance(targetNode)
             .addRequestHandlingBehavior(
-                TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
+                TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
                 (handler, request, channel, task) -> {
                     safeAwait(proceedWithHandoff);
                     handler.messageReceived(request, channel, task);
@@ -330,7 +330,7 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
         final var proceedWithHandoffs = new CountDownLatch(1);
         MockTransportService.getInstance(targetNode)
             .addRequestHandlingBehavior(
-                TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
+                TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
                 (handler, request, channel, task) -> {
                     safeAwait(proceedWithHandoffs);
                     handler.messageReceived(request, channel, task);

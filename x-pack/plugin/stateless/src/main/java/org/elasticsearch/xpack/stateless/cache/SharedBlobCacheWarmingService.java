@@ -911,7 +911,12 @@ public class SharedBlobCacheWarmingService {
                                 readCommitsForSearchWarmingExecutor,
                                 referencedCompoundCommit -> {
                                     if (isOfflineWarmingEnabled) {
-                                        var offset = byteRangeToWarmForCC(referencedCompoundCommit).end();
+                                        long resolvedTs = directory.resolveRegionTimestampMillis(
+                                            referencedCompoundCommit.statelessCompoundCommitReference()
+                                                .compoundCommit()
+                                                .getTimestampFieldValueRange()
+                                        );
+                                        var offset = byteRangeToWarmForCC(referencedCompoundCommit, resolvedTs).end();
                                         // blobSize is 0 as a sentinel until the bccBlobSizeConsumer fills it in;
                                         // We use unknown timestamps here: timestamps are only relevant when the cache boost preference
                                         // feature is enabled, which requires internal files replicated content for search shards.
@@ -1305,8 +1310,11 @@ public class SharedBlobCacheWarmingService {
         return count;
     }
 
-    public ByteRange byteRangeToWarmForCC(ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCC) {
-        final double warmingRatio = calculateWarmingRatioFromCompoundCommit(referencedCC, threadPool.absoluteTimeInMillis());
+    public ByteRange byteRangeToWarmForCC(
+        ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCC,
+        long resolvedCCTimestampMillis
+    ) {
+        final double warmingRatio = warmingRatioProvider.getWarmingRatio(threadPool.absoluteTimeInMillis(), resolvedCCTimestampMillis);
         assert warmingRatio >= 0.0;
         if (warmingRatio <= 0) {
             return ByteRange.EMPTY;
@@ -1384,13 +1392,6 @@ public class SharedBlobCacheWarmingService {
                 warmer.run();
             }
         }
-    }
-
-    private double calculateWarmingRatioFromCompoundCommit(
-        ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCompoundCommit,
-        long nowMillis
-    ) {
-        return warmingRatioProvider.getWarmingRatio(referencedCompoundCommit, nowMillis);
     }
 
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> {

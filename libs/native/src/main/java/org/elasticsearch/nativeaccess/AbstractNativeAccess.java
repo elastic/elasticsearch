@@ -9,7 +9,6 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.foreign.CloseableByteBuffer;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.JavaLibrary;
@@ -48,18 +47,6 @@ abstract class AbstractNativeAccess implements NativeAccess {
     @Override
     public Zstd getZstd() {
         return zstd;
-    }
-
-    @Override
-    public CloseableByteBuffer newSharedBuffer(int len) {
-        assert len > 0;
-        return javaLib.newSharedBuffer(len);
-    }
-
-    @Override
-    public CloseableByteBuffer newConfinedBuffer(int len) {
-        assert len > 0;
-        return javaLib.newConfinedBuffer(len);
     }
 
     @Override

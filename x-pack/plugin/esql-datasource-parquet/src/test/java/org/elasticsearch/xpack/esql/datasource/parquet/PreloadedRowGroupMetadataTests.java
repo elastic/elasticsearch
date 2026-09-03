@@ -386,6 +386,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                     Set.of(),
                     Set.of(),
                     Set.of(),
+                    Integer.MAX_VALUE,
                     breaker
                 )
             ) {
@@ -463,6 +464,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                     Set.of("a"),
                     Set.of("a"),
                     Set.of("a"),
+                    Integer.MAX_VALUE,
                     breaker
                 )
             ) {
@@ -493,6 +495,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                     predicates,
                     predicates,
                     predicates,
+                    Integer.MAX_VALUE,
                     breaker
                 )
             ) {
@@ -524,6 +527,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                     Set.of("a"),
                     Set.of("a"),
                     Set.of("a", "b", "c"),
+                    Integer.MAX_VALUE,
                     breaker
                 )
             ) {
@@ -688,6 +692,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                         s.predicate(),
                         s.columnIndex(),
                         s.offsetIndex(),
+                        Integer.MAX_VALUE,
                         breaker
                     )
                 ) {

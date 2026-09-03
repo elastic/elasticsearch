@@ -22,6 +22,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
@@ -46,6 +47,7 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
 
     private final int maxDoc;
     private final IndexInput data;
+    private final IndexInput skipIndex;
     private final Map<Integer, Column> columns = new HashMap<>();
     private boolean closed = false;
 
@@ -101,6 +103,28 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
                 );
             }
             CodecUtil.retrieveChecksum(data);
+
+            String skipName = IndexFileNames.segmentFileName(
+                state.segmentInfo.name,
+                state.segmentSuffix,
+                ColumNARDocValuesFormat.SKIP_EXTENSION
+            );
+            // Index-like rather than data-like: the skip index is consulted to decide what to read, so a
+            // directory that distinguishes the two should treat it as it treats the terms index.
+            skipIndex = state.directory.openInput(skipName, state.context.withHints(FileTypeHint.INDEX));
+            final FormatVersion skipVersion = ColumnarCodecUtil.checkHeader(
+                skipIndex,
+                ColumNARDocValuesFormat.SKIP_CODEC,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
+            if (metaVersion.equals(skipVersion) == false) {
+                throw new CorruptIndexException(
+                    "Format versions mismatch: meta=" + metaVersion.version() + ", skip=" + skipVersion.version(),
+                    skipIndex
+                );
+            }
+            CodecUtil.retrieveChecksum(skipIndex);
             success = true;
         } finally {
             if (success == false) {
@@ -138,7 +162,7 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
     private BinaryDocValues numericBinary(NumericColumnMetadata metadata) throws IOException {
         NumericColumnReader reader = new NumericColumnReader(metadata, data);
         ColumnIterator iterator = reader.iterator();
-        return new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, metadata.skipper(), data);
+        return new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, metadata.skipper(), skipIndex);
     }
 
     @Override
@@ -179,6 +203,7 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
     @Override
     public void checkIntegrity() throws IOException {
         CodecUtil.checksumEntireFile(data);
+        CodecUtil.checksumEntireFile(skipIndex);
     }
 
     @Override
@@ -187,6 +212,6 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
             return;
         }
         closed = true;
-        IOUtils.close(data);
+        IOUtils.close(data, skipIndex);
     }
 }

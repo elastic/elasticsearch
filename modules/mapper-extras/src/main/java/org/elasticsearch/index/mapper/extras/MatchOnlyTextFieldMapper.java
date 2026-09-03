@@ -105,6 +105,7 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
@@ -1168,8 +1169,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == false;
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParameters.multiValue() == false && token != XContentParser.Token.VALUE_NULL;
     }
 
     @Override
@@ -1331,6 +1332,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             // also load from fallback field for values that exceeded MAX_TERM_LENGTH
             layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().syntheticSourceFallbackFieldName(), indexCreatedVersion));
         }
+        if (onFailureColumnEnabled()) {
+            layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexCreatedVersion));
+        }
         return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
     }
 
@@ -1363,6 +1367,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             layers.addAll(kwd.syntheticFieldLoaderLayers());
         }
 
+        if (onFailureColumnEnabled()) {
+            layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexCreatedVersion));
+        }
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
     }
 }

@@ -24,6 +24,7 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.packaging.util.docker.Docker.runContainer;
 import static org.elasticsearch.packaging.util.docker.DockerRun.builder;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.junit.Assume.assumeTrue;
 
 /**
  * Packaging tests that verify native libraries load and function correctly on each supported platform.
@@ -162,6 +163,31 @@ public class NativeLibraryTests extends PackagingTestCase {
                 int vecCaps = Integer.parseInt(matcher.group(1));
                 assertTrue("Expected vec_caps > 0, indicating native simdvec is operational, but got: " + vecCaps, vecCaps > 0);
             }
+        } finally {
+            stopElasticsearch();
+        }
+    }
+
+    /**
+     * Verifies that the native parquet-rs library (libes_parquet_rs.so/libes_parquet_rs.dylib) loads successfully.
+     * <p>
+     * The {@code libes_parquet_rs} library is a Rust native library loaded via Panama FFI during
+     * {@code NativeAccess} initialization at node startup. It provides Parquet file metadata and schema
+     * operations. If the native library cannot be loaded (e.g. due to a glibc version incompatibility),
+     * the node logs a warning instead of the success message.
+     * <p>
+     * This test asserts that the {@code "Loaded parquet-rs native library"} log line is present,
+     * confirming the library loaded without error. Currently a log-line check is the simplest
+     * verification because there is no REST-accessible API that directly exercises the Panama FFI
+     * functions ({@code getStatistics}, {@code getSchemaFFI}). If the library loading moves into
+     * the ES|QL module, this test should be updated to invoke it through a query instead.
+     */
+    public void test40ParquetRsNativeLibrary() throws Exception {
+        assumeTrue("parquet-rs native library is only supported on Linux and macOS", Platforms.LINUX || Platforms.DARWIN);
+        configureAndStart(SECURITY_DISABLED_SETTINGS);
+        try {
+            String logs = getElasticsearchLogs();
+            assertThat(logs, containsString("Loaded parquet-rs native library"));
         } finally {
             stopElasticsearch();
         }

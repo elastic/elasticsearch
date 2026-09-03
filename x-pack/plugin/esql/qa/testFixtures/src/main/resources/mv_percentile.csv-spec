@@ -89,6 +89,7 @@ integer:integer | long:long | double:double
 
 fromIndex
 required_capability: fn_mv_percentile
+skip_columnar: MV_PERCENTILE result differs in columnar mode due to different MV ordering in source
 
 FROM employees
 | EVAL

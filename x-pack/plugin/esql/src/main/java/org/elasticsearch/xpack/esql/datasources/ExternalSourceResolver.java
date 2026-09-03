@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.FileMetadataCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -657,46 +658,49 @@ public class ExternalSourceResolver {
          */
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);
+        try {
+            // Strict declaration is the entire schema: build directly from the declaration (one bounded anchor footer read
+            // for columnar coercibility), no inference. The non-strict overlay is applied by the caller after this returns.
+            if (isDeclaredSchema(declaredMapping)) {
+                listener.onResponse(resolveStrictSingleFile(path, storagePath, provider, config, declaredMapping));
+                return;
+            }
 
-        // Strict declaration is the entire schema: build directly from the declaration (one bounded anchor footer read
-        // for columnar coercibility), no inference. The non-strict overlay is applied by the caller after this returns.
-        if (isDeclaredSchema(declaredMapping)) {
-            listener.onResponse(resolveStrictSingleFile(path, storagePath, provider, config, declaredMapping));
-            return;
+            ExternalSourceMetadata extMetadata;
+            StorageEntry storageEntry;
+            if (isCacheable(provider)) {
+                // Warm path is zero-I/O: the file-metadata cache holds {length, mtime} within the schema TTL, so a warm
+                // single-file resolve never touches a live object (fileMetadataOf). mtime is the cache key's version token;
+                // length + mtime rebuild the singleton FileList.
+                FileMetadata meta = fileMetadataOf(storagePath, provider, config);
+                String formatType = detectFormatType(storagePath);
+                SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), meta.mtimeMillis(), formatType, config);
+                SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
+                    return SchemaCacheEntry.from(resolveSingleSource(path, config));
+                });
+                List<Attribute> schema = schemaEntry.toAttributes();
+                extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
+                storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
+            } else {
+                SourceMetadata metadata = resolveSingleSource(path, config);
+                extMetadata = wrapAsExternalSourceMetadata(metadata, config, declaredReadSpecOf(declaredMapping));
+                StorageObject object = provider.newObject(storagePath);
+                storageEntry = new StorageEntry(storagePath, object.length(), object.lastModified());
+            }
+
+            // Capture the raw file schema: schemaMap describes the physical schema each reader actually
+            // sees, not the user-facing projection. _file.* columns are no longer glued onto the schema
+            // here — they are request-driven (FROM ... METADATA _file.path, or the temporary EXTERNAL
+            // shim that injects them into the relation's metadataFields). See ResolveExternalRelations.
+            List<Attribute> fileSchema = extMetadata.schema();
+
+            FileList singletonList = GlobExpander.fileListOf(List.of(storageEntry), path);
+            // Single-file: degenerate case of the general flow — one-entry schemaMap, identity mapping.
+            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, fileSchema);
+            listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap));
+        } finally {
+            StorageProviderCache.closeLease(provider);
         }
-
-        ExternalSourceMetadata extMetadata;
-        StorageEntry storageEntry;
-        if (isCacheable(provider)) {
-            // Warm path is zero-I/O: the file-metadata cache holds {length, mtime} within the schema TTL, so a warm
-            // single-file resolve never touches a live object (fileMetadataOf). mtime is the cache key's version token;
-            // length + mtime rebuild the singleton FileList.
-            FileMetadata meta = fileMetadataOf(storagePath, provider, config);
-            String formatType = detectFormatType(storagePath);
-            SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), meta.mtimeMillis(), formatType, config);
-            SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                return SchemaCacheEntry.from(resolveSingleSource(path, config));
-            });
-            List<Attribute> schema = schemaEntry.toAttributes();
-            extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
-            storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
-        } else {
-            SourceMetadata metadata = resolveSingleSource(path, config);
-            extMetadata = wrapAsExternalSourceMetadata(metadata, config, declaredReadSpecOf(declaredMapping));
-            StorageObject object = provider.newObject(storagePath);
-            storageEntry = new StorageEntry(storagePath, object.length(), object.lastModified());
-        }
-
-        // Capture the raw file schema: schemaMap describes the physical schema each reader actually
-        // sees, not the user-facing projection. _file.* columns are no longer glued onto the schema
-        // here — they are request-driven (FROM ... METADATA _file.path, or the temporary EXTERNAL
-        // shim that injects them into the relation's metadataFields). See ResolveExternalRelations.
-        List<Attribute> fileSchema = extMetadata.schema();
-
-        FileList singletonList = GlobExpander.fileListOf(List.of(storageEntry), path);
-        // Single-file: degenerate case of the general flow — one-entry schemaMap, identity mapping.
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, fileSchema);
-        listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap));
     }
 
     private static Map<StoragePath, SchemaReconciliation.FileSchemaInfo> singleEntrySchemaMap(
@@ -720,80 +724,86 @@ public class ExternalSourceResolver {
     ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);
+        // Lease covers the synchronous prologue only (glob / cache listing). FIRST_FILE_WINS
+        // returns it when the anchor read is issued; cachedResolveSingleSourceAsync /
+        // resolveSingleSourceAsync re-borrow and must not capture this provider.
+        try {
+            // Strict declaration is the whole schema for every file, so inference (FIRST_FILE_WINS / reconciliation) is
+            // skipped entirely — only the glob listing plus, for columnar formats, one anchor footer read to validate
+            // declared-type coercibility. The non-strict overlay is applied by the caller after this returns.
+            if (isDeclaredSchema(declaredMapping)) {
+                listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, config, declaredMapping));
+                return;
+            }
 
-        // Strict declaration is the whole schema for every file, so inference (FIRST_FILE_WINS / reconciliation) is
-        // skipped entirely — only the glob listing plus, for columnar formats, one anchor footer read to validate
-        // declared-type coercibility. The non-strict overlay is applied by the caller after this returns.
-        if (isDeclaredSchema(declaredMapping)) {
-            listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, config, declaredMapping));
-            return;
-        }
+            FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
+            boolean cacheable = isCacheable(provider);
 
-        FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
-        boolean cacheable = isCacheable(provider);
+            if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
+                int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
+                int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
+                long discoveryStartNanos = System.nanoTime();
+                FileList raw = GlobExpander.expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
+                recordDiscovery(raw, discoveryStartNanos, storagePath.scheme());
+                if (raw.fileCount() == 0) {
+                    throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+                }
+                resolveMultiFileWithReconciliation(raw, config, schemaResolution, cacheable, listener);
+                return;
+            }
 
-        if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-            int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
-            int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
+            FileList listing;
             long discoveryStartNanos = System.nanoTime();
-            FileList raw = GlobExpander.expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
-            recordDiscovery(raw, discoveryStartNanos, storagePath.scheme());
-            if (raw.fileCount() == 0) {
+            if (cacheable) {
+                listing = cachedListing(path, storagePath, provider, hints, config);
+            } else {
+                listing = expandAndCompact(path, provider, hints, config, storagePath);
+            }
+            recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
+
+            if (listing.fileCount() == 0) {
                 throw new IllegalArgumentException("Glob pattern matched no files: " + path);
             }
-            resolveMultiFileWithReconciliation(raw, config, schemaResolution, cacheable, listener);
-            return;
-        }
 
-        FileList listing;
-        long discoveryStartNanos = System.nanoTime();
-        if (cacheable) {
-            listing = cachedListing(path, storagePath, provider, hints, config);
-        } else {
-            listing = expandAndCompact(path, provider, hints, config, storagePath);
-        }
-        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
-
-        if (listing.fileCount() == 0) {
-            throw new IllegalArgumentException("Glob pattern matched no files: " + path);
-        }
-
-        int anchor = 0;
-        for (int i = 1; i < listing.fileCount(); i++) {
-            if (listing.path(i).toString().compareTo(listing.path(anchor).toString()) < 0) {
-                anchor = i;
+            int anchor = 0;
+            for (int i = 1; i < listing.fileCount(); i++) {
+                if (listing.path(i).toString().compareTo(listing.path(anchor).toString()) < 0) {
+                    anchor = i;
+                }
             }
-        }
 
-        StoragePath anchorPath = listing.path(anchor);
-        long anchorMtime = listing.lastModifiedMillis(anchor);
+            StoragePath anchorPath = listing.path(anchor);
+            long anchorMtime = listing.lastModifiedMillis(anchor);
 
-        // Glob expansion / cache listing above can be slow on wide globs; re-check before the anchor footer read.
-        throwIfCancelled();
+            // Glob expansion / cache listing above can be slow on wide globs; re-check before the anchor footer read.
+            throwIfCancelled();
 
-        // The anchor's length/mtime are already known from the listing, so seed a ListingHint and resolve it on the
-        // async footer-read path (like the fan-out) rather than a synchronous resolveSingleSource. This both skips
-        // the existence/HEAD + length probe and, more importantly, avoids pinning the metadata-read executor thread
-        // across the anchor footer read. Unlike the single-file getOrComputeSchema path this does not coalesce
-        // concurrent misses for the same anchor key; that matches the fan-out's peek/put trade-off and is safe
-        // because footer resolution is idempotent (see cachedResolveSingleSourceAsync).
-        ListingHint anchorHint = new ListingHint(listing.size(anchor), anchorMtime);
-        final FileList finalListing = listing;
-        ActionListener<ExternalSourceMetadata> anchorListener = ActionListener.wrap(
-            anchorMetadata -> completeFirstFileWins(anchorMetadata, finalListing, config, requiresStats, cacheable, listener),
-            listener::onFailure
-        );
-        if (cacheable) {
-            // cachedResolveSingleSourceAsync always completes with the ExternalSourceMetadata built by
-            // buildMetadataFromCache, so the cast is safe.
-            cachedResolveSingleSourceAsync(anchorPath, anchorHint, config, anchorListener.map(meta -> (ExternalSourceMetadata) meta));
-        } else {
-            resolveSingleSourceAsync(
-                anchorPath.toString(),
-                anchorHint,
-                config,
-                anchorListener.map(meta -> wrapAsExternalSourceMetadata(meta, config, declaredReadSpecOf(declaredMapping)))
+            // The anchor's length/mtime are already known from the listing, so seed a ListingHint and resolve it on the
+            // async footer-read path (like the fan-out) rather than a synchronous resolveSingleSource. This both skips
+            // the existence/HEAD + length probe and, more importantly, avoids pinning the metadata-read executor thread
+            // across the anchor footer read. Unlike the single-file getOrComputeSchema path this does not coalesce
+            // concurrent misses for the same anchor key; that matches the fan-out's peek/put trade-off and is safe
+            // because footer resolution is idempotent (see cachedResolveSingleSourceAsync).
+            ListingHint anchorHint = new ListingHint(listing.size(anchor), anchorMtime);
+            final FileList finalListing = listing;
+            ActionListener<ExternalSourceMetadata> anchorListener = ActionListener.wrap(
+                anchorMetadata -> completeFirstFileWins(anchorMetadata, finalListing, config, requiresStats, cacheable, listener),
+                listener::onFailure
             );
+            if (cacheable) {
+                // cachedResolveSingleSourceAsync always completes with the ExternalSourceMetadata built by
+                // buildMetadataFromCache, so the cast is safe.
+                cachedResolveSingleSourceAsync(anchorPath, anchorHint, config, anchorListener.map(meta -> (ExternalSourceMetadata) meta));
+            } else {
+                resolveSingleSourceAsync(
+                    anchorPath.toString(),
+                    anchorHint,
+                    config,
+                    anchorListener.map(meta -> wrapAsExternalSourceMetadata(meta, config, declaredReadSpecOf(declaredMapping)))
+                );
+            }
+        } finally {
+            StorageProviderCache.closeLease(provider);
         }
     }
 
@@ -2606,8 +2616,8 @@ public class ExternalSourceResolver {
 
         // Partition columns are path-derived (no file I/O), so strict mode surfaces them exactly like the inferred
         // path does. One divergence: the inferred path SHADOWS a physical column that collides with a partition key
-        // (partition wins, Spark/DuckDB semantics), but under strict the declaration drives the reader's file schema
-        // — text formats bind positionally — so silently dropping a declared column would silently re-bind the rest.
+        // (partition wins, Spark/DuckDB semantics), but under strict the declaration drives the reader's file schema,
+        // so silently dropping a declared column could silently mis-bind reads.
         // A declared column colliding with a partition key is rejected instead: partition columns need no declaring.
         // Cheap no-I/O guard first (partition collision); strict skips only rejectUncoercibleFileTypedRetypes against
         // the unified schema, which needs an inferred schema strict never reads — the anchor-footer check below covers it.
@@ -2684,7 +2694,7 @@ public class ExternalSourceResolver {
     /**
      * Rejects a declared column that collides with a hive partition key, for BOTH strict and non-strict declarations. A
      * partition column is path-derived (the partition value is the same for every row of a file) and needs no declaring;
-     * declaring one either silently re-binds the positional text columns (strict) or overlays/retypes the partition
+     * declaring one either conflicts with the declared schema's by-name binding (strict) or overlays/retypes the partition
      * attribute against the value the injector stamps with the partition's own type (non-strict) — a silent misbind
      * either way. Checks both the declared logical name and its {@code path} physical, since the shadowed physical
      * column is the partition value too. No-op when the dataset is not partitioned.

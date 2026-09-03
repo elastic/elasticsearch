@@ -226,8 +226,9 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             return stripSuffix(fieldName, ignoreMalformed);
         }
 
-        // A value redirected by "doc_values.on_failure=ignore" is kept verbatim in a <field>._on_failure companion. This is currently
-        // write-only, but handled here so its visibility follows the parent before it is ever wired into a synthetic-source read path.
+        // A value redirected by "doc_values.on_failure=ignore" is stored verbatim in a <field>._on_failure companion; synthetic source
+        // reads it back (CompositeSyntheticFieldLoader#onFailureValuesLayer) to reconstruct the parent's full array. Both columns must
+        // follow the same FLS decision as the parent so neither a denial nor a grant produces a truncated or leaked array.
         String onFailure = OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX;
         if (fieldName.endsWith(onFailure + counts)) {
             return stripSuffix(fieldName, onFailure + counts);

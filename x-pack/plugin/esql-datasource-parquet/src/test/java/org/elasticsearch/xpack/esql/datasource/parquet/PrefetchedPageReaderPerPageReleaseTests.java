@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.Encoding;
+import org.apache.parquet.column.page.DataPage;
 import org.apache.parquet.column.page.DataPageV1;
 import org.apache.parquet.column.page.DataPageV2;
 import org.apache.parquet.column.page.DictionaryPage;
@@ -26,9 +27,9 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Pins two contracts on {@link PrefetchedPageReader}: live breaker residency stays O(one
- * decompressed page) (+ dictionary, if any), not O(uncompressed column chunk); and compressed
- * pages decompress onto a heap {@code byte[]}, not a direct buffer.
+ * Pins two contracts on {@link PrefetchedPageReader}: live breaker residency stays O(max
+ * decompressed page seen) (+ dictionary, if any), not O(uncompressed column chunk); same-size
+ * pages stay charged at one page. Compressed pages decompress onto a reused heap {@code byte[]}.
  *
  * <p>Both a zstd {@link DataPageV2} (the canonical bench case) and a gzip {@link DataPageV1}
  * (codec-uniformity twin, no native-library dependency) are covered for the live bound.
@@ -78,7 +79,7 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
             for (int p = 0; p < PAGES; p++) {
                 assertNotNull(reader.readPage());
                 assertEquals(
-                    "live charge must be dictionary plus the current data page after readPage() #" + (p + 1),
+                    "live charge must be dictionary plus dest capacity (one page) after readPage() #" + (p + 1),
                     dictPayload.length + PAGE_PAYLOAD_BYTES,
                     breaker.getUsed()
                 );
@@ -97,7 +98,7 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
         assertHeapNotDirect(buildGzipV1Pages());
     }
 
-    public void testBreakerChargeTracksCurrentPageSize() throws IOException {
+    public void testBreakerChargeTracksMaxSeenDestCapacity() throws IOException {
         int[] sizes = { 32 * 1024, 64 * 1024, 128 * 1024, 64 * 1024 };
         PagesFixture fixture = buildZstdV2Pages(sizes);
         LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
@@ -109,10 +110,55 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
             valueCount(sizes)
         );
         try {
+            int maxSeen = 0;
             for (int size : sizes) {
                 DataPageV2 page = (DataPageV2) reader.readPage();
                 assertNotNull(page);
-                assertEquals(size, breaker.getUsed());
+                maxSeen = Math.max(maxSeen, size);
+                assertEquals("breaker tracks grow-only dest capacity, not the current page size", maxSeen, breaker.getUsed());
+            }
+        } finally {
+            reader.close();
+            fixture.codecFactory.release();
+        }
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    public void testReusableDestArrayIdentityAndSliceLength() throws IOException {
+        // Equal-or-smaller pages reuse dest; grow allocates. Slice remaining is page size, not capacity.
+        int[] sizes = { 32 * 1024, 64 * 1024, 128 * 1024, 64 * 1024 };
+        PagesFixture fixture = buildZstdV2Pages(sizes);
+        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        PrefetchedPageReader reader = new PrefetchedPageReader(
+            fixture.codecFactory.getDecompressor(CompressionCodecName.ZSTD),
+            breaker,
+            fixture.pages,
+            null,
+            valueCount(sizes)
+        );
+        try {
+            byte[] dest = null;
+            int maxSeen = 0;
+            for (int i = 0; i < sizes.length; i++) {
+                int size = sizes[i];
+                DataPageV2 page = (DataPageV2) reader.readPage();
+                assertNotNull(page);
+                var buf = page.getData().toByteBuffer();
+                assertTrue(buf.hasArray());
+                assertEquals("slice remaining must be the page size, not dest capacity", size, buf.remaining());
+                byte[] array = buf.array();
+                assertArrayEquals("decompressed prefix must match payload", fixture.payloads().get(i), Arrays.copyOf(array, size));
+                if (size > maxSeen) {
+                    if (dest != null) {
+                        assertNotSame("grow must allocate a new dest", dest, array);
+                    }
+                    dest = array;
+                    maxSeen = size;
+                } else {
+                    assertSame("equal-or-smaller page must reuse dest", dest, array);
+                }
+                assertEquals(maxSeen, array.length);
+                assertEquals(maxSeen, breaker.getUsed());
             }
         } finally {
             reader.close();
@@ -173,6 +219,31 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
+    public void testGrowBreakerTripKeepsPreviousDestCharge() throws IOException {
+        // First page charges dest. A later grow that trips must leave that charge in place.
+        int small = 32 * 1024;
+        int large = 128 * 1024;
+        PagesFixture fixture = buildZstdV2Pages(new int[] { small, large });
+        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(small + large - 1L));
+        PrefetchedPageReader reader = new PrefetchedPageReader(
+            fixture.codecFactory.getDecompressor(CompressionCodecName.ZSTD),
+            breaker,
+            fixture.pages,
+            null,
+            valueCount(new int[] { small, large })
+        );
+        try {
+            assertNotNull(reader.readPage());
+            assertEquals(small, breaker.getUsed());
+            expectThrows(CircuitBreakingException.class, reader::readPage);
+            assertEquals("failed grow must leave the previous dest charged", small, breaker.getUsed());
+        } finally {
+            reader.close();
+            fixture.codecFactory.release();
+        }
+        assertEquals(0L, breaker.getUsed());
+    }
+
     private void assertPerPageChargeAndZeroOnClose(PagesFixture fixture) throws IOException {
         LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
         PrefetchedPageReader reader = new PrefetchedPageReader(
@@ -183,13 +254,16 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
             (long) PAGE_PAYLOAD_BYTES * PAGES
         );
         try {
-            assertNotNull(reader.readPage());
+            DataPage first = reader.readPage();
+            assertNotNull(first);
+            byte[] dest = destArray(first);
             assertEquals(PAGE_PAYLOAD_BYTES, breaker.getUsed());
+            assertEquals(PAGE_PAYLOAD_BYTES, dest.length);
 
             for (int p = 1; p < PAGES; p++) {
-                assertNotNull(reader.readPage());
-                // Per-page bound: the previous page's charge is released the moment the
-                // consumer asks for the next page.
+                DataPage page = reader.readPage();
+                assertNotNull(page);
+                assertSame("equal-size pages must reuse dest after readPage() #" + (p + 1), dest, destArray(page));
                 assertEquals(
                     "live decompressed charge must stay one page after readPage() #" + (p + 1),
                     PAGE_PAYLOAD_BYTES,
@@ -236,8 +310,10 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
         PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
         BytesInputCompressor compressor = codecFactory.getCompressor(CompressionCodecName.ZSTD);
         List<PrefetchedPageReader.CompressedPage> pages = new ArrayList<>(payloadBytes.length);
+        List<byte[]> payloads = new ArrayList<>(payloadBytes.length);
         for (int payloadSize : payloadBytes) {
             byte[] data = randomByteArrayOfLength(payloadSize);
+            payloads.add(data);
             byte[] compressedData = compressor.compress(BytesInput.from(data)).toByteArray();
             DataPageV2 v2 = new DataPageV2(
                 payloadSize / 4,
@@ -253,15 +329,17 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
             );
             pages.add(new PrefetchedPageReader.CompressedPage(v2, -1L));
         }
-        return new PagesFixture(codecFactory, CompressionCodecName.ZSTD, pages);
+        return new PagesFixture(codecFactory, CompressionCodecName.ZSTD, pages, payloads);
     }
 
     private PagesFixture buildGzipV1Pages() throws IOException {
         PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
         BytesInputCompressor compressor = codecFactory.getCompressor(CompressionCodecName.GZIP);
         List<PrefetchedPageReader.CompressedPage> pages = new ArrayList<>(PAGES);
+        List<byte[]> payloads = new ArrayList<>(PAGES);
         for (int p = 0; p < PAGES; p++) {
             byte[] payload = randomByteArrayOfLength(PAGE_PAYLOAD_BYTES);
+            payloads.add(payload);
             byte[] compressed = compressor.compress(BytesInput.from(payload)).toByteArray();
             DataPageV1 v1 = new DataPageV1(
                 BytesInput.from(compressed),
@@ -274,7 +352,7 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
             );
             pages.add(new PrefetchedPageReader.CompressedPage(v1, -1L));
         }
-        return new PagesFixture(codecFactory, CompressionCodecName.GZIP, pages);
+        return new PagesFixture(codecFactory, CompressionCodecName.GZIP, pages, payloads);
     }
 
     private static int[] filledSizes(int size) {
@@ -291,9 +369,16 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
         return values;
     }
 
+    private static byte[] destArray(DataPage page) throws IOException {
+        var buf = page instanceof DataPageV2 v2 ? v2.getData().toByteBuffer() : ((DataPageV1) page).getBytes().toByteBuffer();
+        assertTrue(buf.hasArray());
+        return buf.array();
+    }
+
     private record PagesFixture(
         PlainCompressionCodecFactory codecFactory,
         CompressionCodecName codec,
-        List<PrefetchedPageReader.CompressedPage> pages
+        List<PrefetchedPageReader.CompressedPage> pages,
+        List<byte[]> payloads
     ) {}
 }

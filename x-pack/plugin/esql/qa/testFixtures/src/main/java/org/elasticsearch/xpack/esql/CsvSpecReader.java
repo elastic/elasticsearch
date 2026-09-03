@@ -31,6 +31,7 @@ public final class CsvSpecReader {
         ctx.addOptionParser(new IgnoreOrder(ctx));
         ctx.addOptionParser(new DocumentsFound(ctx));
         ctx.addOptionParser(new SkipFlattenedRewrite(ctx));
+        ctx.addOptionParser(new SkipColumnar(ctx));
         return ctx;
     }
 
@@ -58,6 +59,7 @@ public final class CsvSpecReader {
         String requestTimeRangeGte;
         String requestTimeRangeLte;
         String skipFlattenedRewrite;
+        String skipColumnar;
         CsvTestCase testCase;
 
         private ParserContext() {}
@@ -94,6 +96,7 @@ public final class CsvSpecReader {
                 testCase.requestTimeRangeGte = requestTimeRangeGte;
                 testCase.requestTimeRangeLte = requestTimeRangeLte;
                 testCase.skipFlattenedRewrite = skipFlattenedRewrite;
+                testCase.skipColumnar = skipColumnar;
                 requiredCapabilities.clear();
                 requiredCapabilitiesLocalCluster.clear();
                 missingCapabilitiesLocalCluster.clear();
@@ -103,6 +106,7 @@ public final class CsvSpecReader {
                 requestTimeRangeGte = null;
                 requestTimeRangeLte = null;
                 skipFlattenedRewrite = null;
+                skipColumnar = null;
                 query.setLength(0);
             } else {
                 query.append(line).append("\r\n");
@@ -467,6 +471,25 @@ public final class CsvSpecReader {
         }
     }
 
+    /**
+     * Marks a test as a known limitation under the columnar index-mode variant
+     * ({@code CsvColumnarIT}). The directive is a single line of the form
+     * {@code skip_columnar: <free-text reason>}. The variant skips the test and the reason surfaces
+     * in the JUnit XML {@code <skipped>} element so the silence is self-explanatory in CI tooling.
+     * Every other test driver ignores the directive.
+     */
+    record SkipColumnar(ParserContext state) implements SpecReader.Parser {
+        @Override
+        public Object parse(String line) {
+            String lower = line.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("skip_columnar:")) {
+                state.skipColumnar = line.substring("skip_columnar:".length()).trim();
+                return Boolean.TRUE;
+            }
+            return null;
+        }
+    }
+
     public static class CsvTestCase {
         final List<String> expectedWarnings = new ArrayList<>();
         final List<String> expectedWarningsRegexString = new ArrayList<>();
@@ -519,6 +542,14 @@ public final class CsvSpecReader {
          * driver ignores this field.
          */
         public String skipFlattenedRewrite;
+
+        /**
+         * Free-text reason carried over from a {@code skip_columnar:} preamble line, or
+         * {@code null} when the test has no such directive. Consumed by
+         * {@code CsvColumnarIT} to skip the test as a known limitation of the columnar index mode;
+         * every other test driver ignores this field.
+         */
+        public String skipColumnar;
 
         /**
          * Pragmas that must be sent.

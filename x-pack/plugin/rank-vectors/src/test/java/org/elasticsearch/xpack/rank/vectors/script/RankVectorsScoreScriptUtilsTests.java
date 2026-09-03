@@ -399,4 +399,46 @@ public class RankVectorsScoreScriptUtilsTests extends ESTestCase {
         }
     }
 
+    public void testByteBoundariesValidation() throws IOException {
+        String fieldName = "vector";
+        int dims = 3;
+        float[] docVector = new float[] { 0, 0, 0 };
+        // The offending value sits in the middle of a token, so it is only caught if every dimension is validated
+        List<List<Number>> outOfBoundsVector = List.of(List.of(1, 200, 3), List.of(1, 2, 3));
+        List<List<Number>> decimalVector = List.of(List.of(1, 2, 3), List.of(1, 0.5, 3));
+
+        RankVectorsDocValuesField field = new ByteRankVectorsDocValuesField(
+            RankVectorsScriptDocValuesTests.wrap(new float[][][] { { docVector } }, ElementType.BYTE),
+            RankVectorsScriptDocValuesTests.wrap(new float[][] { { 1 } }),
+            "test",
+            ElementType.BYTE,
+            dims
+        );
+        field.setNextDocId(0);
+
+        ScoreScript scoreScript = mock(ScoreScript.class);
+        when(scoreScript.field(fieldName)).thenAnswer(mock -> field);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MaxSimDotProduct(scoreScript, outOfBoundsVector, fieldName)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("element_type [byte] vectors only support integers between [-128, 127] but found [200.0] at dim [1]")
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> new MaxSimDotProduct(scoreScript, decimalVector, fieldName));
+        assertThat(
+            e.getMessage(),
+            containsString("element_type [byte] vectors only support non-decimal values but found decimal value [0.5] at dim [1]")
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> new MaxSimInvHamming(scoreScript, outOfBoundsVector, fieldName));
+        assertThat(
+            e.getMessage(),
+            containsString("element_type [byte] vectors only support integers between [-128, 127] but found [200.0] at dim [1]")
+        );
+    }
+
 }

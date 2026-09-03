@@ -324,6 +324,15 @@ public class RankVectorsFieldMapper extends FieldMapper {
                     );
                 }
             }
+            if (currentDims == -1) {
+                throw new IllegalArgumentException(
+                    "Field ["
+                        + fullPath()
+                        + "] of type ["
+                        + typeName()
+                        + "] requires at least one vector; use null to indicate a missing value"
+                );
+            }
             var builder = (Builder) getMergeBuilder();
             builder.dimensions(currentDims);
             context.addDynamicMapper(builder, fullPath());
@@ -341,6 +350,11 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 }
             }, null);
             vectors.add(vector);
+        }
+        if (vectors.isEmpty()) {
+            throw new IllegalArgumentException(
+                "Field [" + fullPath() + "] of type [" + typeName() + "] requires at least one vector; use null to indicate a missing value"
+            );
         }
         int bufferSize = element.getNumBytes(dims) * vectors.size();
         ByteBuffer buffer = ByteBuffer.allocate(bufferSize).order(ByteOrder.LITTLE_ENDIAN);

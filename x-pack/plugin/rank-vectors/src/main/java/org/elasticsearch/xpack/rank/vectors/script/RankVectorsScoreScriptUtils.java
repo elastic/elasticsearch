@@ -57,7 +57,6 @@ public class RankVectorsScoreScriptUtils {
             }
             field.getElement().checkDimensions(field.get().getDims(), queryVector.get(0).size());
             this.queryVector = new byte[queryVector.size()][queryVector.get(0).size()];
-            float[] validateValues = new float[queryVector.size()];
             int lastSize = -1;
             for (int i = 0; i < queryVector.size(); i++) {
                 if (lastSize != -1 && lastSize != queryVector.get(i).size()) {
@@ -66,11 +65,12 @@ public class RankVectorsScoreScriptUtils {
                     );
                 }
                 lastSize = queryVector.get(i).size();
-                for (int j = 0; j < queryVector.get(i).size(); j++) {
+                // Every dimension of the inner vector must be validated, so collect them all before checking the bounds.
+                float[] validateValues = new float[lastSize];
+                for (int j = 0; j < lastSize; j++) {
                     final Number number = queryVector.get(i).get(j);
-                    byte value = number.byteValue();
-                    this.queryVector[i][j] = value;
-                    validateValues[i] = number.floatValue();
+                    this.queryVector[i][j] = number.byteValue();
+                    validateValues[j] = number.floatValue();
                 }
                 field.getElement().checkVectorBounds(validateValues);
             }

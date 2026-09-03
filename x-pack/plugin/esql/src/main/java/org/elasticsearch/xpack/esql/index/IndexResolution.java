@@ -102,8 +102,9 @@ public final class IndexResolution {
     }
 
     /**
-     * Is the index valid for use with ql?
-     * @return {@code false} if the index wasn't found.
+     * Whether this resolution is valid for use with QL. A valid resolution can represent a lenient lookup that matched no indices,
+     * as returned by {@link #empty(String)}; use {@link #matchedAnyIndex()} to distinguish that case.
+     * @return {@code false} if the resolution is invalid
      */
     public boolean isValid() {
         return invalid == null;

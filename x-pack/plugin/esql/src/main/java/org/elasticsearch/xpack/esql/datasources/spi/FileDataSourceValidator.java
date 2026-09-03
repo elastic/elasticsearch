@@ -573,7 +573,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         if (schemeMatch == false) {
             StringBuilder sb = new StringBuilder("[");
             boolean first = true;
-            for (String s : supportedSchemes) {
+            for (String s : new TreeSet<>(supportedSchemes)) {
                 if (first == false) {
                     sb.append(", ");
                 }

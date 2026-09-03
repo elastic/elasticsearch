@@ -4835,6 +4835,14 @@ public class VerifierTests extends ESTestCase {
                 "FROM test | HIGHLIGHT \"search\"",
                 containsString("HIGHLIGHT with a derived query or field list is not supported on every participating node")
             );
+        // derivedFields is false here; rejection depends on ResolveHighlight setting implicitQuery.
+        fullText().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT)
+            .error(
+                "FROM test | WHERE MATCH(title, \"fox\") | HIGHLIGHT ON title",
+                containsString("HIGHLIGHT with a derived query or field list is not supported on every participating node")
+            );
+        supportsHighlight(fullText()).query("FROM test | HIGHLIGHT \"fox\" ON title");
+        supportsHighlight(defaultAnalyzer()).query("FROM test | HIGHLIGHT \"search\" ON first_name");
     }
 
     public void testHighlightRejectsInvalidOptionEnums() {

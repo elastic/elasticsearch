@@ -70,6 +70,10 @@
         "type": "int",
         "description": "The number of concurrent shard requests per node executed concurrently when opening this point-in-time. This value should be used to limit the impact of opening the point-in-time on the cluster",
         "default": 5
+      },
+      "slice": {
+        "type": "list",
+        "description": "Restrict the point in time to shards containing the specified slice value. Use `_all` to include all slices."
       }
     },
     "body": {

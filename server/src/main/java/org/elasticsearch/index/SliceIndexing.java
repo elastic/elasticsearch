@@ -39,6 +39,9 @@ public final class SliceIndexing {
     public static final TransportVersion VALIDATE_QUERY_SLICE_ROUTING_STATE_VERSION = TransportVersion.fromName(
         "validate_query_slice_routing_state"
     );
+    public static final TransportVersion OPEN_POINT_IN_TIME_SLICE_ROUTING_STATE_VERSION = TransportVersion.fromName(
+        "open_point_in_time_slice_routing_state"
+    );
     private static final int MAX_SLICE_VALUE_LENGTH = 128;
     private static final Pattern VALID_SLICE_VALUE_PATTERN = Pattern.compile("[a-zA-Z0-9](?:[a-zA-Z0-9._:-]*[a-zA-Z0-9])?");
 

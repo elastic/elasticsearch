@@ -23,9 +23,9 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROM
 /**
  * The required and actual header of a PromQL translation attempt.
  */
-public final class PromqlAttributesTranslationContext {
+public final class TranslationContext {
 
-    private PromqlAttributesTranslationContext() {}
+    private TranslationContext() {}
 
     /**
      * A column exposed by a translated subtree. A column carries the expression currently denoting it; whether that
@@ -204,7 +204,7 @@ public final class PromqlAttributesTranslationContext {
             List<Attribute> removed = distinctByCanonicalName(labels);
             TimeSeriesColumn timeSeries = groupByTimeSeries();
             if (timeSeries != null) {
-                TimeSeriesColumn desired = TimeSeriesColumn.of(PromqlAttributesTranslationContext.union(timeSeries.exclusions(), removed));
+                TimeSeriesColumn desired = TimeSeriesColumn.of(TranslationContext.union(timeSeries.exclusions(), removed));
                 TimeSeriesColumn exposed = timeSeries(desired.exclusions());
                 desired = exposed == null ? desired : exposed;
                 return new Header(List.of(desired), List.of(desired));

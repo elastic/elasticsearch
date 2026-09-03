@@ -145,9 +145,9 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -1114,18 +1114,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (node instanceof Selector) {
                     return node.transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
                 }
-                List<Attribute> scope = PromqlAttributesTranslationContext.shadowedResolutionScope(
-                    childrenOutput,
-                    activeDestinations(node)
-                );
+                List<Attribute> scope = TranslationContext.shadowedResolutionScope(childrenOutput, activeDestinations(node));
                 return node.transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, scope, log));
             });
 
             // The command's own output contract sees the full derived label set: every destination, same nearest-wins collapse.
-            List<Attribute> outputScope = PromqlAttributesTranslationContext.shadowedResolutionScope(
-                childrenOutput,
-                collapseByName(relabels)
-            );
+            List<Attribute> outputScope = TranslationContext.shadowedResolutionScope(childrenOutput, collapseByName(relabels));
             return promql.withPromqlPlan(resolvedPlan)
                 .transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, outputScope, log));
         }

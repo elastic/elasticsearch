@@ -13,10 +13,10 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.Column;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.Header;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.NamedColumn;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.TimeSeriesColumn;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.Column;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.Header;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.NamedColumn;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.TimeSeriesColumn;
 
 import java.util.Arrays;
 import java.util.List;
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class PromqlAttributesTranslationContextTests extends ESTestCase {
+public class TranslationContextTests extends ESTestCase {
 
     private static final Attribute CLUSTER = attr("cluster");
     private static final Attribute POD = attr("pod");
@@ -113,7 +113,7 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
 
         assertThat(
             outer.transformExpressions(
-                (column, grouping) -> PromqlAttributesTranslationContext.resolveColumn(column, List.of(regionIdentity, podRegionIdentity))
+                (column, grouping) -> TranslationContext.resolveColumn(column, List.of(regionIdentity, podRegionIdentity))
             ).groupingExpressions().stream().map(expression -> expression.toAttribute()).toList(),
             equalTo(List.of(podRegionIdentity))
         );
@@ -122,9 +122,7 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
     public void testByKeepsConcreteKeysAndReportsMissingLabels() {
         Header by = concreteHeader(CLUSTER).groupedBy(List.of(CLUSTER, REGION));
 
-        Header bound = by.transformExpressions(
-            (column, grouping) -> PromqlAttributesTranslationContext.resolveColumn(column, List.of(CLUSTER))
-        );
+        Header bound = by.transformExpressions((column, grouping) -> TranslationContext.resolveColumn(column, List.of(CLUSTER)));
         assertThat(
             bound.groupingExpressions().stream().map(expression -> expression.toAttribute()).toList(),
             equalTo(List.of(CLUSTER, REGION))
@@ -137,9 +135,8 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
 
         assertThat(by.labels(), hasSize(1));
         assertThat(
-            by.transformExpressions(
-                (column, grouping) -> PromqlAttributesTranslationContext.resolveColumn(column, List.of(CLUSTER, duplicate))
-            ).groupingExpressions(),
+            by.transformExpressions((column, grouping) -> TranslationContext.resolveColumn(column, List.of(CLUSTER, duplicate)))
+                .groupingExpressions(),
             hasSize(1)
         );
     }
@@ -169,7 +166,7 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
         Header bound = new Header(
             List.of(new TimeSeriesColumn(identity, List.of(REGION))),
             List.of(new TimeSeriesColumn(identity, List.of(REGION)), new NamedColumn(CLUSTER))
-        ).transformExpressions((column, grouping) -> PromqlAttributesTranslationContext.resolveColumn(column, List.of(identity, CLUSTER)));
+        ).transformExpressions((column, grouping) -> TranslationContext.resolveColumn(column, List.of(identity, CLUSTER)));
         int[] resolvedKinds = new int[2];
 
         bound.transformExpressions((column, grouping) -> switch (column) {

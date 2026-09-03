@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
+import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
@@ -17,13 +18,16 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -33,6 +37,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -45,10 +50,18 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 
 public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
+
+    /**
+     * Footer byte cache handed to every adapter this test constructs. In production the owning
+     * format reader supplies its instance; a fresh per-test-class cache gives the same sharing
+     * within a test and automatic isolation between tests.
+     */
+    private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
 
     private static final int TOTAL_ROWS = 4096;
 
@@ -303,6 +316,101 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
                 )
             ) {
                 assertNotNull(store.getPageReader(reader.getFileMetaData().getSchema().getColumns().getFirst()));
+            }
+        }
+    }
+
+    /**
+     * Writers may omit {@code dictionary_page_offset} (Thrift default 0) while still placing a
+     * dictionary page in {@code [getStartingPos(), OffsetIndex.getOffset(0))}. Filtered LIMIT
+     * clip must prefetch that gap and must not slice {@code [0, 4)} (the {@code PAR1} magic).
+     */
+    public void testFilteredBuildReadsDictionaryWhenPageOffsetUnset() throws IOException {
+        byte[] file = writeIntFile(WriterVersion.PARQUET_1_0, CompressionCodecName.UNCOMPRESSED, true, true);
+        StorageObject storageObject = new InMemoryStorageObject(file);
+        try (ParquetFileReader reader = openReader(file)) {
+            BlockMetaData source = reader.getRowGroups().getFirst();
+            ColumnChunkMetaData real = source.getColumns().getFirst();
+            assertTrue(real.hasDictionaryPage());
+            long startingPos = real.getStartingPos();
+            assertTrue("chunk must start after PAR1 so omitting [0, 4) is meaningful", startingPos >= 4);
+
+            ColumnChunkMetaData synthetic = ColumnChunkMetaData.get(
+                real.getPath(),
+                real.getPrimitiveType(),
+                real.getCodec(),
+                real.getEncodingStats(),
+                real.getEncodings(),
+                real.getStatistics(),
+                startingPos,
+                0L,
+                real.getValueCount(),
+                real.getTotalSize(),
+                real.getTotalUncompressedSize()
+            );
+            assertEquals(0L, synthetic.getDictionaryPageOffset());
+            assertEquals(startingPos, synthetic.getStartingPos());
+            assertTrue(synthetic.hasDictionaryPage());
+
+            BlockMetaData block = new BlockMetaData();
+            block.setRowCount(source.getRowCount());
+            block.addColumn(synthetic);
+
+            MessageType schema = reader.getFileMetaData().getSchema();
+            try (PreloadedRowGroupMetadata realMeta = PreloadedRowGroupMetadata.preload(reader, storageObject, blockFactory.breaker())) {
+                OffsetIndex oi = realMeta.getOffsetIndex(0, "id");
+                assertNotNull("offset index required for the filtered dictionary path", oi);
+                assertTrue(oi.getPageCount() > 0);
+                assertTrue("dictionary gap [startingPos, oi[0]) must be positive", oi.getOffset(0) > startingPos);
+
+                try (
+                    PreloadedRowGroupMetadata metadata = new PreloadedRowGroupMetadata(
+                        Map.of(),
+                        Map.of(PreloadedRowGroupMetadata.key(0, synthetic), oi),
+                        schema
+                    )
+                ) {
+                    long prefixEnd = Math.min(1000, block.getRowCount());
+                    RowRanges rowRanges = RowRanges.of(0, prefixEnd, block.getRowCount());
+                    assertFalse(rowRanges.isAll());
+                    Set<String> projected = Set.of("id");
+                    ColumnChunkPrefetcher.PrefetchedChunks prefetched = prefetchFilteredChunks(
+                        storageObject,
+                        block,
+                        projected,
+                        rowRanges,
+                        metadata
+                    );
+                    try {
+                        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = prefetched.chunks();
+                        assertFalse("must not prefetch PAR1 at offset 0", chunks.values().stream().anyMatch(c -> c.covers(0, 4)));
+                        int dictGap = (int) (oi.getOffset(0) - startingPos);
+                        assertTrue(
+                            "must prefetch the dictionary gap after chunk start",
+                            chunks.values().stream().anyMatch(c -> c.covers(startingPos, dictGap))
+                        );
+
+                        try (
+                            PageReadStore store = PrefetchedRowGroupBuilder.build(
+                                block,
+                                0,
+                                schema,
+                                projected,
+                                rowRanges,
+                                metadata,
+                                chunks,
+                                codecFactory,
+                                blockFactory.breaker()
+                            )
+                        ) {
+                            DictionaryPage dict = store.getPageReader(schema.getColumns().getFirst()).readDictionaryPage();
+                            assertNotNull("filtered builder must parse the dictionary sitting after chunk start", dict);
+                            assertTrue(dict.getDictionarySize() > 0);
+                        }
+                    } finally {
+                        prefetched.release().close();
+                    }
+                }
             }
         }
     }
@@ -573,7 +681,7 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
 
     private ParquetFileReader openReader(byte[] file) throws IOException {
         return ParquetFileReader.open(
-            new ParquetStorageObjectAdapter(new InMemoryStorageObject(file), blockFactory.breaker()),
+            new ParquetStorageObjectAdapter(new InMemoryStorageObject(file), footerByteCache, blockFactory.breaker()),
             PlainParquetReadOptions.builder(codecFactory).build()
         );
     }

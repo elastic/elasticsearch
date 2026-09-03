@@ -7382,7 +7382,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 100, "trim_spaces", true)
         );
         configs.put(
-            "jackson=escaped",
+            "escaped",
             Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 100, "mode", "escaped")
         );
         for (Map.Entry<String, Map<String, Object>> entry : configs.entrySet()) {
@@ -7433,14 +7433,10 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The reader has TWO tokenizers, and every other test here exercises only the house one. Jackson takes over
-     * whenever {@code jacksonGrammarApplies()} — trim_spaces on, or escaped mode — and it counts a row's fields by
-     * its own grammar, so the bound has to hold against that count too. Both triggers, both bindings: declared must
-     * reach the same verdict as inference on the same file.
+     * Declared and inferred bindings must agree on row-width rejection for both remaining grammars:
+     * Jackson ({@code trim_spaces}) and the house escaped tokenizer.
      */
     public void testDeclaredBindingRowWidthValidationUnderJacksonGrammar() throws Exception {
-        // trim_spaces:true is the trigger the csv-spec harness injects; mode:escaped is the other one
-        // (decodesEscapes() is escaping && quoting == false).
         List<Map<String, Object>> jacksonConfigs = List.of(
             Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 100, "trim_spaces", true),
             Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 100, "mode", "escaped")

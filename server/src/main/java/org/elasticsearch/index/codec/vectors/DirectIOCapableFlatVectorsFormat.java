@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.FlushInfo;
@@ -28,6 +29,24 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
     }
 
     protected abstract FlatVectorsReader createReader(SegmentReadState state) throws IOException;
+
+    protected abstract FlatVectorsWriter createWriter(SegmentWriteState state) throws IOException;
+
+    @Override
+    public final FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+        return fieldsWriter(state, true);
+    }
+
+    /**
+     * @param directIOMergeWrites whether a merge may write the raw vector data with direct I/O under
+     *                            {@code index.store.fs.direct_io.vector_merge}. {@code false} only for a
+     *                            format that reads the merged vectors back by random access right after
+     *                            writing them, see {@code ES93GenericFlatVectorsFormat#withBufferedMergeWrites}.
+     *                            The read side of the setting is unaffected.
+     */
+    public final FlatVectorsWriter fieldsWriter(SegmentWriteState state, boolean directIOMergeWrites) throws IOException {
+        return createWriter(directIOMergeWrites ? directIOMergeWriteState(state) : state);
+    }
 
     protected static boolean canUseDirectIO(SegmentReadState state) {
         return FsDirectoryFactory.isHybridFs(state.directory);
@@ -65,6 +84,8 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
             // random-access direct I/O reader, so merges get a plain reader of their own
             return new MergeReaderWrapper(createReader(mainState), () -> createReader(state), directIOReads);
         }
+        // MERGE here only selects the merge-sized direct I/O delegate in HybridDirectory; the reader is
+        // created from the search-time state, so the context carries no MergeInfo (see DirectIOContext#mergeInfo)
         SegmentReadState mergeDirectIOState = new SegmentReadState(
             state.directory,
             state.segmentInfo,
@@ -73,7 +94,11 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
             state.segmentSuffix
         );
         // the wrapper serves searches from the main reader and merges from a lazily-created reader
-        // whose MERGE-context direct I/O hint the directory routes to its merge-sized delegate
+        // whose MERGE-context direct I/O hint the directory routes to its merge-sized delegate. A merge
+        // reads each source twice through the instance it takes from getMergeInstance(): once to verify
+        // its checksum, once to stream it. Both stay direct on purpose: verifying through the page cache
+        // would fault the whole source in, the eviction this setting exists to avoid, so the second
+        // device read is the price paid
         return new MergeReaderWrapper(createReader(mainState), () -> createReader(mergeDirectIOState), directIOReads);
     }
 
@@ -90,9 +115,11 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
      * vectors, HNSW graph, IVF clusters, per-field metadata, temp files) keep the original context and
      * stay buffered, so they remain page-cache-warm after the merge.
      * <p>
-     * Every subclass applies this in its {@code fieldsWriter}, so a format that wraps a raw
-     * {@link DirectIOCapableFlatVectorsFormat} gets the write side of the setting together with the
-     * read side it gets from {@link #fieldsReader}; the two never engage separately.
+     * {@link #fieldsWriter(SegmentWriteState, boolean)} applies this, so a format wrapping a raw
+     * {@link DirectIOCapableFlatVectorsFormat} gets the write side of the setting along with the read
+     * side from {@link #fieldsReader}, unless it declines the write side; the read side engages either
+     * way. Plain HNSW is the one format that declines it, see
+     * {@code ES93GenericFlatVectorsFormat#withBufferedMergeWrites}.
      */
     protected static SegmentWriteState directIOMergeWriteState(SegmentWriteState state) {
         if (state.context.context() != IOContext.Context.MERGE || FsDirectoryFactory.isDirectIOForVectorMerges(state.directory) == false) {
@@ -134,6 +161,9 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
             return context;
         }
 
+        // null on purpose: this context only selects the merge-sized direct I/O delegate in HybridDirectory,
+        // there is no merge to describe. Lucene's own DirectIODirectory#useDirectIO would dereference it;
+        // AlwaysDirectIODirectory overrides that method and never reads it
         @Override
         public MergeInfo mergeInfo() {
             return null;

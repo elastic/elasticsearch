@@ -68,12 +68,35 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
 
     private final DirectIOCapableFlatVectorsFormat writeFormat;
     private final boolean useDirectIO;
+    private final boolean directIOMergeWrites;
 
     public ES93GenericFlatVectorsFormat() {
         this(DenseVectorFieldMapper.ElementType.FLOAT, false);
     }
 
     public ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO) {
+        this(elementType, useDirectIO, true);
+    }
+
+    /**
+     * A format whose merges write the raw vectors through the page cache even under
+     * {@code index.store.fs.direct_io.vector_merge}. Plain HNSW needs this: right after a merge writes
+     * the merged raw vectors, it builds the graph from them by random access, and searches then score
+     * against the same file, so the file ends up in the page cache either way. Writing it with direct
+     * I/O would only make that read-back cold. Merge reads of the sources still use direct I/O.
+     * Searches read through the page cache too: plain HNSW has no {@code on_disk_rescore}.
+     */
+    static ES93GenericFlatVectorsFormat withBufferedMergeWrites(DenseVectorFieldMapper.ElementType elementType) {
+        return new ES93GenericFlatVectorsFormat(elementType, false, false);
+    }
+
+    /**
+     * @param useDirectIO         whether searches read the raw vectors with direct I/O (the field's
+     *                            {@code on_disk_rescore} option)
+     * @param directIOMergeWrites whether a merge may write the raw vectors with direct I/O, see
+     *                            {@link #withBufferedMergeWrites}
+     */
+    private ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO, boolean directIOMergeWrites) {
         super(NAME);
         writeFormat = switch (elementType) {
             case FLOAT, BYTE -> defaultVectorFormat;
@@ -81,6 +104,7 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
             case BFLOAT16 -> bfloat16VectorFormat;
         };
         this.useDirectIO = useDirectIO;
+        this.directIOMergeWrites = directIOMergeWrites;
     }
 
     @Override
@@ -93,7 +117,13 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
         // the raw format decides for itself whether a merge writes its files with direct I/O
         // (DirectIOCapableFlatVectorsFormat#directIOMergeWriteState); this format's own metadata
         // file and everything else written for the field keep the original context
-        return new ES93GenericFlatVectorsWriter(META, writeFormat.getName(), useDirectIO, state, writeFormat.fieldsWriter(state));
+        return new ES93GenericFlatVectorsWriter(
+            META,
+            writeFormat.getName(),
+            useDirectIO,
+            state,
+            writeFormat.fieldsWriter(state, directIOMergeWrites)
+        );
     }
 
     @Override

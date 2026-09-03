@@ -75,17 +75,28 @@ $$$direct-io-vector-merge$$$
 ### Direct I/O for vector merges [direct-io-vector-merge]
 
 `index.store.fs.direct_io.vector_merge` {applies_to}`stack: preview 9.6` {applies_to}`serverless: unavailable`
-:   (Static, boolean) Whether the raw vector data of `dense_vector` fields is read and written with direct I/O while merging. Defaults to `false`.
+:   (Static, boolean) Whether merges read and write the raw vector data of `dense_vector` fields with direct I/O. What a merge does for each index type is listed below. Defaults to `false`.
 
-A merge streams the raw vectors of every source segment once and writes the merged result once. Read through the page cache, those bytes displace whatever the cache was holding for searches. With direct I/O the merge reads its sources and writes its output without going through the page cache, so the cache keeps serving what searches actually use.
+A merge reads the raw vectors of every source segment and writes the merged result. With direct I/O those reads and writes bypass the page cache, so the cache keeps serving what searches use. Where a merge reads its sources with direct I/O, it reads each source twice from the device: once to verify its checksum and once to merge it.
 
 This is a trade, and the right side of it depends on the node:
 
-* On a node whose index does not fit in RAM, the page cache is under constant pressure and every merge evicts pages that searches then fault back in. Direct I/O merges remove that eviction at no cost to merge throughput; merging is bound by computation, not by reads.
+* On a node whose index does not fit in RAM, the page cache is under constant pressure and every merge evicts pages that searches then fault back in. Direct I/O merges remove that eviction; the merge pays for the device reads instead, within run-to-run noise on local NVMe and a few percent of merge time on network-attached disks.
 * On a node with RAM to spare, the source segments of a merge are usually still cached from being written, and a page-cache merge reads them for free. Direct I/O merges pay the device for every byte instead, for no benefit, since nothing was going to be evicted. Leave the setting off on such nodes.
 
-The setting is independent of the field-level [`on_disk_rescore`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options) option, which controls only how vectors are read while rescoring. The two combine freely: rescoring through the page cache with direct I/O merges, or direct I/O rescoring with page-cache merges, are both valid configurations.
+The setting is independent of the field-level [`on_disk_rescore`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options) option, which controls how vectors are read at search time; the two combine freely, and the table below covers the one case where both matter.
 
-Only the `hybridfs` store type supports direct I/O; on other store types the setting has no effect. Where the JDK or filesystem does not support direct I/O, merges fall back to the page cache: a warning is logged when the shard opens if direct I/O cannot be initialized at all, and a file that cannot be opened with direct I/O is opened normally. As a static setting it can be set when an index is created or on a closed index, and it can be set in `elasticsearch.yml` as a node-wide default. It is stored in the index metadata, so snapshots, clones and shrink or split targets carry it with the index; check it when restoring onto nodes with more RAM than the source had.
+Only the `hybridfs` store type supports direct I/O; on other store types the setting has no effect. Where direct I/O cannot be initialized at all, a warning is logged when the shard opens and merges use the page cache; an individual file that cannot be opened with direct I/O is opened normally. The setting is static: set it at index creation or on a closed index, or in `elasticsearch.yml` as a node-wide default. It is stored in the index metadata, so snapshots, clones and shrink or split targets carry it with the index; check it when restoring onto nodes with more RAM than the source had.
 
-The setting applies to the raw vector data of every `dense_vector` index type. Segments written by earlier vector formats, before direct I/O support, are read through the page cache when they are merged; the merged segment is written with the current format and is covered from then on. With the scalar-quantized types (`int8_hnsw`, `int4_hnsw`) only the merged output is written with direct I/O today, while their merge reads still go through the page cache.
+The setting covers the raw vector data of every `dense_vector` index type. What a merge does with it depends on the type:
+
+| Index type | Merge reads its sources | Merge writes its output |
+|---|---|---|
+| `hnsw` (every element type) | direct I/O | page cache |
+| `flat`, `int8_flat`, `int4_flat` | page cache | direct I/O |
+| `int8_hnsw`, `int4_hnsw` | page cache, or the rescore reader when `on_disk_rescore` is on | direct I/O |
+| `bbq_hnsw`, `bbq_flat`, `bbq_disk` | direct I/O | direct I/O |
+
+`hnsw` keeps its writes buffered because the merge builds the graph by reading the merged raw vectors back in random order right after writing them; writing them past the page cache would only make that read-back cold. The `flat` and scalar-quantized types read their sources with the reader searches use, because their readers do not yet hand the merge a reader of its own.
+
+Segments written by earlier vector formats, before direct I/O support, are read through the page cache when merged whatever the index type; the merged segment is written with the current format and is covered from then on.

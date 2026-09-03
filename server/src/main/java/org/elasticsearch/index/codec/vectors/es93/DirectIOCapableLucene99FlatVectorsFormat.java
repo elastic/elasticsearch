@@ -42,7 +42,7 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
     }
 
     @Override
-    public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new Lucene99FlatVectorsWriter(directIOMergeWriteState(state), vectorsScorer);
+    protected FlatVectorsWriter createWriter(SegmentWriteState state) throws IOException {
+        return new Lucene99FlatVectorsWriter(state, vectorsScorer);
     }
 }

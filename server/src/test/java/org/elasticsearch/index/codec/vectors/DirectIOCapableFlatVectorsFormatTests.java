@@ -35,6 +35,8 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.DirectIOHint;
+import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es94.ES94HnswScalarQuantizedVectorsFormat;
@@ -52,8 +54,9 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 /**
  * Tests that formats based on {@link DirectIOCapableFlatVectorsFormat} open the raw vector data
  * with direct I/O for both searches and merges when direct I/O is requested, and that merges
- * create the merged raw vector data with direct I/O while flush-time writes and search-hot files
- * (quantized vectors, HNSW graph) stay buffered.
+ * create the merged raw vector data with direct I/O where the format takes the write side, while
+ * flush-time writes and search-hot files (quantized vectors, HNSW graph, plain HNSW's raw vectors)
+ * stay buffered.
  */
 public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
 
@@ -177,9 +180,37 @@ public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
         );
     }
 
-    /** bfloat16 has its own raw format and writer; with vector_merge on both sides must engage there too. */
-    public void testBfloat16HnswMergeUsesDirectIOReadsAndWrites() throws IOException {
-        runMergeTest(new ES93HnswVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.BFLOAT16), true, false, true, true);
+    /**
+     * Plain HNSW declines the write side: it builds the graph from the merged raw vectors by random
+     * access right after writing them, so a direct write would only make that read-back cold. The
+     * graph threshold of 0 makes the merge build a graph at this size (one merge worker, no
+     * executor), so the read-back happens; merge reads of the sources still use direct I/O. Both
+     * element types with their own raw writer.
+     */
+    public void testFloat32HnswMergeUsesDirectIOReadsAndBufferedWrites() throws IOException {
+        runMergeTest(new ES93HnswVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.FLOAT, 1, null, 0), true, false, true, false);
+    }
+
+    public void testBfloat16HnswMergeUsesDirectIOReadsAndBufferedWrites() throws IOException {
+        runMergeTest(new ES93HnswVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.BFLOAT16, 1, null, 0), true, false, true, false);
+    }
+
+    /**
+     * The flat type's reader does not hand the merge a direct I/O reader (no getMergeInstance
+     * override), so its merges read the sources through the page cache and write the merged raw
+     * vectors with direct I/O; both raw writers take the write side. bbq_flat's reader chain
+     * propagates, so both sides engage.
+     */
+    public void testFlatMergeReadsBufferedWritesDirect() throws IOException {
+        runMergeTest(new ES93FlatVectorFormat(DenseVectorFieldMapper.ElementType.FLOAT), true, false, false, true);
+    }
+
+    public void testFlatBfloat16MergeReadsBufferedWritesDirect() throws IOException {
+        runMergeTest(new ES93FlatVectorFormat(DenseVectorFieldMapper.ElementType.BFLOAT16), true, false, false, true);
+    }
+
+    public void testBbqFlatMergeUsesDirectIOReadsAndWrites() throws IOException {
+        runMergeTest(new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false), true, false, true, true);
     }
 
     private void runMergeTest(
@@ -284,7 +315,8 @@ public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
                 creates.stream().noneMatch(c -> c.context() == IOContext.Context.FLUSH && c.directIO())
             );
 
-            // direct IO writes are scoped to the raw vector data file and its metadata sibling;
+            // only the raw vector data file and its metadata sibling are even created with a direct IO hint
+            // (the directory then keeps the metadata buffered);
             // quantized vectors, HNSW graph, format metadata and temp files must stay buffered so
             // they remain page-cache-warm after the merge
             assertTrue(

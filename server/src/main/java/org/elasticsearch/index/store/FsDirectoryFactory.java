@@ -267,9 +267,12 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         public IndexInput openInput(String name, IOContext context) throws IOException {
             Throwable directIOException = null;
             // merge-context opens go to the merge delegate, which only exists when direct I/O for vector
-            // merges is enabled; everything else with a direct I/O hint is a rescore read
+            // merges is enabled and only takes raw vector files; everything else with a direct I/O hint
+            // is a rescore read
             DirectIODirectory dio = context.context() == IOContext.Context.MERGE ? mergeDirectIODelegate : directIODelegate;
-            if (dio != null && context.hints().contains(DirectIOHint.INSTANCE)) {
+            if (dio != null
+                && context.hints().contains(DirectIOHint.INSTANCE)
+                && (context.context() != IOContext.Context.MERGE || isRawVectorFile(name))) {
                 ensureOpen();
                 ensureCanRead(name);
                 try {
@@ -306,16 +309,18 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         @Override
         public IndexOutput createOutput(String name, IOContext context) throws IOException {
             Throwable directIOException = null;
+            // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
+            ensureOpen();
+            // a direct I/O output opens the file itself, skipping FSDirectory's pending-delete bookkeeping:
+            // a live file created under a name that is still pending delete could be removed by a later
+            // retry. getPendingDeletions() retries the pending deletes first; a name still pending after
+            // that goes down the buffered path below, which takes it off the pending set before creating.
+            // Segment file names are not normally reused.
             if (mergeDirectIODelegate != null
                 && context.context() == IOContext.Context.MERGE
-                && context.hints().contains(DirectIOHint.INSTANCE)) {
-                // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
-                ensureOpen();
-                // the direct IO output opens the file itself, bypassing FSDirectory's createOutput
-                // bookkeeping which would otherwise resurrect a same-named pending-delete file, so
-                // clear pending deletes first to make sure the CREATE_NEW open cannot trip over a
-                // stale file (segment file names are not normally reused, so this is belt-and-braces)
-                deletePendingFiles();
+                && context.hints().contains(DirectIOHint.INSTANCE)
+                && isRawVectorFile(name)
+                && getPendingDeletions().contains(name) == false) {
                 Path file = getDirectory().resolve(name);
                 boolean existed = Files.exists(file);
                 try {
@@ -365,6 +370,17 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             } else {
                 return name.substring(lastDotIndex + 1);
             }
+        }
+
+        /**
+         * Only raw vector data files ({@code .vec}) go to the merge delegate. The raw vector writers create
+         * their metadata file from the same merge context as the data file, and a few hundred bytes of
+         * metadata must not get a 256 KiB aligned direct I/O buffer. Opens are filtered the same way; the
+         * readers open metadata through {@code openChecksumInput}, which never carries the hint, so that
+         * half only guards against a future caller.
+         */
+        static boolean isRawVectorFile(String name) {
+            return LuceneFilesExtensions.fromExtension(getExtension(name)) == LuceneFilesExtensions.VEC;
         }
 
         static boolean useDelegate(String name, IOContext ioContext) {

@@ -39,17 +39,17 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
 
     public ES93HnswVectorsFormat() {
         super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat();
+        flatVectorsFormat = ES93GenericFlatVectorsFormat.withBufferedMergeWrites(DenseVectorFieldMapper.ElementType.FLOAT);
     }
 
     public ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType elementType) {
         super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
+        flatVectorsFormat = ES93GenericFlatVectorsFormat.withBufferedMergeWrites(elementType);
     }
 
     public ES93HnswVectorsFormat(int maxConn, int beamWidth, DenseVectorFieldMapper.ElementType elementType) {
         super(NAME, maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
+        flatVectorsFormat = ES93GenericFlatVectorsFormat.withBufferedMergeWrites(elementType);
     }
 
     public ES93HnswVectorsFormat(
@@ -60,7 +60,7 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
         ExecutorService mergeExec
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
+        flatVectorsFormat = ES93GenericFlatVectorsFormat.withBufferedMergeWrites(elementType);
     }
 
     public ES93HnswVectorsFormat(
@@ -72,7 +72,7 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
         int hnswGraphThreshold
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, resolveThreshold(hnswGraphThreshold, HNSW_GRAPH_THRESHOLD));
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
+        flatVectorsFormat = ES93GenericFlatVectorsFormat.withBufferedMergeWrites(elementType);
     }
 
     @Override

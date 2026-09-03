@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.core.inference;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -20,13 +18,12 @@ import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_EL
 import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
 import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
 import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
-import static org.elasticsearch.xpack.core.inference.InferenceContext.INFERENCE_ATTRIBUTION_HEADERS_ADDED;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceContextTests extends AbstractWireSerializingTestCase<InferenceContext> {
     @Override
     protected Writeable.Reader<InferenceContext> instanceReader() {
-        return InferenceContext::readFrom;
+        return InferenceContext::new;
     }
 
     @Override
@@ -36,13 +33,6 @@ public class InferenceContextTests extends AbstractWireSerializingTestCase<Infer
 
     public static InferenceContext createRandom() {
         return new InferenceContext(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-    }
-
-    /**
-     * Drops the components that a peer on {@code version} cannot deserialize.
-     */
-    public static InferenceContext forTransportVersion(InferenceContext context, TransportVersion version) {
-        return version.supports(INFERENCE_ATTRIBUTION_HEADERS_ADDED) ? context : new InferenceContext(context.productUseCase());
     }
 
     @Override
@@ -56,13 +46,6 @@ public class InferenceContextTests extends AbstractWireSerializingTestCase<Infer
         components[i] = randomValueOtherThan(components[i], () -> randomAlphaOfLength(10));
 
         return new InferenceContext(components[0], components[1], components[2], components[3]);
-    }
-
-    public void testNewComponentsDroppedForOlderTransportVersion() throws IOException {
-        var context = createRandom();
-        var oldVersion = TransportVersionUtils.getPreviousVersion(INFERENCE_ATTRIBUTION_HEADERS_ADDED);
-
-        assertThat(copyInstance(context, oldVersion), equalTo(new InferenceContext(context.productUseCase())));
     }
 
     public void testRejectsNullComponents() {

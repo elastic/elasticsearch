@@ -19,7 +19,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
-import org.elasticsearch.xpack.core.inference.InferenceContextTests;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
@@ -265,8 +264,6 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
         var context = instance.getContext();
         if (version.supports(INFERENCE_CONTEXT) == false) {
             context = InferenceContext.EMPTY_INSTANCE;
-        } else {
-            context = InferenceContextTests.forTransportVersion(context, version);
         }
         return new RerankAction.Request(instance.getInferenceEntityId(), instance.getRerankRequest(), context, instance.getTimeout());
     }

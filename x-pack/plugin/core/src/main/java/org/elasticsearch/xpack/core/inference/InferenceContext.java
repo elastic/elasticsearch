@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.inference;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -43,10 +42,6 @@ public record InferenceContext(String productUseCase, String productSolution, St
     implements
         Writeable,
         ToXContent {
-
-    public static final TransportVersion INFERENCE_ATTRIBUTION_HEADERS_ADDED = TransportVersion.fromName(
-        "inference_attribution_headers_added"
-    );
 
     public static final InferenceContext EMPTY_INSTANCE = new InferenceContext("");
 
@@ -84,26 +79,16 @@ public record InferenceContext(String productUseCase, String productSolution, St
         return values == null || values.isEmpty() ? "" : values.get(0);
     }
 
-    public static InferenceContext readFrom(StreamInput in) throws IOException {
-        var productUseCase = in.readString();
-
-        // BaseInferenceActionRequest gates the whole context on INFERENCE_CONTEXT, but that version predates these components, so
-        // it cannot cover them. Every 8.19 to 9.5 peer supports INFERENCE_CONTEXT and not this, hence the separate check.
-        if (in.getTransportVersion().supports(INFERENCE_ATTRIBUTION_HEADERS_ADDED) == false) {
-            return new InferenceContext(productUseCase);
-        }
-
-        return new InferenceContext(productUseCase, in.readString(), in.readString(), in.readString());
+    public InferenceContext(StreamInput in) throws IOException {
+        this(in.readString(), in.readString(), in.readString(), in.readString());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(productUseCase);
-        if (out.getTransportVersion().supports(INFERENCE_ATTRIBUTION_HEADERS_ADDED)) {
-            out.writeString(productSolution);
-            out.writeString(productFeature);
-            out.writeString(interactionId);
-        }
+        out.writeString(productSolution);
+        out.writeString(productFeature);
+        out.writeString(interactionId);
     }
 
     /**

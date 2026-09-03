@@ -76,7 +76,7 @@ public abstract class BaseInferenceActionRequest extends UntypedActionRequest {
         }
 
         if (in.getTransportVersion().supports(INFERENCE_CONTEXT)) {
-            this.context = InferenceContext.readFrom(in);
+            this.context = new InferenceContext(in);
         } else {
             this.context = InferenceContext.EMPTY_INSTANCE;
         }

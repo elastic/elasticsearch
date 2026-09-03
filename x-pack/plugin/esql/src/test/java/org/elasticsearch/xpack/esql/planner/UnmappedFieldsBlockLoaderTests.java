@@ -213,7 +213,8 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
 
     public void testReaderUnderCrankyBreakerDoesNotLeak() throws IOException {
         UnmappedFieldsBlockLoader loader = loader(UnmappedFieldsPattern.ALL);
-        Source source = Source.fromMap(Map.of("a", "b", "c", "d"), XContentType.JSON);
+        Source source = Source.fromBytes(new BytesArray("""
+            { "a": "b", "c": "d" }"""), XContentType.JSON);
         var cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
         for (int attempt = 0; attempt < 2000; attempt++) {
             try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(cranky, null)) {

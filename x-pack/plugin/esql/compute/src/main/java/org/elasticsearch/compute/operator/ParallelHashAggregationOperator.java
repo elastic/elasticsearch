@@ -86,6 +86,7 @@ public final class ParallelHashAggregationOperator implements Operator {
     private long addInputInlineNanos;
     private long finishNanos;
     private long inlineEmitCount;
+    private long inlineEmitRows;
     private long inlineEmitNanos;
     private final AtomicReferenceArray<WorkerStatus> workerStatuses;
 
@@ -110,7 +111,7 @@ public final class ParallelHashAggregationOperator implements Operator {
                 long endNanos = System.nanoTime();
                 workerStatuses.set(
                     numWorkers,
-                    new WorkerStatus((HashAggregationOperator.Status) operator.status(), 1, endNanos - startNanos, 0, 0)
+                    new WorkerStatus((HashAggregationOperator.Status) operator.status(), 1, endNanos - startNanos, 0, 0, 0, 0)
                 );
             }
             for (int w = 0; w < numWorkers; w++) {
@@ -141,8 +142,8 @@ public final class ParallelHashAggregationOperator implements Operator {
         page.allowPassingToDifferentDriver();
         in.addPage(page);
         final int pendingPages = in.size();
-        if (pendingPages > 1) {
-            final int desiredWorkers = Math.min(Math.ceilDiv(in.size(), pagesPerWorker), workers.length);
+        if (pendingPages >= pagesPerWorker) {
+            final int desiredWorkers = Math.min(Math.ceilDiv(pendingPages, pagesPerWorker), workers.length);
             int extraWorkers = desiredWorkers - scheduledOrRunningWorkers.get();
             if (extraWorkers > 0) {
                 for (int w = 0; extraWorkers > 0 && w < workers.length; w++) {
@@ -253,7 +254,7 @@ public final class ParallelHashAggregationOperator implements Operator {
                 try {
                     int p = partitions.claimPartition();
                     if (p != PartitionedHashAggregations.NO_MORE_PARTITION) {
-                        worker.emitOnePartition(p);
+                        inlineEmitRows += worker.emitOnePartition(p);
                         emitted = true;
                     }
                 } finally {
@@ -416,7 +417,9 @@ public final class ParallelHashAggregationOperator implements Operator {
 
         long splitCount;
         long splitNanos;
+        long rowsEmitted;
         long emitNanos;
+        long emitCount;
 
         Worker(int workerIndex, HashAggregationOperator op) {
             this.workerIndex = workerIndex;
@@ -459,26 +462,39 @@ public final class ParallelHashAggregationOperator implements Operator {
             }
         }
 
-        void emitOnePartition(int p) {
+        long emitOnePartition(int p) {
             // TODO: we should respect the exchange buffer for every output page not partition level
+            long rows = 0;
             if (emitter.combine(p)) {
                 long startNanos = System.nanoTime();
                 op.emit();
                 Page page;
                 while ((page = op.getOutput()) != null) {
+                    rows += page.getPositionCount();
                     page.allowPassingToDifferentDriver();
                     out.addPage(page);
                 }
                 emitNanos += (System.nanoTime() - startNanos);
+                emitCount++;
                 updateStatus();
             }
             if (partitions.completePartition()) {
                 out.finish(false);
             }
+            rowsEmitted += rows;
+            return rows;
         }
 
         void updateStatus() {
-            var status = new WorkerStatus((HashAggregationOperator.Status) op.status(), splitCount, splitNanos, emitNanos, runsCount.get());
+            var status = new WorkerStatus(
+                (HashAggregationOperator.Status) op.status(),
+                splitCount,
+                splitNanos,
+                rowsEmitted,
+                emitNanos,
+                emitCount,
+                runsCount.get()
+            );
             workerStatuses.set(workerIndex, status);
         }
 
@@ -512,7 +528,15 @@ public final class ParallelHashAggregationOperator implements Operator {
         }
     }
 
-    record WorkerStatus(HashAggregationOperator.Status opStatus, long splitCount, long splitNanos, long emitNanos, long runsCount) {}
+    record WorkerStatus(
+        HashAggregationOperator.Status opStatus,
+        long splitCount,
+        long splitNanos,
+        long rowsEmitted,
+        long emitNanos,
+        long emitCount,
+        long runsCount
+    ) {}
 
     @Override
     public Status status() {
@@ -525,7 +549,6 @@ public final class ParallelHashAggregationOperator implements Operator {
         long emitCount = 0;
         long splitCount = 0;
         long splitNanos = 0;
-        long workerEmitNanos = 0;
         long workerTasks = 0;
         List<Status.ExtraStatus> extraFields = new ArrayList<>();
         for (int w = 0; w < workerStatuses.length(); w++) {
@@ -537,12 +560,11 @@ public final class ParallelHashAggregationOperator implements Operator {
             aggregationNanos += ws.opStatus.aggregationNanos();
             pagesProcessed += ws.opStatus.pagesProcessed();
             rowsReceived += ws.opStatus.rowsReceived();
-            rowsEmitted += ws.opStatus.rowsEmitted();
-            emitNanos += ws.opStatus.emitNanos();
-            emitCount += ws.opStatus.emitCount();
+            rowsEmitted += ws.rowsEmitted;
+            emitNanos += ws.emitNanos;
+            emitCount += ws.emitCount;
             splitCount += ws.splitCount;
             splitNanos += ws.splitNanos;
-            workerEmitNanos += ws.emitNanos;
             workerTasks += ws.runsCount;
             extraFields.addAll(ws.opStatus.extraFields());
         }
@@ -554,8 +576,8 @@ public final class ParallelHashAggregationOperator implements Operator {
             finishNanos,
             splitCount,
             splitNanos,
-            workerEmitNanos,
             inlineEmitCount,
+            inlineEmitRows,
             inlineEmitNanos,
             workerTasks
         );
@@ -585,8 +607,8 @@ public final class ParallelHashAggregationOperator implements Operator {
         private final long finishNanos;
         private final long splitCount;
         private final long splitNanos;
-        private final long emitNanos;
         private final long inlineEmitCount;
+        private final long inlineEmitRows;
         private final long inlineEmitNanos;
         private final long workerTasks;
 
@@ -598,8 +620,8 @@ public final class ParallelHashAggregationOperator implements Operator {
             long finishNanos,
             long splitCount,
             long splitNanos,
-            long emitNanos,
             long inlineEmitCount,
+            long inlineEmitRows,
             long inlineEmitNanos,
             long workerTasks
         ) {
@@ -610,8 +632,8 @@ public final class ParallelHashAggregationOperator implements Operator {
             this.finishNanos = finishNanos;
             this.splitCount = splitCount;
             this.splitNanos = splitNanos;
-            this.emitNanos = emitNanos;
             this.inlineEmitCount = inlineEmitCount;
+            this.inlineEmitRows = inlineEmitRows;
             this.inlineEmitNanos = inlineEmitNanos;
             this.workerTasks = workerTasks;
         }
@@ -641,8 +663,8 @@ public final class ParallelHashAggregationOperator implements Operator {
             out.writeVLong(finishNanos);
             out.writeVLong(splitCount);
             out.writeVLong(splitNanos);
-            out.writeVLong(emitNanos);
             out.writeVLong(inlineEmitCount);
+            out.writeVLong(inlineEmitRows);
             out.writeVLong(inlineEmitNanos);
             out.writeVLong(workerTasks);
         }
@@ -674,11 +696,8 @@ public final class ParallelHashAggregationOperator implements Operator {
             if (builder.humanReadable()) {
                 builder.field("split_time", TimeValue.timeValueNanos(splitNanos));
             }
-            builder.field("emit_nanos", emitNanos);
-            if (builder.humanReadable()) {
-                builder.field("emit_time", TimeValue.timeValueNanos(emitNanos));
-            }
             builder.field("inline_emit_count", inlineEmitCount);
+            builder.field("inline_emit_rows", inlineEmitRows);
             builder.field("inline_emit_nanos", inlineEmitNanos);
             if (builder.humanReadable()) {
                 builder.field("inline_emit_time", TimeValue.timeValueNanos(inlineEmitNanos));
@@ -703,8 +722,8 @@ public final class ParallelHashAggregationOperator implements Operator {
                 && finishNanos == other.finishNanos
                 && splitCount == other.splitCount
                 && splitNanos == other.splitNanos
-                && emitNanos == other.emitNanos
                 && inlineEmitCount == other.inlineEmitCount
+                && inlineEmitRows == other.inlineEmitRows
                 && inlineEmitNanos == other.inlineEmitNanos
                 && workerTasks == other.workerTasks;
         }
@@ -719,8 +738,8 @@ public final class ParallelHashAggregationOperator implements Operator {
                 finishNanos,
                 splitCount,
                 splitNanos,
-                emitNanos,
                 inlineEmitCount,
+                inlineEmitRows,
                 inlineEmitNanos,
                 workerTasks
             );

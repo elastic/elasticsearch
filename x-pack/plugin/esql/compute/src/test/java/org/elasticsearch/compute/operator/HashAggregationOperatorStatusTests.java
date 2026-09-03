@@ -27,8 +27,8 @@ public class HashAggregationOperatorStatusTests extends AbstractWireSerializingT
             40013,
             4,
             90014,
-            70015,
             5,
+            2002,
             60016,
             7
         );
@@ -60,9 +60,8 @@ public class HashAggregationOperatorStatusTests extends AbstractWireSerializingT
                 "split_count" : 4,
                 "split_nanos" : 90014,
                 "split_time" : "90micros",
-                "emit_nanos" : 70015,
-                "emit_time" : "70micros",
                 "inline_emit_count" : 5,
+                "inline_emit_rows" : 2002,
                 "inline_emit_nanos" : 60016,
                 "inline_emit_time" : "60micros",
                 "worker_tasks" : 7

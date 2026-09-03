@@ -115,12 +115,12 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         Weight filterWeight = filterResult == null ? null : filterResult.weight();
         // need to check if this is actually a valid candidate for post filtering
         PostFilterRewriteMeta rewriteMeta = maybeCreatePostFilterQuery(searcher, filterWeight);
-        boolean engaged = rewriteMeta.postFilterQuery() != null;
+        boolean shouldPostFilter = rewriteMeta.postFilterQuery() != null;
         if (postFilterProfiler != null) {
-            postFilterProfiler.engaged = engaged;
+            postFilterProfiler.shouldPostFilter = shouldPostFilter;
             postFilterProfiler.selectivity = rewriteMeta.selectivity();
         }
-        if (engaged) {
+        if (shouldPostFilter) {
             assert rewriteMeta.postFilterQuery() instanceof PostFilterableKnnQuery
                 : "[createPostFilterQuery] should have generated a PostFilterableKnnQuery";
             var rewritten = postFilterRewrite(
@@ -148,12 +148,12 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         Query rewritten = ((Query) innerQuery).rewrite(searcher);
         this.totalVectorOps += innerQuery.totalVectorOps();
         if (postFilterProfiler != null) {
-            if (engaged) {
-                // Engaged but fell short: capture the bare inner search as a final round.
+            if (shouldPostFilter) {
+                // Post-filtering was applied but fell short: capture the bare inner search as a final round.
                 postFilterProfiler.record("fallthrough", (Query) innerQuery, -1, null, innerQuery.totalVectorOps());
                 publishBreakdown(profiler, postFilterProfiler.toBreakdown(totalVectorOps, field));
             } else {
-                publishBreakdown(profiler, postFilterProfiler.notEngagedBreakdown((Query) innerQuery, field));
+                publishBreakdown(profiler, postFilterProfiler.notAppliedBreakdown((Query) innerQuery, field));
             }
         }
         return rewritten;
@@ -250,9 +250,9 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             }
             TopDocs retryDocs = searcher.search(retry, remaining);
             long retryVectorOps = ((PostFilterableKnnQuery) retry).totalVectorOps();
+            vectorOps += retryVectorOps;
             Integer retryPassingCount = null;
             if (retryDocs.scoreDocs.length > 0) {
-                vectorOps += retryVectorOps;
                 ScoreDoc[][] retryCandidates = ((PostFilterableKnnQuery) retry).getPostFilterCandidates();
                 ScoreDoc[] retryPassing = flattenPerLeaf(applyFilter(retryCandidates, filterWeight, leaves).matchingPerLeaf());
                 retryPassingCount = retryPassing.length;
@@ -289,7 +289,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         private final List<Map<String, Object>> rounds = new ArrayList<>();
         private final float threshold;
         private float selectivity = Float.NaN;
-        private boolean engaged;
+        private boolean shouldPostFilter;
         private boolean earlyExit;
         private boolean matchNoDocs;
 
@@ -342,7 +342,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
         Map<String, Object> toBreakdown(long totalVectorOps, String field) {
             Map<String, Object> postFilter = new LinkedHashMap<>();
-            postFilter.put("engaged", engaged);
+            postFilter.put("post_filter_applied", shouldPostFilter);
             if (Float.isNaN(selectivity) == false) {
                 postFilter.put("selectivity", selectivity);
             }
@@ -371,11 +371,11 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
          * shape stays the same as an unwrapped kNN query - annotated with a compact {@code post_filter}
          * section recording that post-filtering was skipped and the numbers behind that decision.
          */
-        Map<String, Object> notEngagedBreakdown(Query innerQuery, String field) {
+        Map<String, Object> notAppliedBreakdown(Query innerQuery, String field) {
             Map<String, Object> breakdown = new LinkedHashMap<>(harvest(innerQuery));
             breakdown.putIfAbsent("field", field);
             Map<String, Object> postFilter = new LinkedHashMap<>();
-            postFilter.put("engaged", false);
+            postFilter.put("post_filter_applied", false);
             if (Float.isNaN(selectivity) == false) {
                 postFilter.put("selectivity", selectivity);
             }

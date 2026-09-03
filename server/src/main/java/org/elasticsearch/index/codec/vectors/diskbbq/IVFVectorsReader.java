@@ -566,11 +566,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             profileData.addExpectedDocs(expectedDocs);
             PostingVisitor.Profile visitorProfile = scorer.profile();
             if (visitorProfile != null) {
-                profileData.addDocIdReadTimeNs(visitorProfile.docIdReadTimeNs());
-                profileData.addScoringTimeNs(visitorProfile.scoringTimeNs());
-                profileData.addQueryQuantizationTimeNs(visitorProfile.queryQuantizationTimeNs());
-                profileData.addCentroidReadTimeNs(visitorProfile.centroidReadTimeNs());
-                profileData.setScorer(visitorProfile.scorerImplementation());
+                profileData.addVisitorProfile(visitorProfile);
             }
         }
     }

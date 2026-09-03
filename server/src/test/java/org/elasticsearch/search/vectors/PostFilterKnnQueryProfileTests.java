@@ -81,7 +81,7 @@ public class PostFilterKnnQueryProfileTests extends ESTestCase {
 
                 @SuppressWarnings("unchecked")
                 Map<String, Object> postFilter = (Map<String, Object>) breakdown.get("post_filter");
-                assertThat(postFilter.get("engaged"), equalTo(true));
+                assertThat(postFilter.get("post_filter_applied"), equalTo(true));
                 assertThat((float) postFilter.get("selectivity"), equalTo(1.0f));
                 assertThat((float) postFilter.get("threshold"), equalTo(0.0f));
                 assertThat(postFilter, hasKey("early_exit"));
@@ -144,7 +144,7 @@ public class PostFilterKnnQueryProfileTests extends ESTestCase {
 
                 @SuppressWarnings("unchecked")
                 Map<String, Object> postFilter = (Map<String, Object>) breakdown.get("post_filter");
-                assertThat(postFilter.get("engaged"), equalTo(false));
+                assertThat(postFilter.get("post_filter_applied"), equalTo(false));
                 assertThat((float) postFilter.get("selectivity"), equalTo(0.5f));
                 assertThat((float) postFilter.get("threshold"), equalTo(0.9f));
                 // No rounds ran, so the round-specific keys are omitted rather than reported as zeroes.
@@ -167,8 +167,15 @@ public class PostFilterKnnQueryProfileTests extends ESTestCase {
                 QueryProfiler profiler = new QueryProfiler();
                 searcher.setProfiler(profiler);
 
-                ESKnnFloatVectorQuery inner = new ESKnnFloatVectorQuery("vector", new float[] { 0f }, 1, 4, new MatchNoDocsQuery(), null);
-                PostFilterKnnQuery pfq = new PostFilterKnnQuery(inner, new MatchNoDocsQuery(), 1, "vector", null, 0f);
+                ESKnnFloatVectorQuery inner = new ESKnnFloatVectorQuery(
+                    "vector",
+                    new float[] { 0f },
+                    1,
+                    4,
+                    MatchNoDocsQuery.INSTANCE,
+                    null
+                );
+                PostFilterKnnQuery pfq = new PostFilterKnnQuery(inner, MatchNoDocsQuery.INSTANCE, 1, "vector", null, 0f);
                 searcher.rewrite(pfq);
 
                 Map<String, Object> breakdown = profiler.getKnnProfileBreakdown();

@@ -91,7 +91,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         rewriteTime = in.readLong();
         vectorOperationsCount = in.readOptionalLong();
         if (in.getTransportVersion().supports(KNN_PROFILE_BREAKDOWN_VERSION)) {
-            knnProfileBreakdown = (Map<String, Object>) in.readGenericValue();
+            knnProfileBreakdown = in.readOptionalImmutableMap(StreamInput::readString, StreamInput::readGenericValue);
         } else {
             knnProfileBreakdown = null;
         }
@@ -107,7 +107,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         out.writeLong(rewriteTime);
         out.writeOptionalLong(vectorOperationsCount);
         if (out.getTransportVersion().supports(KNN_PROFILE_BREAKDOWN_VERSION)) {
-            out.writeGenericValue(knnProfileBreakdown);
+            out.writeOptionalMap(knnProfileBreakdown, StreamOutput::writeString, StreamOutput::writeGenericValue);
         }
     }
 

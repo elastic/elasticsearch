@@ -1213,7 +1213,7 @@ When a filter is applied via post-filtering, `knn_profile` instead contains a `p
     "algorithm" : "hnsw",
     "field" : "vector",
     "post_filter" : {
-        "engaged" : true,
+        "post_filter_applied" : true,
         "selectivity" : 0.6,
         "threshold" : 0.5,
         "early_exit" : false,
@@ -1238,11 +1238,11 @@ When a filter is applied via post-filtering, `knn_profile` instead contains a `p
 }
 ```
 
-`engaged` reports whether post-filtering actually ran. When the filter is not selective enough (`selectivity` below `threshold`), the search runs as an ordinary pre-filtered kNN query, so `knn_profile` has the usual shape for that query plus a compact `post_filter` section recording the skipped decision:
+`post_filter_applied` reports whether post-filtering was applied. When the filter is not selective enough (`selectivity` below `threshold`), the search runs as an ordinary pre-filtered kNN query, so `knn_profile` has the usual shape for that query plus a compact `post_filter` section recording the skipped decision:
 
 ```js
 "post_filter" : {
-    "engaged" : false,
+    "post_filter_applied" : false,
     "selectivity" : 0.2,
     "threshold" : 0.5
 }

@@ -145,7 +145,7 @@ public class IVFKnnByteVectorQueryTests extends AbstractIVFKnnVectorQueryTestCas
             );
             QueryProfiler profiler = new QueryProfiler();
             searcher.setProfiler(profiler);
-            AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new byte[] { 0, 0 }, 3, new MatchNoDocsQuery());
+            AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new byte[] { 0, 0 }, 3, MatchNoDocsQuery.INSTANCE);
             searcher.rewrite(query);
 
             Map<String, Object> breakdown = profiler.getKnnProfileBreakdown();

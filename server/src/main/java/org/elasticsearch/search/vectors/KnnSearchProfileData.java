@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -255,6 +256,14 @@ public final class KnnSearchProfileData {
         this.hnswK = k;
         this.hnswNumCandidates = numCandidates;
         this.hnswHasFilter = hasFilter;
+    }
+
+    public void addVisitorProfile(IVFVectorsReader.PostingVisitor.Profile visitorProfile) {
+        addDocIdReadTimeNs(visitorProfile.docIdReadTimeNs());
+        addScoringTimeNs(visitorProfile.scoringTimeNs());
+        addQueryQuantizationTimeNs(visitorProfile.queryQuantizationTimeNs());
+        addCentroidReadTimeNs(visitorProfile.centroidReadTimeNs());
+        setScorer(visitorProfile.scorerImplementation());
     }
 
     /**

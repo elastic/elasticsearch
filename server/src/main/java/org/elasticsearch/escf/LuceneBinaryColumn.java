@@ -24,6 +24,7 @@ import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.sourcebatch.LuceneColumn.FilteredIterator;
 
 import java.util.List;
+import java.util.function.IntSupplier;
 
 import static org.elasticsearch.escf.EscfColumn.windowValidity;
 
@@ -109,16 +110,11 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
         final ObjectTupleCursor<BytesRef> cursor = data.bytesRefCursor(true);
         return new LuceneColumn.RowFieldCursor() {
             private final FilteredIterator fi = filter != null ? new FilteredIterator(filter) : null;
+            private final IntSupplier advance = cursor::nextDoc;
 
             @Override
             public int nextDoc() {
-                if (fi == null) {
-                    return cursor.nextDoc();
-                }
-                while (true) {
-                    int compact = fi.advancePast(cursor.nextDoc());
-                    if (compact != FilteredIterator.EXCLUDED) return compact;
-                }
+                return fi == null ? cursor.nextDoc() : fi.nextDoc(advance);
             }
 
             @Override
@@ -150,13 +146,11 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
         }
         return new ObjectTupleCursor<>() {
             private final FilteredIterator fi = new FilteredIterator(filter);
+            private final IntSupplier advance = inner::nextDoc;
 
             @Override
             public int nextDoc() {
-                while (true) {
-                    int compact = fi.advancePast(inner.nextDoc());
-                    if (compact != FilteredIterator.EXCLUDED) return compact;
-                }
+                return fi.nextDoc(advance);
             }
 
             @Override

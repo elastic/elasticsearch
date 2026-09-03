@@ -16,6 +16,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
 
 import java.util.List;
+import java.util.function.IntSupplier;
 
 /**
  * A {@link SliceableColumn} that can also produce Lucene fields for both the columnar
@@ -57,16 +58,10 @@ public interface LuceneColumn extends SliceableColumn {
      * <pre>{@code
      * FilteredIterator fi = new FilteredIterator(filter);
      * // inside nextDoc():
-     * while (true) {
-     *     int compact = fi.advancePast(inner.nextDoc());
-     *     if (compact != LuceneColumn.FilteredIterator.EXCLUDED) return compact;
-     * }
+     * return fi.nextDoc(inner::nextDoc);
      * }</pre>
      */
     final class FilteredIterator {
-
-        /** Returned by {@link #advancePast} when {@code innerDoc} is excluded by the filter. */
-        public static final int EXCLUDED = -1;
 
         private final BitSetIterator filterBits;
         private int filterBit;
@@ -78,27 +73,24 @@ public interface LuceneColumn extends SliceableColumn {
         }
 
         /**
-         * Advances the filter iterator to catch up with {@code innerDoc}, then returns:
-         * <ul>
-         *   <li>the compact doc ID if {@code innerDoc} is a set bit in the filter,</li>
-         *   <li>{@link #EXCLUDED} if {@code innerDoc} is excluded by the filter (caller should
-         *       advance the data cursor and retry), or</li>
-         *   <li>{@link DocIdSetIterator#NO_MORE_DOCS} if either the data or filter is
-         *       exhausted.</li>
-         * </ul>
+         * Advances the inner cursor (via {@code advanceInner}) and the filter in lockstep until
+         * a position is found that is set in the filter and has data, then returns its compact doc
+         * ID (0-based rank within the filter). Returns {@link DocIdSetIterator#NO_MORE_DOCS} when
+         * either the data or the filter is exhausted.
          */
-        public int advancePast(int innerDoc) {
-            if (innerDoc == DocIdSetIterator.NO_MORE_DOCS || filterBit == DocIdSetIterator.NO_MORE_DOCS) {
-                return DocIdSetIterator.NO_MORE_DOCS;
-            }
-            while (filterBit < innerDoc) {
-                filterBit = filterBits.nextDoc();
-                compactDoc++;
-                if (filterBit == DocIdSetIterator.NO_MORE_DOCS) {
-                    return DocIdSetIterator.NO_MORE_DOCS;
+        public int nextDoc(IntSupplier advanceInner) {
+            while (true) {
+                if (filterBit == DocIdSetIterator.NO_MORE_DOCS) return DocIdSetIterator.NO_MORE_DOCS;
+                int innerDoc = advanceInner.getAsInt();
+                if (innerDoc == DocIdSetIterator.NO_MORE_DOCS) return DocIdSetIterator.NO_MORE_DOCS;
+                while (filterBit < innerDoc) {
+                    filterBit = filterBits.nextDoc();
+                    compactDoc++;
+                    if (filterBit == DocIdSetIterator.NO_MORE_DOCS) return DocIdSetIterator.NO_MORE_DOCS;
                 }
+                if (filterBit == innerDoc) return compactDoc;
+                // innerDoc is not in the filter; advance inner again
             }
-            return filterBit == innerDoc ? compactDoc : EXCLUDED;
         }
     }
 

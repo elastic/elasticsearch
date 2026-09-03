@@ -29,6 +29,7 @@ import org.elasticsearch.sourcebatch.LuceneColumn.FilteredIterator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.IntSupplier;
 
 import static org.elasticsearch.escf.EscfColumn.windowValidity;
 
@@ -302,18 +303,19 @@ public final class MappedColumns {
             final BytesRef sentinel = new BytesRef(); // placeholder; overwritten in appendCurrentFields
             final Field field = new Field(name(), sentinel, fieldType);
             return new LuceneColumn.RowFieldCursor() {
-                private int doc = DocIdSetIterator.NO_MORE_DOCS;
                 private int srcIdx = from - 1;
+                private final FilteredIterator fi = filter != null ? new FilteredIterator(filter) : null;
+                private final int end = from + count;
+                private final IntSupplier advance = () -> {
+                    do {
+                        srcIdx++;
+                    } while (srcIdx < end && values[srcIdx] == null);
+                    return srcIdx < end ? srcIdx - from : DocIdSetIterator.NO_MORE_DOCS;
+                };
 
                 @Override
                 public int nextDoc() {
-                    srcIdx++;
-                    final int end = from + count;
-                    while (srcIdx < end && (values[srcIdx] == null || (filter != null && filter.get(srcIdx - from) == false))) {
-                        srcIdx++;
-                    }
-                    doc = srcIdx < end ? srcIdx - from : DocIdSetIterator.NO_MORE_DOCS;
-                    return doc;
+                    return fi == null ? advance.getAsInt() : fi.nextDoc(advance);
                 }
 
                 @Override
@@ -338,7 +340,7 @@ public final class MappedColumns {
                         while (srcIdx < end && values[srcIdx] == null) {
                             srcIdx++;
                         }
-                        return srcIdx >= end ? DocIdSetIterator.NO_MORE_DOCS : srcIdx - from;
+                        return srcIdx < end ? srcIdx - from : DocIdSetIterator.NO_MORE_DOCS;
                     }
 
                     @Override
@@ -351,19 +353,17 @@ public final class MappedColumns {
             return new ObjectTupleCursor<>() {
                 private int srcIdx = from - 1;
                 private final FilteredIterator fi = new FilteredIterator(filter);
+                private final int end = from + count;
+                private final IntSupplier advance = () -> {
+                    do {
+                        srcIdx++;
+                    } while (srcIdx < end && values[srcIdx] == null);
+                    return srcIdx < end ? srcIdx - from : DocIdSetIterator.NO_MORE_DOCS;
+                };
 
                 @Override
                 public int nextDoc() {
-                    final int end = from + count;
-                    while (true) {
-                        srcIdx++;
-                        while (srcIdx < end && values[srcIdx] == null) {
-                            srcIdx++;
-                        }
-                        if (srcIdx >= end) return DocIdSetIterator.NO_MORE_DOCS;
-                        int compact = fi.advancePast(srcIdx - from);
-                        if (compact != FilteredIterator.EXCLUDED) return compact;
-                    }
+                    return fi.nextDoc(advance);
                 }
 
                 @Override

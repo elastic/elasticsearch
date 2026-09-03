@@ -27,6 +27,7 @@ import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.sourcebatch.LuceneColumn.FilteredIterator;
 
 import java.util.List;
+import java.util.function.IntSupplier;
 
 import static org.elasticsearch.escf.EscfColumn.windowValidity;
 
@@ -202,13 +203,11 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
         }
         return new LongTupleCursor() {
             private final FilteredIterator fi = new FilteredIterator(filter);
+            private final IntSupplier advance = inner::nextDoc;
 
             @Override
             public int nextDoc() {
-                while (true) {
-                    int compact = fi.advancePast(inner.nextDoc());
-                    if (compact != FilteredIterator.EXCLUDED) return compact;
-                }
+                return fi.nextDoc(advance);
             }
 
             @Override

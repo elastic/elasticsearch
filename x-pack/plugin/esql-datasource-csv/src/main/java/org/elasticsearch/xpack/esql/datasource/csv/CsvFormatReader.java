@@ -1188,8 +1188,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
-        // Resolve-time notices ride on the metadata (see SourceMetadata#warnings): this runs on the resolver's executor,
-        // where a header is lost, and the resolver replays them from the schema cache so a warm run warns like a cold one.
         List<String> warnings = new ArrayList<>();
         warnings.addAll(configWarnings);
         List<Attribute> schema = readSchema(object, warnings::add);

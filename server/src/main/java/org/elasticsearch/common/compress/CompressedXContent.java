@@ -53,6 +53,9 @@ public final class CompressedXContent implements Writeable, Accountable {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CompressedXContent.class);
 
+    /** Base64 encoding of a 256-bit SHA-256 digest is always 44 characters. */
+    private static final long SHA256_RAM_BYTES_USED = RamUsageEstimator.sizeOf(Base64.getEncoder().encodeToString(new byte[32]));
+
     private static final ThreadLocal<InflaterAndBuffer> inflater = ThreadLocal.withInitial(InflaterAndBuffer::new);
 
     private static final ThreadLocal<BytesStreamOutput> baos = ThreadLocal.withInitial(BytesStreamOutput::new);
@@ -206,7 +209,7 @@ public final class CompressedXContent implements Writeable, Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(bytes) + RamUsageEstimator.sizeOf(sha256);
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(bytes) + SHA256_RAM_BYTES_USED;
     }
 
     public static CompressedXContent readCompressedString(StreamInput in) throws IOException {

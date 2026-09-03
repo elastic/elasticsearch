@@ -535,6 +535,55 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * Parameterized over {@link #MULTI_FILE_STRATEGIES} so any future {@code SchemaResolution}
      * value inherits the invariant by construction.
      */
+    /**
+     * A comma-separated list may name the same file twice, and the scan reads it twice -- glob expansion
+     * preserves duplicates and FileSplitProvider enumerates by listing position. The reconciliation-rail
+     * aggregate must fold by position too, or warm serves a deduplicated undercount against a cold scan of
+     * the same query: the identical query returns two different COUNT(*) values depending on cache state,
+     * and the warm one is wrong.
+     *
+     * <p>This pins the serve side. The write-through guard next to it -- which refuses to MEMOIZE a
+     * duplicate-path merge -- is pinned separately, and passing that one never implied this one: the
+     * guard's own comment describes the immediate serve as still broken, which was true when it was
+     * written and stopped being true when the fold moved to listing position.
+     */
+    public void testDuplicatePathInListingFoldsOncePerPositionNotPerUniquePath() {
+        StoragePath path = StoragePath.of("s3://bucket/a.csv");
+
+        Map<String, Object> flat = new HashMap<>();
+        flat.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 3L);
+        flat.put(SourceStatisticsSerializer.columnMinKey("val"), 1L);
+        flat.put(SourceStatisticsSerializer.columnMaxKey("val"), 9L);
+        flat.put(SourceStatisticsSerializer.columnValueCountKey("val"), 3L);
+        flat.put(SourceStatisticsSerializer.columnNullCountKey("val"), 0L);
+
+        List<Attribute> schema = List.of(attr("val", DataType.LONG));
+        Map<StoragePath, SourceMetadata> allMetadata = new LinkedHashMap<>();
+        allMetadata.put(path, new SimpleSourceMetadata(schema, "csv", path.toString(), null, null, flat, null));
+
+        Map<String, DataType> reconciledTypes = Map.of("val", DataType.LONG);
+        Map<StoragePath, Map<String, DataType>> perFileTypes = new HashMap<>();
+        perFileTypes.put(path, Map.of("val", DataType.LONG));
+
+        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
+            listingOf(path, path),
+            allMetadata,
+            perFileTypes,
+            reconciledTypes,
+            Map.of(),
+            false,
+            false
+        );
+
+        assertNotNull("a duplicate-path listing must still aggregate", agg);
+        // Six, not three: the listing names the file at two positions and the scan reads both.
+        assertThat(agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT), equalTo(6L));
+        assertThat(agg.get(SourceStatisticsSerializer.columnValueCountKey("val")), equalTo(6L));
+        // Extrema are position-independent -- folding the same file twice must not move them.
+        assertThat(agg.get(SourceStatisticsSerializer.columnMinKey("val")), equalTo(1L));
+        assertThat(agg.get(SourceStatisticsSerializer.columnMaxKey("val")), equalTo(9L));
+    }
+
     public void testMultiFileStatsPartialFlagPerStrategy() throws Exception {
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
 

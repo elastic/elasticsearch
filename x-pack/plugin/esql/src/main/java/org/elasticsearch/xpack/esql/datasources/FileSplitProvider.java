@@ -230,9 +230,11 @@ public class FileSplitProvider implements SplitProvider {
     static final String COMPRESSED_OFFSET_SPLIT_KEY = "_compressed_offset_split";
 
     /**
-     * Ceiling on concurrent I/O tasks during split discovery, applied separately to the per-file planning pass
-     * (Parquet footer reads, etc.) and to the record-boundary probes that follow it. The two passes run one after
-     * the other, so this bounds in-flight reads at any instant rather than being multiplied between them.
+     * Ceiling on concurrent pinning I/O during leftover split discovery (ORC, probes, {@code file://},
+     * {@code gs}). Native-async Parquet planning uses {@link ExternalSourceSettings#externalIoThreads}
+     * instead. Applied separately to that leftover planning and to the record-boundary probes that
+     * follow it. The two passes run one after the other, so this bounds in-flight pinning reads at any
+     * instant rather than being multiplied between them.
      */
     static final int MAX_PARALLEL_SPLIT_DISCOVERY = 16;
 
@@ -496,7 +498,7 @@ public class FileSplitProvider implements SplitProvider {
                     itemListener.onFailure(e);
                 }
             },
-                splitDiscoveryConcurrency(),
+                planningDiscoveryConcurrency(tasks, hoistedProvider),
                 fanOut,
                 ActionListener.<List<PlanResult>>wrap(
                     planResults -> probeDeferredBoundariesAsync(
@@ -664,8 +666,8 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Installs {@link StorageRetryCancellation} on every task {@code executor} runs so blocking
-     * {@code discoverSplitRanges} (ORC / Parquet parse-on-executor fallback) aborts retry backoff
-     * the same way sync {@link #processFileForSplits} wraps {@link #computeFileSplits}.
+     * {@code discoverSplitRanges} leftover paths (ORC, text probes, {@code file://}) abort retry
+     * backoff the same way sync {@link #processFileForSplits} wraps {@link #computeFileSplits}.
      */
     private static Executor withStorageRetryCancellation(Executor executor, BooleanSupplier isCancelled) {
         return command -> executor.execute(() -> StorageRetryCancellation.runWithCancellation(isCancelled, command::run));
@@ -1219,26 +1221,67 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * How many split-discovery reads may be in flight at once across the whole query, governing both the per-file
-     * planning pass and the boundary probes that follow it.
+     * How many split-discovery reads may be in flight at once for leftover pinning paths: ORC, text
+     * probes, {@code file://}, and {@code gs}. Bounded by {@link #MAX_PARALLEL_SPLIT_DISCOVERY} and
+     * clamped to the node's blob-store concurrency because a pinning read holds one of those permits
+     * (and an {@code esql_external_io} thread) for as long as its stream is open.
      * <p>
-     * Bounded by {@link #MAX_PARALLEL_SPLIT_DISCOVERY}, and clamped to the node's blob-store concurrency because
-     * a planning read and a probe alike hold one of those permits for as long as their stream is open: asking for
-     * more in flight than there are permits buys a query nothing but a thread parked on the semaphore. The clamp
-     * is per query where the permits are per node and per scheme, so it bounds one query's contribution to that
-     * contention rather than the contention itself, and concurrent queries still queue against each other.
-     * A configured concurrency of {@code 0} disables permit limiting altogether rather than meaning "no
-     * concurrency", so the ceiling applies as-is.
+     * The clamp is per query where the permits are per node and per scheme. A configured concurrency
+     * of {@code 0} disables permit limiting altogether rather than meaning "no concurrency", so the
+     * ceiling applies as-is.
+     * <p>
+     * Parquet planning that {@link #splitDiscoveryReleasesExecutor releases the executor} uses
+     * {@link ExternalSourceSettings#externalIoThreads} instead, via {@link #planningDiscoveryConcurrency}.
+     * Probes and sync {@link BoundedParallelGather} keep this 16-pin ceiling.
      * <p>
      * Production {@link #discoverSplitsAsync} must not join: the caller of Phase-2 is {@code SEARCH} or
-     * {@code esql_external_io}, and neither may sit in a gather latch. Blocking leftover paths (ORC miss,
-     * text probes, {@code file://} default {@code readBytesAsync}) still pin {@code esql_external_io},
-     * which is why this ceiling stays at {@link #MAX_PARALLEL_SPLIT_DISCOVERY} until those paths are
-     * fully async. {@code SEARCH} and {@code GENERIC} must not issue these GETs.
+     * {@code esql_external_io}, and neither may sit in a gather latch. {@code SEARCH} and {@code GENERIC}
+     * must not issue these GETs.
      */
     int splitDiscoveryConcurrency() {
         int permits = ExternalSourceSettings.blobStoreConcurrency(settings);
         return permits > 0 ? Math.min(MAX_PARALLEL_SPLIT_DISCOVERY, permits) : MAX_PARALLEL_SPLIT_DISCOVERY;
+    }
+
+    /**
+     * Planning {@link #gatherAsync} concurrency: when every file is Parquet and
+     * {@link #splitDiscoveryReleasesExecutor} on one peeked {@link StorageProvider#newObject}
+     * per distinct scheme, {@link ExternalSourceSettings#externalIoThreads} (never 0). Otherwise
+     * {@link #splitDiscoveryConcurrency()}. Any {@code newObject} failure is conservative (16).
+     * Probes and sync {@link BoundedParallelGather} keep {@link #splitDiscoveryConcurrency()}.
+     */
+    private int planningDiscoveryConcurrency(List<FileTask> tasks, @Nullable StorageProvider hoistedProvider) {
+        try {
+            Set<String> seenSchemes = new HashSet<>();
+            for (FileTask task : tasks) {
+                if (FormatNameResolver.FORMAT_PARQUET.equals(
+                    FormatNameResolver.resolve(task.config(), task.filePath().objectName())
+                ) == false) {
+                    return splitDiscoveryConcurrency();
+                }
+                String scheme = task.filePath().scheme();
+                if (seenSchemes.add(scheme) == false) {
+                    continue;
+                }
+                StorageProvider provider = resolveProvider(task.filePath(), task.config(), hoistedProvider);
+                StorageObject object = provider.newObject(task.filePath(), task.fileLength());
+                if (splitDiscoveryReleasesExecutor(task.filePath(), object) == false) {
+                    return splitDiscoveryConcurrency();
+                }
+            }
+            return ExternalSourceSettings.externalIoThreads(settings);
+        } catch (Exception e) {
+            return splitDiscoveryConcurrency();
+        }
+    }
+
+    /**
+     * True when Phase-2 footer GETs release {@code esql_external_io} (native {@code readBytesAsync},
+     * not GCS). GCS {@code supportsNativeAsync} is left true for read-path parallel chunks; discovery
+     * still pins the completion executor there.
+     */
+    private static boolean splitDiscoveryReleasesExecutor(StoragePath path, StorageObject object) {
+        return object.supportsNativeAsync() && "gs".equalsIgnoreCase(path.scheme()) == false;
     }
 
     /**

@@ -1106,6 +1106,85 @@ public class FileSplitProviderTests extends ESTestCase {
         }
     }
 
+    public void testDiscoverSplitsAsyncUncapsNativeParquetOnS3() throws Exception {
+        assertPlanningPeak("s3://b/data-", "s3://b/*", 24, 0, true, 24, true);
+    }
+
+    public void testDiscoverSplitsAsyncKeepsGsNativeParquetCapped() throws Exception {
+        assertPlanningPeak("gs://b/data-", "gs://b/*", 24, 0, true, 16, false);
+    }
+
+    public void testDiscoverSplitsAsyncKeepsFileParquetCapped() throws Exception {
+        assertPlanningPeak("file:///tmp/data-", "file:///tmp/*", 24, 0, false, 16, false);
+    }
+
+    public void testDiscoverSplitsAsyncKeepsMixedParquetCsvCapped() throws Exception {
+        assertPlanningPeak("s3://b/data-", "s3://b/*", 20, 4, true, 16, false);
+    }
+
+    /**
+     * Planning fan-out peak while delayed range GETs are held. {@code awaitStarted} must not exceed
+     * the concurrency cap or the latch never opens.
+     */
+    private void assertPlanningPeak(
+        String pathPrefix,
+        String glob,
+        int parquetFiles,
+        int csvFiles,
+        boolean nativeAsync,
+        int awaitStarted,
+        boolean expectAbovePinningCap
+    ) throws Exception {
+        Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 32).build();
+        CountDownLatch started = new CountDownLatch(awaitStarted);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger inFlight = new AtomicInteger();
+        AtomicInteger peak = new AtomicInteger();
+        RangeAwareFormatReader delayedReader = delayedAsyncRangeReader(started, release, new CopyOnWriteArrayList<>(), inFlight, peak);
+
+        int ioThreads = 32;
+        ExecutorService io = Executors.newFixedThreadPool(
+            ioThreads,
+            EsExecutors.daemonThreadFactory("test", EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME)
+        );
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        try {
+            FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+            formatRegistry.registerLazy("parquet", (s, bf) -> delayedReader, Settings.EMPTY, null);
+            formatRegistry.byName("parquet");
+            FileSplitProvider provider = new FileSplitProvider(
+                FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+                new DecompressionCodecRegistry(),
+                createMockStorageRegistry(nativeAsync, settings),
+                formatRegistry,
+                settings,
+                io
+            );
+            List<StorageEntry> entries = new ArrayList<>(parquetFiles + csvFiles);
+            for (int i = 0; i < parquetFiles; i++) {
+                entries.add(new StorageEntry(StoragePath.of(pathPrefix + i + ".parquet"), 2000, Instant.EPOCH));
+            }
+            for (int i = 0; i < csvFiles; i++) {
+                entries.add(new StorageEntry(StoragePath.of(pathPrefix + (parquetFiles + i) + ".csv"), 2000, Instant.EPOCH));
+            }
+            FileList fileList = GlobExpander.fileListOf(entries, glob);
+            SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
+            provider.discoverSplitsAsync(ctx, io, future);
+            assertTrue("GETs must start", started.await(10, TimeUnit.SECONDS));
+            assertFalse("discovery must not complete while GETs are blocked", future.isDone());
+            if (expectAbovePinningCap) {
+                assertThat("native Parquet s3 planning must exceed the pinning 16", peak.get(), greaterThan(16));
+            } else {
+                assertThat("leftover pinning paths stay at 16", peak.get(), lessThanOrEqualTo(16));
+            }
+            release.countDown();
+            assertEquals(parquetFiles + csvFiles, future.actionGet(30, TimeUnit.SECONDS).splits().size());
+        } finally {
+            release.countDown();
+            io.shutdownNow();
+        }
+    }
+
     /**
      * {@code file://} default {@code readBytesAsync} pins the completion executor. A 1-thread
      * {@code esql_external_io} pool must still finish: production must not join that pool.
@@ -4393,7 +4472,11 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     private static StorageProviderRegistry createMockStorageRegistry() {
-        StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY);
+        return createMockStorageRegistry(false, Settings.EMPTY);
+    }
+
+    private static StorageProviderRegistry createMockStorageRegistry(boolean nativeAsync, Settings settings) {
+        StorageProviderRegistry registry = new StorageProviderRegistry(settings);
         StorageProvider mockProvider = new StorageProvider() {
             @Override
             public StorageObject newObject(StoragePath path) {
@@ -4437,6 +4520,11 @@ public class FileSplitProviderTests extends ESTestCase {
                     public StoragePath path() {
                         return path;
                     }
+
+                    @Override
+                    public boolean supportsNativeAsync() {
+                        return nativeAsync;
+                    }
                 };
             }
 
@@ -4465,13 +4553,15 @@ public class FileSplitProviderTests extends ESTestCase {
 
             @Override
             public List<String> supportedSchemes() {
-                return List.of("s3");
+                return List.of("s3", "gs", "file");
             }
 
             @Override
             public void close() {}
         };
-        registry.registerFactory("s3", StorageProviderFactory.noConfigKeys(() -> mockProvider));
+        for (String scheme : List.of("s3", "gs", "file")) {
+            registry.registerFactory(scheme, StorageProviderFactory.noConfigKeys(() -> mockProvider));
+        }
         return registry;
     }
 

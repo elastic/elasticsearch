@@ -12,6 +12,7 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.tests.mockfile.FilterFileChannel;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.elasticsearch.core.SuppressForbidden;
@@ -20,13 +21,16 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -36,6 +40,17 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
     @SuppressForbidden(reason = "requires Files.getFileStore")
     private static int getBlockSize(Path path) throws IOException {
         return Math.toIntExact(Files.getFileStore(path).getBlockSize());
+    }
+
+    private byte[] writeTestFile(Path dir) throws IOException {
+        byte[] data = new byte[BASE_BUFFER_SIZE * 4];
+        random().nextBytes(data);
+        try (Directory d = new NIOFSDirectory(dir)) {
+            try (var out = d.createOutput("test", org.apache.lucene.store.IOContext.DEFAULT)) {
+                out.writeBytes(data, data.length);
+            }
+        }
+        return data;
     }
 
     private static final int BASE_BUFFER_SIZE = 8192;
@@ -248,14 +263,7 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
     private void doTestCloseDoesNotCloseSharedChannel(boolean useClone) throws IOException {
         Path path = createTempDir("testCloseDoesNotCloseSharedChannel");
         int blockSize = getBlockSize(path);
-        byte[] fileData = new byte[BASE_BUFFER_SIZE * 4];
-        random().nextBytes(fileData);
-
-        try (Directory dir = new NIOFSDirectory(path)) {
-            try (var output = dir.createOutput("test", org.apache.lucene.store.IOContext.DEFAULT)) {
-                output.writeBytes(fileData, fileData.length);
-            }
-        }
+        byte[] fileData = writeTestFile(path);
 
         // Latches make the race deterministic: the prefetch virtual thread parks inside FileChannel.read until
         // the test has called child.close(), ensuring shutdownNow() (pre-fix) always races an in-flight read.
@@ -264,15 +272,10 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
         CountDownLatch readDone = new CountDownLatch(1);
         AtomicBoolean blockReads = new AtomicBoolean(false);
 
-        try (
-            java.nio.channels.FileChannel realChannel = java.nio.channels.FileChannel.open(
-                path.resolve("test"),
-                java.nio.file.StandardOpenOption.READ
-            )
-        ) {
-            var blockingChannel = new org.apache.lucene.tests.mockfile.FilterFileChannel(realChannel) {
+        try (FileChannel realChannel = FileChannel.open(path.resolve("test"), StandardOpenOption.READ)) {
+            var blockingChannel = new FilterFileChannel(realChannel) {
                 @Override
-                public int read(java.nio.ByteBuffer dst, long position) throws IOException {
+                public int read(ByteBuffer dst, long position) throws IOException {
                     if (blockReads.get()) {
                         readStarted.countDown();
                         try {
@@ -299,10 +302,10 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
                 blockReads.set(true);
                 child.prefetch(BASE_BUFFER_SIZE, BASE_BUFFER_SIZE); // submits a virtual thread that will park in read()
                 try {
-                    readStarted.await(); // wait until the virtual thread is inside read()
+                    assertTrue("prefetch read did not start in time", readStarted.await(10, TimeUnit.SECONDS));
                     child.close(); // pre-fix: shutdownNow() interrupts the parked thread; post-fix: shutdown() does not
                     allowRead.countDown(); // post-fix: let the thread proceed; pre-fix: thread already exited via interrupt
-                    readDone.await(); // wait for the read attempt to finish before checking the channel state
+                    assertTrue("prefetch read did not finish in time", readDone.await(10, TimeUnit.SECONDS));
                 } catch (InterruptedException e) {
                     throw new AssertionError(e);
                 }
@@ -316,33 +319,57 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
 
     /**
      * An interrupt while waiting on a prefetch must surface as {@link ThreadInterruptedException} and must not close the
-     * shared {@link java.nio.channels.FileChannel} (see #158421). Whether the interrupt races the prefetch is
-     * non-deterministic, so both outcomes are accepted.
+     * shared {@link java.nio.channels.FileChannel} (see #158421). The blocking channel guarantees the prefetch is still
+     * in flight when the interrupt fires, so the {@link InterruptedException} branch is always exercised.
      */
+    @SuppressForbidden(reason = "requires FileChannel#open and FilterFileChannel#read for deterministic race injection")
     public void testInterruptWhileWaitingForPrefetchDoesNotCloseChannel() throws IOException {
         Path path = createTempDir("testInterruptDoesNotCloseChannel");
         int blockSize = getBlockSize(path);
-        byte[] fileData = new byte[BASE_BUFFER_SIZE * 4];
-        random().nextBytes(fileData);
+        byte[] fileData = writeTestFile(path);
 
-        try (Directory dir = new NIOFSDirectory(path)) {
-            try (var output = dir.createOutput("test", org.apache.lucene.store.IOContext.DEFAULT)) {
-                output.writeBytes(fileData, fileData.length);
-            }
-            try (AsyncDirectIOIndexInput input = new AsyncDirectIOIndexInput(path.resolve("test"), blockSize, BASE_BUFFER_SIZE, 2)) {
-                input.prefetch(BASE_BUFFER_SIZE, BASE_BUFFER_SIZE);
+        CountDownLatch readStarted = new CountDownLatch(1);
+        CountDownLatch allowRead = new CountDownLatch(1);
+        AtomicBoolean blockReads = new AtomicBoolean(false);
 
-                Thread.currentThread().interrupt();
+        try (FileChannel realChannel = FileChannel.open(path.resolve("test"), StandardOpenOption.READ)) {
+            var blockingChannel = new FilterFileChannel(realChannel) {
+                @Override
+                public int read(ByteBuffer dst, long position) throws IOException {
+                    if (blockReads.get()) {
+                        readStarted.countDown();
+                        try {
+                            allowRead.await();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                    return super.read(dst, position);
+                }
+            };
+
+            try (AsyncDirectIOIndexInput input = new AsyncDirectIOIndexInput(blockingChannel, blockSize, BASE_BUFFER_SIZE, 2)) {
+                blockReads.set(true);
+                input.prefetch(BASE_BUFFER_SIZE, BASE_BUFFER_SIZE); // virtual thread will park inside read()
                 try {
-                    input.seek(BASE_BUFFER_SIZE);
-                    input.readByte(); // either succeeds (prefetch done) or throws ThreadInterruptedException (prefetch in flight)
-                } catch (ThreadInterruptedException expected) {
-                    // slot stays mapped; the read below will consume it
-                } finally {
-                    assertTrue(Thread.interrupted()); // assert flag is set, and clear it
+                    assertTrue("prefetch read did not start in time", readStarted.await(10, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
                 }
 
-                // channel must still be open; read must return correct data
+                // prefetch is blocked; Future.get() sees the interrupt flag and throws ThreadInterruptedException
+                Thread.currentThread().interrupt();
+                try {
+                    expectThrows(ThreadInterruptedException.class, () -> {
+                        input.seek(BASE_BUFFER_SIZE);
+                        input.readByte();
+                    });
+                } finally {
+                    assertTrue(Thread.interrupted()); // flag must be set; also clears it
+                    allowRead.countDown(); // release the parked prefetch thread
+                }
+
+                // channel must still be open; slot stays mapped and is consumed by this read
                 input.seek(BASE_BUFFER_SIZE);
                 assertEquals(fileData[BASE_BUFFER_SIZE], input.readByte());
                 assertEquals(0, input.prefetchSlots());

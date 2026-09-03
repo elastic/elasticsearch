@@ -31,6 +31,7 @@ import org.junit.Before;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -106,12 +107,18 @@ public class SystemViewsTests extends ESTestCase {
         verify(viewService, times(1)).putView(eq(ProjectId.DEFAULT), eq(EXPECTED_REQUEST), any());
     }
 
-    public void testUpdatesViewWhenDefinitionDrifts() {
-        // The view already exists but with a stale query, so the bootstrap must overwrite it with the current definition.
-        views.put(EXPECTED_REQUEST.view().name(), new View(EXPECTED_REQUEST.view().name(), "FROM this |s a stale query"));
-        systemViews.clusterChanged(clusterChangedEvent(true, true));
+    public void testThrowsWhenNewViewExists() {
+        // .ml-anomalies is a "new" system view: if a view with that name already exists with a different definition,
+        // the bootstrap must fail fast rather than overwrite it, and must not invoke putView.
+        String name = EXPECTED_REQUEST.view().name();
+        views.put(name, new View(name, "FROM this |s a user-defined query"));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> systemViews.clusterChanged(clusterChangedEvent(true, true))
+        );
+        assertThat(e.getMessage(), containsString("system view [" + name + "] already exists"));
         flushThreadPoolExecutor(threadPool, ThreadPool.Names.GENERIC);
-        verify(viewService, times(1)).putView(eq(ProjectId.DEFAULT), eq(EXPECTED_REQUEST), any());
+        verify(viewService, never()).putView(any(), any(), any());
     }
 
     public void testUpdatesViewWhenDefinitionIsUpToDate() {

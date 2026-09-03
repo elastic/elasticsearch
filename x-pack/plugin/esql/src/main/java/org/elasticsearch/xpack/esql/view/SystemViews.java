@@ -22,6 +22,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -65,6 +66,13 @@ public final class SystemViews implements ClusterStateListener {
                processing_time_ms
         """);
 
+    /**
+     * System views that are new in this version of Elasticsearch.
+     * If any of these already exist in the cluster, the node will fail to start,
+     * and the user must delete them and restart the node to recreate them.
+     */
+    private static final Set<String> NEW_SYSTEM_VIEWS = Set.of(".ml-anomalies");
+
     static boolean isSystemView(String name) {
         return VIEWS.containsKey(name);
     }
@@ -88,6 +96,10 @@ public final class SystemViews implements ClusterStateListener {
         if (event.localNodeMaster() == false) {
             return;
         }
+        // Fail fast (synchronously) if a "new" system view already exists with a different definition: it must not be
+        // silently overwritten. This runs on the cluster applier thread so the error surfaces immediately rather than as
+        // an uncaught exception from the async creation task.
+        failIfConflictingNewSystemViewExists();
         if (allViewsUpToDate()) {
             return;
         }
@@ -97,18 +109,34 @@ public final class SystemViews implements ClusterStateListener {
         threadPool.generic().execute(this::createViews);
     }
 
+    /**
+     * Throws if a {@link #NEW_SYSTEM_VIEWS new} system view already exists with a query that differs from the managed
+     * definition (e.g. a user-defined view with the same name). Such a view must be deleted and the node restarted for
+     * the system view to be (re)created; we never overwrite it automatically.
+     */
+    private void failIfConflictingNewSystemViewExists() {
+        for (String name : NEW_SYSTEM_VIEWS) {
+            String existing = existingQuery(name);
+            if (existing != null && VIEWS.get(name).equals(existing) == false) {
+                throw new IllegalStateException(
+                    "ES|QL system view [" + name + "] already exists. Please delete it and restart the node to recreate it."
+                );
+            }
+        }
+    }
+
     private boolean allViewsUpToDate() {
         for (Map.Entry<String, String> entry : VIEWS.entrySet()) {
-            if (isViewUpToDate(entry.getKey(), entry.getValue()) == false) {
+            if (entry.getValue().equals(existingQuery(entry.getKey())) == false) {
                 return false;
             }
         }
         return true;
     }
 
-    private boolean isViewUpToDate(String name, String query) {
+    private String existingQuery(String name) {
         View existingView = viewService.get(Metadata.DEFAULT_PROJECT_ID, name);
-        return existingView != null && query.equals(existingView.query());
+        return existingView != null ? existingView.query() : null;
     }
 
     private void createViews() {
@@ -116,7 +144,7 @@ public final class SystemViews implements ClusterStateListener {
             for (Map.Entry<String, String> entry : VIEWS.entrySet()) {
                 String name = entry.getKey();
                 String query = entry.getValue();
-                if (isViewUpToDate(name, query)) {
+                if (query.equals(existingQuery(name))) {
                     continue;
                 }
                 Releasable ref = refs.acquire();
@@ -130,7 +158,7 @@ public final class SystemViews implements ClusterStateListener {
                     request,
                     ActionListener.runAfter(
                         ActionListener.wrap(
-                            acknowledged -> logger.info("created ES|QL system view [{}]", name),
+                            acknowledged -> logger.info("created/updated ES|QL system view [{}]", name),
                             e -> logger.warn(() -> "failed to create ES|QL system view [" + name + "]", e)
                         ),
                         ref::close

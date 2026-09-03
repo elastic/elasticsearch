@@ -264,15 +264,22 @@ public class CodecTests extends ESTestCase {
     }
 
     public void testTSDBDefault() throws Exception {
-        boolean syntheticIdEnabled = randomBoolean();
-        CodecService codecService = createCodecService(syntheticIdEnabled);
-        Codec codec = codecService.codec("default");
-        assertThat(codec, instanceOf(CodecService.DeduplicateFieldInfosCodec.class));
-        CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec = (CodecService.DeduplicateFieldInfosCodec) codec;
-        if (syntheticIdEnabled) {
-            assertThat(deduplicateFieldInfosCodec.delegate(), instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class));
-        } else {
-            assertThat(deduplicateFieldInfosCodec.delegate(), not(instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class)));
+        // Both values every run: which shape the default codec takes depends on this, and a randomBoolean() would only
+        // exercise one of them per seed.
+        for (boolean syntheticIdEnabled : new boolean[] { false, true }) {
+            CodecService codecService = createCodecService(syntheticIdEnabled);
+            Codec codec = codecService.codec("default");
+            assertTrue("syntheticId=" + syntheticIdEnabled, CodecService.isDeduplicating(codec.fieldInfosFormat()));
+            if (syntheticIdEnabled) {
+                // The TSDB codec deduplicates in its own right, so CodecService hands it back unwrapped.
+                assertThat(codec, instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class));
+            } else {
+                assertThat(codec, instanceOf(CodecService.DeduplicateFieldInfosCodec.class));
+                assertThat(
+                    ((CodecService.DeduplicateFieldInfosCodec) codec).delegate(),
+                    not(instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class))
+                );
+            }
         }
     }
 

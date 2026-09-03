@@ -91,6 +91,25 @@ book_no:keyword | title:text | publisher:text | title_dense_vector:dense_vector 
 ;
 
 
+// Each chained DENSE_VECTOR clause is an independent command with its own WITH options (per-field endpoints).
+dense_vector command chained clauses
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no IN ("7480", "8605")
+| DENSE_VECTOR title WITH { "inference_id" : "test_dense_inference" }
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, title, publisher, title_dense_vector, publisher_dense_vector
+;
+
+book_no:keyword | title:text | publisher:text | title_dense_vector:dense_vector | publisher_dense_vector:dense_vector
+7480            | The Hobbit | Mariner Books  | [50.0, 49.0, 48.0]              | [45.0, 49.0, 53.0]
+8605            | Dead Souls | Vintage        | [45.0, 49.0, 53.0]              | [50.0, 49.0, 50.0]
+;
+
+
 dense_vector command on a single explicitly-named field over an index
 required_capability: dense_vector_command
 required_capability: dense_vector_field_type_released
@@ -192,4 +211,65 @@ FROM books
 
 book_no:keyword | publisher_dense_vector:dense_vector
 2924            | [45.0, 56.0, 48.0]
+;
+
+
+// An explicit text type is equivalent to the default: the input is embedded as text.
+dense_vector command with explicit text type
+required_capability: dense_vector_command_v2
+required_capability: dense_vector_field_type_released
+
+ROW input = "Who is Victor Hugo?"
+| DENSE_VECTOR input WITH { "inference_id" : "test_dense_inference", "type" : "text" }
+;
+
+input:keyword       | input_dense_vector:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+
+// A text input runs against an embedding (multimodal) endpoint. The "test_embedding_inference" mock embeds
+// text the same way as the text_embedding mock, so the vector matches the text-type result.
+dense_vector command text runs against an embedding endpoint
+required_capability: dense_vector_command_v2
+required_capability: dense_vector_field_type_released
+
+ROW input = "Who is Victor Hugo?"
+| DENSE_VECTOR input WITH { "inference_id" : "test_embedding_inference", "type" : "text" }
+;
+
+input:keyword       | input_dense_vector:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+
+// An image input is a base64 data URI embedded through a multimodal endpoint. The "test_embedding_inference"
+// mock decodes the base64 payload back to its text, embeds it, and negates the vector for image inputs.
+// The payload decodes to "Who is Victor Hugo?", whose text vector is [56.0, 50.0, 48.0].
+dense_vector command with image type
+required_capability: dense_vector_command_v2
+required_capability: dense_vector_field_type_released
+
+ROW input = "data:image/jpeg;base64,V2hvIGlzIFZpY3RvciBIdWdvPw=="
+| DENSE_VECTOR input WITH { "inference_id" : "test_embedding_inference", "type" : "image" }
+;
+
+input:keyword                                          | input_dense_vector:dense_vector
+data:image/jpeg;base64,V2hvIGlzIFZpY3RvciBIdWdvPw==    | [-56.0, -50.0, -48.0]
+;
+
+
+// Embedding two fields but keeping only one: the unused field's embedding is pruned by the optimizer, and the kept
+// column is unchanged. This asserts output correctness under pruning (the savings are not observable in the output).
+dense_vector command keeps only the used generated column
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+ROW a = "be excellent to each other", b = "live long and prosper"
+| DENSE_VECTOR a, b WITH { "inference_id" : "test_dense_inference" }
+| KEEP a, a_dense_vector
+;
+
+a:keyword                  | a_dense_vector:dense_vector
+be excellent to each other | [45.0, 55.0, 54.0]
 ;

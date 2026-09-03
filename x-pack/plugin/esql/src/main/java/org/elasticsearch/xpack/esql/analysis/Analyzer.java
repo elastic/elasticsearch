@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.logging.Logger;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
@@ -124,6 +126,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -142,6 +145,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -195,7 +199,9 @@ import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -211,6 +217,7 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -1084,11 +1091,77 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
             LogicalPlan promqlPlan = promql.promqlPlan();
-            Function<UnresolvedAttribute, Expression> lambda = ua -> ResolveRefs.maybeResolveAttribute(ua, childrenOutput, log);
-            // resolve the nested plan
-            return promql.withPromqlPlan(promqlPlan.transformExpressionsDown(UnresolvedAttribute.class, lambda))
-                // but also any unresolved expressions
-                .transformExpressionsOnly(UnresolvedAttribute.class, lambda);
+            List<MetadataManipulationFunction> relabels = promqlPlan.collect(MetadataManipulationFunction.class);
+
+            // References against the stored labels (childrenOutput): a vector selector always matches on the labels as they
+            // are stored, regardless of any relabeling applied downstream.
+            Function<UnresolvedAttribute, Expression> storedScope = ua -> ResolveRefs.maybeResolveAttribute(ua, childrenOutput, log);
+
+            if (relabels.isEmpty()) {
+                return promql.withPromqlPlan(promqlPlan.transformExpressionsDown(UnresolvedAttribute.class, storedScope))
+                    .transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
+            }
+
+            // A label_replace/label_join derives a destination label that overwrites (shadows) any stored label of the same
+            // name (a dimension or __name__). Shadowing is positional: a reference sees a derived destination only when the
+            // relabel deriving it lies within the vector the reference consumes - i.e. strictly below the reference's node.
+            // So each node resolves against the stored labels shadowed by the destinations of the relabels in its own child
+            // subtree(s): a selector's matchers, and any reference below a relabel, bind to the stored label, while an
+            // enclosing by(dst) binds to the derived destination. When several relabels on one path derive the same label the
+            // outermost (last-applied) one wins, so same-named destinations are collapsed keeping the shallowest - which also
+            // keeps an enclosing by(dst) from seeing two same-named attributes. childrenOutput is a fresh per-call list, so
+            // this is local to this command.
+            LogicalPlan resolvedPlan = promqlPlan.transformDown(node -> {
+                if (node instanceof Selector) {
+                    return node.transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
+                }
+                List<Attribute> scope = PromqlAttributesTranslationContext.shadowedResolutionScope(
+                    childrenOutput,
+                    activeDestinations(node)
+                );
+                return node.transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, scope, log));
+            });
+
+            // The command's own output contract sees the full derived label set: every destination, same nearest-wins collapse.
+            List<Attribute> outputScope = PromqlAttributesTranslationContext.shadowedResolutionScope(
+                childrenOutput,
+                collapseByName(relabels)
+            );
+            return promql.withPromqlPlan(resolvedPlan)
+                .transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, outputScope, log));
+        }
+
+        /**
+         * The relabel destinations visible to {@code node}'s own expressions: the destinations derived within the vector the
+         * node consumes - the {@link MetadataManipulationFunction}s in its child subtree(s) - collapsed by label name keeping
+         * the shallowest (outermost, last-applied) match, so a destination derived more than once on a path resolves to the
+         * one that wins in PromQL.
+         */
+        private static List<Attribute> activeDestinations(LogicalPlan node) {
+            List<MetadataManipulationFunction> relabels = new ArrayList<>();
+            for (LogicalPlan child : node.children()) {
+                relabels.addAll(child.collect(MetadataManipulationFunction.class));
+            }
+            return collapseByName(relabels);
+        }
+
+        /**
+         * The relabels' destination attributes, collapsed to one per label name keeping the first. The input is in pre-order
+         * (ancestors before descendants), so "first" is the shallowest/outermost relabel - PromQL's "last relabel wins" when a
+         * destination is derived more than once on a path.
+         */
+        private static List<Attribute> collapseByName(List<MetadataManipulationFunction> relabels) {
+            List<Attribute> destinations = new ArrayList<>(relabels.size());
+            Set<String> seen = new HashSet<>();
+            for (MetadataManipulationFunction relabel : relabels) {
+                Attribute destination = relabel.destination();
+                // A destination is minted as a bare ReferenceAttribute named after the label (no passthrough prefix), so its
+                // attribute name is already the canonical label name used for shadowing.
+                if (seen.add(destination.name())) {
+                    destinations.add(destination);
+                }
+            }
+            return destinations;
         }
     }
 
@@ -1301,7 +1374,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             resolved.dataType(),
                             resolved.nullable(),
                             null,
-                            false
+                            false,
+                            // the expanded values are the target's values, so a declared values analyzer carries over
+                            AnalyzedTextExpression.valuesAnalyzerOf(resolved)
                         )
                         : resolved
                 );
@@ -2651,22 +2726,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan.withInferenceResolutionError(inferenceId, error);
             }
 
-            if (resolvedInference.taskType() != plan.taskType()) {
+            EnumSet<TaskType> acceptedTaskTypes = plan.acceptedTaskTypes();
+            if (acceptedTaskTypes.contains(resolvedInference.taskType()) == false) {
                 String error = "cannot use inference endpoint ["
                     + inferenceId
                     + "] with task type ["
                     + resolvedInference.taskType()
                     + "] within a "
                     + plan.nodeName()
-                    + " command. Only inference endpoints with the task type ["
-                    + plan.taskType()
-                    + "] are supported.";
+                    + " command. Only inference endpoints with the task type "
+                    + acceptedTaskTypes
+                    + " are supported.";
                 return plan.withInferenceResolutionError(inferenceId, error);
             }
 
             if (plan.isFoldable()) {
                 // Transform foldable InferencePlan to Eval with function call
                 return transformToEval(plan, inferenceId);
+            }
+
+            // DENSE_VECTOR routes text inputs by the endpoint's task type, so record it on the node for the planner.
+            if (plan instanceof DenseVector denseVector) {
+                return denseVector.withEndpointTaskType(resolvedInference.taskType());
             }
 
             return plan;
@@ -3240,6 +3321,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ) {
             Expression convertExpression = (Expression) convert;
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
+                if (convert instanceof ToText toText && toText.valuesAnalyzer() != null) {
+                    // For to_text on a type-conflicted field, the analyzer option is rejected here in the same way the
+                    // post-analysis verifier rejects it on a single-typed field.
+                    return new UnresolvedAttribute(fa.source(), fa.name(), ToText.analyzerOnMappedFieldMessage(fa.name()));
+                }
                 // The field has an unresolved type conflict (TypeConflictedField), so we attempt to create UnionTypeEsField with
                 // index-specific conversions
                 Map<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();

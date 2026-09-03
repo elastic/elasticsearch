@@ -1,3 +1,7 @@
+#### Document- and field-level security
+
+A role entry that grants `read` on a view name must not carry DLS or FLS restrictions. If it does, the query fails with a `403`. DLS/FLS on the underlying indices is applied normally. Refer to [view privileges](/reference/query-languages/esql/esql-views.md#esql-views-privileges).
+
 #### Branching inside views
 
 Commands that also generate branched query plans

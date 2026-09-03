@@ -155,56 +155,34 @@ public class BaseInferenceActionTests extends RestActionTestCase {
         assertThat(executeCalled.get(), equalTo(true));
     }
 
-    public void testExtractProductUseCase() {
-        String productUseCase = "product-use-case";
-        assertExtractedHeaders(Map.of(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of(productUseCase)), context -> {
-            assertThat(context.productUseCase(), equalTo(productUseCase));
-            assertThat(context.interactionId(), equalTo(""));
-            assertThat(context.productSolution(), equalTo(""));
-            assertThat(context.productFeature(), equalTo(""));
-        });
-    }
-
-    public void testExtractProductUseCase_EmptyWhenHeaderMissing() {
-        assertExtractedHeaders(Map.of(), context -> {
-            assertThat(context.productUseCase(), equalTo(""));
-            assertThat(context.interactionId(), equalTo(""));
-            assertThat(context.productSolution(), equalTo(""));
-            assertThat(context.productFeature(), equalTo(""));
-        });
-    }
-
-    public void testExtractProductUseCase_EmptyWhenHeaderValueEmpty() {
-        assertExtractedHeaders(
-            Map.of(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of("")),
-            context -> assertThat(context.productUseCase(), equalTo(""))
-        );
-    }
-
-    public void testExtractInteractionId() {
-        assertExtractedHeaders(
-            Map.of(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, List.of("interaction-id")),
-            context -> assertThat(context.interactionId(), equalTo("interaction-id"))
-        );
-    }
-
-    public void testExtractProductSolution() {
-        assertExtractedHeaders(
-            Map.of(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, List.of("security")),
-            context -> assertThat(context.productSolution(), equalTo("security"))
-        );
-    }
-
-    public void testExtractProductFeature() {
-        assertExtractedHeaders(
-            Map.of(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, List.of("attack_discovery")),
-            context -> assertThat(context.productFeature(), equalTo("attack_discovery"))
-        );
-    }
-
-    public void testExtractAttributionHeaders_EmptyWhenHeaderValueEmpty() {
+    public void testExtractAttributionHeaders() {
         assertExtractedHeaders(
             Map.of(
+                InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
+                List.of("product-use-case"),
+                InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
+                List.of("security"),
+                InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER,
+                List.of("attack_discovery"),
+                InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
+                List.of("interaction-id")
+            ),
+            context -> assertThat(
+                context,
+                equalTo(new InferenceContext("product-use-case", "security", "attack_discovery", "interaction-id"))
+            )
+        );
+    }
+
+    public void testExtractAttributionHeaders_EmptyWhenHeadersMissing() {
+        assertExtractedHeaders(Map.of(), context -> assertThat(context, equalTo(InferenceContext.EMPTY_INSTANCE)));
+    }
+
+    public void testExtractAttributionHeaders_EmptyWhenHeaderValuesEmpty() {
+        assertExtractedHeaders(
+            Map.of(
+                InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
+                List.of(""),
                 InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
                 List.of(""),
                 InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
@@ -212,11 +190,7 @@ public class BaseInferenceActionTests extends RestActionTestCase {
                 InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER,
                 List.of("")
             ),
-            context -> {
-                assertThat(context.interactionId(), equalTo(""));
-                assertThat(context.productSolution(), equalTo(""));
-                assertThat(context.productFeature(), equalTo(""));
-            }
+            context -> assertThat(context, equalTo(InferenceContext.EMPTY_INSTANCE))
         );
     }
 

@@ -14,6 +14,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
+
 import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER;
 import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
 import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
@@ -58,31 +60,31 @@ public class InferenceProductContextTests extends ESTestCase {
         assertThat(context, sameInstance(InferenceProductContext.EMPTY));
     }
 
-    public void testCreate_DoesNotReturnEmptyWhenOnlySolutionIsPresent() {
-        var threadContext = new ThreadContext(Settings.EMPTY);
-        threadContext.putHeader(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, "security");
+    public void testCreate_DoesNotReturnEmptyWhenOnlyOneOptionalHeaderIsPresent() {
+        record Case(String header, String value, InferenceProductContext expected) {}
 
-        var context = InferenceProductContext.create(threadContext);
+        for (var testCase : List.of(
+            new Case(
+                X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
+                "security",
+                new InferenceProductContext(null, null, "security", null, null)
+            ),
+            new Case(
+                X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER,
+                "attack_discovery",
+                new InferenceProductContext(null, null, null, "attack_discovery", null)
+            ),
+            new Case(
+                X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
+                "interaction-id",
+                new InferenceProductContext(null, null, null, null, "interaction-id")
+            )
+        )) {
+            var threadContext = new ThreadContext(Settings.EMPTY);
+            threadContext.putHeader(testCase.header(), testCase.value());
 
-        assertThat(context, is(new InferenceProductContext(null, null, "security", null, null)));
-    }
-
-    public void testCreate_DoesNotReturnEmptyWhenOnlyFeatureIsPresent() {
-        var threadContext = new ThreadContext(Settings.EMPTY);
-        threadContext.putHeader(X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, "attack_discovery");
-
-        var context = InferenceProductContext.create(threadContext);
-
-        assertThat(context, is(new InferenceProductContext(null, null, null, "attack_discovery", null)));
-    }
-
-    public void testCreate_DoesNotReturnEmptyWhenOnlyInteractionIdIsPresent() {
-        var threadContext = new ThreadContext(Settings.EMPTY);
-        threadContext.putHeader(X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, "interaction-id");
-
-        var context = InferenceProductContext.create(threadContext);
-
-        assertThat(context, is(new InferenceProductContext(null, null, null, null, "interaction-id")));
+            assertThat(InferenceProductContext.create(threadContext), is(testCase.expected()));
+        }
     }
 
     public static InferenceProductContext randomInferenceProductContext() {

@@ -88,8 +88,8 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
     @Override
     public LuceneBinaryColumn slice(int from, int count) {
         EscfColumn sliced = data.sliceInternal(from, count);
-        FixedBitSet slicedFilter = filter == null ? null : EscfColumn.windowValidity(filter, from, count);
         Density dataBasedDensity = (sliced instanceof EscfArrayColumn || sliced.validity != null) ? Density.SPARSE : Density.DENSE;
+        FixedBitSet slicedFilter = EscfColumn.windowValidity(filter, from, count);
         return new LuceneBinaryColumn(sliced, name(), fieldType(), dataBasedDensity, slicedFilter);
     }
 

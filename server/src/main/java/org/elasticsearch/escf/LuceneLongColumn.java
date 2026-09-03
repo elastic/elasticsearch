@@ -147,8 +147,8 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
     @Override
     public LuceneLongColumn slice(int from, int count) {
         EscfColumn sliced = data.sliceInternal(from, count);
-        FixedBitSet slicedFilter = filter == null ? null : EscfColumn.windowValidity(filter, from, count);
         Density density = (sliced instanceof EscfLongColumn l && l.validity == null) ? Density.DENSE : Density.SPARSE;
+        FixedBitSet slicedFilter = EscfColumn.windowValidity(filter, from, count);
         return new LuceneLongColumn(sliced, name(), fieldType(), density, numericKind(), slicedFilter);
     }
 

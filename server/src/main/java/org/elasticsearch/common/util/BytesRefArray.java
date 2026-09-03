@@ -284,6 +284,10 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         return size;
     }
 
+    public long totalBytes() {
+        return lastOffset;
+    }
+
     @Override
     public void close() {
         decRef();

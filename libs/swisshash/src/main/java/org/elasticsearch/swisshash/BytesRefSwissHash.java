@@ -891,7 +891,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         final int[] batchPartitionCounts = new int[NUM_PARTITIONS];
         final short[] shiftedIds = new short[PARTITION_WRITE_BATCH * NUM_PARTITIONS];
         int batchStart = 0;
-        var partitionedKeys = new BytesRefPartitionedHashKeys(breaker, Math.max(Math.ceilDiv(size, NUM_PARTITIONS), 1));
+        var partitionedKeys = new BytesRefPartitionedHashKeys(breaker, size, bytesRefs.totalBytes());
         final int[] partitionOffsets = partitionedKeys.partitionCounts;
         boolean success = false;
         try {
@@ -947,16 +947,19 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         final int[] partitionDataUsed;
         byte[][] partitionData;
 
-        BytesRefPartitionedHashKeys(CircuitBreaker breaker, int estimatePerPartition) {
-            final int estimateBytesPerPartition = ArrayUtil.oversize(estimatePerPartition * 12, 1);
+        BytesRefPartitionedHashKeys(CircuitBreaker breaker, int totalKeys, long totalKeyBytes) {
+            final int avgKeysPerPartition = Math.max(Math.ceilDiv(totalKeys, NUM_PARTITIONS), 1);
+            final long avgKeyBytes = totalKeys > 0 ? Math.ceilDiv(totalKeyBytes, totalKeys) : 0;
+            final long avgPackedKeyBytes = avgKeyBytes + Integer.BYTES;
+            final int estimatePerPartition = ArrayUtil.oversize(avgKeysPerPartition, (int) Math.min(avgPackedKeyBytes, Integer.MAX_VALUE));
             long usedBytes = (long) NUM_PARTITIONS * Integer.BYTES * 2
-                + (long) NUM_PARTITIONS * estimateBytesPerPartition;
+                + (long) NUM_PARTITIONS * estimatePerPartition * avgPackedKeyBytes;
             breaker.addEstimateBytesAndMaybeBreak(usedBytes, "BytesRefSwissHash#partition");
             partitionCounts = new int[NUM_PARTITIONS];
             partitionDataUsed = new int[NUM_PARTITIONS];
             partitionData = new byte[NUM_PARTITIONS][];
             for (int p = 0; p < NUM_PARTITIONS; p++) {
-                partitionData[p] = new byte[estimateBytesPerPartition];
+                partitionData[p] = new byte[estimatePerPartition * (int) avgPackedKeyBytes];
             }
         }
 

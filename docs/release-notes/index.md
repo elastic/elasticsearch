@@ -20,6 +20,86 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.5.3 [elasticsearch-9.5.3-release-notes]
+```{applies_to}
+stack: ga 9.5.3
+```
+
+### Features and enhancements [elasticsearch-9.5.3-features-enhancements]
+
+Audit:
+* Audit: emit `request.raw_body` for protobuf bodies [#158143](https://github.com/elastic/elasticsearch/pull/158143)
+* Audit: reject oversized request bodies [#157760](https://github.com/elastic/elasticsearch/pull/157760)
+
+Vector Search:
+* Unified and faster calibration path [#153577](https://github.com/elastic/elasticsearch/pull/153577)
+
+
+### Fixes [elasticsearch-9.5.3-fixes]
+
+Analysis:
+* Bound `min_hash` filter params to prevent OOM [#154480](https://github.com/elastic/elasticsearch/pull/154480)
+* Cap `min_hash` filter params [#158211](https://github.com/elastic/elasticsearch/pull/158211)
+
+Authorization:
+* Fix FLS field names term state filtering [#157889](https://github.com/elastic/elasticsearch/pull/157889)
+
+CRUD:
+* Do not abort shard bulk on expansion rejection [#158235](https://github.com/elastic/elasticsearch/pull/158235) (issue: [#158212](https://github.com/elastic/elasticsearch/issues/158212))
+
+Columnar:
+* Fix BYTE_LENGTH returning 0 for keywords in columnar mode [#157858](https://github.com/elastic/elasticsearch/pull/157858)
+* Fix `ArrayOrder` block loaders falsely claiming SORTED_ASCENDING [#157857](https://github.com/elastic/elasticsearch/pull/157857) (issue: [#157817](https://github.com/elastic/elasticsearch/issues/157817))
+
+Data streams:
+* `DataStreamAutoShardingService.calculate()` works on stale data [#134505] [#157634](https://github.com/elastic/elasticsearch/pull/157634) (issue: [#134505](https://github.com/elastic/elasticsearch/issues/134505))
+
+ES|QL:
+* Decouple type-check exactness from pushdown exactness for fused block-loader functions [#156980](https://github.com/elastic/elasticsearch/pull/156980)
+* Fix ES|QL query failures when a multi-field sub-field has conflicting types across indices [#156326](https://github.com/elastic/elasticsearch/pull/156326)
+* Fix ROUND of an integer with a negative precision silently overflowing to a negative value [#156412](https://github.com/elastic/elasticsearch/pull/156412) (issue: [#156411](https://github.com/elastic/elasticsearch/issues/156411))
+* Fix TS STATS literal aggregates dropped by optimizer [#157148](https://github.com/elastic/elasticsearch/pull/157148) (issue: [#157103](https://github.com/elastic/elasticsearch/issues/157103))
+* Fix backwards read of `_ignored_source` doc values [#157798](https://github.com/elastic/elasticsearch/pull/157798)
+* Fix mv_min/mv_max on columnar ip fields [#157790](https://github.com/elastic/elasticsearch/pull/157790) (issue: [#157521](https://github.com/elastic/elasticsearch/issues/157521))
+
+Engine:
+* Fixing `StatelessTranslogIT.testTranslogLocalFailureOnlyStressRecoveryTest()` [#149429](https://github.com/elastic/elasticsearch/pull/149429) (issue: [#149343](https://github.com/elastic/elasticsearch/issues/149343))
+
+Inference:
+* [Inference API] Fix inference/_update to allow rotating secrets [#157214](https://github.com/elastic/elasticsearch/pull/157214)
+
+Machine Learning:
+* Reject blank datafeed ID in stop datafeed request [#157929](https://github.com/elastic/elasticsearch/pull/157929)
+* Reject blank job id on close request [#158020](https://github.com/elastic/elasticsearch/pull/158020)
+* Surface CCS skipped-cluster stats on datafeed extraction failure [#157567](https://github.com/elastic/elasticsearch/pull/157567)
+
+Mapping:
+* Fix composite agg on doc values skipper fields [#158060](https://github.com/elastic/elasticsearch/pull/158060) (issue: [#158008](https://github.com/elastic/elasticsearch/issues/158008))
+* Fix empty `collectRange` crash in doc-values queries (lucene#16546) [#157630](https://github.com/elastic/elasticsearch/pull/157630)
+* Fix(mapper): handle missing counts in contains query [#158187](https://github.com/elastic/elasticsearch/pull/158187)
+
+Reindex:
+* Eagerly fail reindexes that are unable to be relocated [#150342](https://github.com/elastic/elasticsearch/pull/150342) (issues: [#150294](https://github.com/elastic/elasticsearch/issues/150294), [#150295](https://github.com/elastic/elasticsearch/issues/150295))
+
+SQL:
+* Fix result size limit check on INSERT [#157752](https://github.com/elastic/elasticsearch/pull/157752)
+
+Search:
+* Honor pruning in the `_shard_doc` sort comparator [#157044](https://github.com/elastic/elasticsearch/pull/157044) (issue: [#155559](https://github.com/elastic/elasticsearch/issues/155559))
+* Update knn query automatic pre-filtering to handle exists queries on inference fields [#158296](https://github.com/elastic/elasticsearch/pull/158296) (issue: [#157951](https://github.com/elastic/elasticsearch/issues/157951))
+
+Task Management:
+* Fix leaking bulk cancellation task in `IncrementalBulkService` [#158108](https://github.com/elastic/elasticsearch/pull/158108) (issue: [#158018](https://github.com/elastic/elasticsearch/issues/158018))
+
+Templates:
+* Reduce memory usage during serialization when retrieving component and composable templates via the GET APIs [#158175](https://github.com/elastic/elasticsearch/pull/158175)
+
+Vector Search:
+* Fix bfloat16 reading from old index versions with endianness mismatches [#157730](https://github.com/elastic/elasticsearch/pull/157730) (issue: [#157696](https://github.com/elastic/elasticsearch/issues/157696))
+* Fix shared score accumulator amongst segments for ivf search [#157229](https://github.com/elastic/elasticsearch/pull/157229)
+
+
+
 ## 9.4.6 [elasticsearch-9.4.6-release-notes]
 
 ### Features and enhancements [elasticsearch-9.4.6-features-enhancements]

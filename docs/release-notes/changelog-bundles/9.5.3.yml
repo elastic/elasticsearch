@@ -1,0 +1,190 @@
+version: 9.5.3
+released: false
+generated: 2026-09-03T08:04:39.081731Z
+changelogs:
+  - pr: 149429
+    summary: Fixing `StatelessTranslogIT.testTranslogLocalFailureOnlyStressRecoveryTest()`
+    area: Engine
+    type: bug
+    issues:
+      - 149343
+  - pr: 150342
+    summary: Eagerly fail reindexes that are unable to be relocated
+    area: Reindex
+    type: bug
+    issues:
+      - 150294
+      - 150295
+  - pr: 152269
+    summary: Deprecate legacy monitoring REST apis.
+    area: Monitoring
+    type: deprecation
+    issues: []
+    deprecation:
+      area: REST API
+      title: Deprecate legacy monitoring REST apis.
+      details: "The `_monitoring/bulk` and `_monitoring/migrate/alerts` REST APIs, used by the legacy internal collection method for Stack Monitoring, are deprecated and will be removed in Elasticsearch 10.0."
+      impact: Users relying on internal collection for Stack Monitoring should migrate to Metricbeat or Elastic Agent based monitoring. Calling either endpoint now returns a deprecation warning.
+      notable: false
+      essSettingChange: false
+  - pr: 153577
+    summary: Unified and faster calibration path
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 154480
+    summary: Bound `min_hash` filter params to prevent OOM
+    area: Analysis
+    type: bug
+    issues: []
+  - pr: 156326
+    summary: Fix ES|QL query failures when a multi-field sub-field has conflicting types across indices
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 156412
+    summary: Fix ROUND of an integer with a negative precision silently overflowing to a negative value
+    area: ES|QL
+    type: bug
+    issues:
+      - 156411
+  - pr: 156980
+    summary: Decouple type-check exactness from pushdown exactness for fused block-loader functions
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 157044
+    summary: Honor pruning in the `_shard_doc` sort comparator
+    area: Search
+    type: bug
+    issues:
+      - 155559
+  - pr: 157148
+    summary: Fix TS STATS literal aggregates dropped by optimizer
+    area: ES|QL
+    type: bug
+    issues:
+      - 157103
+  - pr: 157214
+    summary: "[Inference API] Fix inference/_update to allow rotating secrets"
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 157229
+    summary: Fix shared score accumulator amongst segments for ivf search
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 157567
+    summary: Surface CCS skipped-cluster stats on datafeed extraction failure
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 157630
+    summary: Fix empty `collectRange` crash in doc-values queries (lucene#16546)
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 157634
+    summary: "`DataStreamAutoShardingService.calculate()` works on stale data [#134505]"
+    area: Data streams
+    type: bug
+    issues:
+      - 134505
+  - pr: 157730
+    summary: Fix bfloat16 reading from old index versions with endianness mismatches
+    area: Vector Search
+    type: bug
+    issues:
+      - 157696
+  - pr: 157752
+    summary: Fix result size limit check on INSERT
+    area: SQL
+    type: bug
+    issues: []
+  - pr: 157760
+    summary: "Audit: reject oversized request bodies"
+    area: Audit
+    type: enhancement
+    issues: []
+  - pr: 157790
+    summary: Fix mv_min/mv_max on columnar ip fields
+    area: ES|QL
+    type: bug
+    issues:
+      - 157521
+  - pr: 157798
+    summary: Fix backwards read of `_ignored_source` doc values
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 157857
+    summary: Fix `ArrayOrder` block loaders falsely claiming SORTED_ASCENDING
+    area: Columnar
+    type: bug
+    issues:
+      - 157817
+  - pr: 157858
+    summary: Fix BYTE_LENGTH returning 0 for keywords in columnar mode
+    area: Columnar
+    type: bug
+    issues: []
+  - pr: 157889
+    summary: Fix FLS field names term state filtering
+    area: Authorization
+    type: bug
+    issues: []
+  - pr: 157929
+    summary: Reject blank datafeed ID in stop datafeed request
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 158020
+    summary: Reject blank job id on close request
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 158060
+    summary: Fix composite agg on doc values skipper fields
+    area: Mapping
+    type: bug
+    issues:
+      - 158008
+  - pr: 158108
+    summary: Fix leaking bulk cancellation task in `IncrementalBulkService`
+    area: Task Management
+    type: bug
+    issues:
+      - 158018
+  - pr: 158143
+    summary: "Audit: emit `request.raw_body` for protobuf bodies"
+    area: Audit
+    type: enhancement
+    issues: []
+  - pr: 158175
+    summary: Reduce memory usage during serialization when retrieving component and composable templates via the GET APIs
+    area: Templates
+    type: bug
+    issues: []
+  - pr: 158187
+    summary: "Fix(mapper): handle missing counts in contains query"
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 158211
+    summary: Cap `min_hash` filter params
+    area: Analysis
+    type: bug
+    issues: []
+  - pr: 158235
+    summary: Do not abort shard bulk on expansion rejection
+    area: CRUD
+    type: bug
+    issues:
+      - 158212
+  - pr: 158296
+    summary: Update knn query automatic pre-filtering to handle exists queries on inference fields
+    area: Search
+    type: bug
+    issues:
+      - 157951

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+
 /**
  * SPI for computing the warming ratio for a compound commit.
  * Implementation is to be provided via {@link WarmingRatioProviderFactory}.
@@ -17,10 +19,14 @@ public interface WarmingRatioProvider {
      * should be pre-warmed into the shared blob cache. Currently, only used on search nodes.
      * A ratio of 0 means no pre-warming; 1 means full pre-warming.
      *
+     * @param referencedCC the referenced compound commit
+     * @param resolvedCCTimestampMillis representative timestamp for the CC, as resolved by
+     *                                    {@link org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory#resolveRegionTimestampMillis}
      * @param nowMillis current time in epoch millis
-     * @param resolvedCCTimestampMillis representative timestamp for the CC. {@code UNKNOWN_TIMESTAMP} for
-     *                                  non-time-based indices; otherwise a real epoch millis (range midpoint or
-     *                                  the time-based-index fallback).
      */
-    double getWarmingRatio(long nowMillis, long resolvedCCTimestampMillis);
+    double getWarmingRatio(
+        ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCC,
+        long resolvedCCTimestampMillis,
+        long nowMillis
+    );
 }

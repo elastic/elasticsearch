@@ -1314,7 +1314,11 @@ public class SharedBlobCacheWarmingService {
         ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCC,
         long resolvedCCTimestampMillis
     ) {
-        final double warmingRatio = warmingRatioProvider.getWarmingRatio(threadPool.absoluteTimeInMillis(), resolvedCCTimestampMillis);
+        final double warmingRatio = warmingRatioProvider.getWarmingRatio(
+            referencedCC,
+            resolvedCCTimestampMillis,
+            threadPool.absoluteTimeInMillis()
+        );
         assert warmingRatio >= 0.0;
         if (warmingRatio <= 0) {
             return ByteRange.EMPTY;

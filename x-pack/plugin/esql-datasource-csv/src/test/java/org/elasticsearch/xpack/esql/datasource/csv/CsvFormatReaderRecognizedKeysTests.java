@@ -19,9 +19,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -91,7 +94,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         Set<String> expectedConsumed = new HashSet<>();
         for (int i = 0; i < 50; i++) {
-            String key = randomAlphaOfLength(between(3, 12)).toLowerCase(java.util.Locale.ROOT);
+            String key = randomAlphaOfLength(between(3, 12)).toLowerCase(Locale.ROOT);
             config.put(key, randomBoolean() ? randomAlphaOfLength(5) : randomInt());
             if (CsvFormatReader.RECOGNIZED_KEYS.contains(key)) {
                 expectedConsumed.add(key);
@@ -185,6 +188,118 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
             case "schema_sample_size" -> 10;
             default -> throw new AssertionError("update sampleValueFor() for new recognised key: " + key);
         };
+    }
+
+    /**
+     * Differential test: the FormatSpec's configValidator and the reader's withConfigTrackingConsumedKeys
+     * must accept and reject identically for the same corpus, with identical error messages.
+     */
+    public void testValidatorAndReaderAgreeCsvFormat() {
+        CsvDataSourcePlugin plugin = new CsvDataSourcePlugin();
+        FormatSpec csvSpec = plugin.formatSpecs().stream().filter(s -> s.format().equals("csv")).findFirst().orElseThrow();
+        FormatSpec.FormatConfigValidator validator = csvSpec.configValidator();
+        assertNotNull("csv FormatSpec must have a configValidator", validator);
+        CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, "csv", List.of(".csv"));
+
+        // Good values — both must accept without throwing.
+        for (Map.Entry<String, Object> good : goodCsvValues()) {
+            Map<String, Object> config = Map.of(good.getKey(), good.getValue());
+            validator.validate(config);                         // must not throw
+            reader.withConfigTrackingConsumedKeys(config);       // must not throw
+        }
+
+        // Bad values — both must throw, with identical messages.
+        for (Map.Entry<String, Object> bad : badCsvValues()) {
+            Map<String, Object> config = Map.of(bad.getKey(), bad.getValue());
+            IllegalArgumentException fromValidator = expectThrows(IllegalArgumentException.class, () -> validator.validate(config));
+            IllegalArgumentException fromReader = expectThrows(
+                IllegalArgumentException.class,
+                () -> reader.withConfigTrackingConsumedKeys(config)
+            );
+            assertEquals(
+                "validator and reader must produce identical message for bad " + bad.getKey() + "=[" + bad.getValue() + "]",
+                fromReader.getMessage(),
+                fromValidator.getMessage()
+            );
+        }
+
+        // Multi-character char options — the validator rejects them at PUT, but the reader must stay
+        // lenient (truncate to the first character, the pre-gate behavior): datasets stored before the
+        // gate existed carry such values and an upgrade must not turn their queries into errors.
+        for (Map.Entry<String, Object> bad : putOnlyRejectedCharValues()) {
+            Map<String, Object> config = Map.of(bad.getKey(), bad.getValue());
+            expectThrows(IllegalArgumentException.class, () -> validator.validate(config));
+            assertTrue(
+                "reader must stay lenient (and consume) stored " + bad.getKey() + "=[" + bad.getValue() + "]",
+                reader.withConfigTrackingConsumedKeys(config).consumedKeys().contains(bad.getKey())
+            );
+        }
+    }
+
+    public void testValidatorAndReaderAgreeTsvFormat() {
+        CsvDataSourcePlugin plugin = new CsvDataSourcePlugin();
+        FormatSpec tsvSpec = plugin.formatSpecs().stream().filter(s -> s.format().equals("tsv")).findFirst().orElseThrow();
+        FormatSpec.FormatConfigValidator validator = tsvSpec.configValidator();
+        assertNotNull("tsv FormatSpec must have a configValidator", validator);
+        CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, CsvFormatOptions.TSV, "tsv", List.of(".tsv"));
+
+        for (Map.Entry<String, Object> bad : badCsvValues()) {
+            Map<String, Object> config = Map.of(bad.getKey(), bad.getValue());
+            IllegalArgumentException fromValidator = expectThrows(IllegalArgumentException.class, () -> validator.validate(config));
+            IllegalArgumentException fromReader = expectThrows(
+                IllegalArgumentException.class,
+                () -> reader.withConfigTrackingConsumedKeys(config)
+            );
+            assertEquals(
+                "tsv validator and reader must produce identical message for bad " + bad.getKey() + "=[" + bad.getValue() + "]",
+                fromReader.getMessage(),
+                fromValidator.getMessage()
+            );
+        }
+
+        for (Map.Entry<String, Object> bad : putOnlyRejectedCharValues()) {
+            Map<String, Object> config = Map.of(bad.getKey(), bad.getValue());
+            expectThrows(IllegalArgumentException.class, () -> validator.validate(config));
+            assertTrue(
+                "tsv reader must stay lenient (and consume) stored " + bad.getKey() + "=[" + bad.getValue() + "]",
+                reader.withConfigTrackingConsumedKeys(config).consumedKeys().contains(bad.getKey())
+            );
+        }
+    }
+
+    /** Good CSV config values that both validator and reader must accept (tested one at a time). */
+    private static List<Map.Entry<String, Object>> goodCsvValues() {
+        List<Map.Entry<String, Object>> list = new ArrayList<>();
+        list.add(Map.entry("delimiter", "|"));
+        list.add(Map.entry("delimiter", "\\t"));
+        list.add(Map.entry("mode", "escaped"));
+        list.add(Map.entry("mode", "quoted"));
+        list.add(Map.entry("encoding", "UTF-8"));
+        list.add(Map.entry("encoding", "ISO-8859-1"));
+        list.add(Map.entry("quote", "'"));
+        list.add(Map.entry("escape", "\\\\"));
+        return list;
+    }
+
+    /** Bad CSV config values that both validator and reader must reject with the same message. */
+    private static List<Map.Entry<String, Object>> badCsvValues() {
+        List<Map.Entry<String, Object>> list = new ArrayList<>();
+        list.add(Map.entry("mode", "lenient"));     // unknown mode
+        list.add(Map.entry("encoding", "UTF-99")); // unknown charset
+        return list;
+    }
+
+    /**
+     * Multi-character char values: rejected at PUT by the validator, but truncated (not rejected) by the
+     * reader so datasets stored before the PUT gate existed keep reading exactly as they did.
+     */
+    private static List<Map.Entry<String, Object>> putOnlyRejectedCharValues() {
+        List<Map.Entry<String, Object>> list = new ArrayList<>();
+        list.add(Map.entry("delimiter", "||"));
+        list.add(Map.entry("delimiter", "none"));
+        list.add(Map.entry("quote", "abc"));
+        list.add(Map.entry("escape", "xx"));
+        return list;
     }
 
     /**

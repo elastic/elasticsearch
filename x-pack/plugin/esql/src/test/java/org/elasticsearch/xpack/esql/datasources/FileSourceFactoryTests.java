@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrate
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -242,6 +243,11 @@ public class FileSourceFactoryTests extends ESTestCase {
 
     /** Minimal storage provider: hands back a stub object for any path. Never actually read. */
     private static final class StubStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         @Override
         public StorageObject newObject(StoragePath path) {
             return new StubStorageObject(path);

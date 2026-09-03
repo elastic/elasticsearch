@@ -160,29 +160,44 @@ public final class HivePartitionDetector implements PartitionDetector {
         Map<String, String> partitions = new LinkedHashMap<>();
 
         for (String segment : segments) {
-            if (segment.isEmpty()) {
+            String key = segmentKey(segment);
+            if (key == null) {
                 continue;
             }
-            int eqIdx = segment.indexOf('=');
-            if (eqIdx <= 0 || eqIdx == segment.length() - 1) {
-                continue;
-            }
-            String afterEq = segment.substring(eqIdx + 1);
-            if (afterEq.indexOf('=') >= 0) {
-                continue;
-            }
-            if (segment.indexOf('.') >= 0) {
-                continue;
-            }
-            String key = segment.substring(0, eqIdx);
-            String value = decodePartitionValue(afterEq);
             if (partitions.containsKey(key)) {
                 continue;
             }
-            partitions.put(key, HIVE_DEFAULT_PARTITION.equals(value) ? null : value);
+            partitions.put(key, segmentValue(segment));
         }
 
         return partitions;
+    }
+
+    /**
+     * The partition key a {@code key=value} path segment binds, or {@code null} when not partition-shaped (empty,
+     * no/empty key or value, a second {@code =}, or a dot anywhere — disqualifying names like {@code f.parquet}).
+     * The one segment grammar, shared with the listing walk via {@code PartitionValueMatcher}: pruning is sound
+     * only while both layers parse identically.
+     */
+    static String segmentKey(String segment) {
+        if (segment.isEmpty()) {
+            return null;
+        }
+        int eqIdx = segment.indexOf('=');
+        if (eqIdx <= 0 || eqIdx == segment.length() - 1) {
+            return null;
+        }
+        if (segment.indexOf('=', eqIdx + 1) >= 0 || segment.indexOf('.') >= 0) {
+            return null;
+        }
+        return segment.substring(0, eqIdx);
+    }
+
+    /** The decoded value of a {@code key=value} path segment ({@code null} for the NULL-partition sentinel); only
+     * meaningful when {@link #segmentKey} accepted the segment. */
+    static String segmentValue(String segment) {
+        String value = decodePartitionValue(segment.substring(segment.indexOf('=') + 1));
+        return HIVE_DEFAULT_PARTITION.equals(value) ? null : value;
     }
 
     /**

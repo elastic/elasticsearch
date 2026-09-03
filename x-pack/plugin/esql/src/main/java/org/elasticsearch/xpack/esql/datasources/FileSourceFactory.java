@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -701,6 +702,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
         @Override
         public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
             return inner().listObjects(prefix, recursive);
+        }
+
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+            return inner().listChildren(prefix, limit);
         }
 
         @Override

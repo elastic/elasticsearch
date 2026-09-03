@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -4923,6 +4924,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     private static class StubStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         private final Map<String, List<StorageEntry>> listingsByPrefix;
         private final Map<String, List<Attribute>> schemasByPath;
         // Non-null only when the wrapping provider wants to count metadata probes: it is passed to every
@@ -5059,6 +5065,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * to verify that the cache eliminates redundant loader invocations.
      */
     private static class CountingStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         final AtomicInteger listCallCount = new AtomicInteger();
         final AtomicInteger schemaCallCount = new AtomicInteger();
         // Counts the single-file metadata probe. Incremented by the object's lastModified() (the one caller
@@ -5119,6 +5130,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * conditions that caused #147371 (GCS/Azure fixtures, gRPC/Flight).
      */
     private static class NullMtimeStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         private final StubStorageProvider delegate;
 
         NullMtimeStorageProvider(Map<String, List<Attribute>> schemasByPath) {

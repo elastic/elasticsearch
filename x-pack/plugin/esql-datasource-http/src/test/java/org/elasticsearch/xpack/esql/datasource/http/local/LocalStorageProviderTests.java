@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -128,6 +129,42 @@ public class LocalStorageProviderTests extends ESTestCase {
             .sorted()
             .toList();
         assertEquals(List.of("file1.txt", "file2.csv"), fileNames);
+    }
+
+    public void testListChildrenSeparatesFilesFromDirectories() throws IOException {
+        Path tempDir = createTempDir();
+        Files.writeString(tempDir.resolve("file1.txt"), "content1");
+        Files.createDirectories(tempDir.resolve("year=2024"));
+        Files.createDirectories(tempDir.resolve("year=2025"));
+        Files.writeString(tempDir.resolve("year=2024").resolve("nested.txt"), "nested");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StorageChildren children = provider.listChildren(StoragePath.of(StoragePath.fileUri(tempDir)), 10_000);
+
+        // Filter out hidden files (like .DS_Store on macOS) and ExtraFS files/dirs for the assertions
+        List<String> fileNames = children.files()
+            .stream()
+            .map(e -> e.path().objectName())
+            .filter(name -> name.startsWith(".") == false && name.startsWith("extra") == false)
+            .sorted()
+            .toList();
+        List<String> dirNames = children.directories()
+            .stream()
+            .map(StoragePath::objectName)
+            .filter(name -> name.startsWith(".") == false && name.startsWith("extra") == false)
+            .sorted()
+            .toList();
+        assertEquals("only immediate files, not nested ones", List.of("file1.txt"), fileNames);
+        assertEquals(List.of("year=2024", "year=2025"), dirNames);
+    }
+
+    public void testListChildrenOnMissingDirectoryThrows() {
+        Path tempDir = createTempDir();
+        LocalStorageProvider provider = new LocalStorageProvider();
+        expectThrows(
+            IOException.class,
+            () -> provider.listChildren(StoragePath.of(StoragePath.fileUri(tempDir.resolve("missing"))), 10_000)
+        );
     }
 
     public void testFileNotFound() throws IOException {

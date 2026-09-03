@@ -11,6 +11,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -83,6 +84,40 @@ public final class LocalStorageProvider implements StorageProvider {
         }
 
         return new LocalStorageIterator(dirPath, recursive);
+    }
+
+    @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+        validateFileScheme(prefix);
+        Path dirPath = toFilePath(prefix);
+
+        if (Files.exists(dirPath) == false) {
+            throw new IOException("Directory does not exist: " + dirPath);
+        }
+        if (Files.isDirectory(dirPath) == false) {
+            throw new IOException("Path is not a directory: " + dirPath);
+        }
+
+        List<StorageEntry> files = new ArrayList<>();
+        List<StoragePath> directories = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dirPath)) {
+            for (Path entry : stream) {
+                if (files.size() + directories.size() >= limit) {
+                    return null; // too wide to buffer; the caller falls back to listObjects
+                }
+                try {
+                    BasicFileAttributes attrs = Files.readAttributes(entry, BasicFileAttributes.class);
+                    if (attrs.isRegularFile()) {
+                        files.add(new StorageEntry(toStoragePath(entry), attrs.size(), attrs.lastModifiedTime().toInstant()));
+                    } else if (attrs.isDirectory()) {
+                        directories.add(toStoragePath(entry));
+                    }
+                } catch (IOException e) {
+                    // Skip entries that can't be read
+                }
+            }
+        }
+        return new StorageChildren(files, directories);
     }
 
     @Override

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -46,6 +47,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -499,6 +501,65 @@ public final class AzureStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+        validateAzureScheme(prefix);
+        ParsedPath parsed = parsePathForListing(prefix);
+        String account = extractAccountFromHost(parsed.host);
+        BlobContainerClient containerClient = clients(account).sync().getBlobContainerClient(parsed.container);
+        ListBlobsOptions options = new ListBlobsOptions().setPrefix(parsed.blobName);
+
+        List<StorageEntry> files = new ArrayList<>();
+        List<StoragePath> directories = new ArrayList<>();
+        String pathPrefix = blobPathPrefix(prefix, parsed.container);
+        try {
+            for (BlobItem item : containerClient.listBlobsByHierarchy("/", options, null)) {
+                if (files.size() + directories.size() >= limit) {
+                    return null; // too wide to buffer; the caller falls back to listObjects, which pages lazily
+                }
+                String name = item.getName();
+                if (name == null) {
+                    continue;
+                }
+                if (Boolean.TRUE.equals(item.isPrefix())) {
+                    String dirName = name.endsWith(StoragePath.PATH_SEPARATOR) ? name.substring(0, name.length() - 1) : name;
+                    directories.add(StoragePath.of(pathPrefix + dirName));
+                } else if (name.endsWith(StoragePath.PATH_SEPARATOR) == false) {
+                    files.add(toStorageEntry(item, pathPrefix));
+                }
+            }
+        } catch (Exception e) {
+            throw new IOException(
+                "Failed to list children in container [" + parsed.container + "] with prefix [" + parsed.blobName + "]" + credentialHint(),
+                e
+            );
+        }
+        return new StorageChildren(files, directories);
+    }
+
+    /**
+     * The prefix full blob paths are built from, preserving the input URI form: Hadoop form (container@host) emits
+     * {@code scheme://container@host/blob}; path-style emits {@code scheme://host/container/blob}. Shared with
+     * {@link AzureStorageIterator} so both listing shapes name a blob identically.
+     */
+    static String blobPathPrefix(StoragePath basePath, String container) {
+        StringBuilder base = new StringBuilder().append(basePath.scheme()).append(StoragePath.SCHEME_SEPARATOR);
+        if (basePath.userInfo() != null) {
+            base.append(basePath.userInfo()).append('@').append(basePath.host()).append(StoragePath.PATH_SEPARATOR);
+        } else {
+            base.append(basePath.host()).append(StoragePath.PATH_SEPARATOR).append(container).append(StoragePath.PATH_SEPARATOR);
+        }
+        return base.toString();
+    }
+
+    /** One conversion from an SDK blob item to a {@link StorageEntry}, shared by both listing shapes. */
+    static StorageEntry toStorageEntry(BlobItem item, String pathPrefix) {
+        var props = item.getProperties();
+        Instant lastModified = props != null && props.getLastModified() != null ? props.getLastModified().toInstant() : null;
+        long size = props != null && props.getContentLength() != null ? props.getContentLength() : 0L;
+        return new StorageEntry(StoragePath.of(pathPrefix + item.getName()), size, lastModified);
+    }
+
+    @Override
     public boolean exists(StoragePath path) throws IOException {
         validateAzureScheme(path);
         ParsedPath parsed = parsePath(path);
@@ -678,8 +739,6 @@ public final class AzureStorageProvider implements StorageProvider {
         private final Iterable<BlobItem> blobItems;
         private final StoragePath basePath;
         private final String container;
-        private final String scheme;
-        private final String userInfo;
 
         private Iterator<BlobItem> iterator;
         private BlobItem current;
@@ -688,8 +747,6 @@ public final class AzureStorageProvider implements StorageProvider {
             this.blobItems = blobItems;
             this.basePath = basePath;
             this.container = container;
-            this.scheme = basePath.scheme();
-            this.userInfo = basePath.userInfo();
         }
 
         @Override
@@ -732,21 +789,7 @@ public final class AzureStorageProvider implements StorageProvider {
             }
             BlobItem item = current;
             current = null;
-            // Preserve the input URI form: Hadoop form (container@host) emits
-            // scheme://container@host/blob; path-style emits scheme://host/container/blob.
-            String name = item.getName();
-            StringBuilder fullPath = new StringBuilder().append(scheme).append(StoragePath.SCHEME_SEPARATOR);
-            if (userInfo != null) {
-                fullPath.append(userInfo).append('@').append(basePath.host()).append(StoragePath.PATH_SEPARATOR);
-            } else {
-                fullPath.append(basePath.host()).append(StoragePath.PATH_SEPARATOR).append(container).append(StoragePath.PATH_SEPARATOR);
-            }
-            fullPath.append(name);
-            StoragePath objectPath = StoragePath.of(fullPath.toString());
-            var props = item.getProperties();
-            Instant lastModified = props != null && props.getLastModified() != null ? props.getLastModified().toInstant() : null;
-            long size = props != null && props.getContentLength() != null ? props.getContentLength() : 0L;
-            return new StorageEntry(objectPath, size, lastModified);
+            return toStorageEntry(item, blobPathPrefix(basePath, container));
         }
 
         @Override

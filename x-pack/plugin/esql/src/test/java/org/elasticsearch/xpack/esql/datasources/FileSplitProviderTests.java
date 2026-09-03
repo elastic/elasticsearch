@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -2602,6 +2603,11 @@ public class FileSplitProviderTests extends ESTestCase {
         StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY);
         StorageProvider provider = new StorageProvider() {
             @Override
+            public StorageChildren listChildren(StoragePath prefix, int limit) {
+                return null; // directory-aware listing is irrelevant to this test double
+            }
+
+            @Override
             public StorageObject newObject(StoragePath path) {
                 return newObject(path, payloadFor(path).length);
             }
@@ -4396,6 +4402,11 @@ public class FileSplitProviderTests extends ESTestCase {
         StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY);
         StorageProvider mockProvider = new StorageProvider() {
             @Override
+            public StorageChildren listChildren(StoragePath prefix, int limit) {
+                return null; // directory-aware listing is irrelevant to this test double
+            }
+
+            @Override
             public StorageObject newObject(StoragePath path) {
                 return newObject(path, 0);
             }
@@ -4479,6 +4490,11 @@ public class FileSplitProviderTests extends ESTestCase {
     private static StorageProviderRegistry createPayloadStorageRegistry(byte[] payload) {
         StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY);
         StorageProvider payloadProvider = new StorageProvider() {
+            @Override
+            public StorageChildren listChildren(StoragePath prefix, int limit) {
+                return null; // directory-aware listing is irrelevant to this test double
+            }
+
             @Override
             public StorageObject newObject(StoragePath path) {
                 return newObject(path, payload.length);

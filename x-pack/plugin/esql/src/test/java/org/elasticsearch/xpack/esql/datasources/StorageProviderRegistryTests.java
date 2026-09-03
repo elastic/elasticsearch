@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -81,6 +82,11 @@ public class StorageProviderRegistryTests extends ESTestCase {
     /** Minimal no-op storage provider; only the scheme + lifecycle matter for the wrap-order assertion. */
     private static class StubStorageProvider implements StorageProvider {
         @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
+        @Override
         public StorageObject newObject(StoragePath path) {
             throw new UnsupportedOperationException();
         }
@@ -150,6 +156,11 @@ public class StorageProviderRegistryTests extends ESTestCase {
 
     // A no-op StorageProviderFactory / StorageProvider for the file scheme used by gate tests.
     private static final StorageProvider NOOP_PROVIDER = new StorageProvider() {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         @Override
         public StorageObject newObject(StoragePath path) {
             throw new UnsupportedOperationException("noop");

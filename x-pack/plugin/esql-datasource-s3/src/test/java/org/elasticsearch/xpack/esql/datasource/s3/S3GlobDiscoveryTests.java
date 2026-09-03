@@ -19,6 +19,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -141,6 +142,21 @@ public class S3GlobDiscoveryTests extends ESTestCase {
         }
 
         assertEquals(3, matched.size());
+    }
+
+    public void testS3ListChildrenSeparatesFilesFromDirectories() throws IOException {
+        // The prefix holds only "subdirectories" (common prefixes of the delimiter listing), no direct objects.
+        StorageChildren children = provider.listChildren(StoragePath.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX), 10_000);
+        assertEquals(List.of(), children.files());
+        assertEquals(
+            List.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/flat", "s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/nested"),
+            children.directories().stream().map(StoragePath::toString).sorted().toList()
+        );
+
+        // A leaf directory holds only objects, no common prefixes.
+        StorageChildren flat = provider.listChildren(StoragePath.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/flat"), 10_000);
+        assertEquals(List.of(), flat.directories());
+        assertEquals(List.of("a.bin", "b.bin", "c.txt"), flat.files().stream().map(e -> e.path().objectName()).sorted().toList());
     }
 
     private static void addBlob(String key, byte[] content) {

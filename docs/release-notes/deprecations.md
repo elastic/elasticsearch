@@ -16,18 +16,29 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
-## 9.5.2 [elasticsearch-9.5.2-deprecations]
+## 9.5.3 [elasticsearch-9.5.3-deprecations]
 ```{applies_to}
-stack: ga 9.5.2
+stack: ga 9.5.3
 ```
+
+Monitoring:
+* Deprecate the legacy monitoring REST APIs [#152269](https://github.com/elastic/elasticsearch/pull/152269)
+
+
+
+## 9.4.6 [elasticsearch-9.4.6-deprecations]
 
 There are no deprecations associated with this release.
 
-## 9.5.1 [elasticsearch-9.5.1-deprecations]
+## 9.5.2 [elasticsearch-9.5.2-deprecations]
 
 There are no deprecations associated with this release.
 
 ## 9.4.5 [elasticsearch-9.4.5-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.5.1 [elasticsearch-9.5.1-deprecations]
 
 There are no deprecations associated with this release.
 
@@ -38,6 +49,8 @@ Infra/Logging:
 
 Monitoring:
 * Using the Elasticsearch Monitoring plugin to collect and ship monitoring data is deprecated and will be removed in 10.0. [#151617](https://github.com/elastic/elasticsearch/pull/151617)
+
+
 
 ## 9.4.4 [elasticsearch-9.4.4-deprecations]
 
@@ -64,6 +77,8 @@ There are no deprecations associated with this release.
 ES|QL:
 * Add deprecation message for ES|QL query log [#149013](https://github.com/elastic/elasticsearch/pull/149013)
 
+
+
 ## 9.3.5 [elasticsearch-9.3.5-deprecations]
 
 There are no deprecations associated with this release.
@@ -79,6 +94,8 @@ Data streams:
 
 Mapping:
 * Deprecate the `default_metric` parameter in the `aggregate_metric_double` mapping configuration. [#141877](https://github.com/elastic/elasticsearch/pull/141877) (issue: [#128356](https://github.com/elastic/elasticsearch/issues/128356))
+
+
 
 ## 9.3.4 [elasticsearch-9.3.4-deprecations]
 
@@ -115,6 +132,8 @@ ILM:
 
 Infra/Logging:
 * Add deprecation lenient booleans usage for analysis boolean setting (3rd party plugins) and boolean system properties. [#137885](https://github.com/elastic/elasticsearch/pull/137885) (issue: [#128993](https://github.com/elastic/elasticsearch/issues/128993))
+
+
 
 ## 9.2.5 [elasticsearch-9.2.5-deprecations]
 
@@ -161,6 +180,8 @@ There are no deprecations associated with this release.
 Cluster Coordination:
 * Remove `PeerFinder` request timeout [#134365](https://github.com/elastic/elasticsearch/pull/134365)
 
+
+
 ## 9.0.8 [elasticsearch-9.0.8-deprecations]
 
 There are no deprecations associated with this release.
@@ -182,10 +203,14 @@ There are no deprecations associated with this release.
 Authorization:
 * Change `reporting_user` role to leverage reserved kibana privileges [#132766](https://github.com/elastic/elasticsearch/pull/132766)
 
+
+
 ## 9.1.3 [elasticsearch-9.1.3-deprecations]
 
 Authorization:
 * Change `reporting_user` role to leverage reserved kibana privileges [#132766](https://github.com/elastic/elasticsearch/pull/132766)
+
+
 
 ## 9.1.2 [elasticsearch-9.1.2-deprecations]
 
@@ -211,6 +236,8 @@ There are no deprecations associated with this release.
 
 Engine:
 * Deprecate `indices.merge.scheduler.use_thread_pool` setting [#129464](https://github.com/elastic/elasticsearch/pull/129464)
+
+
 
 ## 9.0.2 [elasticsearch-9.0.2-deprecations]
 

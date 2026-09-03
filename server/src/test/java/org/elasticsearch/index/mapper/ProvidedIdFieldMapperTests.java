@@ -38,6 +38,7 @@ import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 
@@ -177,25 +178,29 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testDocumentModeRejectedInStrictColumnarIndexMode() throws IOException {
-        IndexMode indexMode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
-        Settings settings = Settings.builder().put("index.mode", indexMode.getName()).build();
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(settings, topMapping(b -> b.startObject("_id").field("mode", "document").endObject()))
-        );
-        assertThat(e.getMessage(), containsString("_id does not support [mode=document]"));
-        assertThat(e.getMessage(), containsString(indexMode.getName()));
+        for (IndexMode indexMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {
+            Settings settings = Settings.builder().put("index.mode", indexMode.getName()).build();
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(settings, topMapping(b -> b.startObject("_id").field("mode", "document").endObject()))
+            );
+            assertThat(e.getMessage(), containsString("_id does not support [mode=document]"));
+            assertThat(e.getMessage(), containsString(indexMode.getName()));
+        }
     }
 
     public void testColumnarModeAllowedInStrictColumnarIndexMode() throws IOException {
-        IndexMode indexMode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
-        Settings settings = Settings.builder().put("index.mode", indexMode.getName()).build();
-        MapperService mapperService = createMapperService(
-            settings,
-            topMapping(b -> b.startObject("_id").field("mode", "columnar").endObject())
-        );
-        ProvidedIdFieldMapper idMapper = mapperService.mappingLookup().getMapping().getMetadataMapperByClass(ProvidedIdFieldMapper.class);
-        assertTrue("_id should be columnar in a strictly columnar index mode", idMapper.isColumnarMode());
+        for (IndexMode indexMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {
+            Settings settings = Settings.builder().put("index.mode", indexMode.getName()).build();
+            MapperService mapperService = createMapperService(
+                settings,
+                topMapping(b -> b.startObject("_id").field("mode", "columnar").endObject())
+            );
+            ProvidedIdFieldMapper idMapper = mapperService.mappingLookup()
+                .getMapping()
+                .getMetadataMapperByClass(ProvidedIdFieldMapper.class);
+            assertTrue("_id should be columnar in a strictly columnar index mode", idMapper.isColumnarMode());
+        }
     }
 
     public void testDocumentModeAllowedInStandardIndexMode() throws IOException {

@@ -112,6 +112,11 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
     }
 
     @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
+    }
+
+    @Override
     public InferenceServiceConfiguration getConfiguration() {
         return Configuration.get();
     }

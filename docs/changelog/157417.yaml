@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157417
+summary: "[ES|QL][DS] Azure: guard reactive chain against synchronous throws"
+type: bug

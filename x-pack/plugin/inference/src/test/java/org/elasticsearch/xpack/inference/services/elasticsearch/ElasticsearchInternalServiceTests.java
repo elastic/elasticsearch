@@ -50,6 +50,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.telemetry.InferenceStats;
+import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.test.ESTestCase;
@@ -98,7 +99,6 @@ import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.hamcrest.CoreMatchers;
-import org.hamcrest.Matchers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -122,6 +122,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.XPackSettings.ML_NATIVE_CODE_PLATFORMS;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Response.RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
@@ -2104,44 +2105,6 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         }
     }
 
-    public void testUpdateModelsWithDynamicFields_MlDisabled() throws Exception {
-        // ML disabled - models returned as-is, no client interaction
-        {
-            var model = mock(ElasticsearchInternalModel.class);
-            var models = List.<Model>of(model);
-
-            ActionListener<List<Model>> resultsListener = ActionListener.<List<Model>>wrap(
-                updatedModels -> assertThat(updatedModels, Matchers.sameInstance(models)),
-                e -> fail("Unexpected exception: " + e)
-            );
-
-            var client = mock(Client.class);
-            try (
-                var service = createService(client, Settings.builder().put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false).build())
-            ) {
-                service.updateModelsWithDynamicFields(models, resultsListener);
-                verify(client, Mockito.never()).execute(same(GetDeploymentStatsAction.INSTANCE), any(), any());
-            }
-        }
-
-        // NLP disabled - models returned as-is, no client interaction
-        {
-            var model = mock(ElasticsearchInternalModel.class);
-            var models = List.<Model>of(model);
-
-            ActionListener<List<Model>> resultsListener = ActionListener.<List<Model>>wrap(
-                updatedModels -> assertThat(updatedModels, Matchers.sameInstance(models)),
-                e -> fail("Unexpected exception: " + e)
-            );
-
-            var client = mock(Client.class);
-            try (var service = createService(client, Settings.builder().put(XPackSettings.NLP_ENABLED.getKey(), false).build())) {
-                service.updateModelsWithDynamicFields(models, resultsListener);
-                verify(client, Mockito.never()).execute(same(GetDeploymentStatsAction.INSTANCE), any(), any());
-            }
-        }
-    }
-
     public void testUpdateModelsWithDynamicFields_InvalidModelProvided() throws IOException {
         ActionListener<List<Model>> resultsListener = ActionListener.wrap(
             updatedModels -> fail("Expected invalid model assertion error to be thrown"),
@@ -2272,32 +2235,6 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
 
         try (var service = createService(client)) {
             service.updateModelsWithDynamicFields(modelsToUpdate, resultsListener);
-        }
-    }
-
-    public void testUpdateWithoutMlEnabled() throws IOException, InterruptedException {
-        var cs = mock(ClusterService.class);
-        var cSettings = new ClusterSettings(
-            Settings.EMPTY,
-            Set.of(MachineLearningField.MAX_LAZY_ML_NODES, MachineLearningField.MODEL_PLATFORM_ARCHITECTURES)
-        );
-        when(cs.getClusterSettings()).thenReturn(cSettings);
-        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(
-            mock(),
-            threadPool,
-            cs,
-            Settings.builder().put("xpack.ml.enabled", false).build(),
-            inferenceStats,
-            mock(FeatureService.class)
-        );
-        try (var service = new ElasticsearchInternalService(context)) {
-            var models = List.of(mock(Model.class));
-            var latch = new CountDownLatch(1);
-            service.updateModelsWithDynamicFields(models, ActionTestUtils.assertNoFailureListener(r -> {
-                latch.countDown();
-                assertThat(r, Matchers.sameInstance(models));
-            }));
-            assertTrue(latch.await(30, TimeUnit.SECONDS));
         }
     }
 
@@ -2712,6 +2649,50 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                     Strings.format("The [%s] service does not support task type [%s]", ElasticsearchInternalService.NAME, TaskType.ANY)
                 )
             );
+        }
+    }
+
+    public void testIsSupported_ReturnsFalse_WhenMlDisabled() {
+        var settings = Settings.builder().put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false).build();
+        assertFalse(ElasticsearchInternalService.isSupported(settings));
+    }
+
+    public void testIsSupported_ReturnsFalse_WhenNlpDisabled() {
+        var settings = Settings.builder().put(XPackSettings.NLP_ENABLED.getKey(), false).build();
+        assertFalse(ElasticsearchInternalService.isSupported(settings));
+    }
+
+    public void testIsSupported_ReturnsTrue_WhenMlAndNlpEnabled() {
+        assumeTrue("ML native code required", ML_NATIVE_CODE_PLATFORMS.contains(Platforms.PLATFORM_NAME));
+        assertTrue(ElasticsearchInternalService.isSupported(Settings.EMPTY));
+    }
+
+    public void testIsServiceNameOrAlias_ReturnsTrue_ForServiceName() {
+        assertTrue(ElasticsearchInternalService.isServiceNameOrAlias(ElasticsearchInternalService.NAME));
+    }
+
+    public void testIsServiceNameOrAlias_ReturnsTrue_ForElserAlias() {
+        assertTrue(ElasticsearchInternalService.isServiceNameOrAlias(ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME));
+    }
+
+    public void testIsServiceNameOrAlias_ReturnsFalse_ForOtherService() {
+        assertFalse(ElasticsearchInternalService.isServiceNameOrAlias("some-other-service"));
+        assertFalse(ElasticsearchInternalService.isServiceNameOrAlias("elasticsearch "));
+        assertFalse(ElasticsearchInternalService.isServiceNameOrAlias("ELASTICSEARCH"));
+    }
+
+    public void testIsServiceNameOrAlias_MatchesEveryDeclaredAlias() throws IOException {
+        // Guard: if aliases() is ever extended, isServiceNameOrAlias must be updated too.
+        // When the service is unregistered its alias map is empty, so isServiceNameOrAlias is the
+        // only code standing in for aliases() on that path.
+        try (var service = createService(mock(Client.class))) {
+            assertTrue(ElasticsearchInternalService.isServiceNameOrAlias(service.name()));
+            for (var alias : service.aliases()) {
+                assertTrue(
+                    "alias [" + alias + "] not covered by isServiceNameOrAlias",
+                    ElasticsearchInternalService.isServiceNameOrAlias(alias)
+                );
+            }
         }
     }
 

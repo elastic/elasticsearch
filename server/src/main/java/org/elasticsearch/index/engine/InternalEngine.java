@@ -1493,9 +1493,10 @@ public class InternalEngine extends Engine {
      * Lucene via {@code addBatch}. Docs with preflight errors ({@code allResults[i] != null}) and
      * no-op docs ({@code indexIntoLucene == false}) are excluded. Returns {@code null} when every
      * doc is eligible and no filter is needed.
-     *
-     * <p>Must only be called when {@link #requiresRowPath} returns false.
+     * <p>
+     * Must only be called when {@link #requiresRowPath} returns false.
      */
+    // n.b. the discerning eye will notice that this very much echoes the implementation of EscfColumn.windowValidity
     @Nullable
     private static FixedBitSet buildColumnBatchFilter(
         IndexingStrategy[] plans,

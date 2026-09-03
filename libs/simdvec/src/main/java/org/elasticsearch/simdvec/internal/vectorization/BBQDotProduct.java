@@ -106,12 +106,12 @@ public class BBQDotProduct {
     public long dotProduct(byte[] query) throws IOException {
         assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
 
+        /*
+         * Basic generalized dot-product implementation using AND popcount on byte arrays
+         */
         byte[] data = scratch.apply(docBytes);
         in.readBytes(data, 0, docBytes);
 
-        /*
-         * Basic generalized dot-product implementation using AND popcount
-         */
         long dot = 0;
         for (int qp = 0; qp < queryBits; qp++) {
             for (int dp = 0; dp < docBits; dp++) {

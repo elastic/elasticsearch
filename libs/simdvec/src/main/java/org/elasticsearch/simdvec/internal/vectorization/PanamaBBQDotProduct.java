@@ -28,12 +28,6 @@ import java.nio.ByteOrder;
  */
 public abstract class PanamaBBQDotProduct extends BBQDotProduct {
 
-    /*
-     * The panama implementations use one accumulator/register per query plane, and it iterates
-     * over the data vector. This means separate implementations are needed for each query bit size,
-     * but that impl can be used for any data bit size.
-     */
-
     // We need at least this size to fill a 128-bit vector
     private static final int MIN_PLANE_BYTES = 16;
 
@@ -208,7 +202,21 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
                 }
                 ret += sum.reduceLanes(VectorOperators.ADD);
             }
-            return ret + dotProductTail(q, segment, baseOffset, i, size);
+
+            // DON'T combine this with 128-bit impl, the extra method call slows it down
+            for (final int upperBound = size & -Long.BYTES; i < upperBound; i += Long.BYTES) {
+                final long value = segment.get(LAYOUT_LE_LONG, baseOffset + i);
+                ret += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
+            }
+            for (final int upperBound = size & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
+                final int value = segment.get(LAYOUT_LE_INT, baseOffset + i);
+                ret += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
+            }
+            for (; i < size; i++) {
+                final int value = segment.get(ValueLayout.JAVA_BYTE, baseOffset + i) & 0xFF;
+                ret += Integer.bitCount((q[i] & value) & 0xFF);
+            }
+            return ret;
         }
 
         private static long dotProduct128(byte[] q, MemorySegment segment, long baseOffset, int size) {
@@ -220,11 +228,10 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
                 var vd = LongVector.fromMemorySegment(LONG_SPECIES_128, segment, baseOffset + i, ByteOrder.LITTLE_ENDIAN);
                 sum = sum.add(vq.and(vd).lanewise(VectorOperators.BIT_COUNT));
             }
-            return sum.reduceLanes(VectorOperators.ADD) + dotProductTail(q, segment, baseOffset, i, size);
-        }
 
-        private static long dotProductTail(byte[] q, MemorySegment segment, long baseOffset, int i, int size) {
-            long ret = 0;
+            long ret = sum.reduceLanes(VectorOperators.ADD);
+
+            // DON'T combine this with 256-bit impl, the extra method call slows it down
             for (final int upperBound = size & -Long.BYTES; i < upperBound; i += Long.BYTES) {
                 final long value = segment.get(LAYOUT_LE_LONG, baseOffset + i);
                 ret += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
@@ -382,14 +389,33 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
                 subRet2 += sum2.reduceLanes(VectorOperators.ADD);
                 subRet3 += sum3.reduceLanes(VectorOperators.ADD);
             }
-            return dotProductTail(q, segment, baseOffset, i, size, subRet0, subRet1, subRet2, subRet3);
+
+            // DON'T combine this with 128-bit impl, the extra method call slows it down
+            for (final int upperBound = size & -Long.BYTES; i < upperBound; i += Long.BYTES) {
+                final long value = segment.get(LAYOUT_LE_LONG, baseOffset + i);
+                subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
+                subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + size) & value);
+                subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * size) & value);
+                subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * size) & value);
+            }
+            for (final int upperBound = size & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
+                final int value = segment.get(LAYOUT_LE_INT, baseOffset + i);
+                subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
+                subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + size) & value);
+                subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * size) & value);
+                subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * size) & value);
+            }
+            for (; i < size; i++) {
+                final int value = segment.get(ValueLayout.JAVA_BYTE, baseOffset + i) & 0xFF;
+                subRet0 += Integer.bitCount((q[i] & value) & 0xFF);
+                subRet1 += Integer.bitCount((q[i + size] & value) & 0xFF);
+                subRet2 += Integer.bitCount((q[i + 2 * size] & value) & 0xFF);
+                subRet3 += Integer.bitCount((q[i + 3 * size] & value) & 0xFF);
+            }
+            return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
         }
 
         private static long dotProduct128(byte[] q, MemorySegment segment, long baseOffset, int size) {
-            long subRet0 = 0;
-            long subRet1 = 0;
-            long subRet2 = 0;
-            long subRet3 = 0;
             int i = 0;
             var sum0 = IntVector.zero(INT_SPECIES_128);
             var sum1 = IntVector.zero(INT_SPECIES_128);
@@ -407,24 +433,12 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
                 sum2 = sum2.add(vd.and(vq2).lanewise(VectorOperators.BIT_COUNT));
                 sum3 = sum3.add(vd.and(vq3).lanewise(VectorOperators.BIT_COUNT));
             }
-            subRet0 += sum0.reduceLanes(VectorOperators.ADD);
-            subRet1 += sum1.reduceLanes(VectorOperators.ADD);
-            subRet2 += sum2.reduceLanes(VectorOperators.ADD);
-            subRet3 += sum3.reduceLanes(VectorOperators.ADD);
-            return dotProductTail(q, segment, baseOffset, i, size, subRet0, subRet1, subRet2, subRet3);
-        }
+            long subRet0 = sum0.reduceLanes(VectorOperators.ADD);
+            long subRet1 = sum1.reduceLanes(VectorOperators.ADD);
+            long subRet2 = sum2.reduceLanes(VectorOperators.ADD);
+            long subRet3 = sum3.reduceLanes(VectorOperators.ADD);
 
-        private static long dotProductTail(
-            byte[] q,
-            MemorySegment segment,
-            long baseOffset,
-            int i,
-            int size,
-            long subRet0,
-            long subRet1,
-            long subRet2,
-            long subRet3
-        ) {
+            // DON'T combine this with 256-bit impl, the extra method call slows it down
             for (final int upperBound = size & -Long.BYTES; i < upperBound; i += Long.BYTES) {
                 final long value = segment.get(LAYOUT_LE_LONG, baseOffset + i);
                 subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);

@@ -21,7 +21,7 @@ public interface WarmingRatioProvider {
      *
      * @param referencedCC the referenced compound commit
      * @param resolvedCCTimestampMillis representative timestamp for the CC, as resolved by
-     *                                    {@link org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory#resolveRegionTimestampMillis}
+     *        {@link org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory#resolveRegionTimestampMillis}
      * @param nowMillis current time in epoch millis
      */
     double getWarmingRatio(

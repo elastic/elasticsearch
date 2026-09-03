@@ -232,7 +232,7 @@ public final class SplitDiscoveryPhase {
                 stats,
                 isCancelled,
                 executor,
-                l.map(resolved -> new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned))
+                l.map(resolved -> new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned, stats.cpuNanos))
             );
         });
     }

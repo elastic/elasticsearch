@@ -280,6 +280,13 @@ public class FileSplitProvider implements SplitProvider {
      */
     static final long MAX_PROBE_BUDGET_BYTES = ByteSizeValue.ofGb(4).getBytes();
 
+    /**
+     * True while this thread is already inside {@link #runRecordingDiscoveryCpu}. Nested
+     * {@code fanOut.execute} on {@code DIRECT} (cache-hit hop, {@code parseTailOnExecutor})
+     * must not add the same interval twice.
+     */
+    private static final ThreadLocal<Boolean> DISCOVERY_CPU_TIMING = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
     private final long targetSplitSizeBytes;
     private final DecompressionCodecRegistry codecRegistry;
     private final StorageProviderRegistry storageRegistry;
@@ -477,7 +484,7 @@ public class FileSplitProvider implements SplitProvider {
             final long strideBytes = strideBoundedByProbeBudget(requestedStrideBytes, batch.probedFileBytes(), maxSplitProbes);
             warnIfStrideWidened(requestedStrideBytes, strideBytes, maxSplitProbes, batch.probedFileBytes());
             splitDiscoveryCpuNanos.set(0L);
-            Executor fanOut = withStorageRetryCancellation(discoveryFanOutExecutor(requestedExecutor), isCancelled);
+            Executor fanOut = recordingDiscoveryCpu(withStorageRetryCancellation(discoveryFanOutExecutor(requestedExecutor), isCancelled));
             ActionListener<SplitDiscoveryResult> completion = ActionListener.runAfter(
                 listener,
                 () -> StorageProviderCache.closeLease(hoistedProvider)
@@ -662,6 +669,32 @@ public class FileSplitProvider implements SplitProvider {
      */
     private static Executor withStorageRetryCancellation(Executor executor, BooleanSupplier isCancelled) {
         return command -> executor.execute(() -> StorageRetryCancellation.runWithCancellation(isCancelled, command::run));
+    }
+
+    /**
+     * Records {@link ThreadCpuTimer} for every task that lands on the Phase-2 fan-out executor,
+     * including footer parse after an async GET and text planning that never probes.
+     * Nested executes on the same thread share one interval so {@code DIRECT} does not double-count.
+     */
+    private Executor recordingDiscoveryCpu(Executor inner) {
+        return command -> inner.execute(() -> runRecordingDiscoveryCpu(command));
+    }
+
+    private void runRecordingDiscoveryCpu(Runnable work) {
+        if (DISCOVERY_CPU_TIMING.get()) {
+            work.run();
+            return;
+        }
+        DISCOVERY_CPU_TIMING.set(Boolean.TRUE);
+        long cpuStart = ThreadCpuTimer.currentNanos();
+        try {
+            work.run();
+        } finally {
+            DISCOVERY_CPU_TIMING.set(Boolean.FALSE);
+            if (cpuStart >= 0) {
+                splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
+            }
+        }
     }
 
     private static <T, R> void gatherAsync(
@@ -1123,15 +1156,10 @@ public class FileSplitProvider implements SplitProvider {
         gatherAsync(probeTasks, (ProbeTask probe, ActionListener<RecordBoundaryProbe.Outcome> itemListener) -> {
             try {
                 fanOut.execute(() -> {
-                    long cpuStart = ThreadCpuTimer.currentNanos();
                     try {
                         itemListener.onResponse(runProbe(probe, probeWindowBytes, isCancelled));
                     } catch (Exception e) {
                         itemListener.onFailure(e);
-                    } finally {
-                        if (cpuStart >= 0) {
-                            splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
-                        }
                     }
                 });
             } catch (Exception e) {
@@ -1393,20 +1421,22 @@ public class FileSplitProvider implements SplitProvider {
             }
             final FormatReader readerForText = configuredReader;
             tryRangeAwareSplitsAsync(task, hoistedProvider, fanOut, ActionListener.wrap(rangeSplits -> {
-                try {
-                    if (rangeSplits != null) {
-                        listener.onResponse(new PlanResult.Splits(rangeSplits));
-                        return;
+                runRecordingDiscoveryCpu(() -> {
+                    try {
+                        if (rangeSplits != null) {
+                            listener.onResponse(new PlanResult.Splits(rangeSplits));
+                            return;
+                        }
+                        listener.onResponse(
+                            StorageRetryCancellation.callWithCancellation(
+                                isCancelled,
+                                () -> planTextOrWholeFile(task, hoistedProvider, strideBytes, isCancelled, readerForText)
+                            )
+                        );
+                    } catch (Exception e) {
+                        listener.onFailure(e);
                     }
-                    listener.onResponse(
-                        StorageRetryCancellation.callWithCancellation(
-                            isCancelled,
-                            () -> planTextOrWholeFile(task, hoistedProvider, strideBytes, isCancelled, readerForText)
-                        )
-                    );
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
+                });
             }, listener::onFailure));
         } catch (Exception e) {
             listener.onFailure(e);
@@ -1868,30 +1898,32 @@ public class FileSplitProvider implements SplitProvider {
             StorageProvider provider = resolveProvider(task.filePath(), task.config(), hoistedProvider);
             StorageObject object = provider.newObject(task.filePath(), task.fileLength());
             rangeReader.discoverSplitRangesAsync(object, fanOut, ActionListener.wrap(ranges -> {
-                if (ranges == null || ranges.isEmpty()) {
-                    listener.onResponse(null);
-                    return;
-                }
-                try {
-                    List<ExternalSplit> splits = new ArrayList<>(ranges.size());
-                    addRangeAwareSplits(
-                        task.filePath(),
-                        task.fileLength(),
-                        task.format(),
-                        task.config(),
-                        task.partitionValues(),
-                        task.columnMapping(),
-                        task.readSchema(),
-                        task.reconciledTypes(),
-                        task.declaredReadSpec(),
-                        task.inferredFileTypes(),
-                        ranges,
-                        splits
-                    );
-                    listener.onResponse(splits);
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
+                runRecordingDiscoveryCpu(() -> {
+                    if (ranges == null || ranges.isEmpty()) {
+                        listener.onResponse(null);
+                        return;
+                    }
+                    try {
+                        List<ExternalSplit> splits = new ArrayList<>(ranges.size());
+                        addRangeAwareSplits(
+                            task.filePath(),
+                            task.fileLength(),
+                            task.format(),
+                            task.config(),
+                            task.partitionValues(),
+                            task.columnMapping(),
+                            task.readSchema(),
+                            task.reconciledTypes(),
+                            task.declaredReadSpec(),
+                            task.inferredFileTypes(),
+                            ranges,
+                            splits
+                        );
+                        listener.onResponse(splits);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                });
             }, e -> {
                 if (ExceptionsHelper.unwrap(e, IOException.class) != null) {
                     LOGGER.warn("Failed to discover split ranges for [{}], falling back to single split", task.filePath(), e);

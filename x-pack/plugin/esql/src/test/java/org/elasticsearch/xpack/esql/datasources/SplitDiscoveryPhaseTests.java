@@ -672,6 +672,39 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertEquals(((ExternalSourceExec) sync.plan()).fileList(), ((ExternalSourceExec) async.plan()).fileList());
     }
 
+    /**
+     * Async {@link SplitDiscoveryPhase.Result} must keep {@code cpuNanos} from the provider.
+     * The 4-arg Result constructor defaults CPU to 0 and would drop it from the query profile.
+     */
+    public void testAsyncDiscoveryForwardsCpuNanos() {
+        FileList fileList = createFileList(1);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        FileSplit split = new FileSplit("parquet", StoragePath.of("s3://bucket/data/file0.parquet"), 0, 100, "parquet", Map.of(), Map.of());
+        long cpuNanos = 42L;
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(split), 1, false, cpuNanos)))
+        );
+        SplitDiscoveryPhase.Result sync = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        SplitDiscoveryPhase.Result async = future.actionGet(30, TimeUnit.SECONDS);
+        assertEquals(cpuNanos, sync.cpuNanos());
+        assertEquals(cpuNanos, async.cpuNanos());
+    }
+
     // -- helpers --
 
     private static FileList createFileList(int fileCount) {

@@ -1181,7 +1181,8 @@ public class FileSplitProviderTests extends ESTestCase {
         List<ExternalSplit> serial = provider.discoverSplits(ctx).splits();
         PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
         provider.discoverSplitsAsync(ctx, EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
-        List<ExternalSplit> async = future.actionGet(30, TimeUnit.SECONDS).splits();
+        SplitDiscoveryResult asyncResult = future.actionGet(30, TimeUnit.SECONDS);
+        List<ExternalSplit> async = asyncResult.splits();
         assertEquals(serial.size(), async.size());
         for (int i = 0; i < serial.size(); i++) {
             FileSplit s = (FileSplit) serial.get(i);
@@ -1189,6 +1190,7 @@ public class FileSplitProviderTests extends ESTestCase {
             assertEquals(s.offset(), a.offset());
             assertEquals(s.length(), a.length());
         }
+        assertThat("range-aware async discovery must accumulate cpuNanos", asyncResult.cpuNanos(), greaterThan(0L));
     }
 
     private static int probeConcurrencyFor(Settings settings) {
@@ -1253,6 +1255,39 @@ public class FileSplitProviderTests extends ESTestCase {
             executor.shutdown();
         }
         assertThat("Phase 3 BPG probe threads must accumulate cpuNanos", result.cpuNanos(), greaterThan(0L));
+    }
+
+    /**
+     * Production Phase-2 ({@link FileSplitProvider#discoverSplitsAsync}) must still populate
+     * {@link SplitDiscoveryResult#cpuNanos()} when files never probe. Planning CPU runs after
+     * the IO hop; wrapping only the joining BPG path is not enough.
+     */
+    public void testAsyncSplitDiscoveryAccumulatesCpuNanos() throws Exception {
+        Map<String, byte[]> payloads = Map.of("one.csv", delimitedPayload("a,b,c\n"), "two.csv", delimitedPayload("d,e,f\n"));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        SplitDiscoveryResult result;
+        try {
+            result = discoverPlainCsvSplitsAsyncResult(payloads, CSV_MIN_SEGMENT_BYTES, executor);
+        } finally {
+            executor.shutdown();
+        }
+        assertThat("async Phase-2 fan-out must accumulate cpuNanos", result.cpuNanos(), greaterThan(0L));
+    }
+
+    /**
+     * Async Phase-3 probes must land on the recording fan-out executor the same way joining BPG does.
+     */
+    public void testAsyncSplitDiscoveryProbesAccumulateCpuNanos() throws Exception {
+        long stride = 2 * CSV_MIN_SEGMENT_BYTES;
+        Map<String, byte[]> payloads = Map.of("one.csv", delimitedPayload("a,b,c\n"), "two.csv", delimitedPayload("d,e,f\n"));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        SplitDiscoveryResult result;
+        try {
+            result = discoverPlainCsvSplitsAsyncResult(payloads, stride, executor);
+        } finally {
+            executor.shutdown();
+        }
+        assertThat("async Phase-3 probes must accumulate cpuNanos", result.cpuNanos(), greaterThan(0L));
     }
 
     /**
@@ -2326,7 +2361,27 @@ public class FileSplitProviderTests extends ESTestCase {
             Settings.EMPTY,
             () -> false,
             Map.of("mode", "plain"),
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            false
+        );
+    }
+
+    /** As {@link #discoverPlainCsvSplitsResult} through production {@link FileSplitProvider#discoverSplitsAsync}. */
+    private static SplitDiscoveryResult discoverPlainCsvSplitsAsyncResult(
+        Map<String, byte[]> payloads,
+        long targetStrideBytes,
+        Executor executor
+    ) {
+        return discoverCsvSplits(
+            payloads,
+            targetStrideBytes,
+            executor,
+            null,
+            Settings.EMPTY,
+            () -> false,
+            Map.of("mode", "plain"),
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            true
         );
     }
 
@@ -2391,6 +2446,20 @@ public class FileSplitProviderTests extends ESTestCase {
         Map<String, Object> csvConfig,
         int maxRecordBytes
     ) {
+        return discoverCsvSplits(payloads, targetStrideBytes, executor, tracking, settings, isCancelled, csvConfig, maxRecordBytes, false);
+    }
+
+    private static SplitDiscoveryResult discoverCsvSplits(
+        Map<String, byte[]> payloads,
+        long targetStrideBytes,
+        @Nullable Executor executor,
+        @Nullable StreamTracking tracking,
+        Settings settings,
+        BooleanSupplier isCancelled,
+        Map<String, Object> csvConfig,
+        int maxRecordBytes,
+        boolean async
+    ) {
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
         formatRegistry.registerLazy(
             "csv",
@@ -2428,6 +2497,12 @@ public class FileSplitProviderTests extends ESTestCase {
             isCancelled,
             DeclaredReadSpec.NONE
         );
+        if (async) {
+            PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+            Executor fanOut = executor != null ? executor : EsExecutors.DIRECT_EXECUTOR_SERVICE;
+            provider.discoverSplitsAsync(ctx, fanOut, future);
+            return future.actionGet(30, TimeUnit.SECONDS);
+        }
         return provider.discoverSplits(ctx);
     }
 

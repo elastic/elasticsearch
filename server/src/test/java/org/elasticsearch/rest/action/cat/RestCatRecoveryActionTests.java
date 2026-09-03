@@ -128,8 +128,6 @@ public class RestCatRecoveryActionTests extends ESTestCase {
 
         assertNotNull(table);
 
-        List<Table.Cell> headers = table.getHeaders();
-
         final List<String> expectedHeaders = Arrays.asList(
             "index",
             "shard",
@@ -161,9 +159,8 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             "translog_ops_percent"
         );
 
-        for (int i = 0; i < expectedHeaders.size(); i++) {
-            assertThat(headers.get(i).value, equalTo(expectedHeaders.get(i)));
-        }
+        List<Object> actualHeaders = table.getHeaders().stream().map(cell -> cell.value).toList();
+        assertThat(actualHeaders, equalTo(expectedHeaders));
 
         assertThat(table.getRows().size(), equalTo(successfulShards));
 
@@ -204,10 +201,8 @@ public class RestCatRecoveryActionTests extends ESTestCase {
                 percent(state.getTranslog().recoveredPercent())
             );
 
-            final List<Table.Cell> cells = table.getRows().get(i);
-            for (int j = 0; j < expectedValues.size(); j++) {
-                assertThat(cells.get(j).value, equalTo(expectedValues.get(j)));
-            }
+            List<Object> actualValues = table.getRows().get(i).stream().map(cell -> cell.value).toList();
+            assertThat(actualValues, equalTo(expectedValues));
         }
     }
 

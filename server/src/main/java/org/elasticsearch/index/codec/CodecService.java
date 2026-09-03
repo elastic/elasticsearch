@@ -129,7 +129,7 @@ public class CodecService implements CodecProvider {
      * Whether {@code format} already shares field infos, so wrapping it again would only re-intern instances that are
      * canonical already, once per segment open.
      */
-    public static boolean isDeduplicating(FieldInfosFormat format) {
+    static boolean isDeduplicating(FieldInfosFormat format) {
         return format instanceof CachingFieldInfosFormat || format instanceof DeduplicatingFieldInfosFormat;
     }
 

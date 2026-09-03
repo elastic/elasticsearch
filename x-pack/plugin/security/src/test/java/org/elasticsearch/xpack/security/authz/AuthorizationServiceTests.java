@@ -4518,9 +4518,12 @@ public class AuthorizationServiceTests extends ESTestCase {
             "_alias:linked"
         );
         var ex = expectThrows(
-            ElasticsearchSecurityException.class,
+            NoMatchingProjectException.class,
             () -> authorize(authentication, ResolveIndexAction.NAME, request, true, null)
         );
-        assertThat(ex.getMessage(), containsString("Elasticsearch API keys cannot access linked projects"));
+        assertThat(
+            ex.getMessage(),
+            containsString("an Elasticsearch API key, which can only access the origin project and never linked projects")
+        );
     }
 }

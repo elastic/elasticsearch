@@ -29,11 +29,11 @@ public record CachedListing(FileList files, List<String> warnings) {
         return new CachedListing(files, List.of());
     }
 
-    /** Cache weight: the listing's own estimate plus each notice as a String (~40B header + UTF-16 chars). */
+    /** Cache weight: the listing's own estimate plus each notice, weighed like every other cached String. */
     public long estimatedBytes() {
         long bytes = files.estimatedBytes();
         for (String warning : warnings) {
-            bytes += 40 + warning.length() * (long) Character.BYTES;
+            bytes += SchemaCacheEntry.estimatedStringBytes(warning);
         }
         return bytes;
     }

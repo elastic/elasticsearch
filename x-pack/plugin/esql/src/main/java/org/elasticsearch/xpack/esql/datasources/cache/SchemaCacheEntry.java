@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -145,8 +146,7 @@ public record SchemaCacheEntry(
         // object header + reference fields
         long bytes = 64;
         for (String name : columnNames) {
-            // per-String: ~40B object overhead + char data
-            bytes += 40 + (name != null ? name.length() * (long) Character.BYTES : 0);
+            bytes += estimatedStringBytes(name);
         }
         // enum references stored as pointers
         bytes += columnTypes.length * (long) Long.BYTES;
@@ -155,7 +155,7 @@ public record SchemaCacheEntry(
         bytes += sourceType != null ? sourceType.length() * (long) Character.BYTES : 0;
         bytes += location != null ? location.length() * (long) Character.BYTES : 0;
         for (String warning : warnings) {
-            bytes += 40 + warning.length() * (long) Character.BYTES;
+            bytes += estimatedStringBytes(warning);
         }
         // rough estimate: ~100B per metadata entry (key String + value Object); nested map values
         // (per-stripe stats under _stats.stripe.<k>) weigh their inner entries the same way so a
@@ -169,4 +169,15 @@ public record SchemaCacheEntry(
         bytes += connectorConfig.size() * 100L;
         return bytes;
     }
+
+    /**
+     * Cache weight of one String: about 40 bytes for the {@code String} object and its backing array headers on a 64-bit
+     * JVM with compressed references, plus two bytes per character. Both parts round up on purpose (compact Latin-1
+     * strings use one byte per character); this feeds a cache budget, where over-counting evicts a little early and
+     * under-counting lets the cache outgrow its budget. Shared by every cached value that holds Strings.
+     */
+    static long estimatedStringBytes(@Nullable String s) {
+        return 40 + (s != null ? s.length() * (long) Character.BYTES : 0);
+    }
+
 }

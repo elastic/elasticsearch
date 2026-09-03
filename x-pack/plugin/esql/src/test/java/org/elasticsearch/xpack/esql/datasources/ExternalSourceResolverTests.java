@@ -2837,6 +2837,95 @@ public class ExternalSourceResolverTests extends ESTestCase {
     // ===== Resolver + Cache integration =====
 
     /**
+     * Cacheable multi-file resolves must expose per-file footer statistics on {@code FileSchemaInfo}
+     * for both the cold harvest and a warm schema-cache hit. The warm path reconstructs the typed
+     * view from the cached flat {@code _stats.*} map so split discovery can still skip a second
+     * footer open when {@code readableUnitCount} is 1.
+     */
+    public void testCacheableColdResolveCarriesHarvestedStatistics() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.LONG));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+        Map<String, Long> rowCountsByPath = Map.of("s3://bucket/data/a.parquet", 11L, "s3://bucket/data/b.parquet", 22L);
+
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
+
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        String glob = "s3://bucket/data/*.parquet";
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithReader(
+                provider,
+                new StubFormatReaderWithStats(schemasByPath, rowCountsByPath),
+                cacheService
+            );
+            for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
+                Map<String, Map<String, Object>> pathConfigs = Map.of(glob, new HashMap<>(configFor(strategy)));
+                PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
+                resolver.resolve(List.of(glob), pathConfigs, f1);
+                ExternalSourceResolution.ResolvedSource cold = f1.actionGet().resolvedSource(glob);
+                assertEquals("[" + strategy + "]", 2, cold.schemaMap().size());
+                for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : cold.schemaMap().entrySet()) {
+                    SourceStatistics stats = e.getValue().statistics();
+                    assertNotNull("[" + strategy + "] cold resolve must carry harvested statistics for " + e.getKey(), stats);
+                    assertEquals(rowCountsByPath.get(e.getKey().toString()).longValue(), stats.rowCount().getAsLong());
+                    assertEquals(1L, stats.readableUnitCount().orElse(-1));
+                }
+
+                PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
+                resolver.resolve(List.of(glob), pathConfigs, f2);
+                ExternalSourceResolution.ResolvedSource warm = f2.actionGet().resolvedSource(glob);
+                assertEquals("[" + strategy + "]", 2, warm.schemaMap().size());
+                for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : warm.schemaMap().entrySet()) {
+                    SourceStatistics stats = e.getValue().statistics();
+                    assertNotNull("[" + strategy + "] warm serve must reconstruct typed statistics for " + e.getKey(), stats);
+                    assertEquals(rowCountsByPath.get(e.getKey().toString()).longValue(), stats.rowCount().getAsLong());
+                    assertEquals(1L, stats.readableUnitCount().orElse(-1));
+                }
+            }
+        }
+    }
+
+    public void testCacheableColdSingleFileResolveCarriesHarvestedStatistics() throws Exception {
+        String path = "s3://bucket/data/single.parquet";
+        StoragePath storagePath = StoragePath.of(path);
+        List<Attribute> schema = List.of(attr("id", DataType.LONG));
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of(), schemasByPath);
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithReader(
+                provider,
+                new StubFormatReaderWithStats(schemasByPath, Map.of(path, 11L)),
+                cacheService
+            );
+
+            PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
+            resolver.resolve(List.of(path), Map.of(), f1);
+            SourceStatistics coldStatistics = f1.actionGet().resolvedSource(path).schemaMap().get(storagePath).statistics();
+            assertNotNull(coldStatistics);
+            assertEquals(11L, coldStatistics.rowCount().getAsLong());
+            assertEquals(1L, coldStatistics.readableUnitCount().orElse(-1));
+
+            PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
+            resolver.resolve(List.of(path), Map.of(), f2);
+            SourceStatistics warmStatistics = f2.actionGet().resolvedSource(path).schemaMap().get(storagePath).statistics();
+            assertNotNull(warmStatistics);
+            assertEquals(11L, warmStatistics.rowCount().getAsLong());
+            assertEquals(1L, warmStatistics.readableUnitCount().orElse(-1));
+        }
+    }
+
+    /**
      * A filtered query must not poison the listing cache for a later unfiltered one. The filter's hints narrow the
      * listing to a subset of the files; keyed only on the path, that subset would be served back to a query that
      * carries no filter, which then silently sees fewer files than the dataset holds. Here the {@code _file.name}
@@ -4210,8 +4299,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, List<Attribute>> schemasByPath,
         ExternalSourceCacheService cacheService
     ) {
-        StubFormatReader formatReader = new StubFormatReader(schemasByPath);
+        return createResolverWithReader(storageProvider, new StubFormatReader(schemasByPath), cacheService);
+    }
 
+    private ExternalSourceResolver createResolverWithReader(
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        ExternalSourceCacheService cacheService
+    ) {
         DataSourcePlugin plugin = new DataSourcePlugin() {
             @Override
             public Set<String> supportedSchemes() {
@@ -4792,6 +4887,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
                         @Override
                         public OptionalLong sizeInBytes() {
                             return OptionalLong.empty();
+                        }
+
+                        @Override
+                        public OptionalLong readableUnitCount() {
+                            return OptionalLong.of(1L);
                         }
 
                         @Override

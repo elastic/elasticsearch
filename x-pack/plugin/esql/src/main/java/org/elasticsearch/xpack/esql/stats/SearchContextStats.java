@@ -372,7 +372,7 @@ public class SearchContextStats implements SearchStats {
                         }
                     }
                 } catch (IOException ex) {
-                    throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
+                    throw new UncheckedIOException(ex);
                 }
                 stat.singleValue = sv[0];
             }

@@ -53,6 +53,16 @@ public class EsqlLicenseChecker {
      * @param licenseState existing license state. Need to extract info on the current installed license.
      * @throws ElasticsearchStatusException if query approximation is not supported.
      */
+    /**
+     * Whether this cluster may approximate, without throwing. For an operator-supplied default an unlicensed cluster
+     * runs the query exactly rather than failing it, so the caller needs the answer rather than an exception. Records
+     * feature usage on success, as {@link #checkQueryApproximation} does — the feature genuinely is in use when a
+     * cluster default approximates a query.
+     */
+    public static boolean isQueryApproximationAllowed(XPackLicenseState licenseState) {
+        return licenseState != null && QUERY_APPROXIMATION_FEATURE.check(licenseState);
+    }
+
     public static void checkQueryApproximation(XPackLicenseState licenseState) throws ElasticsearchStatusException {
         if (licenseState == null || QUERY_APPROXIMATION_FEATURE.check(licenseState) == false) {
             throw getException("A valid Enterprise license is required to use ES|QL query approximation.", licenseState);

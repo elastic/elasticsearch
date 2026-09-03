@@ -1380,8 +1380,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Surfaced as a client-facing warning rather than a log line, because the audience is the query author, who
      * reads the response and not the node's DEBUG log. It goes to {@code warningSink}: at resolve time that is the
      * metadata's warning list (see {@link SourceMetadata#warnings()}), at read time the read context's sink. Never
-     * {@code HeaderWarning} directly, because both paths run off the request thread. Identical messages are
-     * deduplicated downstream, so a query sees at most one such line regardless of how many inference paths fire.
+     * {@code HeaderWarning} directly, because both paths run off the request thread. Within one response, identical
+     * messages are collapsed to a single line regardless of how many inference paths fire; every run gets it.
      * Scanned only over the already-materialized sample (bounded by {@code schema_sample_size}), so
      * there is no per-row hot-path cost, and the trigger is the whole-field {@code \N} marker rather
      * than any backslash sequence, so a literal Windows path like {@code C:\temp} never produces a

@@ -73,73 +73,73 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
     // -- predefined tests --
 
     public void testFlatStarGlob() throws IOException {
-        FileList result = GlobExpander.expandGlob(rootUri() + "/*.parquet", provider);
+        FileList result = GlobExpander.expandGlob(rootUri() + "/*.parquet", provider, WarningSinks.FAILING);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
     }
 
     public void testFlatStarGlobAllExtensions() throws IOException {
-        FileList result = GlobExpander.expandGlob(rootUri() + "/report_2024_*.*", provider);
+        FileList result = GlobExpander.expandGlob(rootUri() + "/report_2024_*.*", provider, WarningSinks.FAILING);
         assertTrue(result.isResolved());
         assertEquals(3, result.fileCount());
     }
 
     public void testFlatQuestionMarkGlob() throws IOException {
-        FileList result = GlobExpander.expandGlob(rootUri() + "/report_2024_0?.parquet", provider);
+        FileList result = GlobExpander.expandGlob(rootUri() + "/report_2024_0?.parquet", provider, WarningSinks.FAILING);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
     }
 
     public void testFlatBraceAlternatives() throws IOException {
-        FileList result = GlobExpander.expandGlob(rootUri() + "/*.{parquet,csv}", provider);
+        FileList result = GlobExpander.expandGlob(rootUri() + "/*.{parquet,csv}", provider, WarningSinks.FAILING);
         assertTrue(result.isResolved());
         assertEquals(3, result.fileCount());
     }
 
     public void testRecursiveDoubleStarGlob() throws IOException {
-        FileList result = GlobExpander.expandGlob(rootUri() + "/year/**" + "/*.parquet", provider);
+        FileList result = GlobExpander.expandGlob(rootUri() + "/year/**" + "/*.parquet", provider, WarningSinks.FAILING);
         assertTrue(result.isResolved());
         assertEquals(4, result.fileCount());
     }
 
     public void testRecursiveDoubleStarAllFiles() throws IOException {
-        FileList result = GlobExpander.expandGlob(rootUri() + "/year/**" + "/*", provider);
+        FileList result = GlobExpander.expandGlob(rootUri() + "/year/**" + "/*", provider, WarningSinks.FAILING);
         assertTrue(result.isResolved());
         assertEquals(5, result.fileCount());
     }
 
     public void testRecursiveSingleDirGlob() throws IOException {
-        FileList result = GlobExpander.expandGlob(rootUri() + "/year/2024/*.parquet", provider);
+        FileList result = GlobExpander.expandGlob(rootUri() + "/year/2024/*.parquet", provider, WarningSinks.FAILING);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
     }
 
     public void testNoMatchReturnsEmpty() throws IOException {
-        FileList result = GlobExpander.expandGlob(rootUri() + "/*.json", provider);
+        FileList result = GlobExpander.expandGlob(rootUri() + "/*.json", provider, WarningSinks.FAILING);
         assertTrue(result.isEmpty());
     }
 
     public void testLiteralPathReturnsUnresolved() throws IOException {
-        FileList result = GlobExpander.expandGlob(rootUri() + "/summary.txt", provider);
+        FileList result = GlobExpander.expandGlob(rootUri() + "/summary.txt", provider, WarningSinks.FAILING);
         assertFalse(result.isResolved());
     }
 
     public void testCommaSeparatedMixed() throws IOException {
         String paths = rootUri() + "/*.parquet, " + rootUri() + "/summary.txt";
-        FileList result = GlobExpander.expandCommaSeparated(paths, provider);
+        FileList result = GlobExpander.expandCommaSeparated(paths, provider, WarningSinks.FAILING);
         assertTrue(result.isResolved());
         // 2 parquet files from glob + 1 literal
         assertEquals(3, result.fileCount());
     }
 
     public void testFlatBraceOnlyAlternatives() throws IOException {
-        FileList result = GlobExpander.expandGlob(rootUri() + "/{report_2024_01,report_2024_02}.parquet", provider);
+        FileList result = GlobExpander.expandGlob(rootUri() + "/{report_2024_01,report_2024_02}.parquet", provider, WarningSinks.FAILING);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
     }
 
     public void testFlatBraceOnlyAlternativesSkipsMissing() throws IOException {
-        FileList result = GlobExpander.expandGlob(rootUri() + "/{report_2024_01,nonexistent}.parquet", provider);
+        FileList result = GlobExpander.expandGlob(rootUri() + "/{report_2024_01,nonexistent}.parquet", provider, WarningSinks.FAILING);
         assertTrue(result.isResolved());
         assertEquals(1, result.fileCount());
     }
@@ -152,7 +152,11 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         long expectedCount = allPaths.stream().filter(p -> p.contains("/") == false).filter(p -> p.endsWith(".parquet")).count();
 
-        FileList result = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/*.parquet", new TestLocalStorageProvider());
+        FileList result = GlobExpander.expandGlob(
+            StoragePath.fileUri(root) + "/*.parquet",
+            new TestLocalStorageProvider(),
+            WarningSinks.FAILING
+        );
         if (expectedCount == 0) {
             assertTrue("Expected EMPTY for no root .parquet files", result.isEmpty());
         } else {
@@ -166,7 +170,11 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         long expectedCount = allPaths.stream().filter(p -> p.endsWith(".parquet")).count();
 
-        FileList result = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/**" + "/*.parquet", new TestLocalStorageProvider());
+        FileList result = GlobExpander.expandGlob(
+            StoragePath.fileUri(root) + "/**" + "/*.parquet",
+            new TestLocalStorageProvider(),
+            WarningSinks.FAILING
+        );
         if (expectedCount == 0) {
             assertTrue(result.isEmpty());
         } else {
@@ -181,7 +189,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
         long expectedCount = allPaths.stream().filter(p -> p.endsWith(".parquet") || p.endsWith(".csv")).count();
 
         String uri = StoragePath.fileUri(root) + "/**" + "/*.{parquet,csv}";
-        FileList result = GlobExpander.expandGlob(uri, new TestLocalStorageProvider());
+        FileList result = GlobExpander.expandGlob(uri, new TestLocalStorageProvider(), WarningSinks.FAILING);
         if (expectedCount == 0) {
             assertTrue(result.isEmpty());
         } else {
@@ -198,8 +206,12 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
         long totalParquetCount = allPaths.stream().filter(p -> p.endsWith(".parquet")).count();
 
         TestLocalStorageProvider testProvider = new TestLocalStorageProvider();
-        FileList flatResult = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/*.parquet", testProvider);
-        FileList recursiveResult = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/**" + "/*.parquet", testProvider);
+        FileList flatResult = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/*.parquet", testProvider, WarningSinks.FAILING);
+        FileList recursiveResult = GlobExpander.expandGlob(
+            StoragePath.fileUri(root) + "/**" + "/*.parquet",
+            testProvider,
+            WarningSinks.FAILING
+        );
 
         long flatSize = flatResult.isEmpty() ? 0 : flatResult.fileCount();
         long recursiveSize = recursiveResult.isEmpty() ? 0 : recursiveResult.fileCount();
@@ -221,7 +233,11 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
         // Two-digit name won't match f?.parquet
         Files.createFile(root.resolve("f10.parquet"));
 
-        FileList result = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/f?.parquet", new TestLocalStorageProvider());
+        FileList result = GlobExpander.expandGlob(
+            StoragePath.fileUri(root) + "/f?.parquet",
+            new TestLocalStorageProvider(),
+            WarningSinks.FAILING
+        );
         assertEquals(expectedCount, result.fileCount());
     }
 

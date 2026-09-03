@@ -205,16 +205,12 @@ public class ExternalSourceResolver {
     private final Supplier<ThreadContext.StoredContext> restorableContext;
 
     /**
-     * Client-facing notices raised during one {@link #resolve} call's schema-resolution chain: Hive-partition
-     * shadowing, reconciliation widening, {@code file_exclusions} drops and reserved partition-name renames (see
-     * {@link #warnOnShadowedColumns} and the sinks handed to {@code SchemaReconciliation}, {@code GlobExpander} and the
-     * partition detectors). That chain runs on {@link #metadataReadExecutor} — a real thread pool in production, so a
-     * direct {@code HeaderWarning.addWarning} call from inside it would land on that executor thread's
-     * {@link ThreadContext} rather than the originating request's, and never reach the client. Messages are instead
-     * buffered here and replayed via {@code HeaderWarning} from {@link #resolve}'s completion listener, once
-     * {@link #restorableContext} has restored the caller's original context. Cleared at the start of each
-     * {@link #resolve} call; safe for concurrent per-file callbacks (see {@link #metadataReadConcurrency}) since it is
-     * append-only until the single flush at completion.
+     * Notices raised during one {@link #resolve} call that the user should see: Hive-partition shadowing, reconciliation
+     * widening, {@code file_exclusions} drops, reserved partition-name renames. They are buffered here and written to
+     * the response headers by {@link #flushBufferedWarnings} when resolution completes, on the request thread, because
+     * the resolution chain runs on {@link #metadataReadExecutor} whose threads have no path to the response. Cleared at
+     * the start of each {@link #resolve} call; append-only in between, so concurrent per-file callbacks (see
+     * {@link #metadataReadConcurrency}) are safe.
      */
     private final List<String> pendingShadowWarnings = new CopyOnWriteArrayList<>();
 

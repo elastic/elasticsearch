@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.util.List;
@@ -54,7 +53,7 @@ final class ReservedPartitionNames {
      * Emit one {@code Warning} response header per renamed key (none when {@code renamed} is
      * empty). Callers pass the ORIGINAL key names that {@link #surface(String)} renamed.
      */
-    static void warnRenamed(List<String> renamed, @Nullable Consumer<String> warningSink) {
+    static void warnRenamed(List<String> renamed, Consumer<String> warningSink) {
         if (renamed.isEmpty()) {
             return;
         }

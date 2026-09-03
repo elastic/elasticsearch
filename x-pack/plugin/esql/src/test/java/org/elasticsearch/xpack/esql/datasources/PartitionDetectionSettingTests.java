@@ -59,12 +59,24 @@ public class PartitionDetectionSettingTests extends ESTestCase {
     // ---------------------------------------------------------------------------------------------------------
 
     public void testMachineryHonoursNoneWhenGivenAPartitionConfig() throws IOException {
-        FileList listing = GlobExpander.expandGlob(HIVE_PATTERN, provider(HIVE_TREE), null, partitionSettings("none", null));
+        FileList listing = GlobExpander.expandGlob(
+            HIVE_PATTERN,
+            provider(HIVE_TREE),
+            null,
+            partitionSettings("none", null),
+            WarningSinks.FAILING
+        );
         assertNull("the NONE strategy suppresses detection when the config reaches the expander", listing.partitionMetadata());
     }
 
     public void testMachineryHonoursTemplateWhenGivenAPartitionConfig() throws IOException {
-        FileList listing = GlobExpander.expandGlob(FLAT_PATTERN, provider(FLAT_TREE), null, partitionSettings("template", "{year}"));
+        FileList listing = GlobExpander.expandGlob(
+            FLAT_PATTERN,
+            provider(FLAT_TREE),
+            null,
+            partitionSettings("template", "{year}"),
+            WarningSinks.FAILING
+        );
         assertEquals("the TEMPLATE strategy names the column after the template placeholder", Set.of("year"), columnsOf(listing));
     }
 
@@ -115,7 +127,8 @@ public class PartitionDetectionSettingTests extends ESTestCase {
             hints,
             Map.of("partition_detection", "hive", "partition_path", "{year}"),
             MAX,
-            MAX
+            MAX,
+            WarningSinks.FAILING
         );
 
         List<String> paths = new ArrayList<>();
@@ -218,8 +231,20 @@ public class PartitionDetectionSettingTests extends ESTestCase {
      * strategy in the same change.
      */
     public void testListingCacheIdentityBindsThePartitionStrategy() throws IOException {
-        FileList none = GlobExpander.expandGlob(HIVE_PATTERN, provider(HIVE_TREE), null, partitionSettings("none", null));
-        FileList hive = GlobExpander.expandGlob(HIVE_PATTERN, provider(HIVE_TREE), null, partitionSettings("hive", null));
+        FileList none = GlobExpander.expandGlob(
+            HIVE_PATTERN,
+            provider(HIVE_TREE),
+            null,
+            partitionSettings("none", null),
+            WarningSinks.FAILING
+        );
+        FileList hive = GlobExpander.expandGlob(
+            HIVE_PATTERN,
+            provider(HIVE_TREE),
+            null,
+            partitionSettings("hive", null),
+            WarningSinks.FAILING
+        );
         assertNotEquals("the two strategies must produce different listings for this to matter", columnsOf(none), columnsOf(hive));
 
         String discriminator = GlobExpander.listingCacheDiscriminator(HIVE_PATTERN, null, partitionSettings("none", null));
@@ -241,7 +266,7 @@ public class PartitionDetectionSettingTests extends ESTestCase {
      * {@link GlobExpander#expand}, which resolves the {@link PartitionConfig} once at the boundary.
      */
     private static FileList expandAsResolverDoes(String pattern, List<StorageEntry> tree, Map<String, Object> settings) throws IOException {
-        return GlobExpander.expand(pattern, provider(tree), null, settings, MAX, MAX);
+        return GlobExpander.expand(pattern, provider(tree), null, settings, MAX, MAX, WarningSinks.FAILING);
     }
 
     private static Map<String, Object> settingsFor(String strategy) {

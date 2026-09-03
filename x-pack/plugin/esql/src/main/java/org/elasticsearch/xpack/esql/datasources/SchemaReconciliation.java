@@ -340,16 +340,11 @@ public final class SchemaReconciliation {
      * @param fileMetadata ordered map of file path → metadata (insertion order = file sort order)
      * @return reconciliation result with unified schema and per-file mappings
      */
-    public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata) {
-        return reconcileUnionByName(fileMetadata, null);
-    }
-
     /**
-     * @param warningSink where the keyword-widening warning goes. Callers on the resolver's async chain must pass a
-     *                    buffered sink; {@code null} writes straight to {@code HeaderWarning}, which only reaches the
-     *                    client from the request thread.
+     * @param warningSink where the keyword-widening warning goes. Reconciliation runs on the resolver's executor, off the
+     *                    request thread, so the resolver passes its buffered sink.
      */
-    public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata, @Nullable Consumer<String> warningSink) {
+    public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata, Consumer<String> warningSink) {
         LinkedHashMap<String, MergeEntry> unified = new LinkedHashMap<>();
         // Per-column accumulator. We record *every* file's inferred type for every column up
         // front (it's cheap and gives the warning emitter a complete contributor list), then
@@ -587,7 +582,7 @@ public final class SchemaReconciliation {
     private static void emitKeywordFallbackWarnings(
         LinkedHashMap<String, MergeEntry> unified,
         LinkedHashMap<String, KeywordFallback> contributions,
-        @Nullable Consumer<String> warningSink
+        Consumer<String> warningSink
     ) {
         // Decide which columns warrant a warning: column degraded to KEYWORD *and* at least one
         // contributing file inferred a non-string type. A column that was KEYWORD in every file

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -67,7 +66,7 @@ public final class TemplatePartitionDetector implements PartitionDetector {
     }
 
     @Override
-    public PartitionMetadata detect(List<StorageEntry> files, @Nullable Consumer<String> warningSink) {
+    public PartitionMetadata detect(List<StorageEntry> files, Consumer<String> warningSink) {
         if (files == null || files.isEmpty()) {
             return PartitionMetadata.EMPTY;
         }

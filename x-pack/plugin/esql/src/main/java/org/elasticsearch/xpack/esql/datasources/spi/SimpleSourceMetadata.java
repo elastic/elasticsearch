@@ -27,7 +27,10 @@ public final class SimpleSourceMetadata implements SourceMetadata {
     private final List<String> partitionColumns;
     private final Map<String, Object> sourceMetadata;
     private final Map<String, Object> config;
-    /** See {@link SourceMetadata#warnings()}. Deliberately outside equals/hashCode: advisory, not identity. */
+    /**
+     * See {@link SourceMetadata#warnings()}. Not part of equals/hashCode: two metadata that differ only in their
+     * warnings describe the same source; the warnings only say how the description was obtained.
+     */
     private final List<String> warnings;
 
     /**

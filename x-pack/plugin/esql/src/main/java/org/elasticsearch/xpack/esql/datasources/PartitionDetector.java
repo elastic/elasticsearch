@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.core.Nullable;
-
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -19,16 +17,12 @@ import java.util.function.Consumer;
  */
 public interface PartitionDetector {
 
-    default PartitionMetadata detect(List<StorageEntry> files) {
-        return detect(files, null);
-    }
-
     /**
-     * Detects partitions, routing any client-facing notice (e.g. a partition column renamed away from a reserved
-     * name) to {@code warningSink}. Detection runs on the resolver's executor chain, where a direct {@code HeaderWarning}
-     * write never reaches the client, so callers there must pass a buffered sink.
+     * Detects partitions. Any notice the user should see, such as a partition column renamed away from a reserved name,
+     * goes to {@code warningSink}. Detection runs on the resolver's executor, off the request thread, so the resolver
+     * passes its buffered sink.
      */
-    PartitionMetadata detect(List<StorageEntry> files, @Nullable Consumer<String> warningSink);
+    PartitionMetadata detect(List<StorageEntry> files, Consumer<String> warningSink);
 
     String name();
 }

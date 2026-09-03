@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.core.Nullable;
-
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -35,7 +33,7 @@ public final class AutoPartitionDetector implements PartitionDetector {
     }
 
     @Override
-    public PartitionMetadata detect(List<StorageEntry> files, @Nullable Consumer<String> warningSink) {
+    public PartitionMetadata detect(List<StorageEntry> files, Consumer<String> warningSink) {
         // Try Hive first
         PartitionMetadata hiveResult = HivePartitionDetector.INSTANCE.detect(files, warningSink);
         if (hiveResult.isEmpty() == false) {

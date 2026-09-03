@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -63,7 +62,7 @@ public final class HivePartitionDetector implements PartitionDetector {
     }
 
     @Override
-    public PartitionMetadata detect(List<StorageEntry> files, @Nullable Consumer<String> warningSink) {
+    public PartitionMetadata detect(List<StorageEntry> files, Consumer<String> warningSink) {
         if (files == null || files.isEmpty()) {
             return PartitionMetadata.EMPTY;
         }
@@ -135,7 +134,7 @@ public final class HivePartitionDetector implements PartitionDetector {
      * can currently equal a {@code _partition.}-prefixed name; the guard keeps the invariant
      * explicit should the segment grammar ever relax.
      */
-    private static Map<String, String> surfacedNames(Set<String> referenceKeys, @Nullable Consumer<String> warningSink) {
+    private static Map<String, String> surfacedNames(Set<String> referenceKeys, Consumer<String> warningSink) {
         Map<String, String> surfaced = Maps.newLinkedHashMapWithExpectedSize(referenceKeys.size());
         List<String> renamed = new ArrayList<>(0);
         for (String key : referenceKeys) {

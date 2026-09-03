@@ -1958,7 +1958,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(DataType.INTEGER, resolvedSchema.get(1).dataType());
 
         // Shadowing the physical 'year' column emits a one-time client warning (summary + one detail).
-        List<String> warnings = drainWarnings();
+        List<String> warnings = resolution.warnings();
         assertEquals(2, warnings.size());
         assertThat(warnings.get(0), containsString("shadowed by same-named Hive partition keys"));
         assertThat(warnings.get(1), containsString("physical column [year] is shadowed"));
@@ -2033,8 +2033,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 assertNull("[" + strategy + "] " + e.getKey() + ": no cast on the kept column", mapping.cast(0));
             }
 
-            // Every strategy emits the one-time shadow warning; drain so teardown stays clean.
-            List<String> warnings = drainWarnings();
+            // Every strategy emits the one-time shadow warning on the resolution object.
+            List<String> warnings = resolution.warnings();
             assertEquals("[" + strategy + "] summary + one detail", 2, warnings.size());
             assertThat(
                 "[" + strategy + "] detail names the shadowed column",
@@ -4507,19 +4507,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Regression test for elastic/elasticsearch#153780: the Hive-partition shadow-column warning
-     * must reach the client even though the schema reconciliation that detects the collision (and
-     * calls {@code warnOnShadowedColumns}) runs on the resolver's real, forking executor rather than
-     * the calling thread. Every other collision test (e.g. {@link #testPartitionColumnConflictPartitionWins})
-     * uses {@link EsExecutors#DIRECT_EXECUTOR_SERVICE}, which never actually hops threads and so could
-     * not have caught a warning written to the wrong {@link ThreadContext} — exactly the bug this
-     * mirrors {@link #testResolveRestoresCallerThreadContextAcrossAsyncCompletion} by using a dedicated
+     * must be attached to {@link ExternalSourceResolution} even though the schema reconciliation
+     * that detects the collision (and calls {@code warnOnShadowedColumns}) runs on the resolver's
+     * real, forking executor rather than the calling thread. Every other collision test (e.g.
+     * {@link #testPartitionColumnConflictPartitionWins}) uses {@link EsExecutors#DIRECT_EXECUTOR_SERVICE},
+     * which never actually hops threads. This mirrors
+     * {@link #testResolveRestoresCallerThreadContextAcrossAsyncCompletion} by using a dedicated
      * {@link AsyncStubFormatReader} I/O pool distinct from both the resolver executor and this test thread.
      * <p>
-     * Like that test, the warning must be observed <em>inside</em> the {@code resolve()} completion
-     * callback rather than after {@code future.actionGet()} returns on this test thread: response
-     * headers accumulated under {@code ContextPreservingActionListener}'s restored context are merged
-     * back onto whichever physical thread is running that callback, not onto this (unrelated) test
-     * thread's own {@link ThreadContext} slot.
+     * Warnings live on the resolution object, not on {@link ThreadContext}: a resolve-time
+     * {@code HeaderWarning} flush is discarded when {@code ContextPreservingActionListener} closes.
      */
     public void testShadowWarningReachesCallerAcrossAsyncCompletion() throws Exception {
         List<Attribute> schema = List.of(attr("year", DataType.KEYWORD), attr("name", DataType.KEYWORD));
@@ -4550,14 +4547,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 threadContext
             );
 
-            AtomicReference<List<String>> observedWarnings = new AtomicReference<>();
             AtomicReference<Thread> completionThread = new AtomicReference<>();
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            // Drain inside the completion callback itself, for the same reason
-            // testResolveRestoresCallerThreadContextAcrossAsyncCompletion asserts there: the restored
-            // context (and the warnings merged into it) is only visible for the duration of this callback.
             ActionListener<ExternalSourceResolution> capturingListener = ActionListener.wrap(resolution -> {
-                observedWarnings.set(drainWarnings());
                 completionThread.set(Thread.currentThread());
                 future.onResponse(resolution);
             }, future::onFailure);
@@ -4571,11 +4563,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 Thread.currentThread(),
                 completionThread.get()
             );
-            List<String> warnings = observedWarnings.get();
+            List<String> warnings = resolution.warnings();
             assertEquals("summary + one detail", 2, warnings.size());
             assertThat(warnings.get(0), containsString("shadowed by same-named Hive partition keys"));
             assertThat(
-                "the shadow warning must reach the client even though reconciliation ran off the calling thread",
+                "the shadow warning must ride the resolution object even though reconciliation ran off the calling thread",
                 warnings.get(1),
                 containsString("physical column [year] is shadowed")
             );

@@ -135,21 +135,14 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
      */
     public LuceneLongColumn withFilter(FixedBitSet filter) {
         assert filter == null || filter.length() == data.docCount;
-        Density dataBasedDensity = (data instanceof EscfLongColumn l && l.validity == null) ? Density.DENSE : Density.SPARSE;
-        return new LuceneLongColumn(
-            data,
-            name(),
-            fieldType(),
-            dataBasedDensity,
-            numericKind(),
-            LuceneColumn.singleFilter(this.filter, filter)
-        );
+        Density density = (data instanceof EscfArrayColumn || data.validity != null) ? Density.SPARSE : Density.DENSE;
+        return new LuceneLongColumn(data, name(), fieldType(), density, numericKind(), LuceneColumn.singleFilter(this.filter, filter));
     }
 
     @Override
     public LuceneLongColumn slice(int from, int count) {
         EscfColumn sliced = data.sliceInternal(from, count);
-        Density density = (sliced instanceof EscfLongColumn l && l.validity == null) ? Density.DENSE : Density.SPARSE;
+        Density density = (sliced instanceof EscfArrayColumn || sliced.validity != null) ? Density.SPARSE : Density.DENSE;
         return new LuceneLongColumn(sliced, name(), fieldType(), density, numericKind(), windowValidity(filter, from, count));
     }
 

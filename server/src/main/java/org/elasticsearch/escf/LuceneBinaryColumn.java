@@ -83,15 +83,15 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
      */
     public LuceneBinaryColumn withFilter(FixedBitSet filter) {
         assert filter == null || filter.length() == data.docCount;
-        Density dataBasedDensity = (data instanceof EscfArrayColumn || data.validity != null) ? Density.SPARSE : Density.DENSE;
-        return new LuceneBinaryColumn(data, name(), fieldType(), dataBasedDensity, LuceneColumn.singleFilter(this.filter, filter));
+        Density density = (data instanceof EscfArrayColumn || data.validity != null) ? Density.SPARSE : Density.DENSE;
+        return new LuceneBinaryColumn(data, name(), fieldType(), density, LuceneColumn.singleFilter(this.filter, filter));
     }
 
     @Override
     public LuceneBinaryColumn slice(int from, int count) {
         EscfColumn sliced = data.sliceInternal(from, count);
-        Density dataBasedDensity = (sliced instanceof EscfArrayColumn || sliced.validity != null) ? Density.SPARSE : Density.DENSE;
-        return new LuceneBinaryColumn(sliced, name(), fieldType(), dataBasedDensity, windowValidity(filter, from, count));
+        Density density = (sliced instanceof EscfArrayColumn || sliced.validity != null) ? Density.SPARSE : Density.DENSE;
+        return new LuceneBinaryColumn(sliced, name(), fieldType(), density, windowValidity(filter, from, count));
     }
 
     @Override

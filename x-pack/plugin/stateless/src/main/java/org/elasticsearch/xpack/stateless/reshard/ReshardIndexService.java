@@ -142,7 +142,7 @@ public class ReshardIndexService {
             return ValidationError.INVALID_INDEX_VERSION;
         }
         IndexMode indexMode = indexMetadata.getIndexMode();
-        if (indexMode != null && indexMode != IndexMode.STANDARD && indexMode != IndexMode.VECTORDB_DOCUMENT) {
+        if (indexMode != null && indexMode != IndexMode.STANDARD && indexMode.isVectorDb() == false) {
             return ValidationError.INVALID_INDEX_MODE;
         }
 
@@ -365,7 +365,7 @@ public class ReshardIndexService {
                             shardId.getId()
                         );
                         final var refreshRequest = new BasicReplicationRequest(shardId, splitShardCountSummary);
-                        client.executeLocally(
+                        client.execute(
                             TransportShardRefreshAction.TYPE,
                             refreshRequest,
                             refreshListener.delegateFailure((inner, response) -> {

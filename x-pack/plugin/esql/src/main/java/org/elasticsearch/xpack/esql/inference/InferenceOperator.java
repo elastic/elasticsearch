@@ -257,15 +257,13 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     /**
      * Handles a failed inference request.
      * <p>
-     * When {@link #tolerateFailures} is {@code true}, the failure is turned into a warning and the request is completed with a null
-     * response, so its output row(s) become null and processing continues. Routing the failure as a null response (rather than through
-     * {@link BulkInferenceOperation#onException}) preserves the bulk operation's sequencing and lets the remaining requests complete.
-     * When {@code false}, the failure fails the whole bulk operation, preserving the historical fail-fast behavior.
+     * When {@link #tolerateFailures} is {@code true}, the failure becomes a warning and the request completes with a null response, so
+     * its output row(s) become null and the bulk operation's remaining requests still complete in sequence. When {@code false}, the
+     * failure fails the whole bulk operation.
      */
     private void onInferenceRequestFailure(BulkInferenceOperation bulkOperation, BulkInferenceRequestItem request, Exception e) {
         if (tolerateFailures && isFatal(e) == false) {
-            warnings.registerException(e);
-            bulkOperation.onInferenceResponse(request.createResponse(null));
+            bulkOperation.onToleratedInferenceFailure(request.createResponse(null), () -> warnings.registerException(e));
         } else {
             bulkOperation.onException(e);
         }
@@ -276,10 +274,15 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      * is never swallowed, even when failures are tolerated: continuing would hide a cancellation or memory pressure behind a
      * column of nulls, and would keep issuing inference requests for a query that should stop. The two types listed here are
      * the ones ES|QL already treats as fatal elsewhere, see {@code DataNodeRequestSender#trackShardLevelFailure}.
+     * <p>
+     * A callback rejected by its executor reports the rejection and carries the failure it was delivering as a suppressed
+     * exception rather than as a cause, so both are inspected.
      */
     private static boolean isFatal(Exception e) {
-        return ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null
-            || ExceptionsHelper.unwrap(e, CircuitBreakingException.class) != null;
+        return ExceptionsHelper.unwrapCausesAndSuppressed(
+            e,
+            t -> t instanceof TaskCancelledException || t instanceof CircuitBreakingException
+        ).isPresent();
     }
 
     public interface OutputBuilder {
@@ -463,6 +466,22 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
             }
 
             persistPendingResponses();
+        }
+
+        /**
+         * Records a tolerated failure: {@code registerWarning} runs and the request completes with the given null response, so its
+         * rows become null and the remaining requests carry on. Both happen under the lock so that the warning is registered before
+         * the operation completes, since completion releases the driver and a finished {@link DriverContext} takes no more warnings.
+         * A failure arriving once the operation has failed or completed has no row left to null out and is dropped.
+         */
+        public void onToleratedInferenceFailure(BulkInferenceResponseItem nullResponse, Runnable registerWarning) {
+            synchronized (checkpoint) {
+                if (hasFailure() || isCompleted()) {
+                    return;
+                }
+                registerWarning.run();
+                onInferenceResponse(nullResponse);
+            }
         }
 
         /**

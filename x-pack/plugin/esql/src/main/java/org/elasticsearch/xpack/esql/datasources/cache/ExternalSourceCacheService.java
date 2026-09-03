@@ -786,9 +786,11 @@ public class ExternalSourceCacheService implements Closeable {
      * differently-declared datasets, and for a file every declaration can read to completion it is exactly right.
      * <p>
      * It carries one known exception, pre-existing and deliberately preserved: "the same number for every way of
-     * reading the file" assumes every way of reading it SUCCEEDS. A positionally bound read carries a row-width
-     * tripwire that a by-name declared read does not, so on a file whose later rows are wider than its inference
-     * sample the positional read aborts while the declared one completes and licenses its count. The licence then
+     * reading the file" assumes every way of reading it SUCCEEDS. Both bindings carry a row-width tripwire, but they
+     * bound it differently — a positional read against the PINNED schema's width, a by-name declared read against the
+     * bound file's own header (and a HEADERLESS declared read not at all, since such a file defines no width) — so on
+     * a file whose later rows are wider than the pinned width but not wider than that file's header, the positional
+     * read aborts while the declared one completes and licenses its count. The licence then
      * carries that count to the reader that cannot produce it, which answers where its own scan errors — a masked
      * abort rather than a wrong number, flapping with cache state. Scoping the licence to the binding mode that
      * produced the count would close it; withdrawing it entirely would stop every strict dataset warming. Disclosed

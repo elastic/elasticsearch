@@ -38,7 +38,12 @@ public final class PerFieldMapperCodec extends Elasticsearch96Codec {
         BigArrays bigArrays,
         ThreadPool threadPool
     ) {
-        super(compressionMode, storedFieldsMode, modeBeforeTheAttribute);
+        super(
+            compressionMode,
+            storedFieldsMode,
+            modeBeforeTheAttribute,
+            mapperService != null && mapperService.getIndexSettings().useTimeSeriesSyntheticId()
+        );
         this.formatSupplier = new PerFieldFormatSupplier(mapperService, bigArrays, threadPool);
         // If the below assertion fails, it is a sign that Lucene released a new codec. You must create a copy of the current Elasticsearch
         // codec that delegates to this new Lucene codec, and make PerFieldMapperCodec extend this new Elasticsearch codec.

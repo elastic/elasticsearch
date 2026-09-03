@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec;
 
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
+import org.elasticsearch.index.codec.tsdb.ValidatingFieldInfosFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.Codec;
@@ -103,8 +104,22 @@ public class Elasticsearch96Codec extends FilterCodec {
         ElasticsearchStoredFieldsFormat.Mode storedFieldsMode,
         ElasticsearchStoredFieldsFormat.Mode modeBeforeTheAttribute
     ) {
+        this(luceneMode, storedFieldsMode, modeBeforeTheAttribute, false);
+    }
+
+    /**
+     * @param syntheticId whether segments written through this codec must carry a synthetic id
+     */
+    public Elasticsearch96Codec(
+        Lucene104Codec.Mode luceneMode,
+        ElasticsearchStoredFieldsFormat.Mode storedFieldsMode,
+        ElasticsearchStoredFieldsFormat.Mode modeBeforeTheAttribute,
+        boolean syntheticId
+    ) {
         super("Elasticsearch96", new Lucene104Codec(luceneMode));
-        this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(delegate.fieldInfosFormat());
+        this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(
+            new ValidatingFieldInfosFormat(delegate.fieldInfosFormat(), syntheticId)
+        );
         // TSDBStoredFieldsFormat adds a reader for synthetic ids, and only for segments whose _id says it has one; writes go
         // straight to the format underneath. Segments without a synthetic id are unaffected either way.
         this.storedFieldsFormat = new TSDBStoredFieldsFormat(

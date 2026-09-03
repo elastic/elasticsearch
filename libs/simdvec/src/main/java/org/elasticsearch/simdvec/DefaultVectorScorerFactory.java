@@ -19,7 +19,9 @@ import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.simdvec.internal.ESDefaultFlatVectorScorer;
+import org.elasticsearch.simdvec.internal.vectorization.BBQDotProduct;
 import org.elasticsearch.simdvec.internal.vectorization.DefaultES93BinaryQuantizedVectorScorer;
+import org.elasticsearch.simdvec.internal.vectorization.ESNextAshBBQVectorsScorer;
 
 import java.util.Optional;
 
@@ -51,6 +53,16 @@ final class DefaultVectorScorerFactory implements VectorScorerFactory {
     @Override
     public ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) {
         return new ES92Int7VectorsScorer(input, dimension, bulkSize);
+    }
+
+    @Override
+    public AshScorer<float[]> newESNextAshFloatVectorsScorer(IndexInput input, int nDims, int bitsPerDim) {
+        return ESNextAshVectorsScorer.createFloat(input, nDims, bitsPerDim);
+    }
+
+    @Override
+    public AshScorer<byte[]> newESNextAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim) {
+        return new ESNextAshBBQVectorsScorer(BBQDotProduct.create(input, nDims, bitsPerDim, queryBitsPerDim));
     }
 
     @Override

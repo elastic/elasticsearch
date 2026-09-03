@@ -1,0 +1,6 @@
+pr: 77701
+summary: Fix NumberSortScript precision for long data
+area: Search
+type: bug
+issues:
+ - 77301

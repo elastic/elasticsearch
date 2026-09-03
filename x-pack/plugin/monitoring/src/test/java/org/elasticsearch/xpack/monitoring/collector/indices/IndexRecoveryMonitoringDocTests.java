@@ -161,6 +161,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
                     "id": 0,
                     "type": "PEER",
                     "stage": "INIT",
+                    "local_retries": 0,
                     "primary": false,
                     "priority": "UNASSIGNED_EXPECTED",
                     "start_time_in_millis": %s,

@@ -696,7 +696,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return mapper;
     }
 
-    /** The options a config resolves to ({@code null} when unchanged from the baseline) plus any notices about that config. */
+    /**
+     * What a dataset's {@code WITH} options resolve to: the parsed {@link CsvFormatOptions} ({@code null} when nothing
+     * differs from the baseline) and any notices about those options worth telling the user.
+     */
     private record ParsedOptions(@Nullable CsvFormatOptions options, List<String> configWarnings) {}
 
     /**
@@ -766,11 +769,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             );
         }
         if (parsedMode == CsvFormatOptions.Mode.ESCAPED && quoting) {
-            // The user named the C-style decode (mode: escaped) but a quote override turned quoting on,
-            // which resolves to (true, true) and hands the escape char to Jackson — so \N/\t are no
-            // longer C-style-decoded. The data-driven null-marker warning can't catch this (Jackson
-            // rewrites \N to N before the sample is built), so it is decided deterministically here and
-            // surfaced with the metadata (see configWarnings).
+            // mode=escaped asks for the C-style decode (\N to null, \t to tab), but setting a quote turns quoting
+            // on, and the quoting parser does not decode escapes. So the user gets neither what they asked for nor a
+            // hint from the data: the sample-based \N notice cannot fire because that parser has already rewritten
+            // \N to N by the time the sample exists. This is the one place the conflict is visible. Recorded, not
+            // emitted; see configWarnings.
             configWarnings.add(
                 "Mode [escaped] with a quote override turns quoting on, which disables the escaped-mode decode "
                     + "(\\N to null, \\t to tab). To keep decoding, do not set quote; "

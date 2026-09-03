@@ -9,6 +9,9 @@
 
 package org.elasticsearch.index.codec;
 
+import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.FieldInfosFormat;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PointsFormat;
@@ -27,7 +30,7 @@ import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
  * Elasticsearch codec as of 9.3 relying on Lucene 10.4. This extends the Lucene 10.4 codec to compressed
  * stored fields with ZSTD instead of LZ4/DEFLATE. See {@link Zstd814StoredFieldsFormat}.
  */
-public class Elasticsearch93Lucene104Codec extends CodecService.DeduplicateFieldInfosCodec {
+public class Elasticsearch93Lucene104Codec extends FilterCodec {
 
     static final PostingsFormat DEFAULT_POSTINGS_FORMAT = new Lucene104PostingsFormat();
 
@@ -57,6 +60,19 @@ public class Elasticsearch93Lucene104Codec extends CodecService.DeduplicateField
         }
     };
 
+    private final FieldInfosFormat fieldInfosFormat;
+
+    /** Shares field infos across the segments of a shard. */
+    @Override
+    public final FieldInfosFormat fieldInfosFormat() {
+        return fieldInfosFormat;
+    }
+
+    /** The Lucene codec this one delegates to. */
+    public final Codec delegate() {
+        return delegate;
+    }
+
     /** Public no-arg constructor, needed for SPI loading at read-time. */
     public Elasticsearch93Lucene104Codec() {
         this(Zstd814StoredFieldsFormat.Mode.BEST_SPEED);
@@ -68,6 +84,7 @@ public class Elasticsearch93Lucene104Codec extends CodecService.DeduplicateField
      */
     public Elasticsearch93Lucene104Codec(Zstd814StoredFieldsFormat.Mode mode) {
         super("Elasticsearch92Lucene103", new Lucene104Codec());
+        this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(delegate.fieldInfosFormat());
         this.storedFieldsFormat = mode.getFormat();
         this.defaultPostingsFormat = DEFAULT_POSTINGS_FORMAT;
         this.defaultDVFormat = new Lucene90DocValuesFormat();

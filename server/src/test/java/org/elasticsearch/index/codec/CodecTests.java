@@ -69,9 +69,9 @@ public class CodecTests extends ESTestCase {
         var codec = codecService.codec("default");
         // DefaultCompressionPerFieldMapperCodec is itself a DeduplicateFieldInfosCodec, so CodecService uses it as-is rather than wrapping
         // it.
-        assertThat(codec, instanceOf(CodecService.DeduplicateFieldInfosCodec.class));
         assertThat(codec, instanceOf(DefaultCompressionPerFieldMapperCodec.class));
-        assertThat(((CodecService.DeduplicateFieldInfosCodec) codec).delegate(), instanceOf(Lucene104Codec.class));
+        assertThat(codec.fieldInfosFormat(), instanceOf(ElasticsearchFieldInfosFormat.class));
+        assertThat(((Elasticsearch96Codec) codec).delegate(), instanceOf(Lucene104Codec.class));
     }
 
     /**
@@ -101,7 +101,7 @@ public class CodecTests extends ESTestCase {
             // adaptive points writes Lucene90 point files with data-driven leaf sizes and reads with Lucene's own reader.
             assertThat(
                 es.fieldInfosFormat(),
-                either(instanceOf(CachingFieldInfosFormat.class)).or(instanceOf(DeduplicatingFieldInfosFormat.class))
+                instanceOf(ElasticsearchFieldInfosFormat.class)
             );
             assertSame(mode.toString(), Elasticsearch900AdaptivePointsFormat.INSTANCE, es.pointsFormat());
         }
@@ -244,22 +244,16 @@ public class CodecTests extends ESTestCase {
                         + readCodec.getClass().getName()
                         + "] on read",
                     readCodec.fieldInfosFormat(),
-                    either(instanceOf(CachingFieldInfosFormat.class)).or(instanceOf(DeduplicatingFieldInfosFormat.class))
+                    instanceOf(ElasticsearchFieldInfosFormat.class)
                 );
             }
         }
     }
 
     /**
-     * Each layer of deduplication re-interns instances the layer beneath it already made canonical, once per segment open. The
-     * codecs compose — a TSDB synthetic-id codec wraps a per-field codec that deduplicates in its own right — so the wrapping has
-     * to be idempotent, and {@link CodecService} must not add a layer to a codec that carries one already.
+     * Every codec Elasticsearch writes with shares field infos across a shard's segments.
      */
-    public void testFieldInfosAreDeduplicatedExactlyOnce() throws Exception {
-        FieldInfosFormat once = CodecService.deduplicating(new Lucene104Codec().fieldInfosFormat());
-        assertTrue(CodecService.isDeduplicating(once));
-        assertSame("wrapping an already-deduplicating format must be a no-op", once, CodecService.deduplicating(once));
-
+    public void testEveryWritableCodecSharesFieldInfos() throws Exception {
         for (boolean syntheticId : new boolean[] { false, true }) {
             CodecService codecService = createCodecService(syntheticId);
             for (String name : new String[] {
@@ -268,16 +262,10 @@ public class CodecTests extends ESTestCase {
                 CodecService.LEGACY_DEFAULT_CODEC,
                 CodecService.LEGACY_BEST_COMPRESSION_CODEC }) {
                 Codec codec = codecService.codec(name);
-                assertTrue(
-                    "codec [" + name + "] (syntheticId=" + syntheticId + ") does not deduplicate field infos",
-                    CodecService.isDeduplicating(codec.fieldInfosFormat())
-                );
-                // A codec that deduplicates in its own right is a *subclass*; an extra layer added by CodecService is the
-                // class itself. Comparing the exact class is what tells the two apart.
-                assertNotEquals(
-                    "codec [" + name + "] (syntheticId=" + syntheticId + ") was wrapped although it deduplicates already",
-                    CodecService.DeduplicateFieldInfosCodec.class,
-                    codec.getClass()
+                assertThat(
+                    "codec [" + name + "] (syntheticId=" + syntheticId + ")",
+                    codec.fieldInfosFormat(),
+                    instanceOf(ElasticsearchFieldInfosFormat.class)
                 );
             }
         }
@@ -296,16 +284,12 @@ public class CodecTests extends ESTestCase {
         for (boolean syntheticIdEnabled : new boolean[] { false, true }) {
             CodecService codecService = createCodecService(syntheticIdEnabled);
             Codec codec = codecService.codec("default");
-            assertTrue("syntheticId=" + syntheticIdEnabled, CodecService.isDeduplicating(codec.fieldInfosFormat()));
+            assertTrue("syntheticId=" + syntheticIdEnabled, codec.fieldInfosFormat() instanceof ElasticsearchFieldInfosFormat);
             if (syntheticIdEnabled) {
                 // The TSDB codec deduplicates in its own right, so CodecService hands it back unwrapped.
                 assertThat(codec, instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class));
             } else {
-                assertThat(codec, instanceOf(CodecService.DeduplicateFieldInfosCodec.class));
-                assertThat(
-                    ((CodecService.DeduplicateFieldInfosCodec) codec).delegate(),
-                    not(instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class))
-                );
+                assertThat(codec, not(instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class)));
             }
         }
     }

@@ -11,6 +11,9 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.backward_codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.backward_codecs.lucene99.Lucene99PostingsFormat;
+import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.FieldInfosFormat;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -26,7 +29,7 @@ import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
  * Elasticsearch codec as of 8.14. This extends the Lucene 9.9 codec to compressed stored fields with ZSTD instead of LZ4/DEFLATE. See
  * {@link Zstd814StoredFieldsFormat}.
  */
-public class Elasticsearch814Codec extends CodecService.DeduplicateFieldInfosCodec {
+public class Elasticsearch814Codec extends FilterCodec {
 
     private final StoredFieldsFormat storedFieldsFormat;
 
@@ -56,6 +59,19 @@ public class Elasticsearch814Codec extends CodecService.DeduplicateFieldInfosCod
 
     private static final Lucene99Codec lucene99Codec = new Lucene99Codec();
 
+    private final FieldInfosFormat fieldInfosFormat;
+
+    /** Shares field infos across the segments of a shard. */
+    @Override
+    public final FieldInfosFormat fieldInfosFormat() {
+        return fieldInfosFormat;
+    }
+
+    /** The Lucene codec this one delegates to. */
+    public final Codec delegate() {
+        return delegate;
+    }
+
     /** Public no-arg constructor, needed for SPI loading at read-time. */
     public Elasticsearch814Codec() {
         this(Zstd814StoredFieldsFormat.Mode.BEST_SPEED);
@@ -67,6 +83,7 @@ public class Elasticsearch814Codec extends CodecService.DeduplicateFieldInfosCod
      */
     public Elasticsearch814Codec(Zstd814StoredFieldsFormat.Mode mode) {
         super("Elasticsearch814", lucene99Codec);
+        this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(delegate.fieldInfosFormat());
         this.storedFieldsFormat = mode.getFormat();
     }
 

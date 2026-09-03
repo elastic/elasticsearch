@@ -88,6 +88,21 @@ public class RecoveryStateTests extends ESTestCase {
         );
     }
 
+    public void testLocalRetryCountOmittedForOldNodes() throws IOException {
+        final var localRetryCountVersion = TransportVersion.fromName("recovery_local_retry_count_in_recovery_state");
+        int localRetries = randomIntBetween(1, 10);
+        final var state = createRecoveryState().setLocalRetries(localRetries);
+
+        assertThat(
+            serializeDeserialize(state, TransportVersionUtils.getPreviousVersion(localRetryCountVersion)).getLocalRetries(),
+            equalTo(0) // should be omitted when sent to old node, and defaulted to 0 when received from old node
+        );
+        assertThat(
+            serializeDeserialize(state, TransportVersionUtils.randomVersionSupporting(localRetryCountVersion)).getLocalRetries(),
+            equalTo(localRetries)
+        );
+    }
+
     private static RecoveryState createRecoveryState() {
         final var discoveryNode = DiscoveryNodeUtils.builder(randomUUID()).roles(emptySet()).build();
         final var shardRouting = TestShardRouting.newShardRouting(

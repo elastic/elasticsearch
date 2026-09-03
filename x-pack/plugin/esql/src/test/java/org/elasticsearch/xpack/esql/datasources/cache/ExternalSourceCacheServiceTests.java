@@ -2773,19 +2773,4 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
         return GlobExpander.fileListOf(entries, "s3://bucket/data/*" + "*/*.parquet", pm);
     }
-
-    /** A cached listing carries the notices its expansion raised, so a hit returns them and the loader is not re-run. */
-    public void testCachedListingReplaysNotices() throws Exception {
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*", Map.of(), "");
-            CachedListing first = service.getOrComputeCachedListing(
-                key,
-                k -> new CachedListing(testCompactFileList(), List.of("dropped one"))
-            );
-            CachedListing second = service.getOrComputeCachedListing(key, k -> { throw new AssertionError("must be served from cache"); });
-            assertEquals(List.of("dropped one"), first.warnings());
-            assertSame(first, second);
-        }
-    }
-
 }

@@ -205,7 +205,7 @@ public final class SchemaReconciliation {
             StoragePath filePath = entry.getKey();
             SourceMetadata meta = entry.getValue();
             List<Attribute> fileSchema = meta.schema();
-            SourceStatistics stats = meta.statistics().orElse(null);
+            SourceStatistics stats = SourceStatisticsSerializer.fromSource(meta);
 
             validateNoDuplicateColumns(filePath, fileSchema);
 
@@ -422,7 +422,7 @@ public final class SchemaReconciliation {
                     inferredTypes = typeMap(prePin);
                 }
             }
-            SourceStatistics stats = meta.statistics().orElse(null);
+            SourceStatistics stats = SourceStatisticsSerializer.fromSource(meta);
 
             ColumnMapping mapping = computeMapping(unifiedSchema, fileSchema);
             perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), mapping, stats, inferredTypes));

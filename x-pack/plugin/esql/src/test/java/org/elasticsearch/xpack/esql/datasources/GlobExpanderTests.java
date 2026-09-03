@@ -98,7 +98,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     public void testExpandGlobLiteralReturnsUnresolved() throws IOException {
         StubProvider provider = new StubProvider(List.of());
-        FileList result = GlobExpander.expandGlob("s3://bucket/data.parquet", provider, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data.parquet", provider);
         assertFalse(result.isResolved());
     }
 
@@ -110,7 +110,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
@@ -121,7 +121,7 @@ public class GlobExpanderTests extends ESTestCase {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/file.csv", 50));
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider);
         assertTrue(result.isEmpty());
     }
 
@@ -129,7 +129,7 @@ public class GlobExpanderTests extends ESTestCase {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/f.parquet", 10));
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider);
         assertEquals("s3://bucket/data/*.parquet", result.originalPattern());
     }
 
@@ -145,7 +145,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("http://[::1]/logs/2026-*/data.parquet", provider, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("http://[::1]/logs/2026-*/data.parquet", provider);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
         assertEquals("http://[::1]/logs/2026-05/data.parquet", result.path(0).toString());
@@ -159,7 +159,6 @@ public class GlobExpanderTests extends ESTestCase {
      * Hidden-file convention: objects whose name begins with '_' are excluded (esql-planning#1544).
      */
     public void testExpandGlobExcludesUnderscorePrefixedMarker() throws IOException {
-        List<String> warnings = new ArrayList<>();
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/_SUCCESS", 0),
             entry("s3://bucket/data/file1.parquet", 100),
@@ -167,7 +166,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider, warnings::add);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
@@ -178,7 +177,7 @@ public class GlobExpanderTests extends ESTestCase {
                 "1 of 3 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
             ),
-            warnings
+            result.listingWarnings()
         );
     }
 
@@ -187,14 +186,13 @@ public class GlobExpanderTests extends ESTestCase {
      * Hidden-file convention: objects whose name begins with '.' are excluded (esql-planning#1544).
      */
     public void testExpandGlobExcludesDotPrefixedSidecar() throws IOException {
-        List<String> warnings = new ArrayList<>();
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/.part-r-00001.parquet.crc", 10),
             entry("s3://bucket/data/file1.parquet", 100)
         );
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider, warnings::add);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider);
         assertTrue(result.isResolved());
         assertEquals(1, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
@@ -204,7 +202,7 @@ public class GlobExpanderTests extends ESTestCase {
                 "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [.part-r-00001.parquet.crc] which matched entry [**/.*]"
             ),
-            warnings
+            result.listingWarnings()
         );
     }
 
@@ -213,11 +211,10 @@ public class GlobExpanderTests extends ESTestCase {
      * Hidden-file convention: objects whose name begins with '_' are excluded (esql-planning#1544).
      */
     public void testExpandGlobExcludesMetadataFile() throws IOException {
-        List<String> warnings = new ArrayList<>();
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/_metadata", 512), entry("s3://bucket/data/file1.parquet", 100));
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider, warnings::add);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider);
         assertTrue(result.isResolved());
         assertEquals(1, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
@@ -227,7 +224,7 @@ public class GlobExpanderTests extends ESTestCase {
                 "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_metadata] which matched entry [**/_*]"
             ),
-            warnings
+            result.listingWarnings()
         );
     }
 
@@ -240,7 +237,7 @@ public class GlobExpanderTests extends ESTestCase {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/subdir/", 0), entry("s3://bucket/data/subdir/file.parquet", 100));
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", provider, null, HIVE_OFF, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", provider, null, HIVE_OFF);
         assertTrue(result.isResolved());
         assertEquals(1, result.fileCount());
         assertEquals("s3://bucket/data/subdir/file.parquet", result.path(0).toString());
@@ -258,7 +255,7 @@ public class GlobExpanderTests extends ESTestCase {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/", 0), entry("s3://bucket/data/part1.csv", 42));
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider, null, HIVE_OFF, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider, null, HIVE_OFF);
         assertTrue(result.isResolved());
         assertEquals("the prefix's own folder marker must not reach the reader", 1, result.fileCount());
         assertEquals("s3://bucket/data/part1.csv", result.path(0).toString());
@@ -270,13 +267,12 @@ public class GlobExpanderTests extends ESTestCase {
      * swallow partition directories.
      */
     public void testDeltaLogContentIsExcludedByDefault() throws IOException {
-        List<String> warnings = new ArrayList<>();
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/_delta_log/00000000000000000001.json", 100),
             entry("s3://bucket/data/file1.parquet", 200)
         );
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF, warnings::add);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
         assertEquals("only the data file survives", 1, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
 
@@ -285,7 +281,7 @@ public class GlobExpanderTests extends ESTestCase {
                 "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_delta_log/00000000000000000001.json] which matched entry [**/_delta_log/**]"
             ),
-            warnings
+            result.listingWarnings()
         );
     }
 
@@ -295,13 +291,12 @@ public class GlobExpanderTests extends ESTestCase {
      * swallow partition directories.
      */
     public void testTemporaryDirContentIsExcludedByDefault() throws IOException {
-        List<String> warnings = new ArrayList<>();
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/_temporary/task_0/part.parquet", 100),
             entry("s3://bucket/data/file1.parquet", 200)
         );
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF, warnings::add);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
         assertEquals("only the data file survives", 1, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
 
@@ -310,7 +305,7 @@ public class GlobExpanderTests extends ESTestCase {
                 "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_temporary/task_0/part.parquet] which matched entry [**/_temporary/**]"
             ),
-            warnings
+            result.listingWarnings()
         );
     }
 
@@ -320,7 +315,6 @@ public class GlobExpanderTests extends ESTestCase {
      * on the same prefix (esql-planning#1544).
      */
     public void testExpandGlobExcludesAllNonDataObjectsFromCleanPrefix() throws IOException {
-        List<String> warnings = new ArrayList<>();
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/_SUCCESS", 0),
             entry("s3://bucket/data/.part-r-00001.parquet.crc", 4),
@@ -329,7 +323,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider, warnings::add);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
@@ -340,7 +334,7 @@ public class GlobExpanderTests extends ESTestCase {
                 "2 of 4 objects matching the resource under [s3://bucket/data/] were excluded by the [file_exclusions] "
                     + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
             ),
-            warnings
+            result.listingWarnings()
         );
     }
 
@@ -355,7 +349,7 @@ public class GlobExpanderTests extends ESTestCase {
         provider.existingPaths.add("s3://bucket/data/_SUCCESS");
         provider.existingPaths.add("s3://bucket/data/file.parquet");
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/{_SUCCESS,file.parquet}", provider, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/{_SUCCESS,file.parquet}", provider);
         assertTrue(result.isResolved());
         assertEquals("brace-enumerated _SUCCESS must be returned: explicit opt-in, not wildcard discovery", 2, result.fileCount());
     }
@@ -367,14 +361,13 @@ public class GlobExpanderTests extends ESTestCase {
      * but only this test proves the exemption reaches a real listing, which is what a partitioned dataset depends on.
      */
     public void testExpandGlobKeepsUnderscorePrefixedPartitionDirectory() throws IOException {
-        List<String> warnings = new ArrayList<>();
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/_dept=alpha/part1.csv", 100),
             entry("s3://bucket/data/_dept=alpha/_SUCCESS", 0)
         );
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", provider, warnings::add);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", provider);
         assertTrue(result.isResolved());
         assertEquals("the partition directory survives; only the marker inside it is dropped", 1, result.fileCount());
         assertEquals("s3://bucket/data/_dept=alpha/part1.csv", result.path(0).toString());
@@ -384,7 +377,7 @@ public class GlobExpanderTests extends ESTestCase {
                 "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_dept=alpha/_SUCCESS] which matched entry [**/_*]"
             ),
-            warnings
+            result.listingWarnings()
         );
     }
 
@@ -395,7 +388,6 @@ public class GlobExpanderTests extends ESTestCase {
      * fire a second, full listing.
      */
     public void testNonDataExclusionAppliesToTheRewrittenListing() throws IOException {
-        List<String> warnings = new ArrayList<>();
         Map<String, List<StorageEntry>> tree = Map.of(
             "s3://bucket/logs/year=2024/",
             List.of(entry("s3://bucket/logs/year=2024/_SUCCESS", 0), entry("s3://bucket/logs/year=2024/part-0.parquet", 100))
@@ -403,7 +395,7 @@ public class GlobExpanderTests extends ESTestCase {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(tree);
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, "2024"));
 
-        FileList result = GlobExpander.expand("s3://bucket/logs/year=*/*", provider, hints, HIVE_ON, MAX, MAX, warnings::add);
+        FileList result = GlobExpander.expand("s3://bucket/logs/year=*/*", provider, hints, HIVE_ON, MAX, MAX);
         assertTrue(result.isResolved());
         assertEquals("the marker is excluded from the rewritten listing", 1, result.fileCount());
         assertEquals("s3://bucket/logs/year=2024/part-0.parquet", result.path(0).toString());
@@ -414,7 +406,7 @@ public class GlobExpanderTests extends ESTestCase {
                 "1 of 2 objects matching the resource under [s3://bucket/logs/year=2024/] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
             ),
-            warnings
+            result.listingWarnings()
         );
     }
 
@@ -428,7 +420,7 @@ public class GlobExpanderTests extends ESTestCase {
         List<StorageEntry> listing = List.of(entry("s3://bucket/elsewhere/_hidden/x.parquet", 100));
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider);
         assertTrue(result.isResolved());
         assertEquals("leaf-only relative path hides the _hidden segment from the predicate", 1, result.fileCount());
         assertEquals("s3://bucket/elsewhere/_hidden/x.parquet", result.path(0).toString());
@@ -441,18 +433,14 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(listing);
         provider.existingPaths.add("s3://bucket/extra.parquet");
 
-        FileList result = GlobExpander.expandCommaSeparated(
-            "s3://bucket/data/*.parquet, s3://bucket/extra.parquet",
-            provider,
-            WarningSinks.FAILING
-        );
+        FileList result = GlobExpander.expandCommaSeparated("s3://bucket/data/*.parquet, s3://bucket/extra.parquet", provider);
         assertTrue(result.isResolved());
         assertEquals(3, result.fileCount());
     }
 
     public void testExpandCommaSeparatedAllMissing() throws IOException {
         StubProvider provider = new StubProvider(List.of());
-        FileList result = GlobExpander.expandCommaSeparated("s3://bucket/missing.parquet", provider, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandCommaSeparated("s3://bucket/missing.parquet", provider);
         assertTrue(result.isEmpty());
     }
 
@@ -521,15 +509,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
 
         var hints = List.of(hint("category", PartitionFilterHintExtractor.Operator.IN, "login", "ns:click"));
-        FileList result = GlobExpander.expand(
-            "s3://bucket/data/category=*/*.parquet",
-            provider,
-            hints,
-            HIVE_ON,
-            MAX,
-            MAX,
-            WarningSinks.FAILING
-        );
+        FileList result = GlobExpander.expand("s3://bucket/data/category=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         List<String> paths = new ArrayList<>();
         for (int i = 0; i < result.fileCount(); i++) {
@@ -573,7 +553,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, HIVE_ON, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, HIVE_ON);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
         assertNotNull(result.partitionMetadata());
@@ -588,7 +568,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, HIVE_OFF, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, HIVE_OFF);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
         assertNull(result.partitionMetadata());
@@ -602,7 +582,7 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(listing);
 
         @SuppressWarnings("RegexpMultiline")
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, HIVE_ON, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, HIVE_ON);
         assertTrue(result.isResolved());
         assertNull(result.partitionMetadata());
     }
@@ -660,13 +640,7 @@ public class GlobExpanderTests extends ESTestCase {
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
 
         @SuppressWarnings("RegexpMultiline")
-        FileList result = GlobExpander.expandGlob(
-            "s3://bucket/data/**/*.parquet",
-            provider,
-            null,
-            configMapOf(config),
-            WarningSinks.FAILING
-        );
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, configMapOf(config));
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
         assertNotNull(result.partitionMetadata());
@@ -682,13 +656,7 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(listing);
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.NONE, null);
 
-        FileList result = GlobExpander.expandGlob(
-            "s3://bucket/data/year=*/*.parquet",
-            provider,
-            null,
-            configMapOf(config),
-            WarningSinks.FAILING
-        );
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, configMapOf(config));
         assertTrue(result.isResolved());
         assertNull(result.partitionMetadata());
     }
@@ -704,15 +672,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> GlobExpander.expandGlob(
-                "s3://bucket/data/*.parquet",
-                provider,
-                null,
-                HIVE_ON,
-                10,
-                Integer.MAX_VALUE,
-                WarningSinks.FAILING
-            )
+            () -> GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, null, HIVE_ON, 10, Integer.MAX_VALUE)
         );
         assertThat(e.getMessage(), containsString("Glob pattern discovered too many files"));
         assertThat(e.getMessage(), containsString("limit 10"));
@@ -726,15 +686,7 @@ public class GlobExpanderTests extends ESTestCase {
         }
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob(
-            "s3://bucket/data/*.parquet",
-            provider,
-            null,
-            HIVE_ON,
-            10,
-            Integer.MAX_VALUE,
-            WarningSinks.FAILING
-        );
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, null, HIVE_ON, 10, Integer.MAX_VALUE);
         assertTrue(result.isResolved());
         assertEquals(10, result.fileCount());
     }
@@ -746,15 +698,7 @@ public class GlobExpanderTests extends ESTestCase {
         }
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob(
-            "s3://bucket/data/*.parquet",
-            provider,
-            null,
-            HIVE_ON,
-            10,
-            Integer.MAX_VALUE,
-            WarningSinks.FAILING
-        );
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, null, HIVE_ON, 10, Integer.MAX_VALUE);
         assertTrue(result.isResolved());
         assertEquals(5, result.fileCount());
     }
@@ -777,8 +721,7 @@ public class GlobExpanderTests extends ESTestCase {
                 null,
                 HIVE_ON,
                 9,
-                Integer.MAX_VALUE,
-                WarningSinks.FAILING
+                Integer.MAX_VALUE
             )
         );
         assertThat(e.getMessage(), containsString("Glob pattern discovered too many files"));
@@ -791,7 +734,7 @@ public class GlobExpanderTests extends ESTestCase {
         provider.existingPaths.add("s3://bucket/a.parquet");
         provider.existingPaths.add("s3://bucket/b.parquet");
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b}.parquet", provider, null, HIVE_ON, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b}.parquet", provider, null, HIVE_ON);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
         assertEquals("s3://bucket/a.parquet", result.path(0).toString());
@@ -803,7 +746,7 @@ public class GlobExpanderTests extends ESTestCase {
         provider.existingPaths.add("s3://bucket/a.parquet");
         provider.existingPaths.add("s3://bucket/c.parquet");
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b,c}.parquet", provider, null, HIVE_ON, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b,c}.parquet", provider, null, HIVE_ON);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
     }
@@ -811,7 +754,7 @@ public class GlobExpanderTests extends ESTestCase {
     public void testExpandGlobBraceOnlyAllMissingReturnsEmpty() throws IOException {
         StubProvider provider = new StubProvider(List.of());
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b}.parquet", provider, null, HIVE_ON, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b}.parquet", provider, null, HIVE_ON);
         assertTrue(result.isEmpty());
     }
 
@@ -819,7 +762,7 @@ public class GlobExpanderTests extends ESTestCase {
         List<StorageEntry> listing = List.of(entry("s3://bucket/a/file.parquet", 100), entry("s3://bucket/b/file.parquet", 200));
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b}/*.parquet", provider, null, HIVE_ON, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b}/*.parquet", provider, null, HIVE_ON);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
     }
@@ -835,7 +778,7 @@ public class GlobExpanderTests extends ESTestCase {
         pattern.append("}.parquet");
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob(pattern.toString(), provider, null, HIVE_ON, 10000, 5, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob(pattern.toString(), provider, null, HIVE_ON, 10000, 5);
         assertTrue(result.isResolved());
         assertEquals(200, result.fileCount());
     }
@@ -845,13 +788,7 @@ public class GlobExpanderTests extends ESTestCase {
         provider.existingPaths.add("s3://bucket/year=2024/data.parquet");
         provider.existingPaths.add("s3://bucket/year=2025/data.parquet");
 
-        FileList result = GlobExpander.expandGlob(
-            "s3://bucket/year={2024,2025}/data.parquet",
-            provider,
-            null,
-            HIVE_ON,
-            WarningSinks.FAILING
-        );
+        FileList result = GlobExpander.expandGlob("s3://bucket/year={2024,2025}/data.parquet", provider, null, HIVE_ON);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
     }
@@ -863,7 +800,7 @@ public class GlobExpanderTests extends ESTestCase {
         provider.existingPaths.add("s3://bucket/year=2024/data.parquet");
 
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
-        FileList result = GlobExpander.expandGlob("s3://bucket/year=*/data.parquet", provider, hints, HIVE_ON, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/year=*/data.parquet", provider, hints, HIVE_ON);
         assertTrue(result.isResolved());
         assertEquals(1, result.fileCount());
         assertEquals("s3://bucket/year=2024/data.parquet", result.path(0).toString());
@@ -873,7 +810,7 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(List.of());
 
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
-        FileList result = GlobExpander.expandGlob("s3://bucket/year=*/data.parquet", provider, hints, HIVE_ON, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/year=*/data.parquet", provider, hints, HIVE_ON);
         assertTrue(result.isEmpty());
     }
 
@@ -882,7 +819,7 @@ public class GlobExpanderTests extends ESTestCase {
         provider.existingPaths.add("s3://bucket/year=2024/data.parquet");
 
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
-        FileList result = GlobExpander.expandGlob("s3://bucket/year=*/data.parquet", provider, hints, HIVE_ON, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/year=*/data.parquet", provider, hints, HIVE_ON);
         assertTrue(result.isResolved());
         assertNotNull(result.partitionMetadata());
         assertTrue(result.partitionMetadata().partitionColumns().containsKey("year"));
@@ -890,7 +827,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     public void testExpandGlobLiteralWithoutHintsStillReturnsUnresolved() throws IOException {
         StubProvider provider = new StubProvider(List.of());
-        FileList result = GlobExpander.expandGlob("s3://bucket/year=2024/data.parquet", provider, null, HIVE_ON, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/year=2024/data.parquet", provider, null, HIVE_ON);
         assertFalse(result.isResolved());
     }
 
@@ -902,7 +839,7 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(listing);
 
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
-        FileList result = GlobExpander.expandGlob("s3://bucket/year=*/*.parquet", provider, hints, HIVE_ON, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/year=*/*.parquet", provider, hints, HIVE_ON);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
     }
@@ -920,15 +857,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
 
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
-        FileList result = GlobExpander.expand(
-            "s3://bucket/data/year=*/*.parquet",
-            provider,
-            hints,
-            HIVE_ON,
-            MAX,
-            MAX,
-            WarningSinks.FAILING
-        );
+        FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals(1, result.fileCount());
         assertEquals("s3://bucket/data/year=2024/a.parquet", result.path(0).toString());
@@ -945,15 +874,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
 
         var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
-        FileList result = GlobExpander.expand(
-            "s3://bucket/data/month=*/*.parquet",
-            provider,
-            hints,
-            HIVE_ON,
-            MAX,
-            MAX,
-            WarningSinks.FAILING
-        );
+        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals("the zero-padded folder must still be listed", 1, result.fileCount());
         assertEquals("s3://bucket/data/month=06/a.parquet", result.path(0).toString());
@@ -970,15 +891,7 @@ public class GlobExpanderTests extends ESTestCase {
         provider.throwOnUnknownPrefix = true;
 
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
-        FileList result = GlobExpander.expand(
-            "s3://bucket/data/year=*/*.parquet",
-            provider,
-            hints,
-            HIVE_ON,
-            MAX,
-            MAX,
-            WarningSinks.FAILING
-        );
+        FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals(1, result.fileCount());
     }
@@ -994,7 +907,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
 
         var hints = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "nope.parquet"));
-        FileList result = GlobExpander.expand("s3://bucket/data/*.parquet", provider, hints, HIVE_ON, MAX, MAX, WarningSinks.FAILING);
+        FileList result = GlobExpander.expand("s3://bucket/data/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals(2, result.fileCount());
         assertEquals("an exact _file.* prune is retained in one listing pass, not re-listed", 1, provider.listCallCount);
@@ -1022,8 +935,7 @@ public class GlobExpanderTests extends ESTestCase {
             hints,
             HIVE_ON,
             MAX,
-            MAX,
-            WarningSinks.FAILING
+            MAX
         );
 
         List<String> paths = new ArrayList<>();
@@ -1050,15 +962,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
 
         var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.IN, 6, 11));
-        FileList result = GlobExpander.expand(
-            "s3://bucket/data/month=*/*.parquet",
-            provider,
-            hints,
-            HIVE_ON,
-            MAX,
-            MAX,
-            WarningSinks.FAILING
-        );
+        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         List<String> paths = new ArrayList<>();
         for (int i = 0; i < result.fileCount(); i++) {
@@ -1088,8 +992,7 @@ public class GlobExpanderTests extends ESTestCase {
             hints,
             HIVE_ON,
             MAX,
-            MAX,
-            WarningSinks.FAILING
+            MAX
         );
 
         assertEquals(2, result.fileCount());
@@ -1116,15 +1019,7 @@ public class GlobExpanderTests extends ESTestCase {
             hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6),
             hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 100)
         );
-        FileList result = GlobExpander.expand(
-            "s3://bucket/data/month=*/*.parquet",
-            provider,
-            hints,
-            HIVE_ON,
-            MAX,
-            MAX,
-            WarningSinks.FAILING
-        );
+        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         List<String> paths = new ArrayList<>();
         for (int i = 0; i < result.fileCount(); i++) {
@@ -1149,15 +1044,7 @@ public class GlobExpanderTests extends ESTestCase {
             hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6),
             hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 1_000_000)
         );
-        FileList result = GlobExpander.expand(
-            "s3://bucket/data/month=*/*.parquet",
-            provider,
-            hints,
-            HIVE_ON,
-            MAX,
-            MAX,
-            WarningSinks.FAILING
-        );
+        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         assertTrue(result.isResolved());
         assertEquals(1, result.fileCount());
@@ -1169,15 +1056,7 @@ public class GlobExpanderTests extends ESTestCase {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(Map.of("s3://bucket/data/", List.of()));
 
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
-        FileList result = GlobExpander.expand(
-            "s3://bucket/data/year=*/*.parquet",
-            provider,
-            hints,
-            HIVE_ON,
-            MAX,
-            MAX,
-            WarningSinks.FAILING
-        );
+        FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         assertTrue(result.isResolved());
         assertEquals(0, result.fileCount());
@@ -1187,7 +1066,7 @@ public class GlobExpanderTests extends ESTestCase {
     public void testUnhintedEmptyListingIsNotRetried() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(Map.of("s3://bucket/data/", List.of()));
 
-        FileList result = GlobExpander.expand("s3://bucket/data/*.parquet", provider, null, HIVE_ON, MAX, MAX, WarningSinks.FAILING);
+        FileList result = GlobExpander.expand("s3://bucket/data/*.parquet", provider, null, HIVE_ON, MAX, MAX);
 
         assertEquals(0, result.fileCount());
         assertEquals("no hints, so no fallback listing", 1, provider.listCallCount);
@@ -1213,7 +1092,7 @@ public class GlobExpanderTests extends ESTestCase {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
         var e = expectThrows(
             IllegalArgumentException.class,
-            () -> GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, HIVE_ON, 2, MAX, WarningSinks.FAILING)
+            () -> GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, HIVE_ON, 2, MAX)
         );
         assertThat(e.getMessage(), containsString("discovered too many files"));
     }
@@ -1260,7 +1139,7 @@ public class GlobExpanderTests extends ESTestCase {
         provider.existingPaths.add("s3://bucket/data/a.csv");
         provider.existingPaths.add("s3://bucket/data/b.csv");
 
-        FileList result = GlobExpander.expand("s3://bucket/data/{a,b}.csv", provider, null, HIVE_OFF, MAX, MAX, WarningSinks.FAILING);
+        FileList result = GlobExpander.expand("s3://bucket/data/{a,b}.csv", provider, null, HIVE_OFF, MAX, MAX);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
     }
@@ -1279,8 +1158,7 @@ public class GlobExpanderTests extends ESTestCase {
             null,
             HIVE_OFF,
             MAX,
-            MAX,
-            WarningSinks.FAILING
+            MAX
         );
         assertEquals("both resources listed", 2, result.fileCount());
     }
@@ -1291,7 +1169,7 @@ public class GlobExpanderTests extends ESTestCase {
         provider.existingPaths.add("s3://bucket/data/1.csv");
         provider.existingPaths.add("s3://bucket/data/2.csv");
 
-        FileList result = GlobExpander.expand("s3://bucket/data/{1..2}.csv", provider, null, HIVE_OFF, MAX, MAX, WarningSinks.FAILING);
+        FileList result = GlobExpander.expand("s3://bucket/data/{1..2}.csv", provider, null, HIVE_OFF, MAX, MAX);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
     }
@@ -1342,15 +1220,7 @@ public class GlobExpanderTests extends ESTestCase {
             for (Map<String, Object> hive : configs) {
                 String discriminator = GlobExpander.listingCacheDiscriminator(pattern, hints, hive);
                 List<String> files = new ArrayList<>();
-                FileList expanded = GlobExpander.expand(
-                    pattern,
-                    new PrefixAwareStubProvider(tree),
-                    hints,
-                    hive,
-                    MAX,
-                    MAX,
-                    WarningSinks.FAILING
-                );
+                FileList expanded = GlobExpander.expand(pattern, new PrefixAwareStubProvider(tree), hints, hive, MAX, MAX);
                 for (int i = 0; i < expanded.fileCount(); i++) {
                     files.add(expanded.path(i).toString());
                 }
@@ -1369,7 +1239,6 @@ public class GlobExpanderTests extends ESTestCase {
      * (cache-safety) and that the expansions actually differ (the channel is wired in).
      */
     public void testDiscriminatorCoversExclusionConfigChannel() throws IOException {
-        List<String> warnings = new ArrayList<>();
         Map<String, List<StorageEntry>> tree = Map.of(
             "s3://bucket/data/",
             List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100))
@@ -1384,8 +1253,8 @@ public class GlobExpanderTests extends ESTestCase {
         assertNotEquals("the exclusion settings must move the discriminator", discriminatorOn, discriminatorOff);
 
         // The expansions must actually differ — _SUCCESS matches * but the default exclusions drop it.
-        FileList withExclusion = GlobExpander.expand(pattern, provider, null, HIVE_OFF, MAX, MAX, warnings::add);
-        FileList withoutExclusion = GlobExpander.expand(pattern, provider, null, NO_EXCLUSION, MAX, MAX, warnings::add);
+        FileList withExclusion = GlobExpander.expand(pattern, provider, null, HIVE_OFF, MAX, MAX);
+        FileList withoutExclusion = GlobExpander.expand(pattern, provider, null, NO_EXCLUSION, MAX, MAX);
         assertEquals("default exclusions: only the data file survives", 1, withExclusion.fileCount());
         assertEquals("empty exclusion list: _SUCCESS included", 2, withoutExclusion.fileCount());
 
@@ -1394,7 +1263,7 @@ public class GlobExpanderTests extends ESTestCase {
                 "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
             ),
-            warnings
+            withExclusion.listingWarnings()
         );
     }
 
@@ -1405,14 +1274,13 @@ public class GlobExpanderTests extends ESTestCase {
      * from the settings rather than hard-wired inside the expansion.
      */
     public void testNonDataExclusionCanBeDisabled() throws IOException {
-        List<String> warnings = new ArrayList<>();
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100));
         StubProvider provider = new StubProvider(listing);
 
-        FileList excluded = GlobExpander.expand("s3://bucket/data/*", provider, null, HIVE_OFF, MAX, MAX, warnings::add);
+        FileList excluded = GlobExpander.expand("s3://bucket/data/*", provider, null, HIVE_OFF, MAX, MAX);
         assertEquals("default exclusions: _SUCCESS must be filtered out", 1, excluded.fileCount());
 
-        FileList raw = GlobExpander.expand("s3://bucket/data/*", provider, null, NO_EXCLUSION, MAX, MAX, warnings::add);
+        FileList raw = GlobExpander.expand("s3://bucket/data/*", provider, null, NO_EXCLUSION, MAX, MAX);
         assertEquals("empty exclusion list: _SUCCESS must be present", 2, raw.fileCount());
 
         assertEquals(
@@ -1420,7 +1288,7 @@ public class GlobExpanderTests extends ESTestCase {
                 "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
             ),
-            warnings
+            excluded.listingWarnings()
         );
     }
 
@@ -1430,7 +1298,6 @@ public class GlobExpanderTests extends ESTestCase {
      * {@code doExpandGlob} where the filter lives — so the resolved config must be threaded all the way.
      */
     public void testNonDataExclusionAppliesToCommaSeparatedSegments() throws IOException {
-        List<String> warnings = new ArrayList<>();
         Map<String, List<StorageEntry>> tree = Map.of(
             "s3://bucket/a/",
             List.of(entry("s3://bucket/a/_SUCCESS", 0), entry("s3://bucket/a/file1.parquet", 100)),
@@ -1439,7 +1306,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
         String paths = "s3://bucket/a/*,s3://bucket/b/*";
 
-        FileList result = GlobExpander.expand(paths, new PrefixAwareStubProvider(tree), null, HIVE_OFF, MAX, MAX, warnings::add);
+        FileList result = GlobExpander.expand(paths, new PrefixAwareStubProvider(tree), null, HIVE_OFF, MAX, MAX);
         assertEquals("both segments: only data files survive", 2, result.fileCount());
         List<String> names = new ArrayList<>();
         for (int i = 0; i < result.fileCount(); i++) {
@@ -1455,7 +1322,7 @@ public class GlobExpanderTests extends ESTestCase {
                 "1 of 2 objects matching the resource under [s3://bucket/b/] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [.part-r-00001.parquet.crc] which matched entry [**/.*]"
             ),
-            warnings
+            result.listingWarnings()
         );
     }
 
@@ -1637,8 +1504,7 @@ public class GlobExpanderTests extends ESTestCase {
             hints,
             templateSettings,
             MAX,
-            MAX,
-            WarningSinks.FAILING
+            MAX
         );
 
         assertEquals(
@@ -2118,7 +1984,6 @@ public class GlobExpanderTests extends ESTestCase {
      * objects were dropped.
      */
     public void testExclusionReportsCountsAndTheEntryResponsible() throws IOException {
-        List<String> warnings = new ArrayList<>();
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/_SUCCESS", 0),
             entry("s3://bucket/data/_metadata", 0),
@@ -2126,7 +1991,7 @@ public class GlobExpanderTests extends ESTestCase {
             entry("s3://bucket/data/file2.parquet", 200)
         );
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF, warnings::add);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
 
         assertEquals("both data files survive", 2, result.fileCount());
         assertEquals(
@@ -2134,7 +1999,7 @@ public class GlobExpanderTests extends ESTestCase {
                 "2 of 4 objects matching the resource under [s3://bucket/data/] were excluded by the [file_exclusions] "
                     + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
             ),
-            warnings
+            result.listingWarnings()
         );
     }
 
@@ -2146,33 +2011,40 @@ public class GlobExpanderTests extends ESTestCase {
     public void testNothingIsReportedWhenNothingIsExcluded() throws IOException {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/file1.parquet", 100), entry("s3://bucket/data/file2.parquet", 200));
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF, WarningSinks.FAILING);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
 
         assertEquals(2, result.fileCount());
     }
 
     /**
-     * The exclusion notice goes to the supplied sink and nowhere else. The resolver passes its buffered sink because
-     * expansion runs on its executor chain, where a response header is lost.
+     * The cache loader uses {@link GlobExpander#expandAndCompact}; the exclusion text rides on the listing it returns,
+     * so a cache hit carries exactly what the miss did and nothing is written to headers here.
      */
-    public void testExpandRoutesExclusionWarningToSink() throws IOException {
-        List<StorageEntry> listing = List.of(
-            entry("s3://bucket/data/_SUCCESS", 0),
-            entry("s3://bucket/data/file1.parquet", 100),
-            entry("s3://bucket/data/file2.parquet", 200)
-        );
-        StubProvider provider = new StubProvider(listing);
-        List<String> sink = new ArrayList<>();
+    public void testExpandAndCompactCarriesExclusionWarningOnTheListing() throws IOException {
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100));
+        String pattern = "s3://bucket/data/*";
+        String warning = "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+            + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]";
 
-        FileList result = GlobExpander.expand("s3://bucket/data/*", provider, null, null, Integer.MAX_VALUE, Integer.MAX_VALUE, sink::add);
+        FileList compacted = GlobExpander.expandAndCompact(pattern, new StubProvider(listing), null, HIVE_OFF, StoragePath.of(pattern));
+        assertEquals(1, compacted.fileCount());
 
-        assertEquals(2, result.fileCount());
+        assertEquals(List.of(warning), compacted.listingWarnings());
+    }
+
+    /** A partition column renamed off a reserved name is a listing notice too, so it rides the listing like an exclusion. */
+    public void testPartitionRenameNoticeRidesTheListing() throws IOException {
+        StubProvider provider = new StubProvider(List.of(entry("s3://bucket/data/_index=alpha/file1.parquet", 100)));
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*/*.parquet", provider, null, Map.of("hive_partitioning", true));
+
+        assertEquals(1, result.fileCount());
         assertEquals(
             List.of(
-                "1 of 3 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
-                    + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
+                "partition column [_index] surfaced as [_partition._index]"
             ),
-            sink
+            result.listingWarnings()
         );
     }
 

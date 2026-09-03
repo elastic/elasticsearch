@@ -69,7 +69,7 @@ public class ExternalSourceCacheService implements Closeable {
      */
     private final Cache<SchemaCacheKey, SchemaCacheEntry> datasetAggregateCache;
     private final Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache;
-    private final Cache<ListingCacheKey, CachedListing> listingCache;
+    private final Cache<ListingCacheKey, FileList> listingCache;
     private final long maxTotalBytes;
     private volatile boolean enabled;
 
@@ -180,7 +180,7 @@ public class ExternalSourceCacheService implements Closeable {
             .setExpireAfterWrite(listingTtl)
             .build();
 
-        this.listingCache = CacheBuilder.<ListingCacheKey, CachedListing>builder()
+        this.listingCache = CacheBuilder.<ListingCacheKey, FileList>builder()
             .setMaximumWeight(listingBudget)
             .setExpireAfterWrite(listingTtl)
             .weigher((key, value) -> value.estimatedBytes())
@@ -399,20 +399,7 @@ public class ExternalSourceCacheService implements Closeable {
      * Returns a cached file listing or stores the provided one. The loader is only invoked
      * on a cache miss. When the cache is disabled, the loader is called directly (bypassing the cache).
      */
-    /**
-     * Listing-only form for callers that raise no notices while listing. Production goes through
-     * {@link #getOrComputeCachedListing}; this remains for tests that exercise the listing cache directly.
-     */
     public FileList getOrComputeListing(ListingCacheKey key, CacheLoader<ListingCacheKey, FileList> loader) throws Exception {
-        return getOrComputeCachedListing(key, k -> CachedListing.of(loader.load(k))).files();
-    }
-
-    /**
-     * Like {@link #getOrComputeListing} but carrying the notices raised while producing the listing, so a hit can replay
-     * them; see {@link CachedListing}.
-     */
-    public CachedListing getOrComputeCachedListing(ListingCacheKey key, CacheLoader<ListingCacheKey, CachedListing> loader)
-        throws Exception {
         if (enabled == false) {
             return loader.load(key);
         }
@@ -800,9 +787,11 @@ public class ExternalSourceCacheService implements Closeable {
      * differently-declared datasets, and for a file every declaration can read to completion it is exactly right.
      * <p>
      * It carries one known exception, pre-existing and deliberately preserved: "the same number for every way of
-     * reading the file" assumes every way of reading it SUCCEEDS. A positionally bound read carries a row-width
-     * tripwire that a by-name declared read does not, so on a file whose later rows are wider than its inference
-     * sample the positional read aborts while the declared one completes and licenses its count. The licence then
+     * reading the file" assumes every way of reading it SUCCEEDS. Both bindings carry a row-width tripwire, but they
+     * bound it differently — a positional read against the PINNED schema's width, a by-name declared read against the
+     * bound file's own header (and a HEADERLESS declared read not at all, since such a file defines no width) — so on
+     * a file whose later rows are wider than the pinned width but not wider than that file's header, the positional
+     * read aborts while the declared one completes and licenses its count. The licence then
      * carries that count to the reader that cannot produce it, which answers where its own scan errors — a masked
      * abort rather than a wrong number, flapping with cache state. Scoping the licence to the binding mode that
      * produced the count would close it; withdrawing it entirely would stop every strict dataset warming. Disclosed
@@ -1594,7 +1583,7 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     // Visible for testing
-    Cache<ListingCacheKey, CachedListing> listingCache() {
+    Cache<ListingCacheKey, FileList> listingCache() {
         return listingCache;
     }
 }

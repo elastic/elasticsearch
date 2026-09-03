@@ -339,7 +339,6 @@ class ExpandUnmappedFieldsPostProcessor {
         } else if (value instanceof Map<?, ?> map) {
             elements = map.values();
         } else {
-            // A scalar has nothing to hide anything in; a null is what everything above is guarding against.
             return value != null;
         }
         if (elements.isEmpty()) {

@@ -138,16 +138,6 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
          * Strips nully values out of a {@code _source} value, consistently with how mapped fields do not track nulls in arrays, empty
          * objects and the like - {@code null}, {@code []}, {@code {}}, {@code [null]}, {@code [{"foo":null},{"bar":[]}]},
          * {@code {"baz":[null],"inga":{}}}.
-         * <p>
-         * A value that prunes away to nothing would cost wire bytes and a parse on the coordinator only to arrive at the same
-         * {@code null}, and would earn its field an output column that is {@code null} in every row. A {@code null} left inside an
-         * array would reach the user as a literal {@code "null"} in that array, where a mapped field would have produced a
-         * multi-value. {@code ExpandUnmappedFieldsPostProcessor#assertPruned} asserts against both.
-         * <p>
-         * Prunes in place, which is free: the map comes from this method's own {@code _source} parse and does not outlive the call
-         * that owns it, and pruning only ever shrinks what the breaker was already charged for.
-         *
-         * @return whether anything survived, i.e. whether the field this value sits under is worth sending at all
          */
         private static boolean prune(Object value) {
             if (value instanceof List<?> values) {

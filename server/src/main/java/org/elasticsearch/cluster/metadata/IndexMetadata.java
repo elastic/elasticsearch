@@ -3397,6 +3397,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         matches.compute(inferenceFieldMetadata, (k, v) -> v == null ? weight : v * weight);
     }
 
+    // takes into account references to enums such as state
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexMetadata.class);
 
     private volatile long ramBytesUsed = -1;
@@ -3420,67 +3421,39 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private long computeRamBytesUsed() {
         long size = BASE_RAM_BYTES_USED;
-        size += ramBytesUsedByIndex(index);
-        size += settings.estimatedRamBytesUsed();
-        if (mapping != null) {
-            size += mapping.ramBytesUsed();
-        }
-        size += RamUsageEstimator.sizeOf(primaryTerms);
-        size += RamUsageEstimator.sizeOfMap(inSyncAllocationIds);
-        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(aliases);
-        size += RamUsageEstimator.sizeOfMap(customData);
-        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(inferenceFields);
-        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(rolloverInfos);
-        size += ramBytesUsedByTransportVersion(transportVersion);
-        size += RamUsageEstimator.shallowSizeOf(state);
         size += RamUsageEstimator.sizeOfCollection(routingPaths);
         size += RamUsageEstimator.sizeOfCollection(timeSeriesDimensions);
-        size += ramBytesUsedByFilters(requireFilters);
-        size += ramBytesUsedByFilters(includeFilters);
-        size += ramBytesUsedByFilters(excludeFilters);
-        size += ramBytesUsedByFilters(initialRecoveryFilters);
-        size += ramBytesUsedByIndexVersion(indexCreatedVersion);
-        size += ramBytesUsedByIndexVersion(mappingsUpdatedVersion);
-        size += ramBytesUsedByIndexVersion(indexCompatibilityVersion);
+        size += index.ramBytesUsed();
+        size += RamUsageEstimator.sizeOfObject(transportVersion);
+        size += RamUsageEstimator.sizeOf(primaryTerms);
+        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(aliases);
+        size += settings.estimatedRamBytesUsed();
+        size += RamUsageEstimator.sizeOfObject(mapping);
+        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(inferenceFields);
+        size += RamUsageEstimator.sizeOfMap(customData);
+        size += RamUsageEstimator.sizeOfMap(inSyncAllocationIds);
+        size += RamUsageEstimator.sizeOfObject(requireFilters);
+        size += RamUsageEstimator.sizeOfObject(includeFilters);
+        size += RamUsageEstimator.sizeOfObject(excludeFilters);
+        size += RamUsageEstimator.sizeOfObject(initialRecoveryFilters);
+        size += indexCreatedVersion.ramBytesUsed();
+        size += mappingsUpdatedVersion.ramBytesUsed();
+        size += indexCompatibilityVersion.ramBytesUsed();
         size += RamUsageEstimator.shallowSizeOf(waitForActiveShards);
-        size += timestampRange == null ? 0L : timestampRange.ramBytesUsed();
-        size += eventIngestedRange == null ? 0L : eventIngestedRange.ramBytesUsed();
+        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(rolloverInfos);
+        size += RamUsageEstimator.sizeOfObject(timestampRange);
+        size += RamUsageEstimator.sizeOfObject(eventIngestedRange);
         size += RamUsageEstimator.sizeOfCollection(tierPreference);
         size += RamUsageEstimator.sizeOf(lifecyclePolicyName);
-        size += lifecycleExecutionState == null ? 0L : lifecycleExecutionState.ramBytesUsed();
+        size += RamUsageEstimator.sizeOfObject(lifecycleExecutionState);
         size += RamUsageEstimator.shallowSizeOf(autoExpandReplicas);
         size += RamUsageEstimator.shallowSizeOf(indexMode);
         size += RamUsageEstimator.shallowSizeOf(timeSeriesStart);
         size += RamUsageEstimator.shallowSizeOf(timeSeriesEnd);
-        size += stats == null ? 0L : stats.ramBytesUsed();
+        size += RamUsageEstimator.sizeOfObject(stats);
         size += RamUsageEstimator.shallowSizeOf(writeLoadForecast);
         size += RamUsageEstimator.shallowSizeOf(shardSizeInBytesForecast);
-        size += reshardingMetadata == null ? 0L : reshardingMetadata.ramBytesUsed();
+        size += RamUsageEstimator.sizeOfObject(reshardingMetadata);
         return size;
-    }
-
-    private static long ramBytesUsedByIndex(Index index) {
-        return RamUsageEstimator.shallowSizeOf(index) + RamUsageEstimator.sizeOf(index.getName()) + RamUsageEstimator.sizeOf(
-            index.getUUID()
-        );
-    }
-
-    private static long ramBytesUsedByFilters(@Nullable DiscoveryNodeFilters filters) {
-        return filters == null ? 0L : filters.ramBytesUsed();
-    }
-
-    private static long ramBytesUsedByTransportVersion(@Nullable TransportVersion version) {
-        if (version == null) {
-            return 0L;
-        }
-        // nextPatchVersion forms a short linked chain of interned instances; walk it so each distinct instance is counted once.
-        return RamUsageEstimator.shallowSizeOf(version) + RamUsageEstimator.sizeOf(version.name()) + ramBytesUsedByTransportVersion(
-            version.nextPatchVersion()
-        );
-    }
-
-    private static long ramBytesUsedByIndexVersion(IndexVersion indexVersion) {
-        // luceneVersion() is an org.apache.lucene.util.Version, which cannot implement Accountable, so it is sized shallowly here.
-        return RamUsageEstimator.shallowSizeOf(indexVersion) + RamUsageEstimator.shallowSizeOf(indexVersion.luceneVersion());
     }
 }

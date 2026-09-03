@@ -3373,7 +3373,7 @@ public class EsqlCapabilities {
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a net-zero projection (e.g. {@code KEEP x | DROP x}) that leaves no columns and
          * expands no unmapped fields no longer fails with {@code "blocks is empty"}; it returns a zero-column result preserving the row
-         * count.
+         * count. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
          */
         OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 
@@ -3384,6 +3384,7 @@ public class EsqlCapabilities {
 
         /**
          * Support for {@code STATS} under {@code unmapped_fields="LOAD_ALL"}.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
          */
         OPTIONAL_FIELDS_LOAD_ALL_STATS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 

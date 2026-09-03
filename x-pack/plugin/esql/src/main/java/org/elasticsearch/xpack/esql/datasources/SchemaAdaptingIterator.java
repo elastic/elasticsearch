@@ -258,12 +258,13 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         // which inner operation throws. schemaAdapted is tracked via schemaAdaptedReleased to
         // avoid a double-release when it is decomposed into withRowPos before new Page() throws.
         try {
+            // Emit before mapPage: both share the per-source informational budget, and a page of distinct cast
+            // failures could otherwise spend it all and leave only the overflow marker where the absent-column
+            // notice should be. The cost is one extra notice on a query that then fails validation.
+            emitAbsentColumnWarningsOnce();
             Page schemaAdapted = mapping.mapPage(filePage, blockFactory, perFileColumnTypes, outputColumnNames, castWarnings());
             try {
                 validateOutputTypes(schemaAdapted);
-                // Emit only after validation: if the page has wrong types the query fails hard;
-                // emitting an absent-column warning alongside a fatal error implies partial success.
-                emitAbsentColumnWarningsOnce();
             } catch (Exception e) {
                 schemaAdapted.releaseBlocks();
                 throw e;

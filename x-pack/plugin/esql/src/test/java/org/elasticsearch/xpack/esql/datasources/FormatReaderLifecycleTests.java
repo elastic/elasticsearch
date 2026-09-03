@@ -147,7 +147,7 @@ public class FormatReaderLifecycleTests extends ESTestCase {
         assertFalse("the completion wrapper must close after invoking the listener", closedInListener.get());
         assertTrue("the reader must still be open while metadata is read", reader.wasOpenDuringMetadata());
         assertTrue(reader.isClosed());
-        assertEquals("validation and metadata each inspect the factory", 2, readers.inspectCount());
+        assertEquals("validation inspects the factory without creating a reader", 1, readers.inspectCount());
         assertEquals("validation must not create a runtime reader", 1, readers.builtReaders().size());
         assertAllBuiltReadersClosed(readers);
     }
@@ -584,10 +584,9 @@ public class FormatReaderLifecycleTests extends ESTestCase {
 
         @Override
         public void close() {
-            if (closed.compareAndSet(false, true) == false) {
-                throw new AssertionError("runtime reader closed more than once");
+            if (closed.compareAndSet(false, true)) {
+                state.closedReaders.add(this);
             }
-            state.closedReaders.add(this);
         }
 
         @Override

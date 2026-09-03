@@ -1116,9 +1116,27 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * factory reports {@link FormatReaderFactory#columnExtractor()}; this is validated at
      * {@link Builder#build} time.
      */
-    private int registerExtractorFromProducer(ColumnExtractorProducer producer, DriverContext driverContext) throws IOException {
+    private int registerExtractorFromProducer(ColumnExtractorProducer producer, DriverContext driverContext, FormatReader reader)
+        throws IOException {
         ColumnExtractor extractor = producer.createColumnExtractor(driverThreadInformationalWarningSink());
-        return sourceExtractorsFor(driverContext).registerOwned(extractor, () -> {});
+        return sourceExtractorsFor(driverContext).registerOwned(extractor, () -> ReaderReleasingIterator.closeReader(reader));
+    }
+
+    /**
+     * When deferred extraction is rewriting {@code _rowPosition}, the extractor registry owns the
+     * runtime reader until the registry itself closes. The page iterator must not wrap it.
+     */
+    private boolean extractorOwnsReader(List<String> projectedColumns) {
+        return deferredExtraction && rowPositionChannelIndex(projectedColumns) >= 0;
+    }
+
+    /**
+     * Binds {@code reader} to {@code pages} so iterator close releases it. Skips the wrap when
+     * {@link #extractorOwnsReader} is true: {@link #wrapWithEncoderIfNeeded} then registers the
+     * reader on the extractor registry instead.
+     */
+    private CloseableIterator<Page> bindReaderToPages(CloseableIterator<Page> pages, FormatReader reader, List<String> projectedColumns) {
+        return extractorOwnsReader(projectedColumns) ? pages : ReaderReleasingIterator.wrap(pages, reader);
     }
 
     /**
@@ -1339,7 +1357,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private CloseableIterator<Page> wrapWithEncoderIfNeeded(
         CloseableIterator<Page> pages,
         List<String> projectedColumns,
-        DriverContext driverContext
+        DriverContext driverContext,
+        FormatReader reader
     ) throws IOException {
         if (deferredExtraction == false) {
             // No paired extract operator: no registry, no refcount, nothing to decode downstream.
@@ -1369,7 +1388,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // register the extractor first, then hand its id back to the iterator: from this point
         // on every page the iterator returns carries already-encoded values, no wrapping needed.
         if (pages instanceof ColumnExtractorProducer producer) {
-            int id = registerExtractorFromProducer(producer, driverContext);
+            int id = registerExtractorFromProducer(producer, driverContext, reader);
             producer.setExtractorId(id);
             return pages;
         }
@@ -2142,7 +2161,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     rangeCtx.setFileContext(fileContext);
                 }
                 pages = rangeReader.readRange(fullObj, rangeCtx);
-                pages = ReaderReleasingIterator.wrap(pages, fileReader);
+                pages = bindReaderToPages(pages, fileReader, cols);
                 handedReaderToIterator = true;
                 state.lastRangeFilePath = fileSplit.path();
                 state.lastFileContext = rangeCtx.fileContext();
@@ -2232,7 +2251,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
                         .build();
                     pages = fileReader.read(obj, ctx);
-                    pages = ReaderReleasingIterator.wrap(pages, fileReader);
+                    pages = bindReaderToPages(pages, fileReader, cols);
                     handedReaderToIterator = true;
                 }
                 if (compressedRowPosSlot >= 0) {
@@ -2262,7 +2281,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // the same file therefore register multiple extractors; this is benign — each row's
             // encoded id maps back to the registered extractor that produced it, addressing the
             // split's owned row groups in extractor-local coordinates (see {@link ColumnExtractor}).
-            CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, cols, state.driverContext);
+            CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, cols, state.driverContext, fileReader);
             // Per-split virtual-column iterator: each slice-queue leaf has its own _file.* values
             // (different path/name/dir/size/mtime), so the wrapper is bound to *this* iterator's pages.
             state.pages = wrapWithVirtualColumns(
@@ -2282,7 +2301,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (e instanceof RuntimeException re) throw re;
             throw new IOException(e);
         } finally {
-            if (opened == false && handedReaderToIterator == false) {
+            if (opened == false) {
                 closeDerivedReader(fileReader);
             }
         }
@@ -2456,7 +2475,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
                     .build();
                 pages = fileReader.read(obj, ctx);
-                pages = ReaderReleasingIterator.wrap(pages, fileReader);
+                pages = bindReaderToPages(pages, fileReader, perFileCols);
                 handedReaderToIterator = true;
             }
             pages = applyRowPositionStrategy(fileReader, pages, perFileCols);
@@ -2469,7 +2488,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 perFileCols,
                 bufferedInformationalWarningSink(state.buffer)
             );
-            CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
+            CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext, fileReader);
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for
             // this file) so {@code _file.*} columns carry the right values for the current file.
             state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext, files.path(fileIndex));
@@ -2486,7 +2505,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (e instanceof RuntimeException re) throw re;
             throw new IOException(e);
         } finally {
-            if (opened == false && handedReaderToIterator == false) {
+            if (opened == false) {
                 closeDerivedReader(fileReader);
             }
         }
@@ -2659,7 +2678,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                             .informationalWarningSink(bufferedInformationalWarningSink(buffer))
                             .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
                             .build();
-                        opened = ReaderReleasingIterator.wrap(reader.read(storageObject, ctx), reader);
+                        opened = bindReaderToPages(reader.read(storageObject, ctx), reader, projectedColumns);
                     }
                     return opened;
                 });
@@ -2670,7 +2689,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 try {
                     pages = applyRowPositionStrategy(reader, pages, projectedColumns);
                     pages = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
-                    CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
+                    CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext, reader);
                     finalPages = wrapWithVirtualColumns(withEncoder, mergeStandardMetadata(partitionValues), driverContext);
                 } catch (Exception e) {
                     closeQuietly(pages);
@@ -2697,7 +2716,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // runAfter semantics.
                     ActionListener.runAfter(ActionListener.wrap(v -> {
                         closeQuietly(finalPages);
-                        closeDerivedReader(reader);
+                        releaseReaderAfterPages(reader, projectedColumns);
                         recordSingleFileTelemetry(storageObject, buffer, reader);
                         buffer.finish(false);
                     }, e -> {
@@ -2742,7 +2761,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             releaseOperator();
         });
         executor.execute(ActionRunnable.run(failureListener, () -> {
-            CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(capturing, projectedColumns, driverContext);
+            CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(capturing, projectedColumns, driverContext, reader);
             CloseableIterator<Page> wrapped = wrapWithVirtualColumns(withEncoder, mergeStandardMetadata(partitionValues), driverContext);
             drainPagesAsync(
                 wrapped,
@@ -2756,7 +2775,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // counters reach the operator status snapshot before isFinished() flips.
                 ActionListener.runAfter(ActionListener.wrap(v -> {
                     closeQuietly(wrapped);
-                    closeDerivedReader(reader);
+                    releaseReaderAfterPages(reader, projectedColumns);
                     recordSingleFileTelemetry(storageObject, buffer, reader);
                     buffer.finish(false);
                 }, e -> {
@@ -2858,6 +2877,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /** Releases a reader built for one metadata or read operation. */
     private void closeDerivedReader(@Nullable FormatReader reader) {
         ReaderReleasingIterator.closeReader(reader);
+    }
+
+    /**
+     * After pages have drained, close the reader unless deferred extraction transferred it to
+     * the extractor registry.
+     */
+    private void releaseReaderAfterPages(FormatReader reader, List<String> projectedColumns) {
+        if (extractorOwnsReader(projectedColumns) == false) {
+            closeDerivedReader(reader);
+        }
     }
 
     private static void closeQuietly(Closeable closeable) {

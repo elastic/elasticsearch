@@ -170,7 +170,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         return StreamingParallelParsingCoordinator.parallelRead(
             readerBuilder,
             Settings.EMPTY,
-            null,
+            TEST_BLOCK_FACTORY,
             null,
             FormatReadContext.Binding.empty(),
             stream,

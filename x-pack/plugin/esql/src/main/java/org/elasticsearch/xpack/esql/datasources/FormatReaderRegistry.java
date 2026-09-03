@@ -65,8 +65,15 @@ public class FormatReaderRegistry {
         }
     }
 
+    /**
+     * Registers {@code factory} under {@code formatName} and the matching
+     * {@code .formatName} extension, so a name-only registration such as
+     * {@code registerLazy("parquet", factory)} resolves both
+     * {@link #factoryByName(String)} and {@code data.parquet}.
+     */
     public void registerLazy(String formatName, FormatReaderFactory factory) {
-        registerLazy(new FormatSpec(formatName, Set.of(), Set.of()), factory);
+        String extension = formatName.startsWith(".") ? formatName : "." + formatName;
+        registerLazy(new FormatSpec(formatName, Set.of(extension), Set.of()), factory);
     }
 
     /**

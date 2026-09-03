@@ -68,6 +68,8 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
 
         SourceOperator first = factory.get(driverContext());
         SourceOperator second = factory.get(driverContext());
+        assertFalse(first.isFinished());
+        assertFalse(second.isFinished());
 
         assertThat(reader.thresholds.get(1), sameInstance(reader.thresholds.get(0)));
 

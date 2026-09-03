@@ -39,10 +39,7 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
      * rather than write a column of the wrong type.
      */
     private static final ColumnarFieldTypeSelector READ_ONLY_TYPE_SELECTOR = field -> {
-        throw new IllegalStateException(
-            "ColumNARDocValuesFormat built via the read-only SPI constructor cannot resolve a column type; "
-                + "construct it with a ColumnarFieldTypeSelector to write fields"
-        );
+        throw new IllegalStateException("ColumNARDocValuesFormat built via the read-only SPI constructor cannot write fields");
     };
 
     /** Smallest allowed block size. Must be a power of 2. */

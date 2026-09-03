@@ -1084,10 +1084,8 @@ public class IndexMetadataTests extends ESTestCase {
         long actual = metadata.ramBytesUsed();
 
         long settingsBytes = settings.estimatedRamBytesUsed();
-        long independentLowerBound = RamUsageEstimator.shallowSizeOfInstance(IndexMetadata.class) + RamUsageEstimator.shallowSizeOfInstance(
-            org.elasticsearch.index.Index.class
-        ) + RamUsageEstimator.sizeOf("idx") + RamUsageEstimator.sizeOf("00000000-0000-0000-0000-000000000001") + settingsBytes
-            + RamUsageEstimator.sizeOf(new long[1]);
+        long independentLowerBound = RamUsageEstimator.shallowSizeOfInstance(IndexMetadata.class) + metadata.getIndex().ramBytesUsed()
+            + settingsBytes + RamUsageEstimator.sizeOf(new long[1]);
         assertThat(actual, greaterThanOrEqualTo(independentLowerBound));
 
         Settings withExtraSetting = Settings.builder().put(settings).put("index.refresh_interval", "1s").build();

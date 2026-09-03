@@ -18,9 +18,11 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
-import static org.elasticsearch.transport.netty4.NettyAllocator.TrashingByteBufAllocator;
+import static org.elasticsearch.transport.netty4.TrashingByteBufAllocator.TrashingByteBuf;
 
 public class NettyAllocatorTests extends ESTestCase {
 
@@ -88,6 +90,98 @@ public class NettyAllocatorTests extends ESTestCase {
             buf.release();
             assertBufferTrashed(bytesRef);
         }
+    }
+
+    public void testRetainedSliceTrashedOnlyAfterRootAndSliceReleased() throws IOException {
+        var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
+        var size = between(1024, 4096);
+        var content = randomByteArrayOfLength(size);
+        var root = alloc.heapBuffer(size, size);
+        root.writeBytes(content);
+
+        var off = between(0, size - 2);
+        var len = between(1, size - off - 1);
+        var slice = root.retainedSlice(off, len);
+        var sliceRef = Netty4Utils.toBytesReference(slice);
+        var expected = Arrays.copyOfRange(content, off, off + len);
+
+        assertEquals(2, root.refCnt());
+        assertEquals(1, slice.refCnt());
+
+        root.release();
+        assertEquals("slice content must survive releasing the root, off=" + off + " len=" + len, 1, slice.refCnt());
+        assertArrayEquals(
+            "slice content must survive releasing the root, off=" + off + " len=" + len,
+            expected,
+            BytesReference.toBytes(sliceRef)
+        );
+
+        slice.release();
+        assertEquals(0, slice.refCnt());
+        assertBufferTrashed(sliceRef);
+    }
+
+    public void testRootContentSurvivesReleasingRetainedSlice() throws IOException {
+        var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
+        var size = between(1024, 4096);
+        var content = randomByteArrayOfLength(size);
+        var root = alloc.heapBuffer(size, size);
+        root.writeBytes(content);
+
+        var off = between(0, size - 2);
+        var len = between(1, size - off - 1);
+        var slice = root.retainedSlice(off, len);
+        var rootRef = Netty4Utils.toBytesReference(root);
+
+        slice.release();
+        assertEquals(0, slice.refCnt());
+        assertEquals(1, root.refCnt());
+        assertArrayEquals(
+            "root content must survive releasing the retained slice, off=" + off + " len=" + len,
+            content,
+            BytesReference.toBytes(rootRef)
+        );
+
+        root.release();
+        assertBufferTrashed(rootRef);
+    }
+
+    public void testTrashingStaysInsideOwnPooledRegion() throws IOException {
+        var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
+        var size = between(64, 512);
+        var before = alloc.heapBuffer(size, size);
+        var victim = alloc.heapBuffer(size, size);
+        var after = alloc.heapBuffer(size, size);
+
+        var beforeContent = randomByteArrayOfLength(size);
+        var afterContent = randomByteArrayOfLength(size);
+        before.writeBytes(beforeContent);
+        victim.writeBytes(randomByteArrayOfLength(size));
+        after.writeBytes(afterContent);
+
+        assertSame("expected pooled buffers to share a chunk array", victim.array(), before.array());
+        assertSame("expected pooled buffers to share a chunk array", victim.array(), after.array());
+        assertEquals(
+            "expected three distinct slots in the chunk, offsets="
+                + before.arrayOffset()
+                + ","
+                + victim.arrayOffset()
+                + ","
+                + after.arrayOffset(),
+            3,
+            Set.of(before.arrayOffset(), victim.arrayOffset(), after.arrayOffset()).size()
+        );
+
+        var beforeRef = Netty4Utils.toBytesReference(before);
+        var afterRef = Netty4Utils.toBytesReference(after);
+
+        victim.release();
+
+        assertArrayEquals("preceding pooled buffer must not be trashed", beforeContent, BytesReference.toBytes(beforeRef));
+        assertArrayEquals("following pooled buffer must not be trashed", afterContent, BytesReference.toBytes(afterRef));
+
+        before.release();
+        after.release();
     }
 
     public void testTrashingCompositeByteBuf() throws IOException {

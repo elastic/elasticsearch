@@ -1,6 +1,0 @@
-pr: 157554
-summary: "Reject `ROUND` results that overflow `byte` or `short` values"
-area: SQL
-type: bug
-issues:
-  - 157550

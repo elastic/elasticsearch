@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 155923
-summary: "Fix incorrect results for multi-key `SORT` with `LIMIT`"
-type: bug

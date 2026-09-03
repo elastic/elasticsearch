@@ -1,6 +1,0 @@
-area: Infra/Core
-issues:
- - 156289
-pr: 156382
-summary: "Fix error when truncating long JSON in log and error messages"
-type: bug

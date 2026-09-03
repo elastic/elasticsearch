@@ -376,13 +376,28 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     private static boolean partitionDetectionCannotCarry(Object[] baseTest, Map<String, String> vector) {
         String detection = vector.get("partition_detection");
-        if ("none".equals(detection) == false) {
+        if (detection == null) {
             return false;
         }
         CsvTestCase testCase = (CsvTestCase) baseTest[4];
+        if ("none".equals(detection)) {
+            // A layout whose directories carry the partition column cannot be read with detection off.
+            for (DatasetSource source : testCase.datasetSources) {
+                String template = templateNameIn(source.resource());
+                if (template != null && MATRIX.partitionColumnFor(template) != null) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        // The mirror case, and the reader states the rule rather than us restating it: PartitionConfig
+        // rejects `hive_partitioning: false` alongside any detection strategy other than none. A case that
+        // pins hive partitioning off therefore contradicts every other value this dimension can carry, and
+        // the contradiction is a registration 400 -- the dataset never exists, so no row is ever read.
+        // Keyed on the VALUE, not on the key being present: `hive_partitioning: true` collides with
+        // nothing, and filtering on presence alone would retire coverage the reader accepts.
         for (DatasetSource source : testCase.datasetSources) {
-            String template = templateNameIn(source.resource());
-            if (template != null && MATRIX.partitionColumnFor(template) != null) {
+            if ("false".equals(DatasetRegistry.declaredSetting(source.withJson(), "hive_partitioning"))) {
                 return true;
             }
         }

@@ -18,9 +18,9 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -48,10 +48,7 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
     }
 
     public void testRemoteFetchTopNFallsBackWhenAnyDataNodeIsOld() throws Exception {
-        assumeTrue(
-            "test requires remote fetch topn feature flag",
-            RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_FEATURE_FLAG.isEnabled()
-        );
+        assumeTrue("test requires remote fetch topn feature flag", RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_FEATURE_FLAG.isEnabled());
         assertTrue(
             "the current version must support remote-fetch TopN",
             TransportVersion.current().supports(REMOTE_FETCH_TOPN_TRANSPORT_VERSION)

@@ -581,9 +581,8 @@ public class Verifier {
     }
 
     private static boolean supportedInLoadAllMode(LogicalPlan plan) {
-        return (plan instanceof EsRelation esr && esr.indexMode().isTsdb() == false)
-            || plan instanceof Project
-            // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
+        return (plan instanceof EsRelation esr && esr.indexMode().isTsdb() == false) || plan instanceof Project
+        // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
             || plan instanceof Keep
             || plan instanceof Drop
             || plan instanceof Rename

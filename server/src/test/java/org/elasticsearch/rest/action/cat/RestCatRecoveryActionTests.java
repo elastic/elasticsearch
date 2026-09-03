@@ -59,7 +59,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             // Replicas always do peer recovery, so if not peer then must be primary; all other recovery types could be primary or replica:
             final boolean primary = recoverySource.getType() != RecoverySource.Type.PEER || randomBoolean();
             final ShardRouting shardRouting = TestShardRouting.newShardRouting(
-                new ShardId(new Index("index", "_na_"), i),
+                new ShardId(new Index(randomIndexName(), randomUUID()), i),
                 targetNode.getId(),
                 primary,
                 ShardRoutingState.INITIALIZING,

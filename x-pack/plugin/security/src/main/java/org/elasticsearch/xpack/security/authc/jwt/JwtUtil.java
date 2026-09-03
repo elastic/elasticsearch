@@ -14,25 +14,20 @@ import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.SignedJWT;
 
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.config.Registry;
-import org.apache.http.config.RegistryBuilder;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.impl.nio.client.HttpAsyncClients;
-import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
-import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
-import org.apache.http.nio.conn.NoopIOSessionStrategy;
-import org.apache.http.nio.conn.SchemeIOSessionStrategy;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
-import org.apache.http.nio.reactor.ConnectingIOReactor;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleHttpResponse;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.config.TlsConfig;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.impl.async.HttpAsyncClients;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
+import org.apache.hc.core5.concurrent.FutureCallback;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http2.HttpVersionPolicy;
+import org.apache.hc.core5.util.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -56,7 +51,6 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -75,9 +69,6 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.HTTP_PROXY_HOST;
 import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.HTTP_PROXY_PORT;
@@ -265,52 +256,46 @@ public class JwtUtil {
     }
 
     /**
-     * Creates a {@link CloseableHttpAsyncClient} that uses a {@link PoolingNHttpClientConnectionManager}
+     * Creates a {@link CloseableHttpAsyncClient} backed by a {@link PoolingAsyncClientConnectionManagerBuilder}.
      * @param realmConfig Realm config for a JWT realm.
      * @param sslService Realm config for SSL.
      * @return Initialized HTTPS client.
      */
     public static CloseableHttpAsyncClient createHttpClient(final RealmConfig realmConfig, final SSLService sslService) {
-        try {
-            final ConnectingIOReactor ioReactor = new DefaultConnectingIOReactor();
-            final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
-
-            final SslProfile sslProfile = sslService.profile(sslKey);
-            final SSLContext clientContext = sslProfile.sslContext();
-            final HostnameVerifier verifier = sslProfile.hostnameVerifier();
-            final Registry<SchemeIOSessionStrategy> registry = RegistryBuilder.<SchemeIOSessionStrategy>create()
-                .register("http", NoopIOSessionStrategy.INSTANCE)
-                // TODO: Should this use profile.ioSessionStrategy4 ?
-                .register("https", new SSLIOSessionStrategy(clientContext, verifier))
-                .build();
-            final PoolingNHttpClientConnectionManager connectionManager = new PoolingNHttpClientConnectionManager(ioReactor, registry);
-            connectionManager.setDefaultMaxPerRoute(realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS));
-            connectionManager.setMaxTotal(realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_CONNECTIONS));
-            final RequestConfig requestConfig = RequestConfig.custom()
-                .setConnectTimeout(Math.toIntExact(realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECT_TIMEOUT).getMillis()))
-                .setConnectionRequestTimeout(
-                    Math.toIntExact(realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT).getMillis())
+        final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
+        final SslProfile sslProfile = sslService.profile(sslKey);
+        final var connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
+            .setTlsStrategy(sslProfile.clientTlsStrategy())
+            .setMaxConnPerRoute(realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS))
+            .setMaxConnTotal(realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_CONNECTIONS))
+            .setDefaultConnectionConfig(
+                ConnectionConfig.custom()
+                    .setConnectTimeout(Timeout.ofMilliseconds(realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECT_TIMEOUT).getMillis()))
+                    .setSocketTimeout(Timeout.ofMilliseconds(realmConfig.getSetting(JwtRealmSettings.HTTP_SOCKET_TIMEOUT).getMillis()))
+                    .build()
+            )
+            .setDefaultTlsConfig(TlsConfig.custom().setVersionPolicy(HttpVersionPolicy.FORCE_HTTP_1).build())
+            .build();
+        final RequestConfig requestConfig = RequestConfig.custom()
+            .setConnectionRequestTimeout(
+                Timeout.ofMilliseconds(realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT).getMillis())
+            )
+            .build();
+        final var httpAsyncClientBuilder = HttpAsyncClients.custom()
+            .setConnectionManager(connectionManager)
+            .setDefaultRequestConfig(requestConfig);
+        if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
+            httpAsyncClientBuilder.setProxy(
+                new HttpHost(
+                    realmConfig.getSetting(HTTP_PROXY_SCHEME),
+                    realmConfig.getSetting(HTTP_PROXY_HOST),
+                    realmConfig.getSetting(HTTP_PROXY_PORT)
                 )
-                .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(JwtRealmSettings.HTTP_SOCKET_TIMEOUT).getMillis()))
-                .build();
-            final HttpAsyncClientBuilder httpAsyncClientBuilder = HttpAsyncClients.custom()
-                .setConnectionManager(connectionManager)
-                .setDefaultRequestConfig(requestConfig);
-            if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
-                httpAsyncClientBuilder.setProxy(
-                    new HttpHost(
-                        realmConfig.getSetting(HTTP_PROXY_HOST),
-                        realmConfig.getSetting(HTTP_PROXY_PORT),
-                        realmConfig.getSetting(HTTP_PROXY_SCHEME)
-                    )
-                );
-            }
-            final CloseableHttpAsyncClient httpAsyncClient = httpAsyncClientBuilder.build();
-            httpAsyncClient.start();
-            return httpAsyncClient;
-        } catch (IOException e) {
-            throw new IllegalStateException("Unable to create a HttpAsyncClient instance", e);
+            );
         }
+        final CloseableHttpAsyncClient httpAsyncClient = httpAsyncClientBuilder.build();
+        httpAsyncClient.start();
+        return httpAsyncClient;
     }
 
     /**
@@ -319,28 +304,23 @@ public class JwtUtil {
      * @param uri URI to download.
      */
     public static void readResponse(final CloseableHttpAsyncClient httpClient, final URI uri, ActionListener<JwksResponse> listener) {
-        httpClient.execute(new HttpGet(uri), new FutureCallback<>() {
+        final SimpleHttpRequest request = SimpleRequestBuilder.get(uri).build();
+        httpClient.execute(request, new FutureCallback<>() {
             @Override
-            public void completed(final HttpResponse result) {
-                final StatusLine statusLine = result.getStatusLine();
-                final int statusCode = statusLine.getStatusCode();
+            public void completed(final SimpleHttpResponse result) {
+                final int statusCode = result.getCode();
                 if (statusCode == 200) {
-                    final HttpEntity entity = result.getEntity();
-                    try (InputStream inputStream = entity.getContent()) {
-                        listener.onResponse(
-                            new JwksResponse(
-                                inputStream.readAllBytes(),
-                                firstHeaderValue(result, "Expires"),
-                                firstHeaderValue(result, "Cache-Control")
-                            )
-                        );
-                    } catch (Exception e) {
-                        listener.onFailure(e);
-                    }
+                    listener.onResponse(
+                        new JwksResponse(
+                            result.getBodyBytes(),
+                            firstHeaderValue(result, "Expires"),
+                            firstHeaderValue(result, "Cache-Control")
+                        )
+                    );
                 } else {
                     listener.onFailure(
                         new ElasticsearchSecurityException(
-                            "Get [" + uri + "] failed, status [" + statusCode + "], reason [" + statusLine.getReasonPhrase() + "]."
+                            "Get [" + uri + "] failed, status [" + statusCode + "], reason [" + result.getReasonPhrase() + "]."
                         )
                     );
                 }
@@ -358,7 +338,7 @@ public class JwtUtil {
         });
     }
 
-    private static String firstHeaderValue(final HttpResponse response, final String headerName) {
+    private static String firstHeaderValue(final SimpleHttpResponse response, final String headerName) {
         final Header header = response.getFirstHeader(headerName);
         return header != null ? header.getValue() : null;
     }

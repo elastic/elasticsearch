@@ -74,11 +74,6 @@ dependencies {
   // provided by x-pack-core
   compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
 
-  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
-  api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
-  api "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
   runtimeOnly 'com.google.guava:guava:33.0.0-jre'
   runtimeOnly 'com.google.guava:failureaccess:1.0.2'
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
@@ -250,13 +245,9 @@ tasks.named("thirdPartyAudit").configure {
     'net.spy.memcached.CASResponse',
     'net.spy.memcached.CASValue',
     'net.spy.memcached.MemcachedClient',
-    'net.spy.memcached.MemcachedClientIF',
     'net.spy.memcached.CachedData',
     'net.spy.memcached.internal.OperationFuture',
     'net.spy.memcached.transcoders.Transcoder',
-    // [missing classes] Http Client cache has optional ehcache support
-    'net.sf.ehcache.Ehcache',
-    'net.sf.ehcache.Element',
     // missing classes linked by nimbus
     'com.google.crypto.tink.subtle.Ed25519Sign',
     'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',

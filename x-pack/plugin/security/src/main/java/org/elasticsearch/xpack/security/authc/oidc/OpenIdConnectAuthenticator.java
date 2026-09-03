@@ -17,7 +17,6 @@ import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.BadJOSEException;
 import com.nimbusds.jose.proc.JWSVerificationKeySelector;
 import com.nimbusds.jose.proc.SecurityContext;
-import com.nimbusds.jose.util.IOUtils;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.oauth2.sdk.AuthorizationCode;
@@ -43,37 +42,29 @@ import com.nimbusds.openid.connect.sdk.token.OIDCTokens;
 import com.nimbusds.openid.connect.sdk.validators.AccessTokenValidator;
 import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
 
-import org.apache.commons.codec.Charsets;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.NameValuePair;
-import org.apache.http.auth.AuthenticationException;
-import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.entity.UrlEncodedFormEntity;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.config.Registry;
-import org.apache.http.config.RegistryBuilder;
-import org.apache.http.conn.ConnectionKeepAliveStrategy;
-import org.apache.http.entity.ContentType;
-import org.apache.http.impl.auth.BasicScheme;
-import org.apache.http.impl.client.DefaultConnectionKeepAliveStrategy;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.impl.nio.client.HttpAsyncClients;
-import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
-import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
-import org.apache.http.impl.nio.reactor.IOReactorConfig;
-import org.apache.http.message.BasicNameValuePair;
-import org.apache.http.nio.conn.NoopIOSessionStrategy;
-import org.apache.http.nio.conn.SchemeIOSessionStrategy;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
-import org.apache.http.nio.reactor.ConnectingIOReactor;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.client5.http.ConnectionKeepAliveStrategy;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleHttpResponse;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.config.TlsConfig;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.impl.async.HttpAsyncClients;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
+import org.apache.hc.core5.concurrent.FutureCallback;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HeaderElement;
+import org.apache.hc.core5.http.HeaderElements;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.NameValuePair;
+import org.apache.hc.core5.http.message.BasicNameValuePair;
+import org.apache.hc.core5.http.message.MessageSupport;
+import org.apache.hc.core5.http2.HttpVersionPolicy;
+import org.apache.hc.core5.reactor.IOReactorConfig;
+import org.apache.hc.core5.util.TimeValue;
+import org.apache.hc.core5.util.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -99,18 +90,15 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLEncoder;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.ALLOWED_CLOCK_SKEW;
@@ -410,11 +398,12 @@ public class OpenIdConnectAuthenticator {
         ActionListener<JWTClaimsSet> claimsListener
     ) {
         try {
-            final HttpGet httpGet = new HttpGet(opConfig.getUserinfoEndpoint());
-            httpGet.setHeader("Authorization", "Bearer " + accessToken.getValue());
-            httpClient.execute(httpGet, new FutureCallback<HttpResponse>() {
+            final SimpleHttpRequest httpGet = SimpleRequestBuilder.get(opConfig.getUserinfoEndpoint())
+                .addHeader("Authorization", "Bearer " + accessToken.getValue())
+                .build();
+            httpClient.execute(httpGet, new FutureCallback<SimpleHttpResponse>() {
                 @Override
-                public void completed(HttpResponse result) {
+                public void completed(SimpleHttpResponse result) {
                     handleUserinfoResponse(result, verifiedIdTokenClaims, claimsListener);
                 }
 
@@ -441,25 +430,23 @@ public class OpenIdConnectAuthenticator {
      * (This method is package-protected for testing purposes)
      */
     static void handleUserinfoResponse(
-        HttpResponse httpResponse,
+        SimpleHttpResponse httpResponse,
         JWTClaimsSet verifiedIdTokenClaims,
         ActionListener<JWTClaimsSet> claimsListener
     ) {
         try {
-            final HttpEntity entity = httpResponse.getEntity();
-            final Header encodingHeader = entity.getContentEncoding();
-            final Charset encoding = encodingHeader == null ? StandardCharsets.UTF_8 : Charsets.toCharset(encodingHeader.getValue());
-            final Header contentHeader = entity.getContentType();
-            final String contentAsString = EntityUtils.toString(entity, encoding);
+            final ContentType contentType = httpResponse.getContentType();
+            final String mimeType = contentType == null ? null : contentType.getMimeType();
+            final String contentAsString = httpResponse.getBodyText();
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace(
                     "Received UserInfo Response from OP with status [{}] and content [{}] ",
-                    httpResponse.getStatusLine().getStatusCode(),
+                    httpResponse.getCode(),
                     contentAsString
                 );
             }
-            if (httpResponse.getStatusLine().getStatusCode() == 200) {
-                if (ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/json")) {
+            if (httpResponse.getCode() == 200) {
+                if ("application/json".equals(mimeType)) {
                     final JWTClaimsSet userInfoClaims = JWTClaimsSet.parse(contentAsString);
                     String expectedSub = verifiedIdTokenClaims.getSubject();
                     if (userInfoClaims.getSubject() == null || userInfoClaims.getSubject().isEmpty()) {
@@ -481,7 +468,7 @@ public class OpenIdConnectAuthenticator {
                     final Map<String, Object> combinedClaims = verifiedIdTokenClaims.toJSONObject();
                     mergeObjects(combinedClaims, userInfoClaims.toJSONObject());
                     claimsListener.onResponse(JWTClaimsSet.parse(combinedClaims));
-                } else if (ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/jwt")) {
+                } else if ("application/jwt".equals(mimeType)) {
                     // TODO Handle validating possibly signed responses
                     claimsListener.onFailure(
                         new IllegalStateException(
@@ -493,7 +480,7 @@ public class OpenIdConnectAuthenticator {
                         new IllegalStateException(
                             "Unable to parse Userinfo Response. Content type was expected to "
                                 + "be [application/json] or [appliation/jwt] but was ["
-                                + contentHeader.getValue()
+                                + mimeType
                                 + "]"
                         )
                     );
@@ -513,8 +500,8 @@ public class OpenIdConnectAuthenticator {
                     claimsListener.onFailure(
                         new ElasticsearchSecurityException(
                             "Failed to get user information from the UserInfo endpoint. Code=[{}], Description=[{}]",
-                            httpResponse.getStatusLine().getStatusCode(),
-                            httpResponse.getStatusLine().getReasonPhrase()
+                            httpResponse.getCode(),
+                            httpResponse.getReasonPhrase()
                         )
                     );
                 }
@@ -531,19 +518,23 @@ public class OpenIdConnectAuthenticator {
     private void exchangeCodeForToken(AuthorizationCode code, ActionListener<Tuple<AccessToken, JWT>> tokensListener) {
         try {
             final AuthorizationCodeGrant codeGrant = new AuthorizationCodeGrant(code, rpConfig.getRedirectUri());
-            final HttpPost httpPost = new HttpPost(opConfig.getTokenEndpoint());
-            httpPost.setHeader("Content-type", "application/x-www-form-urlencoded");
             final List<NameValuePair> params = new ArrayList<>();
             for (Map.Entry<String, List<String>> entry : codeGrant.toParameters().entrySet()) {
                 // All parameters of AuthorizationCodeGrant are singleton lists
                 params.add(new BasicNameValuePair(entry.getKey(), entry.getValue().get(0)));
             }
+            final SimpleRequestBuilder requestBuilder = SimpleRequestBuilder.post(opConfig.getTokenEndpoint())
+                .addHeader("Content-type", "application/x-www-form-urlencoded");
             if (rpConfig.getClientAuthenticationMethod().equals(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)) {
-                UsernamePasswordCredentials creds = new UsernamePasswordCredentials(
-                    URLEncoder.encode(rpConfig.getClientId().getValue(), StandardCharsets.UTF_8),
-                    URLEncoder.encode(rpConfig.getClientSecret().toString(), StandardCharsets.UTF_8)
-                );
-                httpPost.addHeader(new BasicScheme().authenticate(creds, httpPost, null));
+                final String encoded = java.util.Base64.getEncoder()
+                    .encodeToString(
+                        (URLEncoder.encode(rpConfig.getClientId().getValue(), StandardCharsets.UTF_8)
+                            + ":"
+                            + URLEncoder.encode(rpConfig.getClientSecret().toString(), StandardCharsets.UTF_8)).getBytes(
+                                StandardCharsets.UTF_8
+                            )
+                    );
+                requestBuilder.addHeader("Authorization", "Basic " + encoded);
             } else if (rpConfig.getClientAuthenticationMethod().equals(ClientAuthenticationMethod.CLIENT_SECRET_POST)) {
                 params.add(new BasicNameValuePair("client_id", rpConfig.getClientId().getValue()));
                 params.add(new BasicNameValuePair("client_secret", rpConfig.getClientSecret().toString()));
@@ -569,11 +560,19 @@ public class OpenIdConnectAuthenticator {
                             + "]"
                     )
                 );
+                return;
             }
-            httpPost.setEntity(new UrlEncodedFormEntity(params, (Charset) null));
-            httpClient.execute(httpPost, new FutureCallback<HttpResponse>() {
+            final String formBody = params.stream()
+                .map(
+                    p -> URLEncoder.encode(p.getName(), StandardCharsets.UTF_8)
+                        + "="
+                        + URLEncoder.encode(p.getValue(), StandardCharsets.UTF_8)
+                )
+                .collect(java.util.stream.Collectors.joining("&"));
+            requestBuilder.setBody(formBody, ContentType.APPLICATION_FORM_URLENCODED);
+            httpClient.execute(requestBuilder.build(), new FutureCallback<SimpleHttpResponse>() {
                 @Override
-                public void completed(HttpResponse result) {
+                public void completed(SimpleHttpResponse result) {
                     handleTokenResponse(result, tokensListener);
                 }
 
@@ -590,7 +589,7 @@ public class OpenIdConnectAuthenticator {
                     tokensListener.onFailure(new ElasticsearchSecurityException(message));
                 }
             });
-        } catch (AuthenticationException | JOSEException e) {
+        } catch (JOSEException e) {
             tokensListener.onFailure(
                 new ElasticsearchSecurityException("Failed to exchange code for Id Token using the Token Endpoint.", e)
             );
@@ -602,27 +601,21 @@ public class OpenIdConnectAuthenticator {
      * and access token and call the provided listener.
      * (Package private for testing purposes)
      */
-    static void handleTokenResponse(HttpResponse httpResponse, ActionListener<Tuple<AccessToken, JWT>> tokensListener) {
+    static void handleTokenResponse(SimpleHttpResponse httpResponse, ActionListener<Tuple<AccessToken, JWT>> tokensListener) {
         try {
-            final HttpEntity entity = httpResponse.getEntity();
-            final Header encodingHeader = entity.getContentEncoding();
-            final Header contentHeader = entity.getContentType();
-            final String contentHeaderValue = contentHeader == null ? null : ContentType.parse(contentHeader.getValue()).getMimeType();
-            if (contentHeaderValue == null || contentHeaderValue.equals("application/json") == false) {
+            final ContentType contentType = httpResponse.getContentType();
+            final String mimeType = contentType == null ? null : contentType.getMimeType();
+            if (mimeType == null || mimeType.equals("application/json") == false) {
                 tokensListener.onFailure(
                     new IllegalStateException(
-                        "Unable to parse Token Response. Content type was expected to be "
-                            + "[application/json] but was ["
-                            + contentHeaderValue
-                            + "]"
+                        "Unable to parse Token Response. Content type was expected to be " + "[application/json] but was [" + mimeType + "]"
                     )
                 );
                 return;
             }
-            final Charset encoding = encodingHeader == null ? StandardCharsets.UTF_8 : Charsets.toCharset(encodingHeader.getValue());
-            final RestStatus responseStatus = RestStatus.fromCode(httpResponse.getStatusLine().getStatusCode());
+            final RestStatus responseStatus = RestStatus.fromCode(httpResponse.getCode());
             if (RestStatus.OK != responseStatus) {
-                final String json = EntityUtils.toString(entity, encoding);
+                final String json = httpResponse.getBodyText();
                 LOGGER.warn("Received Token Response from OP with status [{}] and content [{}]", responseStatus, json);
                 if (RestStatus.BAD_REQUEST == responseStatus) {
                     final TokenErrorResponse tokenErrorResponse = TokenErrorResponse.parse(JSONObjectUtils.parse(json));
@@ -637,9 +630,7 @@ public class OpenIdConnectAuthenticator {
                     tokensListener.onFailure(new ElasticsearchSecurityException("Failed to exchange code for Id Token"));
                 }
             } else {
-                final OIDCTokenResponse oidcTokenResponse = OIDCTokenResponse.parse(
-                    JSONObjectUtils.parse(EntityUtils.toString(entity, encoding))
-                );
+                final OIDCTokenResponse oidcTokenResponse = OIDCTokenResponse.parse(JSONObjectUtils.parse(httpResponse.getBodyText()));
                 final OIDCTokens oidcTokens = oidcTokenResponse.getOIDCTokens();
                 final AccessToken accessToken = oidcTokens.getAccessToken();
                 final JWT idToken = oidcTokens.getIDToken();
@@ -676,50 +667,43 @@ public class OpenIdConnectAuthenticator {
     }
 
     /**
-     * Creates a {@link CloseableHttpAsyncClient} that uses a {@link PoolingNHttpClientConnectionManager}
+     * Creates a {@link CloseableHttpAsyncClient} backed by a {@link PoolingAsyncClientConnectionManagerBuilder}
      */
     private CloseableHttpAsyncClient createHttpClient() {
-        try {
-            ConnectingIOReactor ioReactor = new DefaultConnectingIOReactor(
-                IOReactorConfig.custom().setSoKeepAlive(realmConfig.getSetting(HTTP_TCP_KEEP_ALIVE)).build()
+        final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
+        final SslProfile sslProfile = sslService.profile(sslKey);
+        final var connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
+            .setTlsStrategy(sslProfile.clientTlsStrategy())
+            .setMaxConnPerRoute(realmConfig.getSetting(HTTP_MAX_ENDPOINT_CONNECTIONS))
+            .setMaxConnTotal(realmConfig.getSetting(HTTP_MAX_CONNECTIONS))
+            .setDefaultConnectionConfig(
+                ConnectionConfig.custom()
+                    .setConnectTimeout(Timeout.ofMilliseconds(realmConfig.getSetting(HTTP_CONNECT_TIMEOUT).getMillis()))
+                    .setSocketTimeout(Timeout.ofMilliseconds(realmConfig.getSetting(HTTP_SOCKET_TIMEOUT).getMillis()))
+                    .build()
+            )
+            .setDefaultTlsConfig(TlsConfig.custom().setVersionPolicy(HttpVersionPolicy.FORCE_HTTP_1).build())
+            .build();
+        final RequestConfig requestConfig = RequestConfig.custom()
+            .setConnectionRequestTimeout(Timeout.ofMilliseconds(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getMillis()))
+            .build();
+        final var httpAsyncClientBuilder = HttpAsyncClients.custom()
+            .setConnectionManager(connectionManager)
+            .setIOReactorConfig(IOReactorConfig.custom().setSoKeepAlive(realmConfig.getSetting(HTTP_TCP_KEEP_ALIVE)).build())
+            .setDefaultRequestConfig(requestConfig)
+            .setKeepAliveStrategy(getKeepAliveStrategy());
+        if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
+            httpAsyncClientBuilder.setProxy(
+                new HttpHost(
+                    realmConfig.getSetting(HTTP_PROXY_SCHEME),
+                    realmConfig.getSetting(HTTP_PROXY_HOST),
+                    realmConfig.getSetting(HTTP_PROXY_PORT)
+                )
             );
-            final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
-            final SslProfile sslProfile = sslService.profile(sslKey);
-            final SSLContext clientContext = sslProfile.sslContext();
-            final HostnameVerifier verifier = sslProfile.hostnameVerifier();
-            Registry<SchemeIOSessionStrategy> registry = RegistryBuilder.<SchemeIOSessionStrategy>create()
-                .register("http", NoopIOSessionStrategy.INSTANCE)
-                // TODO: Should this use profile.ioSessionStrategy4 ?
-                .register("https", new SSLIOSessionStrategy(clientContext, verifier))
-                .build();
-            PoolingNHttpClientConnectionManager connectionManager = new PoolingNHttpClientConnectionManager(ioReactor, registry);
-            connectionManager.setDefaultMaxPerRoute(realmConfig.getSetting(HTTP_MAX_ENDPOINT_CONNECTIONS));
-            connectionManager.setMaxTotal(realmConfig.getSetting(HTTP_MAX_CONNECTIONS));
-            final RequestConfig requestConfig = RequestConfig.custom()
-                .setConnectTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECT_TIMEOUT).getMillis()))
-                .setConnectionRequestTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getMillis()))
-                .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_SOCKET_TIMEOUT).getMillis()))
-                .build();
-
-            HttpAsyncClientBuilder httpAsyncClientBuilder = HttpAsyncClients.custom()
-                .setConnectionManager(connectionManager)
-                .setDefaultRequestConfig(requestConfig)
-                .setKeepAliveStrategy(getKeepAliveStrategy());
-            if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
-                httpAsyncClientBuilder.setProxy(
-                    new HttpHost(
-                        realmConfig.getSetting(HTTP_PROXY_HOST),
-                        realmConfig.getSetting(HTTP_PROXY_PORT),
-                        realmConfig.getSetting(HTTP_PROXY_SCHEME)
-                    )
-                );
-            }
-            CloseableHttpAsyncClient httpAsyncClient = httpAsyncClientBuilder.build();
-            httpAsyncClient.start();
-            return httpAsyncClient;
-        } catch (IOException e) {
-            throw new IllegalStateException("Unable to create a HttpAsyncClient instance", e);
         }
+        CloseableHttpAsyncClient httpAsyncClient = httpAsyncClientBuilder.build();
+        httpAsyncClient.start();
+        return httpAsyncClient;
     }
 
     // Package private for testing
@@ -729,22 +713,33 @@ public class OpenIdConnectAuthenticator {
 
     // Package private for testing
     ConnectionKeepAliveStrategy getKeepAliveStrategy() {
-        final long userConfiguredKeepAlive = realmConfig.getSetting(HTTP_CONNECTION_POOL_TTL).millis();
+        final long userConfiguredKeepAliveMillis = realmConfig.getSetting(HTTP_CONNECTION_POOL_TTL).millis();
         return (response, context) -> {
-            var serverKeepAlive = DefaultConnectionKeepAliveStrategy.INSTANCE.getKeepAliveDuration(response, context);
-            long actualKeepAlive;
-            if (serverKeepAlive <= -1) {
-                actualKeepAlive = userConfiguredKeepAlive;
-            } else if (userConfiguredKeepAlive <= -1) {
-                actualKeepAlive = serverKeepAlive;
+            // Parse Keep-Alive: timeout=X header directly; negative means server did not specify
+            long serverMillis = -1;
+            final Iterator<HeaderElement> it = MessageSupport.iterate(response, HeaderElements.KEEP_ALIVE);
+            while (it.hasNext()) {
+                final HeaderElement element = it.next();
+                if ("timeout".equalsIgnoreCase(element.getName()) && element.getValue() != null) {
+                    try {
+                        serverMillis = Long.parseLong(element.getValue()) * 1000L;
+                        break;
+                    } catch (final NumberFormatException ignore) {}
+                }
+            }
+            long actualMillis;
+            if (serverMillis < 0) {
+                actualMillis = userConfiguredKeepAliveMillis;
+            } else if (userConfiguredKeepAliveMillis < 0) {
+                actualMillis = serverMillis;
             } else {
-                actualKeepAlive = Math.min(serverKeepAlive, userConfiguredKeepAlive);
+                actualMillis = Math.min(serverMillis, userConfiguredKeepAliveMillis);
             }
-            if (actualKeepAlive < -1) {
-                actualKeepAlive = -1;
+            if (actualMillis < 0) {
+                actualMillis = -1;
             }
-            LOGGER.debug("effective HTTP connection keep-alive: [{}]ms", actualKeepAlive);
-            return actualKeepAlive;
+            LOGGER.debug("effective HTTP connection keep-alive: [{}]ms", actualMillis);
+            return TimeValue.ofMilliseconds(actualMillis);
         };
     }
 
@@ -958,14 +953,11 @@ public class OpenIdConnectAuthenticator {
 
         void reloadAsync(final ListenableFuture<Void> future) {
             try {
-                final HttpGet httpGet = new HttpGet(jwkSetPath.toURI());
-                httpClient.execute(httpGet, new FutureCallback<HttpResponse>() {
+                httpClient.execute(SimpleRequestBuilder.get(jwkSetPath.toURI()).build(), new FutureCallback<SimpleHttpResponse>() {
                     @Override
-                    public void completed(HttpResponse result) {
+                    public void completed(SimpleHttpResponse result) {
                         try {
-                            cachedJwkSet = JWKSet.parse(
-                                IOUtils.readInputStreamToString(result.getEntity().getContent(), StandardCharsets.UTF_8)
-                            );
+                            cachedJwkSet = JWKSet.parse(result.getBodyText());
                             reloadFutureRef.set(null);
                             LOGGER.trace("Successfully refreshed and cached remote JWKSet");
                             future.onResponse(null);

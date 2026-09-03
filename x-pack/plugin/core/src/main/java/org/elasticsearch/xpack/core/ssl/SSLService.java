@@ -813,6 +813,11 @@ public class SSLService {
         }
 
         @Override
+        public org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory connectionSocketFactory5() {
+            return ClassicTlsStrategyBuilder.INSTANCE.build(this.sslConfiguration, context);
+        }
+
+        @Override
         public SSLIOSessionStrategy ioSessionStrategy() {
             return SSLIOSessionStrategyBuilder.INSTANCE.build(this.sslConfiguration, context);
         }

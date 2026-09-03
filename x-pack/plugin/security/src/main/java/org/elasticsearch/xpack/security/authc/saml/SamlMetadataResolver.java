@@ -15,7 +15,6 @@ import org.apache.hc.client5.http.classic.HttpClient;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
-import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.util.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -358,12 +357,8 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         throws ResolverException, ComponentInitializationException {
         final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
         final SslProfile sslProfile = sslService.profile(sslKey);
-        final SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
-            sslProfile.sslContext(),
-            sslProfile.hostnameVerifier()
-        );
         final var connManager = PoolingHttpClientConnectionManagerBuilder.create()
-            .setSSLSocketFactory(sslSocketFactory)
+            .setSSLSocketFactory(sslProfile.connectionSocketFactory5())
             .setConnectionTimeToLive(org.apache.hc.core5.util.TimeValue.ofSeconds(DEFAULT_CONNECTION_TTL.toDuration().toSeconds()))
             .build();
 

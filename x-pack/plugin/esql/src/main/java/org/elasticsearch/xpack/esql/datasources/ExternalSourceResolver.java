@@ -614,9 +614,8 @@ public class ExternalSourceResolver {
         LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
         // Chain the root, not e: e may be the cache's ExecutionException whose message is the cause's toString(),
         // which would render a JVM type name into the user's caused_by exactly as the IOException arm above did.
-        Throwable root = ExceptionsHelper.unwrapCause(e);
         return new ExternalServerException(
-            root instanceof Exception rootCause ? rootCause : e,
+            ExternalFailures.rootCause(e),
             "{}",
             ExternalFailures.locate("Failed to resolve external source", path, detail)
         );

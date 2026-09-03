@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -245,10 +246,19 @@ public class ExternalFailuresTests extends ESTestCase {
         );
     }
 
-    public void testLocateNamesTheLocationExactlyOnce() {
-        String location = "s3://bucket/data/good.csv";
-        String message = ExternalFailures.locate("Failed to resolve external source", location, "Object not found: " + location);
-        assertThat("the location must not be printed twice", message.indexOf(location), equalTo(message.lastIndexOf(location)));
+    public void testRootCauseStepsThroughAToStringDerivedWrapper() {
+        IOException real = new IOException("Object not found: s3://bucket/x.csv");
+        // The shape the resolver sees: a JDK ExecutionException whose message is the cause's toString(). It is not
+        // an ElasticsearchWrapperException, so ExceptionsHelper.unwrapCause would return it unchanged.
+        ExecutionException wrapper = new ExecutionException(real);
+        assertThat(ExternalFailures.rootCause(wrapper), equalTo(real));
+        assertThat(ExceptionsHelper.unwrapCause(wrapper), equalTo(wrapper));
+    }
+
+    public void testRootCauseKeepsAWrapperThatCarriesItsOwnMessage() {
+        IOException real = new IOException("Object not found: s3://bucket/x.csv");
+        IOException described = new IOException("Failed to list bucket [b]", real);
+        assertThat(ExternalFailures.rootCause(described), equalTo(described));
     }
 
 }

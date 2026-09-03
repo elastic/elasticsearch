@@ -2852,8 +2852,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             () -> new CsvFormatReader(blockFactory).withConfig(Map.of("datetime_format", "not-a-valid-!!format!!"))
         );
         assertThat(e.getMessage(), Matchers.containsString("Invalid datetime format [not-a-valid-!!format!!]"));
-        // The message has to say why the pattern was rejected, not only that it was: the reason lives in the
-        // cause, and without this the message would be identical for every unparseable pattern.
+        // Without the reason the message is identical for every unparseable pattern.
         assertThat(e.getMessage(), Matchers.containsString("Unknown pattern letter"));
     }
 

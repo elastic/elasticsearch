@@ -42,6 +42,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -219,15 +220,11 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * The status every probe is expected to return. This is the contract: a change here is a change to what
      * clients see, and it has to be made deliberately in the same diff as the code that causes it. Regenerate
      * from the report after an intentional change; never edit an entry to make a build pass.
-     *
-     * <p>A 200 entry records a misconfiguration the engine currently accepts. Those are pinned like any other
-     * outcome so that fixing one — turning it into a 400 — fails here and forces the expectation to be updated.
      */
     private static final Map<String, Integer> EXPECTED_STATUS = Map.ofEntries(
-        // The three 200s below -- multi-character delimiter, multi-character quote, malformed endpoint -- are
-        // misconfigurations the engine currently accepts. They are esql-planning#1550, whose fix is in flight as
-        // elastic/elasticsearch#157197: when it lands these become 400 and these three entries move with it in the
-        // same change. They are pinned rather than skipped so that fix cannot land silently.
+        // The three 200s -- multi-character delimiter, multi-character quote, malformed endpoint -- are
+        // misconfigurations we currently accept (esql-planning#1550, fix in flight as elastic/elasticsearch#157197).
+        // Pinned rather than skipped so that fix cannot land silently; the entries move with it.
         entry("tsv object does not exist", 400),
         entry("tsv object is empty", 400),
         entry("tsv declared as parquet", 400),
@@ -1233,6 +1230,15 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
                 violations.add("no expected status recorded for [" + p.group() + "/" + p.name() + "]");
             } else if (expected != p.status()) {
                 violations.add("status changed for [" + p.group() + "/" + p.name() + "]: expected " + expected + ", got " + p.status());
+            }
+        }
+
+        // A renamed or deleted probe leaves its entry behind, exempting nothing and pinning a condition that no
+        // longer runs. The forward check above cannot see that, so walk the other way too.
+        Set<String> probed = probes.stream().map(Probe::name).collect(Collectors.toSet());
+        for (String recorded : EXPECTED_STATUS.keySet()) {
+            if (probed.contains(recorded) == false) {
+                violations.add("EXPECTED_STATUS entry [" + recorded + "] matches no probe -- remove it");
             }
         }
 

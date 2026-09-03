@@ -2703,6 +2703,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertThat(mapped.getMessage(), containsString("s3://b/x.parquet"));
         assertThat(mapped.getMessage(), containsString("Object not found"));
+        // The detail already names the object, so the wrapper must not name it a second time. containsString on
+        // each half passes either way; the count is what holds the resolver to ExternalFailures.locate.
+        assertEquals(
+            "the object is named once, not once by the detail and again by the wrapper",
+            mapped.getMessage().indexOf("s3://b/x.parquet"),
+            mapped.getMessage().lastIndexOf("s3://b/x.parquet")
+        );
+        // Chaining the cache wrapper rather than its cause is what puts "java.io.IOException: ..." in caused_by.
+        for (Throwable c = mapped.getCause(); c != null; c = c.getCause()) {
+            assertThat(String.valueOf(c.getMessage()), not(containsString("java.io.")));
+        }
     }
 
     /**

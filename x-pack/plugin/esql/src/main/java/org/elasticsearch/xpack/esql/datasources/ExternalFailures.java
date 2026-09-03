@@ -212,6 +212,9 @@ public final class ExternalFailures {
      * directly rather than re-deriving it from the cause.
      */
     public static String locate(String prefix, String location, String detail) {
+        // contains() is deliberately loose: it is inherited from resolutionFailureMessage, and a location that is a
+        // strict prefix of the one named in the detail would suppress the prefix wrongly. No path produces that
+        // today -- both come from the same StoragePath -- so tightening it is not worth a behaviour change here.
         return detail.contains(location) ? detail : prefix + " [" + location + "]: " + detail;
     }
 
@@ -231,15 +234,25 @@ public final class ExternalFailures {
      * because that message is the more specific one. Cycle-guarded and depth-bounded.
      */
     public static String rootDetail(Throwable failure) {
+        return detail(rootCause(failure));
+    }
+
+    /**
+     * The throwable {@link #rootDetail} takes its message from. Chain this rather than the wrapper when building a
+     * user-facing exception: a wrapper whose message is the cause's {@code toString()} renders a JVM type name into
+     * {@code caused_by}. {@code ExceptionsHelper#unwrapCause} does not help here — it only steps through
+     * {@code ElasticsearchWrapperException}, and the wrapper in this path is a plain {@code ExecutionException}.
+     */
+    public static Throwable rootCause(Throwable failure) {
         Throwable current = failure;
         for (int depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
             Throwable cause = current.getCause();
             if (cause == null || cause == current || derivesMessageFrom(current, cause) == false) {
-                return detail(current);
+                return current;
             }
             current = cause;
         }
-        return detail(current);
+        return current;
     }
 
     /**

@@ -823,4 +823,18 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "auto", "delimiter", "|"))
         );
     }
+
+    public void testUnsupportedSchemeListsTheSchemesInAStableOrder() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> formatAwareValidator.validateDataset(Map.of(), "ftp://bucket/data/good.csv", Map.of())
+        );
+        // The scheme set is a Set.of, whose iteration order the JDK salts per JVM run. Sorted, the message is
+        // identical on every node; matching it in full is what stops it drifting back.
+        assertThat(
+            e.validationErrors(),
+            hasItem(containsString("[resource] must use one of the supported URI schemes [s3://, s3a://, s3n://]"))
+        );
+    }
+
 }

@@ -108,6 +108,20 @@ public final class FixtureExclusions {
         return new FixtureExclusions(props);
     }
 
+    /**
+     * Parses a declaration. Separate from {@link #load()} so a test can exercise the GRAMMAR -- the
+     * bug-versus-rule distinction, suite validation, the vector-slot qualifier -- against a constructed
+     * Properties rather than against the live corpus.
+     *
+     * <p>It exists because the alternative bit. A grammar test that reached into the real declaration for
+     * an example of a {@code bug:} entry named one specific defect, and deleting that entry when its defect
+     * was fixed broke the test -- so the corpus could not be kept current without editing a test that has
+     * nothing to do with the fix. Mirrors {@link FixtureDimensions#parse} for the same reason.
+     */
+    static FixtureExclusions parse(Properties props) {
+        return new FixtureExclusions(props);
+    }
+
     private FixtureExclusions(Properties props) {
         Map<String, Map<SpecCase, Exclusion>> parsed = new LinkedHashMap<>();
         String suitesValue = props.getProperty("suites");

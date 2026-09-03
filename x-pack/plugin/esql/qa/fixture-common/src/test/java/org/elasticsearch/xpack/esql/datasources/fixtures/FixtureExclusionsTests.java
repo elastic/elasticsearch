@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.fixtures;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
+import java.util.Properties;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.empty;
@@ -102,13 +103,18 @@ public class FixtureExclusionsTests extends ESTestCase {
      * cases, which pins the same distinction with the data that exists.
      */
     public void testKindDistinguishesADefectFromAPermanentConstraint() {
-        FixtureExclusions exclusions = FixtureExclusions.get();
-        FixtureExclusions.Exclusion defect = exclusions.find(
-            "parquet",
-            "external-multifile-type-drift",
-            "typeDriftFilterIsStringComparison"
-        );
-        FixtureExclusions.Exclusion constraint = exclusions.find("ndjson", "external-multifile-resolution", "strictCount");
+        // A synthetic declaration, not the live corpus. This test is about the GRAMMAR -- that `bug:` and
+        // `rule:` are distinguishable and mean different things -- so naming a real defect as its example
+        // coupled it to that defect's lifetime: when #1772 was fixed and its now-stale exclusion deleted,
+        // this test went red for a reason that had nothing to do with the grammar it checks.
+        Properties props = new Properties();
+        props.setProperty("suites", "parquet, ndjson");
+        props.setProperty("exclude.parquet.some-spec.aDefectiveCase", "bug: elastic/esql-planning#1 -- the reader is wrong here");
+        props.setProperty("exclude.ndjson.some-spec.anImpossibleCase", "rule: the format cannot express this at all");
+        FixtureExclusions exclusions = FixtureExclusions.parse(props);
+
+        FixtureExclusions.Exclusion defect = exclusions.find("parquet", "some-spec", "aDefectiveCase");
+        FixtureExclusions.Exclusion constraint = exclusions.find("ndjson", "some-spec", "anImpossibleCase");
         assertThat(defect, not(nullValue()));
         assertThat(constraint, not(nullValue()));
         assertThat(defect.kind(), equalTo(FixtureExclusions.Kind.BUG));

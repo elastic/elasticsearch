@@ -149,6 +149,7 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
         for (String[] formatDet : new String[][] {
             { "ext", null, "simple.ndjson" }, // format inferred from .ndjson extension
             { "exp", "ndjson", "ndjson_noext" }, // explicit format: ndjson on an extensionless file
+            // TODO(esql-planning#1550): uncomment once a mismatched explicit format is rejected at PUT
             // { "exp_bad", "parquet", "ndjson_noext" }, // unknown format — not yet rejected at PUT (esql-planning#1550)
         }) {
             String det = formatDet[0];
@@ -158,6 +159,7 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
             for (String[] segmentSize : new String[][] {
                 { "seg_default", null }, // omit → reader default
                 { "seg_1mb", "1mb" },
+                // TODO(esql-planning#1550): uncomment once segment_size values are validated at PUT
                 // { "seg_tiny", "1b" }, // below 64 KiB minimum — not yet rejected at PUT (esql-planning#1550)
                 // { "seg_garbage", "foobar" }, // unparseable size — not yet rejected at PUT (esql-planning#1550)
             }) {
@@ -228,6 +230,7 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
         for (String[] formatDet : new String[][] {
             { "ext", null, extFile },      // format inferred from file extension
             { "exp", formatName, noextFile }, // explicit format on an extensionless file
+            // TODO(esql-planning#1550): uncomment once a mismatched explicit format is rejected at PUT
             // { "exp_bad", "parquet", noextFile }, // unknown format — not yet rejected at PUT (esql-planning#1550)
         }) {
             String det = formatDet[0];
@@ -238,6 +241,7 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
                 { "enc_default", null },        // omit → reader default (UTF-8)
                 { "enc_utf8", "UTF-8" },
                 { "enc_latin1", "ISO-8859-1" },
+                // TODO(esql-planning#1550): uncomment once charset values are validated at PUT
                 // { "enc_garbage", "UTF-99" }, // invalid charset — not yet rejected at PUT (esql-planning#1550)
             }) {
                 for (String[] delimiter : new String[][] {

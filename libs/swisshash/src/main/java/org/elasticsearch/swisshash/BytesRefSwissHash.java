@@ -13,7 +13,6 @@ import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -107,8 +106,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     }
 
     private static final VarHandle LONG_HANDLE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
-    private static final VarHandle INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
 
+    private final BigArrays bigArrays;
     private final BytesRefArray bytesRefs;
     private final boolean ownsBytesRefs;
     private final BytesRef scratch = new BytesRef();
@@ -121,7 +120,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      * Creates a new {@link BytesRefSwissHash} that manages its own {@link BytesRefArray}.
      */
     BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays) {
-        this(recycler, breaker, new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays), true);
+        this(recycler, breaker, bigArrays, new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays), true);
     }
 
     /**
@@ -129,11 +128,12 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      * This allows multiple {@link BytesRefSwissHash} to share the same key storage and ID space.
      */
     BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BytesRefArray bytesRefs) {
-        this(recycler, breaker, bytesRefs, false);
+        this(recycler, breaker, null, bytesRefs, false);
     }
 
-    private BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BytesRefArray bytesRefs, boolean ownsBytesRefs) {
+    private BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays, BytesRefArray bytesRefs, boolean ownsBytesRefs) {
         super(recycler, breaker, INITIAL_CAPACITY, SmallCore.FILL_FACTOR);
+        this.bigArrays = bigArrays;
         this.bytesRefs = bytesRefs;
         this.ownsBytesRefs = ownsBytesRefs;
         boolean success = false;
@@ -390,24 +390,14 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         /**
          * Returns {@code true} if every key was appended, allowing the caller to apply append-only optimizations.
          */
-        boolean mergeKeys(byte[][] pages, int[] pageUsed, int pageCount, int len, int[] ids) {
+        boolean mergeKeys(BytesRefArray keys, int len, int[] ids) {
             final BytesRef key = new BytesRef();
-            int keyIdx = 0;
             final int preSize = size;
-            for (int pageIdx = 0; pageIdx < pageCount; pageIdx++) {
-                final byte[] page = pages[pageIdx];
-                final int used = pageUsed[pageIdx];
-                int offset = 0;
-                while (offset < used) {
-                    key.length = (int) INT_HANDLE.get(page, offset);
-                    offset += Integer.BYTES;
-                    key.bytes = page;
-                    key.offset = offset;
-                    offset += key.length;
-                    final long hash = hash64(key);
-                    final int id = add(key, hash);
-                    ids[keyIdx++] = id >= 0 ? id : -1 - id;
-                }
+            for (int i = 0; i < len; i++) {
+                keys.get(i, key);
+                final long hash = hash64(key);
+                final int id = add(key, hash);
+                ids[i] = id >= 0 ? id : -1 - id;
             }
             return size == preSize + len;
         }
@@ -729,45 +719,26 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         /**
          * Returns {@code true} if every key was appended, allowing the caller to apply append-only optimizations.
          */
-        boolean mergeKeys(byte[][] pages, int[] pageUsed, int pageCount, int len, int[] ids) {
+        boolean mergeKeys(BytesRefArray keys, int len, int[] ids) {
             final BytesRef key = new BytesRef();
-            int keyIdx = 0;
             final int preSize = size;
             if (preSize == 0) {
-                for (int pageIdx = 0; pageIdx < pageCount; pageIdx++) {
-                    final byte[] page = pages[pageIdx];
-                    final int used = pageUsed[pageIdx];
-                    int offset = 0;
-                    while (offset < used) {
-                        key.length = (int) INT_HANDLE.get(page, offset);
-                        offset += Integer.BYTES;
-                        key.bytes = page;
-                        key.offset = offset;
-                        offset += key.length;
-                        final long hash64 = hash64(key);
-                        final int id = (int) bytesRefs.size();
-                        insert(hash(hash64), control(hash64), id);
-                        bytesRefs.append(key);
-                        ids[keyIdx++] = id;
-                    }
+                for (int i = 0; i < len; i++) {
+                    keys.get(i, key);
+                    final long hash64 = hash64(key);
+                    final int id = (int) bytesRefs.size();
+                    insert(hash(hash64), control(hash64), id);
+                    bytesRefs.append(key);
+                    ids[i] = id;
                 }
                 size = len;
                 return true;
             }
-            for (int pageIdx = 0; pageIdx < pageCount; pageIdx++) {
-                final byte[] page = pages[pageIdx];
-                final int used = pageUsed[pageIdx];
-                int offset = 0;
-                while (offset < used) {
-                    key.length = (int) INT_HANDLE.get(page, offset);
-                    offset += Integer.BYTES;
-                    key.bytes = page;
-                    key.offset = offset;
-                    offset += key.length;
-                    final long hash64 = hash64(key);
-                    final int id = addImpl(key, hash64);
-                    ids[keyIdx++] = id >= 0 ? id : -1 - id;
-                }
+            for (int i = 0; i < len; i++) {
+                keys.get(i, key);
+                final long hash64 = hash64(key);
+                final int id = addImpl(key, hash64);
+                ids[i] = id >= 0 ? id : -1 - id;
             }
             return size == preSize + len;
         }
@@ -907,7 +878,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         final int[] batchPartitionCounts = new int[NUM_PARTITIONS];
         final short[] shiftedIds = new short[PARTITION_WRITE_BATCH * NUM_PARTITIONS];
         int batchStart = 0;
-        var partitionedKeys = new BytesRefPartitionedHashKeys(breaker, size, bytesRefs.totalBytes());
+        assert ownsBytesRefs : "splitPartition is only valid when this hash owns its BytesRefArray; ids are non-consecutive when shared";
+        var partitionedKeys = new BytesRefPartitionedHashKeys(bigArrays, size, bytesRefs.totalBytes());
         final int[] partitionOffsets = partitionedKeys.partitionCounts;
         boolean success = false;
         try {
@@ -916,7 +888,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
                 final long hash64 = hash64(scratch);
                 final int p = partition(hash64);
                 if (batchPartitionCounts[p] == PARTITION_WRITE_BATCH) {
-                    partitionedKeys.splitKeys(breaker, bytesRefs, scratch, batchStart, shiftedIds, batchPartitionCounts);
+                    partitionedKeys.splitKeys(bytesRefs, scratch, batchStart, shiftedIds, batchPartitionCounts);
                     partitionSplitter.split(batchStart, shiftedIds, id - batchStart, batchPartitionCounts, partitionOffsets);
                     for (int i = 0; i < NUM_PARTITIONS; i++) {
                         partitionOffsets[i] += batchPartitionCounts[i];
@@ -928,7 +900,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
                 assert id - batchStart <= Short.MAX_VALUE : id - batchStart;
                 shiftedIds[p * PARTITION_WRITE_BATCH + c] = (short) (id - batchStart);
             }
-            partitionedKeys.splitKeys(breaker, bytesRefs, scratch, batchStart, shiftedIds, batchPartitionCounts);
+            partitionedKeys.splitKeys(bytesRefs, scratch, batchStart, shiftedIds, batchPartitionCounts);
             partitionSplitter.split(batchStart, shiftedIds, size - batchStart, batchPartitionCounts, partitionOffsets);
             for (int i = 0; i < NUM_PARTITIONS; i++) {
                 partitionOffsets[i] += batchPartitionCounts[i];
@@ -946,58 +918,45 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     public boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
         Objects.requireNonNull(resultIds);
         final BytesRefPartitionedHashKeys subKeys = (BytesRefPartitionedHashKeys) keys;
-        assert subKeys.partitionPages[partitionIndex] != null : "partition [" + partitionIndex + "] was already released";
+        assert subKeys.partitionArrays[partitionIndex] != null : "partition [" + partitionIndex + "] was already released";
         final int keysInPartition = subKeys.keysInPartition(partitionIndex);
         assert keysInPartition <= resultIds.length : keysInPartition + " > " + resultIds.length;
         final int needed = Math.addExact(size, keysInPartition);
         ensureCapacity(needed);
-        final byte[][] pages = subKeys.partitionPages[partitionIndex];
-        final int[] pageUsed = subKeys.partitionPageUsed[partitionIndex];
-        final int pageCount = subKeys.partitionPageCount[partitionIndex];
         if (smallCore != null) {
-            return smallCore.mergeKeys(pages, pageUsed, pageCount, keysInPartition, resultIds);
+            return smallCore.mergeKeys(subKeys.partitionArrays[partitionIndex], keysInPartition, resultIds);
         } else {
-            return bigCore.mergeKeys(pages, pageUsed, pageCount, keysInPartition, resultIds);
+            return bigCore.mergeKeys(subKeys.partitionArrays[partitionIndex], keysInPartition, resultIds);
         }
     }
 
     static final class BytesRefPartitionedHashKeys implements PartitionedHashKeys {
-        /**
-         * Upper bound on any single page's byte array. Keeping individual allocations below
-         * {@link Integer#MAX_VALUE} / 2 means a partition whose keys hash-skew into one bucket
-         * can spill across multiple pages without hitting the JVM array-size limit, while also
-         * keeping the doubling arithmetic in {@link #ensurePageSpace} overflow-free.
-         */
-        private static final int MAX_PARTITION_PAGE_SIZE = Integer.MAX_VALUE >>> 1;
-
         final int[] partitionCounts;
-        final int[] partitionPageCount;
-        int[][] partitionPageUsed;   // bytes written to each page per partition
-        byte[][][] partitionPages;
+        BytesRefArray[] partitionArrays;
 
-        BytesRefPartitionedHashKeys(CircuitBreaker breaker, int totalKeys, long totalKeyBytes) {
+        BytesRefPartitionedHashKeys(BigArrays bigArrays, int totalKeys, long totalKeyBytes) {
             final int avgKeysPerPartition = Math.max(Math.ceilDiv(totalKeys, NUM_PARTITIONS), 1);
-            final long avgKeyBytes = totalKeys > 0 ? Math.ceilDiv(totalKeyBytes, totalKeys) : 0;
-            final long avgPackedKeyBytes = avgKeyBytes + Integer.BYTES;
-            final int initialPageSize = (int) Math.min(
-                (long) ArrayUtil.oversize(avgKeysPerPartition, (int) Math.min(avgPackedKeyBytes, Integer.MAX_VALUE)) * avgPackedKeyBytes,
-                MAX_PARTITION_PAGE_SIZE
-            );
-            long usedBytes = (long) NUM_PARTITIONS * Integer.BYTES * 2
-                + (long) NUM_PARTITIONS * initialPageSize;
-            breaker.addEstimateBytesAndMaybeBreak(usedBytes, "BytesRefSwissHash#partition");
+            final long avgBytesPerPartition = Math.ceilDiv(totalKeyBytes, NUM_PARTITIONS);
             partitionCounts = new int[NUM_PARTITIONS];
-            partitionPageCount = new int[NUM_PARTITIONS];
-            partitionPageUsed = new int[NUM_PARTITIONS][];
-            partitionPages = new byte[NUM_PARTITIONS][][];
-            for (int p = 0; p < NUM_PARTITIONS; p++) {
-                partitionPageCount[p] = 1;
-                partitionPageUsed[p] = new int[1];
-                partitionPages[p] = new byte[][] { new byte[initialPageSize] };
+            partitionArrays = new BytesRefArray[NUM_PARTITIONS];
+            boolean success = false;
+            try {
+                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                    partitionArrays[p] = new BytesRefArray(avgKeysPerPartition, bigArrays, avgBytesPerPartition);
+                }
+                success = true;
+            } finally {
+                if (success == false) {
+                    for (int p = 0; p < NUM_PARTITIONS; p++) {
+                        if (partitionArrays[p] != null) {
+                            partitionArrays[p].close();
+                        }
+                    }
+                }
             }
         }
 
-        void splitKeys(CircuitBreaker breaker, BytesRefArray bytesRefs, BytesRef scratch, int idOffset, short[] positions, int[] fills) {
+        void splitKeys(BytesRefArray bytesRefs, BytesRef scratch, int idOffset, short[] positions, int[] fills) {
             assert NUM_PARTITIONS * PARTITION_WRITE_BATCH < Short.MAX_VALUE : "shifted ids of one batch must fit in the short value range";
             for (int p = 0; p < NUM_PARTITIONS; p++) {
                 final int c = fills[p];
@@ -1008,37 +967,9 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
                 for (int i = 0; i < c; i++) {
                     final int id = idOffset + (positions[base + i] & 0xFFFF);
                     bytesRefs.get(id, scratch);
-                    final int packedSize = Integer.BYTES + scratch.length;
-                    ensurePageSpace(breaker, p, packedSize);
-                    final int curPageIdx = partitionPageCount[p] - 1;
-                    final byte[] page = partitionPages[p][curPageIdx];
-                    final int used = partitionPageUsed[p][curPageIdx];
-                    INT_HANDLE.set(page, used, scratch.length);
-                    System.arraycopy(scratch.bytes, scratch.offset, page, used + Integer.BYTES, scratch.length);
-                    partitionPageUsed[p][curPageIdx] += packedSize;
+                    partitionArrays[p].append(scratch);
                 }
             }
-        }
-
-        private void ensurePageSpace(CircuitBreaker breaker, int p, int needed) {
-            final int curPageIdx = partitionPageCount[p] - 1;
-            final byte[] currentPage = partitionPages[p][curPageIdx];
-            if (partitionPageUsed[p][curPageIdx] + needed <= currentPage.length) {
-                return;
-            }
-            // Allocate a new page: double current size up to MAX_PARTITION_PAGE_SIZE, but always at least `needed`
-            final int newPageSize = (int) Math.max(
-                Math.min((long) currentPage.length << 1, MAX_PARTITION_PAGE_SIZE),
-                (long) needed
-            );
-            breaker.addEstimateBytesAndMaybeBreak(newPageSize, "BytesRefSwissHash#partition");
-            final int newPageIdx = partitionPageCount[p]++;
-            if (newPageIdx >= partitionPages[p].length) {
-                partitionPages[p] = Arrays.copyOf(partitionPages[p], newPageIdx + 1);
-                partitionPageUsed[p] = Arrays.copyOf(partitionPageUsed[p], newPageIdx + 1);
-            }
-            partitionPages[p][newPageIdx] = new byte[newPageSize];
-            // partitionPageUsed[p][newPageIdx] is already 0 (new int[] initializes to 0, Arrays.copyOf pads with 0)
         }
 
         @Override
@@ -1048,28 +979,20 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
         @Override
         public void releasePartition(CircuitBreaker breaker, int partition) {
-            final byte[][] pages = partitionPages[partition];
-            if (pages != null) {
-                long bytes = 0;
-                for (int i = 0; i < partitionPageCount[partition]; i++) {
-                    bytes += pages[i].length;
-                }
-                partitionPages[partition] = null;
-                breaker.addWithoutBreaking(-bytes);
+            if (partitionArrays[partition] != null) {
+                partitionArrays[partition].close();
+                partitionArrays[partition] = null;
             }
         }
 
         @Override
         public void releaseAll(CircuitBreaker breaker) {
-            long bytes = (long) NUM_PARTITIONS * Integer.BYTES * 2;
             for (int p = 0; p < NUM_PARTITIONS; p++) {
-                if (partitionPages[p] != null) {
-                    for (int i = 0; i < partitionPageCount[p]; i++) {
-                        bytes += partitionPages[p][i].length;
-                    }
+                if (partitionArrays[p] != null) {
+                    partitionArrays[p].close();
+                    partitionArrays[p] = null;
                 }
             }
-            breaker.addWithoutBreaking(-bytes);
         }
     }
 

@@ -23,25 +23,22 @@ import java.util.List;
  *
  * <p>{@code exhaustivelyPruned} is {@code true} only when {@link #splits()} is empty <em>because</em>
  * every file was eliminated by a row-count-preserving filter contradiction — a partition/metadata
- * predicate that evaluated to {@code false}, or a filter over a column absent from the file (both
- * make the {@code WHERE} unsatisfiable, so a full read would emit zero rows too). It is deliberately
- * {@code false} when the empty result is a best-effort heuristic that a downstream read would have
- * disagreed with (e.g. a file dropped for having no column overlap with the query still contributes
- * rows to {@code COUNT(*)}). Only the former is safe for {@code SplitDiscoveryPhase} to trust as
- * "read nothing"; the latter must fall back to a full read so the row filter runs. An empty result
- * from an unresolved or empty file list is not a prune and reports {@code false}.
+ * predicate that evaluated to {@code false}, or a missing-column filter that is unsatisfiable in
+ * {@code WHERE} (comparisons, {@code IN}, {@code IS NOT NULL}; {@code IS NULL} on a missing column
+ * matches every row and is not a prune). Those cases emit zero rows on a full read too, so
+ * {@code SplitDiscoveryPhase} may trust them as "read nothing". An empty result that is not a
+ * proven filter contradiction — unresolved glob, empty file list, or a provider that cannot certify
+ * the prune — reports {@code false} and must fall back to a full read.
+ *
+ * <p>{@code cpuNanos} is the CPU time (excluding IO wait) consumed by the split discovery phase,
+ * accumulated across all files and any background threads. Zero when not measured or not supported.
  */
-public record SplitDiscoveryResult(List<ExternalSplit> splits, int filesScanned, boolean exhaustivelyPruned) {
+public record SplitDiscoveryResult(List<ExternalSplit> splits, int filesScanned, boolean exhaustivelyPruned, long cpuNanos) {
 
-    public static final SplitDiscoveryResult EMPTY = new SplitDiscoveryResult(List.of(), 0, false);
+    public static final SplitDiscoveryResult EMPTY = new SplitDiscoveryResult(List.of(), 0, false, 0L);
 
     public SplitDiscoveryResult {
         splits = List.copyOf(splits);
-    }
-
-    /** Splits with the given {@code filesScanned}; not an exhaustive prune (there are splits to read). */
-    public SplitDiscoveryResult(List<ExternalSplit> splits, int filesScanned) {
-        this(splits, filesScanned, false);
     }
 
     /**
@@ -49,6 +46,6 @@ public record SplitDiscoveryResult(List<ExternalSplit> splits, int filesScanned,
      * {@code filesScanned} of {@code 0}.
      */
     public static SplitDiscoveryResult of(List<ExternalSplit> splits) {
-        return splits.isEmpty() ? EMPTY : new SplitDiscoveryResult(splits, 0);
+        return splits.isEmpty() ? EMPTY : new SplitDiscoveryResult(splits, 0, false, 0L);
     }
 }

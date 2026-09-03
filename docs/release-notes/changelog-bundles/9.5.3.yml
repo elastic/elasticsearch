@@ -66,12 +66,12 @@ changelogs:
     issues:
       - 157103
   - pr: 157214
-    summary: Allow rotating secrets with the inference `_update` API
+    summary: Fix secret rotation in the inference `_update` API
     area: Inference
     type: bug
     issues: []
   - pr: 157229
-    summary: Restore shared score accumulation across segments for IVF search
+    summary: Restore early-exit scoring across segments for IVF search
     area: Vector Search
     type: bug
     issues: []

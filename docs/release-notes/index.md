@@ -66,7 +66,7 @@ Engine:
 * Fix translog resource leaks and leftover upload tasks on node shutdown [#149429](https://github.com/elastic/elasticsearch/pull/149429) (issue: [#149343](https://github.com/elastic/elasticsearch/issues/149343))
 
 Inference:
-* Allow rotating secrets with the inference `_update` API [#157214](https://github.com/elastic/elasticsearch/pull/157214)
+* Fix secret rotation in the inference `_update` API [#157214](https://github.com/elastic/elasticsearch/pull/157214)
 
 Machine Learning:
 * Reject a blank datafeed ID in stop datafeed requests [#157929](https://github.com/elastic/elasticsearch/pull/157929)
@@ -96,7 +96,7 @@ Templates:
 
 Vector Search:
 * Fix reading `bfloat16` values from older index formats with different endianness [#157730](https://github.com/elastic/elasticsearch/pull/157730) (issue: [#157696](https://github.com/elastic/elasticsearch/issues/157696))
-* Restore shared score accumulation across segments for IVF search [#157229](https://github.com/elastic/elasticsearch/pull/157229)
+* Restore early-exit scoring across segments for IVF search [#157229](https://github.com/elastic/elasticsearch/pull/157229)
 
 
 

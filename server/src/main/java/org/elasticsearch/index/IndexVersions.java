@@ -272,6 +272,9 @@ public class IndexVersions {
     public static final IndexVersion DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS = def(9_110_0_00, Version.LUCENE_10_5_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_5_1 = def(9_111_0_00, Version.LUCENE_10_5_1);
     public static final IndexVersion COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG = def(9_112_0_00, Version.LUCENE_10_5_1);
+    // Deliberately unreferenced: defining it raises IndexVersion.current(), which is what keeps segments written by the
+    // Elasticsearch96 codec off nodes that cannot resolve that name (see IndexVersionAllocationDecider).
+    public static final IndexVersion DEDUPLICATED_FIELD_INFOS_CODEC = def(9_113_0_00, Version.LUCENE_10_5_1);
 
     /*
      * STOP! READ THIS FIRST! No, really,

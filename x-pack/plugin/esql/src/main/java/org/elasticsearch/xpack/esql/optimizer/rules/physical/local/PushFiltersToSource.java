@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -33,7 +34,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
@@ -41,8 +41,10 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,27 +54,70 @@ import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.transla
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
-public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<FilterExec, LocalPhysicalOptimizerContext> {
+/**
+ * Pushes filter predicates into Lucene (or external sources) where profitable.
+ * <p>
+ * Plan-scoped (not a per-{@link FilterExec} transform) so we can see which fields
+ * non-filter operators will load — binary-DV {@code ==}/{@code !=} on those fields
+ * stay in the compute engine to avoid a dual pass over the string column.
+ */
+public class PushFiltersToSource extends ParameterizedRule<PhysicalPlan, PhysicalPlan, LocalPhysicalOptimizerContext> {
 
     @Override
-    protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
+    public PhysicalPlan apply(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
+        Set<String> fieldsLoadedBeyondFilters = collectFieldsLoadedBeyondFilters(plan);
+        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(
+            context.searchStats(),
+            context.flags(),
+            fieldsLoadedBeyondFilters
+        );
+        return plan.transformUp(FilterExec.class, filterExec -> rule(filterExec, pushdownPredicates, context));
+    }
+
+    /**
+     * Fields that some operator other than a {@link FilterExec}/{@link EsQueryExec} source will need
+     * loaded (aggregations, projections, evals, sorts, …). Filter-only references are excluded so a
+     * selective {@code WHERE url == "x" | STATS COUNT(*)} can still push into Lucene.
+     */
+    static Set<String> collectFieldsLoadedBeyondFilters(PhysicalPlan plan) {
+        Set<String> fields = new HashSet<>();
+        plan.forEachDown(p -> {
+            if (p instanceof FilterExec
+                || p instanceof EsQueryExec
+                || p instanceof ExternalSourceExec
+                || p instanceof ParameterizedQueryExec) {
+                return;
+            }
+            for (Attribute a : p.references()) {
+                if (a instanceof FieldAttribute fa) {
+                    fields.add(fa.name());
+                }
+            }
+        });
+        return fields;
+    }
+
+    private static PhysicalPlan rule(
+        FilterExec filterExec,
+        LucenePushdownPredicates pushdownPredicates,
+        LocalPhysicalOptimizerContext ctx
+    ) {
         PhysicalPlan plan = filterExec;
         if (filterExec.child() instanceof EsQueryExec queryExec) {
-            plan = planFilterExec(filterExec, queryExec, ctx);
+            plan = planFilterExec(filterExec, queryExec, pushdownPredicates);
         } else if (filterExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec queryExec) {
-            plan = planFilterExec(filterExec, evalExec, queryExec, ctx);
+            plan = planFilterExec(filterExec, evalExec, queryExec, pushdownPredicates);
         } else if (filterExec.child() instanceof ExternalSourceExec externalExec) {
             plan = planFilterExecForExternalSource(filterExec, externalExec, ctx);
         } else if (filterExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof ParameterizedQueryExec pqExec) {
-            plan = planFilterExec(filterExec, evalExec, pqExec, ctx);
+            plan = planFilterExec(filterExec, evalExec, pqExec, pushdownPredicates);
         } else if (filterExec.child() instanceof ParameterizedQueryExec pqExec) {
-            plan = planFilterExec(filterExec, pqExec, ctx);
+            plan = planFilterExec(filterExec, pqExec, pushdownPredicates);
         }
         return plan;
     }
 
-    private static PhysicalPlan planFilterExec(FilterExec filterExec, EsQueryExec queryExec, LocalPhysicalOptimizerContext ctx) {
-        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
+    private static PhysicalPlan planFilterExec(FilterExec filterExec, EsQueryExec queryExec, LucenePushdownPredicates pushdownPredicates) {
         PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates);
         return rewrite(pushdownPredicates, filterExec, queryExec, classified.pushable, classified.nonPushable, List.of());
     }
@@ -81,9 +126,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         FilterExec filterExec,
         EvalExec evalExec,
         EsQueryExec queryExec,
-        LocalPhysicalOptimizerContext ctx
+        LucenePushdownPredicates pushdownPredicates
     ) {
-        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
         AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
         PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates, aliasReplacedBy);
         classified.pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
@@ -366,8 +410,11 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         return formatReaderRegistry != null ? formatReaderRegistry.findByName(formatName) : null;
     }
 
-    private static PhysicalPlan planFilterExec(FilterExec filterExec, ParameterizedQueryExec pqExec, LocalPhysicalOptimizerContext ctx) {
-        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
+    private static PhysicalPlan planFilterExec(
+        FilterExec filterExec,
+        ParameterizedQueryExec pqExec,
+        LucenePushdownPredicates pushdownPredicates
+    ) {
         PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates);
         return rewrite(pushdownPredicates, filterExec, pqExec, classified.pushable, classified.nonPushable, List.of());
     }
@@ -376,9 +423,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         FilterExec filterExec,
         EvalExec evalExec,
         ParameterizedQueryExec pqExec,
-        LocalPhysicalOptimizerContext ctx
+        LucenePushdownPredicates pushdownPredicates
     ) {
-        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
         AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
         PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates, aliasReplacedBy);
         classified.pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));

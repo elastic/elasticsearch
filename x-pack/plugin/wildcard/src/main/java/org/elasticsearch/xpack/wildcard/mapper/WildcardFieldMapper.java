@@ -332,6 +332,14 @@ public class WildcardFieldMapper extends FieldMapper {
             return arrayOrderBinaryDocValues;
         }
 
+        /**
+         * Wildcard fields always store values in binary doc values (never sorted-set).
+         */
+        @Override
+        public boolean usesBinaryDocValues() {
+            return true;
+        }
+
         /** Which framing a reader of this field's binary doc values has to decode. */
         private BinaryDocValuesFormat binaryFormat() {
             return arrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT;

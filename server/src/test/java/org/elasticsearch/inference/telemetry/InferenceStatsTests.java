@@ -23,7 +23,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
-import static org.elasticsearch.inference.telemetry.InferenceProductContextTests.productContext;
 import static org.elasticsearch.inference.telemetry.InferenceStats.ES_PLUGIN_NAME_VALUE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_DEPLOYMENT_DURATION;
 import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_REQUEST_COUNT_TOTAL;
@@ -421,7 +420,7 @@ public class InferenceStatsTests extends ESTestCase {
     public void testWithProductContext_UseCase_Origin_Present() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var ctx = productContext(SECURITY_AI_ASSISTANT_USE_CASE, TEST_PRODUCT_ORIGIN);
+        var ctx = new InferenceProductContext(SECURITY_AI_ASSISTANT_USE_CASE, TEST_PRODUCT_ORIGIN);
 
         stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
 
@@ -445,7 +444,7 @@ public class InferenceStatsTests extends ESTestCase {
     public void testWithProductContext_OnlyProductUseCase() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var ctx = productContext(SECURITY_AI_ASSISTANT_USE_CASE, null);
+        var ctx = new InferenceProductContext(SECURITY_AI_ASSISTANT_USE_CASE, null);
 
         stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
 
@@ -467,7 +466,7 @@ public class InferenceStatsTests extends ESTestCase {
     public void testWithProductContext_OnlyProductOrigin() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var ctx = productContext(null, TEST_PRODUCT_ORIGIN);
+        var ctx = new InferenceProductContext(null, TEST_PRODUCT_ORIGIN);
 
         stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
 
@@ -541,7 +540,7 @@ public class InferenceStatsTests extends ESTestCase {
     public void testWithProductContext_UnknownUseCase_BucketsAsOther() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var ctx = productContext("some-bogus-use-case", TEST_PRODUCT_ORIGIN);
+        var ctx = new InferenceProductContext("some-bogus-use-case", TEST_PRODUCT_ORIGIN);
 
         stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
 
@@ -565,7 +564,7 @@ public class InferenceStatsTests extends ESTestCase {
     public void testWithProductContext_UnknownOrigin_BucketsAsOther() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var ctx = productContext(SECURITY_AI_ASSISTANT_USE_CASE, "some-bogus-origin");
+        var ctx = new InferenceProductContext(SECURITY_AI_ASSISTANT_USE_CASE, "some-bogus-origin");
 
         stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
 
@@ -610,7 +609,7 @@ public class InferenceStatsTests extends ESTestCase {
     public void testWithProductContext_MixedCaseInput_NormalizedToLowercase() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var ctx = productContext("Security_AI_Assistant", "KIBANA");
+        var ctx = new InferenceProductContext("Security_AI_Assistant", "KIBANA");
 
         stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
 
@@ -634,7 +633,7 @@ public class InferenceStatsTests extends ESTestCase {
     public void testWithProductContext_SiemMigrationsVariant_CollapsedToBase() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var ctx = productContext(SIEM_MIGRATIONS_PREFIX + randomAlphaOfLength(8), TEST_PRODUCT_ORIGIN);
+        var ctx = new InferenceProductContext(SIEM_MIGRATIONS_PREFIX + randomAlphaOfLength(8), TEST_PRODUCT_ORIGIN);
 
         stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
 

@@ -11,7 +11,6 @@ package org.elasticsearch.inference.telemetry;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 
@@ -84,14 +83,6 @@ public class InferenceProductContextTests extends ESTestCase {
         var context = InferenceProductContext.create(threadContext);
 
         assertThat(context, is(new InferenceProductContext(null, null, null, null, "interaction-id")));
-    }
-
-    /**
-     * An {@link InferenceProductContext} carrying only a use case and an origin, for tests that predate solution, feature and
-     * interaction id and do not care about them.
-     */
-    public static InferenceProductContext productContext(@Nullable String productUseCase, @Nullable String productOrigin) {
-        return new InferenceProductContext(productUseCase, productOrigin, null, null, null);
     }
 
     public static InferenceProductContext randomInferenceProductContext() {

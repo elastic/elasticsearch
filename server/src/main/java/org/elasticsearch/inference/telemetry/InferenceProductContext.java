@@ -57,6 +57,10 @@ public record InferenceProductContext(
 
     public static final InferenceProductContext EMPTY = new InferenceProductContext(null, null, null, null, null);
 
+    public InferenceProductContext(@Nullable String productUseCase, @Nullable String productOrigin) {
+        this(productUseCase, productOrigin, null, null, null);
+    }
+
     /**
      * Creates an {@link InferenceProductContext} by reading the product attribution headers from the given thread context.
      */

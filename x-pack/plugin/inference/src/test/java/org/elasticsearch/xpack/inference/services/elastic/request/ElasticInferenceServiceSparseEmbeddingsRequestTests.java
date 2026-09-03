@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.elastic.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -24,7 +25,6 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContextTests.productContext;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
@@ -114,7 +114,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
                 ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, modelId),
                 new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
                 new ElasticInferenceServiceRequestMetadata(
-                    productContext("my-product-use-case-from-metadata", "my-product-origin"),
+                    new InferenceProductContext("my-product-use-case-from-metadata", "my-product-origin"),
                     "1.2.3"
                 ),
                 inputType,
@@ -147,7 +147,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
                 ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, modelId),
                 new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
                 new ElasticInferenceServiceRequestMetadata(
-                    productContext("my-product-use-case-from-metadata", "my-product-origin"),
+                    new InferenceProductContext("my-product-use-case-from-metadata", "my-product-origin"),
                     "1.2.3"
                 ),
                 inputType,

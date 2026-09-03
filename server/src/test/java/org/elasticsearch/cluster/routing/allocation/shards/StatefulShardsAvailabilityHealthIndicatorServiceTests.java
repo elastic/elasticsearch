@@ -93,10 +93,12 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX;
@@ -182,7 +184,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 createExpectedResult(
                     GREEN,
                     "This cluster has all shards available.",
-                    Map.of("started_primaries", scale(2), "started_replicas", projectIds.size()),
+                    Map.of("started_primaries", 2 * projectIds.size(), "started_replicas", projectIds.size()),
                     emptyList(),
                     emptyList()
                 )
@@ -203,7 +205,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             equalTo(
                 createExpectedResult(
                     YELLOW,
-                    shardSymptom(1, "initializing replica shard", "initializing replica shards"),
+                    projectIds.size() == 1
+                        ? "This cluster has 1 initializing replica shard."
+                        : "This cluster has " + projectIds.size() + " initializing replica shards.",
                     Map.of("started_primaries", projectIds.size(), "initializing_replicas", projectIds.size()),
                     List.of(
                         new HealthIndicatorImpact(
@@ -237,7 +241,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             equalTo(
                 createExpectedResult(
                     RED,
-                    shardSymptom(1, "initializing primary shard", "initializing primary shards"),
+                    projectIds.size() == 1
+                        ? "This cluster has 1 initializing primary shard."
+                        : "This cluster has " + projectIds.size() + " initializing primary shards.",
                     Map.of("initializing_primaries", projectIds.size()),
                     List.of(
                         new HealthIndicatorImpact(
@@ -268,7 +274,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             equalTo(
                 createExpectedResult(
                     GREEN,
-                    shardSymptom(1, "creating primary shard", "creating primary shards"),
+                    projectIds.size() == 1
+                        ? "This cluster has 1 creating primary shard."
+                        : "This cluster has " + projectIds.size() + " creating primary shards.",
                     Map.of("creating_primaries", projectIds.size()),
                     emptyList(),
                     List.of(
@@ -296,20 +304,23 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             )
         );
         var service = createShardsAvailabilityIndicatorService(NO_GRACE_PERIOD_SETTINGS, clusterState, Collections.emptyMap());
+        int unavailableReplicaCount = unavailableReplicas.size() * projectIds.size();
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 createExpectedResult(
                     YELLOW,
-                    shardSymptom(unavailableReplicas.size(), "unavailable replica shard", "unavailable replica shards"),
+                    unavailableReplicaCount == 1
+                        ? "This cluster has 1 unavailable replica shard."
+                        : "This cluster has " + unavailableReplicaCount + " unavailable replica shards.",
                     Map.of(
                         "started_primaries",
                         projectIds.size(),
                         "unassigned_replicas",
-                        scale(unavailableReplicas.size()),
+                        unavailableReplicaCount,
                         "started_replicas",
-                        scale(availableReplicas.size())
+                        availableReplicas.size() * projectIds.size()
                     ),
                     List.of(
                         new HealthIndicatorImpact(
@@ -347,9 +358,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 createExpectedResult(
                     RED,
                     "This cluster has "
-                        + countPhrase(1, "unavailable primary shard", "unavailable primary shards")
+                        + (projectIds.size() == 1 ? "1 unavailable primary shard" : projectIds.size() + " unavailable primary shards")
                         + ", "
-                        + countPhrase(1, "unavailable replica shard", "unavailable replica shards")
+                        + (projectIds.size() == 1 ? "1 unavailable replica shard" : projectIds.size() + " unavailable replica shards")
                         + ".",
                     Map.of("unassigned_primaries", projectIds.size(), "unassigned_replicas", projectIds.size()),
                     List.of(
@@ -621,7 +632,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             equalTo(
                 createExpectedResult(
                     RED,
-                    shardSymptom(1, "unavailable primary shard", "unavailable primary shards"),
+                    projectIds.size() == 1
+                        ? "This cluster has 1 unavailable primary shard."
+                        : "This cluster has " + projectIds.size() + " unavailable primary shards.",
                     Map.of("unassigned_primaries", projectIds.size()),
                     List.of(
                         new HealthIndicatorImpact(
@@ -661,9 +674,10 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         assertEquals(RED, result.status());
         assertEquals(
             "This cluster has "
-                + countPhrase(1, "unavailable primary shard", "unavailable primary shards")
+                + (projectIds.size() == 1 ? "1 unavailable primary shard" : projectIds.size() + " unavailable primary shards")
                 + ", "
-                + countPhrase(2, "unavailable replica shard", "unavailable replica shards")
+                + 2 * projectIds.size()
+                + " unavailable replica shards"
                 + ".",
             result.symptom()
         );
@@ -687,7 +701,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                     ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_IMPACT_ID,
                     2,
                     "Searches might be slower than usual. Fewer redundant copies of the data exist on "
-                        + indexPhrase(List.of("yellow-index-2", "yellow-index-1"))
+                        + indexPhrase("yellow-index-2", "yellow-index-1")
                         + ".",
                     List.of(ImpactArea.SEARCH)
                 )
@@ -720,7 +734,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                     ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_IMPACT_ID,
                     2,
                     "Searches might be slower than usual. Fewer redundant copies of the data exist on "
-                        + indexPhraseByPriority(indexNameToPriority)
+                        + indexPhrase(indexNameListByPriority(indexNameToPriority))
                         + ".",
                     List.of(ImpactArea.SEARCH)
                 )
@@ -746,7 +760,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             equalTo(
                 createExpectedResult(
                     GREEN,
-                    shardSymptom(1, "restarting replica shard", "restarting replica shards"),
+                    projectIds.size() == 1
+                        ? "This cluster has 1 restarting replica shard."
+                        : "This cluster has " + projectIds.size() + " restarting replica shards.",
                     Map.of("started_primaries", projectIds.size(), "restarting_replicas", projectIds.size()),
                     emptyList(),
                     emptyList()
@@ -794,7 +810,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             equalTo(
                 createExpectedResult(
                     YELLOW,
-                    shardSymptom(1, "unavailable replica shard", "unavailable replica shards"),
+                    projectIds.size() == 1
+                        ? "This cluster has 1 unavailable replica shard."
+                        : "This cluster has " + projectIds.size() + " unavailable replica shards.",
                     Map.of("started_primaries", projectIds.size(), "unassigned_replicas", projectIds.size()),
                     List.of(
                         new HealthIndicatorImpact(
@@ -830,9 +848,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 createExpectedResult(
                     GREEN,
                     "This cluster has "
-                        + countPhrase(1, "creating primary shard", "creating primary shards")
+                        + (projectIds.size() == 1 ? "1 creating primary shard" : projectIds.size() + " creating primary shards")
                         + ", "
-                        + countPhrase(1, "creating replica shard", "creating replica shards")
+                        + (projectIds.size() == 1 ? "1 creating replica shard" : projectIds.size() + " creating replica shards")
                         + ".",
                     Map.of("creating_primaries", projectIds.size(), "creating_replicas", projectIds.size()),
                     emptyList(),
@@ -859,7 +877,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             equalTo(
                 createExpectedResult(
                     GREEN,
-                    shardSymptom(1, "restarting primary shard", "restarting primary shards"),
+                    projectIds.size() == 1
+                        ? "This cluster has 1 restarting primary shard."
+                        : "This cluster has " + projectIds.size() + " restarting primary shards.",
                     Map.of("restarting_primaries", projectIds.size()),
                     emptyList(),
                     emptyList()
@@ -885,7 +905,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             equalTo(
                 createExpectedResult(
                     RED,
-                    shardSymptom(1, "unavailable primary shard", "unavailable primary shards"),
+                    projectIds.size() == 1
+                        ? "This cluster has 1 unavailable primary shard."
+                        : "This cluster has " + projectIds.size() + " unavailable primary shards.",
                     Map.of("unassigned_primaries", projectIds.size()),
                     List.of(
                         new HealthIndicatorImpact(
@@ -922,7 +944,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             equalTo(
                 createExpectedResult(
                     RED,
-                    shardSymptom(1, "unavailable primary shard", "unavailable primary shards"),
+                    projectIds.size() == 1
+                        ? "This cluster has 1 unavailable primary shard."
+                        : "This cluster has " + projectIds.size() + " unavailable primary shards.",
                     Map.of("unassigned_primaries", projectIds.size()),
                     List.of(
                         new HealthIndicatorImpact(
@@ -965,7 +989,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             equalTo(
                 createExpectedResult(
                     YELLOW,
-                    shardSymptom(1, "unavailable replica shard", "unavailable replica shards"),
+                    projectIds.size() == 1
+                        ? "This cluster has 1 unavailable replica shard."
+                        : "This cluster has " + projectIds.size() + " unavailable replica shards.",
                     Map.of("started_primaries", projectIds.size(), "unassigned_replicas", projectIds.size()),
                     List.of(
                         new HealthIndicatorImpact(
@@ -1022,7 +1048,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             assertThat(
                 "expected replica inactive symptom for reason " + reason,
                 result.symptom(),
-                equalTo(shardSymptom(1, symptomKeyword + " replica shard", symptomKeyword + " replica shards"))
+                equalTo(
+                    projectIds.size() == 1
+                        ? "This cluster has 1 " + symptomKeyword + " replica shard."
+                        : "This cluster has " + projectIds.size() + " " + symptomKeyword + " replica shards."
+                )
             );
         } else {
             assertThat("expected YELLOW for grace period reason " + reason, result.status(), equalTo(YELLOW));
@@ -1030,7 +1060,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             assertThat(
                 "expected replica inactive symptom for reason " + reason,
                 result.symptom(),
-                equalTo(shardSymptom(1, symptomKeyword + " replica shard", symptomKeyword + " replica shards"))
+                equalTo(
+                    projectIds.size() == 1
+                        ? "This cluster has 1 " + symptomKeyword + " replica shard."
+                        : "This cluster has " + projectIds.size() + " " + symptomKeyword + " replica shards."
+                )
             );
         }
         assertThat(
@@ -1074,7 +1108,14 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertThat(result.status(), equalTo(YELLOW));
         final var symptomKeyword = replicaInitializing ? "initializing" : "unavailable";
-        assertThat(result.symptom(), equalTo(shardSymptom(1, symptomKeyword + " replica shard", symptomKeyword + " replica shards")));
+        assertThat(
+            result.symptom(),
+            equalTo(
+                projectIds.size() == 1
+                    ? "This cluster has 1 " + symptomKeyword + " replica shard."
+                    : "This cluster has " + projectIds.size() + " " + symptomKeyword + " replica shards."
+            )
+        );
         assertThat(
             result.diagnosisList(),
             equalTo(
@@ -1120,7 +1161,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             assertThat(
                 "expected primary inactive symptom for reason " + reason,
                 result.symptom(),
-                equalTo(shardSymptom(1, symptomKeyword + " primary shard", symptomKeyword + " primary shards"))
+                equalTo(
+                    projectIds.size() == 1
+                        ? "This cluster has 1 " + symptomKeyword + " primary shard."
+                        : "This cluster has " + projectIds.size() + " " + symptomKeyword + " primary shards."
+                )
             );
         } else {
             assertThat("expected RED for non-grace period reason " + reason, result.status(), equalTo(RED));
@@ -1128,7 +1173,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             assertThat(
                 "expected primary inactive symptom for reason " + reason,
                 result.symptom(),
-                equalTo(shardSymptom(1, symptomKeyword + " primary shard", symptomKeyword + " primary shards"))
+                equalTo(
+                    projectIds.size() == 1
+                        ? "This cluster has 1 " + symptomKeyword + " primary shard."
+                        : "This cluster has " + projectIds.size() + " " + symptomKeyword + " primary shards."
+                )
             );
         }
         assertThat(
@@ -1171,7 +1220,14 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertThat(result.status(), equalTo(RED));
         final var symptomKeyword = primaryInitializing ? "initializing" : "unavailable";
-        assertThat(result.symptom(), equalTo(shardSymptom(1, symptomKeyword + " primary shard", symptomKeyword + " primary shards")));
+        assertThat(
+            result.symptom(),
+            equalTo(
+                projectIds.size() == 1
+                    ? "This cluster has 1 " + symptomKeyword + " primary shard."
+                    : "This cluster has " + projectIds.size() + " " + symptomKeyword + " primary shards."
+            )
+        );
         assertThat(
             result.diagnosisList(),
             equalTo(
@@ -1220,7 +1276,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             equalTo(
                 createExpectedResult(
                     RED,
-                    shardSymptom(1, "unavailable primary shard", "unavailable primary shards"),
+                    projectIds.size() == 1
+                        ? "This cluster has 1 unavailable primary shard."
+                        : "This cluster has " + projectIds.size() + " unavailable primary shards.",
                     Map.of("unassigned_primaries", projectIds.size()),
                     List.of(
                         new HealthIndicatorImpact(
@@ -1275,7 +1333,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             equalTo(
                 createExpectedResult(
                     YELLOW,
-                    shardSymptom(1, "unavailable replica shard", "unavailable replica shards"),
+                    projectIds.size() == 1
+                        ? "This cluster has 1 unavailable replica shard."
+                        : "This cluster has " + projectIds.size() + " unavailable replica shards.",
                     Map.of("started_primaries", projectIds.size(), "unassigned_replicas", projectIds.size()),
                     List.of(
                         new HealthIndicatorImpact(
@@ -1340,7 +1400,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 equalTo(
                     createExpectedResult(
                         RED,
-                        shardSymptom(1, "unavailable primary shard", "unavailable primary shards"),
+                        projectIds.size() == 1
+                            ? "This cluster has 1 unavailable primary shard."
+                            : "This cluster has " + projectIds.size() + " unavailable primary shards.",
                         Map.of("unassigned_primaries", projectIds.size()),
                         List.of(
                             new HealthIndicatorImpact(
@@ -1367,7 +1429,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 equalTo(
                     createExpectedResult(
                         GREEN,
-                        shardSymptom(1, "creating primary shard", "creating primary shards"),
+                        projectIds.size() == 1
+                            ? "This cluster has 1 creating primary shard."
+                            : "This cluster has " + projectIds.size() + " creating primary shards.",
                         Map.of("creating_primaries", projectIds.size()),
                         emptyList(),
                         List.of(
@@ -1424,7 +1488,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 equalTo(
                     createExpectedResult(
                         YELLOW,
-                        shardSymptom(1, "unavailable replica shard", "unavailable replica shards"),
+                        projectIds.size() == 1
+                            ? "This cluster has 1 unavailable replica shard."
+                            : "This cluster has " + projectIds.size() + " unavailable replica shards.",
                         Map.of("started_primaries", projectIds.size(), "unassigned_replicas", projectIds.size()),
                         List.of(
                             new HealthIndicatorImpact(
@@ -1452,7 +1518,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 equalTo(
                     createExpectedResult(
                         GREEN,
-                        shardSymptom(1, "creating replica shard", "creating replica shards"),
+                        projectIds.size() == 1
+                            ? "This cluster has 1 creating replica shard."
+                            : "This cluster has " + projectIds.size() + " creating replica shards.",
                         Map.of("started_primaries", projectIds.size(), "creating_replicas", projectIds.size()),
                         emptyList(),
                         List.of(
@@ -1511,7 +1579,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             equalTo(
                 createExpectedResult(
                     YELLOW,
-                    shardSymptom(1, "initializing replica shard", "initializing replica shards"),
+                    projectIds.size() == 1
+                        ? "This cluster has 1 initializing replica shard."
+                        : "This cluster has " + projectIds.size() + " initializing replica shards.",
                     Map.of("started_primaries", projectIds.size(), "initializing_replicas", projectIds.size()),
                     List.of(
                         new HealthIndicatorImpact(
@@ -1628,16 +1698,20 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
 
             final var symptomParts = new ArrayList<String>();
             if (unavailablePrimaryCount > 0) {
-                symptomParts.add(countPhrase(unavailablePrimaryCount, "unavailable primary shard", "unavailable primary shards"));
+                int count = unavailablePrimaryCount * projectIds.size();
+                symptomParts.add(count == 1 ? "1 unavailable primary shard" : count + " unavailable primary shards");
             }
             if (creatingPrimaryCount > 0) {
-                symptomParts.add(countPhrase(creatingPrimaryCount, "creating primary shard", "creating primary shards"));
+                int count = creatingPrimaryCount * projectIds.size();
+                symptomParts.add(count == 1 ? "1 creating primary shard" : count + " creating primary shards");
             }
             if (unavailableReplicaCount > 0) {
-                symptomParts.add(countPhrase(unavailableReplicaCount, "unavailable replica shard", "unavailable replica shards"));
+                int count = unavailableReplicaCount * projectIds.size();
+                symptomParts.add(count == 1 ? "1 unavailable replica shard" : count + " unavailable replica shards");
             }
             if (creatingReplicaCount > 0) {
-                symptomParts.add(countPhrase(creatingReplicaCount, "creating replica shard", "creating replica shards"));
+                int count = creatingReplicaCount * projectIds.size();
+                symptomParts.add(count == 1 ? "1 creating replica shard" : count + " creating replica shards");
             }
             assertThat(result.symptom(), equalTo("This cluster has " + String.join(", ", symptomParts) + "."));
         }
@@ -1672,9 +1746,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                     result.symptom(),
                     equalTo(
                         "This cluster has "
-                            + countPhrase(1, "creating primary shard", "creating primary shards")
+                            + (projectIds.size() == 1 ? "1 creating primary shard" : projectIds.size() + " creating primary shards")
                             + ", "
-                            + countPhrase(1, "creating replica shard", "creating replica shards")
+                            + (projectIds.size() == 1 ? "1 creating replica shard" : projectIds.size() + " creating replica shards")
                             + "."
                     )
                 );
@@ -1684,9 +1758,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                     result.symptom(),
                     equalTo(
                         "This cluster has "
-                            + countPhrase(1, "unavailable primary shard", "unavailable primary shards")
+                            + (projectIds.size() == 1 ? "1 unavailable primary shard" : projectIds.size() + " unavailable primary shards")
                             + ", "
-                            + countPhrase(1, "unavailable replica shard", "unavailable replica shards")
+                            + (projectIds.size() == 1 ? "1 unavailable replica shard" : projectIds.size() + " unavailable replica shards")
                             + "."
                     )
                 );
@@ -2713,12 +2787,10 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         var clusterState = createClusterStateWith(metadata, routing, List.of(), List.of());
         var service = createShardsAvailabilityIndicatorService(NO_GRACE_PERIOD_SETTINGS, clusterState, Collections.emptyMap());
 
-        int scaledUnavailable = scale(unavailableMountedPrimaries);
-        String unavailablePrimariesSymptom = shardSymptom(
-            unavailableMountedPrimaries,
-            "unavailable primary shard",
-            "unavailable primary shards"
-        );
+        int scaledUnavailable = unavailableMountedPrimaries * projectIds.size();
+        String unavailablePrimariesSymptom = scaledUnavailable == 1
+            ? "This cluster has 1 unavailable primary shard."
+            : "This cluster has " + scaledUnavailable + " unavailable primary shards.";
         String mountedSymptom = scaledUnavailable == 1
             ? " This is a mounted shard and the original shard is available, so there are no data availability problems."
             : " These are mounted shards and the original shards are available, so there are no data availability problems.";
@@ -2775,7 +2847,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 equalTo(
                     createExpectedResult(
                         RED,
-                        shardSymptom(1, "unavailable primary shard", "unavailable primary shards"),
+                        projectIds.size() == 1
+                            ? "This cluster has 1 unavailable primary shard."
+                            : "This cluster has " + projectIds.size() + " unavailable primary shards.",
                         Map.of("unassigned_primaries", projectIds.size()),
                         List.of(
                             new HealthIndicatorImpact(
@@ -2834,8 +2908,8 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 equalTo(
                     createExpectedResult(
                         RED,
-                        shardSymptom(2, "unavailable primary shard", "unavailable primary shards"),
-                        Map.of("unassigned_primaries", scale(2)),
+                        "This cluster has " + (2 * projectIds.size()) + " unavailable primary shards.",
+                        Map.of("unassigned_primaries", 2 * projectIds.size()),
                         List.of(
                             new HealthIndicatorImpact(
                                 NAME,
@@ -3100,49 +3174,22 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         );
     }
 
-    private int scale(int perProject) {
-        return perProject * projectIds.size();
-    }
-
-    private String countPhrase(int perProject, String singular, String plural) {
-        int count = scale(perProject);
-        return count == 1 ? "1 " + singular : count + " " + plural;
-    }
-
-    private String shardSymptom(int perProject, String singular, String plural) {
-        return "This cluster has " + countPhrase(perProject, singular, plural) + ".";
-    }
-
-    private List<String> indexNameList(String indexName) {
+    private List<String> indexNameList(String... indexNamesHighestFirst) {
         if (multiProject == false) {
-            return List.of(indexName);
-        }
-        return projectIds.stream().map(id -> id.id() + "/" + indexName).sorted().toList();
-    }
-
-    private List<String> indexNameList(List<String> indexNamesHighestFirst) {
-        if (multiProject == false) {
-            return List.copyOf(indexNamesHighestFirst);
+            return List.of(indexNamesHighestFirst);
         }
         List<String> names = new ArrayList<>();
         for (String indexName : indexNamesHighestFirst) {
-            names.addAll(indexNameList(indexName));
+            names.addAll(projectIds.stream().map(id -> id.id() + "/" + indexName).sorted().toList());
         }
         return names;
     }
 
-    private String indexPhrase(String indexName) {
-        return indexPhrase(List.of(indexName));
+    private String indexPhrase(String... indexNamesHighestFirst) {
+        return indexPhrase(indexNameList(indexNamesHighestFirst));
     }
 
-    private String indexPhrase(List<String> indexNamesHighestFirst) {
-        List<String> names = indexNameList(indexNamesHighestFirst);
-        int count = names.size();
-        return (count == 1 ? "1 index [" : count + " indices [") + String.join(", ", names) + "]";
-    }
-
-    private String indexPhraseByPriority(Map<String, Integer> indexNameToPriority) {
-        List<String> names = indexNameListByPriority(indexNameToPriority);
+    private String indexPhrase(List<String> names) {
         int count = names.size();
         String listed = String.join(", ", names.stream().limit(10).toList());
         if (count > 10) {

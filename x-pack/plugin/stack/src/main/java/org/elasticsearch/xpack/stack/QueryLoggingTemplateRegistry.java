@@ -39,7 +39,8 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
     // version 6: fix dynamic_templates to use one array entry per template
     // version 7: params support
     // version 8: params is indexable
-    public static final int INDEX_TEMPLATE_VERSION = 8;
+    // version 9: lower priority
+    public static final int INDEX_TEMPLATE_VERSION = 9;
 
     public static final String QUERY_LOGGING_TEMPLATE_VERSION_VARIABLE = "xpack.stack.querylog.template.version";
 

@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -18,14 +21,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+
 public class FooterByteCacheTests extends ESTestCase {
 
     private FooterByteCache cache;
 
+    private static final TimeValue TTL = TimeValue.timeValueMinutes(5);
+
     @Before
     public void initCache() {
-        FooterByteCache.getInstance().invalidateAll();
-        cache = new FooterByteCache(1024 * 1024, 512 * 1024);
+        cache = new FooterByteCache(1024 * 1024, 512 * 1024, TTL);
     }
 
     public void testGetReturnsNullOnMiss() {
@@ -41,7 +48,7 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testPutSkipsOversizedEntries() {
-        FooterByteCache cache = new FooterByteCache(1024 * 1024, 100);
+        FooterByteCache cache = new FooterByteCache(1024 * 1024, 100, TTL);
         FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
         byte[] oversized = randomByteArrayOfLength(200);
         cache.put(key, oversized);
@@ -57,7 +64,7 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testGetOrLoadEvictsOversizedEntries() throws ExecutionException {
-        FooterByteCache smallMaxEntry = new FooterByteCache(1024 * 1024, 100);
+        FooterByteCache smallMaxEntry = new FooterByteCache(1024 * 1024, 100, TTL);
         FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
         byte[] oversized = randomByteArrayOfLength(200);
 
@@ -74,7 +81,7 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testLruEviction() {
-        FooterByteCache tinyCache = new FooterByteCache(300, 200);
+        FooterByteCache tinyCache = new FooterByteCache(300, 200, TTL);
         byte[] data1 = randomByteArrayOfLength(150);
         byte[] data2 = randomByteArrayOfLength(150);
         byte[] data3 = randomByteArrayOfLength(150);
@@ -182,9 +189,43 @@ public class FooterByteCacheTests extends ESTestCase {
         assertEquals("simulated I/O failure", ex.getCause().getMessage());
     }
 
-    public void testSingletonInstance() {
-        FooterByteCache instance1 = FooterByteCache.getInstance();
-        FooterByteCache instance2 = FooterByteCache.getInstance();
-        assertSame(instance1, instance2);
+    public void testFromSettingsUsesConfiguredTtl() {
+        Settings settings = Settings.builder().put("esql.external.cache.footer.ttl", "42s").build();
+        FooterByteCache configured = FooterByteCache.fromSettings(settings);
+        assertEquals(TimeValue.timeValueSeconds(42), configured.expireAfterAccess());
+    }
+
+    public void testFromSettingsDefaults() {
+        FooterByteCache defaults = FooterByteCache.fromSettings(Settings.EMPTY);
+        assertEquals(TimeValue.timeValueMinutes(5), defaults.expireAfterAccess());
+        assertThat(defaults.maxEntryBytes(), lessThanOrEqualTo(FooterByteCache.DEFAULT_MAX_ENTRY_BYTES));
+    }
+
+    public void testFromSettingsClampsMaxEntryToBudgetFraction() {
+        // The budget is heap-relative, so a fixed 2 MiB entry ceiling would let one entry evict
+        // nearly the whole cache on a small heap. Entries are capped at a quarter of the budget.
+        Settings settings = Settings.builder().put("esql.external.cache.footer.size", "1mb").build();
+        FooterByteCache small = FooterByteCache.fromSettings(settings);
+        assertEquals(256 * 1024L, small.maxEntryBytes());
+    }
+
+    public void testNonPositiveBudgetIsRejectedAtSettingsParseTime() {
+        // The caches are built lazily on first reader construction, so a zero budget must be
+        // rejected when the setting is parsed rather than on the first Parquet/ORC query.
+        String key = randomFrom("esql.external.cache.footer.size", "esql.external.cache.footer.parsed.size");
+        Setting<?> setting = key.endsWith("parsed.size")
+            ? ExternalSourceCacheSettings.FOOTER_PARSED_CACHE_SIZE
+            : ExternalSourceCacheSettings.FOOTER_CACHE_SIZE;
+        Settings settings = Settings.builder().put(key, randomFrom("0b", "0%")).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
+        assertThat(e.getMessage(), containsString("must be greater than 0"));
+    }
+
+    public void testEachConstructionIsIndependent() {
+        // Distinct cache instances must not share entries.
+        FooterByteCache other = new FooterByteCache(1024 * 1024, 512 * 1024, TTL);
+        FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
+        cache.put(key, randomByteArrayOfLength(100));
+        assertNull("distinct cache instances must not share entries", other.get(key));
     }
 }

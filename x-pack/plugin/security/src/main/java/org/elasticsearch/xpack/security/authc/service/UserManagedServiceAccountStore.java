@@ -403,6 +403,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             validationException.addValidationError("roles is required");
         } else {
             roles.forEach(role -> addIfError(validationException, NativeRealmValidationUtil.validateRoleName(role, true)));
+            addIfError(validationException, Validation.UserManagedServiceAccounts.validateRoles(roles));
         }
         return validationException.validationErrors().isEmpty() ? null : validationException;
     }

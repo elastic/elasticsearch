@@ -174,6 +174,10 @@ public class PutUserManagedServiceAccountRequest extends UntypedActionRequest {
                 validationException = addValidationError(roleNameError.toString(), validationException);
             }
         }
+        final Validation.Error rolesError = Validation.UserManagedServiceAccounts.validateRoles(roles);
+        if (rolesError != null) {
+            validationException = addValidationError(rolesError.toString(), validationException);
+        }
         return validationException;
     }
 }

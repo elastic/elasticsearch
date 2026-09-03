@@ -14,9 +14,12 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.support.Validation;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -160,6 +163,19 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
         }
     }
 
+    public void testTooManyRolesAreRejectedButDuplicatesDoNotCount() {
+        final int max = Validation.UserManagedServiceAccounts.MAX_ROLES;
+        assertThat(newRequestWithRoles(roleNames(max)).validate(), nullValue());
+        assertThat(newRequestWithRoles(Collections.nCopies(max + 1, "role-a")).validate(), nullValue());
+
+        final ActionRequestValidationException e = newRequestWithRoles(roleNames(max + 1)).validate();
+        assertThat(e, notNullValue());
+        assertThat(
+            e.validationErrors(),
+            contains("a service account may not have more than " + max + " roles, but [" + (max + 1) + "] were given")
+        );
+    }
+
     public void testEveryProblemWithTheRequestIsReportedAtOnce() {
         final ActionRequestValidationException e = new PutUserManagedServiceAccountRequest(
             "my*team",
@@ -176,6 +192,14 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
                 containsString("Role names must be at least")
             )
         );
+    }
+
+    private static PutUserManagedServiceAccountRequest newRequestWithRoles(List<String> roles) {
+        return new PutUserManagedServiceAccountRequest("my-team", "worker", roles, randomBoolean());
+    }
+
+    private static List<String> roleNames(int count) {
+        return IntStream.range(0, count).mapToObj(i -> "role-" + i).toList();
     }
 
     private PutUserManagedServiceAccountRequest parse(String namespace, String serviceName, String body) throws IOException {

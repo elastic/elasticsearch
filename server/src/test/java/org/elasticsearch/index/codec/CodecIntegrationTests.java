@@ -51,11 +51,12 @@ public class CodecIntegrationTests extends ESSingleNodeTestCase {
 
     public void testDefaultCodec() throws Exception {
         var indexService = createIndex("index1");
-        var storedFieldsFormat = (Lucene90StoredFieldsFormat) indexService.getShard(0)
+        var codecFormat = (ElasticsearchStoredFieldsFormat) indexService.getShard(0)
             .getEngineOrNull()
             .config()
             .getCodec()
             .storedFieldsFormat();
+        var storedFieldsFormat = (Lucene90StoredFieldsFormat) codecFormat.writeFormat();
         var mode = getLucene90StoredFieldsFormatMode(storedFieldsFormat);
         assertThat(mode, equalTo(Lucene90StoredFieldsFormat.Mode.BEST_SPEED));
     }

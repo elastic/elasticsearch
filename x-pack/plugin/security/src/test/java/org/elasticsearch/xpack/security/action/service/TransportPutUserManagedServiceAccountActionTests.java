@@ -53,9 +53,9 @@ public class TransportPutUserManagedServiceAccountActionTests extends ESTestCase
             "engineering",
             "deploy_bot",
             roles,
-            enabled
+            enabled,
+            refreshPolicy
         );
-        request.setRefreshPolicy(refreshPolicy);
 
         action.doExecute(mock(Task.class), request, new PlainActionFuture<>());
 

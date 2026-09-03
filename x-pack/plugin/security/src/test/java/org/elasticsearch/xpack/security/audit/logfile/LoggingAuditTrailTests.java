@@ -1694,12 +1694,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertMsg(generatedPutUserManagedServiceAccountAuditEventString, checkedFields);
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
+        final boolean force = randomBoolean();
         final DeleteUserManagedServiceAccountRequest deleteUserManagedServiceAccountRequest = new DeleteUserManagedServiceAccountRequest(
             namespace,
-            serviceName
+            serviceName,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL,
+            force
         );
-        final boolean force = randomBoolean();
-        deleteUserManagedServiceAccountRequest.setForce(force);
 
         auditTrail.accessGranted(
             requestId,

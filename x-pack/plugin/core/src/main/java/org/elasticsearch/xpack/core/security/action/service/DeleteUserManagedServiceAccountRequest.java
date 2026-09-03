@@ -24,12 +24,28 @@ public class DeleteUserManagedServiceAccountRequest extends UntypedActionRequest
 
     private final String namespace;
     private final String serviceName;
-    private WriteRequest.RefreshPolicy refreshPolicy = WriteRequest.RefreshPolicy.WAIT_UNTIL;
-    private boolean force = false;
+    private final WriteRequest.RefreshPolicy refreshPolicy;
+    private final boolean force;
 
     public DeleteUserManagedServiceAccountRequest(String namespace, String serviceName) {
+        this(namespace, serviceName, WriteRequest.RefreshPolicy.WAIT_UNTIL, false);
+    }
+
+    /**
+     * @param force When false, the default, deleting an account that still has service tokens is refused. When true
+     *              the account is deleted and its tokens are left in place: they cannot authenticate while no account
+     *              of that name exists, but creating one again later revives them.
+     */
+    public DeleteUserManagedServiceAccountRequest(
+        String namespace,
+        String serviceName,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        boolean force
+    ) {
         this.namespace = Objects.requireNonNull(namespace, "namespace cannot be null");
         this.serviceName = Objects.requireNonNull(serviceName, "service name cannot be null");
+        this.refreshPolicy = Objects.requireNonNull(refreshPolicy, "refresh policy may not be null");
+        this.force = force;
     }
 
     public DeleteUserManagedServiceAccountRequest(StreamInput in) throws IOException {
@@ -52,21 +68,8 @@ public class DeleteUserManagedServiceAccountRequest extends UntypedActionRequest
         return refreshPolicy;
     }
 
-    public void setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
-        this.refreshPolicy = Objects.requireNonNull(refreshPolicy, "refresh policy may not be null");
-    }
-
     public boolean isForce() {
         return force;
-    }
-
-    /**
-     * When false, the default, deleting an account that still has service tokens is refused. When true the account is
-     * deleted and its tokens are left in place: they cannot authenticate while no account of that name exists, but
-     * creating one again later revives them.
-     */
-    public void setForce(boolean force) {
-        this.force = force;
     }
 
     public ServiceAccountId getAccountId() {

@@ -52,15 +52,16 @@ public class RestDeleteUserManagedServiceAccountAction extends SecurityBaseRestH
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
+        final String refreshParameter = request.param("refresh");
+        final WriteRequest.RefreshPolicy refreshPolicy = refreshParameter == null
+            ? WriteRequest.RefreshPolicy.WAIT_UNTIL
+            : WriteRequest.RefreshPolicy.parse(refreshParameter);
         final DeleteUserManagedServiceAccountRequest deleteRequest = new DeleteUserManagedServiceAccountRequest(
             request.param("namespace"),
-            request.param("service")
+            request.param("service"),
+            refreshPolicy,
+            request.paramAsBoolean("force", false)
         );
-        final String refreshPolicy = request.param("refresh");
-        if (refreshPolicy != null) {
-            deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refreshPolicy));
-        }
-        deleteRequest.setForce(request.paramAsBoolean("force", false));
         return channel -> client.execute(
             DeleteUserManagedServiceAccountAction.INSTANCE,
             deleteRequest,

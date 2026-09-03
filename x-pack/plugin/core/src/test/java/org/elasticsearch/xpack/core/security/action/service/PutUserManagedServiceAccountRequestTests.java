@@ -34,7 +34,7 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
 
     @Override
     protected PutUserManagedServiceAccountRequest createTestInstance() {
-        return newRequest(
+        return new PutUserManagedServiceAccountRequest(
             randomAlphaOfLengthBetween(3, 8),
             randomAlphaOfLengthBetween(3, 8),
             randomRoles(),
@@ -46,35 +46,35 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
     @Override
     protected PutUserManagedServiceAccountRequest mutateInstance(PutUserManagedServiceAccountRequest instance) {
         return switch (between(0, 4)) {
-            case 0 -> newRequest(
+            case 0 -> new PutUserManagedServiceAccountRequest(
                 randomValueOtherThan(instance.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
                 instance.getServiceName(),
                 instance.getRoles(),
                 instance.isEnabled(),
                 instance.getRefreshPolicy()
             );
-            case 1 -> newRequest(
+            case 1 -> new PutUserManagedServiceAccountRequest(
                 instance.getNamespace(),
                 randomValueOtherThan(instance.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)),
                 instance.getRoles(),
                 instance.isEnabled(),
                 instance.getRefreshPolicy()
             );
-            case 2 -> newRequest(
+            case 2 -> new PutUserManagedServiceAccountRequest(
                 instance.getNamespace(),
                 instance.getServiceName(),
                 randomValueOtherThan(instance.getRoles(), PutUserManagedServiceAccountRequestTests::randomRoles),
                 instance.isEnabled(),
                 instance.getRefreshPolicy()
             );
-            case 3 -> newRequest(
+            case 3 -> new PutUserManagedServiceAccountRequest(
                 instance.getNamespace(),
                 instance.getServiceName(),
                 instance.getRoles(),
                 instance.isEnabled() == false,
                 instance.getRefreshPolicy()
             );
-            case 4 -> newRequest(
+            case 4 -> new PutUserManagedServiceAccountRequest(
                 instance.getNamespace(),
                 instance.getServiceName(),
                 instance.getRoles(),
@@ -86,7 +86,8 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
     }
 
     public void testParseTakesTheAccountFromThePathAndTheRestFromTheBody() throws IOException {
-        final PutUserManagedServiceAccountRequest request = parse("my-team", "worker", """
+        final WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
+        final PutUserManagedServiceAccountRequest request = parse("my-team", "worker", refreshPolicy, """
             {
               "roles": ["role-a", "role-b"],
               "enabled": false
@@ -97,6 +98,16 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
         assertThat(request.getAccountId().asPrincipal(), equalTo("my-team/worker"));
         assertThat(request.getRoles(), equalTo(List.of("role-a", "role-b")));
         assertThat(request.isEnabled(), is(false));
+        assertThat(request.getRefreshPolicy(), equalTo(refreshPolicy));
+    }
+
+    public void testRefreshPolicyDefaultsToWaitUntil() {
+        final PutUserManagedServiceAccountRequest request = new PutUserManagedServiceAccountRequest(
+            "my-team",
+            "worker",
+            List.of("role-a"),
+            randomBoolean()
+        );
         assertThat(request.getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.WAIT_UNTIL));
     }
 
@@ -128,22 +139,34 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
     }
 
     public void testAnAccountThatCouldExistIsAccepted() {
-        assertThat(newRequest("my-team", "worker", List.of("role-a"), randomBoolean()).validate(), nullValue());
+        assertThat(
+            new PutUserManagedServiceAccountRequest("my-team", "worker", List.of("role-a"), randomBoolean()).validate(),
+            nullValue()
+        );
         // An account with no roles can authenticate and do nothing, which is a state an admin is allowed to ask for.
-        assertThat(newRequest("my-team", "worker", List.of(), randomBoolean()).validate(), nullValue());
+        assertThat(new PutUserManagedServiceAccountRequest("my-team", "worker", List.of(), randomBoolean()).validate(), nullValue());
     }
 
     public void testTheReservedNamespaceIsRejectedInAnyCase() {
         for (String namespace : new String[] { "elastic", "ELASTIC", "Elastic" }) {
-            final ActionRequestValidationException e = newRequest(namespace, "worker", List.of("role-a"), randomBoolean()).validate();
+            final ActionRequestValidationException e = new PutUserManagedServiceAccountRequest(
+                namespace,
+                "worker",
+                List.of("role-a"),
+                randomBoolean()
+            ).validate();
             assertThat("namespace [" + namespace + "] should be reserved", e, notNullValue());
             assertThat(e.validationErrors(), contains("the [elastic] namespace is reserved for built-in service accounts"));
         }
     }
 
     public void testEveryProblemWithTheRequestIsReportedAtOnce() {
-        final ActionRequestValidationException e = newRequest("my*team", "worker*", List.of(" role-a", "role-b"), randomBoolean())
-            .validate();
+        final ActionRequestValidationException e = new PutUserManagedServiceAccountRequest(
+            "my*team",
+            "worker*",
+            List.of(" role-a", "role-b"),
+            randomBoolean()
+        ).validate();
         assertThat(e, notNullValue());
         assertThat(
             e.validationErrors(),
@@ -156,33 +179,21 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
     }
 
     private PutUserManagedServiceAccountRequest parse(String namespace, String serviceName, String body) throws IOException {
+        return parse(namespace, serviceName, WriteRequest.RefreshPolicy.WAIT_UNTIL, body);
+    }
+
+    private PutUserManagedServiceAccountRequest parse(
+        String namespace,
+        String serviceName,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        String body
+    ) throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, body)) {
-            return PutUserManagedServiceAccountRequest.parse(namespace, serviceName, parser);
+            return PutUserManagedServiceAccountRequest.parse(namespace, serviceName, refreshPolicy, parser);
         }
     }
 
     private static List<String> randomRoles() {
         return randomList(0, 3, () -> randomAlphaOfLengthBetween(3, 8));
-    }
-
-    private static PutUserManagedServiceAccountRequest newRequest(
-        String namespace,
-        String serviceName,
-        List<String> roles,
-        boolean enabled
-    ) {
-        return new PutUserManagedServiceAccountRequest(namespace, serviceName, roles, enabled);
-    }
-
-    private static PutUserManagedServiceAccountRequest newRequest(
-        String namespace,
-        String serviceName,
-        List<String> roles,
-        boolean enabled,
-        WriteRequest.RefreshPolicy refreshPolicy
-    ) {
-        final PutUserManagedServiceAccountRequest request = newRequest(namespace, serviceName, roles, enabled);
-        request.setRefreshPolicy(refreshPolicy);
-        return request;
     }
 }

@@ -28,7 +28,7 @@ public class DeleteUserManagedServiceAccountRequestTests extends AbstractWireSer
 
     @Override
     protected DeleteUserManagedServiceAccountRequest createTestInstance() {
-        return newRequest(
+        return new DeleteUserManagedServiceAccountRequest(
             randomAlphaOfLengthBetween(3, 8),
             randomAlphaOfLengthBetween(3, 8),
             randomFrom(WriteRequest.RefreshPolicy.values()),
@@ -39,25 +39,25 @@ public class DeleteUserManagedServiceAccountRequestTests extends AbstractWireSer
     @Override
     protected DeleteUserManagedServiceAccountRequest mutateInstance(DeleteUserManagedServiceAccountRequest instance) {
         return switch (between(0, 3)) {
-            case 0 -> newRequest(
+            case 0 -> new DeleteUserManagedServiceAccountRequest(
                 randomValueOtherThan(instance.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
                 instance.getServiceName(),
                 instance.getRefreshPolicy(),
                 instance.isForce()
             );
-            case 1 -> newRequest(
+            case 1 -> new DeleteUserManagedServiceAccountRequest(
                 instance.getNamespace(),
                 randomValueOtherThan(instance.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)),
                 instance.getRefreshPolicy(),
                 instance.isForce()
             );
-            case 2 -> newRequest(
+            case 2 -> new DeleteUserManagedServiceAccountRequest(
                 instance.getNamespace(),
                 instance.getServiceName(),
                 randomValueOtherThan(instance.getRefreshPolicy(), () -> randomFrom(WriteRequest.RefreshPolicy.values())),
                 instance.isForce()
             );
-            case 3 -> newRequest(
+            case 3 -> new DeleteUserManagedServiceAccountRequest(
                 instance.getNamespace(),
                 instance.getServiceName(),
                 instance.getRefreshPolicy(),
@@ -69,6 +69,13 @@ public class DeleteUserManagedServiceAccountRequestTests extends AbstractWireSer
 
     public void testDeleteIsNotForcedByDefault() {
         assertThat(new DeleteUserManagedServiceAccountRequest("my-team", "worker").isForce(), is(false));
+    }
+
+    public void testRefreshPolicyDefaultsToWaitUntil() {
+        assertThat(
+            new DeleteUserManagedServiceAccountRequest("my-team", "worker").getRefreshPolicy(),
+            equalTo(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+        );
     }
 
     public void testAnAccountThatCouldExistIsAccepted() {
@@ -101,17 +108,5 @@ public class DeleteUserManagedServiceAccountRequestTests extends AbstractWireSer
 
     public void testAccountIdNamesThePathItWasBuiltFrom() {
         assertThat(new DeleteUserManagedServiceAccountRequest("my-team", "worker").getAccountId().asPrincipal(), equalTo("my-team/worker"));
-    }
-
-    private static DeleteUserManagedServiceAccountRequest newRequest(
-        String namespace,
-        String serviceName,
-        WriteRequest.RefreshPolicy refreshPolicy,
-        boolean force
-    ) {
-        final DeleteUserManagedServiceAccountRequest request = new DeleteUserManagedServiceAccountRequest(namespace, serviceName);
-        request.setRefreshPolicy(refreshPolicy);
-        request.setForce(force);
-        return request;
     }
 }

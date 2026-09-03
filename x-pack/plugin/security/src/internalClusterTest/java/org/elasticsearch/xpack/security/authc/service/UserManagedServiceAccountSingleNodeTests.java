@@ -231,9 +231,10 @@ public class UserManagedServiceAccountSingleNodeTests extends SecuritySingleNode
 
         final DeleteUserManagedServiceAccountRequest forcedDeleteRequest = new DeleteUserManagedServiceAccountRequest(
             NAMESPACE,
-            serviceName
+            serviceName,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL,
+            true
         );
-        forcedDeleteRequest.setForce(true);
         final DeleteUserManagedServiceAccountResponse deleteResponse = securityAdminClient().execute(
             DeleteUserManagedServiceAccountAction.INSTANCE,
             forcedDeleteRequest

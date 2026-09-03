@@ -57,20 +57,31 @@ public class PutUserManagedServiceAccountRequest extends UntypedActionRequest {
     private final String serviceName;
     private final List<String> roles;
     private final boolean enabled;
-    private WriteRequest.RefreshPolicy refreshPolicy = WriteRequest.RefreshPolicy.WAIT_UNTIL;
+    private final WriteRequest.RefreshPolicy refreshPolicy;
 
     public PutUserManagedServiceAccountRequest(String namespace, String serviceName, List<String> roles, boolean enabled) {
+        this(namespace, serviceName, roles, enabled, WriteRequest.RefreshPolicy.WAIT_UNTIL);
+    }
+
+    public PutUserManagedServiceAccountRequest(
+        String namespace,
+        String serviceName,
+        List<String> roles,
+        boolean enabled,
+        WriteRequest.RefreshPolicy refreshPolicy
+    ) {
         this.namespace = Objects.requireNonNull(namespace, "namespace cannot be null");
         this.serviceName = Objects.requireNonNull(serviceName, "service name cannot be null");
         this.roles = List.copyOf(Objects.requireNonNull(roles, "roles cannot be null"));
         this.enabled = enabled;
+        this.refreshPolicy = Objects.requireNonNull(refreshPolicy, "refresh policy may not be null");
     }
 
     public PutUserManagedServiceAccountRequest(StreamInput in) throws IOException {
         super(in);
         this.namespace = in.readString();
         this.serviceName = in.readString();
-        this.roles = in.readStringCollectionAsList();
+        this.roles = in.readStringCollectionAsImmutableList();
         this.enabled = in.readBoolean();
         this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
     }
@@ -80,10 +91,14 @@ public class PutUserManagedServiceAccountRequest extends UntypedActionRequest {
      * an account that may exist is left to {@link #validate()}, so that a caller is told what is wrong with the whole
      * request rather than only with its path.
      */
-    public static PutUserManagedServiceAccountRequest parse(String namespace, String serviceName, XContentParser parser)
-        throws IOException {
+    public static PutUserManagedServiceAccountRequest parse(
+        String namespace,
+        String serviceName,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        XContentParser parser
+    ) throws IOException {
         final Body body = PARSER.parse(parser, null);
-        return new PutUserManagedServiceAccountRequest(namespace, serviceName, body.roles(), body.enabled());
+        return new PutUserManagedServiceAccountRequest(namespace, serviceName, body.roles(), body.enabled(), refreshPolicy);
     }
 
     public String getNamespace() {
@@ -104,10 +119,6 @@ public class PutUserManagedServiceAccountRequest extends UntypedActionRequest {
 
     public WriteRequest.RefreshPolicy getRefreshPolicy() {
         return refreshPolicy;
-    }
-
-    public void setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
-        this.refreshPolicy = Objects.requireNonNull(refreshPolicy, "refresh policy may not be null");
     }
 
     public ServiceAccountId getAccountId() {

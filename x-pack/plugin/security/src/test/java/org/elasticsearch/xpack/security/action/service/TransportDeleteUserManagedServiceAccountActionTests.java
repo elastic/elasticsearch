@@ -47,9 +47,12 @@ public class TransportDeleteUserManagedServiceAccountActionTests extends ESTestC
     public void testTheRequestIsUnpackedForTheService() {
         for (boolean force : List.of(true, false)) {
             final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
-            final DeleteUserManagedServiceAccountRequest request = new DeleteUserManagedServiceAccountRequest("engineering", "deploy_bot");
-            request.setForce(force);
-            request.setRefreshPolicy(refreshPolicy);
+            final DeleteUserManagedServiceAccountRequest request = new DeleteUserManagedServiceAccountRequest(
+                "engineering",
+                "deploy_bot",
+                refreshPolicy,
+                force
+            );
 
             action.doExecute(mock(Task.class), request, new PlainActionFuture<>());
 

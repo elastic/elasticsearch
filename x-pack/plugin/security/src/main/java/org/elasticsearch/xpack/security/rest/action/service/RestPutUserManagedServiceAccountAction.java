@@ -51,15 +51,16 @@ public class RestPutUserManagedServiceAccountAction extends SecurityBaseRestHand
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
+        final String refreshParameter = request.param("refresh");
+        final WriteRequest.RefreshPolicy refreshPolicy = refreshParameter == null
+            ? WriteRequest.RefreshPolicy.WAIT_UNTIL
+            : WriteRequest.RefreshPolicy.parse(refreshParameter);
         final PutUserManagedServiceAccountRequest putRequest = PutUserManagedServiceAccountRequest.parse(
             request.param("namespace"),
             request.param("service"),
+            refreshPolicy,
             request.contentParser()
         );
-        final String refreshPolicy = request.param("refresh");
-        if (refreshPolicy != null) {
-            putRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refreshPolicy));
-        }
         return channel -> client.execute(PutUserManagedServiceAccountAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
     }
 

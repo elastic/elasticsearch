@@ -8,12 +8,6 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.TestAnalyzer;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -25,12 +19,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests for {@link org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep}, the rule that annotates each non-LOOKUP

@@ -762,6 +762,13 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
+    public void testWatchingApproximationLicenceToleratesAnAbsentLicenceState() {
+        // XPackPlugin publishes the shared licence state through a SetOnce, so a harness that builds EsqlPlugin
+        // without XPackPlugin passes null here. Registering eagerly on that NPEs during plugin creation and takes
+        // down unrelated suites — it took out security consistency-checks and the esql QA action tests.
+        QuerySettings.watchApproximationLicense(null, () -> false, () -> Settings.EMPTY, Settings.EMPTY);
+    }
+
     public void testLicenceLapseIsSilentWhenNoOperatorDefaultIsOn() {
         // The mutation proving the warning is conditional on the operator default, not fired by any unlicensed
         // transition. Without this, a warning hard-coded to every lapse would pass the test above.

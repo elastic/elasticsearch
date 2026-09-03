@@ -444,11 +444,18 @@ public final class QuerySettings {
      * only about settings.
      */
     public static void watchApproximationLicense(
-        XPackLicenseState licenseState,
+        @Nullable XPackLicenseState licenseState,
         BooleanSupplier approximationLicensed,
         Supplier<Settings> clusterStateSettings,
         Settings nodeSettings
     ) {
+        if (licenseState == null) {
+            // XPackPlugin publishes the shared licence state through a SetOnce, so a harness that builds this plugin
+            // without XPackPlugin sees null. That is test-only: PlanExecutor captures the same state eagerly for its
+            // query-time licence checks, so a null in a real node would fail every query long before this mattered.
+            // No licence state means no licence transitions, so there is nothing to report.
+            return;
+        }
         licenseState.addListener(() -> {
             if (approximationLicensed.getAsBoolean()) {
                 return;

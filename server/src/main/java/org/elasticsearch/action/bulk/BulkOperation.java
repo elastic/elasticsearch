@@ -310,8 +310,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     ) {
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         final ConcreteIndices concreteIndices = new ConcreteIndices(project, indexNameExpressionResolver);
-        // When batch routing is active the router owns the grouping; otherwise we build it here.
-        Map<ShardId, List<BulkItemRequest>> requestsByShard = batchRouter != null ? null : new HashMap<>();
+        // Both modes fill the same map: x-content fills it incrementally in route(); provided-batch
+        // fills it in buildGrouping() after the deferred columnar routing pass completes.
+        Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
 
         while (it.hasNext()) {
             BulkItemRequest bulkItemRequest = it.next();
@@ -346,7 +347,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 }
                 IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
                 if (batchRouter != null) {
-                    batchRouter.route(bulkItemRequest, docWriteRequest, ia, concreteIndex, indexRouting, project);
+                    batchRouter.route(bulkItemRequest, docWriteRequest, ia, concreteIndex, indexRouting, project, requestsByShard);
                 } else {
                     docWriteRequest.preRoutingProcess(indexRouting);
                     int shardId = docWriteRequest.route(indexRouting);
@@ -367,7 +368,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 addFailureAndDiscardRequest(docWriteRequest, bulkItemRequest.id(), name, e, failureStoreStatus);
             }
         }
-        return batchRouter != null ? batchRouter.buildGrouping() : requestsByShard;
+        return batchRouter != null ? batchRouter.buildGrouping(requestsByShard, this::onBatchRoutingFailure) : requestsByShard;
     }
 
     /**
@@ -862,6 +863,22 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
     private static boolean isFailureStoreRequest(DocWriteRequest<?> request) {
         return request instanceof IndexRequest ir && ir.isWriteToFailureStore();
+    }
+
+    /**
+     * Per-item failure handler passed to {@link BatchModeRouter#buildGrouping} for the columnar routing
+     * path. Mirrors the {@code catch (IllegalArgumentException | ...)} block in
+     * {@link #groupRequestsByShards}: marks the item failed and discards it from the working request
+     * list. All items in the deferred batch receive the same exception because the columnar routing
+     * trio ({@link org.elasticsearch.cluster.routing.IndexRouting#indexShard}) does not expose which
+     * row caused the failure.
+     */
+    private void onBatchRoutingFailure(BulkItemRequest item, Exception e) {
+        DocWriteRequest<?> request = item.request();
+        var failureStoreStatus = isFailureStoreRequest(request)
+            ? IndexDocFailureStoreStatus.FAILED
+            : IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
+        addFailureAndDiscardRequest(request, item.id(), request.index(), e, failureStoreStatus);
     }
 
     /**

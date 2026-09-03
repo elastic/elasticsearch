@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * Per-bulk router: decides each item's destination shard and builds the per-shard {@link SourceBatch}.
@@ -64,6 +65,7 @@ final class BatchModeRouter implements Releasable {
     private int lastRow = -1;
     private int routedCount;
     private boolean scattered;
+    private boolean groupingBuilt;
 
     @Nullable
     private IndexRouting deferredRouting;
@@ -71,8 +73,6 @@ final class BatchModeRouter implements Releasable {
     // x-content mode state (null in provided-batch mode)
     @Nullable
     private final BulkBatchEncoders encoders;
-
-    private final Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
 
     private BatchModeRouter(String indexAbstractionName, EscfBatch source) {
         this.indexAbstractionName = indexAbstractionName;
@@ -163,6 +163,8 @@ final class BatchModeRouter implements Releasable {
     /**
      * Records one item for routing. For the provided-batch mode the actual shard assignment is
      * deferred until {@link #buildGrouping}; for x-content the item is encoded and routed immediately.
+     *
+     * @param requestsByShard the grouping map to fill; both modes write into it
      */
     void route(
         BulkItemRequest bulkItem,
@@ -170,7 +172,8 @@ final class BatchModeRouter implements Releasable {
         IndexAbstraction abstraction,
         Index concreteIndex,
         IndexRouting routing,
-        ProjectMetadata project
+        ProjectMetadata project,
+        Map<ShardId, List<BulkItemRequest>> requestsByShard
     ) {
         if (encoders != null) {
             request.preRoutingProcess(routing);
@@ -260,10 +263,26 @@ final class BatchModeRouter implements Releasable {
 
     /**
      * Returns the final per-shard grouping. For provided-batch mode this resolves all deferred shard
-     * assignments in one batch call; for x-content the grouping was built incrementally.
-     * Must be called once, after all {@link #route} calls.
+     * assignments in one batch call via the columnar routing trio; for x-content the grouping was
+     * built incrementally during {@link #route} calls. Must be called exactly once, after all
+     * {@link #route} calls.
+     *
+     * <p>When the columnar routing trio throws, the failure is <em>batch-granular</em>: every
+     * deferred item is reported via {@code onItemFailure} with the same exception, and an empty
+     * grouping is returned. True per-item isolation would require
+     * {@link IndexRouting#indexShard(IndexRequest[], SourceBatch)} /
+     * {@link org.elasticsearch.cluster.routing.ColumnarTsidCalculator} to identify the failing row —
+     * a follow-up improvement.
+     *
+     * @param requestsByShard the grouping map to fill (the same map passed to each {@link #route} call)
+     * @param onItemFailure   called for each deferred item when columnar routing fails as a whole
      */
-    Map<ShardId, List<BulkItemRequest>> buildGrouping() {
+    Map<ShardId, List<BulkItemRequest>> buildGrouping(
+        Map<ShardId, List<BulkItemRequest>> requestsByShard,
+        BiConsumer<BulkItemRequest, Exception> onItemFailure
+    ) {
+        assert groupingBuilt == false : "buildGrouping called more than once";
+        groupingBuilt = true;
         if (encoders != null) {
             return requestsByShard;
         }
@@ -282,14 +301,25 @@ final class BatchModeRouter implements Releasable {
             );
         }
         IndexRequest[] requests = buildRequestArray();
-        deferredRouting.preProcess(requests);
-        int[] shards = deferredRouting.indexShard(requests, source);
-        deferredRouting.postProcess(requests);
+        try {
+            deferredRouting.preProcess(requests);
+            int[] shards = deferredRouting.indexShard(requests, source);
+            deferredRouting.postProcess(requests);
 
-        for (int i = 0; i < requests.length; i++) {
-            int shardId = shards[i];
-            partitionIds[i] = shardId;
-            requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), k -> new ArrayList<>()).add(items[i]);
+            for (int i = 0; i < requests.length; i++) {
+                int shardId = shards[i];
+                partitionIds[i] = shardId;
+                requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), k -> new ArrayList<>()).add(items[i]);
+            }
+        } catch (Exception e) {
+            // The trio does not give us a row index, so we cannot isolate which row(s) caused the
+            // problem. Fail every deferred item with the same exception.
+            scattered = true; // prevent shardBatches() from attempting a stale scatter
+            for (int i = 0; i < source.docCount(); i++) {
+                if (items[i] != null) {
+                    onItemFailure.accept(items[i], e);
+                }
+            }
         }
         return requestsByShard;
     }

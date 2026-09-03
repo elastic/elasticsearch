@@ -78,11 +78,12 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
     }
 
     public void testObjectPushShipsOnlyObjectsAnIncludeGroupCanReach() {
-        // KEEP network keeps the object "network" (the reference reads null, but a descendant leaf could survive under a wildcard leg);
-        // an unrelated object no include group can reach is pruned at the data node instead of shipped for the coordinator to discard.
-        UnmappedFieldsPattern keepExact = UnmappedFieldsPattern.includes(List.of("network")).withAdditionalExcludes(List.of("network"));
-        assertTrue(keepExact.objectSubfieldsCouldMatch("network"));
-        assertFalse(keepExact.objectSubfieldsCouldMatch("unrelated"));
+        // `KEEP network*` where "network" is also a mapped column: DetermineUnmappedFieldsToKeep adds the mapped name as an exact
+        // exclude, and the wildcard leg still reaches network.<leaf>, so the object ships. An unreachable object is pruned instead.
+        UnmappedFieldsPattern keepWildcardExact = UnmappedFieldsPattern.includes(List.of("network*"))
+            .withAdditionalExcludes(List.of("network"));
+        assertTrue(keepWildcardExact.objectSubfieldsCouldMatch("network"));
+        assertFalse(keepWildcardExact.objectSubfieldsCouldMatch("unrelated"));
 
         UnmappedFieldsPattern keepWildcard = UnmappedFieldsPattern.includes(List.of("keep*"));
         assertTrue(keepWildcard.objectSubfieldsCouldMatch("keep_me"));

@@ -98,6 +98,20 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
         assertMap(filtered, matchesMap().entry("address", Map.of("city", "Berlin", "zip", "10115")).entry("tags", List.of("a", "b")));
     }
 
+    public void testScalarArrayShipsUnderRestrictiveIncludeGroup() throws IOException {
+        Map<String, Object> filtered = load(
+            UnmappedFieldsPattern.includes(List.of("tags*")),
+            Map.of("tags", List.of("a", "b"), "other", "x")
+        );
+        assertMap(filtered, matchesMap().entry("tags", List.of("a", "b")));
+
+        Map<String, Object> dotted = load(
+            UnmappedFieldsPattern.includes(List.of("tags.*")),
+            Map.of("tags", List.of("a", "b"), "other", "x")
+        );
+        assertMap(dotted, matchesMap().entry("tags", List.of("a", "b")));
+    }
+
     public void testNonePatternEmitsNull() throws IOException {
         assertThat(load(UnmappedFieldsPattern.NONE, Map.of("a", "1", "b", "2")), nullValue());
     }

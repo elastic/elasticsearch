@@ -934,6 +934,23 @@ null             | z                      | 2          | web          | "{""id""
 null             | null                   | 3          | web          | "{""id"":""3"",""tags"":""web""}"
 ;
 
+# Temporarily ignored since a KEEP wildcard with a backquoted leg drops the column instead of matching it. See https://github.com/elastic/elasticsearch/issues/158466
+# The rows below are the expected results once fixed - identical to what the equivalent KEEP id, tags* produces above.
+backquotedPrefixWildcardKeepLosesUnmappedField-Ignore
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_array_data
+| KEEP id, `tags`*
+| SORT id
+;
+
+id:keyword | tags:keyword
+1          | [web, api]
+2          | web
+3          | web
+;
+
 unescapedWildcardKeepNameMatchesLeaves
 required_capability: optional_fields_load_all_v2
 

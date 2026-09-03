@@ -170,7 +170,8 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
 
     /**
      * Whether a top-level {@code _source} object or array key should ship from the data node so the coordinator can flatten it into dotted
-     * leaf columns.
+     * leaf columns. Deliberately a superset of the per-leaf {@link #matches}: an array of scalars flattens to a leaf named exactly
+     * {@code name}, so anything {@code matches} would keep has to ship from here first.
      */
     public boolean objectSubfieldsCouldMatch(String name) {
         // TODO: apply the UnmappedFieldsPattern early so that whatever is being shipped to the coordinator is bare minimum
@@ -187,16 +188,15 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     }
 
     /**
-     * Whether some pattern in {@code group} could match object {@code name} or a {@code name.*} descendant
+     * Whether some pattern in {@code group} could match object {@code name} or a {@code name.*} descendant, compared on each pattern's
+     * literal head — everything before its first {@code *}, or the whole pattern when it has none.
      */
     private static boolean groupCouldMatchDescendant(List<String> group, String name) {
         String dotted = name + ".";
         for (String pattern : group) {
-            if (pattern.startsWith(dotted) || Regex.simpleMatch(pattern, name)) {
-                return true;
-            }
             int wildcard = pattern.indexOf('*');
-            if (wildcard >= 0 && dotted.startsWith(pattern.substring(0, wildcard))) {
+            String literalHead = wildcard < 0 ? pattern : pattern.substring(0, wildcard);
+            if (literalHead.startsWith(dotted) || dotted.startsWith(literalHead)) {
                 return true;
             }
         }

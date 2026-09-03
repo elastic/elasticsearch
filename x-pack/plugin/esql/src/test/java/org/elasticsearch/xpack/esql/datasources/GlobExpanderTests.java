@@ -2000,4 +2000,24 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(2, result.fileCount());
     }
+
+    /**
+     * The cache loader uses {@link GlobExpander#expandAndCompact} which must attach the exclusion text
+     * without emitting it, so a later {@link GlobExpander#replayExclusionWarnings} does not double-warn
+     * on a miss.
+     */
+    public void testExpandAndCompactDefersExclusionWarningUntilReplay() throws IOException {
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100));
+        String pattern = "s3://bucket/data/*";
+        String warning = "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+            + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]";
+
+        FileList compacted = GlobExpander.expandAndCompact(pattern, new StubProvider(listing), null, HIVE_OFF, StoragePath.of(pattern));
+        assertEquals(1, compacted.fileCount());
+        assertEquals(List.of(warning), compacted.exclusionWarnings());
+        ensureNoWarnings();
+
+        GlobExpander.replayExclusionWarnings(compacted);
+        assertWarnings(warning);
+    }
 }

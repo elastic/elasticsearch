@@ -18,8 +18,8 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationCo
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.newFinite;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.newOpen;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.finite;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.open;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -28,71 +28,69 @@ import static org.hamcrest.Matchers.sameInstance;
 public class TranslationContextTests extends ESTestCase {
 
     public void testUnionMergesLabelsAndSkipSets() {
-        Header header = newFinite(List.of("cluster")).union(newOpen(Set.of("pod")))
-            .union(newOpen(Set.of("pod")))
-            .union(newFinite(List.of("cluster", "region")));
+        Header header = finite(List.of("cluster")).union(TranslationContext.open(Set.of("pod")))
+            .union(TranslationContext.open(Set.of("pod")))
+            .union(finite(List.of("cluster", "region")));
 
         assertThat(header.labels(), contains("cluster", "region"));
         assertThat(header.skips(), contains(Set.of("pod")));
         assertThat(header.union(Header.EMPTY), equalTo(header));
     }
 
-    public void testDifferenceDropsLabelsAndWidensSkipSets() {
-        Header above = newFinite(List.of("cluster", "pod")).union(newOpen(Set.of("region")));
+    public void testSubtractDropsLabelsAndWidensSkipSets() {
+        Header above = finite(List.of("cluster", "pod")).union(TranslationContext.open(Set.of("region")));
 
-        Header below = above.difference(List.of("pod"));
+        Header below = above.subtract(List.of("pod"));
         assertThat(below.labels(), contains("cluster"));
         assertThat(below.skips(), contains(Set.of("region", "pod")));
 
         // the regroup's own column composes as a second, finer skip set
-        Header child = below.union(newOpen(Set.of("pod")));
+        Header child = below.union(TranslationContext.open(Set.of("pod")));
         assertThat(child.skips(), containsInAnyOrder(Set.of("region", "pod"), Set.of("pod")));
         assertThat(child.finestSkip(), equalTo(Set.of("pod")));
     }
 
-    public void testSurvivingIsTheUpwardCounterpartOfDifference() {
-        Header required = newFinite(List.of("cluster", "pod")).union(newOpen(Set.of("region")));
-        Header child = required.difference(List.of("pod")).union(newOpen(Set.of("pod")));
+    public void testIntersectIsTheUpwardCounterpartOfSubtract() {
+        Header required = finite(List.of("cluster", "pod")).union(TranslationContext.open(Set.of("region")));
+        Header child = required.subtract(List.of("pod")).union(TranslationContext.open(Set.of("pod")));
 
-        Header lifted = child.surviving(List.of("pod"));
+        Header lifted = child.intersect(List.of("pod"));
 
-        // every column the parent required, apart from the dropped label, comes back
+        // every column the parent required, apart from the dropped label, comes back; so does the regroup's own
+        // packing, which already excludes the dropped label and fixes the grain of the result
         assertThat(lifted.labels(), contains("cluster"));
-        assertThat(lifted.skips(), contains(Set.of("region", "pod")));
+        assertThat(lifted.skips(), containsInAnyOrder(Set.of("region", "pod"), Set.of("pod")));
         // the regroup's own full label space does not survive dropping a label it still carries
-        assertFalse(newOpen().surviving(List.of("pod")).hasPacked());
+        assertFalse(open().intersect(List.of("pod")).isOpen());
         // without () keeps everything
-        assertThat(child.surviving(List.of()), equalTo(child));
+        assertThat(child.intersect(List.of()), equalTo(child));
     }
 
-    public void testRetainLabelsKeepsSkipSets() {
-        Header header = newFinite(List.of("cluster", "pod", "region")).union(newOpen(Set.of("pod")));
+    public void testProjectKeepsSkipSets() {
+        Header header = finite(List.of("cluster", "pod", "region")).union(TranslationContext.open(Set.of("pod")));
 
-        Header retained = header.retainLabels(List.of("cluster", "missing"));
+        Header retained = header.project(List.of("cluster", "missing"));
 
         assertThat(retained.labels(), contains("cluster"));
         assertThat(retained.skips(), contains(Set.of("pod")));
     }
 
     public void testPackedNameDerivesFromTheSkipSet() {
-        assertThat(TranslationContext.packedName(Set.of()), equalTo(MetadataAttribute.TIMESERIES));
-        assertThat(TranslationContext.packedName(Set.of("region", "pod")), equalTo(MetadataAttribute.TIMESERIES + "$pod$region"));
-        assertThat(TranslationContext.packedName(Set.of("pod", "region")), equalTo(TranslationContext.packedName(Set.of("region", "pod"))));
+        assertThat(TranslationContext.mapOpen(Set.of()), equalTo(MetadataAttribute.TIMESERIES));
+        assertThat(TranslationContext.mapOpen(Set.of("region", "pod")), equalTo(MetadataAttribute.TIMESERIES + "$pod$region"));
+        assertThat(TranslationContext.mapOpen(Set.of("pod", "region")), equalTo(TranslationContext.mapOpen(Set.of("region", "pod"))));
     }
 
     public void testFindByNameMatchesCanonicalNamesAndPrefersPassthroughFields() {
         Attribute bare = attr("cluster");
         Attribute prefixed = new ReferenceAttribute(Source.EMPTY, "labels.cluster", DataType.KEYWORD);
-        Attribute packed = attr(TranslationContext.packedName(Set.of("pod")));
+        Attribute packed = attr(TranslationContext.mapOpen(Set.of("pod")));
 
-        assertThat(TranslationContext.findByName(List.of(bare, prefixed), "cluster"), sameInstance(prefixed));
-        assertThat(TranslationContext.findByName(List.of(bare), "cluster"), sameInstance(bare));
-        assertThat(
-            TranslationContext.findByName(List.of(bare, packed), TranslationContext.packedName(Set.of("pod"))),
-            sameInstance(packed)
-        );
-        assertNull(TranslationContext.findByName(List.of(bare), "pod"));
-        assertThat(TranslationContext.mapToNames(List.of(bare, prefixed, attr("pod"))), contains("cluster", "pod"));
+        assertThat(TranslationContext.find(List.of(bare, prefixed), "cluster"), sameInstance(prefixed));
+        assertThat(TranslationContext.find(List.of(bare), "cluster"), sameInstance(bare));
+        assertThat(TranslationContext.find(List.of(bare, packed), TranslationContext.mapOpen(Set.of("pod"))), sameInstance(packed));
+        assertNull(TranslationContext.find(List.of(bare), "pod"));
+        assertThat(TranslationContext.mapFinite(List.of(bare, prefixed, attr("pod"))), contains("cluster", "pod"));
     }
 
     private static Attribute attr(String name) {

@@ -1272,6 +1272,11 @@ class NodeConstruction {
             snapshotMetrics
         );
 
+        final var snapshotGlobalStateTransformers = pluginsService.loadServiceProviders(
+            org.elasticsearch.snapshots.SnapshotGlobalStateTransformer.class
+        );
+        snapshotsService.setSnapshotGlobalStateTransformers(snapshotGlobalStateTransformers);
+
         SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
             settings,
             clusterService,
@@ -1745,6 +1750,12 @@ class NodeConstruction {
             transportService.getLocalNodeConnection(),
             transportService.getRemoteClusterService()
         );
+
+        // Wire global-state transformers into TransportCreateSnapshotAction for pre-flight checks.
+        injector.getInstance(org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction.class)
+            .setSnapshotGlobalStateTransformers(
+                injector.getInstance(org.elasticsearch.snapshots.SnapshotsService.class).getSnapshotGlobalStateTransformers()
+            );
 
         logger.debug("initializing HTTP handlers ...");
         actionModule.initRestHandlers(() -> clusterService.state().nodesIfRecovered(), f -> {

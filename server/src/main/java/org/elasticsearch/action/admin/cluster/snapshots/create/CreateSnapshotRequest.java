@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -78,6 +79,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     @Nullable
     private String uuid = null;
 
+    @Nullable
+    private SnapshotEncryptedData encryptedData;
+
     public CreateSnapshotRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
     }
@@ -107,6 +111,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         partial = in.readBoolean();
         userMetadata = in.readGenericMap();
         uuid = in.readOptionalString();
+        if (in.getTransportVersion().supports(SnapshotEncryptedData.TRANSPORT_VERSION)) {
+            encryptedData = in.readOptionalWriteable(SnapshotEncryptedData::new);
+        }
     }
 
     @Override
@@ -122,6 +129,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeBoolean(partial);
         out.writeGenericMap(userMetadata);
         out.writeOptionalString(uuid);
+        if (out.getTransportVersion().supports(SnapshotEncryptedData.TRANSPORT_VERSION)) {
+            out.writeOptionalWriteable(encryptedData);
+        }
     }
 
     @Override
@@ -155,6 +165,25 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                 "metadata must be smaller than 1024 bytes, but was [" + metadataSize + "]",
                 validationException
             );
+        }
+        if (encryptedData != null) {
+            if (includeGlobalState == false) {
+                validationException = addValidationError("encrypted_data requires include_global_state to be true", validationException);
+            }
+            if (SnapshotEncryptedData.TYPE_PASSWORD.equals(encryptedData.type())) {
+                if (encryptedData.password() == null) {
+                    validationException = addValidationError(
+                        "encrypted_data.password is required for type [password]",
+                        validationException
+                    );
+                } else {
+                    try {
+                        SnapshotEncryptedData.validatePassword(encryptedData.password());
+                    } catch (IllegalArgumentException e) {
+                        validationException = addValidationError(e.getMessage(), validationException);
+                    }
+                }
+            }
         }
         return validationException;
     }
@@ -409,6 +438,22 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     }
 
     /**
+     * @return the encrypted-data parameters for this snapshot, or {@code null} if none were supplied
+     */
+    @Nullable
+    public SnapshotEncryptedData encryptedData() {
+        return encryptedData;
+    }
+
+    /**
+     * @param encryptedData encrypted-data parameters for this snapshot
+     */
+    public CreateSnapshotRequest encryptedData(@Nullable SnapshotEncryptedData encryptedData) {
+        this.encryptedData = encryptedData;
+        return this;
+    }
+
+    /**
      * Parses snapshot definition.
      *
      * @param source snapshot definition
@@ -447,6 +492,12 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                     }
                     userMetadata((Map<String, Object>) entry.getValue());
                     break;
+                case "encrypted_data":
+                    if (SnapshotEncryptedData.FEATURE_FLAG.isEnabled() == false) {
+                        throw new IllegalArgumentException("unknown parameter [encrypted_data]");
+                    }
+                    encryptedData = entry.getValue() != null ? SnapshotEncryptedData.fromMap(entry.getValue()) : null;
+                    break;
             }
         }
         indicesOptions(IndicesOptions.fromMap(source, indicesOptions));
@@ -468,6 +519,14 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             indicesOptions.toXContent(builder, params);
         }
         builder.field("metadata", userMetadata);
+        if (encryptedData != null) {
+            builder.startObject("encrypted_data");
+            builder.field("type", encryptedData.type());
+            if (encryptedData.passwordId() != null) {
+                builder.field("password_id", encryptedData.passwordId());
+            }
+            builder.endObject();
+        }
         builder.endObject();
         return builder;
     }
@@ -492,7 +551,15 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             && Arrays.equals(featureStates, that.featureStates)
             && Objects.equals(masterNodeTimeout(), that.masterNodeTimeout())
             && Objects.equals(userMetadata, that.userMetadata)
-            && Objects.equals(uuid, that.uuid);
+            && Objects.equals(uuid, that.uuid)
+            && encryptedDataTypeEquals(that);
+    }
+
+    private boolean encryptedDataTypeEquals(CreateSnapshotRequest that) {
+        if (this.encryptedData == null && that.encryptedData == null) return true;
+        if (this.encryptedData == null || that.encryptedData == null) return false;
+        return Objects.equals(this.encryptedData.type(), that.encryptedData.type())
+            && Objects.equals(this.encryptedData.passwordId(), that.encryptedData.passwordId());
     }
 
     @Override
@@ -500,6 +567,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         int result = Objects.hash(snapshot, repository, indicesOptions, partial, includeGlobalState, waitForCompletion, userMetadata, uuid);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(featureStates);
+        if (encryptedData != null) {
+            result = 31 * result + Objects.hash(encryptedData.type(), encryptedData.passwordId());
+        }
         return result;
     }
 
@@ -530,6 +600,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             + userMetadata
             + ", uuid="
             + uuid
+            + ", encryptedDataType="
+            + (encryptedData != null ? encryptedData.type() : null)
             + '}';
     }
 }

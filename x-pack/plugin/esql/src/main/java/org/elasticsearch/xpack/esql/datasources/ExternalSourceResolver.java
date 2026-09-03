@@ -684,7 +684,12 @@ public class ExternalSourceResolver {
                 // length + mtime rebuild the singleton FileList.
                 FileMetadata meta = fileMetadataOf(storagePath, provider, config);
                 String formatType = detectFormatType(storagePath);
-                SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), meta.mtimeMillis(), formatType, config);
+                SchemaCacheKey schemaKey = SchemaCacheKey.build(
+                    storagePath.toString(),
+                    meta.mtimeMillis(),
+                    formatType,
+                    storageConfig(config)
+                );
                 SourceStatistics[] computedStatistics = new SourceStatistics[1];
                 SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
                     SourceMetadata metadata = resolveSingleSource(path, config);
@@ -1058,7 +1063,7 @@ public class ExternalSourceResolver {
         if (cacheService == null || cacheService.isEnabled() == false) {
             return null;
         }
-        SchemaCacheKey key = SchemaCacheKey.build(path.toString(), mtimeMillis, detectFormatType(path), config);
+        SchemaCacheKey key = SchemaCacheKey.build(path.toString(), mtimeMillis, detectFormatType(path), storageConfig(config));
         SchemaCacheEntry entry = cacheService.getSchemaIfPresent(key);
         if (entry == null) {
             return null;
@@ -1126,7 +1131,8 @@ public class ExternalSourceResolver {
             storagePath.scheme(),
             storagePath.host(),
             storagePath.path(),
-            config,
+            storageConfig(config),
+            // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
             GlobExpander.listingCacheDiscriminator(path, hints, config)
         );
         return cacheService.getOrComputeListing(listingKey, k -> expandAndCompact(path, provider, hints, config, storagePath));
@@ -1151,7 +1157,7 @@ public class ExternalSourceResolver {
      */
     private FileMetadata fileMetadataOf(StoragePath storagePath, StorageProvider provider, Map<String, Object> config) throws Exception {
         if (isCacheable(provider)) {
-            FileMetadataCacheKey metaKey = FileMetadataCacheKey.build(storagePath.toString(), config);
+            FileMetadataCacheKey metaKey = FileMetadataCacheKey.build(storagePath.toString(), storageConfig(config));
             return cacheService.getOrComputeFileMetadata(metaKey, k -> probeFileMetadata(storagePath, provider));
         }
         return probeFileMetadata(storagePath, provider);
@@ -1355,7 +1361,7 @@ public class ExternalSourceResolver {
             listing.originalPattern(),
             listing.fileSetFingerprint(),
             detectFormatType(listing.path(0)),
-            config
+            storageConfig(config)
         );
     }
 
@@ -1479,7 +1485,7 @@ public class ExternalSourceResolver {
         }
         Map<String, Object> referenceMetadata = referenceMeta.sourceMetadata();
         Object stamped = referenceMetadata != null ? referenceMetadata.get(ExternalStats.CONFIG_FINGERPRINT_KEY) : null;
-        String fingerprint = stamped instanceof String s ? s : SchemaCacheKey.buildFormatConfig(config);
+        String fingerprint = stamped instanceof String s ? s : SchemaCacheKey.buildFormatConfig(storageConfig(config));
         cacheService.registerPendingDatasetAggregate(
             datasetKey,
             pathToMtime,
@@ -1771,7 +1777,7 @@ public class ExternalSourceResolver {
         ActionListener<SourceMetadata> listener
     ) {
         String formatType = detectFormatType(filePath);
-        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), hint.lastModifiedMillis(), formatType, config);
+        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), hint.lastModifiedMillis(), formatType, storageConfig(config));
         SchemaCacheEntry cached = cacheService.getSchemaIfPresent(schemaKey);
         if (cached != null) {
             listener.onResponse(buildMetadataFromCache(cached, cached.toAttributes(), config));
@@ -2686,7 +2692,7 @@ public class ExternalSourceResolver {
     ) throws Exception {
         if (isCacheable(provider) && FILE_TYPED_FORMATS.contains(sourceType) == false && warmsRowCountSafely(sourceType, config)) {
             String formatType = detectFormatType(storagePath) + STRICT_DECLARED_SCHEMA_MARKER;
-            SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), mtimeMillis, formatType, config);
+            SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), mtimeMillis, formatType, storageConfig(config));
             // Seed the identity — mtime, config fingerprint, read configuration; the row-count is absent until the
             // first query's data node harvests
             // it (reconcileSourceStats matches on those two + the path, then overlays STATS_ROW_COUNT). Store no
@@ -2704,7 +2710,7 @@ public class ExternalSourceResolver {
                         ExternalStats.MTIME_MILLIS_KEY,
                         mtimeMillis,
                         ExternalStats.CONFIG_FINGERPRINT_KEY,
-                        SchemaCacheKey.buildFormatConfig(config),
+                        SchemaCacheKey.buildFormatConfig(storageConfig(config)),
                         // Seed the read configuration too, from the declaration this entry was minted for. Without it the seed
                         // would carry no read configuration while every harvest carries one, so the first contribution would match
                         // nothing and the strict warm rail would die silently — the failure the reverted stopgap hit.
@@ -3204,7 +3210,7 @@ public class ExternalSourceResolver {
 
     private SourceMetadata cachedResolveSingleSource(StoragePath filePath, long mtime, Map<String, Object> config) throws Exception {
         String formatType = detectFormatType(filePath);
-        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, config);
+        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, storageConfig(config));
         SchemaCacheEntry entry = cacheService.getOrComputeSchema(
             schemaKey,
             k -> SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config))

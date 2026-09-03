@@ -140,26 +140,19 @@ final class RunTableSortedCodec implements SortedOrdinalCodec {
                         multiValued = true;
                         break;
                     }
-                    final int ord = (int) ords.nextValue();
-                    runTable.add(ord);
-                    sortedFieldObserver.onDoc(doc, ord);
+                    runTable.add((int) ords.nextValue());
                     numDocsWithField++;
                     numValues++;
                     present = ords.nextDoc();
                 } else {
                     runTable.add(sentinel);
-                    sortedFieldObserver.onDoc(doc, sentinel);
                 }
                 if (policy.allow(runTable.numRuns(), doc + 1) == false) {
-                    // Fallback re-reads the field and fires onDoc from scratch, so reset the observer
-                    // to discard the partial events emitted above.
-                    sortedFieldObserver.prepareForDocs();
                     return writeDefault(field, values, maxOrd, docValueCountConsumer, sortedFieldObserver);
                 }
             }
 
             if (multiValued) {
-                sortedFieldObserver.prepareForDocs();
                 return writeDefault(field, values, maxOrd, docValueCountConsumer, sortedFieldObserver);
             }
 

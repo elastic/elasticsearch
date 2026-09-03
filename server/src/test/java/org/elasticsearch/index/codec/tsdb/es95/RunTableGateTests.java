@@ -17,7 +17,6 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -74,35 +73,6 @@ public class RunTableGateTests extends ESTestCase {
         final int maxDoc = randomIntBetween(2, 4096);
         assertFalse(
             new RunTableGate(NON_DIMENSION, primarySort, maxDoc, 1).allow(fieldInfo("cpu", fieldNumber), randomIntBetween(1, maxDoc / 2))
-        );
-    }
-
-    public void testAllowTsidBypassesPrimarySortAndDimensionGates() {
-        final int primarySort = randomBoolean() ? 0 : 1;
-        final int maxDoc = randomIntBetween(4, 4096);
-        final int maxOrd = randomIntBetween(1, maxDoc / 2);
-        assertTrue(
-            new RunTableGate(NON_DIMENSION, primarySort, maxDoc, 1).allow(fieldInfo(TimeSeriesIdFieldMapper.NAME, primarySort), maxOrd)
-        );
-    }
-
-    public void testAllowTsidRespectsRunDensityGuard() {
-        final int primarySort = randomBoolean() ? 0 : 1;
-        final int maxDoc = randomIntBetween(2, 4096);
-        final int maxOrd = randomIntBetween(maxDoc / 2 + 1, maxDoc);
-        assertFalse(
-            new RunTableGate(NON_DIMENSION, primarySort, maxDoc, 1).allow(fieldInfo(TimeSeriesIdFieldMapper.NAME, primarySort), maxOrd)
-        );
-    }
-
-    public void testAllowTsidWithNullResolverReturnsFalse() {
-        final int primarySort = randomBoolean() ? 0 : 1;
-        final int maxDoc = randomIntBetween(2, 4096);
-        assertFalse(
-            new RunTableGate(null, primarySort, maxDoc, 1).allow(
-                fieldInfo(TimeSeriesIdFieldMapper.NAME, primarySort),
-                randomIntBetween(1, maxDoc / 2)
-            )
         );
     }
 

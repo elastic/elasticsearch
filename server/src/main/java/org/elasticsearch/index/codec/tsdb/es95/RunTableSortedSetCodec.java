@@ -174,24 +174,6 @@ final class RunTableSortedSetCodec implements SortedSetOrdinalCodec {
             ctx.meta().writeVLong(numValues);
             SortedSetRunTableLayout.encode(runTable, ctx.data(), ctx.meta());
 
-            if (sortedFieldObserver != null && sortedFieldObserver != SortedFieldObserver.NOOP) {
-                final SortedNumericDocValues ordsObs = values.getSortedNumeric(field);
-                int presentObs = ordsObs.nextDoc();
-                for (int doc = 0; doc < maxDoc; doc++) {
-                    if (doc == presentObs) {
-                        final int count = ordsObs.docValueCount();
-                        final long firstOrd = ordsObs.nextValue();
-                        for (int i = 1; i < count; i++) {
-                            ordsObs.nextValue();
-                        }
-                        sortedFieldObserver.onDoc(doc, firstOrd);
-                        presentObs = ordsObs.nextDoc();
-                    } else {
-                        sortedFieldObserver.onDoc(doc, maxOrd);
-                    }
-                }
-            }
-
             return new DocValueFieldCountStats(numDocsWithField, numValues, true);
         }
 

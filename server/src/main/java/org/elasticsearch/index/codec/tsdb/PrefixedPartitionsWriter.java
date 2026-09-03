@@ -129,11 +129,6 @@ public final class PrefixedPartitionsWriter implements SortedFieldObserver {
 
     @Override
     public void prepareForDocs() {
-        // Reset the doc-phase state so this can be called again to restart the onDoc pass, e.g. when a
-        // run-table writer emits partial events and then falls back to re-emit them from scratch.
-        pageIter = 0;
-        offsetIter = -1;
-        idx = 0;
         startDocs = new int[numPrefixes];
         currentOrd = nextOrd();
     }

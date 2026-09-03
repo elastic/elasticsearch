@@ -32,6 +32,12 @@ public class QuerySettingClusterDefaultIT extends AbstractEsqlIntegTestCase {
 
     private static final String TIME_ZONE_KEY = "esql.query.settings.time_zone";
     private static final String UNMAPPED_FIELDS_KEY = "esql.query.settings.unmapped_fields";
+    private static final String COLUMN_METADATA_KEY = "esql.query.settings.column_metadata";
+    private static final String APPROXIMATION_KEY = "esql.query.settings.approximation";
+
+    // project_routing is the setting that deliberately carries no cluster default, so its would-be key is the one
+    // that must still be refused. Anything opted in later stops being a valid subject for that assertion.
+    private static final String NO_CLUSTER_DEFAULT_KEY = "esql.query.settings.project_routing";
 
     // Truncating to the day is timezone-sensitive, and this instant is chosen so the two answers fall on different
     // calendar days: just past midnight in UTC, still the previous evening at -05:00. A change that only reached the
@@ -44,7 +50,11 @@ public class QuerySettingClusterDefaultIT extends AbstractEsqlIntegTestCase {
 
     @After
     public void clearClusterDefaults() {
-        updateClusterSettings(Settings.builder().putNull(TIME_ZONE_KEY).putNull(UNMAPPED_FIELDS_KEY));
+        // Every key this class can put, whether or not the test that put it succeeded — a test that fails partway
+        // still leaves the setting behind, and ESIntegTestCase asserts the cluster ends with no persistent metadata.
+        updateClusterSettings(
+            Settings.builder().putNull(TIME_ZONE_KEY).putNull(UNMAPPED_FIELDS_KEY).putNull(COLUMN_METADATA_KEY).putNull(APPROXIMATION_KEY)
+        );
     }
 
     public void testClusterDefaultAppliesToQueriesThatDoNotSpecifyIt() {
@@ -64,12 +74,8 @@ public class QuerySettingClusterDefaultIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testSettingWithoutAClusterDefaultIsRejectedAsUnknown() {
-        // approximation deliberately has no cluster key, so its would-be key must not be quietly accepted.
-        var e = expectThrows(
-            Exception.class,
-            () -> updateClusterSettings(Settings.builder().put("esql.query.settings.approximation", true))
-        );
-        assertThat(e.getMessage(), containsString("esql.query.settings.approximation"));
+        var e = expectThrows(Exception.class, () -> updateClusterSettings(Settings.builder().put(NO_CLUSTER_DEFAULT_KEY, "_origin")));
+        assertThat(e.getMessage(), containsString(NO_CLUSTER_DEFAULT_KEY));
     }
 
     public void testUnmappedFieldsClusterDefaultChangesQueryOutcome() {

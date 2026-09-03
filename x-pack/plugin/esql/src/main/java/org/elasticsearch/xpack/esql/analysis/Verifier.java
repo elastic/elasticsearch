@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -64,6 +65,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -568,7 +570,7 @@ public class Verifier {
                     fail(
                         p,
                         "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                            + "STATS and INLINE STATS commands; [{}] is not supported yet",
+                            + "STATS, INLINE STATS, LOOKUP JOIN and ENRICH commands; [{}] is not supported yet",
                         p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
                             : p instanceof TelemetryAware ta ? ta.telemetryLabel()
                             : p.nodeName()
@@ -579,11 +581,8 @@ public class Verifier {
     }
 
     private static boolean supportedInLoadAllMode(LogicalPlan plan) {
+        return (plan instanceof EsRelation esr && esr.indexMode().isTsdb() == false) || plan instanceof Project
         // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
-        // InlineStats is visited by forEachDown, so it must be allowed explicitly. Its child Aggregate is
-        // already covered by allowing Aggregate (STATS).
-        return (plan instanceof EsRelation esr && esr.indexMode().isTsdb() == false)
-            || plan instanceof Project
             || plan instanceof Keep
             || plan instanceof Drop
             || plan instanceof Rename
@@ -592,7 +591,12 @@ public class Verifier {
             || plan instanceof OrderBy
             || plan instanceof Limit
             || plan instanceof Aggregate
-            || plan instanceof InlineStats;
+            // InlineStats must be listed explicitly because forEachDown visits it; allowing Aggregate (STATS) only covers its child.
+            || plan instanceof InlineStats
+            // LookupJoin (not Join) because verification runs on the analyzed plan, before SurrogateLogicalPlan expansion,
+            // so a LOOKUP JOIN is still a LookupJoin node here and other Join subclasses (InlineJoin etc.) are not admitted.
+            || plan instanceof LookupJoin
+            || plan instanceof Enrich;
     }
 
     /**

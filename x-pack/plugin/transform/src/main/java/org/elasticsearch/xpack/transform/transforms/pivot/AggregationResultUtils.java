@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource
 import org.elasticsearch.xpack.transform.transforms.IDGenerator;
 import org.elasticsearch.xpack.transform.utils.OutputFieldNameConverter;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -294,19 +296,39 @@ public final class AggregationResultUtils {
     }
 
     static class MultiValueAggExtractor implements AggValueExtractor {
+        /**
+         * Writes the historical first-hit flatten plus {@code dest.top[]} when ranked hits exist.
+         * Remove the flatten in ES 10; {@code top[]} already matches {@code _search} for every {@code size}.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.MACHINE_LEARNING)
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             MultiValueAggregation aggregation = (MultiValueAggregation) agg;
+            List<MultiValueAggregation.RankedHit> rankedHits = aggregation.getRankedHits();
+            boolean writeTopArray = rankedHits.isEmpty() == false || aggregation.getRankedHitSize() > 1;
             Map<String, Object> extracted = new LinkedHashMap<>();
+            // Historical flatten of the first hit so dest.token.path keeps working.
             for (String valueName : aggregation.valueNames()) {
+                // dest.top[] owns this key
+                if (writeTopArray && "top".equals(valueName)) {
+                    continue;
+                }
                 List<String> valueAsStrings = aggregation.getValuesAsStrings(valueName);
-
-                // todo: size > 1 is not supported, requires a refactoring so that `size()` is exposed in the agg builder
                 if (valueAsStrings.size() > 0) {
                     extracted.put(valueName, valueAsStrings.get(0));
                 }
             }
-
+            // Ranked hits go on this dest doc — never one dest doc per hit. Written for every size.
+            if (writeTopArray) {
+                List<Map<String, Object>> top = new ArrayList<>(rankedHits.size());
+                for (MultiValueAggregation.RankedHit hit : rankedHits) {
+                    Map<String, Object> entry = new LinkedHashMap<>();
+                    entry.put("sort", hit.sort());
+                    entry.put("metrics", hit.metrics());
+                    top.add(entry);
+                }
+                extracted.put("top", top);
+            }
             return extracted;
         }
     }

@@ -615,8 +615,17 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         assertThat(mapper.docValuesParameters().onFailure(), equalTo(FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE));
     }
 
-    public void testOnFailureIgnoreParsesSucessfullyForOlderCreatedVersions() throws Exception {
-        IndexVersion oldVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersion.current());
+    /**
+     * {@code doc_values.on_failure=ignore} is deliberately not gated on an index version, so an index created before the parameter
+     * existed still parses it. The lower bound is {@link IndexVersions#USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT} because a
+     * columnar index cannot exist before it: {@code index.recovery.use_synthetic_source} defaults to false for older created
+     * versions, which {@link IndexSettings#RECOVERY_USE_SYNTHETIC_SOURCE_SETTING} rejects for strictly columnar index modes.
+     */
+    public void testOnFailureIgnoreParsesSuccessfullyForOlderCreatedVersions() throws Exception {
+        IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT,
+            IndexVersionUtils.getPreviousVersion(IndexVersion.current())
+        );
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(
             oldVersion,

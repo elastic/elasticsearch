@@ -32,8 +32,8 @@ public final class DatafeedSearchTelemetry {
 
     public static final DatafeedSearchTelemetry NOOP = new DatafeedSearchTelemetry(MeterRegistry.NOOP);
 
-    public static final String RESULT_COUNT_METRIC = "es.ml.datafeeds.search.result_count";
-    public static final String PAGE_SIZE_METRIC = "es.ml.datafeeds.search.page_size";
+    public static final String RESULT_COUNT_METRIC = "es.ml.datafeeds.search.result_count.histogram";
+    public static final String PAGE_SIZE_METRIC = "es.ml.datafeeds.search.page_size.histogram";
     public static final String FULL_PAGE_METRIC = "es.ml.datafeeds.search.full_page.total";
 
     public static final String EXTRACTOR_TYPE_ATTRIBUTE = "es_extractor_type";

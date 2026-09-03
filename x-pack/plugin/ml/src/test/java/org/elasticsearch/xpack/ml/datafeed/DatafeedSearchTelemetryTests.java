@@ -15,9 +15,12 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
 
+import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -30,6 +33,24 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class DatafeedSearchTelemetryTests extends ESTestCase {
+
+    private static final Pattern ALLOWED_METRIC_SUFFIX = Pattern.compile(
+        "\\.(total|current|ratio|status|usage|size|utilization|histogram|time)$"
+    );
+
+    public void testMetricNamesShouldUseAllowedApmSuffixes() {
+        for (String metricName : List.of(
+            DatafeedSearchTelemetry.RESULT_COUNT_METRIC,
+            DatafeedSearchTelemetry.PAGE_SIZE_METRIC,
+            DatafeedSearchTelemetry.FULL_PAGE_METRIC
+        )) {
+            assertThat(
+                "Metric name [" + metricName + "] must end with an allowed MetricValidator suffix",
+                ALLOWED_METRIC_SUFFIX.matcher(metricName).find(),
+                is(true)
+            );
+        }
+    }
 
     public void testRecordSearchResultsShouldRecordResultCountAndPageSizeHistograms() {
         MeterRegistry meterRegistry = mock(MeterRegistry.class);

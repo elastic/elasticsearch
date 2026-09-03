@@ -9,6 +9,7 @@
 
 package org.elasticsearch.transport.netty4;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 
@@ -18,7 +19,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -213,6 +216,38 @@ public class NettyAllocatorTests extends ESTestCase {
 
         root.release();
         assertBufferTrashed(ref);
+    }
+
+    public void testNestedRetainedSlicesTrashOnlyAfterLastRelease() throws IOException {
+        var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
+        var size = between(1024, 4096);
+        var content = randomByteArrayOfLength(size);
+        var root = alloc.heapBuffer(size, size);
+        root.writeBytes(content);
+        var rootRef = Netty4Utils.toBytesReference(root);
+
+        var bufs = new ArrayList<ByteBuf>();
+        bufs.add(root);
+        for (var i = 0; i < between(1, 6); i++) {
+            var parent = randomFrom(bufs);
+            var len = parent.readableBytes();
+            if (len < 2) {
+                continue;
+            }
+            var off = between(0, len - 2);
+            bufs.add(parent.retainedSlice(off, between(1, len - off - 1)));
+        }
+
+        Collections.shuffle(bufs, random());
+        for (var i = 0; i < bufs.size(); i++) {
+            assertArrayEquals(
+                "content must be intact with " + (bufs.size() - i) + " of " + bufs.size() + " references outstanding",
+                content,
+                BytesReference.toBytes(rootRef)
+            );
+            bufs.get(i).release();
+        }
+        assertBufferTrashed(rootRef);
     }
 
     public void testTrashingCompositeByteBuf() throws IOException {

@@ -3613,13 +3613,6 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
 
     private static ShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService(
         ProjectId projectId,
-        ClusterState clusterState
-    ) {
-        return createShardsAvailabilityIndicatorService(projectId, clusterState, Collections.emptyMap());
-    }
-
-    private static ShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService(
-        ProjectId projectId,
         ClusterState clusterState,
         final Map<ShardRoutingKey, ShardAllocationDecision> decisions
     ) {

@@ -70,6 +70,26 @@ final class PasswordBasedEncryption {
     }
 
     /**
+     * Wraps the given plaintext under a pre-derived KEK and a caller-supplied salt. Use this when wrapping multiple values in one
+     * snapshot so PBKDF2 is paid only once; all values share the same salt, which is safe within a single snapshot.
+     */
+    static EncryptedData wrapWithKek(byte[] plaintext, String passwordId, SecretKey kek, byte[] salt) {
+        byte[] inner = AesGcm.encrypt(kek, plaintext);
+        byte[] payload = new byte[1 + SALT_LENGTH_BYTES + inner.length];
+        payload[VERSION_OFFSET] = KDF_FORMAT_VERSION;
+        System.arraycopy(salt, 0, payload, SALT_OFFSET, SALT_LENGTH_BYTES);
+        System.arraycopy(inner, 0, payload, SALT_OFFSET + SALT_LENGTH_BYTES, inner.length);
+        return new EncryptedData(passwordId, payload);
+    }
+
+    /** Generates a fresh random salt suitable for {@link #wrapWithKek}. */
+    static byte[] generateSalt() {
+        byte[] salt = new byte[SALT_LENGTH_BYTES];
+        SECURE_RANDOM.nextBytes(salt);
+        return salt;
+    }
+
+    /**
      * Unwraps a previously wrapped PEK using the same password the wrap was performed under. Throws if the password is wrong or the
      * ciphertext is corrupted (AES-GCM authentication failure).
      */
@@ -93,7 +113,7 @@ final class PasswordBasedEncryption {
         }
     }
 
-    private static SecretKey deriveKek(char[] password, byte[] salt) {
+    static SecretKey deriveKek(char[] password, byte[] salt) {
         try {
             SecretKeyFactory factory = SecretKeyFactory.getInstance(PBKDF2_ALGORITHM);
             PBEKeySpec spec = new PBEKeySpec(password, salt, PBKDF2_ITERATIONS, KEK_LENGTH_BITS);

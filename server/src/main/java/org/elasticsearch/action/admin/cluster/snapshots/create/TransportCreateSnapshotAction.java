@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -70,14 +71,16 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
         ClusterState state,
         final ActionListener<CreateSnapshotResponse> listener
     ) {
+        final ProjectId projectId = projectResolver.getProjectId();
+
+        if (snapshotsService.preflightEncryptedDataCheck(projectId, request, state.metadata(), listener) == false) {
+            return;
+        }
+
         if (request.waitForCompletion()) {
-            snapshotsService.executeSnapshot(projectResolver.getProjectId(), request, listener.map(CreateSnapshotResponse::new));
+            snapshotsService.executeSnapshot(projectId, request, listener.map(CreateSnapshotResponse::new));
         } else {
-            snapshotsService.createSnapshot(
-                projectResolver.getProjectId(),
-                request,
-                listener.map(snapshot -> new CreateSnapshotResponse((SnapshotInfo) null))
-            );
+            snapshotsService.createSnapshot(projectId, request, listener.map(snapshot -> new CreateSnapshotResponse((SnapshotInfo) null)));
         }
     }
 }

@@ -13,8 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.Scope;
-import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountRequest;
@@ -26,7 +24,6 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
-@ServerlessScope(Scope.INTERNAL)
 public class RestDeleteUserManagedServiceAccountAction extends SecurityBaseRestHandler {
 
     private final boolean userManagedServiceAccountsAvailable;

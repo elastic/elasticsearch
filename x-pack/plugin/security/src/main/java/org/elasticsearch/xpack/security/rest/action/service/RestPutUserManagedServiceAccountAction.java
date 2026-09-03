@@ -12,8 +12,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.Scope;
-import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountRequest;
@@ -25,7 +23,6 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-@ServerlessScope(Scope.INTERNAL)
 public class RestPutUserManagedServiceAccountAction extends SecurityBaseRestHandler {
 
     private final boolean userManagedServiceAccountsAvailable;

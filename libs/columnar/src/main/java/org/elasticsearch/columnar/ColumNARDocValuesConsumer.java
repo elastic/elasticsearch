@@ -202,7 +202,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             if (binary == null) {
                 continue;
             }
-            // Read decoded longs directly for our own columns; fall back to the payload for anything else.
+            // Our own numeric column decodes directly; a foreign source falls back to the payload. A ColumNAR string column
+            // here is a type the wiring resolved against a segment that recorded another, so fail rather than misdecode.
+            if (binary instanceof ColumnarStringBinaryDocValues) {
+                throw new IllegalStateException(
+                    "field [" + field.name + "] is merged as a numeric column but a source segment holds a string column"
+                );
+            }
             NumericColumnValues values = binary instanceof ColumnarNumericBinaryDocValues columnar
                 ? columnar.directValues()
                 : ColumnarNumericBinaryDocValues.decodePayloads(binary);
@@ -474,7 +480,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             if (binary == null) {
                 continue;
             }
-            // Read decoded values directly for our own columns; fall back to the payload for anything else.
+            // Our own string column decodes directly; a foreign source falls back to the payload. A ColumNAR numeric column
+            // here is a type the wiring resolved against a segment that recorded another, so fail rather than misdecode.
+            if (binary instanceof ColumnarNumericBinaryDocValues) {
+                throw new IllegalStateException(
+                    "field [" + field.name + "] is merged as a string column but a source segment holds a numeric column"
+                );
+            }
             StringColumnValues values = binary instanceof ColumnarStringBinaryDocValues columnar
                 ? columnar.directValues(ordinalMap(binary, vocabulary))
                 : ColumnarStringBinaryDocValues.singleValues(binary);

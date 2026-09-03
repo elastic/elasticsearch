@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical.promql.operator;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -137,9 +138,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         } else if (leftLabels.equals(rightLabels)) {
             return leftAttrs;
         } else {
-            // If there's a mismatch in labels that is not handled by ON or IGNORING,
-            // the query result is an empty set by definition as non-matching series are dropped.
-            return List.of();
+            // Default matching between different label sets: a pair matches only where the labels one side lacks are
+            // absent on the other side too (a Prometheus signature has no entry for an absent label), and like every
+            // one-to-one match the result carries the left operand's labels.
+            outputLabels = new HashSet<>(leftLabels);
         }
 
         if (dropMetricName) {
@@ -157,6 +159,28 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         }
 
         return result;
+    }
+
+    /**
+     * Whether both operands declare concrete label sets that differ by name. Prometheus default matching compares each
+     * pair's actual label sets, so such operands cannot fold into one aggregate over shared grouping keys; they
+     * translate as a join, which yields the empty vector unless the differing labels are null on both sides.
+     */
+    public boolean hasMismatchedLabelSets() {
+        if (match != VectorMatch.NONE || PromqlPlan.returnsScalar(left()) || PromqlPlan.returnsScalar(right())) {
+            return false;
+        }
+        List<Attribute> leftAttrs = left().output();
+        List<Attribute> rightAttrs = right().output();
+        if (hasPackedLabels(leftAttrs) || hasPackedLabels(rightAttrs)) {
+            return false;
+        }
+        return extractLabelNames(leftAttrs).equals(extractLabelNames(rightAttrs)) == false;
+    }
+
+    /** Whether the operand carries a packed {@code _timeseries} column, i.e. does not name every label it exposes. */
+    private static boolean hasPackedLabels(List<Attribute> attrs) {
+        return attrs.stream().anyMatch(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()));
     }
 
     private Set<String> extractLabelNames(List<Attribute> attrs) {

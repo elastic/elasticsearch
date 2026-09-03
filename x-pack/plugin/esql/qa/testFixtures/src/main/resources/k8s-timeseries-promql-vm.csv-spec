@@ -1227,3 +1227,15 @@ result:double      | step:datetime            | cluster:keyword | pod:keyword
 0.9469525959367946 | 2024-05-10T00:20:00.000Z | staging         | two
 0.9749498997995992 | 2024-05-10T00:30:00.000Z | staging         | two
 ;
+
+// Default matching between operands over different label sets. A Prometheus signature has no entry for an absent
+// label, so a (cluster) series and a (pod) series never share one: the result is the empty vector, and like every
+// one-to-one match it carries the left operand's labels.
+vector_match_default_mismatched_label_sets_is_empty
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) + sum by (pod) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime | cluster:keyword
+;

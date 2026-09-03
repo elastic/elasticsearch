@@ -853,10 +853,12 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         /** Translates explicit vector matching as a join; other binary operators compose over a shared frame. */
         private IntermediateResult doTranslateBinaryOp(VectorBinaryOperator op) {
             if (op.match().filter() == VectorMatch.Filter.NONE && op.match().grouping() == Joining.NONE) {
-                if (op.left().resolved() && getType(op.left()) == SCALAR
-                    || op.right().resolved() && getType(op.right()) == SCALAR
-                    || (anyMatchVectorBinaryOperator(op.left()) == false && anyMatchVectorBinaryOperator(op.right()) == false)) {
-                    // Fold binary operator as aggregate expression
+                boolean scalarOperand = op.left().resolved() && getType(op.left()) == SCALAR
+                    || op.right().resolved() && getType(op.right()) == SCALAR;
+                boolean nestedMatch = anyMatchVectorBinaryOperator(op.left()) || anyMatchVectorBinaryOperator(op.right());
+                // Operands over one label set fold into a shared aggregate. Different concrete label sets match like
+                // Prometheus does, pair by pair on the actual labels, which only the join expresses.
+                if (scalarOperand || (nestedMatch == false && op.hasMismatchedLabelSets() == false)) {
                     return doTranslateBinaryOpAggregate(op);
                 }
             }

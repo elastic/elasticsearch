@@ -510,6 +510,19 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         failures.add(fail(lp, "PromQL vector matching is not enabled in this build [{}]", lp.sourceText()));
                         return;
                     }
+                    if (binaryOperator instanceof VectorBinarySet == false
+                        && binaryOperator.hasMismatchedLabelSets()
+                        && EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled() == false) {
+                        // Default matching between different label sets translates as a join too.
+                        failures.add(
+                            fail(
+                                lp,
+                                "binary operations between vectors with mismatched grouping keys are not yet supported [{}]",
+                                lp.sourceText()
+                            )
+                        );
+                        return;
+                    }
                     if (binaryOperator instanceof VectorBinaryArithmetic || binaryOperator instanceof VectorBinaryComparison) {
                         boolean scalarOperand = PromqlPlan.returnsScalar(binaryOperator.left())
                             || PromqlPlan.returnsScalar(binaryOperator.right());
@@ -525,23 +538,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                                 // https://github.com/elastic/elasticsearch/issues/157669
                                 // Operand shapes that produce them: without aggregations (#157671), label functions (#157672).
                                 failures.add(fail(lp, "vector matching requires operands with concrete label sets [{}]", lp.sourceText()));
-                            } else if (binaryOperator.match() == VectorMatch.NONE
-                                && scalarOperand == false
-                                && mismatchedLabelSets(binaryOperator)) {
-                                    // Default matching between operands whose concrete label sets differ. Prometheus
-                                    // compares each pair's actual label sets (a missing label is absent from the set),
-                                    // so this is data-dependent: correct support needs match keys that encode label
-                                    // names and skip null labels, on both the fold and join translation paths.
-                                    // TODO: Support default matching between mismatched label sets.
-                                    failures.add(
-                                        fail(
-                                            lp,
-                                            "binary operations between vectors with mismatched grouping keys"
-                                                + " are not yet supported [{}]",
-                                            lp.sourceText()
-                                        )
-                                    );
-                                }
+                            }
                     }
                     if (binaryOperator instanceof VectorBinaryComparison comp) {
                         if (comp.match() == VectorMatch.NONE && root.get() == false) {
@@ -746,32 +743,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     private static boolean hasConcreteLabels(LogicalPlan plan) {
         return plan.output().stream().noneMatch(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()));
-    }
-
-    /**
-     * Whether both operands declare concrete label sets that differ by name. Such a pair can never fold into a shared
-     * aggregate, and the join translation's match keys pack each side's own label values without names, so neither
-     * path implements Prometheus default matching for it (see the verifier guard).
-     */
-    private static boolean mismatchedLabelSets(VectorBinaryOperator binaryOperator) {
-        Set<String> left = concreteLabelNames(binaryOperator.left());
-        Set<String> right = concreteLabelNames(binaryOperator.right());
-        return left != null && right != null && left.equals(right) == false;
-    }
-
-    private static Set<String> concreteLabelNames(LogicalPlan plan) {
-        Set<String> names = new HashSet<>();
-        for (Attribute attribute : plan.output()) {
-            if (MetadataAttribute.isTimeSeriesAttributeName(attribute.name())) {
-                return null;
-            }
-            // The value column is not part of the series identity (same exclusion as the operators' own
-            // label extraction); an operand may or may not declare it depending on its shape.
-            if (attribute.name().equals("value") == false) {
-                names.add(attribute.name());
-            }
-        }
-        return names;
     }
 
     /**

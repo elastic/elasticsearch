@@ -115,7 +115,9 @@ import java.util.function.BooleanSupplier;
  * <p>Production Phase-2 ({@link #discoverSplitsAsync}) fans out footer/probe reads with
  * {@link ThrottledIterator} on {@code esql_external_io} and never joins: {@code SEARCH} and
  * {@code GENERIC} must not issue those GETs, and {@code esql_external_io} must not sit in a gather
- * latch. {@link #discoverSplits} remains for tests and other non-pool callers that are allowed to join.
+ * latch. Parsed-footer cache hits ({@link RangeAwareFormatReader#cachedSplitRanges}) skip the
+ * throttle entirely — the permit exists to bound in-flight GETs, not hash lookups.
+ * {@link #discoverSplits} remains for tests and other non-pool callers that are allowed to join.
  */
 public class FileSplitProvider implements SplitProvider {
 
@@ -491,14 +493,11 @@ public class FileSplitProvider implements SplitProvider {
                 listener,
                 () -> StorageProviderCache.closeLease(hoistedProvider)
             );
-            gatherAsync(tasks, (FileTask task, ActionListener<PlanResult> itemListener) -> {
-                try {
-                    fanOut.execute(() -> processFileForSplitsAsync(task, hoistedProvider, strideBytes, isCancelled, fanOut, itemListener));
-                } catch (Exception e) {
-                    itemListener.onFailure(e);
-                }
-            },
-                planningDiscoveryConcurrency(tasks, hoistedProvider),
+            gatherSkippingCachedFooters(
+                tasks,
+                hoistedProvider,
+                strideBytes,
+                isCancelled,
                 fanOut,
                 ActionListener.<List<PlanResult>>wrap(
                     planResults -> probeDeferredBoundariesAsync(
@@ -758,6 +757,122 @@ public class FileSplitProvider implements SplitProvider {
                 return next++;
             }
         };
+    }
+
+    /**
+     * Phase-2 fan-out: parsed-footer cache hits skip {@link ThrottledIterator} so they do not occupy
+     * GET permits. Misses (and formats with no cache) keep the existing throttled {@code readBytesAsync}
+     * path. The cache partition is CPU-only (hash lookups, no I/O) and runs inline on the caller —
+     * the same thread that previously ran {@link #gatherAsync} directly.
+     */
+    private void gatherSkippingCachedFooters(
+        List<FileTask> tasks,
+        @Nullable StorageProvider hoistedProvider,
+        long strideBytes,
+        BooleanSupplier isCancelled,
+        Executor fanOut,
+        ActionListener<List<PlanResult>> listener
+    ) {
+        try {
+            int n = tasks.size();
+            PlanResult[] slots = new PlanResult[n];
+            List<FileTask> misses = new ArrayList<>();
+            List<Integer> missAt = new ArrayList<>();
+            runRecordingDiscoveryCpu(() -> {
+                for (int i = 0; i < n; i++) {
+                    if (isCancelled.getAsBoolean()) {
+                        throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
+                    }
+                    FileTask task = tasks.get(i);
+                    List<SplitRange> cached = peekCachedSplitRanges(task, hoistedProvider);
+                    if (cached != null) {
+                        if (cached.isEmpty()) {
+                            slots[i] = new PlanResult.Splits(
+                                List.of(
+                                    wholeFileSplit(
+                                        task.filePath(),
+                                        task.fileLength(),
+                                        task.format(),
+                                        task.config(),
+                                        task.partitionValues(),
+                                        task.columnMapping(),
+                                        task.readSchema()
+                                    )
+                                )
+                            );
+                        } else {
+                            slots[i] = planResultFromCachedRanges(task, cached);
+                        }
+                    } else {
+                        misses.add(task);
+                        missAt.add(i);
+                    }
+                }
+            });
+            if (misses.isEmpty()) {
+                listener.onResponse(List.of(slots));
+                return;
+            }
+            gatherAsync(misses, (FileTask task, ActionListener<PlanResult> itemListener) -> {
+                try {
+                    fanOut.execute(() -> processFileForSplitsAsync(task, hoistedProvider, strideBytes, isCancelled, fanOut, itemListener));
+                } catch (Exception e) {
+                    itemListener.onFailure(e);
+                }
+            }, planningDiscoveryConcurrency(misses, hoistedProvider), fanOut, ActionListener.wrap(missResults -> {
+                for (int j = 0; j < missResults.size(); j++) {
+                    slots[missAt.get(j)] = missResults.get(j);
+                }
+                listener.onResponse(List.of(slots));
+            }, listener::onFailure));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Listing-seeded {@link StorageObject#length()} plus {@link RangeAwareFormatReader#cachedSplitRanges}.
+     * Any failure is a miss so the throttled path can surface it.
+     */
+    @Nullable
+    private List<SplitRange> peekCachedSplitRanges(FileTask task, @Nullable StorageProvider hoistedProvider) {
+        try {
+            FormatReader reader = resolveConfiguredReader(task.filePath(), task.config());
+            if (reader instanceof RangeAwareFormatReader rangeReader) {
+                StorageProvider provider = resolveProvider(task.filePath(), task.config(), hoistedProvider);
+                StorageObject object = provider.newObject(task.filePath(), task.fileLength());
+                return rangeReader.cachedSplitRanges(object);
+            }
+            return null;
+        } catch (Exception e) {
+            LOGGER.debug(
+                () -> Strings.format(
+                    "Footer cache peek failed for [%s]; falling back to throttled discovery",
+                    task.filePath().objectName()
+                ),
+                e
+            );
+            return null;
+        }
+    }
+
+    private PlanResult planResultFromCachedRanges(FileTask task, List<SplitRange> ranges) {
+        List<ExternalSplit> splits = new ArrayList<>(ranges.size());
+        addRangeAwareSplits(
+            task.filePath(),
+            task.fileLength(),
+            task.format(),
+            task.config(),
+            task.partitionValues(),
+            task.columnMapping(),
+            task.readSchema(),
+            task.reconciledTypes(),
+            task.declaredReadSpec(),
+            task.inferredFileTypes(),
+            ranges,
+            splits
+        );
+        return new PlanResult.Splits(splits);
     }
 
     /**

@@ -78,6 +78,12 @@ public class RangeStorageObjectTests extends ESTestCase {
         assertEquals(25, range.length());
     }
 
+    public void testLengthForFooterCacheKeyReturnsUnderlyingFileLength() throws IOException {
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 10, 25);
+        assertEquals(FILE_BYTES.length, range.lengthForFooterCacheKey());
+    }
+
     public void testPathDelegates() {
         StoragePath path = StoragePath.of("s3://bucket/file.csv");
         StorageObject delegate = new InMemoryStorageObject(FILE_BYTES, path);

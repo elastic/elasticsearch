@@ -96,6 +96,11 @@ class RangeStorageObject implements StorageObject {
     }
 
     @Override
+    public long lengthForFooterCacheKey() throws IOException {
+        return delegate.lengthForFooterCacheKey();
+    }
+
+    @Override
     public Instant lastModified() throws IOException {
         return delegate.lastModified();
     }

@@ -1069,6 +1069,38 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals(1, derived.statusSnapshot().footerCacheHits());
     }
 
+    /** {@link ParquetFormatReader#cachedSplitRanges} is a hash-get after a parse, never a GET. */
+    public void testCachedSplitRangesHitsParsedFooterWithoutGet() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        reader.clearFooterCachesForTests();
+        StorageObject file = vpcGlob(parquetData, 1).get(0);
+        assertNull(reader.cachedSplitRanges(file));
+        List<RangeAwareFormatReader.SplitRange> loaded = reader.discoverSplitRanges(file);
+        List<RangeAwareFormatReader.SplitRange> cached = reader.cachedSplitRanges(file);
+        assertNotNull(cached);
+        assertEquals(loaded, cached);
+        reader.clearFooterCachesForTests();
+        assertNull(reader.cachedSplitRanges(file));
+    }
+
+    /**
+     * Execution passes a range view ({@code length()} is the split span) but footer caches are keyed by
+     * full file size. cachedSplitRanges must use lengthForFooterCacheKey(), not length().
+     */
+    public void testCachedSplitRangesHitsWhenObjectIsRangeLengthView() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        reader.clearFooterCachesForTests();
+        StorageObject file = vpcGlob(parquetData, 1).get(0);
+        long fileLen = file.length();
+        reader.discoverSplitRanges(file);
+        StorageObject splitView = new SplitSpanStorageObject(file, fileLen / 2);
+        List<RangeAwareFormatReader.SplitRange> cached = reader.cachedSplitRanges(splitView);
+        assertNotNull(cached);
+        assertFalse(cached.isEmpty());
+    }
+
     /**
      * Globally staged Phase-1 {@code metadataAsync} then Phase-2 {@code discoverSplitRanges} must
      * reuse the seeded parsed footer for every file that fits the cache's byte budget (the default
@@ -8393,6 +8425,55 @@ public class ParquetFormatReaderTests extends ESTestCase {
             allocator.release(buffer);
         }
         assertEquals("release must return the full charge", before, breaker.getUsed());
+    }
+
+    /**
+     * Test double for {@code RangeStorageObject}: {@code length()} is the split span while footer
+     * cache keys use the underlying file size.
+     */
+    private static final class SplitSpanStorageObject implements StorageObject {
+        private final StorageObject file;
+        private final long span;
+
+        SplitSpanStorageObject(StorageObject file, long span) {
+            this.file = file;
+            this.span = span;
+        }
+
+        @Override
+        public InputStream newStream() throws IOException {
+            return file.newStream();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) throws IOException {
+            return file.newStream(position, length);
+        }
+
+        @Override
+        public long length() {
+            return span;
+        }
+
+        @Override
+        public long lengthForFooterCacheKey() throws IOException {
+            return file.lengthForFooterCacheKey();
+        }
+
+        @Override
+        public Instant lastModified() throws IOException {
+            return file.lastModified();
+        }
+
+        @Override
+        public boolean exists() throws IOException {
+            return file.exists();
+        }
+
+        @Override
+        public StoragePath path() {
+            return file.path();
+        }
     }
 
 }

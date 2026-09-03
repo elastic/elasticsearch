@@ -13,6 +13,7 @@ import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
+import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -73,8 +74,20 @@ public class FooterByteCache {
 
         /**
          * Creates a key from a {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject},
+         * using its path string and {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#lengthForFooterCacheKey()}.
+         * Prefer this over {@link #keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject, long)} so range
+         * views ({@code RangeStorageObject}) share one entry per file.
+         */
+        public static Key keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject storageObject) throws IOException {
+            return new Key(storageObject.path().toString(), storageObject.lengthForFooterCacheKey());
+        }
+
+        /**
+         * Creates a key from a {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject},
          * using its path string as the canonical identifier. All callers should prefer this factory
          * over constructing {@code Key} directly so that path canonicalization happens in one place.
+         * {@code length} must be the full file size ({@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#lengthForFooterCacheKey()}),
+         * not a range-view span.
          */
         public static Key keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject storageObject, long length) {
             return new Key(storageObject.path().toString(), length);

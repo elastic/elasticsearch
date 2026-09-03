@@ -886,11 +886,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * {@code readFooter} on {@link TailBackedInputFile}. Never {@code adapter.newStream()}.
      */
     private void loadFooterAsync(StorageObject object, Executor executor, ActionListener<LoadedFooter> listener) {
-        final long length;
         final FooterByteCache.Key cacheKey;
+        final long length;
         try {
-            length = object.length();
-            cacheKey = FooterByteCache.Key.keyFor(object, length);
+            cacheKey = FooterByteCache.Key.keyFor(object);
+            length = cacheKey.fileLength();
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -1565,6 +1565,29 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         // ParquetFileReader.open would allocate the adapter's sliding window and reserve it on the
         // breaker up front, per file, purely to hand back the metadata the cache already holds.
         return rangesFromFooter(loadFooter(object, parquetInputFile));
+    }
+
+    /**
+     * {@link #parsedFooters} peek: listing {@code length()} plus a hash get, no GET. {@code null} on miss
+     * so Phase-2 can keep hits off {@code ThrottledIterator}.
+     */
+    @Override
+    public List<SplitRange> cachedSplitRanges(StorageObject object) {
+        final FooterByteCache.Key cacheKey;
+        try {
+            cacheKey = FooterByteCache.Key.keyFor(object);
+        } catch (Exception e) {
+            return null;
+        }
+        if (cacheKey.fileLength() < PARQUET_TRAILER_BYTES) {
+            return null;
+        }
+        ParquetMetadata parsed = parsedFooters.get(cacheKey);
+        if (parsed == null) {
+            return null;
+        }
+        counters.recordFooterCache(true);
+        return rangesFromFooter(parsed);
     }
 
     /**

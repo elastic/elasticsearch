@@ -1291,6 +1291,89 @@ public class FileSplitProviderTests extends ESTestCase {
         assertThat(ExceptionsHelper.stackTrace(e), containsString("as a Parquet file"));
     }
 
+    /**
+     * Parsed-footer cache hits must not occupy {@link org.elasticsearch.common.util.concurrent.ThrottledIterator}
+     * GET permits. Sixteen in-flight miss GETs fill the pinning cap; eight hits still complete.
+     */
+    public void testDiscoverSplitsAsyncCachedFootersSkipThrottle() throws Exception {
+        int misses = 16;
+        int hits = 8;
+        CountDownLatch started = new CountDownLatch(misses);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger cacheHits = new AtomicInteger();
+        RangeAwareFormatReader reader = delayedAsyncRangeReader(
+            started,
+            release,
+            new CopyOnWriteArrayList<>(),
+            null,
+            null,
+            name -> name.startsWith("hit-"),
+            cacheHits
+        );
+        // Each miss blocks an IO thread on release.await(), so the pool must be at least as large
+        // as the number of misses for all readBytesAsync callbacks to start concurrently.
+        ExecutorService io = Executors.newFixedThreadPool(
+            misses + 4,
+            EsExecutors.daemonThreadFactory("test", EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME)
+        );
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        try {
+            FileSplitProvider provider = rangeAwareProvider(reader, io);
+            List<StorageEntry> entries = new ArrayList<>(misses + hits);
+            for (int i = 0; i < misses; i++) {
+                entries.add(new StorageEntry(StoragePath.of("s3://b/miss-" + i + ".parquet"), 2000, Instant.EPOCH));
+            }
+            for (int i = 0; i < hits; i++) {
+                entries.add(new StorageEntry(StoragePath.of("s3://b/hit-" + i + ".parquet"), 2000, Instant.EPOCH));
+            }
+            FileList fileList = GlobExpander.fileListOf(entries, "s3://b/*.parquet");
+            SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
+            provider.discoverSplitsAsync(ctx, io, future);
+            assertTrue("miss GETs must start", started.await(10, TimeUnit.SECONDS));
+            assertEquals("cache hits must not wait for GET permits", hits, cacheHits.get());
+            assertFalse("discovery waits on held miss GETs", future.isDone());
+            release.countDown();
+            assertEquals(misses + hits, future.actionGet(30, TimeUnit.SECONDS).splits().size());
+        } finally {
+            release.countDown();
+            io.shutdownNow();
+        }
+    }
+
+    /** All parsed-footer hits: no {@code readBytesAsync}, splits still emitted. */
+    public void testDiscoverSplitsAsyncAllCachedFootersIssueNoGets() throws Exception {
+        int files = 24;
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger cacheHits = new AtomicInteger();
+        RangeAwareFormatReader reader = delayedAsyncRangeReader(
+            started,
+            release,
+            new CopyOnWriteArrayList<>(),
+            null,
+            null,
+            name -> name.endsWith(".parquet"),
+            cacheHits
+        );
+        ExecutorService io = Executors.newFixedThreadPool(
+            4,
+            EsExecutors.daemonThreadFactory("test", EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME)
+        );
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        try {
+            FileSplitProvider provider = rangeAwareProvider(reader, io);
+            provider.discoverSplitsAsync(rangeAwareContext(files), io, future);
+            SplitDiscoveryResult result = future.actionGet(30, TimeUnit.SECONDS);
+            assertEquals(files, result.splits().size());
+            assertEquals(files, cacheHits.get());
+            assertEquals("cached footers must not issue a GET", 1, started.getCount());
+            assertThat("cache-hit extract must record cpuNanos", result.cpuNanos(), greaterThan(0L));
+        } finally {
+            release.countDown();
+            io.shutdownNow();
+        }
+    }
+
     private static int probeConcurrencyFor(Settings settings) {
         return new FileSplitProvider(1024, new DecompressionCodecRegistry(), null, null, settings).splitDiscoveryConcurrency();
     }
@@ -4346,6 +4429,22 @@ public class FileSplitProviderTests extends ESTestCase {
         @Nullable AtomicInteger inFlight,
         @Nullable AtomicInteger peak
     ) {
+        return delayedAsyncRangeReader(started, release, getPools, inFlight, peak, null, null);
+    }
+
+    /**
+     * As {@link #delayedAsyncRangeReader(CountDownLatch, CountDownLatch, CopyOnWriteArrayList, AtomicInteger, AtomicInteger)}
+     * plus {@link RangeAwareFormatReader#cachedSplitRanges} for names matching {@code cachedObjectName}.
+     */
+    private static RangeAwareFormatReader delayedAsyncRangeReader(
+        CountDownLatch started,
+        CountDownLatch release,
+        CopyOnWriteArrayList<String> getPools,
+        @Nullable AtomicInteger inFlight,
+        @Nullable AtomicInteger peak,
+        @Nullable java.util.function.Predicate<String> cachedObjectName,
+        @Nullable AtomicInteger cacheHits
+    ) {
         DirectBufferFactory factory = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
         return new RangeAwareFormatReader() {
             @Override
@@ -4356,6 +4455,22 @@ public class FileSplitProviderTests extends ESTestCase {
             @Override
             public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
                 return List.of(new SplitRange(0, object.length()));
+            }
+
+            @Override
+            public List<SplitRange> cachedSplitRanges(StorageObject object) {
+                String name = object.path().objectName();
+                if (cachedObjectName == null || cachedObjectName.test(name) == false) {
+                    return null;
+                }
+                if (cacheHits != null) {
+                    cacheHits.incrementAndGet();
+                }
+                try {
+                    return List.of(new SplitRange(0, object.length()));
+                } catch (IOException e) {
+                    return null;
+                }
             }
 
             @Override

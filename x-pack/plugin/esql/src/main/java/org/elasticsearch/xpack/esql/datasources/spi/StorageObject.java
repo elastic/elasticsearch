@@ -75,6 +75,16 @@ public interface StorageObject {
     /** Returns the object size in bytes. */
     long length() throws IOException;
 
+    /**
+     * File length for {@link org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache} and
+     * {@link org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache} keys. Range views
+     * ({@code offset}/{@code length} splits) must return the underlying object's full size, not
+     * the view span, so split discovery and execution share one {@code (path, fileLength)} entry.
+     */
+    default long lengthForFooterCacheKey() throws IOException {
+        return length();
+    }
+
     /** Returns the last modification time, or null if not available. */
     Instant lastModified() throws IOException;
 

@@ -9,21 +9,14 @@
 
 package org.elasticsearch.benchmark.swisshash;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.PartitionedHashTable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.swisshash.BytesRefSwissHash;
 import org.elasticsearch.swisshash.SwissHashFactory;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -35,17 +28,12 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
@@ -74,39 +62,12 @@ public class BytesRefSwissHashBenchmark {
     @Param({ "8", "32", "64", "128" })
     int keyBytes;
 
-    @Param({ "1", "4", "8" })
-    int numWorkers;
-
     BytesRef[] keys;
-    BytesRef[] trialKeys;
 
     BytesRefSwissHash swiss;
     BytesRefHash legacy;
 
-    NoopCircuitBreaker breaker;
-    LongLongSwissHashBenchmark.TestThreadPool threadPool;
-
-    static final PartitionedHashTable.PartitionSplitter NOOP_SPLITTER = new PartitionedHashTable.PartitionSplitter() {
-        @Override
-        public void split(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {}
-
-        @Override
-        public void release(CircuitBreaker breaker) {}
-    };
-
     // --------------------------- SETUP ---------------------------
-
-    @Setup(Level.Trial)
-    public void trialSetup() {
-        breaker = new NoopCircuitBreaker("dummy");
-        threadPool = new LongLongSwissHashBenchmark.TestThreadPool("bench", Settings.EMPTY);
-        trialKeys = generate(distribution, cardinality);
-    }
-
-    @TearDown(Level.Trial)
-    public void trialTearDown() {
-        Releasables.close(threadPool);
-    }
 
     @Setup(Level.Iteration)
     public void setup() {
@@ -115,6 +76,7 @@ public class BytesRefSwissHashBenchmark {
 
         BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
+        NoopCircuitBreaker breaker = new NoopCircuitBreaker("dummy");
         swiss = SwissHashFactory.getInstance().newBytesRefSwissHash(recycler, breaker, bigArrays);
         legacy = new BytesRefHash(1, bigArrays);
     }
@@ -156,74 +118,6 @@ public class BytesRefSwissHashBenchmark {
             bh.accept(legacy.get(i, scratch));
         }
         return legacy.size();
-    }
-
-    @Benchmark
-    public long testPartitionHashOnly() throws Exception {
-        BytesRefSwissHash[] workers = new BytesRefSwissHash[numWorkers];
-        CountDownLatch collectLatch = new CountDownLatch(numWorkers);
-        Collection<PartitionedHashTable.PartitionedHashKeys> sharedPartitionedKeys = ConcurrentCollections.newDeque();
-        AtomicInteger nextKeyIndex = new AtomicInteger(0);
-        for (int w = 0; w < numWorkers; w++) {
-            var worker = workers[w] = SwissHashFactory.getInstance().newBytesRefSwissHash(
-                PageCacheRecycler.NON_RECYCLING_INSTANCE,
-                breaker,
-                BigArrays.NON_RECYCLING_INSTANCE
-            );
-            threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
-                int offset;
-                while ((offset = nextKeyIndex.getAndAdd(LongLongSwissHashBenchmark.CHUNK_SIZE)) < trialKeys.length) {
-                    int len = Math.min(trialKeys.length - offset, LongLongSwissHashBenchmark.CHUNK_SIZE);
-                    if (worker.size() + len > BytesRefSwissHash.PARTITION_THRESHOLD) {
-                        sharedPartitionedKeys.add(worker.splitPartition(breaker, NOOP_SPLITTER));
-                        worker.clear();
-                    }
-                    for (int i = 0; i < len; i++) {
-                        worker.add(trialKeys[offset + i]);
-                    }
-                }
-                if (worker.size() > 0) {
-                    sharedPartitionedKeys.add(worker.splitPartition(breaker, NOOP_SPLITTER));
-                    worker.clear();
-                }
-                collectLatch.countDown();
-            });
-        }
-        collectLatch.await();
-        long acc = 0;
-        CountDownLatch mergeLatch = new CountDownLatch(numWorkers);
-        AtomicInteger nextPartition = new AtomicInteger(0);
-        final var partitionedHashKeys = new ArrayList<>(sharedPartitionedKeys);
-        sharedPartitionedKeys.clear();
-        for (int w = 0; w < numWorkers; w++) {
-            BytesRefSwissHash partition = workers[w];
-            threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
-                int[] mergedIds = null;
-                for (;;) {
-                    int p = nextPartition.getAndIncrement();
-                    if (p >= PartitionedHashTable.NUM_PARTITIONS) {
-                        break;
-                    }
-                    partition.clear();
-                    for (var gen : partitionedHashKeys) {
-                        int keysInThisPartition = gen.keysInPartition(p);
-                        if (mergedIds == null || mergedIds.length < keysInThisPartition) {
-                            mergedIds = new int[ArrayUtil.oversize(keysInThisPartition, Integer.BYTES)];
-                        }
-                        partition.combinePartition(gen, p, mergedIds);
-                        gen.releasePartition(breaker, p);
-                    }
-                }
-                mergeLatch.countDown();
-            });
-        }
-        mergeLatch.await();
-        for (var worker : workers) {
-            acc += worker.size();
-            worker.close();
-        }
-        partitionedHashKeys.forEach(p -> p.releaseAll(breaker));
-        return acc;
     }
 
     private BytesRef[] generate(String dist, int size) {

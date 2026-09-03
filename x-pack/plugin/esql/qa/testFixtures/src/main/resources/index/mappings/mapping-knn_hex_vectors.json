@@ -1,0 +1,13 @@
+{
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "label": {
+      "type": "keyword"
+    },
+    "emb_hex": {
+      "type": "keyword"
+    }
+  }
+}

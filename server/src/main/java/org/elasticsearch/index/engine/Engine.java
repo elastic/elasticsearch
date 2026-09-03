@@ -1031,6 +1031,16 @@ public abstract class Engine implements Closeable {
     );
 
     /**
+     * Reads a document specifically in the context of performing an update operation.
+     */
+    public abstract GetResult getForUpdate(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Engine.Searcher, Engine.Searcher> searcherWrapper
+    );
+
+    /**
      * Similar to {@link Engine#get}, but it only attempts to serve the get from the translog.
      * If not found in translog, it returns null, as {@link GetResult#NOT_EXISTS} could mean deletion.
      */

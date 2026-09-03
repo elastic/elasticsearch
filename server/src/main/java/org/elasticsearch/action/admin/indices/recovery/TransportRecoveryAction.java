@@ -85,16 +85,18 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
                 if (shardResponses.containsKey(indexName) == false) {
                     shardResponses.put(indexName, new ArrayList<>());
                 }
-                if (request.activeOnly()) {
-                    if (recoveryState.getStage() != RecoveryState.Stage.DONE) {
-                        shardResponses.get(indexName).add(recoveryState);
-                    }
-                } else {
+                if (request.activeOnly() == false || isActive(recoveryState)) {
                     shardResponses.get(indexName).add(recoveryState);
                 }
             }
             return new RecoveryResponse(totalShards, successfulShards, failedShards, shardResponses, shardFailures);
         };
+    }
+
+    /// A recovery is active if it has not yet completed, including recoveries that are queued ([RecoveryState.Stage#CREATED])
+    /// and those that have started. Only completed recoveries ([RecoveryState.Stage#DONE]) are excluded when `active_only` is set.
+    private static boolean isActive(RecoveryState recoveryState) {
+        return recoveryState.getStage() != RecoveryState.Stage.DONE;
     }
 
     @Override

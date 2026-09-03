@@ -78,6 +78,12 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         this.threadPool = threadPool;
     }
 
+    private void rehydrateHeader(String value, String headerName) {
+        if (Strings.isNullOrEmpty(value) == false && threadPool.getThreadContext().getHeader(headerName) == null) {
+            threadPool.getThreadContext().putHeader(headerName, value);
+        }
+    }
+
     protected abstract boolean isInvalidTaskTypeForInferenceEndpoint(Request request, Model model);
 
     protected abstract ElasticsearchStatusException createInvalidTaskTypeException(Request request, Model model);
@@ -95,11 +101,11 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
         // TODO: this is a temporary solution for passing around the product use case.
         // We want to pass InferenceContext through the various infer methods in InferenceService in the long term
-        var productUseCase = request.getContext().productUseCase();
-        if (Strings.isNullOrEmpty(productUseCase) == false
-            && threadPool.getThreadContext().getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER) == null) {
-            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
-        }
+        var context = request.getContext();
+        rehydrateHeader(context.productUseCase(), InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+        rehydrateHeader(context.interactionId(), InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER);
+        rehydrateHeader(context.productSolution(), InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER);
+        rehydrateHeader(context.productFeature(), InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER);
 
         var productContext = InferenceProductContext.create(threadPool.getThreadContext());
 

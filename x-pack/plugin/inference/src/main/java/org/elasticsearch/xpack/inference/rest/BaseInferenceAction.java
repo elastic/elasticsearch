@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -22,6 +21,10 @@ import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENCE_ID;
@@ -48,8 +51,11 @@ abstract class BaseInferenceAction extends BaseRestHandler {
         var params = parseParams(restRequest);
         var content = restRequest.requiredContent();
         var inferTimeout = parseTimeout(restRequest);
-        var productUseCase = extractProductUseCase(restRequest);
-        var context = new InferenceContext(productUseCase);
+        var productUseCase = extractSingleHeader(restRequest, X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+        var interactionId = extractSingleHeader(restRequest, X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER);
+        var productSolution = extractSingleHeader(restRequest, X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER);
+        var productFeature = extractSingleHeader(restRequest, X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER);
+        var context = new InferenceContext(productUseCase, interactionId, productSolution, productFeature);
 
         var request = new InferenceActionProxy.Request(
             params.taskType(),
@@ -68,20 +74,19 @@ abstract class BaseInferenceAction extends BaseRestHandler {
 
     protected abstract ActionListener<InferenceAction.Response> listener(RestChannel channel);
 
-    private String extractProductUseCase(RestRequest restRequest) {
+    private static String extractSingleHeader(RestRequest restRequest, String headerName) {
         var headers = restRequest.getHeaders();
 
         if (Objects.isNull(headers) || headers.isEmpty()) {
             return "";
         }
 
-        var productUseCaseHeaders = headers.get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+        var headerValues = headers.get(headerName);
 
-        if (Objects.isNull(productUseCaseHeaders) || productUseCaseHeaders.isEmpty()) {
+        if (Objects.isNull(headerValues) || headerValues.isEmpty()) {
             return "";
         }
 
-        // We always get the first value as the header doesn't allow multiple values
-        return productUseCaseHeaders.get(0);
+        return headerValues.get(0);
     }
 }

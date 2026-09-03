@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,22 +24,49 @@ import java.util.Objects;
  * {@link org.elasticsearch.client.internal.Client} throws away parts of the context, when passed along the transport layer.
  *
  * @param productUseCase - for now mainly used by Elastic Inference Service
+ * @param interactionId - an identifier used to attribute related inference requests
+ * @param productSolution - the originating Elastic solution, such as security or observability
+ * @param productFeature - the stable inference feature identifier
  */
-public record InferenceContext(String productUseCase) implements Writeable, ToXContent {
+public record InferenceContext(String productUseCase, String interactionId, String productSolution, String productFeature)
+    implements
+        Writeable,
+        ToXContent {
+
+    public static final TransportVersion INFERENCE_ATTRIBUTION_HEADERS_ADDED = TransportVersion.fromName(
+        "inference_attribution_headers_added"
+    );
 
     public static final InferenceContext EMPTY_INSTANCE = new InferenceContext("");
 
     public InferenceContext {
         Objects.requireNonNull(productUseCase);
+        Objects.requireNonNull(interactionId);
+        Objects.requireNonNull(productSolution);
+        Objects.requireNonNull(productFeature);
+    }
+
+    public InferenceContext(String productUseCase) {
+        this(productUseCase, "", "", "");
     }
 
     public InferenceContext(StreamInput in) throws IOException {
-        this(in.readString());
+        this(
+            in.readString(),
+            in.getTransportVersion().supports(INFERENCE_ATTRIBUTION_HEADERS_ADDED) ? in.readString() : "",
+            in.getTransportVersion().supports(INFERENCE_ATTRIBUTION_HEADERS_ADDED) ? in.readString() : "",
+            in.getTransportVersion().supports(INFERENCE_ATTRIBUTION_HEADERS_ADDED) ? in.readString() : ""
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(productUseCase);
+        if (out.getTransportVersion().supports(INFERENCE_ATTRIBUTION_HEADERS_ADDED)) {
+            out.writeString(interactionId);
+            out.writeString(productSolution);
+            out.writeString(productFeature);
+        }
     }
 
     @Override
@@ -46,6 +74,9 @@ public record InferenceContext(String productUseCase) implements Writeable, ToXC
         builder.startObject();
 
         builder.field("product_use_case", productUseCase);
+        builder.field("interaction_id", interactionId);
+        builder.field("product_solution", productSolution);
+        builder.field("product_feature", productFeature);
 
         builder.endObject();
 
@@ -57,11 +88,14 @@ public record InferenceContext(String productUseCase) implements Writeable, ToXC
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InferenceContext that = (InferenceContext) o;
-        return Objects.equals(productUseCase, that.productUseCase);
+        return Objects.equals(productUseCase, that.productUseCase)
+            && Objects.equals(interactionId, that.interactionId)
+            && Objects.equals(productSolution, that.productSolution)
+            && Objects.equals(productFeature, that.productFeature);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(productUseCase);
+        return Objects.hash(productUseCase, interactionId, productSolution, productFeature);
     }
 }

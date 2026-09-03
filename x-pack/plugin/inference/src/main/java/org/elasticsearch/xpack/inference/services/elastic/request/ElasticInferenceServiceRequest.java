@@ -23,6 +23,9 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationA
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
 import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_ES_VERSION;
 
@@ -61,6 +64,9 @@ public abstract class ElasticInferenceServiceRequest implements OutboundRequest 
 
         var productOrigin = metadata.context().productOrigin();
         var productUseCase = metadata.context().productUseCase();
+        var productSolution = metadata.context().productSolution();
+        var productFeature = metadata.context().productFeature();
+        var interactionId = metadata.context().interactionId();
         var esVersion = metadata.esVersion();
 
         if (Strings.isNullOrEmpty(productOrigin) == false) {
@@ -69,6 +75,18 @@ public abstract class ElasticInferenceServiceRequest implements OutboundRequest 
 
         if (Strings.isNullOrEmpty(productUseCase) == false) {
             request.addHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+        }
+
+        if (Strings.isNullOrEmpty(productSolution) == false) {
+            request.addHeader(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, productSolution);
+        }
+
+        if (Strings.isNullOrEmpty(productFeature) == false) {
+            request.addHeader(X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, productFeature);
+        }
+
+        if (Strings.isNullOrEmpty(interactionId) == false) {
+            request.addHeader(X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, interactionId);
         }
 
         if (Strings.isNullOrEmpty(esVersion) == false) {
@@ -102,7 +120,6 @@ public abstract class ElasticInferenceServiceRequest implements OutboundRequest 
     protected abstract HttpRequestBase createHttpRequestBase();
 
     public static ElasticInferenceServiceRequestMetadata extractRequestMetadataFromThreadContext(ThreadContext context) {
-        var inferenceProductContext = InferenceProductContext.create(context);
-        return new ElasticInferenceServiceRequestMetadata(inferenceProductContext, Version.CURRENT.toString());
+        return new ElasticInferenceServiceRequestMetadata(InferenceProductContext.create(context), Version.CURRENT.toString());
     }
 }

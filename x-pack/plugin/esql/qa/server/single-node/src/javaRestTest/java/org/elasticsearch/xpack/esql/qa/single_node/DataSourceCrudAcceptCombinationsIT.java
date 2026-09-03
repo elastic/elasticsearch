@@ -15,6 +15,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -277,7 +279,7 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
                             if (explicitFormat != null) settings.put("format", explicitFormat);
                             if (encoding[1] != null) settings.put("encoding", encoding[1]);
                             if (delimiter[1] != null) settings.put("delimiter", delimiter[1]);
-                            if (headerRow[1] != null) settings.put("header_row", Boolean.parseBoolean(headerRow[1]));
+                            if (headerRow[1] != null) settings.put("header_row", Booleans.parseBoolean(headerRow[1]));
                             if (sampleSize[1] != null) settings.put("schema_sample_size", Integer.parseInt(sampleSize[1]));
                             cases.add(new Object[] { name, new ComboCase(resourceFile, Map.copyOf(settings)) });
                         }
@@ -334,7 +336,7 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
 
     private static Path initFixtureDir() {
         try {
-            Path dir = Files.createTempDirectory("esql-crud-combos-");
+            Path dir = Files.createTempDirectory(PathUtils.get(System.getProperty("java.io.tmpdir")), "esql-crud-combos-");
             // ASCII-only content — see class Javadoc for the encoding TODO.
             Files.writeString(dir.resolve("simple.csv"), "a,b\n1,foo\n2,bar\n");
             Files.writeString(dir.resolve("csv_noext"), "a,b\n1,foo\n2,bar\n");

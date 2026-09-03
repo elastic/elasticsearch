@@ -93,6 +93,9 @@ tasks.named('processJavaRestTestResources').configure {
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.parquet'
   exclude '**/*.orc'
+  // Extensionless binary copies used by DataSourceCrudAcceptCombinationsIT for format-detection tests.
+  exclude '**/parquet_noext'
+  exclude '**/orc_noext'
 }
 
 // Generate ORC fixture for DataSourceCrudAcceptCombinationsIT.

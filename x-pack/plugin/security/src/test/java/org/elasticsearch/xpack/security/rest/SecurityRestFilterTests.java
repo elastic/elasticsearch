@@ -464,11 +464,6 @@ public class SecurityRestFilterTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) ex.getCause()).status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
     }
 
-    /**
-     * When the IN_FLIGHT_REQUESTS circuit breaker trips during {@code authenticationSuccess} (e.g. while rendering the audit body),
-     * {@link SecurityRestFilter} must catch the {@link CircuitBreakingException} and propagate it as a failure rather than letting it
-     * escape as an unchecked exception, and must not invoke the downstream handler.
-     */
     public void testCircuitBreakerTripDuringAuditBodyRenderPropagatesAsFailure() throws Exception {
         FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
             new BytesArray(randomByteArrayOfLength(20)),

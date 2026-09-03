@@ -52,17 +52,8 @@ public class AuditUtil {
             try {
                 return renderer.render(content, xContentType);
             } catch (RequestBodyRenderer.TooLargeBodyException e) {
-                throw new ElasticsearchStatusException(
-                    "Request body of [{}] would exceed the audit size limit of [{}]; "
-                        + "adjust [{}] to increase the limit or set it to 0 to disable",
-                    RestStatus.REQUEST_ENTITY_TOO_LARGE,
-                    ByteSizeValue.ofBytes(e.actualBytes()),
-                    ByteSizeValue.ofBytes(renderer.maxBytes()),
-                    settingKey
-                );
-            } catch (CircuitBreakingException e) {
-                throw e;
-            } catch (ElasticsearchStatusException e) {
+                throw bodyExceedsLimit(e.actualBytes(), renderer.maxBytes(), settingKey);
+            } catch (CircuitBreakingException | ElasticsearchStatusException e) {
                 throw e;
             } catch (Exception e) {
                 logger.warn(() -> Strings.format("failed to read body of REST request [%s] for auditing", request.uri()), e);
@@ -108,14 +99,14 @@ public class AuditUtil {
      * Returns the length, in characters, of the padded RFC 4648 base64 encoding of {@code sourceLength} bytes: every 3 input bytes are
      * encoded as 4 output characters, with the last group padded to a multiple of 4.
      */
-    static long base64EncodedLength(int sourceLength) {
+    public static long base64EncodedLength(int sourceLength) {
         return 4L * ((sourceLength + 2L) / 3L);
     }
 
-    private static ElasticsearchStatusException bodyExceedsLimit(long size, int maxBytes, String settingKey) {
+    private static ElasticsearchStatusException bodyExceedsLimit(long size, long maxBytes, String settingKey) {
         return new ElasticsearchStatusException(
-            "Request body size [{}] exceeds the audit body size limit [{}]; "
-                + "adjust the [{}] setting to increase the limit or set it to 0 to disable",
+            "Request body of [{}] would exceed the audit size limit of [{}]; "
+                + "adjust [{}] to increase the limit or set it to 0 to disable",
             RestStatus.REQUEST_ENTITY_TOO_LARGE,
             ByteSizeValue.ofBytes(size),
             ByteSizeValue.ofBytes(maxBytes),

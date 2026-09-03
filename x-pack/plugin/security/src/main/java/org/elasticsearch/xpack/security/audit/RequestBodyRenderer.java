@@ -52,9 +52,8 @@ public final class RequestBodyRenderer implements Releasable {
     public String render(BytesReference bytes, XContentType xContentType) throws IOException {
         if (xContentType.canonical() == XContentType.JSON) {
             checkSize(0, bytes.length());
-            String result = bytes.utf8ToString();
             charge(bytes.length());
-            return result;
+            return bytes.utf8ToString();
         }
 
         try (var os = new LimitedOutputStream()) {

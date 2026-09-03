@@ -102,7 +102,6 @@ public class AuditUtilTests extends ESTestCase {
             XContentType.SMILE
         ).build();
 
-        // NoopCircuitBreaker is a no-op for every method we don't override; only addEstimateBytesAndMaybeBreak needs a real behavior.
         CircuitBreaker trippingBreaker = new NoopCircuitBreaker("test") {
             @Override
             public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
@@ -110,9 +109,9 @@ public class AuditUtilTests extends ESTestCase {
             }
         };
 
-        var limiter = new RequestBodyRenderer(0, trippingBreaker, "test");
-        expectThrows(CircuitBreakingException.class, () -> AuditUtil.restRequestContent(request, null, limiter));
-        limiter.close();
+        try (var limiter = new RequestBodyRenderer(0, trippingBreaker, "test")) {
+            expectThrows(CircuitBreakingException.class, () -> AuditUtil.restRequestContent(request, null, limiter));
+        }
     }
 
     public void testRestRequestContentReleasesBreakerAfterSuccessfulRendering() throws Exception {
@@ -160,12 +159,12 @@ public class AuditUtilTests extends ESTestCase {
             }
         };
 
-        var limiter = new RequestBodyRenderer(10, counting, "test");
-        expectThrows(
-            ElasticsearchStatusException.class,
-            () -> AuditUtil.restRequestContent(request, "xpack.security.audit.logfile.events.max_request_body_size", limiter)
-        );
-        limiter.close();
+        try (var limiter = new RequestBodyRenderer(10, counting, "test")) {
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> AuditUtil.restRequestContent(request, "xpack.security.audit.logfile.events.max_request_body_size", limiter)
+            );
+        }
         assertEquals("breaker must be balanced even when the size limit trips", 0L, used.get());
     }
 

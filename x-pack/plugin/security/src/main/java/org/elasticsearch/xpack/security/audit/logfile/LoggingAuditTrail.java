@@ -164,6 +164,7 @@ import static org.elasticsearch.xpack.security.audit.AuditLevel.SECURITY_CONFIG_
 import static org.elasticsearch.xpack.security.audit.AuditLevel.SYSTEM_ACCESS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.TAMPERED_REQUEST;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
+import static org.elasticsearch.xpack.security.audit.AuditUtil.base64EncodedLength;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.hasProtobufContent;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestRawContent;
@@ -1217,7 +1218,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         private AuditEventContext eventContext = AuditEventContext.EMPTY;
         private boolean includeThreadContext = true;
         @Nullable
-        private Releasable bodyRenderer;
+        private Releasable bodyReleasable;
 
         LogEntryBuilder() {
             this(true);
@@ -1776,12 +1777,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     var renderer = new RequestBodyRenderer(maxRequestBodyBytes, circuitBreaker, "audit-body");
                     try {
                         final String requestContent = restRequestContent(request, MAX_REQUEST_BODY_SIZE.getKey(), renderer);
-                        bodyRenderer = renderer;
+                        assert bodyReleasable == null : "bodyReleasable already set";
+                        bodyReleasable = renderer;
                         if (Strings.hasLength(requestContent)) {
                             logEntry.with(REQUEST_BODY_FIELD_NAME, requestContent);
                         }
                     } finally {
-                        if (bodyRenderer != renderer) {
+                        if (bodyReleasable != renderer) {
                             renderer.close();
                         }
                     }
@@ -1791,18 +1793,28 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         private void withRawRequestBody(RestRequest request) {
-            final String rawContent = restRequestRawContent(request, maxRequestBodyBytes, MAX_REQUEST_BODY_SIZE.getKey());
-            if (Strings.hasLength(rawContent) == false) {
-                return;
-            }
-            logEntry.with(RAW_REQUEST_BODY_FIELD_NAME, rawContent);
-            final String contentType = request.header("Content-Type");
-            if (Strings.hasLength(contentType)) {
-                logEntry.with(RAW_REQUEST_BODY_CONTENT_TYPE_FIELD_NAME, contentType);
-            }
-            final String contentEncoding = request.header("Content-Encoding");
-            if (Strings.hasLength(contentEncoding)) {
-                logEntry.with(RAW_REQUEST_BODY_CONTENT_ENCODING_FIELD_NAME, contentEncoding);
+            final long encodedLength = base64EncodedLength(request.content().length());
+            circuitBreaker.addEstimateBytesAndMaybeBreak(encodedLength, "audit-body");
+            Releasable release = () -> circuitBreaker.addWithoutBreaking(-encodedLength);
+            try {
+                final String rawContent = restRequestRawContent(request, maxRequestBodyBytes, MAX_REQUEST_BODY_SIZE.getKey());
+                if (Strings.hasLength(rawContent) == false) {
+                    return;
+                }
+                logEntry.with(RAW_REQUEST_BODY_FIELD_NAME, rawContent);
+                final String contentType = request.header("Content-Type");
+                if (Strings.hasLength(contentType)) {
+                    logEntry.with(RAW_REQUEST_BODY_CONTENT_TYPE_FIELD_NAME, contentType);
+                }
+                final String contentEncoding = request.header("Content-Encoding");
+                if (Strings.hasLength(contentEncoding)) {
+                    logEntry.with(RAW_REQUEST_BODY_CONTENT_ENCODING_FIELD_NAME, contentEncoding);
+                }
+                assert bodyReleasable == null : "bodyReleasable already set";
+                bodyReleasable = release;
+                release = null;
+            } finally {
+                Releasables.close(release);
             }
         }
 
@@ -1971,7 +1983,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 }
                 logger.info(AUDIT_MARKER, customizer.rewrite(eventContext, logEntry));
             } finally {
-                Releasables.close(bodyRenderer);
+                Releasables.close(bodyReleasable);
             }
         }
 

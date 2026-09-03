@@ -24,6 +24,25 @@ import java.util.function.Predicate;
 public class SourceFanInUnionAll extends UnionAll {
 
     /**
+     * Cap on the number of source producers one resolved {@code FROM} may expand to. Distinct from
+     * {@link Fork#MAX_BRANCHES}, which bounds the branches of a user-written {@code FORK}: those are
+     * independent query pipelines, while these are the sources of a single {@code FROM}, closer to the
+     * concrete indices behind one {@code EsRelation}. What this bounds is planning and resolution work
+     * (one producer plan and one field-caps round per source, each holding an exchange sink for the
+     * duration of the query), not execution concurrency, which the {@code branch_parallel_degree}
+     * pragma throttles independently of how many producers exist.
+     */
+    public static final int MAX_PRODUCERS = 100;
+
+    /**
+     * Returns {@code true} if {@code count} producers would exceed {@link #MAX_PRODUCERS}. Centralizes the
+     * comparison so callers that fail earlier with a more user-facing message stay in step with the cap.
+     */
+    public static boolean exceedsMaxProducers(int count) {
+        return count > MAX_PRODUCERS;
+    }
+
+    /**
      * Builds a source-fan-in union whose children are independently distributable producers.
      */
     public SourceFanInUnionAll(Source source, List<LogicalPlan> children, List<Attribute> output) {

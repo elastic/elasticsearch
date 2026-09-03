@@ -267,14 +267,23 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
      * {@code PruneEmptyUnionAllBranch}, {@code ViewCompaction.stripViewShadowRelations}) rely on
      * this check to surface the bad state with a clear message rather than letting an empty
      * {@code Fork}/{@code UnionAll} propagate silently.
+     * <p>
+     * A {@link SourceFanInUnionAll} is one resolved {@code FROM} (many dataset and index
+     * producers, the same shape as one {@code EsRelation} with many concrete indices). It
+     * counts as a single FORK branch, so its children are bounded by
+     * {@link SourceFanInUnionAll#MAX_PRODUCERS} rather than by the user-FORK cap.
      */
     static void checkBranchCount(LogicalPlan plan, Failures failures) {
         if (plan instanceof Fork fork) {
             int size = fork.children().size();
-            if (exceedsMaxBranches(size)) {
-                failures.add(Failure.fail(fork, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, size));
-            } else if (size == 0) {
+            if (size == 0) {
                 failures.add(Failure.fail(fork, "{} requires at least one branch", fork.getClass().getSimpleName()));
+            } else if (fork instanceof SourceFanInUnionAll) {
+                if (SourceFanInUnionAll.exceedsMaxProducers(size)) {
+                    failures.add(Failure.fail(fork, "FROM supports up to {} sources, got: {}", SourceFanInUnionAll.MAX_PRODUCERS, size));
+                }
+            } else if (exceedsMaxBranches(size)) {
+                failures.add(Failure.fail(fork, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, size));
             }
         }
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -16,8 +17,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 
+import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -56,6 +59,50 @@ public class SourceFanInUnionAllTests extends ESTestCase {
 
         assertThat(outer.children(), equalTo(List.of(first, second, third)));
         assertThat(outer.replaceChildren(List.of(inner, third)).children(), equalTo(List.of(first, second, third)));
+    }
+
+    public void testWideFanInDoesNotUseForkBranchCap() {
+        List<LogicalPlan> children = relations(Fork.MAX_BRANCHES + 2);
+
+        SourceFanInUnionAll fanIn = new SourceFanInUnionAll(Source.EMPTY, children, List.of());
+        Failures fanInFailures = new Failures();
+        fanIn.postAnalysisPlanVerification().accept(fanIn, fanInFailures);
+        assertFalse(fanInFailures.toString(), fanInFailures.hasFailures());
+
+        UnionAll union = new UnionAll(Source.EMPTY, children, List.of());
+        Failures unionFailures = new Failures();
+        union.postAnalysisPlanVerification().accept(union, unionFailures);
+        assertTrue(unionFailures.hasFailures());
+        assertThat(unionFailures.toString(), containsString("FORK supports up to"));
+    }
+
+    public void testFanInIsBoundedByItsOwnProducerCap() {
+        SourceFanInUnionAll atCap = new SourceFanInUnionAll(Source.EMPTY, relations(SourceFanInUnionAll.MAX_PRODUCERS), List.of());
+        Failures atCapFailures = new Failures();
+        atCap.postAnalysisPlanVerification().accept(atCap, atCapFailures);
+        assertFalse(atCapFailures.toString(), atCapFailures.hasFailures());
+
+        SourceFanInUnionAll overCap = new SourceFanInUnionAll(Source.EMPTY, relations(SourceFanInUnionAll.MAX_PRODUCERS + 1), List.of());
+        Failures overCapFailures = new Failures();
+        overCap.postAnalysisPlanVerification().accept(overCap, overCapFailures);
+        assertTrue(overCapFailures.hasFailures());
+        assertThat(overCapFailures.toString(), containsString("FROM supports up to " + SourceFanInUnionAll.MAX_PRODUCERS + " sources"));
+    }
+
+    public void testEmptyFanInStillFails() {
+        SourceFanInUnionAll empty = new SourceFanInUnionAll(Source.EMPTY, List.of(), List.of());
+        Failures failures = new Failures();
+        empty.postAnalysisPlanVerification().accept(empty, failures);
+        assertTrue(failures.hasFailures());
+        assertThat(failures.toString(), containsString("requires at least one branch"));
+    }
+
+    private static List<LogicalPlan> relations(int count) {
+        List<LogicalPlan> children = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            children.add(relation("ds_" + i));
+        }
+        return children;
     }
 
     public void testExecutesOnAny() {

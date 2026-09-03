@@ -50,7 +50,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 public class DatasetRewriterTests extends ESTestCase {
 
@@ -134,8 +133,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("ds1,ds2"), project);
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
-        assertThat(rewritten, not(instanceOf(SourceFanInUnionAll.class)));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
         assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
@@ -316,7 +314,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
 
         LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
         assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
@@ -529,10 +527,8 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     public void testExactDatasetShadowsDoNotConsumeTheRewriteCap() {
-        // The rewrite-time cap counts real reads (datasets + index branch), not the speculative shadows. A shadow
-        // strips when its exact name has no remote namesake (the common case), so it must not eat the per-FROM budget.
-        // Five exact datasets under CPS = 5 externals + 5 shadows = 10 UnionAll children but only 5 real reads, so it
-        // must NOT be rejected at rewrite -- otherwise the shadows would silently halve the dataset budget.
+        // Five exact datasets under CPS = 5 externals + 5 shadows = 10 children of one SourceFanInUnionAll.
+        // Shadows are speculative and strip when the exact name has no remote namesake.
         DataSource parent = dataSource("s3_parent", Map.of());
         Map<String, Dataset> datasets = new HashMap<>();
         for (int i = 0; i < 5; i++) {
@@ -633,10 +629,7 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(tablePathString(out), equalTo("s3://a/"));
     }
 
-    public void testWildcardAtUnionAllCapSucceeds() {
-        // UnionAll extends Fork which caps at 8 branches — the upper bound the rewriter can hand off.
-        // A wildcard expanding to exactly the cap proves the bucketing + UnionAll construction path
-        // is bounded-time at the platform's largest supported shape.
+    public void testWildcardMatchingEightDatasetsIsOneFanIn() {
         DataSource parent = dataSource("s3_parent", Map.of());
         Map<String, Dataset> datasets = new HashMap<>();
         for (int i = 0; i < 8; i++) {
@@ -649,19 +642,33 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
-        UnionAll union = (UnionAll) rewritten;
-        assertThat(union.children(), hasSize(8));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
+        assertThat(rewritten.children(), hasSize(8));
     }
 
-    public void testWildcardOverUnionAllCapRejectsWithUserFacingMessage() {
-        // A wildcard matching more than 8 datasets crosses Fork's 8-branch cap. The rewriter
-        // intercepts before constructing the UnionAll and throws a VerificationException with
-        // user-facing framing — the user typed FROM <pattern>, not FORK, so the error references
-        // the pattern + the cap, not Fork's internal name.
+    public void testFromStarWithTenDatasetsNoIndicesIsOneFanIn() {
         DataSource parent = dataSource("s3_parent", Map.of());
         Map<String, Dataset> datasets = new HashMap<>();
-        for (int i = 0; i < 9; i++) {
+        for (int i = 0; i < 10; i++) {
+            datasets.put("ds_" + i, new Dataset("ds_" + i, new DataSourceReference("s3_parent"), "s3://ds/" + i + "/", null, Map.of()));
+        }
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
+
+        LogicalPlan rewritten = rewrite(relationOf("*"), project);
+
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
+        assertThat(rewritten.children(), hasSize(10));
+        for (LogicalPlan child : rewritten.children()) {
+            assertThat(child, instanceOf(UnresolvedExternalRelation.class));
+        }
+    }
+
+    public void testWildcardOverFanInCapRejectsWithUserFacingMessage() {
+        // The user typed FROM <pattern>, not FORK, so the message references the pattern and the
+        // per-FROM source cap rather than Fork's internal name.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = new HashMap<>();
+        for (int i = 0; i <= SourceFanInUnionAll.MAX_PRODUCERS; i++) {
             datasets.put(
                 "logs_" + i,
                 new Dataset("logs_" + i, new DataSourceReference("s3_parent"), "s3://logs/" + i + "/", null, Map.of())
@@ -671,9 +678,54 @@ public class DatasetRewriterTests extends ESTestCase {
 
         VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("logs_*"), project));
         assertThat(ex.getMessage(), containsString("FROM [logs_*]"));
-        assertThat(ex.getMessage(), containsString("resolved to 9 branches"));
-        assertThat(ex.getMessage(), containsString("the current limit of 8"));
+        assertThat(ex.getMessage(), containsString("resolved to " + (SourceFanInUnionAll.MAX_PRODUCERS + 1) + " sources"));
+        assertThat(ex.getMessage(), containsString("the current limit of " + SourceFanInUnionAll.MAX_PRODUCERS));
         assertThat(ex.getMessage(), containsString("Narrow the pattern"));
+    }
+
+    public void testWildcardAtFanInCapSucceeds() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = new HashMap<>();
+        for (int i = 0; i < SourceFanInUnionAll.MAX_PRODUCERS; i++) {
+            datasets.put(
+                "logs_" + i,
+                new Dataset("logs_" + i, new DataSourceReference("s3_parent"), "s3://logs/" + i + "/", null, Map.of())
+            );
+        }
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
+
+        LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
+
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
+        assertThat(rewritten.children(), hasSize(SourceFanInUnionAll.MAX_PRODUCERS));
+    }
+
+    public void testFromStarWithNineDatasetsAndAnIndexIsOneFanIn() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = new HashMap<>();
+        for (int i = 0; i < 9; i++) {
+            datasets.put("ds_" + i, new Dataset("ds_" + i, new DataSourceReference("s3_parent"), "s3://ds/" + i + "/", null, Map.of()));
+        }
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), datasets, Set.of("logs"));
+
+        LogicalPlan rewritten = rewrite(relationOf("*"), project);
+
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
+        assertThat(rewritten.children(), hasSize(10));
+    }
+
+    public void testFromStarWithSevenDatasetsAndAnIndexIsAtCap() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = new HashMap<>();
+        for (int i = 0; i < 7; i++) {
+            datasets.put("ds_" + i, new Dataset("ds_" + i, new DataSourceReference("s3_parent"), "s3://ds/" + i + "/", null, Map.of()));
+        }
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), datasets, Set.of("logs"));
+
+        LogicalPlan rewritten = rewrite(relationOf("*"), project);
+
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
+        assertThat(rewritten.children(), hasSize(8));
     }
 
     public void testDateMathPatternReachesSlowPath() {

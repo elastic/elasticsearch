@@ -7,31 +7,34 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec;
+package org.elasticsearch.index.codec.bwc;
 
-import org.apache.lucene.backward_codecs.lucene101.Lucene101Codec;
-import org.apache.lucene.backward_codecs.lucene101.Lucene101PostingsFormat;
-import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.FieldInfosFormat;
+import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.PointsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
+import org.elasticsearch.index.codec.Elasticsearch900AdaptivePointsFormat;
+import org.elasticsearch.index.codec.ElasticsearchFieldInfosFormat;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 
 /**
- * Elasticsearch codec as of 9.0 relying on Lucene 10.1. This extends the Lucene 10.1 codec to compressed
+ * Elasticsearch codec as of 9.3 relying on Lucene 10.4. This extends the Lucene 10.4 codec to compressed
  * stored fields with ZSTD instead of LZ4/DEFLATE. See {@link Zstd814StoredFieldsFormat}.
  */
-public class Elasticsearch900Lucene101Codec extends FilterCodec {
+public class Elasticsearch93Lucene104Codec extends FilterCodec {
 
-    static final PostingsFormat DEFAULT_POSTINGS_FORMAT = new Lucene101PostingsFormat();
+    static final PostingsFormat DEFAULT_POSTINGS_FORMAT = new Lucene104PostingsFormat();
 
     private final StoredFieldsFormat storedFieldsFormat;
 
@@ -39,7 +42,7 @@ public class Elasticsearch900Lucene101Codec extends FilterCodec {
     private final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
         @Override
         public PostingsFormat getPostingsFormatForField(String field) {
-            return Elasticsearch900Lucene101Codec.this.getPostingsFormatForField(field);
+            return Elasticsearch93Lucene104Codec.this.getPostingsFormatForField(field);
         }
     };
 
@@ -47,7 +50,7 @@ public class Elasticsearch900Lucene101Codec extends FilterCodec {
     private final DocValuesFormat docValuesFormat = new XPerFieldDocValuesFormat() {
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
-            return Elasticsearch900Lucene101Codec.this.getDocValuesFormatForField(field);
+            return Elasticsearch93Lucene104Codec.this.getDocValuesFormatForField(field);
         }
     };
 
@@ -55,7 +58,7 @@ public class Elasticsearch900Lucene101Codec extends FilterCodec {
     private final KnnVectorsFormat knnVectorsFormat = new PerFieldKnnVectorsFormat() {
         @Override
         public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-            return Elasticsearch900Lucene101Codec.this.getKnnVectorsFormatForField(field);
+            return Elasticsearch93Lucene104Codec.this.getKnnVectorsFormatForField(field);
         }
     };
 
@@ -73,7 +76,7 @@ public class Elasticsearch900Lucene101Codec extends FilterCodec {
     }
 
     /** Public no-arg constructor, needed for SPI loading at read-time. */
-    public Elasticsearch900Lucene101Codec() {
+    public Elasticsearch93Lucene104Codec() {
         this(Zstd814StoredFieldsFormat.Mode.BEST_SPEED);
     }
 
@@ -81,13 +84,18 @@ public class Elasticsearch900Lucene101Codec extends FilterCodec {
      * Constructor. Takes a {@link Zstd814StoredFieldsFormat.Mode} that describes whether to optimize for retrieval speed at the expense of
      * worse space-efficiency or vice-versa.
      */
-    public Elasticsearch900Lucene101Codec(Zstd814StoredFieldsFormat.Mode mode) {
-        super("Elasticsearch900Lucene101", new Lucene101Codec());
+    public Elasticsearch93Lucene104Codec(Zstd814StoredFieldsFormat.Mode mode) {
+        super("Elasticsearch92Lucene103", new Lucene104Codec());
         this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(delegate.fieldInfosFormat());
         this.storedFieldsFormat = mode.getFormat();
         this.defaultPostingsFormat = DEFAULT_POSTINGS_FORMAT;
         this.defaultDVFormat = new Lucene90DocValuesFormat();
         this.defaultKnnVectorsFormat = new Lucene99HnswVectorsFormat();
+    }
+
+    @Override
+    public final PointsFormat pointsFormat() {
+        return Elasticsearch900AdaptivePointsFormat.INSTANCE;
     }
 
     @Override

@@ -7,14 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec;
+package org.elasticsearch.index.codec.bwc;
 
-import org.apache.lucene.backward_codecs.lucene99.Lucene99Codec;
-import org.apache.lucene.backward_codecs.lucene99.Lucene99PostingsFormat;
-import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.FieldInfosFormat;
+import org.apache.lucene.backward_codecs.lucene912.Lucene912Codec;
+import org.apache.lucene.backward_codecs.lucene912.Lucene912PostingsFormat;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.FieldInfosFormat;
+import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
@@ -23,41 +23,42 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
+import org.elasticsearch.index.codec.ElasticsearchFieldInfosFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 
 /**
- * Elasticsearch codec as of 8.14. This extends the Lucene 9.9 codec to compressed stored fields with ZSTD instead of LZ4/DEFLATE. See
+ * Elasticsearch codec as of 8.16. This extends the Lucene 9.12 codec to compressed stored fields with ZSTD instead of LZ4/DEFLATE. See
  * {@link Zstd814StoredFieldsFormat}.
  */
-public class Elasticsearch814Codec extends FilterCodec {
+public class Elasticsearch816Codec extends FilterCodec {
+
+    private static final Lucene912Codec LUCENE_912_CODEC = new Lucene912Codec();
+    private static final PostingsFormat defaultPostingsFormat = new Lucene912PostingsFormat();
+    private static final DocValuesFormat defaultDVFormat = new Lucene90DocValuesFormat();
+    private static final KnnVectorsFormat defaultKnnVectorsFormat = new Lucene99HnswVectorsFormat();
 
     private final StoredFieldsFormat storedFieldsFormat;
 
-    private static final PostingsFormat defaultPostingsFormat = new Lucene99PostingsFormat();
     private final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
         @Override
         public PostingsFormat getPostingsFormatForField(String field) {
-            return Elasticsearch814Codec.this.getPostingsFormatForField(field);
+            return Elasticsearch816Codec.this.getPostingsFormatForField(field);
         }
     };
 
-    private static final DocValuesFormat defaultDVFormat = new Lucene90DocValuesFormat();
     private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
-            return Elasticsearch814Codec.this.getDocValuesFormatForField(field);
+            return Elasticsearch816Codec.this.getDocValuesFormatForField(field);
         }
     };
 
-    private static final KnnVectorsFormat defaultKnnVectorsFormat = new Lucene99HnswVectorsFormat();
     private final KnnVectorsFormat knnVectorsFormat = new PerFieldKnnVectorsFormat() {
         @Override
         public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-            return Elasticsearch814Codec.this.getKnnVectorsFormatForField(field);
+            return Elasticsearch816Codec.this.getKnnVectorsFormatForField(field);
         }
     };
-
-    private static final Lucene99Codec lucene99Codec = new Lucene99Codec();
 
     private final FieldInfosFormat fieldInfosFormat;
 
@@ -73,7 +74,7 @@ public class Elasticsearch814Codec extends FilterCodec {
     }
 
     /** Public no-arg constructor, needed for SPI loading at read-time. */
-    public Elasticsearch814Codec() {
+    public Elasticsearch816Codec() {
         this(Zstd814StoredFieldsFormat.Mode.BEST_SPEED);
     }
 
@@ -81,8 +82,8 @@ public class Elasticsearch814Codec extends FilterCodec {
      * Constructor. Takes a {@link Zstd814StoredFieldsFormat.Mode} that describes whether to optimize for retrieval speed at the expense of
      * worse space-efficiency or vice-versa.
      */
-    public Elasticsearch814Codec(Zstd814StoredFieldsFormat.Mode mode) {
-        super("Elasticsearch814", lucene99Codec);
+    public Elasticsearch816Codec(Zstd814StoredFieldsFormat.Mode mode) {
+        super("Elasticsearch816", LUCENE_912_CODEC);
         this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(delegate.fieldInfosFormat());
         this.storedFieldsFormat = mode.getFormat();
     }
@@ -110,7 +111,7 @@ public class Elasticsearch814Codec extends FilterCodec {
     /**
      * Returns the postings format that should be used for writing new segments of <code>field</code>.
      *
-     * <p>The default implementation always returns "Lucene99".
+     * <p>The default implementation always returns "Lucene912".
      *
      * <p><b>WARNING:</b> if you subclass, you are responsible for index backwards compatibility:
      * future version of Lucene are only guaranteed to be able to read the default implementation,
@@ -123,7 +124,7 @@ public class Elasticsearch814Codec extends FilterCodec {
      * Returns the docvalues format that should be used for writing new segments of <code>field</code>
      * .
      *
-     * <p>The default implementation always returns "Lucene99".
+     * <p>The default implementation always returns "Lucene912".
      *
      * <p><b>WARNING:</b> if you subclass, you are responsible for index backwards compatibility:
      * future version of Lucene are only guaranteed to be able to read the default implementation.
@@ -135,7 +136,7 @@ public class Elasticsearch814Codec extends FilterCodec {
     /**
      * Returns the vectors format that should be used for writing new segments of <code>field</code>
      *
-     * <p>The default implementation always returns "Lucene95".
+     * <p>The default implementation always returns "Lucene912".
      *
      * <p><b>WARNING:</b> if you subclass, you are responsible for index backwards compatibility:
      * future version of Lucene are only guaranteed to be able to read the default implementation.

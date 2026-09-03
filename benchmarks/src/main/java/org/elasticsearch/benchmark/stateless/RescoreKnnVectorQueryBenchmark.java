@@ -20,7 +20,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.search.vectors.KnnScoreDocQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
@@ -93,7 +93,7 @@ public class RescoreKnnVectorQueryBenchmark extends AbstractStatelessQueryBenchm
     @Override
     protected IndexWriterConfig indexWriterConfig() {
         IndexWriterConfig iwc = new IndexWriterConfig();
-        iwc.setCodec(new Elasticsearch93Lucene104Codec() {
+        iwc.setCodec(new Elasticsearch96Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
                 return new ES93FlatVectorFormat();

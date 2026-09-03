@@ -7,7 +7,17 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.IndexType;
@@ -18,26 +28,29 @@ import org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLong
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGINTEGER_2_64_MINUS_ONE;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType.parseLowerRangeTerm;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType.parseTerm;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType.parseUpperRangeTerm;
+import static org.hamcrest.Matchers.hasSize;
 
 public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         UnsignedLongFieldType ft = new UnsignedLongFieldType("my_unsigned_long");
 
-        assertEquals(LongPoint.newExactQuery("my_unsigned_long", -9223372036854775808L), ft.termQuery(0, null));
-        assertEquals(LongPoint.newExactQuery("my_unsigned_long", 0L), ft.termQuery("9223372036854775808", null));
-        assertEquals(LongPoint.newExactQuery("my_unsigned_long", 9223372036854775807L), ft.termQuery("18446744073709551615", null));
+        assertEquals(LongPoint.newExactQuery("my_unsigned_long", -9223372036854775808L), ft.termQuery(0, MOCK_CONTEXT));
+        assertEquals(LongPoint.newExactQuery("my_unsigned_long", 0L), ft.termQuery("9223372036854775808", MOCK_CONTEXT));
+        assertEquals(LongPoint.newExactQuery("my_unsigned_long", 9223372036854775807L), ft.termQuery("18446744073709551615", MOCK_CONTEXT));
 
-        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termQuery(-1L, null));
-        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termQuery(10.5, null));
-        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termQuery("18446744073709551616", null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termQuery(-1L, MOCK_CONTEXT));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termQuery(10.5, MOCK_CONTEXT));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termQuery("18446744073709551616", MOCK_CONTEXT));
 
-        expectThrows(NumberFormatException.class, () -> ft.termQuery("18incorrectnumber", null));
+        expectThrows(NumberFormatException.class, () -> ft.termQuery("18incorrectnumber", MOCK_CONTEXT));
     }
 
     public void testTermsQuery() {
@@ -45,13 +58,13 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(
             LongPoint.newSetQuery("my_unsigned_long", -9223372036854775808L, 0L, 9223372036854775807L),
-            ft.termsQuery(List.of("0", "9223372036854775808", "18446744073709551615"), null)
+            ft.termsQuery(List.of("0", "9223372036854775808", "18446744073709551615"), MOCK_CONTEXT)
         );
 
-        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termsQuery(List.of(-9223372036854775808L, -1L), null));
-        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termsQuery(List.of("-0.5", "3.14", "18446744073709551616"), null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termsQuery(List.of(-9223372036854775808L, -1L), MOCK_CONTEXT));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termsQuery(List.of("-0.5", "3.14", "18446744073709551616"), MOCK_CONTEXT));
 
-        expectThrows(NumberFormatException.class, () -> ft.termsQuery(List.of("18incorrectnumber"), null));
+        expectThrows(NumberFormatException.class, () -> ft.termsQuery(List.of("18incorrectnumber"), MOCK_CONTEXT));
     }
 
     public void testRangeQuery() {
@@ -69,33 +82,134 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(
             LongPoint.newRangeQuery("my_unsigned_long", -9223372036854775808L, -9223372036854775808L),
-            ft.rangeQuery(-1L, 0L, true, true, null)
+            ft.rangeQuery(-1L, 0L, true, true, MOCK_CONTEXT)
         );
         assertEquals(
             LongPoint.newRangeQuery("my_unsigned_long", -9223372036854775808L, -9223372036854775808L),
-            ft.rangeQuery(0.0, 0.5, true, true, null)
+            ft.rangeQuery(0.0, 0.5, true, true, MOCK_CONTEXT)
         );
         assertEquals(
             LongPoint.newRangeQuery("my_unsigned_long", 0, 0),
-            ft.rangeQuery("9223372036854775807", "9223372036854775808", false, true, null)
+            ft.rangeQuery("9223372036854775807", "9223372036854775808", false, true, MOCK_CONTEXT)
         );
         assertEquals(
             LongPoint.newRangeQuery("my_unsigned_long", -9223372036854775808L, 9223372036854775806L),
-            ft.rangeQuery(null, "18446744073709551614.5", true, true, null)
+            ft.rangeQuery(null, "18446744073709551614.5", true, true, MOCK_CONTEXT)
         );
         assertEquals(
             LongPoint.newRangeQuery("my_unsigned_long", 9223372036854775807L, 9223372036854775807L),
-            ft.rangeQuery("18446744073709551615", "18446744073709551616", true, true, null)
+            ft.rangeQuery("18446744073709551615", "18446744073709551616", true, true, MOCK_CONTEXT)
         );
 
-        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery(-1f, -0.5f, true, true, null));
-        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery(-1L, 0L, true, false, null));
-        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery(9223372036854775807L, 9223372036854775806L, true, true, null));
-        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery("18446744073709551616", "18446744073709551616", true, true, null));
-        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery("18446744073709551615", "18446744073709551616", false, true, null));
-        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery(9223372036854775807L, 9223372036854775806L, true, true, null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery(-1f, -0.5f, true, true, MOCK_CONTEXT));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery(-1L, 0L, true, false, MOCK_CONTEXT));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery(9223372036854775807L, 9223372036854775806L, true, true, MOCK_CONTEXT));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery("18446744073709551616", "18446744073709551616", true, true, MOCK_CONTEXT));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery("18446744073709551615", "18446744073709551616", false, true, MOCK_CONTEXT));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery(9223372036854775807L, 9223372036854775806L, true, true, MOCK_CONTEXT));
 
-        expectThrows(NumberFormatException.class, () -> ft.rangeQuery("18incorrectnumber", "18incorrectnumber", true, true, null));
+        expectThrows(NumberFormatException.class, () -> ft.rangeQuery("18incorrectnumber", "18incorrectnumber", true, true, MOCK_CONTEXT));
+    }
+
+    /**
+     * Columnar index mode stores unsigned_long via doc values only, with no point index. Queries
+     * must fall back to doc values rather than failing as "not indexed".
+     */
+    private static UnsignedLongFieldType docValuesOnlyFieldType() {
+        return new UnsignedLongFieldType(
+            "my_unsigned_long",
+            IndexType.docValuesOnly(),
+            false,
+            null,
+            Collections.emptyMap(),
+            false,
+            null,
+            null,
+            false
+        );
+    }
+
+    public void testTermQueryOnDocValuesOnlyFieldUsesDocValues() {
+        UnsignedLongFieldType ft = docValuesOnlyFieldType();
+
+        assertEquals(
+            SortedNumericDocValuesField.newSlowRangeQuery("my_unsigned_long", -9223372036854775808L, -9223372036854775808L),
+            ft.termQuery(0, MOCK_CONTEXT)
+        );
+        assertEquals(
+            SortedNumericDocValuesField.newSlowRangeQuery("my_unsigned_long", 9223372036854775807L, 9223372036854775807L),
+            ft.termQuery("18446744073709551615", MOCK_CONTEXT)
+        );
+    }
+
+    public void testTermsQueryOnDocValuesOnlyFieldUsesDocValues() {
+        UnsignedLongFieldType ft = docValuesOnlyFieldType();
+
+        Query query = ft.termsQuery(List.of("0", "18446744073709551615"), MOCK_CONTEXT);
+
+        // Without a point index the set becomes a constant-score disjunction of per-value
+        // doc-values queries. Clause order is unspecified, so compare them as a set.
+        ConstantScoreQuery constantScoreQuery = asInstanceOf(ConstantScoreQuery.class, query);
+        BooleanQuery booleanQuery = asInstanceOf(BooleanQuery.class, constantScoreQuery.getQuery());
+        assertThat(booleanQuery.clauses(), hasSize(2));
+        Set<Query> clauses = booleanQuery.clauses().stream().map(BooleanClause::query).collect(Collectors.toSet());
+        assertEquals(
+            Set.of(
+                SortedNumericDocValuesField.newSlowRangeQuery("my_unsigned_long", -9223372036854775808L, -9223372036854775808L),
+                SortedNumericDocValuesField.newSlowRangeQuery("my_unsigned_long", 9223372036854775807L, 9223372036854775807L)
+            ),
+            clauses
+        );
+    }
+
+    public void testRangeQueryOnDocValuesOnlyFieldUsesDocValues() {
+        UnsignedLongFieldType ft = docValuesOnlyFieldType();
+
+        assertEquals(
+            SortedNumericDocValuesField.newSlowRangeQuery("my_unsigned_long", -9223372036854775808L, 9223372036854775807L),
+            ft.rangeQuery("0", "18446744073709551615", true, true, MOCK_CONTEXT)
+        );
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery(-1L, 0L, true, false, MOCK_CONTEXT));
+    }
+
+    public void testDocValuesOnlyQueriesMatchTheSameDocsAsPointQueries() throws IOException {
+        UnsignedLongFieldType docValuesOnly = docValuesOnlyFieldType();
+        UnsignedLongFieldType pointIndexed = new UnsignedLongFieldType("my_unsigned_long");
+
+        // Values chosen to span the signed-long wrap-around that unsigned_long encoding relies on.
+        List<String> values = List.of("0", "1", "9223372036854775807", "9223372036854775808", "18446744073709551615");
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
+                for (String value : values) {
+                    // unsigned_long is stored shifted by 2^63, which is a flip of the sign bit.
+                    long sortable = Long.parseUnsignedLong(value) ^ Long.MIN_VALUE;
+                    Document document = new Document();
+                    document.add(new SortedNumericDocValuesField("my_unsigned_long", sortable));
+                    document.add(new LongPoint("my_unsigned_long", sortable));
+                    writer.addDocument(document);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                IndexSearcher searcher = newSearcher(reader);
+                for (String value : values) {
+                    assertEquals(
+                        "termQuery for [" + value + "]",
+                        searcher.count(pointIndexed.termQuery(value, MOCK_CONTEXT)),
+                        searcher.count(docValuesOnly.termQuery(value, MOCK_CONTEXT))
+                    );
+                }
+                assertEquals(
+                    "termsQuery",
+                    searcher.count(pointIndexed.termsQuery(values, MOCK_CONTEXT)),
+                    searcher.count(docValuesOnly.termsQuery(values, MOCK_CONTEXT))
+                );
+                assertEquals(
+                    "rangeQuery over the full unsigned range",
+                    searcher.count(pointIndexed.rangeQuery("1", "18446744073709551615", true, true, MOCK_CONTEXT)),
+                    searcher.count(docValuesOnly.rangeQuery("1", "18446744073709551615", true, true, MOCK_CONTEXT))
+                );
+            }
+        }
     }
 
     public void testParseTermForTermQuery() {

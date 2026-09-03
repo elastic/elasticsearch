@@ -669,7 +669,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY),
             PlannerSettings.DEFAULTS.minCompetitiveTimestampOptimizationEnabled(),
             PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeEnabled(),
-            PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeBatchPages()
+            PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeBatchPages(),
+            PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeMaxPendingKeys()
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",

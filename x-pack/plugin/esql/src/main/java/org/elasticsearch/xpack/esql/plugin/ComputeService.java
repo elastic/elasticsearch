@@ -181,9 +181,10 @@ public class ComputeService {
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
 
     /**
-     * Defers per-producer shard counts and status so a source fan-in can merge several
-     * index or remote outcomes and apply them to {@link EsqlExecutionInfo} once, instead of
-     * writing through as each producer finishes.
+     * Defers per-producer shard counts and status so a source fan-in or MergeExec can merge
+     * several index or remote outcomes and apply them to {@link EsqlExecutionInfo} once.
+     * Session subplans (INLINE STATS, IN subquery, approximation) share that execution info
+     * with the main plan, so status stays {@code RUNNING} until the main plan finishes.
      */
     static final class SourceOutcomeAccumulator {
         private final Map<SourceClusterKey, IndexProducerOutcome> indexOutcomes = new ConcurrentHashMap<>();
@@ -277,6 +278,10 @@ public class ComputeService {
             if (applied.compareAndSet(false, true) == false) {
                 return;
             }
+            // INLINE STATS / IN subquery / approximation calibration run as a separate execute()
+            // on the same EsqlExecutionInfo. Finalizing remotes here makes the main plan's
+            // shouldSkipRemoteCluster treat them as already done and skip the only copy of the data.
+            boolean finalizeStatus = execInfo.isMainPlan();
             Map<String, List<IndexProducerOutcome>> outcomesByCluster = new HashMap<>();
             indexOutcomes.forEach(
                 (key, outcome) -> outcomesByCluster.computeIfAbsent(key.clusterAlias(), ignored -> new ArrayList<>()).add(outcome)
@@ -311,7 +316,7 @@ public class ComputeService {
                         .setSkippedShards(skippedShards)
                         .setFailedShards(failedShards);
                 }
-                if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                if (finalizeStatus && cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
                     if (skippedFailure && hasResponse == false && partial == false) {
                         builder.setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED);
                     } else if (partial || failures.isEmpty() == false || skippedFailure) {
@@ -322,6 +327,9 @@ public class ComputeService {
                 }
                 return builder.build();
             }));
+            if (finalizeStatus == false) {
+                return;
+            }
             for (String clusterAlias : execInfo.clusterAliases()) {
                 execInfo.swapCluster(clusterAlias, (key, cluster) -> {
                     if (cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
@@ -1331,24 +1339,9 @@ public class ComputeService {
         }
 
         void tryExecuteNextSubPlan() {
-            int subPlanIndex;
-            ActionListener<DriverCompletionInfo> subPlanListener;
-            while (true) {
-                subPlanIndex = nextId.getAndIncrement();
-                if (subPlanIndex >= subplans.size()) {
-                    return;
-                }
-                subPlanListener = subPlanListeners.get(subPlanIndex);
-                if (rootTask.isCancelled()) {
-                    subPlanListener.onFailure(new TaskCancelledException(rootTask.getReasonCancelled()));
-                } else if (execInfo.isStopped()) {
-                    subPlanListener.onResponse(DriverCompletionInfo.EMPTY);
-                } else {
-                    break;
-                }
-                if (markSubPlanCompleted()) {
-                    return;
-                }
+            int subPlanIndex = nextId.getAndIncrement();
+            if (subPlanIndex >= subplans.size()) {
+                return;
             }
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("executing subplan [{}]", subPlanIndex);
@@ -1358,7 +1351,7 @@ public class ComputeService {
             ExchangeSinkHandler exchangeSink = exchangeService.createSinkHandler(childSessionId, queryPragmas.exchangeBufferSize());
             mainExchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
             int executingSubPlanIndex = subPlanIndex;
-            ActionListener<DriverCompletionInfo> executingSubPlanListener = subPlanListener;
+            ActionListener<DriverCompletionInfo> executingSubPlanListener = subPlanListeners.get(subPlanIndex);
             executePlan(
                 childSessionId,
                 rootTask,

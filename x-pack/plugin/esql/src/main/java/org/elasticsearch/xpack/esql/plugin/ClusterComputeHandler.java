@@ -131,20 +131,6 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             queryPragmas.exchangeBufferSize(),
             searchExecutor,
             listener.delegateFailureAndWrap((l, unused) -> {
-                boolean cancelled = rootTask.isCancelled();
-                if (cancelled || executionInfo.isStopped()) {
-                    var remoteSink = exchangeService.newRemoteSink(rootTask, childSessionId, transportService, cluster.connection);
-                    final var terminalListener = l;
-                    remoteSink.close(ActionListener.wrap(ignored -> {
-                        if (cancelled) {
-                            terminalListener.onFailure(new TaskCancelledException(rootTask.getReasonCancelled()));
-                        } else {
-                            outcomeConsumer.accept(new RemoteClusterOutcome.Skipped(EsqlExecutionInfo.Cluster.Status.PARTIAL));
-                            terminalListener.onResponse(DriverCompletionInfo.EMPTY);
-                        }
-                    }, terminalListener::onFailure));
-                    return;
-                }
                 final CancellableTask groupTask;
                 final Runnable onGroupFailure;
                 boolean failFast = executionInfo.shouldSkipOnFailure(clusterAlias) == false && configuration.allowPartialResults() == false;

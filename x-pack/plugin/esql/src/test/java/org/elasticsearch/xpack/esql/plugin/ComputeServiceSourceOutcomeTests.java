@@ -209,6 +209,35 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
         assertSame(failure, thrown);
     }
 
+    public void testSubplanApplyToLeavesClusterRunning() {
+        EsqlExecutionInfo executionInfo = executionInfo("remote");
+        executionInfo.startSubPlans(randomBoolean());
+        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
+        ComputeService.SourceClusterKey source = new ComputeService.SourceClusterKey("remote", List.of("test"));
+
+        outcomes.recordIndexResponse(source, response(4, 4, 0, 0, List.of()));
+        outcomes.applyTo(executionInfo);
+
+        EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster("remote");
+        assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+        assertThat(cluster.getTotalShards(), equalTo(4));
+        assertThat(cluster.getSuccessfulShards(), equalTo(4));
+        assertFalse(ComputeService.shouldSkipRemoteCluster(cluster.getStatus()));
+    }
+
+    public void testSubplanApplyToLeavesUnusedClusterRunning() {
+        EsqlExecutionInfo executionInfo = executionInfo("remote");
+        executionInfo.startSubPlans(randomBoolean());
+        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
+
+        outcomes.applyTo(executionInfo);
+
+        EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster("remote");
+        assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+        assertNull(cluster.getTotalShards());
+        assertFalse(ComputeService.shouldSkipRemoteCluster(cluster.getStatus()));
+    }
+
     public void testLeftoverRunningClusterIsSuccessfulWithoutInventingShards() {
         EsqlExecutionInfo executionInfo = executionInfo("remote");
         ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();

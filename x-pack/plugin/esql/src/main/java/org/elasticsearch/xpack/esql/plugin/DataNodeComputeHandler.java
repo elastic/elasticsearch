@@ -172,7 +172,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 Map<Index, AliasFilter> aliasFilters,
                 NodeListener nodeListener
             ) {
-                if (executionStopped.getAsBoolean() || exchangeSource.isFinished()) {
+                if (exchangeSource.isFinished()) {
                     nodeListener.onSkip();
                     return;
                 }
@@ -197,19 +197,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     queryPragmas.exchangeBufferSize(),
                     searchExecutor,
                     listener.delegateFailureAndWrap((l, unused) -> {
-                        boolean cancelled = parentTask.isCancelled();
-                        if (cancelled || executionStopped.getAsBoolean() || exchangeSource.isFinished()) {
-                            var remoteSink = exchangeService.newRemoteSink(parentTask, childSessionId, transportService, connection);
-                            final var terminalListener = l;
-                            remoteSink.close(ActionListener.wrap(ignored -> {
-                                if (cancelled) {
-                                    terminalListener.onFailure(new TaskCancelledException(parentTask.getReasonCancelled()));
-                                } else {
-                                    nodeListener.onSkip();
-                                }
-                            }, terminalListener::onFailure));
-                            return;
-                        }
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
                         if (configuration.allowPartialResults()) {
@@ -358,7 +345,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     distributionCompletion.fail(new TaskCancelledException(parentTask.getReasonCancelled()));
                     return;
                 }
-                if (executionStopped.getAsBoolean() || exchangeSource.isFinished()) {
+                if (exchangeSource.isFinished()) {
                     distributionCompletion.nodeFinished(true);
                     continue;
                 }
@@ -425,7 +412,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 ActionListener<Void> openExchangeSlot = ActionListener.runAfter(parentComputeListener.acquireAvoid(), finishNode);
                 ActionListener<Void> openExchangeListener = openExchangeSlot.delegateFailureAndWrap((l, unused) -> {
                     boolean cancelled = parentTask.isCancelled();
-                    if (cancelled || executionStopped.getAsBoolean() || exchangeSource.isFinished()) {
+                    if (cancelled || exchangeSource.isFinished()) {
                         var remoteSink = exchangeService.newRemoteSink(parentTask, childSessionId, transportService, connection);
                         ActionListener<Void> terminalListener = l;
                         remoteSink.close(ActionListener.wrap(ignored -> {

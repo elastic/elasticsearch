@@ -64,11 +64,7 @@ public class InferenceProductContextTests extends ESTestCase {
         record Case(String header, String value, InferenceProductContext expected) {}
 
         for (var testCase : List.of(
-            new Case(
-                X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
-                "security",
-                new InferenceProductContext(null, null, "security", null, null)
-            ),
+            new Case(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, "security", new InferenceProductContext(null, null, "security", null, null)),
             new Case(
                 X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER,
                 "attack_discovery",

@@ -256,6 +256,50 @@ public abstract class AbstractDenseEmbeddingOperatorTestCase extends InferenceOp
     }
 
     /**
+     * A failing batch that mixes a null-input row with text rows. The whole request fails as a unit, so every text row it carried
+     * is nulled, while the null-input row stays null because it never had a value. A sibling batch that succeeds keeps its real
+     * vectors. This pins that failure nulling is per batch, not per row, and that it leaves a null input as a null.
+     */
+    public void testBatchedFailureWithNullRowInFailingBatch() {
+        int batchSize = 4;
+        // Batch 1 (indices 0-3): four text rows, no sentinel, so this request succeeds.
+        // Batch 2 (indices 4-7): text, null, sentinel, text. Index 4 is non-null so batch 1 does not absorb it as a trailing null,
+        // and index 5 is an interior null carried by the failing request.
+        List<String> texts = new ArrayList<>();
+        texts.add("row_0_" + randomAlphaOfLength(8));
+        texts.add("row_1_" + randomAlphaOfLength(8));
+        texts.add("row_2_" + randomAlphaOfLength(8));
+        texts.add("row_3_" + randomAlphaOfLength(8));
+        texts.add("row_4_" + randomAlphaOfLength(8));
+        texts.add(null);
+        texts.add("FAIL_sentinel");
+        texts.add("row_7_" + randomAlphaOfLength(8));
+
+        InferenceService failingService = mockedInferenceService(
+            inputs -> inputs.stream().anyMatch(s -> s.startsWith("FAIL")),
+            new ElasticsearchException("Inference service unavailable"),
+            null
+        );
+
+        DriverContext driverContext = driverContext();
+        var runner = new TestDriverRunner().builder(driverContext);
+        runner.input(controlledInput(runner.context().blockFactory(), texts));
+
+        List<Page> results = runner.run(createOperatorFactory(failingService, batchSize, true));
+        try {
+            // Batch 1 keeps its real vectors; every position of the failing batch 2 is null, whether it held text or was already null.
+            List<String> expected = new ArrayList<>(texts);
+            for (int i = 4; i < 8; i++) {
+                expected.set(i, null);
+            }
+            assertPerRowEmbeddings(results, expected);
+            assertThat(collectWarnings(driverContext), hasItem(matchesRegex(".*evaluation of \\[.*\\] failed, treating result as null.*")));
+        } finally {
+            results.forEach(Page::releaseBlocks);
+        }
+    }
+
+    /**
      * Batching actually reduces the number of inference requests: 25 non-null rows with batch size 10 must reach the service as
      * exactly 3 requests.
      */

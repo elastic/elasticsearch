@@ -204,7 +204,7 @@ class ExpandUnmappedFieldsPostProcessor {
             for (Page p : result.pages()) {
                 newPages.add(rewritePage(unmappedIdx, schema, fieldNames, factory, p, reservationFactor));
             }
-            assert assertNoAllNullExpandedColumn(newPages, originalColumnCount, fieldNames);
+            assert assertNoAllNullExpandedColumn(newPages, dataColumnCount(schema, unmappedIdx), fieldNames);
             success = true;
             return newPages;
         } finally {
@@ -224,11 +224,10 @@ class ExpandUnmappedFieldsPostProcessor {
      *
      * @return {@code true}, so this can be called from an {@code assert} and skipped entirely in production
      */
-    private static boolean assertNoAllNullExpandedColumn(List<Page> pages, int originalColumnCount, List<String> fieldNames) {
-        // Same layout as rewritePage builds: the retained columns are every original column but _unmapped_fields, then the expansion.
-        int retainedBlockCount = originalColumnCount - 1;
+    private static boolean assertNoAllNullExpandedColumn(List<Page> pages, int dataColumnCount, List<String> fieldNames) {
         for (int i = 0; i < fieldNames.size(); i++) {
-            int column = retainedBlockCount + i;
+            // Same layout as rewritePage builds: the data columns, then the expansion, then the approximation columns.
+            int column = dataColumnCount + i;
             boolean allNull = true;
             for (Page page : pages) {
                 if (page.getBlock(column).areAllValuesNull() == false) {
@@ -243,6 +242,21 @@ class ExpandUnmappedFieldsPostProcessor {
             }
         }
         return true;
+    }
+
+    /**
+     * How many columns {@link #copyRetainedBlocks} lays down before the expansion, i.e. every column that is neither
+     * {@code _unmapped_fields} nor an approximation extra. Not {@code schema.size() - 1}: the approximation columns are copied
+     * after the expansion, not before it.
+     */
+    private static int dataColumnCount(List<Attribute> schema, int unmappedIdx) {
+        int count = 0;
+        for (int i = 0; i < schema.size(); i++) {
+            if (i != unmappedIdx && ApproximationPlan.isApproximationColumn(schema.get(i).name()) == false) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static Page rewritePage(

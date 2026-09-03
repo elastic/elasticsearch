@@ -248,6 +248,25 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
     }
 
+    /**
+     * The approximation columns are copied after the expansion, so the guard rail cannot find the expansion by counting back one
+     * column from the end of the schema - doing so would inspect the approximation columns instead and let an all-null expanded
+     * column through whenever they carry a value.
+     */
+    public void testAllNullExpandedColumnTripsGuardRailBehindApproximationColumns() {
+        BlockFactory bf = blockFactory();
+        String ci = ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX + "extra)";
+        String certified = ApproximationPlan.CERTIFIED_COLUMN_PREFIX + "extra)";
+        Result result = result(
+            List.of(intAttr(), unmappedAttr(), keywordAttr(ci), keywordAttr(certified)),
+            List.of(page(bf, List.of(row(1, jsonObject("{'a':null}"), "ci", "yes"), row(2, jsonObject("{'a':null,'b':'y'}"), "ci", "yes"))))
+        );
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Expanded unmapped field 'a' into a column that is null in every row"));
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
     /** The column has to be null in every row of every page, so the guard rail only trips once all pages agree. */
     public void testAllNullExpandedColumnAcrossPagesTripsGuardRail() {
         BlockFactory bf = blockFactory();

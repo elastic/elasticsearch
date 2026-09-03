@@ -451,13 +451,16 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         // An operator default this node cannot use is ignored at resolution and the built-in default applies, so
         // without this warning the operator would see their configuration silently not take effect.
-        QuerySettings.watchClusterDefaults(services.clusterService().getClusterSettings());
+        QuerySettings.watchClusterDefaults(
+            services.clusterService().getClusterSettings(),
+            () -> EsqlLicenseChecker.isQueryApproximationAllowedWithoutTracking(getLicenseState())
+        );
 
         // A licence lapse silently stops a cluster-wide approximation default from applying. No setting changes, so
         // the consumer above never fires; this listener is the only place the operator can learn of it.
         QuerySettings.watchApproximationLicense(
             getLicenseState(),
-            () -> EsqlLicenseChecker.isQueryApproximationAllowed(getLicenseState()),
+            () -> EsqlLicenseChecker.isQueryApproximationAllowedWithoutTracking(getLicenseState()),
             () -> services.clusterService().state().metadata().settings(),
             services.clusterService().getSettings()
         );

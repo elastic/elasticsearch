@@ -429,6 +429,23 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneOffset.UTC));
     }
 
+    public void testBuildRejectsADeclaredClusterDefaultThatIsNotANoOpLayer() {
+        // withClusterDefault(String) declares the cluster setting's own default. build() folds it through the
+        // reconciler and requires the registry default back, because Setting#getDefault hands that string to the same
+        // parser the operator's value goes through: a declared default that changes the value when folded would make
+        // an unset cluster setting behave differently from an absent one. This is the one build() refusal the suite
+        // did not cover.
+        var e = expectThrows(
+            IllegalStateException.class,
+            () -> QuerySettingDef.string("x")
+                .withDefault("base")
+                .withReconciler((previous, current) -> previous == null ? current : previous + "+" + current)
+                .withClusterDefault("extra")
+                .build()
+        );
+        assertThat(e.getMessage(), containsString("cannot have a cluster default"));
+    }
+
     public void testBuildRejectsSnapshotAndServerlessOnly() {
         var e = expectThrows(
             IllegalStateException.class,
@@ -712,7 +729,7 @@ public class QuerySettingsTests extends ESTestCase {
         // no symptom at all. An integration test cannot cover this — PUT _cluster/settings refuses any value that
         // would warn, which is the whole point of the write-time check.
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(QuerySettings.clusterSettings()));
-        QuerySettings.watchClusterDefaults(clusterSettings);
+        QuerySettings.watchClusterDefaults(clusterSettings, () -> true);
 
         String key = QuerySettingDef.CLUSTER_SETTING_PREFIX + QuerySettings.UNMAPPED_FIELDS.name();
         MockLog.assertThatLogger(
@@ -762,6 +779,40 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
+    public void testUnlicensedApproximationDefaultIsReportedOnTheSettingsUpdatePath() {
+        // The PUT is accepted — approximation declares no validator, and the licence is not a property of the value —
+        // so without this arm the operator sets it on a BASIC cluster, every query silently runs exactly, and nothing
+        // is logged until the licence next changes. Same warning as the licence path, one implementation.
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(QuerySettings.clusterSettings()));
+        QuerySettings.watchClusterDefaults(clusterSettings, () -> false);
+        String key = QuerySettingDef.CLUSTER_SETTING_PREFIX + QuerySettings.APPROXIMATION.name();
+
+        MockLog.assertThatLogger(
+            () -> clusterSettings.applySettings(Settings.builder().put(key, "true").build()),
+            QuerySettings.class,
+            new MockLog.SeenEventExpectation(
+                "unlicensed operator approximation default",
+                QuerySettings.class.getCanonicalName(),
+                Level.WARN,
+                "*" + key + "*licence does not permit approximation*"
+            )
+        );
+    }
+
+    public void testLicensedApproximationDefaultIsNotReported() {
+        // The mutation: with a licence, the same PUT must say nothing. Guards against warning on every approximation
+        // default regardless of entitlement.
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(QuerySettings.clusterSettings()));
+        QuerySettings.watchClusterDefaults(clusterSettings, () -> true);
+        String key = QuerySettingDef.CLUSTER_SETTING_PREFIX + QuerySettings.APPROXIMATION.name();
+
+        MockLog.assertThatLogger(
+            () -> clusterSettings.applySettings(Settings.builder().put(key, "true").build()),
+            QuerySettings.class,
+            new MockLog.UnseenEventExpectation("licensed, no warning", QuerySettings.class.getCanonicalName(), Level.WARN, "*")
+        );
+    }
+
     public void testWatchingApproximationLicenceToleratesAnAbsentLicenceState() {
         // XPackPlugin publishes the shared licence state through a SetOnce, so a harness that builds EsqlPlugin
         // without XPackPlugin passes null here. Registering eagerly on that NPEs during plugin creation and takes
@@ -787,12 +838,16 @@ public class QuerySettingsTests extends ESTestCase {
 
     public void testUsableAndAbsentValuesAreNotReported() {
         MockLog.assertThatLogger(
-            () -> QuerySettings.warnUnusableClusterDefaults(clusterSetting(QuerySettings.TIME_ZONE, "Europe/Paris")),
+            () -> QuerySettings.warnUnusableClusterDefaults(
+                clusterSetting(QuerySettings.TIME_ZONE, "Europe/Paris"),
+                Settings.EMPTY,
+                () -> true
+            ),
             QuerySettings.class,
             new MockLog.UnseenEventExpectation("no warning", QuerySettings.class.getCanonicalName(), Level.WARN, "*")
         );
         MockLog.assertThatLogger(
-            () -> QuerySettings.warnUnusableClusterDefaults(Settings.EMPTY),
+            () -> QuerySettings.warnUnusableClusterDefaults(Settings.EMPTY, Settings.EMPTY, () -> true),
             QuerySettings.class,
             new MockLog.UnseenEventExpectation("no warning", QuerySettings.class.getCanonicalName(), Level.WARN, "*")
         );

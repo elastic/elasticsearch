@@ -188,7 +188,12 @@ public final class QuerySettings {
         since = "9.5+, preview =9.4",
         description = "Enables [query approximation](/reference/query-languages/esql/esql-query-approximation.md) if possible for the "
             + "query. A boolean value `false` (default) disables query approximation and `true` enables it with "
-            + "default settings. Map values enable query approximation with custom settings."
+            + "default settings. Map values enable query approximation with custom settings.\n\n"
+            + "The default itself is configurable. If a query does not specify a value, the "
+            + "`esql.query.settings.approximation` cluster setting supplies it. If that cluster setting is not "
+            + "configured either, query approximation is off. Enabling it cluster-wide requires an Enterprise "
+            + "licence; without one the cluster default does not apply and queries run exactly. "
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
     )
     @MapParam(
         name = "approximation",
@@ -391,7 +396,11 @@ public final class QuerySettings {
      * @param effectiveSettings node and cluster-state settings already merged and filtered to these keys, as the
      *     grouped settings-update consumer supplies them
      */
-    public static void warnUnusableClusterDefaults(Settings effectiveSettings) {
+    public static void warnUnusableClusterDefaults(
+        Settings effectiveSettings,
+        Settings nodeSettings,
+        BooleanSupplier approximationLicensed
+    ) {
         for (QuerySettingDef<?> def : all()) {
             String error = def.clusterValueError(effectiveSettings, Settings.EMPTY);
             if (error != null) {
@@ -403,6 +412,18 @@ public final class QuerySettings {
                     error
                 );
             }
+        }
+        // The licence is a second way an operator default becomes unusable, and it is invisible to clusterValueError:
+        // the value is valid, it is the entitlement that comes and goes. Checked here so both the settings-update path
+        // and the licence-transition path report the same set of unusable defaults through one implementation.
+        if (approximationLicensed.getAsBoolean() == false
+            && ApproximationSettings.isOn(APPROXIMATION.effectiveDefault(effectiveSettings, nodeSettings))) {
+            logger.warn(
+                "Cluster setting [{}{}] is configured but this cluster's licence does not permit approximation; "
+                    + "queries that did not ask for it run exactly. A query that asks for it explicitly still fails.",
+                QuerySettingDef.CLUSTER_SETTING_PREFIX,
+                APPROXIMATION.name()
+            );
         }
     }
 
@@ -423,22 +444,29 @@ public final class QuerySettings {
     }
 
     /**
-     * Register {@link #warnUnusableClusterDefaults} on the settings-update path. Only that path needs it: an unusable
-     * value in {@code elasticsearch.yml} already stops the node starting, and cluster state does not exist yet when
-     * components are constructed.
+     * Register {@link #warnUnusableClusterDefaults} on the settings-update path. A value {@code elasticsearch.yml}
+     * cannot parse or that fails its validator already stops the node starting, and cluster state does not exist yet
+     * when components are constructed, so this covers the updates that happen afterwards.
+     * <p>
+     * Pair it with {@link #watchApproximationLicense}: between them the two registrations cover both ways an operator
+     * default becomes unusable — the value changing, and the entitlement changing underneath it.
      */
-    public static void watchClusterDefaults(ClusterSettings clusterSettings) {
-        clusterSettings.addSettingsUpdateConsumer(QuerySettings::warnUnusableClusterDefaults, QuerySettings.clusterSettings());
+    public static void watchClusterDefaults(ClusterSettings clusterSettings, BooleanSupplier approximationLicensed) {
+        clusterSettings.addSettingsUpdateConsumer(
+            updated -> warnUnusableClusterDefaults(updated, Settings.EMPTY, approximationLicensed),
+            QuerySettings.clusterSettings()
+        );
     }
 
     /**
      * Warn the operator when a cluster-wide {@code approximation} default stops applying because the licence no
      * longer permits it.
      * <p>
-     * {@link #warnUnusableClusterDefaults} cannot cover this: it runs only when a setting is updated, and a licence
-     * expiring updates no setting. The per-query drop site cannot log it either — it runs on every query, and a
-     * misconfigured cluster would flood the log. A licence listener fires once per transition, which is exactly the
-     * granularity the operator needs and costs the query path nothing.
+     * The settings-update registration cannot cover this on its own: it runs only when a setting is updated, and a
+     * licence expiring updates no setting. Both paths call {@link #warnUnusableClusterDefaults}, so they report the
+     * same set of unusable defaults rather than two drifting subsets. The per-query drop site cannot log it either:
+     * it runs on every query, and a misconfigured cluster would flood the log. A licence listener fires once per
+     * transition, which is the granularity the operator needs, and costs the query path nothing.
      * <p>
      * The licence is supplied as a predicate rather than by importing the checker, so this package keeps knowing
      * only about settings.
@@ -456,19 +484,7 @@ public final class QuerySettings {
             // No licence state means no licence transitions, so there is nothing to report.
             return;
         }
-        licenseState.addListener(() -> {
-            if (approximationLicensed.getAsBoolean()) {
-                return;
-            }
-            if (ApproximationSettings.isOn(APPROXIMATION.effectiveDefault(clusterStateSettings.get(), nodeSettings))) {
-                logger.warn(
-                    "Cluster setting [{}{}] is configured but this cluster's licence does not permit approximation; "
-                        + "queries that did not ask for it run exactly. A query that asks for it explicitly still fails.",
-                    QuerySettingDef.CLUSTER_SETTING_PREFIX,
-                    APPROXIMATION.name()
-                );
-            }
-        });
+        licenseState.addListener(() -> { warnUnusableClusterDefaults(clusterStateSettings.get(), nodeSettings, approximationLicensed); });
     }
 
     /** Resolve with no operator defaults in play. */

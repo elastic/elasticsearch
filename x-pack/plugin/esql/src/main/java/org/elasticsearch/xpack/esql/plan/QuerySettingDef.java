@@ -132,9 +132,12 @@ import java.util.function.UnaryOperator;
  *
  * <h2>Reconciliation</h2>
  *
- * The same setting can arrive from default, body, and {@code SET} in one query, so reconciliation
- * is unavoidable. The framework folds the three in ascending precedence
- * {@code default < body < SET}, on top of whatever {@link #effectiveDefault} established as the default.
+ * The same setting can arrive from four places in one query, so reconciliation is unavoidable. The
+ * framework folds them in ascending precedence {@code built-in default < cluster < body < SET},
+ * ordered by whose decision the value is: the product's, the operator's, the calling application's,
+ * the query author's. {@link #effectiveDefault} establishes the first two — the operator's value
+ * folded onto the built-in default, or the built-in default alone when none is configured — and body
+ * and {@code SET} then fold on top of that through the same reconciler.
  * The default fold is last-wins — correct for any scalar. Override
  * with {@code withReconciler} only when a structured value's fields should combine across sources
  * rather than replace.

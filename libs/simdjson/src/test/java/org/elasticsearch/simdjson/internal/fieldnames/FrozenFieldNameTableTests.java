@@ -11,8 +11,8 @@ package org.elasticsearch.simdjson.internal.fieldnames;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.simdjson.SimdJsonTestSupport.toBytes;
-import static org.elasticsearch.simdjson.SimdJsonTestSupport.toBytesAtOffset;
+import static org.elasticsearch.simdjson.SimdJsonTestCase.toBytes;
+import static org.elasticsearch.simdjson.SimdJsonTestCase.toBytesAtOffset;
 
 public class FrozenFieldNameTableTests extends ESTestCase {
 

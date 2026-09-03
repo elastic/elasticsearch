@@ -11,16 +11,13 @@ package org.elasticsearch.simdjson;
 
 import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.List;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.elasticsearch.simdjson.SimdJsonTestSupport.newParser;
-import static org.elasticsearch.simdjson.SimdJsonTestSupport.walkJson;
 
-public class SimdJsonDirectWalkerTests extends ESTestCase {
+public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
 
     public void testEmptyObject() {
         List<String> events = walkJson("{}");
@@ -205,7 +202,7 @@ public class SimdJsonDirectWalkerTests extends ESTestCase {
         FrozenFieldNameTable parent = new FrozenFieldNameTable();
         FrozenFieldNameTable.Child child = parent.makeChild();
         SimdJsonDirectWalker walker = new SimdJsonDirectWalker(child);
-        SimdJsonTestSupport.RecordingHandler handler = new SimdJsonTestSupport.RecordingHandler();
+        RecordingHandler handler = new RecordingHandler();
 
         expectThrows(JsonParsingException.class, () -> walker.walkDocument(buffer, 0, bitIndexes, handler));
     }
@@ -223,12 +220,12 @@ public class SimdJsonDirectWalkerTests extends ESTestCase {
 
         parser.stage1(buffer, len);
         parser.prepareDocumentWindow(0, len);
-        SimdJsonTestSupport.RecordingHandler handler1 = new SimdJsonTestSupport.RecordingHandler();
+        RecordingHandler handler1 = new RecordingHandler();
         walker.walkDocument(buffer, len, parser.bitIndexes(), handler1);
 
         parser.stage1(buffer, len);
         parser.prepareDocumentWindow(0, len);
-        SimdJsonTestSupport.RecordingHandler handler2 = new SimdJsonTestSupport.RecordingHandler();
+        RecordingHandler handler2 = new RecordingHandler();
         walker.walkDocument(buffer, len, parser.bitIndexes(), handler2);
 
         String name1 = handler1.events.get(0).substring("long(".length(), handler1.events.get(0).indexOf('='));
@@ -347,8 +344,8 @@ public class SimdJsonDirectWalkerTests extends ESTestCase {
         String name = "test_field";
         String json = "{\"" + name + "\":42}";
 
-        SimdJsonTestSupport.RecordingHandler h1 = walkAndRecord(json, 0);
-        SimdJsonTestSupport.RecordingHandler h2 = walkAndRecord(json, 64);
+        RecordingHandler h1 = walkAndRecord(json, 0);
+        RecordingHandler h2 = walkAndRecord(json, 64);
 
         assertEquals(h1.events, h2.events);
     }
@@ -373,7 +370,7 @@ public class SimdJsonDirectWalkerTests extends ESTestCase {
             parser.prepareDocumentWindow(0, buffer.length);
             FrozenFieldNameTable parent = new FrozenFieldNameTable();
             SimdJsonDirectWalker walker = new SimdJsonDirectWalker(parent.makeChild());
-            SimdJsonTestSupport.RecordingHandler handler = new SimdJsonTestSupport.RecordingHandler();
+            RecordingHandler handler = new RecordingHandler();
             expectThrows(Exception.class, () -> walker.walkDocument(buffer, buffer.length, parser, handler));
         } catch (JsonParsingException e) {
             // stage 1 rejection is acceptable
@@ -390,12 +387,12 @@ public class SimdJsonDirectWalkerTests extends ESTestCase {
     /**
      * Walks a JSON document and returns the recording handler for assertion.
      */
-    private SimdJsonTestSupport.RecordingHandler walkAndRecord(String json, int paddingBytes) {
+    private RecordingHandler walkAndRecord(String json, int paddingBytes) {
         byte[] jsonBytes = json.getBytes(UTF_8);
         int len = jsonBytes.length;
         byte[] buffer = Arrays.copyOf(jsonBytes, len + paddingBytes);
 
-        SimdJsonParser parser = new SimdJsonParser(buffer.length, SimdJsonTestSupport::scalarStage1);
+        SimdJsonParser parser = newParser(buffer.length);
         parser.stage1(buffer, len);
         parser.prepareDocumentWindow(0, len);
 
@@ -403,7 +400,7 @@ public class SimdJsonDirectWalkerTests extends ESTestCase {
         FrozenFieldNameTable.Child child = parent.makeChild();
         SimdJsonDirectWalker walker = new SimdJsonDirectWalker(child);
 
-        SimdJsonTestSupport.RecordingHandler handler = new SimdJsonTestSupport.RecordingHandler();
+        RecordingHandler handler = new RecordingHandler();
         walker.walkDocument(buffer, len, parser.bitIndexes(), handler);
         return handler;
     }

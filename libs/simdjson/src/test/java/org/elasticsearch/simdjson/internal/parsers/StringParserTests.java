@@ -16,7 +16,7 @@ import org.junit.BeforeClass;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
-import static org.elasticsearch.simdjson.SimdJsonTestSupport.makeJsonString;
+import static org.elasticsearch.simdjson.SimdJsonTestCase.makeJsonString;
 
 public class StringParserTests extends ESTestCase {
 

@@ -14,7 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 import org.elasticsearch.simdvec.GuardPageAllocator;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.simdjson.SimdJsonTestCase;
 import org.junit.Before;
 
 import java.lang.foreign.Arena;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.not;
  * {@link GuardPageAllocator#ofConfined()}, so every test automatically verifies that
  * native code does not over-read allocated segments.
  */
-public class SimdJsonLibraryTests extends ESTestCase {
+public class SimdJsonLibraryTests extends SimdJsonTestCase {
 
     private final Supplier<Arena> arenaSupplier;
 
@@ -47,6 +47,11 @@ public class SimdJsonLibraryTests extends ESTestCase {
 
     public SimdJsonLibraryTests(Supplier<Arena> arenaSupplier) {
         this.arenaSupplier = arenaSupplier;
+    }
+
+    @Override
+    protected NativeRequirement nativeRequirement() {
+        return NativeRequirement.LIBRARY;
     }
 
     @ParametersFactory
@@ -62,7 +67,6 @@ public class SimdJsonLibraryTests extends ESTestCase {
     @Before
     public void initLibrary() {
         lib = SimdJsonNativeSupport.library();
-        assertNotNull("Native simdjson library not available", lib);
     }
 
     // ---- Basic functionality ----

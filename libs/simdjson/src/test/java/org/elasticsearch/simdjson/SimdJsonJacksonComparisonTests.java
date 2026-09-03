@@ -9,7 +9,6 @@
 
 package org.elasticsearch.simdjson;
 
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -19,14 +18,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.simdjson.SimdJsonTestSupport.walkJson;
-
 /**
  * Comparison tests that parse the same JSON with both Jackson (via {@link XContentParser}) and
  * {@link SimdJsonDirectWalker}, then assert that both produce identical event streams. This
  * catches subtle differences in number precision, string encoding, or structural interpretation.
  */
-public class SimdJsonJacksonComparisonTests extends ESTestCase {
+public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
 
     // ---- Jackson/XContent walker ----
 

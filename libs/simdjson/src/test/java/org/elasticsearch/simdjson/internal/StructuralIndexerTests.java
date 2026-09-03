@@ -10,9 +10,8 @@
 package org.elasticsearch.simdjson.internal;
 
 import org.elasticsearch.simdjson.JsonParsingException;
+import org.elasticsearch.simdjson.SimdJsonTestCase;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,11 +26,11 @@ import static org.hamcrest.Matchers.containsString;
  * the Java-level concerns: the {@code byte[]}-based API, bounds checking, error
  * wrapping, context reuse, and {@link AutoCloseable} lifecycle.
  */
-public class StructuralIndexerTests extends ESTestCase {
+public class StructuralIndexerTests extends SimdJsonTestCase {
 
-    @Before
-    public void requireNativeLibrary() {
-        assumeTrue("Native simdjson library not available", StructuralIndexer.available());
+    @Override
+    protected NativeRequirement nativeRequirement() {
+        return NativeRequirement.LIBRARY;
     }
 
     // ---- Basic API ----

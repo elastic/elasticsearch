@@ -66,13 +66,7 @@ public class SimdJsonParser implements AutoCloseable {
      */
     public static final int CHUNK_BYTE_LIMIT = Integer.getInteger("es.simdjson.chunk_byte_limit", 256 * 1024);
 
-    @FunctionalInterface
-    interface Stage1Function {
-        void index(byte[] buffer, int offset, int len, BitIndexes bitIndexes);
-    }
-
     private final BitIndexes bitIndexes;
-    private final Stage1Function stage1Function;
     private final StructuralIndexer indexer;
 
     private boolean stage1Done;
@@ -91,22 +85,12 @@ public class SimdJsonParser implements AutoCloseable {
      * @param capacity maximum bytes this parser can index in a single stage 1 pass
      */
     public SimdJsonParser(int capacity) {
-        SimdJsonSupport.isSupported();
+        if (SimdJsonSupport.isSupported() == false) {
+            throw new IllegalStateException("simdjson is not supported on this JDK/platform combination");
+        }
         int indexCapacity = Math.max(capacity / 4, 1024);
         bitIndexes = new BitIndexes(indexCapacity);
         indexer = new StructuralIndexer(capacity);
-        stage1Function = indexer::index;
-    }
-
-    /**
-     * Package-private constructor for testing with a custom stage 1 implementation
-     * (e.g. a scalar fallback that doesn't require the native library).
-     */
-    SimdJsonParser(int capacity, Stage1Function stage1Function) {
-        int indexCapacity = Math.max(capacity / 4, 1024);
-        bitIndexes = new BitIndexes(indexCapacity);
-        this.indexer = null;
-        this.stage1Function = stage1Function;
     }
 
     /**
@@ -135,7 +119,7 @@ public class SimdJsonParser implements AutoCloseable {
      * @param len    length of the JSON data in bytes
      */
     public void stage1(byte[] buffer, int offset, int len) {
-        stage1Function.index(buffer, offset, len, bitIndexes);
+        indexer.index(buffer, offset, len, bitIndexes);
         this.stage1Done = true;
         this.nextSearchFrom = 0;
         this.savedSentinelPos = -1;
@@ -199,7 +183,7 @@ public class SimdJsonParser implements AutoCloseable {
         restoreSentinel();
         int remaining = batchTotalLen - chunkStart;
         int chunkLen = Math.min(remaining, CHUNK_BYTE_LIMIT);
-        stage1Function.index(batchBuffer, chunkStart, chunkLen, bitIndexes);
+        indexer.index(batchBuffer, chunkStart, chunkLen, bitIndexes);
         this.stage1Done = true;
         this.nextSearchFrom = 0;
         this.savedSentinelPos = -1;

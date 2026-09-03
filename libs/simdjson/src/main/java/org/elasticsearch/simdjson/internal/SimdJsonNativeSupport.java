@@ -54,7 +54,7 @@ public final class SimdJsonNativeSupport {
         return null;
     }
 
-    static boolean isNativeLibSupported() {
+    public static boolean isNativeLibSupported() {
         return Platform.current().equals(Platform.DARWIN_AARCH64)
             || Platform.current().equals(Platform.LINUX_AARCH64)
             || Platform.current().equals(Platform.LINUX_X64);

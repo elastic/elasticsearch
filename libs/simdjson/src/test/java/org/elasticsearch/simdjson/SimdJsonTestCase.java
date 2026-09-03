@@ -9,70 +9,95 @@
 
 package org.elasticsearch.simdjson;
 
+import org.elasticsearch.foreign.Platform;
+import org.elasticsearch.simdjson.internal.SimdJsonNativeSupport;
 import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
+import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
+
 /**
- * Shared test infrastructure for simdjson tests. Provides a scalar (non-SIMD) stage 1
- * implementation, a recording {@link JsonDocumentHandler}, and buffer/batch helpers.
+ * Base class and shared helpers for simdjson tests.
+ *
+ * <p>Subclasses that exercise native code inherit platform-aware gating via {@link #nativeRequirement()}:
+ * unsupported platforms (Windows x64, Darwin x64) skip; supported platforms fail if native is missing.
  */
-public final class SimdJsonTestSupport {
-
-    private SimdJsonTestSupport() {}
-
-    // ---- Scalar stage 1 delegate (no SIMD, suitable for all platforms) ----
+public abstract class SimdJsonTestCase extends ESTestCase {
 
     /**
-     * Walks bytes one at a time and records the position of each structural character
-     * and the start of scalars. Sufficient for well-formed test inputs.
+     * How much of the simdjson stack a test suite requires before running.
      */
-    static void scalarStage1(byte[] buffer, int offset, int len, BitIndexes bitIndexes) {
-        bitIndexes.ensureCapacity(len + 1);
-        bitIndexes.reset();
-        boolean inString = false;
-        boolean prevBackslash = false;
-        boolean prevScalar = false;
-        int end = offset + len;
-        int writeIdx = 0;
-        int[] raw = bitIndexes.rawIndexes();
-        for (int i = offset; i < end; i++) {
-            byte b = buffer[i];
-            if (inString) {
-                if (prevBackslash) {
-                    prevBackslash = false;
-                } else if (b == '\\') {
-                    prevBackslash = true;
-                } else if (b == '"') {
-                    inString = false;
-                }
-                continue;
-            }
-            boolean isStructural = b == '{' || b == '}' || b == '[' || b == ']' || b == ':' || b == ',';
-            boolean isWhitespace = b == ' ' || b == '\t' || b == '\n' || b == '\r';
-            if (b == '"') {
-                if (!prevScalar) {
-                    raw[writeIdx++] = i;
-                }
-                inString = true;
-                prevScalar = true;
-            } else if (isStructural) {
-                raw[writeIdx++] = i;
-                prevScalar = false;
-            } else if (isWhitespace) {
-                prevScalar = false;
-            } else {
-                if (!prevScalar) {
-                    raw[writeIdx++] = i;
-                }
-                prevScalar = true;
-            }
+    protected enum NativeRequirement {
+        /** Native {@code libsimdjson} only (FFI / {@link org.elasticsearch.simdjson.internal.StructuralIndexer}). */
+        LIBRARY,
+        /** Full {@link SimdJsonSupport#isSupported()} (native library and vector API). */
+        FULL_SUPPORT
+    }
+
+    @Before
+    public void requireNativeSimdjson() {
+        switch (nativeRequirement()) {
+            case LIBRARY -> requireNativeLibrary();
+            case FULL_SUPPORT -> requireSimdJsonSupported();
         }
-        bitIndexes.setWriteIdx(writeIdx);
+    }
+
+    /**
+     * Override in FFI-only suites that do not need the incubating vector API.
+     */
+    protected NativeRequirement nativeRequirement() {
+        return NativeRequirement.FULL_SUPPORT;
+    }
+
+    protected static void requireNativeLibrary() {
+        if (SimdJsonNativeSupport.isNativeLibSupported() == false) {
+            assumeTrue("Native simdjson not supported on [" + Platform.current() + "]", false);
+            return;
+        }
+        assertNotNull(
+            "Native simdjson library must be available on [" + Platform.current() + "]",
+            SimdJsonNativeSupport.library()
+        );
+    }
+
+    protected static void requireSimdJsonSupported() {
+        requireNativeLibrary();
+        assertTrue("simdjson must be supported on [" + Platform.current() + "]", SimdJsonSupport.isSupported());
+    }
+
+    protected SimdJsonParser newParser(int capacity) {
+        return new SimdJsonParser(capacity);
+    }
+
+    protected List<String> walkJson(String json) {
+        return walkJson(json, false);
+    }
+
+    protected List<String> walkJson(String json, boolean normalizeEmptyObject) {
+        byte[] buffer = json.getBytes(StandardCharsets.UTF_8);
+        int len = buffer.length;
+
+        try (SimdJsonParser parser = new SimdJsonParser(len)) {
+            parser.stage1(buffer, len);
+            parser.prepareDocumentWindow(0, len);
+
+            FrozenFieldNameTable parent = new FrozenFieldNameTable();
+            FrozenFieldNameTable.Child child = parent.makeChild();
+            SimdJsonDirectWalker walker = new SimdJsonDirectWalker(child);
+
+            RecordingHandler handler = new RecordingHandler(normalizeEmptyObject);
+            walker.walkDocument(buffer, len, parser.bitIndexes(), handler);
+            return handler.events;
+        }
     }
 
     // ---- Recording handler ----
@@ -84,15 +109,15 @@ public final class SimdJsonTestSupport {
      * to the constructor to emit {@code startObject/endObject} instead (useful
      * when comparing against Jackson, which always emits start/end).
      */
-    static class RecordingHandler implements JsonDocumentHandler {
-        final List<String> events = new ArrayList<>();
+    protected static class RecordingHandler implements JsonDocumentHandler {
+        public final List<String> events = new ArrayList<>();
         private final boolean normalizeEmptyObject;
 
-        RecordingHandler() {
+        public RecordingHandler() {
             this(false);
         }
 
-        RecordingHandler(boolean normalizeEmptyObject) {
+        public RecordingHandler(boolean normalizeEmptyObject) {
             this.normalizeEmptyObject = normalizeEmptyObject;
         }
 
@@ -207,45 +232,6 @@ public final class SimdJsonTestSupport {
         }
     }
 
-    // ---- Walk helpers ----
-
-    /**
-     * Parses a single JSON object document with {@link SimdJsonDirectWalker} and returns
-     * the recorded events.
-     */
-    static List<String> walkJson(String json) {
-        return walkJson(json, false);
-    }
-
-    /**
-     * Parses a single JSON object document with {@link SimdJsonDirectWalker} and returns
-     * the recorded events. When {@code normalizeEmptyObject} is true, empty objects are
-     * emitted as {@code startObject/endObject} pairs (for Jackson comparison).
-     */
-    static List<String> walkJson(String json, boolean normalizeEmptyObject) {
-        SimdJsonSupport.isSupported();
-        byte[] buffer = json.getBytes(StandardCharsets.UTF_8);
-        int len = buffer.length;
-
-        SimdJsonParser parser = newParser(len);
-        parser.stage1(buffer, len);
-        parser.prepareDocumentWindow(0, len);
-
-        FrozenFieldNameTable parent = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = parent.makeChild();
-        SimdJsonDirectWalker walker = new SimdJsonDirectWalker(child);
-
-        RecordingHandler handler = new RecordingHandler(normalizeEmptyObject);
-        walker.walkDocument(buffer, len, parser.bitIndexes(), handler);
-        return handler.events;
-    }
-
-    // ---- Parser factory ----
-
-    static SimdJsonParser newParser(int capacity) {
-        return new SimdJsonParser(capacity, SimdJsonTestSupport::scalarStage1);
-    }
-
     // ---- Buffer helpers ----
 
     /** Converts a string to a UTF-8 byte array. */
@@ -269,7 +255,7 @@ public final class SimdJsonTestSupport {
     // ---- Batch buffer helpers ----
 
     /** Concatenates JSON docs into a single buffer. */
-    static byte[] buildBatchBuffer(String... jsonDocs) {
+    protected static byte[] buildBatchBuffer(String... jsonDocs) {
         List<byte[]> docBytes = new ArrayList<>();
         int total = 0;
         for (String doc : jsonDocs) {
@@ -287,7 +273,7 @@ public final class SimdJsonTestSupport {
     }
 
     /** Returns the byte offset of each doc within a concatenated batch. */
-    static int[] computeOffsets(String... jsonDocs) {
+    protected static int[] computeOffsets(String... jsonDocs) {
         int[] offsets = new int[jsonDocs.length];
         int pos = 0;
         for (int i = 0; i < jsonDocs.length; i++) {
@@ -298,7 +284,7 @@ public final class SimdJsonTestSupport {
     }
 
     /** Returns the byte length of each doc. */
-    static int[] computeLengths(String... jsonDocs) {
+    protected static int[] computeLengths(String... jsonDocs) {
         int[] lengths = new int[jsonDocs.length];
         for (int i = 0; i < jsonDocs.length; i++) {
             lengths[i] = jsonDocs[i].getBytes(StandardCharsets.UTF_8).length;
@@ -307,7 +293,7 @@ public final class SimdJsonTestSupport {
     }
 
     /** Sums an array of lengths. */
-    static int totalLen(int[] lengths) {
+    protected static int totalLen(int[] lengths) {
         int total = 0;
         for (int len : lengths) {
             total += len;
@@ -361,16 +347,5 @@ public final class SimdJsonTestSupport {
                 sb.append(']');
             }
         }
-    }
-
-    /** Drains all structural characters from a {@link BitIndexes} into a list. */
-    static List<Character> drainStructurals(byte[] buffer, BitIndexes bi) {
-        bi.setReadWindow(0, bi.writeCount());
-        List<Character> chars = new ArrayList<>();
-        while (!bi.isEnd()) {
-            int idx = bi.getAndAdvance();
-            chars.add((char) buffer[idx]);
-        }
-        return chars;
     }
 }

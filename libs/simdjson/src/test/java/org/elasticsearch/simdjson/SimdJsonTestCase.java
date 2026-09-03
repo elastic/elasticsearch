@@ -12,7 +12,6 @@ package org.elasticsearch.simdjson;
 import org.elasticsearch.foreign.Platform;
 import org.elasticsearch.simdjson.internal.SimdJsonNativeSupport;
 import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable;
-import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -63,10 +62,7 @@ public abstract class SimdJsonTestCase extends ESTestCase {
             assumeTrue("Native simdjson not supported on [" + Platform.current() + "]", false);
             return;
         }
-        assertNotNull(
-            "Native simdjson library must be available on [" + Platform.current() + "]",
-            SimdJsonNativeSupport.library()
-        );
+        assertNotNull("Native simdjson library must be available on [" + Platform.current() + "]", SimdJsonNativeSupport.library());
     }
 
     protected static void requireSimdJsonSupported() {

@@ -11,9 +11,9 @@ package org.elasticsearch.simdjson.internal;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.simdjson.SimdJsonTestCase;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 import org.elasticsearch.simdvec.GuardPageAllocator;
-import org.elasticsearch.simdjson.SimdJsonTestCase;
 import org.junit.Before;
 
 import java.lang.foreign.Arena;

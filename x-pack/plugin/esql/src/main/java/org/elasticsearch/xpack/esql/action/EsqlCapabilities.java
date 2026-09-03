@@ -3432,6 +3432,15 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_STATS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code _source} value that says nothing about its field - {@code null},
+         * {@code []}, {@code {}} and any nesting of those, e.g. {@code [null]} or {@code {"baz":[null],"inga":{}}} - is dropped where
+         * the data node extracts unmapped fields. So a field written that way by every document no longer expands into a column that
+         * is null in every row, and where such a value sits in a column another document did fill it reads as {@code null} instead of
+         * a stringified {@code "[]"}.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_SKIPS_VALUELESS_FIELDS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,
@@ -3827,6 +3836,11 @@ public class EsqlCapabilities {
          * {@code CombineProjections} drops it.
          */
         TS_STATS_LITERAL_AGG_FIX,
+
+        /**
+         * KNN function support for runtime expressions, not just ES mapped fields.
+         */
+        KNN_RUNTIME_FIELD(Build.current().isSnapshot()),
 
         /**
          * Support for {@code MATCH}, {@code MATCH_PHRASE}, and the match operator in a {@code WHERE}

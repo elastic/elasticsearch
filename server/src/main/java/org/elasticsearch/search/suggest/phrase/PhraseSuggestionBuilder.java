@@ -120,7 +120,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         gramSize = in.readOptionalVInt();
         model = in.readOptionalNamedWriteable(SmoothingModel.class);
         forceUnigrams = in.readBoolean();
-        tokenLimit = in.readVInt();
+        tokenLimit = Math.min(in.readVInt(), NoisyChannelSpellChecker.MAX_TOKEN_LIMIT);
         preTag = in.readOptionalString();
         postTag = in.readOptionalString();
         separator = in.readString();

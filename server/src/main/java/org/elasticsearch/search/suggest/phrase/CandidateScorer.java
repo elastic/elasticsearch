@@ -15,6 +15,9 @@ import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidat
 import java.io.IOException;
 
 final class CandidateScorer {
+    // Bounds the total number of scored paths to prevent exponential CPU exhaustion
+    static final long MAX_SCORED_PATHS = 10_000_000L;
+
     private final WordScorer scorer;
     private final int maxNumCorrections;
     private final int gramSize;
@@ -41,7 +44,8 @@ final class CandidateScorer {
         } else {
             numMissspellings = Math.round(errorFraction * sets.length);
         }
-        findCandidates(sets, new Candidate[sets.length], 0, Math.max(1, numMissspellings), corrections, cutoffScore, 0.0);
+        long[] pathsVisited = new long[1];
+        findCandidates(sets, new Candidate[sets.length], 0, Math.max(1, numMissspellings), corrections, cutoffScore, 0.0, pathsVisited);
         Correction[] result = new Correction[corrections.size()];
         for (int i = result.length - 1; i >= 0; i--) {
             result[i] = corrections.pop();
@@ -58,8 +62,16 @@ final class CandidateScorer {
         int numMissspellingsLeft,
         PriorityQueue<Correction> corrections,
         double cutoffScore,
-        final double pathScore
+        final double pathScore,
+        long[] pathsVisited
     ) throws IOException {
+        if (++pathsVisited[0] > MAX_SCORED_PATHS) {
+            throw new IllegalArgumentException(
+                "phrase suggester scoring exceeded maximum path budget ["
+                    + MAX_SCORED_PATHS
+                    + "]; reduce token_limit or max_errors"
+            );
+        }
         CandidateSet current = candidates[ord];
         if (ord == candidates.length - 1) {
             path[ord] = current.originalTerm;
@@ -80,7 +92,8 @@ final class CandidateScorer {
                     numMissspellingsLeft,
                     corrections,
                     cutoffScore,
-                    pathScore + scorer.score(path, ord, gramSize)
+                    pathScore + scorer.score(path, ord, gramSize),
+                    pathsVisited
                 );
                 for (int i = 0; i < current.candidates.length; i++) {
                     path[ord] = current.candidates[i];
@@ -91,12 +104,22 @@ final class CandidateScorer {
                         numMissspellingsLeft - 1,
                         corrections,
                         cutoffScore,
-                        pathScore + scorer.score(path, ord, gramSize)
+                        pathScore + scorer.score(path, ord, gramSize),
+                        pathsVisited
                     );
                 }
             } else {
                 path[ord] = current.originalTerm;
-                findCandidates(candidates, path, ord + 1, 0, corrections, cutoffScore, pathScore + scorer.score(path, ord, gramSize));
+                findCandidates(
+                    candidates,
+                    path,
+                    ord + 1,
+                    0,
+                    corrections,
+                    cutoffScore,
+                    pathScore + scorer.score(path, ord, gramSize),
+                    pathsVisited
+                );
             }
         }
 

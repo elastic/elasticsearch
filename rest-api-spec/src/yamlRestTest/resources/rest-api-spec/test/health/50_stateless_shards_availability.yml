@@ -85,7 +85,7 @@ teardown:
 
   - do:
       indices.create:
-        index: red_replica_index
+        index: red_index
         master_timeout: 1s
         timeout: 1s
         wait_for_active_shards: 1
@@ -97,7 +97,7 @@ teardown:
 
   - do:
       cluster.health:
-        index: red_replica_index
+        index: red_index
         wait_for_status: yellow
         wait_for_active_shards: 1
         wait_for_no_initializing_shards: true
@@ -122,7 +122,7 @@ teardown:
   - exists: indicators.shards_availability.details.started_primaries
   - exists: indicators.shards_availability.details.started_replicas
   - is_false: indicators.shards_availability.details.indices_with_unavailable_primaries
-  - match: { indicators.shards_availability.details.indices_with_unavailable_replicas: "${_project_id_prefix_}red_replica_index" }
+  - match: { indicators.shards_availability.details.indices_with_unavailable_replicas: "${_project_id_prefix_}red_index" }
   - is_false: indicators.shards_availability.details.indices_with_provisionally_unavailable_primaries
   - is_false: indicators.shards_availability.details.indices_with_provisionally_unavailable_replicas
 
@@ -130,7 +130,7 @@ teardown:
   - match: { indicators.shards_availability.impacts.0.id: "elasticsearch:health:shards_availability:impact:all_replicas_unassigned" }
   - match: { indicators.shards_availability.impacts.0.severity: 1 }
   - match: { indicators.shards_availability.impacts.0.impact_areas.0: "search" }
-  - match: { indicators.shards_availability.impacts.0.description: "Not all data is searchable. No searchable copies of the data exist on 1 index [${_project_id_prefix_}red_replica_index]." }
+  - match: { indicators.shards_availability.impacts.0.description: "Not all data is searchable. No searchable copies of the data exist on 1 index [${_project_id_prefix_}red_index]." }
 
   - is_true: indicators.shards_availability.diagnosis
   - contains: { indicators.shards_availability.diagnosis: { id: "elasticsearch:health:shards_availability:diagnosis:enable_index_allocations" } }

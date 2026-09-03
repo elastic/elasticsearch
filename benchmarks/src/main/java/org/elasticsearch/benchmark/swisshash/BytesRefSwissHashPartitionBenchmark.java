@@ -64,6 +64,9 @@ public class BytesRefSwissHashPartitionBenchmark {
     @Param({ "8", "32" })
     int keyBytes;
 
+    @Param({ "false", "true" })
+    boolean variableLength;
+
     BytesRef[] keys;
 
     BigArrays bigArrays;
@@ -160,8 +163,11 @@ public class BytesRefSwissHashPartitionBenchmark {
     private BytesRef[] generate(int size) {
         ThreadLocalRandom r = ThreadLocalRandom.current();
         BytesRef[] out = new BytesRef[size];
+        final int minLen = keyBytes / 2;
+        final int maxLen = keyBytes + keyBytes / 2;
         for (int i = 0; i < size; i++) {
-            byte[] data = new byte[keyBytes];
+            int len = variableLength ? r.nextInt(minLen, maxLen + 1) : keyBytes;
+            byte[] data = new byte[len];
             r.nextBytes(data);
             out[i] = new BytesRef(data);
         }

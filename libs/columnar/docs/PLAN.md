@@ -80,15 +80,14 @@ The direction, the decisions that constrain it, and the build order. Update as d
   `monotonicLongPipeline`, `doubleGaugePipeline`, `doubleCounterPipeline`) are usable as method
   references: `(f, t) -> NumericPipeline::defaultPipeline`. Server-side wiring into
   `PerFieldFormatSupplier` is a follow-up (see Next).
-- Multi-valued string columns, which real keyword fields need. A *slot* is a value or a null, and the two
-  questions the column answers about them — where a document's slots begin, and which of them are null —
-  are kept outside `StringColumnLayout` in `StringColumnMetadata.Addressing`, as two `DirectMonotonic`
-  tables written by one `AddressingWriter` that both layouts share. Finding a document's slots is the same
-  question whichever layout names the values, and a null under a dictionary is named like anything else:
-  its bytes are empty, so it takes the empty term's ordinal or escapes as a zero-length value, and the
-  null-slot table is what tells it from an empty string either way. The cursor exposes `isNull()` rather
-  than returning null from `value()`, so a caller that only moves bytes needs no null branch and a merge
-  carrying ordinals over never resolves the bytes at all.
+- Multi-valued string columns, which real keyword fields need. A *slot* is a value or a null. Each layout
+  answers "where does this document's run of slots begin?" with a `DirectMonotonic` table written by
+  `AddressingWriter`; finding the start is the same question regardless of how the layout names the values.
+  Null representation is layout-specific: PLAIN stores null as zero bytes and tables the value addresses
+  that hold one in a `NullSlotWriter` (bytes have no spare value to mean null with); DICTIONARY reserves
+  ordinal zero for null, shifting all terms to ordinal one and above, so nothing null reaches the dictionary
+  or the escape store and a null lies in no term's ordinal range. The null-slot count is shared in the
+  column metadata — a merge reads it off each input and the layout is not chosen until after the count.
 
 ## Next
 

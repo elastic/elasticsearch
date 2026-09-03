@@ -144,7 +144,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(),
                 randomFrom(1, 2, 4),
                 randomBoolean(),
-                false
+                false,
+                DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.OSQ
             )
         );
 
@@ -1161,7 +1162,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             false,
             1,
             true,
-            false
+            false,
+            DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.OSQ
         );
         return new DenseVectorFieldType(
             "f",

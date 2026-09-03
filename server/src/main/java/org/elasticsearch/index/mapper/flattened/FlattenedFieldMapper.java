@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
-import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.ImpactsEnum;
@@ -57,7 +55,6 @@ import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.EscfColumnTransforms;
 import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -76,6 +73,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.BatchMappingContext;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.CustomDocValuesField;
@@ -107,6 +105,7 @@ import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullPrefixQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -180,10 +179,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      * Name of the implicit, non-serialized flattened sink injected under root to absorb unmapped fields as full dotted keys.
      */
     public static final String UNMAPPED_SINK_NAME = "_unmapped";
-
-    public static final NodeFeature FLATTENED_MAPPED_SUBFIELDS_FEATURE = new NodeFeature("mapper.flattened.mapped_subfields");
-    public static final NodeFeature FLATTENED_PASSTHROUGH_FEATURE = new NodeFeature("mapper.flattened.passthrough");
-    public static final NodeFeature FLATTENED_COLUMNAR_DOCUMENT_ORDER = new NodeFeature("mapper.flattened.columnar_document_order");
 
     private static class Defaults {
         public static final int DEPTH_LIMIT = 20;
@@ -735,9 +730,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     if (usesArrayOrderBinaryDocValues) {
                         return new KeyedArrayOrderInlineNullTermQuery(name(), keyedValue);
                     }
-                    return new ScanningBinaryDocValuesTermQuery(name(), keyedValue, false);
+                    return new ScanningBinaryDocValuesTermQuery(name(), keyedValue, BinaryDocValuesFormat.SEPARATE_COUNT);
                 } else {
-                    return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+                    return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
                 }
             } else {
                 return super.termQuery(value, context);
@@ -765,7 +760,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                         return new KeyedArrayOrderInlineNullPrefixQuery(name(), new BytesRef(keyPrefix));
                     }
                     // Separate-count binary blob: slots are full key\0value, so a prefix scan finds any value under this key.
-                    return new ScanningBinaryDocValuesPrefixQuery(name(), keyPrefix, false, false);
+                    return new ScanningBinaryDocValuesPrefixQuery(name(), keyPrefix, false, BinaryDocValuesFormat.SEPARATE_COUNT);
                 }
 
                 // SortedSet doc-values: match any ord in [key\0, key\1) i.e. any value stored under this key.
@@ -773,7 +768,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 BytesRef upper = new BytesRef(keyPrefix);
                 upper.bytes[upper.offset + upper.length - 1] = (byte) 0x01; // bump the trailing separator byte for an exclusive upper bound
 
-                return SortedSetDocValuesField.newSlowRangeQuery(name(), lower, upper, true, false);
+                return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(name(), lower, upper, true, false);
             }
             return new PrefixQuery(new Term(name(), keyPrefix));
         }
@@ -858,9 +853,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             SearchExecutionContext context,
             @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
-            throw new UnsupportedOperationException(
-                "[fuzzy] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
-            );
+            throw new IllegalArgumentException("[fuzzy] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -872,9 +865,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             MultiTermQuery.RewriteMethod method,
             SearchExecutionContext context
         ) {
-            throw new UnsupportedOperationException(
-                "[regexp] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
-            );
+            throw new IllegalArgumentException("[regexp] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -884,7 +875,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
-            throw new UnsupportedOperationException(
+            throw new IllegalArgumentException(
                 "[wildcard] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
             );
         }
@@ -2015,14 +2006,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         final String keyedFieldName = fieldType().name() + KEYED_FIELD_SUFFIX;
         ctx.addColumn(LuceneBinaryColumn.of(keyed.finish(docCount), keyedFieldName, CustomDocValuesField.TYPE));
-        ctx.addColumn(
-            LuceneLongColumn.of(
-                counts.finish(docCount),
-                keyedFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX,
-                MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE,
-                LongColumn.NumericKind.LONG
-            )
-        );
+        ctx.addColumn(LuceneLongColumn.counts(counts.finish(docCount), keyedFieldName));
     }
 
     // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.

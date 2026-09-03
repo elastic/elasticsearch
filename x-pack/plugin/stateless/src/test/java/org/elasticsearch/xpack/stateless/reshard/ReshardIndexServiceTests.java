@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.reshard;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,12 +34,15 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -46,6 +50,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -157,12 +162,12 @@ public class ReshardIndexServiceTests extends ESTestCase {
         final var indicesService = mock(IndicesService.class);
 
         final var svc = new ReshardIndexService(
-            mock(ClusterService.class),
-            null,
-            null,
             indicesService,
             mock(NodeClient.class),
-            ReshardMetrics.NOOP
+            ReshardMetrics.NOOP,
+            mock(ClusterService.class),
+            null,
+            null
         );
 
         final var badIndex = new Index("badindex", INDEX_UUID_NA_VALUE);
@@ -185,25 +190,29 @@ public class ReshardIndexServiceTests extends ESTestCase {
 
     public void testMaybeAwaitSplit() throws InterruptedException {
         final var svc = new ReshardIndexService(
-            mock(ClusterService.class),
-            null,
-            null,
             mock(IndicesService.class),
             mock(NodeClient.class),
-            ReshardMetrics.NOOP
+            ReshardMetrics.NOOP,
+            mock(ClusterService.class),
+            null,
+            null
         );
         final var index = new Index("index", INDEX_UUID_NA_VALUE);
         final var sourceShard = new ShardId(index, 0);
         final var targetShard = new ShardId(index, 1);
+        final var sourceIndexShard = mock(IndexShard.class);
+        final var targetIndexShard = mock(IndexShard.class);
+        when(sourceIndexShard.shardId()).thenReturn(sourceShard);
+        when(targetIndexShard.shardId()).thenReturn(targetShard);
 
         final ActionListener<Void> failOnFailure = ActionListener.wrap(ignored -> {}, e -> fail("should not have failed"));
 
         // no split in progress should directly complete listener
-        svc.maybeAwaitSplit(null, sourceShard, failOnFailure);
+        svc.maybeAwaitSplit(null, sourceIndexShard, failOnFailure);
 
         final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2);
         // source shard never waits
-        svc.maybeAwaitSplit(reshardingMetadata, sourceShard, failOnFailure);
+        svc.maybeAwaitSplit(reshardingMetadata, sourceIndexShard, failOnFailure);
 
         // target shard does not wait if it is already done
         final var targetDoneMetadata = reshardingMetadata.transitionSplitTargetToNewState(
@@ -212,7 +221,7 @@ public class ReshardIndexServiceTests extends ESTestCase {
         )
             .transitionSplitTargetToNewState(targetShard, IndexReshardingState.Split.TargetShardState.SPLIT)
             .transitionSplitTargetToNewState(targetShard, IndexReshardingState.Split.TargetShardState.DONE);
-        svc.maybeAwaitSplit(targetDoneMetadata, targetShard, failOnFailure);
+        svc.maybeAwaitSplit(targetDoneMetadata, targetIndexShard, failOnFailure);
 
         // target shard waits if split completion is not yet done
         final var completed = new AtomicBoolean();
@@ -221,26 +230,117 @@ public class ReshardIndexServiceTests extends ESTestCase {
             completed.set(true);
             completedLatch.countDown();
         }, e -> fail("should not have failed"));
-        svc.maybeAwaitSplit(reshardingMetadata, targetShard, waitingListener);
+        svc.maybeAwaitSplit(reshardingMetadata, targetIndexShard, waitingListener);
         assertFalse(completed.get());
 
         // and is notified when split completes
-        svc.notifySplitCompletion(targetShard);
+        svc.notifySplitCompletion(targetIndexShard);
         assertTrue(completedLatch.await(SAFE_AWAIT_TIMEOUT.getMillis(), TimeUnit.MILLISECONDS));
 
         // after completion, new listeners complete directly
-        svc.maybeAwaitSplit(reshardingMetadata, targetShard, failOnFailure);
+        svc.maybeAwaitSplit(reshardingMetadata, targetIndexShard, failOnFailure);
 
         // failure propagates to listeners
         final ActionListener<Void> failingListener = ActionListener.wrap(ignored -> fail("should have failed"), e -> {
             assertEquals("split failed", e.getMessage());
         });
-        svc.notifySplitFailure(targetShard, new Exception("split failed"));
-        svc.maybeAwaitSplit(reshardingMetadata, targetShard, failingListener);
+        svc.notifySplitFailure(targetIndexShard, new Exception("split failed"));
+        svc.maybeAwaitSplit(reshardingMetadata, targetIndexShard, failingListener);
 
         // a failed split can later succeed
-        svc.notifySplitCompletion(targetShard);
-        svc.maybeAwaitSplit(reshardingMetadata, targetShard, failOnFailure);
+        svc.notifySplitCompletion(targetIndexShard);
+        svc.maybeAwaitSplit(reshardingMetadata, targetIndexShard, failOnFailure);
+    }
+
+    /** A split with its target shard partway through, so a refresh on that shard has to wait. */
+    private static IndexReshardingMetadata splitWithTargetAwaitingSplit(ShardId targetShard) {
+        return IndexReshardingMetadata.newSplitByMultiple(1, 2)
+            .transitionSplitTargetToNewState(targetShard, IndexReshardingState.Split.TargetShardState.HANDOFF);
+    }
+
+    public void testMaybeAwaitSplitFailsLateRegistrationAfterShardRemoval() {
+        final var indicesService = mock(IndicesService.class);
+        final var indexService = mock(IndexService.class);
+        final var indexShard = mock(IndexShard.class);
+        final var index = new Index("index", INDEX_UUID_NA_VALUE);
+        final var targetShard = new ShardId(index, 1);
+        final var reshardingMetadata = splitWithTargetAwaitingSplit(targetShard);
+        final var indexMetadata = IndexMetadata.builder(index.getName())
+            .settings(indexSettings(IndexVersion.current(), 2, 1))
+            .reshardingMetadata(reshardingMetadata)
+            .build();
+        final var shardIndexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        final var svc = new ReshardIndexService(
+            indicesService,
+            mock(NodeClient.class),
+            ReshardMetrics.NOOP,
+            mock(ClusterService.class),
+            null,
+            null
+        );
+
+        when(indicesService.indexServiceSafe(index)).thenReturn(indexService);
+        when(indexService.getShard(targetShard.id())).thenReturn(indexShard);
+        when(indexShard.shardId()).thenReturn(targetShard);
+
+        final var earlyRefresh = new PlainActionFuture<Void>();
+        svc.maybeAwaitSplit(reshardingMetadata, indexShard, earlyRefresh);
+        assertFalse(earlyRefresh.isDone());
+
+        // indexSettings() is read before the listener is registered, which makes it a convenient place to cancel the split
+        // and reproduce a cancellation that lands mid-registration.
+        when(indexShard.indexSettings()).thenAnswer(invocation -> {
+            svc.failAndStopTrackingSplit(indexShard, new IndexShardClosedException(targetShard));
+            assertTrue(earlyRefresh.isDone());
+            return shardIndexSettings;
+        });
+        // The shard is gone from IndexService by the time maybeAwaitSplit re-checks, which is what makes it fail the listener.
+        when(indexService.getShardOrNull(targetShard.id())).thenReturn(null);
+
+        final var lateRefresh = new PlainActionFuture<Void>();
+        svc.maybeAwaitSplit(targetShard, lateRefresh);
+
+        // actionGet blocks forever on an incomplete future, so check for a terminal response before unwrapping it.
+        assertTrue("late refresh was left waiting for a split that will never complete", lateRefresh.isDone());
+        expectThrows(IndexShardClosedException.class, earlyRefresh::actionGet);
+        expectThrows(IndexShardClosedException.class, lateRefresh::actionGet);
+        // A tracker left behind here would pin the closed shard for the lifetime of the node.
+        assertThat(svc.getShardsTrackingSplitCompletion(), empty());
+    }
+
+    public void testMaybeAwaitSplitTracksShardInstancesIndependently() {
+        final var svc = new ReshardIndexService(
+            mock(IndicesService.class),
+            mock(NodeClient.class),
+            ReshardMetrics.NOOP,
+            mock(ClusterService.class),
+            null,
+            null
+        );
+        final var index = new Index("index", INDEX_UUID_NA_VALUE);
+        final var targetShard = new ShardId(index, 1);
+        final var reshardingMetadata = splitWithTargetAwaitingSplit(targetShard);
+        // A shard that closes and comes back is a new IndexShard with the same ShardId, so the two must not interfere.
+        final var closingIndexShard = mock(IndexShard.class);
+        final var replacementIndexShard = mock(IndexShard.class);
+        when(closingIndexShard.shardId()).thenReturn(targetShard);
+        when(replacementIndexShard.shardId()).thenReturn(targetShard);
+
+        final var closingRefresh = new PlainActionFuture<Void>();
+        final var replacementRefresh = new PlainActionFuture<Void>();
+        svc.maybeAwaitSplit(reshardingMetadata, closingIndexShard, closingRefresh);
+        svc.maybeAwaitSplit(reshardingMetadata, replacementIndexShard, replacementRefresh);
+
+        svc.failAndStopTrackingSplit(closingIndexShard, new IndexShardClosedException(targetShard));
+        assertTrue(closingRefresh.isDone());
+        expectThrows(IndexShardClosedException.class, closingRefresh::actionGet);
+        assertFalse("closing one shard generation must not complete the other", replacementRefresh.isDone());
+
+        svc.notifySplitCompletion(replacementIndexShard);
+        assertTrue(replacementRefresh.isDone());
+        replacementRefresh.actionGet();
+        svc.stopTrackingSplit(replacementIndexShard);
+        assertThat(svc.getShardsTrackingSplitCompletion(), empty());
     }
 
     private ClusterState transitionSplitTargetToNewState(
@@ -262,7 +362,11 @@ public class ReshardIndexServiceTests extends ESTestCase {
         var projectId = randomProjectIdOrDefault();
         var index = new Index("test-index", INDEX_UUID_NA_VALUE);
 
-        for (IndexMode indexMode : List.of(IndexMode.STANDARD, IndexMode.VECTORDB_DOCUMENT)) {
+        var reshardableModes = new ArrayList<>(List.of(IndexMode.STANDARD, IndexMode.VECTORDB_DOCUMENT));
+        if (IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            reshardableModes.add(IndexMode.VECTORDB_COLUMNAR);
+        }
+        for (IndexMode indexMode : reshardableModes) {
             var indexMetadata = indexMetadataWithMode(projectId, index, indexMode);
             IndexAbstraction indexAbstraction = projectMetadataWithIndex(projectId, indexMetadata).getIndicesLookup().get(index.getName());
             assertThat(ReshardIndexService.validateIndex(indexAbstraction, indexMetadata), nullValue());
@@ -319,12 +423,12 @@ public class ReshardIndexServiceTests extends ESTestCase {
         when(clusterService.createTaskQueue(argThat(name -> "reshard-index".equals(name) == false), any(), any())).thenReturn(mockQueue);
 
         var svc = new ReshardIndexService(
-            clusterService,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            null,
             mock(IndicesService.class),
             mock(NodeClient.class),
-            ReshardMetrics.NOOP
+            ReshardMetrics.NOOP,
+            clusterService,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            null
         );
 
         var request = new ReshardIndexClusterStateUpdateRequest(projectId, index, -1);

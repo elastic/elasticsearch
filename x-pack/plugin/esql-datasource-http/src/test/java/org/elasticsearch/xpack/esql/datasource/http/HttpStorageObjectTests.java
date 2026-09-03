@@ -7,12 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasource.http;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -50,14 +47,7 @@ import static org.mockito.Mockito.when;
 @SuppressWarnings("unchecked")
 public class HttpStorageObjectTests extends ESTestCase {
 
-    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
-    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
-    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
-    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
-        .build();
-    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
 
     public void testPath() {
         HttpClient mockClient = mock(HttpClient.class);
@@ -268,16 +258,99 @@ public class HttpStorageObjectTests extends ESTestCase {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertNotNull(result.get());
-        // Copy the bytes off the allocator-backed buffer so the caller doesn't hold a view of
-        // memory that we release here. The DirectReadBuffer payload is always allocator-backed
-        // (i.e. direct); callers historically asserted isDirect() on the returned buffer.
+        // Copy the bytes off the factory-backed buffer so the caller doesn't hold a view of
+        // memory that we release here. Production factories return a heap ByteBuffer.
         DirectReadBuffer drb = result.get();
         try {
-            assertTrue("readBytesAsync must return a direct ByteBuffer", drb.buffer().isDirect());
+            assertFalse("readBytesAsync must return a heap ByteBuffer", drb.buffer().isDirect());
             return toByteArray(drb.buffer());
         } finally {
             drb.close();
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testThrottleResponsePropagatesRetryAfterHint() throws Exception {
+        HttpResponse<java.io.InputStream> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(429);
+        when(mockResponse.headers()).thenReturn(HttpHeaders.of(java.util.Map.of("retry-after", java.util.List.of("5")), (a, b) -> true));
+        when(mockResponse.body()).thenReturn(new ByteArrayInputStream(new byte[0]));
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(mockResponse).when(mockClient).send(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject obj = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException eue = expectThrows(
+            org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException.class,
+            () -> obj.newStream()
+        );
+        assertTrue("exception must be flagged as throttling", eue.throttling());
+        assertEquals("retry-after hint must be propagated as ms", 5_000L, eue.retryAfterMs());
+    }
+
+    public void testAsyncThrottleResponsePropagatesRetryAfterHint() throws Exception {
+        // DirectReadBuffer is final; allocate a real zero-byte buffer instead of mocking.
+        DirectReadBuffer realBuffer = FACTORY.allocate(0);
+
+        HttpResponse<DirectReadBuffer> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(429);
+        when(mockResponse.headers()).thenReturn(HttpHeaders.of(java.util.Map.of("retry-after", java.util.List.of("3")), (a, b) -> true));
+        when(mockResponse.body()).thenReturn(realBuffer);
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(CompletableFuture.completedFuture(mockResponse)).when(mockClient).sendAsync(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject obj = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        AtomicReference<Exception> error = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        obj.readBytesAsync(0, 100, FACTORY, Runnable::run, ActionListener.wrap(result -> { latch.countDown(); }, e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException.class));
+        org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException eue =
+            (org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException) error.get();
+        assertTrue("exception must be flagged as throttling", eue.throttling());
+        assertEquals("retry-after hint must be propagated as ms", 3_000L, eue.retryAfterMs());
+    }
+
+    public void testAsync5xxResponseIsClassifiedAsExternalUnavailable() throws Exception {
+        // Before the fix, a non-2xx async response produced a plain IOException, which the retry
+        // layer treats as terminal (client error). A 500/503 must reach mapReadFailure so it is
+        // classified as ExternalUnavailableException and retried as a 503.
+        DirectReadBuffer realBuffer = FACTORY.allocate(0);
+
+        HttpResponse<DirectReadBuffer> mockResponse = mock(HttpResponse.class);
+        // Use 500 (non-throttling 5xx) to verify the retryable-but-not-throttling classification.
+        when(mockResponse.statusCode()).thenReturn(500);
+        when(mockResponse.headers()).thenReturn(HttpHeaders.of(java.util.Map.of(), (a, b) -> true));
+        when(mockResponse.body()).thenReturn(realBuffer);
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(CompletableFuture.completedFuture(mockResponse)).when(mockClient).sendAsync(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject obj = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        AtomicReference<Exception> error = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        obj.readBytesAsync(0, 100, FACTORY, Runnable::run, ActionListener.wrap(result -> { latch.countDown(); }, e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException.class));
+        org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException eue =
+            (org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException) error.get();
+        assertFalse("500 is retryable but not throttling", eue.throttling());
+        assertEquals("no retry-after on a plain 500", 0L, eue.retryAfterMs());
     }
 
     @SuppressWarnings("unchecked")

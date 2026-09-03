@@ -222,6 +222,28 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
     }
 
     /**
+     * Returns the layer that reconstructs values from the {@code ._on_failure} sidecar column for synthetic source.
+     * Append it <em>last</em> in the composite so values 2..N trail the primary column and encounter order is preserved.
+     */
+    public static Layer onFailureValuesLayer(String fieldName, IndexVersion indexVersion) {
+        return new OnFailureValuesBinaryDocValuesLayer(fieldName, indexVersion);
+    }
+
+    /**
+     * Layer that loads on-failure values from binary doc values for synthetic source.
+     */
+    private static class OnFailureValuesBinaryDocValuesLayer extends BinaryDocValuesSyntheticFieldLoaderLayer {
+        OnFailureValuesBinaryDocValuesLayer(String fieldName, IndexVersion indexVersion) {
+            super(OnFailureStoredValues.name(fieldName), indexVersion);
+        }
+
+        @Override
+        protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+            XContentDataHelper.decodeAndWrite(b, value);
+        }
+    }
+
+    /**
      * Layer that loads field values from a provided stored field.
      */
     public abstract static class StoredFieldLayer implements Layer {

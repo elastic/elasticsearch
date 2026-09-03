@@ -1295,7 +1295,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "invalid_configuration", "failed")));
             }
 
-            List<Measurement> actionMeasurements = plugin.getLongCounterMeasurement(DownsampleMetrics.ACTIONS);
+            List<Measurement> actionMeasurements = plugin.getLongCounterMeasurement(DownsampleMetrics.ACTIONS_TOTAL);
             assertThat(actionMeasurements.size(), greaterThanOrEqualTo(1));
             assertThat(actionMeasurements.get(0).getLong(), equalTo(1L));
             assertThat(

@@ -348,11 +348,13 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     ) {
         var key = new FileCacheKey(shardId, 1L, fileName);
         long fileLength = randomLongBetween(1, regionSizeInBytes - 1L);
-        if (timestampMillis == null) {
-            SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, key, fileLength, 0);
-        } else {
-            SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, key, fileLength, 0, timestampMillis);
-        }
+        SharedBlobCacheServiceTestUtils.cacheRegion(
+            cacheService,
+            key,
+            fileLength,
+            0,
+            timestampMillis == null ? SharedBlobCacheService.UNKNOWN_TIMESTAMP : timestampMillis
+        );
     }
 
     private static long countCachedRegionsWithFilePrefix(

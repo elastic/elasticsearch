@@ -155,7 +155,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "managed_identity", "region", "us-east-1"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.managed_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.managed_identity.enabled"));
     }
 
     public void testValidateDatasourceRejectsDeprecatedWorkloadIdentityWhenDisabled() {
@@ -164,7 +164,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "workload_identity", "region", "us-east-1"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.managed_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.managed_identity.enabled"));
         assertWarnings("auth value [workload_identity] is deprecated; the canonical value is [managed_identity]");
     }
 
@@ -200,7 +200,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             "us-east-1"
         );
         var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
-        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.federated_identity.enabled"));
     }
 
     public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
@@ -214,7 +214,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             "us-east-1"
         );
         var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
-        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.federated_identity.enabled"));
     }
 
     public void testValidateDatasourceAcceptsFederatedWhenEnabled() {
@@ -284,20 +284,132 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertEquals("hive", result.get("partition_detection"));
     }
 
-    public void testValidateDatasetPartitionDetectionInvalid() {
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "banana"))
+    public void testValidateDatasetExclusionSettingsValid() {
+        Map<String, Object> result = validator.validateDataset(
+            Map.of(),
+            "s3://bucket/path/*.parquet",
+            Map.of("file_exclusions", List.of("**/_*", "**/.*", "**/_temporary/**"))
+        );
+        assertEquals(
+            "stored verbatim, since patterns are case-sensitive user data",
+            List.of("**/_*", "**/.*", "**/_temporary/**"),
+            result.get("file_exclusions")
         );
     }
 
+    /** The empty list is a legitimate value: exclude nothing. */
+    public void testValidateDatasetExclusionSettingsAcceptEmptyList() {
+        Map<String, Object> result = validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", List.of()));
+        assertEquals(List.of(), result.get("file_exclusions"));
+    }
+
+    /** Entries are ordinary resource patterns, so a directory pattern is legal rather than refused. */
+    public void testValidateDatasetExclusionAcceptsADirectoryPattern() {
+        Map<String, Object> result = validator.validateDataset(
+            Map.of(),
+            "s3://b/p",
+            Map.of("file_exclusions", List.of("**/_temporary/**"))
+        );
+        assertEquals(List.of("**/_temporary/**"), result.get("file_exclusions"));
+    }
+
+    public void testValidateDatasetExclusionRejectsAnUnparseablePattern() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", List.of("a[b")))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), containsString("must contain only valid patterns"));
+        assertThat(e.getMessage(), containsString("unterminated character class"));
+    }
+
+    /** A shape problem is reported once, by the list validator, not twice by the owning parser as well. */
+    public void testValidateDatasetExclusionRejectsNonListWithOneMessage() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", "**/_*"))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), containsString("must be a JSON array of strings"));
+    }
+
+    public void testValidateDatasetExclusionRejectsNonStringElementWithOneMessage() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", List.of(42)))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), containsString("must be a JSON array of non-empty strings"));
+    }
+
+    public void testValidateDatasetPartitionDetectionInvalid() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "banana"))
+        );
+        // One actionable message, not that message plus Enum.valueOf's raw "No enum constant ...".
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), not(containsString("No enum constant")));
+    }
+
     public void testValidateDatasetPartitionDetectionAllValues() {
-        for (String strategy : new String[] { "auto", "hive", "template", "none", "AUTO", "HIVE", "TEMPLATE", "NONE" }) {
+        for (String strategy : new String[] { "auto", "hive", "none", "AUTO", "HIVE", "NONE" }) {
             assertEquals(
                 strategy,
                 validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", strategy)).get("partition_detection")
             );
         }
+        // template carries its path template with it; on its own it would be a strategy that detects nothing.
+        for (String strategy : new String[] { "template", "TEMPLATE" }) {
+            assertEquals(
+                strategy,
+                validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", strategy, "partition_path", "{year}"))
+                    .get("partition_detection")
+            );
+        }
+    }
+
+    /**
+     * The three combinations in which one of the partition settings would be silently ignored. Rejected at
+     * registration only — {@code PartitionConfig.fromConfig} still resolves them leniently so datasets stored
+     * before this validation existed keep reading.
+     */
+    public void testValidateDatasetRejectsSilentlyIgnoredPartitionSettings() {
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "template"))
+        );
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", "false"))
+        );
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "partition_path", "{year}"))
+        );
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", "false", "partition_path", "{year}"))
+        );
+        // hive never reads a path template, so storing one would store a setting that does nothing.
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "partition_path", "{year}"))
+        );
+    }
+
+    /** hive_partitioning:true asserts nothing — it is the default — so it never contradicts a strategy. */
+    public void testValidateDatasetAcceptsHivePartitioningTrueWithAnyStrategy() {
+        assertEquals(
+            "hive",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", "true"))
+                .get("partition_detection")
+        );
+        assertEquals(
+            "none",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "hive_partitioning", "true"))
+                .get("partition_detection")
+        );
     }
 
     public void testValidateDatasetSchemeCaseInsensitive() {
@@ -438,6 +550,29 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     public void testValidateDatasetTargetSplitSizeUnitlessRejected() {
         // ByteSizeValue requires a unit suffix; a bare number is rejected.
         expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("target_split_size", "1024")));
+    }
+
+    public void testValidateDatasetMaxSplitProbesAboveTheCeilingRejected() {
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_split_probes", "10001")));
+    }
+
+    /**
+     * A window that fits the budget against the default probe count, and one that does not. The absent key has to
+     * be resolved to its default for the second to be caught here rather than at query time.
+     */
+    public void testValidateDatasetProbeBudgetCountsTheAbsentKeysDefault() {
+        assertEquals("4mb", validator.validateDataset(Map.of(), "s3://b/p", Map.of("split_probe_window", "4mb")).get("split_probe_window"));
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("split_probe_window", "8mb")));
+    }
+
+    /** Two values each acceptable alone, rejected for the reads they ask for together. */
+    public void testValidateDatasetProbeBudgetRejectsTheProductOfTwoValidKeys() {
+        assertEquals("1mb", validator.validateDataset(Map.of(), "s3://b/p", Map.of("split_probe_window", "1mb")).get("split_probe_window"));
+        assertEquals("8000", validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_split_probes", "8000")).get("max_split_probes"));
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("split_probe_window", "1mb", "max_split_probes", "8000"))
+        );
     }
 
     public void testReaderStaysExternalOnly() {
@@ -606,8 +741,19 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
         assertThat(e.validationErrors(), hasSize(2));
         assertThat(e.validationErrors(), hasItem("[resource] is required"));
-        // The "known settings: [...]" suffix lists an unordered set, so match only the stable prefix.
+        // The "known settings: [...]" suffix is sorted, so it is stable across JVM runs and can be matched
+        // in full. Matching only the prefix would let the list go back to Set.of iteration order unnoticed.
         assertThat(e.validationErrors(), hasItem(containsString("unknown setting [delimiter]")));
+        assertThat(
+            e.validationErrors(),
+            hasItem(
+                containsString(
+                    "known settings: [error_mode, file_exclusions, format, hive_partitioning, max_error_ratio, "
+                        + "max_errors, max_split_probes, partition_detection, partition_path, schema_resolution, "
+                        + "schema_sample_size, split_probe_window, target_split_size]"
+                )
+            )
+        );
     }
 
     public void testUnknownExplicitFormatRejected() {
@@ -677,4 +823,31 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "auto", "delimiter", "|"))
         );
     }
+
+    public void testUnsupportedSchemeListsTheSchemesInAStableOrder() {
+        // Nine schemes declared out of order. Set.of salts its iteration per JVM run; over nine elements the sorted
+        // arrangement is not among the orderings it can produce, so with the renderer's sort removed this fails every
+        // time. A three-element set does reach sorted order, which is why one is not a gate.
+        DataSourceValidator manySchemes = new FileDataSourceValidator(
+            "s3",
+            S3Configuration::fromMap,
+            Set.of("s3n", "s3a", "zs3", "ms3", "as3", "s3", "ks3", "bs3", "ys3")
+        );
+
+        var e = expectThrows(
+            ValidationException.class,
+            () -> manySchemes.validateDataset(Map.of(), "ftp://bucket/data/good.csv", Map.of())
+        );
+
+        assertThat(
+            e.validationErrors(),
+            hasItem(
+                containsString(
+                    "[resource] must use one of the supported URI schemes "
+                        + "[as3://, bs3://, ks3://, ms3://, s3://, s3a://, s3n://, ys3://, zs3://]"
+                )
+            )
+        );
+    }
+
 }

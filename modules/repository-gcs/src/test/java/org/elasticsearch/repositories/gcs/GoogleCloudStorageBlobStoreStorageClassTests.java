@@ -119,16 +119,13 @@ public class GoogleCloudStorageBlobStoreStorageClassTests extends ESTestCase {
             service,
             BigArrays.NON_RECYCLING_INSTANCE,
             randomIntBetween(1, 8) * 1024,
+            largeBlobThreshold,
+            ByteSizeValue.ofMb(1).getBytes(),
             BackoffPolicy.noBackoff(),
             new GcsRepositoryStatsCollector(),
             dataStorageClass,
             metadataStorageClass
-        ) {
-            @Override
-            long getLargeBlobThresholdInBytes() {
-                return largeBlobThreshold;
-            }
-        };
+        );
 
         return blobStore.blobContainer(BlobPath.EMPTY);
     }

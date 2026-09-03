@@ -416,7 +416,7 @@ public class TaskManagerTests extends ESTestCase {
             "testType",
             new TransportAction<ActionRequest, ActionResponse>(
                 "actionName",
-                new ActionFilters(Set.of()),
+                ActionFilters.EMPTY,
                 taskManager,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             ) {
@@ -460,7 +460,7 @@ public class TaskManagerTests extends ESTestCase {
             "testType",
             new TransportAction<ActionRequest, ActionResponse>(
                 "actionName",
-                new ActionFilters(Set.of()),
+                ActionFilters.EMPTY,
                 taskManager,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             ) {

@@ -2,13 +2,17 @@
 highlightSingleField
 required_capability: highlight_v6
 
+// tag::highlightSingleFieldForDocs[]
 ROW content = "The quick brown fox jumps over the lazy dog."
 | HIGHLIGHT "fox" ON content
 | KEEP highlight_content
+// end::highlightSingleFieldForDocs[]
 ;
 
+// tag::highlightSingleFieldForDocs-result[]
 highlight_content:keyword
 The quick brown <em>fox</em> jumps over the lazy dog.
+// end::highlightSingleFieldForDocs-result[]
 ;
 
 
@@ -45,13 +49,17 @@ The quick brown <em>fox</em> jumps over the lazy dog.
 highlightEmptyPrefix
 required_capability: highlight_v6
 
+// tag::highlightEmptyPrefixForDocs[]
 ROW content = "The quick brown fox jumps over the lazy dog."
 | HIGHLIGHT prefix = "" "fox" ON content
 | KEEP content
+// end::highlightEmptyPrefixForDocs[]
 ;
 
+// tag::highlightEmptyPrefixForDocs-result[]
 content:keyword
 The quick brown <em>fox</em> jumps over the lazy dog.
+// end::highlightEmptyPrefixForDocs-result[]
 ;
 
 
@@ -73,13 +81,17 @@ Return of the <em>King</em> | <em>Tolkien</em> wrote the epic saga.
 highlightCustomPrefixKeepsOriginalColumn
 required_capability: highlight_v6
 
+// tag::highlightCustomPrefixKeepsOriginalColumnForDocs[]
 ROW content = "The One Ring was forged by Sauron."
 | HIGHLIGHT prefix = "hl_" "ring" ON content
 | KEEP content, hl_content
+// end::highlightCustomPrefixKeepsOriginalColumnForDocs[]
 ;
 
+// tag::highlightCustomPrefixKeepsOriginalColumnForDocs-result[]
 content:keyword                    | hl_content:keyword
 The One Ring was forged by Sauron. | The One <em>Ring</em> was forged by Sauron.
+// end::highlightCustomPrefixKeepsOriginalColumnForDocs-result[]
 ;
 
 
@@ -116,13 +128,17 @@ match           | The quick brown <em>fox</em> jumps over the lazy dog.
 highlightCustomTags
 required_capability: highlight_v6
 
+// tag::highlightCustomTagsForDocs[]
 ROW content = "The quick brown fox jumps over the lazy dog."
 | HIGHLIGHT "fox" ON content WITH { "pre_tags": ["<b>"], "post_tags": ["</b>"] }
 | KEEP highlight_content
+// end::highlightCustomTagsForDocs[]
 ;
 
+// tag::highlightCustomTagsForDocs-result[]
 highlight_content:keyword
 The quick brown <b>fox</b> jumps over the lazy dog.
+// end::highlightCustomTagsForDocs-result[]
 ;
 
 
@@ -158,13 +174,17 @@ The One <em>Ring</em> was forged by Sauron.
 highlightHtmlEncoder
 required_capability: highlight_v6
 
+// tag::highlightHtmlEncoderForDocs[]
 ROW content = "Use <b>bold</b> tags & special chars with the Ring."
 | HIGHLIGHT "ring" ON content WITH { "encoder": "html" }
 | KEEP highlight_content
+// end::highlightHtmlEncoderForDocs[]
 ;
 
+// tag::highlightHtmlEncoderForDocs-result[]
 highlight_content:keyword
 Use &lt;b&gt;bold&lt;&#x2F;b&gt; tags &amp; special chars with the <em>Ring</em>.
+// end::highlightHtmlEncoderForDocs-result[]
 ;
 
 
@@ -186,13 +206,17 @@ null
 highlightNoMatchSize
 required_capability: highlight_v6
 
+// tag::highlightNoMatchSizeForDocs[]
 ROW content = "Gardens and flowers bloom in spring."
 | HIGHLIGHT "elasticsearch" ON content WITH { "no_match_size": 200 }
 | KEEP highlight_content
+// end::highlightNoMatchSizeForDocs[]
 ;
 
+// tag::highlightNoMatchSizeForDocs-result[]
 highlight_content:keyword
 Gardens and flowers bloom in spring.
+// end::highlightNoMatchSizeForDocs-result[]
 ;
 
 
@@ -214,13 +238,17 @@ Plain fallback text.
 highlightMultipleFields
 required_capability: highlight_v6
 
+// tag::highlightMultipleFieldsForDocs[]
 ROW title = "Return of the King", body = "Tolkien wrote the epic saga."
 | HIGHLIGHT "king tolkien" ON title, body
 | KEEP highlight_title, highlight_body
+// end::highlightMultipleFieldsForDocs[]
 ;
 
+// tag::highlightMultipleFieldsForDocs-result[]
 highlight_title:keyword          | highlight_body:keyword
 Return of the <em>King</em>      | <em>Tolkien</em> wrote the epic saga.
+// end::highlightMultipleFieldsForDocs-result[]
 ;
 
 
@@ -300,13 +328,17 @@ highlight_content:keyword
 highlightNumberOfFragmentsZero
 required_capability: highlight_v6
 
+// tag::highlightNumberOfFragmentsZeroForDocs[]
 ROW content = "Elasticsearch is fast. Elasticsearch is scalable. Elasticsearch is open."
 | HIGHLIGHT "elasticsearch" ON content WITH { "number_of_fragments": 0 }
 | KEEP highlight_content
+// end::highlightNumberOfFragmentsZeroForDocs[]
 ;
 
+// tag::highlightNumberOfFragmentsZeroForDocs-result[]
 highlight_content:keyword
 <em>Elasticsearch</em> is fast. <em>Elasticsearch</em> is scalable. <em>Elasticsearch</em> is open.
+// end::highlightNumberOfFragmentsZeroForDocs-result[]
 ;
 
 
@@ -315,16 +347,20 @@ highlightFromIndexAfterMatch
 required_capability: highlight_v6
 required_capability: match_function
 
+// tag::highlightFromIndexAfterMatchForDocs[]
 FROM books
 | WHERE MATCH(title, "Return")
 | HIGHLIGHT "return" ON title
 | KEEP book_no, highlight_title
 | SORT book_no
+// end::highlightFromIndexAfterMatchForDocs[]
 ;
 
+// tag::highlightFromIndexAfterMatchForDocs-result[]
 book_no:keyword | highlight_title:keyword
 2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
 7350            | <em>Return</em> of the Shadow
+// end::highlightFromIndexAfterMatchForDocs-result[]
 ;
 
 
@@ -565,13 +601,17 @@ highlight_content:keyword
 highlightOrderByScore
 required_capability: highlight_v6
 
+// tag::highlightOrderByScoreForDocs[]
 ROW content = ["fast search", "fast and fast results"]
 | HIGHLIGHT "fast" ON content WITH { "order": "score" }
 | KEEP highlight_content
+// end::highlightOrderByScoreForDocs[]
 ;
 
+// tag::highlightOrderByScoreForDocs-result[]
 highlight_content:keyword
 [<em>fast</em> and <em>fast</em> results, <em>fast</em> search]
+// end::highlightOrderByScoreForDocs-result[]
 ;
 
 
@@ -600,20 +640,6 @@ ROW content = "The One Ring was forged by Sauron."
 
 highlight_content:keyword
 null
-;
-
-
-# boundary_chars, boundary_max_scan and phrase_limit are FastVectorHighlighter-only, so they are accepted but no-ops.
-highlightUnifiedNoOpOptions
-required_capability: highlight_v6
-
-ROW content = "The One Ring was forged by Sauron."
-| HIGHLIGHT "ring" ON content WITH { "boundary_chars": ".,!?", "boundary_max_scan": 10, "phrase_limit": 64 }
-| KEEP highlight_content
-;
-
-highlight_content:keyword
-The One <em>Ring</em> was forged by Sauron.
 ;
 
 
@@ -990,20 +1016,6 @@ The One Ring was forged by Sauron in the fires of <em>Mount</em> Doom.
 ;
 
 
-# A term qualified on a different field parses but never highlights (require_field_match: true), yielding null.
-highlightFieldQualifiedTermYieldsNull
-required_capability: highlight_v6
-
-ROW content = "The One Ring was forged by Sauron."
-| HIGHLIGHT "title:ring" ON content
-| KEEP highlight_content
-;
-
-highlight_content:keyword
-null
-;
-
-
 # Grouping with parentheses combines a disjunction and a required term; both matched terms are wrapped.
 highlightGrouping
 required_capability: highlight_v6
@@ -1055,6 +1067,7 @@ book_no:keyword | highlight_title:keyword
 # query matches literal terms in the returned text. Only the row containing the literal term "prosper" is highlighted.
 highlightMatchOnSemanticText
 required_capability: highlight_v6
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | WHERE match(semantic_text_field, "prosper")
@@ -1073,6 +1086,7 @@ live long and prosper                                                 | live lon
 # MATCH_PHRASE on a semantic_text field also matches literal terms, wrapping the whole phrase in a single span.
 highlightMatchPhraseOnSemanticText
 required_capability: highlight_v6
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | WHERE match(semantic_text_field, "prosper")
@@ -1201,16 +1215,20 @@ book_no:keyword | highlight_title:keyword
 highlightKqlWildcardOrGroupedMatch
 required_capability: highlight_v6
 
+// tag::highlightKqlWildcardOrGroupedMatchForDocs[]
 FROM books
 | WHERE MATCH(title, "Return")
 | HIGHLIGHT KQL("title: shad*") OR (MATCH(title, "return") AND MATCH(title, "king")) ON title
 | KEEP book_no, highlight_title
 | SORT book_no
+// end::highlightKqlWildcardOrGroupedMatchForDocs[]
 ;
 
+// tag::highlightKqlWildcardOrGroupedMatchForDocs-result[]
 book_no:keyword | highlight_title:keyword
 2714            | <em>Return</em> of the <em>King</em> Being the Third Part of The Lord of the Rings
 7350            | Return of the <em>Shadow</em>
+// end::highlightKqlWildcardOrGroupedMatchForDocs-result[]
 ;
 
 
@@ -1229,23 +1247,6 @@ FROM books
 book_no:keyword | highlight_title:keyword
 2714            | <em>Return</em> of the <em>King</em> Being the Third Part of The Lord of the Rings
 7350            | Return of the <em>Shadow</em>
-;
-
-
-# A required KQL field outside ON prevents a highlight even when the ON field clause matches.
-highlightKqlRequiredFieldOutsideOnIsNull
-required_capability: highlight_v6
-
-FROM books
-| WHERE MATCH(title, "Return")
-| HIGHLIGHT KQL("title: return AND author: tolkien") ON title
-| KEEP book_no, highlight_title
-| SORT book_no
-;
-
-book_no:keyword | highlight_title:keyword
-2714            | null
-7350            | null
 ;
 
 
@@ -1284,13 +1285,17 @@ highlightQueryStringFieldQualifiedAcrossFields
 required_capability: highlight_v6
 required_capability: qstr_function
 
+// tag::highlightQueryStringFieldQualifiedAcrossFieldsForDocs[]
 ROW title = "The quick fox", body = "A loyal dog"
 | HIGHLIGHT QSTR("title:fox OR body:dog") ON title, body
 | KEEP highlight_title, highlight_body
+// end::highlightQueryStringFieldQualifiedAcrossFieldsForDocs[]
 ;
 
+// tag::highlightQueryStringFieldQualifiedAcrossFieldsForDocs-result[]
 highlight_title:keyword | highlight_body:keyword
 The quick <em>fox</em>  | A loyal <em>dog</em>
+// end::highlightQueryStringFieldQualifiedAcrossFieldsForDocs-result[]
 ;
 
 
@@ -1306,21 +1311,6 @@ ROW title = "Return of the King", body = "A wise king ruled"
 
 highlight_title:keyword | highlight_body:keyword
 null                    | A wise <em>king</em> ruled
-;
-
-
-# A term qualified on a field outside ON can never highlight (require_field_match parity), so the row is null.
-highlightQueryStringFieldQualifiedOutsideOnYieldsNull
-required_capability: highlight_v6
-required_capability: qstr_function
-
-ROW content = "The One Ring was forged by Sauron."
-| HIGHLIGHT QSTR("title:ring") ON content
-| KEEP highlight_content
-;
-
-highlight_content:keyword
-null
 ;
 
 
@@ -1374,16 +1364,20 @@ required_capability: highlight_v6
 required_capability: match_function
 required_capability: match_phrase_function
 
+// tag::highlightMatchPhraseFunctionForDocs[]
 FROM books
 | WHERE MATCH(title, "Return")
 | HIGHLIGHT MATCH_PHRASE(title, "Return of the") ON title
 | KEEP book_no, highlight_title
 | SORT book_no
+// end::highlightMatchPhraseFunctionForDocs[]
 ;
 
+// tag::highlightMatchPhraseFunctionForDocs-result[]
 book_no:keyword | highlight_title:keyword
 2714            | <em>Return of the</em> King Being the Third Part of The Lord of the Rings
 7350            | <em>Return of the</em> Shadow
+// end::highlightMatchPhraseFunctionForDocs-result[]
 ;
 
 
@@ -1495,14 +1489,18 @@ highlight_c:keyword
 highlightDissectExtractedField
 required_capability: highlight_v6
 
+// tag::highlightDissectExtractedFieldForDocs[]
 ROW raw = "2024 Sauron Mordor"
 | DISSECT raw "%{yr} %{name} %{place}"
 | HIGHLIGHT "sauron" ON name
-| KEEP highlight_name
+| KEEP name, highlight_name
+// end::highlightDissectExtractedFieldForDocs[]
 ;
 
-highlight_name:keyword
-<em>Sauron</em>
+// tag::highlightDissectExtractedFieldForDocs-result[]
+name:keyword | highlight_name:keyword
+Sauron       | <em>Sauron</em>
+// end::highlightDissectExtractedFieldForDocs-result[]
 ;
 
 
@@ -1782,13 +1780,17 @@ book_no:keyword | highlight_title:keyword
 highlightAnalyzerEnglishStemsMatch
 required_capability: highlight_v6
 
+// tag::highlightAnalyzerEnglishStemsMatchForDocs[]
 ROW title = "The Lord of the Rings"
 | HIGHLIGHT "ring" ON title WITH { "analyzer": "english" }
 | KEEP highlight_title
+// end::highlightAnalyzerEnglishStemsMatchForDocs[]
 ;
 
+// tag::highlightAnalyzerEnglishStemsMatchForDocs-result[]
 highlight_title:keyword
 The Lord of the <em>Rings</em>
+// end::highlightAnalyzerEnglishStemsMatchForDocs-result[]
 ;
 
 

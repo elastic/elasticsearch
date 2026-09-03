@@ -255,7 +255,7 @@ public final class OrdinalBytesRefBlock extends AbstractBlockRefCounted implemen
 
     @Override
     public boolean doesHaveMultivaluedFields() {
-        return ordinals.mayHaveMultivaluedFields();
+        return ordinals.doesHaveMultivaluedFields();
     }
 
     @Override
@@ -265,6 +265,10 @@ public final class OrdinalBytesRefBlock extends AbstractBlockRefCounted implemen
 
     @Override
     public OrdinalBytesRefBlock expand() {
+        if (mayHaveMultivaluedFields() == false) {
+            incRef();
+            return this;
+        }
         OrdinalBytesRefBlock result = null;
         IntBlock expandedOrdinals = ordinals.expand();
         try {
@@ -299,6 +303,6 @@ public final class OrdinalBytesRefBlock extends AbstractBlockRefCounted implemen
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[ordinals=" + ordinals + ", bytes=" + bytes + "]";
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", ordinals=" + ordinals + ", bytes=" + bytes + "]";
     }
 }

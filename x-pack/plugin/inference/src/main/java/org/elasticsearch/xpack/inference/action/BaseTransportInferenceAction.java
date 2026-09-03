@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceService;
@@ -25,7 +26,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InferenceLicenceCheck;
@@ -93,7 +93,13 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     protected void doExecute(Task task, Request request, ActionListener<InferenceAction.Response> listener) {
         var timer = InferenceTimer.start();
 
-        publishAttribution(request.getContext());
+        restoreHeaderIfMissing(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, request.getContext().productUseCase());
+        restoreHeaderIfMissing(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, request.getContext().productSolution());
+        restoreHeaderIfMissing(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, request.getContext().productFeature());
+        restoreHeaderIfMissing(
+            InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
+            request.getContext().interactionId()
+        );
 
         var productContext = InferenceProductContext.create(threadPool.getThreadContext());
 
@@ -129,17 +135,14 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     }
 
     /**
-     * Publishes attribution declared on the request into the thread context, which is what carries it down to the service. A
-     * header that arrived over HTTP is already present and takes precedence, so this only fills in what a programmatic caller
-     * such as ES|QL could not express as a header.
+     * Restores an attribution header into the thread context after {@code stashWithOrigin} has cleared it.
+     * An existing header takes precedence so an HTTP caller is not overwritten by a programmatic one.
      */
-    private void publishAttribution(InferenceContext context) {
+    private void restoreHeaderIfMissing(String header, String value) {
         var threadContext = threadPool.getThreadContext();
-        context.attributionHeaders().forEach((header, value) -> {
-            if (threadContext.getHeader(header) == null) {
-                threadContext.putHeader(header, value);
-            }
-        });
+        if (Strings.isNullOrEmpty(value) == false && threadContext.getHeader(header) == null) {
+            threadContext.putHeader(header, value);
+        }
     }
 
     private void validateRequest(Request request, Model model) {

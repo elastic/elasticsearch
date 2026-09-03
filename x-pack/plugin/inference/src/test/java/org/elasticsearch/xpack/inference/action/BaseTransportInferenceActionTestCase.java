@@ -347,7 +347,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         );
     }
 
-    public void testProductUseCaseHeaderPresentInThreadContextIfPresent() {
+    public void testAttributionHeadersPresentInThreadContextIfPresent() {
         String productUseCase = "product-use-case";
         String interactionId = "interaction-id";
         String productSolution = "security";

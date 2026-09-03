@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.telemetry.InferenceProductContext;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
@@ -22,6 +23,10 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationA
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_ES_VERSION;
 
 public abstract class ElasticInferenceServiceRequest implements OutboundRequest {
@@ -57,21 +62,27 @@ public abstract class ElasticInferenceServiceRequest implements OutboundRequest 
         HttpRequestBase request = createHttpRequestBase();
         // TODO: consider moving tracing here, too
 
-        // addHeader, not setHeader: createHttpRequestBase may already have set one of these, and the metadata value is meant to
-        // be an additional value rather than a replacement. The sparse and dense embeddings requests depend on this to send both
-        // the input type and the caller's product use case under X-elastic-product-use-case.
-        metadata.context().headers().forEach(request::addHeader);
-
-        var esVersion = metadata.esVersion();
-        if (Strings.isNullOrEmpty(esVersion) == false) {
-            request.addHeader(X_ELASTIC_ES_VERSION, esVersion);
-        }
+        var context = metadata.context();
+        // addHeader, not setHeader: createHttpRequestBase may already have set one of these. Sparse and dense embeddings
+        // preset the input type on X-elastic-product-use-case, and the caller value is meant to be appended.
+        addHeaderIfPresent(request, Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, context.productOrigin());
+        addHeaderIfPresent(request, X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, context.productUseCase());
+        addHeaderIfPresent(request, X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, context.productSolution());
+        addHeaderIfPresent(request, X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, context.productFeature());
+        addHeaderIfPresent(request, X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, context.interactionId());
+        addHeaderIfPresent(request, X_ELASTIC_ES_VERSION, metadata.esVersion());
 
         addRegionPolicyHeaders(request, preferences);
 
         request = authApplier.apply(request);
 
         listener.onResponse(new HttpRequest(request, getInferenceEntityId()));
+    }
+
+    private static void addHeaderIfPresent(HttpRequestBase request, String header, @Nullable String value) {
+        if (Strings.isNullOrEmpty(value) == false) {
+            request.addHeader(header, value);
+        }
     }
 
     private static void addRegionPolicyHeaders(HttpRequestBase request, @Nullable InferencePreferences preferences) {

@@ -64,7 +64,7 @@ final class MSAshD1QFScorer implements AshScorer<float[]> {
     }
 
     @Override
-    public void scoreBulk(float[] queryTransformed, float[] scores, int blockSize) throws IOException {
+    public void scoreBulk(float[] queryTransformed, int blockSize, float[] scores) throws IOException {
         float querySum = ESVectorUtil.sum(queryTransformed, nDims);
         float centerOffset = 0.5f;
         long totalBytes = (long) planeBytes * blockSize;

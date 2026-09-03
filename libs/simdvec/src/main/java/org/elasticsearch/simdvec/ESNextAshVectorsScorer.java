@@ -51,7 +51,7 @@ public final class ESNextAshVectorsScorer {
         }
 
         @Override
-        public void scoreBulk(float[] queryTransformed, float[] scores, int blockSize) throws IOException {
+        public void scoreBulk(float[] queryTransformed, int blockSize, float[] scores) throws IOException {
             float sum = ESVectorUtil.sum(queryTransformed, nDims);
             int numLevels = 1 << bitsPerDim;
             float centerOffset = (numLevels - 1) / 2.0f;

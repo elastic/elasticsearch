@@ -144,9 +144,9 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
 
                     for (int offset = 0; offset < numVectors; offset += BULK_SIZE) {
                         int blockSize = Math.min(BULK_SIZE, numVectors - offset);
-                        scalarScorer.scoreBulk(queryQuantized, scalarScores, blockSize);
-                        panamaScorer.scoreBulk(queryQuantized, panamaScores, blockSize);
-                        nativeScorer.scoreBulk(queryQuantized, nativeScores, blockSize);
+                        scalarScorer.scoreBulk(queryQuantized, blockSize, scalarScores);
+                        panamaScorer.scoreBulk(queryQuantized, blockSize, panamaScores);
+                        nativeScorer.scoreBulk(queryQuantized, blockSize, nativeScores);
                         assertScoresMatch("scalar vs panama", scalarScores, panamaScores, blockSize, offset);
                         assertScoresMatch("scalar vs native", scalarScores, nativeScores, blockSize, offset);
                     }
@@ -165,8 +165,8 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
 
                     for (int offset = 0; offset < numVectors; offset += BULK_SIZE) {
                         int blockSize = Math.min(BULK_SIZE, numVectors - offset);
-                        scalarScorer.scoreBulk(queryTransformed, scalarScores, blockSize);
-                        panamaScorer.scoreBulk(queryTransformed, panamaScores, blockSize);
+                        scalarScorer.scoreBulk(queryTransformed, blockSize, scalarScores);
+                        panamaScorer.scoreBulk(queryTransformed, blockSize, panamaScores);
                         assertScoresMatch("scalar vs panama", scalarScores, panamaScores, blockSize, offset);
                     }
                     assertEquals(dataLength, scalarSlice.getFilePointer());
@@ -216,7 +216,7 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
 
                         float singleScore = singleScorer.score(queryQuantized);
                         float[] bulkScores = new float[1];
-                        bulkScorer.scoreBulk(queryQuantized, bulkScores, 1);
+                        bulkScorer.scoreBulk(queryQuantized, 1, bulkScores);
                         assertEquals("Single vs bulk mismatch", singleScore, bulkScores[0], 0f);
                     } else {
                         IndexInput singleInput = in.clone();
@@ -229,7 +229,7 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
 
                         float singleScore = singleScorer.score(queryTransformed);
                         float[] bulkScores = new float[1];
-                        bulkScorer.scoreBulk(queryTransformed, bulkScores, 1);
+                        bulkScorer.scoreBulk(queryTransformed, 1, bulkScores);
                         assertEquals("Single vs bulk mismatch", singleScore, bulkScores[0], 0f);
                     }
                 }

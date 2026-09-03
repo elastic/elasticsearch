@@ -26,7 +26,7 @@ public final class ESNextAshBBQVectorsScorer implements AshScorer<byte[]> {
     }
 
     @Override
-    public void scoreBulk(byte[] query, float[] scores, int blockSize) throws IOException {
+    public void scoreBulk(byte[] query, int blockSize, float[] scores) throws IOException {
         dotProduct.dotProductBulk(query, blockSize, scores);
     }
 }

@@ -103,6 +103,16 @@ public class GlobExpanderTests extends ESTestCase {
         assertFalse(GlobExpander.isMultiFile("https://host/data.csv?X-Goog-Signature=abc"));
         assertFalse(GlobExpander.isMultiFile("https://host/data.csv#frag"));
         assertFalse(GlobExpander.isMultiFile("http://host/data.parquet?X-Amz-Signature=xyz"));
+        // Other glob metacharacters in query strings must also be safe after the strip.
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?filter=*.csv"));
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?x={a,b}"));
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?x=[1-3]"));
+    }
+
+    public void testHttpQueryStringCommaIsNotAListSeparator() {
+        // A comma inside an HTTP query string (e.g. ?fields=a,b) must not split the URL into a comma list.
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?fields=a,b"));
+        assertFalse(GlobExpander.isMultiFile("http://host/data.parquet?x=a,b,c"));
     }
 
     // -- expandGlob --

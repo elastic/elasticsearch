@@ -207,6 +207,19 @@ public final class StoragePath {
         return port;
     }
 
+    /**
+     * Returns the path component of this location, without query string or fragment.
+     * <p>
+     * For {@code http}/{@code https} URIs, the query string ({@code ?...}) and fragment ({@code #...}) are stripped
+     * at parse time so that callers that do extension inference or glob pattern detection see only the resource path
+     * (e.g. {@code /data.csv} rather than {@code /data.csv?X-Goog-Signature=...}).
+     * <p>
+     * For all other schemes ({@code s3://}, {@code gs://}, {@code file://}, …) the path is returned verbatim:
+     * {@code ?} and {@code #} are legal key characters in object stores and must not be stripped.
+     * <p>
+     * {@link #toString()} always returns the original location verbatim — HTTP clients and URL-keyed caches must
+     * receive the full presigned URL including the query string.
+     */
     public String path() {
         return path;
     }

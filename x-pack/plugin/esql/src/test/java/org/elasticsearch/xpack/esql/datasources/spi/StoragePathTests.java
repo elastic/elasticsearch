@@ -280,4 +280,11 @@ public class StoragePathTests extends ESTestCase {
         assertEquals(a.hashCode(), b.hashCode());
         assertNotEquals(a, c);
     }
+
+    public void testHttpParentDirectoryStripsQueryString() {
+        // parentDirectory() operates on the clean path; the result must not carry the query string of the original URL.
+        StoragePath path = StoragePath.of("https://host/dir/file.csv?sig=x");
+        StoragePath parent = path.parentDirectory();
+        assertEquals("https://host/dir", parent.toString());
+    }
 }

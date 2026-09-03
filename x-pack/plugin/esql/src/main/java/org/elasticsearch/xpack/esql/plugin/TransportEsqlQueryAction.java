@@ -465,6 +465,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     ci.readCpuNanos(),
                     QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
                     qp.splitDiscoveryNanos(),
+                    QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS,
+                    qp.splitDiscoveryCpuNanos(),
                     QueryMetricsListener.BYTES_READ,
                     ci.bytesRead()
                 )
@@ -622,7 +624,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
                 task.getStartTime(),
                 ((EsqlQueryTask) task).getExpirationTimeMillis(),
-                result.executionInfo()
+                result.executionInfo(),
+                result.approximationApplied()
             );
         }
         return new EsqlQueryResponse(
@@ -643,7 +646,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
             task.getStartTime(),
             threadPool.absoluteTimeInMillis() + request.keepAlive().millis(),
-            result.executionInfo()
+            result.executionInfo(),
+            result.approximationApplied()
         );
     }
 

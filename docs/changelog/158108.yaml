@@ -1,0 +1,6 @@
+area: Task Management
+issues:
+ - 158018
+pr: 158108
+summary: Fix leaking bulk cancellation task in `IncrementalBulkService`
+type: bug

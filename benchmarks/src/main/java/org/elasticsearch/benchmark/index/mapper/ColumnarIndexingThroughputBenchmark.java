@@ -9,7 +9,7 @@
 
 package org.elasticsearch.benchmark.index.mapper;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -94,7 +94,7 @@ public class ColumnarIndexingThroughputBenchmark {
 
     @Setup
     public void setUp() {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
 
         assert IndexMode.COLUMNAR.supportedSourceModes()
             .stream()

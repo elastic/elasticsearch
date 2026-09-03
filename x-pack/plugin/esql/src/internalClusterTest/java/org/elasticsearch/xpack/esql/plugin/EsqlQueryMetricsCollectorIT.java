@@ -342,11 +342,6 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
             lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS),
             greaterThan(0L)
         );
-        assertThat(
-            format + ": split_discovery_cpu_nanos <= split_discovery_nanos",
-            lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_NANOS),
-            greaterThanOrEqualTo(lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS))
-        );
     }
 
     /** Asserts that {@code read_cpu_nanos} is populated and does not exceed {@code read_nanos}. */

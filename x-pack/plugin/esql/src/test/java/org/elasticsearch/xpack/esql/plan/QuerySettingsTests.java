@@ -440,10 +440,13 @@ public class QuerySettingsTests extends ESTestCase {
             () -> QuerySettingDef.string("x")
                 .withDefault("base")
                 .withReconciler((previous, current) -> previous == null ? current : previous + "+" + current)
-                .withClusterDefault("extra")
+                .withClusterDefault("base")
                 .build()
         );
-        assertThat(e.getMessage(), containsString("cannot have a cluster default"));
+        // "base" parses and renders back to "base", so the round-trip arm is satisfied and only the fold can fail it:
+        // reconcile("base", "base") is "base+base", not the registry default. Asserting the specific tail keeps a
+        // mutation that skips the fold (checked = reparsed) from passing on the shared prefix.
+        assertThat(e.getMessage(), containsString("its declared default is not a no-op layer"));
     }
 
     public void testBuildRejectsSnapshotAndServerlessOnly() {
@@ -744,7 +747,7 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
-    public void testLicenceLapseIsReportedThroughTheRegisteredLicenceListener() {
+    public void testLicenseLapseIsReportedThroughTheRegisteredLicenseListener() {
         // Captures the listener the production code registers, so this pins the registration and not just the method
         // body — the same reason the settings-update test above drives the real consumer. A listener that was never
         // registered would leave the drop completely silent, which is exactly the failure being guarded against.
@@ -765,24 +768,24 @@ public class QuerySettingsTests extends ESTestCase {
             new MockLog.UnseenEventExpectation("licensed, no warning", QuerySettings.class.getCanonicalName(), Level.WARN, "*")
         );
 
-        // Licence lapses while the operator default is on: the operator is told, on the transition.
+        // License lapses while the operator default is on: the operator is told, on the transition.
         licensed.set(false);
         MockLog.assertThatLogger(
             listener::licenseStateChanged,
             QuerySettings.class,
             new MockLog.SeenEventExpectation(
-                "licence lapsed under an operator approximation default",
+                "license lapsed under an operator approximation default",
                 QuerySettings.class.getCanonicalName(),
                 Level.WARN,
-                "*" + key + "*licence does not permit approximation*"
+                "*" + key + "*license does not permit approximation*"
             )
         );
     }
 
     public void testUnlicensedApproximationDefaultIsReportedOnTheSettingsUpdatePath() {
-        // The PUT is accepted — approximation declares no validator, and the licence is not a property of the value —
+        // The PUT is accepted — approximation declares no validator, and the license is not a property of the value —
         // so without this arm the operator sets it on a BASIC cluster, every query silently runs exactly, and nothing
-        // is logged until the licence next changes. Same warning as the licence path, one implementation.
+        // is logged until the license next changes. Same warning as the license path, one implementation.
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(QuerySettings.clusterSettings()));
         QuerySettings.watchClusterDefaults(clusterSettings, () -> false);
         String key = QuerySettingDef.CLUSTER_SETTING_PREFIX + QuerySettings.APPROXIMATION.name();
@@ -794,13 +797,37 @@ public class QuerySettingsTests extends ESTestCase {
                 "unlicensed operator approximation default",
                 QuerySettings.class.getCanonicalName(),
                 Level.WARN,
-                "*" + key + "*licence does not permit approximation*"
+                "*" + key + "*license does not permit approximation*"
+            )
+        );
+    }
+
+    public void testUnlicensedApproximationDefaultInYmlIsReportedOnTheLicensePath() {
+        // The settings-update consumer does not fire for a value that was already in elasticsearch.yml at boot, so
+        // the license listener is the only report such a default ever gets. That means the license arm has to read
+        // nodeSettings: hard-coding Settings.EMPTY there leaves every other test in this class green.
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        ArgumentCaptor<LicenseStateListener> captor = ArgumentCaptor.forClass(LicenseStateListener.class);
+        String key = QuerySettingDef.CLUSTER_SETTING_PREFIX + QuerySettings.APPROXIMATION.name();
+        Settings yml = Settings.builder().put(key, "true").build();
+
+        QuerySettings.watchApproximationLicense(licenseState, () -> false, () -> Settings.EMPTY, yml);
+        verify(licenseState).addListener(captor.capture());
+
+        MockLog.assertThatLogger(
+            captor.getValue()::licenseStateChanged,
+            QuerySettings.class,
+            new MockLog.SeenEventExpectation(
+                "unlicensed approximation default configured in yml",
+                QuerySettings.class.getCanonicalName(),
+                Level.WARN,
+                "*" + key + "*license does not permit approximation*"
             )
         );
     }
 
     public void testLicensedApproximationDefaultIsNotReported() {
-        // The mutation: with a licence, the same PUT must say nothing. Guards against warning on every approximation
+        // The mutation: with a license, the same PUT must say nothing. Guards against warning on every approximation
         // default regardless of entitlement.
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(QuerySettings.clusterSettings()));
         QuerySettings.watchClusterDefaults(clusterSettings, () -> true);
@@ -813,14 +840,14 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
-    public void testWatchingApproximationLicenceToleratesAnAbsentLicenceState() {
-        // XPackPlugin publishes the shared licence state through a SetOnce, so a harness that builds EsqlPlugin
+    public void testWatchingApproximationLicenseToleratesAnAbsentLicenseState() {
+        // XPackPlugin publishes the shared license state through a SetOnce, so a harness that builds EsqlPlugin
         // without XPackPlugin passes null here. Registering eagerly on that NPEs during plugin creation and takes
         // down unrelated suites — it took out security consistency-checks and the esql QA action tests.
         QuerySettings.watchApproximationLicense(null, () -> false, () -> Settings.EMPTY, Settings.EMPTY);
     }
 
-    public void testLicenceLapseIsSilentWhenNoOperatorDefaultIsOn() {
+    public void testLicenseLapseIsSilentWhenNoOperatorDefaultIsOn() {
         // The mutation proving the warning is conditional on the operator default, not fired by any unlicensed
         // transition. Without this, a warning hard-coded to every lapse would pass the test above.
         XPackLicenseState licenseState = mock(XPackLicenseState.class);

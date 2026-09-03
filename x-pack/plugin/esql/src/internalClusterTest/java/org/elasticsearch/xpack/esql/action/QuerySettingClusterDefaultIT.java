@@ -18,6 +18,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -99,6 +100,28 @@ public class QuerySettingClusterDefaultIT extends AbstractEsqlIntegTestCase {
         // Removing it restores the built-in default.
         updateClusterSettings(Settings.builder().putNull(UNMAPPED_FIELDS_KEY));
         expectThrows(VerificationException.class, () -> run(query).close());
+    }
+
+    public void testApproximationClusterDefaultReachesTheResponse() {
+        // approximationApplied is null exactly when the resolved setting is off, and that decision is
+        // data-independent, so ROW is enough to observe which layer won without standing up a corpus.
+        assertThat(approximationMarker("ROW x = 1"), nullValue());
+
+        updateClusterSettings(Settings.builder().put(APPROXIMATION_KEY, "true"));
+        assertThat(approximationMarker("ROW x = 1"), notNullValue());
+
+        // A user's SET beats the operator's default, in the direction that turns it off.
+        assertThat(approximationMarker("SET approximation = false; ROW x = 1"), nullValue());
+
+        // Removing the cluster default restores the built-in one.
+        updateClusterSettings(Settings.builder().putNull(APPROXIMATION_KEY));
+        assertThat(approximationMarker("ROW x = 1"), nullValue());
+    }
+
+    private Boolean approximationMarker(String query) {
+        try (EsqlQueryResponse response = run(query)) {
+            return response.approximationApplied();
+        }
     }
 
     private String truncatedDay(String query) {

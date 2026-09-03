@@ -797,16 +797,34 @@ public final class QuerySettingDef<T> {
             T checkedCanonical = checked == null ? null : canonicalizer.apply(checked);
             T registryCanonical = defaultValue == null ? null : canonicalizer.apply(defaultValue);
             if (Objects.equals(checkedCanonical, registryCanonical) == false) {
+                // Two different causes reach this point and they need different messages. Without a declared default
+                // the value only had to survive its own parser, so a mismatch is a round-trip failure. With one, the
+                // value is additionally folded onto the registry default, and a mismatch means the declared default
+                // is not a no-op layer — which a round-trip check would not have caught.
                 throw new IllegalStateException(
-                    "Setting ["
-                        + name
-                        + "] cannot have a cluster default: its default does not round-trip through its own parser ["
-                        + defaultValue
-                        + "] -> ["
-                        + rendered
-                        + "] -> ["
-                        + reparsed
-                        + "]"
+                    declaredClusterDefault != null
+                        ? "Setting ["
+                            + name
+                            + "] cannot have a cluster default: its declared default is not a no-op layer, so folding "
+                            + "it onto the registry default does not give the registry default back ["
+                            + defaultValue
+                            + "] -> ["
+                            + rendered
+                            + "] -> ["
+                            + reparsed
+                            + "] -> ["
+                            + checked
+                            + "]"
+                        : "Setting ["
+                            + name
+                            + "] cannot have a cluster default: its default does not round-trip through its own "
+                            + "parser ["
+                            + defaultValue
+                            + "] -> ["
+                            + rendered
+                            + "] -> ["
+                            + reparsed
+                            + "]"
                 );
             }
             if (validator != null) {

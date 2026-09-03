@@ -192,7 +192,7 @@ public final class QuerySettings {
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.approximation` cluster setting supplies it. If that cluster setting is not "
             + "configured either, query approximation is off. Enabling it cluster-wide requires an Enterprise "
-            + "licence; without one the cluster default does not apply and queries run exactly. "
+            + "license; without one the cluster default does not apply and queries run exactly. "
             + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
     )
     @MapParam(
@@ -393,8 +393,12 @@ public final class QuerySettings {
      * Log any operator default this node cannot use. Resolution falls back to the built-in default for such a value
      * rather than failing queries, so without this the operator would have no signal at all.
      *
-     * @param effectiveSettings node and cluster-state settings already merged and filtered to these keys, as the
-     *     grouped settings-update consumer supplies them
+     * @param effectiveSettings the settings to read operator values from — node and cluster-state already merged and
+     *     filtered to these keys on the settings-update path, or cluster-state alone on the license-listener path
+     * @param nodeSettings the {@code elasticsearch.yml} layer, or {@link Settings#EMPTY} when {@code effectiveSettings}
+     *     already contains it. Both arms read the same view, so they cannot report different sets.
+     * @param approximationLicensed whether approximation is licensed; supplied as a predicate rather than by importing
+     *     the license checker, so this package keeps knowing only about settings. Must not record feature usage.
      */
     public static void warnUnusableClusterDefaults(
         Settings effectiveSettings,
@@ -402,7 +406,7 @@ public final class QuerySettings {
         BooleanSupplier approximationLicensed
     ) {
         for (QuerySettingDef<?> def : all()) {
-            String error = def.clusterValueError(effectiveSettings, Settings.EMPTY);
+            String error = def.clusterValueError(effectiveSettings, nodeSettings);
             if (error != null) {
                 logger.warn(
                     "Cluster setting [{}{}] is configured but not usable on this cluster and is being ignored; "
@@ -413,13 +417,13 @@ public final class QuerySettings {
                 );
             }
         }
-        // The licence is a second way an operator default becomes unusable, and it is invisible to clusterValueError:
+        // The license is a second way an operator default becomes unusable, and it is invisible to clusterValueError:
         // the value is valid, it is the entitlement that comes and goes. Checked here so both the settings-update path
-        // and the licence-transition path report the same set of unusable defaults through one implementation.
+        // and the license-transition path report the same set of unusable defaults through one implementation.
         if (approximationLicensed.getAsBoolean() == false
             && ApproximationSettings.isOn(APPROXIMATION.effectiveDefault(effectiveSettings, nodeSettings))) {
             logger.warn(
-                "Cluster setting [{}{}] is configured but this cluster's licence does not permit approximation; "
+                "Cluster setting [{}{}] is configured but this cluster's license does not permit approximation; "
                     + "queries that did not ask for it run exactly. A query that asks for it explicitly still fails.",
                 QuerySettingDef.CLUSTER_SETTING_PREFIX,
                 APPROXIMATION.name()
@@ -459,16 +463,16 @@ public final class QuerySettings {
     }
 
     /**
-     * Warn the operator when a cluster-wide {@code approximation} default stops applying because the licence no
+     * Warn the operator when a cluster-wide {@code approximation} default stops applying because the license no
      * longer permits it.
      * <p>
      * The settings-update registration cannot cover this on its own: it runs only when a setting is updated, and a
-     * licence expiring updates no setting. Both paths call {@link #warnUnusableClusterDefaults}, so they report the
+     * license expiring updates no setting. Both paths call {@link #warnUnusableClusterDefaults}, so they report the
      * same set of unusable defaults rather than two drifting subsets. The per-query drop site cannot log it either:
-     * it runs on every query, and a misconfigured cluster would flood the log. A licence listener fires once per
+     * it runs on every query, and a misconfigured cluster would flood the log. A license listener fires once per
      * transition, which is the granularity the operator needs, and costs the query path nothing.
      * <p>
-     * The licence is supplied as a predicate rather than by importing the checker, so this package keeps knowing
+     * The license is supplied as a predicate rather than by importing the checker, so this package keeps knowing
      * only about settings.
      */
     public static void watchApproximationLicense(
@@ -478,10 +482,10 @@ public final class QuerySettings {
         Settings nodeSettings
     ) {
         if (licenseState == null) {
-            // XPackPlugin publishes the shared licence state through a SetOnce, so a harness that builds this plugin
+            // XPackPlugin publishes the shared license state through a SetOnce, so a harness that builds this plugin
             // without XPackPlugin sees null. That is test-only: PlanExecutor captures the same state eagerly for its
-            // query-time licence checks, so a null in a real node would fail every query long before this mattered.
-            // No licence state means no licence transitions, so there is nothing to report.
+            // query-time license checks, so a null in a real node would fail every query long before this mattered.
+            // No license state means no license transitions, so there is nothing to report.
             return;
         }
         licenseState.addListener(() -> { warnUnusableClusterDefaults(clusterStateSettings.get(), nodeSettings, approximationLicensed); });

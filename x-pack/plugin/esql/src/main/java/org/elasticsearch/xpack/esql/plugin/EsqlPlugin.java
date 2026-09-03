@@ -456,7 +456,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             () -> EsqlLicenseChecker.isQueryApproximationAllowedWithoutTracking(getLicenseState())
         );
 
-        // A licence lapse silently stops a cluster-wide approximation default from applying. No setting changes, so
+        // A license lapse silently stops a cluster-wide approximation default from applying. No setting changes, so
         // the consumer above never fires; this listener is the only place the operator can learn of it.
         QuerySettings.watchApproximationLicense(
             getLicenseState(),

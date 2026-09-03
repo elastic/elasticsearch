@@ -62,7 +62,7 @@ public class EsqlLicenseChecker {
 
     /**
      * Whether approximation is licensed, <b>without</b> recording feature usage. For the operator-warning path, which
-     * asks on every licence transition and on every settings update: those are not the feature being used, and
+     * asks on every license transition and on every settings update: those are not the feature being used, and
      * counting them would report approximation as in use on a cluster that never approximated a query.
      */
     public static boolean isQueryApproximationAllowedWithoutTracking(XPackLicenseState licenseState) {

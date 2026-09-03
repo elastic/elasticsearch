@@ -3,187 +3,187 @@ released: false
 generated: 2026-09-03T08:04:39.081731Z
 changelogs:
   - pr: 149429
-    summary: Fixing `StatelessTranslogIT.testTranslogLocalFailureOnlyStressRecoveryTest()`
+    summary: Fix translog resource leaks and leftover upload tasks on node shutdown
     area: Engine
     type: bug
     issues:
       - 149343
   - pr: 150342
-    summary: Eagerly fail reindexes that are unable to be relocated
+    summary: Fail reindex tasks that cannot relocate during node shutdown
     area: Reindex
     type: bug
     issues:
       - 150294
       - 150295
   - pr: 152269
-    summary: Deprecate legacy monitoring REST apis.
+    summary: Deprecate the legacy monitoring REST APIs
     area: Monitoring
     type: deprecation
     issues: []
     deprecation:
       area: REST API
-      title: Deprecate legacy monitoring REST apis.
+      title: Deprecate the legacy monitoring REST APIs
       details: "The `_monitoring/bulk` and `_monitoring/migrate/alerts` REST APIs, used by the legacy internal collection method for Stack Monitoring, are deprecated and will be removed in Elasticsearch 10.0."
-      impact: Users relying on internal collection for Stack Monitoring should migrate to Metricbeat or Elastic Agent based monitoring. Calling either endpoint now returns a deprecation warning.
+      impact: If you use internal collection for Stack Monitoring, migrate to AutoOps, Elastic Agent, or Metricbeat. Calling either endpoint returns a deprecation warning.
       notable: false
       essSettingChange: false
   - pr: 153577
-    summary: Unified and faster calibration path
+    summary: Speed up vector quantization calibration during index merge
     area: Vector Search
     type: enhancement
     issues: []
   - pr: 154480
-    summary: Bound `min_hash` filter params to prevent OOM
+    summary: Prevent out-of-memory errors from extreme `min_hash` filter settings
     area: Analysis
     type: bug
     issues: []
   - pr: 156326
-    summary: Fix ES|QL query failures when a multi-field sub-field has conflicting types across indices
+    summary: Fix query failures when a multi-field sub-field has conflicting types across indices
     area: ES|QL
     type: bug
     issues: []
   - pr: 156412
-    summary: Fix ROUND of an integer with a negative precision silently overflowing to a negative value
+    summary: Fix `ROUND` overflowing integer values when used with negative precision
     area: ES|QL
     type: bug
     issues:
       - 156411
   - pr: 156980
-    summary: Decouple type-check exactness from pushdown exactness for fused block-loader functions
+    summary: Fix query failures after fusing field extraction into exact-string functions
     area: ES|QL
     type: bug
     issues: []
   - pr: 157044
-    summary: Honor pruning in the `_shard_doc` sort comparator
+    summary: Speed up `_shard_doc` `search_after` pagination by applying sort pruning
     area: Search
     type: bug
     issues:
       - 155559
   - pr: 157148
-    summary: Fix TS STATS literal aggregates dropped by optimizer
+    summary: Fix `TS` `STATS` dropping constant literal aggregates
     area: ES|QL
     type: bug
     issues:
       - 157103
   - pr: 157214
-    summary: "[Inference API] Fix inference/_update to allow rotating secrets"
+    summary: Allow rotating secrets with the inference `_update` API
     area: Inference
     type: bug
     issues: []
   - pr: 157229
-    summary: Fix shared score accumulator amongst segments for ivf search
+    summary: Restore shared score accumulation across segments for IVF search
     area: Vector Search
     type: bug
     issues: []
   - pr: 157567
-    summary: Surface CCS skipped-cluster stats on datafeed extraction failure
+    summary: Report skipped clusters in datafeed stats after a cross-cluster search failure
     area: Machine Learning
     type: bug
     issues: []
   - pr: 157630
-    summary: Fix empty `collectRange` crash in doc-values queries (lucene#16546)
+    summary: Fix search crashes from empty collect ranges in doc-values queries
     area: Mapping
     type: bug
     issues: []
   - pr: 157634
-    summary: "`DataStreamAutoShardingService.calculate()` works on stale data [#134505]"
+    summary: Fix data stream auto-sharding using stale index settings
     area: Data streams
     type: bug
     issues:
       - 134505
   - pr: 157730
-    summary: Fix bfloat16 reading from old index versions with endianness mismatches
+    summary: Fix reading `bfloat16` values from older index formats with different endianness
     area: Vector Search
     type: bug
     issues:
       - 157696
   - pr: 157752
-    summary: Fix result size limit check on INSERT
+    summary: Fix the SQL `INSERT` function ignoring the result size limit
     area: SQL
     type: bug
     issues: []
   - pr: 157760
-    summary: "Audit: reject oversized request bodies"
+    summary: Reject oversized request bodies when request-body auditing is enabled
     area: Audit
     type: enhancement
     issues: []
   - pr: 157790
-    summary: Fix mv_min/mv_max on columnar ip fields
+    summary: Fix `MV_MIN` and `MV_MAX` on `ip` fields in columnar mode
     area: ES|QL
     type: bug
     issues:
       - 157521
   - pr: 157798
-    summary: Fix backwards read of `_ignored_source` doc values
+    summary: Fix failures when reading `_ignored_source` out of document order
     area: ES|QL
     type: bug
     issues: []
   - pr: 157857
-    summary: Fix `ArrayOrder` block loaders falsely claiming SORTED_ASCENDING
+    summary: Fix incorrect `MV_MIN` and `MV_PERCENTILE` results in columnar mode
     area: Columnar
     type: bug
     issues:
       - 157817
   - pr: 157858
-    summary: Fix BYTE_LENGTH returning 0 for keywords in columnar mode
+    summary: Fix `BYTE_LENGTH` returning 0 for `keyword` fields in columnar mode
     area: Columnar
     type: bug
     issues: []
   - pr: 157889
-    summary: Fix FLS field names term state filtering
+    summary: Fix field-level security filtering for `_field_names` terms
     area: Authorization
     type: bug
     issues: []
   - pr: 157929
-    summary: Reject blank datafeed ID in stop datafeed request
+    summary: Reject a blank datafeed ID in stop datafeed requests
     area: Machine Learning
     type: bug
     issues: []
   - pr: 158020
-    summary: Reject blank job id on close request
+    summary: Reject a blank job ID in close job requests
     area: Machine Learning
     type: bug
     issues: []
   - pr: 158060
-    summary: Fix composite agg on doc values skipper fields
+    summary: Fix composite aggregations returning no buckets on logsdb timestamp fields
     area: Mapping
     type: bug
     issues:
       - 158008
   - pr: 158108
-    summary: Fix leaking bulk cancellation task in `IncrementalBulkService`
+    summary: Fix leaking cancellation tasks in incremental bulk indexing
     area: Task Management
     type: bug
     issues:
       - 158018
   - pr: 158143
-    summary: "Audit: emit `request.raw_body` for protobuf bodies"
+    summary: Add `request.raw_body` to audit events for protobuf request bodies
     area: Audit
     type: enhancement
     issues: []
   - pr: 158175
-    summary: Reduce memory usage during serialization when retrieving component and composable templates via the GET APIs
+    summary: Reduce memory usage when retrieving component and composable templates
     area: Templates
     type: bug
     issues: []
   - pr: 158187
-    summary: "Fix(mapper): handle missing counts in contains query"
+    summary: Fix contains queries failing on single-valued keyword fields
     area: Mapping
     type: bug
     issues: []
   - pr: 158211
-    summary: Cap `min_hash` filter params
+    summary: Limit `min_hash` filter parameters to prevent integer overflow
     area: Analysis
     type: bug
     issues: []
   - pr: 158235
-    summary: Do not abort shard bulk on expansion rejection
+    summary: Prevent indexing-pressure rejections from stopping an entire bulk shard request
     area: CRUD
     type: bug
     issues:
       - 158212
   - pr: 158296
-    summary: Update knn query automatic pre-filtering to handle exists queries on inference fields
+    summary: Fix kNN automatic pre-filtering for `exists` queries on inference fields
     area: Search
     type: bug
     issues:

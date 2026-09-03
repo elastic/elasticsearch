@@ -22,7 +22,7 @@ stack: ga 9.5.3
 ```
 
 Monitoring:
-* Deprecate legacy monitoring REST apis. [#152269](https://github.com/elastic/elasticsearch/pull/152269)
+* Deprecate the legacy monitoring REST APIs [#152269](https://github.com/elastic/elasticsearch/pull/152269)
 
 
 

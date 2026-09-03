@@ -1342,6 +1342,17 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testMalformedSchemaColumnNamesTheColumn() {
+        // A declared schema column with no "name:type" split is the user's typo, not a query fault -- the same
+        // reason every other reader-raised fault here is an ExternalClientException rather than a ParsingException.
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
+            () -> new CsvFormatReader(blockFactory).schema(createStorageObject("id:long,name\n"))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("Invalid CSV schema format: [name]"));
+        assertThat(e.getMessage(), Matchers.containsString("Expected 'name:type'"));
+    }
+
     public void testUnsupportedType() {
         String csv = "id:unsupported_type\n";
         StorageObject object = createStorageObject(csv);

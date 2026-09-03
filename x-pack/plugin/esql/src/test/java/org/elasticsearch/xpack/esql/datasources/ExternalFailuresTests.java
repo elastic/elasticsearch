@@ -251,14 +251,14 @@ public class ExternalFailuresTests extends ESTestCase {
         // The shape the resolver sees: a JDK ExecutionException whose message is the cause's toString(). It is not
         // an ElasticsearchWrapperException, so ExceptionsHelper.unwrapCause would return it unchanged.
         ExecutionException wrapper = new ExecutionException(real);
-        assertThat(ExternalFailures.rootCause(wrapper), equalTo(real));
-        assertThat(ExceptionsHelper.unwrapCause(wrapper), equalTo(wrapper));
+        assertSame(real, ExternalFailures.rootCause(wrapper));
+        assertSame(wrapper, ExceptionsHelper.unwrapCause(wrapper));
     }
 
     public void testRootCauseKeepsAWrapperThatCarriesItsOwnMessage() {
         IOException real = new IOException("Object not found: s3://bucket/x.csv");
         IOException described = new IOException("Failed to list bucket [b]", real);
-        assertThat(ExternalFailures.rootCause(described), equalTo(described));
+        assertSame(described, ExternalFailures.rootCause(described));
     }
 
 }

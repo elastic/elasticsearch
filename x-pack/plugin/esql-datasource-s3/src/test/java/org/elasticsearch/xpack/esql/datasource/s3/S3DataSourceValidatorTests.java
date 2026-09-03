@@ -825,8 +825,9 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testUnsupportedSchemeListsTheSchemesInAStableOrder() {
-        // Nine schemes declared out of order. Set.of salts its iteration per JVM run, so with the renderer's sort
-        // removed this asserts one arrangement out of 9! -- it cannot pass by luck the way a three-element set can.
+        // Nine schemes declared out of order. Set.of salts its iteration per JVM run; over nine elements the sorted
+        // arrangement is not among the orderings it can produce, so with the renderer's sort removed this fails every
+        // time. A three-element set does reach sorted order, which is why one is not a gate.
         DataSourceValidator manySchemes = new FileDataSourceValidator(
             "s3",
             S3Configuration::fromMap,

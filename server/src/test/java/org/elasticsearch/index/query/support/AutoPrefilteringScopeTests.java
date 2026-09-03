@@ -9,8 +9,12 @@
 
 package org.elasticsearch.index.query.support;
 
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RandomQueryBuilder;
+import org.elasticsearch.index.query.support.AutoPrefilteringScope.ScopedPrefilter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
@@ -33,6 +37,10 @@ public class AutoPrefilteringScopeTests extends ESTestCase {
         List<QueryBuilder> prefilters_2_2 = randomList(0, 5, () -> RandomQueryBuilder.createQuery(random()));
         List<QueryBuilder> prefilters_3_1 = randomList(0, 5, () -> RandomQueryBuilder.createQuery(random()));
 
+        NestedObjectMapper level_1 = null;
+        NestedObjectMapper level_2 = buildNestedMapper("a");
+        NestedObjectMapper level_3 = buildNestedMapper("a.b");
+
         // Given + increases level and - decreases level, we add scope as follows:
         // + 1_1 + 2_1 + 3_1
         // - 3_1 + 2_2
@@ -41,42 +49,50 @@ public class AutoPrefilteringScopeTests extends ESTestCase {
         // - 1_1
         // and we check current prefilters after each operation.
 
-        autoPrefilteringScope.push(prefilters_1_1);
-        assertThat(autoPrefilteringScope.getPrefilters(), equalTo(prefilters_1_1));
-        autoPrefilteringScope.push(prefilters_2_1);
+        autoPrefilteringScope.push(prefilters_1_1, level_1);
+        assertThat(autoPrefilteringScope.getPrefilters(), equalTo(scoped(prefilters_1_1, level_1)));
+        autoPrefilteringScope.push(prefilters_2_1, level_2);
         assertThat(
             autoPrefilteringScope.getPrefilters(),
-            equalTo(Stream.of(prefilters_2_1, prefilters_1_1).flatMap(Collection::stream).toList())
+            equalTo(Stream.of(scoped(prefilters_2_1, level_2), scoped(prefilters_1_1, level_1)).flatMap(Collection::stream).toList())
         );
-        autoPrefilteringScope.push(prefilters_3_1);
+        autoPrefilteringScope.push(prefilters_3_1, level_3);
         assertThat(
             autoPrefilteringScope.getPrefilters(),
-            equalTo(Stream.of(prefilters_3_1, prefilters_2_1, prefilters_1_1).flatMap(Collection::stream).toList())
-        );
-        autoPrefilteringScope.pop();
-        assertThat(
-            autoPrefilteringScope.getPrefilters(),
-            equalTo(Stream.of(prefilters_2_1, prefilters_1_1).flatMap(Collection::stream).toList())
-        );
-        autoPrefilteringScope.push(prefilters_2_2);
-        assertThat(
-            autoPrefilteringScope.getPrefilters(),
-            equalTo(Stream.of(prefilters_2_2, prefilters_2_1, prefilters_1_1).flatMap(Collection::stream).toList())
+            equalTo(
+                Stream.of(scoped(prefilters_3_1, level_3), scoped(prefilters_2_1, level_2), scoped(prefilters_1_1, level_1))
+                    .flatMap(Collection::stream)
+                    .toList()
+            )
         );
         autoPrefilteringScope.pop();
         assertThat(
             autoPrefilteringScope.getPrefilters(),
-            equalTo(Stream.of(prefilters_2_1, prefilters_1_1).flatMap(Collection::stream).toList())
+            equalTo(Stream.of(scoped(prefilters_2_1, level_2), scoped(prefilters_1_1, level_1)).flatMap(Collection::stream).toList())
         );
-        autoPrefilteringScope.pop();
-        assertThat(autoPrefilteringScope.getPrefilters(), equalTo(prefilters_1_1));
-        autoPrefilteringScope.push(prefilters_1_2);
+        autoPrefilteringScope.push(prefilters_2_2, level_2);
         assertThat(
             autoPrefilteringScope.getPrefilters(),
-            equalTo(Stream.of(prefilters_1_2, prefilters_1_1).flatMap(Collection::stream).toList())
+            equalTo(
+                Stream.of(scoped(prefilters_2_2, level_2), scoped(prefilters_2_1, level_2), scoped(prefilters_1_1, level_1))
+                    .flatMap(Collection::stream)
+                    .toList()
+            )
         );
         autoPrefilteringScope.pop();
-        assertThat(autoPrefilteringScope.getPrefilters(), equalTo(prefilters_1_1));
+        assertThat(
+            autoPrefilteringScope.getPrefilters(),
+            equalTo(Stream.of(scoped(prefilters_2_1, level_2), scoped(prefilters_1_1, level_1)).flatMap(Collection::stream).toList())
+        );
+        autoPrefilteringScope.pop();
+        assertThat(autoPrefilteringScope.getPrefilters(), equalTo(scoped(prefilters_1_1, level_1)));
+        autoPrefilteringScope.push(prefilters_1_2, level_1);
+        assertThat(
+            autoPrefilteringScope.getPrefilters(),
+            equalTo(Stream.of(scoped(prefilters_1_2, level_1), scoped(prefilters_1_1, level_1)).flatMap(Collection::stream).toList())
+        );
+        autoPrefilteringScope.pop();
+        assertThat(autoPrefilteringScope.getPrefilters(), equalTo(scoped(prefilters_1_1, level_1)));
         autoPrefilteringScope.pop();
         assertThat(autoPrefilteringScope.getPrefilters(), empty());
     }
@@ -87,17 +103,26 @@ public class AutoPrefilteringScopeTests extends ESTestCase {
         List<QueryBuilder> prefilters_2 = randomList(0, 5, () -> RandomQueryBuilder.createQuery(random()));
 
         try (autoPrefilteringScope) {
-            autoPrefilteringScope.push(prefilters_1);
+            autoPrefilteringScope.push(prefilters_1, null);
 
             try (autoPrefilteringScope) {
-                autoPrefilteringScope.push(prefilters_2);
+                autoPrefilteringScope.push(prefilters_2, null);
                 assertThat(
                     autoPrefilteringScope.getPrefilters(),
-                    equalTo(Stream.of(prefilters_2, prefilters_1).flatMap(Collection::stream).toList())
+                    equalTo(Stream.of(scoped(prefilters_2, null), scoped(prefilters_1, null)).flatMap(Collection::stream).toList())
                 );
             }
-            assertThat(autoPrefilteringScope.getPrefilters(), equalTo(prefilters_1));
+            assertThat(autoPrefilteringScope.getPrefilters(), equalTo(scoped(prefilters_1, null)));
         }
         assertThat(autoPrefilteringScope.getPrefilters(), is(empty()));
+    }
+
+    private static List<ScopedPrefilter> scoped(List<QueryBuilder> prefilters, NestedObjectMapper nestedLevel) {
+        return prefilters.stream().map(q -> new ScopedPrefilter(q, nestedLevel)).toList();
+    }
+
+    private static NestedObjectMapper buildNestedMapper(String path) {
+        return new NestedObjectMapper.Builder(path, IndexVersion.current(), query -> { throw new UnsupportedOperationException(); }, null)
+            .build(MapperBuilderContext.root(false, false));
     }
 }

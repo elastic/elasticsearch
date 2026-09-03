@@ -32,7 +32,7 @@ import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
  *       SimdJsonDirectWalker walker = new SimdJsonDirectWalker(nameTable.makeChild());
  *       parser.stage1(buffer, offset, len);
  *       parser.prepareDocumentWindow(offset, len);
- *       walker.walkDocument(buffer, len, parser, handler);
+ *       walker.walkDocument(buffer, parser, handler);
  *       walker.releaseNames();
  *   }
  * }</pre>
@@ -44,7 +44,7 @@ import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
  *       parser.beginBatch(buffer, totalLen);
  *       for (int i = 0; i < docCount; i++) {
  *           parser.prepareDocumentWindowChunked(docOffsets[i], docLens[i]);
- *           walker.walkDocument(buffer, docLens[i], parser, handler);
+ *           walker.walkDocument(buffer, parser, handler);
  *       }
  *       walker.releaseNames();
  *   }
@@ -243,14 +243,6 @@ public class SimdJsonParser implements AutoCloseable {
             bitIndexes.writeSentinel(savedSentinelPos, savedSentinelValue);
             savedSentinelPos = -1;
         }
-    }
-
-    /**
-     * Ensures the internal {@link BitIndexes} can hold at least {@code minCapacity} entries.
-     * Used internally when the batch buffer is larger than the initial capacity estimate.
-     */
-    void ensureIndexCapacity(int minCapacity) {
-        bitIndexes.ensureCapacity(minCapacity);
     }
 
     @Override

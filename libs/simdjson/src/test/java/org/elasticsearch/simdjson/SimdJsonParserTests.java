@@ -407,12 +407,12 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
 
         parser.prepareDocumentWindowChunked(offsets[1], lengths[1]);
         RecordingHandler handler = new RecordingHandler();
-        walker.walkDocument(buffer, lengths[1], parser, handler);
+        walker.walkDocument(buffer, parser, handler);
         assertEquals(List.of("long(second=2,fitsInt=true)"), handler.events);
 
         parser.prepareDocumentWindowChunked(offsets[0], lengths[0]);
         handler.events.clear();
-        expectThrows(JsonParsingException.class, () -> walker.walkDocument(buffer, lengths[0], parser, handler));
+        expectThrows(JsonParsingException.class, () -> walker.walkDocument(buffer, parser, handler));
     }
 
     /**
@@ -431,13 +431,13 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
         byte[] buf1 = doc1.getBytes(UTF_8);
         parser.stage1(buf1, buf1.length);
         parser.prepareDocumentWindow(0, buf1.length);
-        walker.walkDocument(buf1, buf1.length, parser, new RecordingHandler());
+        walker.walkDocument(buf1, parser, new RecordingHandler());
 
         byte[] buf2 = doc2.getBytes(UTF_8);
         parser.stage1(buf2, buf2.length);
         parser.prepareDocumentWindow(0, buf2.length);
         RecordingHandler handler = new RecordingHandler();
-        walker.walkDocument(buf2, buf2.length, parser, handler);
+        walker.walkDocument(buf2, parser, handler);
 
         assertEquals(baseline2, handler.events);
     }

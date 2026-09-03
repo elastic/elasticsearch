@@ -86,7 +86,7 @@ public class EscfDocumentHandlerTests extends ESTestCase {
         SimdJsonDirectWalker walker = SimdJsonPool.directWalker();
         parser.stage1(bytes, 0, bytes.length);
         parser.prepareDocumentWindow(0, bytes.length);
-        walker.walkDocument(bytes, bytes.length, parser, handler);
+        walker.walkDocument(bytes, parser, handler);
         walker.releaseNames();
         row.finishRow();
 

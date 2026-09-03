@@ -24,7 +24,7 @@
  *       {@link org.elasticsearch.simdjson.SimdJsonParserPool#getDefault()}.</li>
  *   <li>For each document: call {@code stage1} and {@code prepareDocumentWindow} on the
  *       thread-local {@link org.elasticsearch.simdjson.SimdJsonParser}, then
- *       {@code directWalker().walkDocument(buffer, docLen, parser, handler)}.</li>
+ *       {@code directWalker().walkDocument(buffer, parser, handler)}.</li>
  *   <li>At partition or batch boundaries, call
  *       {@link org.elasticsearch.simdjson.SimdJsonParserPool#releaseNames()} to merge newly
  *       discovered field names back to the shared cache.</li>

@@ -42,7 +42,7 @@ import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.isStruc
  * <ol>
  *   <li>Create one walker per thread via {@link SimdJsonParserPool#directWalker()}, which
  *       wires a thread-confined field name cache automatically.</li>
- *   <li>For each document, call {@link #walkDocument(byte[], int, SimdJsonParser,
+ *   <li>For each document, call {@link #walkDocument(byte[], SimdJsonParser,
  *       JsonDocumentHandler)}. The batch parser must have its document window prepared first.</li>
  *   <li>After processing a batch, call {@link #releaseNames()} to merge newly discovered
  *       field names back to the shared parent table. Omitting this call is safe but means
@@ -79,22 +79,21 @@ public final class SimdJsonDirectWalker {
      * {@link SimdJsonParser#prepareDocumentWindow} or
      * {@link SimdJsonParser#prepareDocumentWindowChunked}).
      *
-     * <p>The {@code docLen} parameter is used only for validation; actual byte positions come
-     * from the structural indices in the batch parser, which are absolute offsets into
-     * {@code buffer}. This means the document does not need to start at offset 0.
+     * <p>Byte positions come from the structural indices in the parser's prepared read window,
+     * which are absolute offsets into {@code buffer}. The document does not need to start at
+     * offset 0.
      *
      * @param buffer the contiguous byte buffer containing the JSON data
-     * @param docLen length of the document in bytes (for bounds context, not offset)
      * @param parser the batch parser with a prepared document window
      * @param handler receives parsed JSON events
      * @throws JsonParsingException if the JSON is malformed or nesting exceeds {@code maxDepth}
      */
-    public void walkDocument(byte[] buffer, int docLen, SimdJsonParser parser, JsonDocumentHandler handler) {
-        walkDocument(buffer, docLen, parser.bitIndexes(), handler);
+    public void walkDocument(byte[] buffer, SimdJsonParser parser, JsonDocumentHandler handler) {
+        walkDocument(buffer, parser.bitIndexes(), handler);
     }
 
     /** Package-private: walks using raw {@link BitIndexes}. */
-    void walkDocument(byte[] buffer, int docLen, BitIndexes bitIndexes, JsonDocumentHandler handler) {
+    void walkDocument(byte[] buffer, BitIndexes bitIndexes, JsonDocumentHandler handler) {
         if (bitIndexes.isEnd()) {
             throw new JsonParsingException("No structural element found.");
         }

@@ -28,7 +28,7 @@ import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable;
  *       SimdJsonDirectWalker walker = pool.directWalker();
  *       parser.stage1(buffer, offset, docLen);
  *       parser.prepareDocumentWindow(offset, docLen);
- *       walker.walkDocument(buffer, docLen, parser, handler);
+ *       walker.walkDocument(buffer, parser, handler);
  *       pool.releaseNames(); // after a partition or other merge boundary
  *   }
  * }</pre>

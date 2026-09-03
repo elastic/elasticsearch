@@ -91,7 +91,7 @@ public abstract class SimdJsonTestCase extends ESTestCase {
             SimdJsonDirectWalker walker = new SimdJsonDirectWalker(child);
 
             RecordingHandler handler = new RecordingHandler(normalizeEmptyObject);
-            walker.walkDocument(buffer, len, parser.bitIndexes(), handler);
+            walker.walkDocument(buffer, parser.bitIndexes(), handler);
             return handler.events;
         }
     }

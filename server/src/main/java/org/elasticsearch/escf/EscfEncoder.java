@@ -134,7 +134,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
             EscfRowBuffer row = backend.beginRow();
             boolean rawTextMode = sink != LeafSink.NO_OP && sink.passRawText();
             EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, rawTextMode);
-            walker.walkDocument(buf, len, parser, handler);
+            walker.walkDocument(buf, parser, handler);
             row.finishRow();
             return true;
         } catch (JsonParsingException e) {

@@ -204,7 +204,7 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         SimdJsonDirectWalker walker = new SimdJsonDirectWalker(child);
         RecordingHandler handler = new RecordingHandler();
 
-        expectThrows(JsonParsingException.class, () -> walker.walkDocument(buffer, 0, bitIndexes, handler));
+        expectThrows(JsonParsingException.class, () -> walker.walkDocument(buffer, bitIndexes, handler));
     }
 
     public void testFieldNameCaching() {
@@ -221,12 +221,12 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         parser.stage1(buffer, len);
         parser.prepareDocumentWindow(0, len);
         RecordingHandler handler1 = new RecordingHandler();
-        walker.walkDocument(buffer, len, parser.bitIndexes(), handler1);
+        walker.walkDocument(buffer, parser.bitIndexes(), handler1);
 
         parser.stage1(buffer, len);
         parser.prepareDocumentWindow(0, len);
         RecordingHandler handler2 = new RecordingHandler();
-        walker.walkDocument(buffer, len, parser.bitIndexes(), handler2);
+        walker.walkDocument(buffer, parser.bitIndexes(), handler2);
 
         String name1 = handler1.events.get(0).substring("long(".length(), handler1.events.get(0).indexOf('='));
         String name2 = handler2.events.get(0).substring("long(".length(), handler2.events.get(0).indexOf('='));
@@ -371,7 +371,7 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
             FrozenFieldNameTable parent = new FrozenFieldNameTable();
             SimdJsonDirectWalker walker = new SimdJsonDirectWalker(parent.makeChild());
             RecordingHandler handler = new RecordingHandler();
-            expectThrows(Exception.class, () -> walker.walkDocument(buffer, buffer.length, parser, handler));
+            expectThrows(Exception.class, () -> walker.walkDocument(buffer, parser, handler));
         } catch (JsonParsingException e) {
             // stage 1 rejection is acceptable
         }
@@ -401,7 +401,7 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         SimdJsonDirectWalker walker = new SimdJsonDirectWalker(child);
 
         RecordingHandler handler = new RecordingHandler();
-        walker.walkDocument(buffer, len, parser.bitIndexes(), handler);
+        walker.walkDocument(buffer, parser.bitIndexes(), handler);
         return handler;
     }
 }

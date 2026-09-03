@@ -11,7 +11,6 @@ package org.elasticsearch.simdjson.internal;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 import org.elasticsearch.simdvec.GuardPageAllocator;
 import org.elasticsearch.simdjson.SimdJsonTestCase;
@@ -182,9 +181,7 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
             MemorySegment outCount = arena.allocate(ValueLayout.JAVA_INT);
             int err = lib.stage1(ctx, MemorySegment.ofArray(buffer), 0, buffer.length, MemorySegment.ofArray(out), out.length, outCount);
             assertNotEquals("should return non-zero error for invalid UTF-8", 0, err);
-            MemorySegment msgPtr = lib.errorMessage(err);
-            assertNotEquals(MemorySegment.NULL, msgPtr);
-            String msg = MemorySegmentAdapter.getString(msgPtr.reinterpret(256), 0);
+            String msg = lib.errorMessage(err);
             assertThat(msg, is("UTF8_ERROR: The input is not valid UTF-8"));
         } finally {
             lib.destroy(ctx);
@@ -210,9 +207,7 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
                     outCount
                 );
                 assertNotEquals("should return non-zero error for unclosed string", 0, err);
-                MemorySegment msgPtr = lib.errorMessage(err);
-                assertNotEquals(MemorySegment.NULL, msgPtr);
-                String msg = MemorySegmentAdapter.getString(msgPtr.reinterpret(256), 0);
+                String msg = lib.errorMessage(err);
                 assertThat(msg, is("UNCLOSED_STRING: A string is opened, but never closed."));
             } finally {
                 lib.destroy(ctx);
@@ -242,9 +237,7 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
                     outCount
                 );
                 assertNotEquals("should return non-zero error for unescaped chars", 0, err);
-                MemorySegment msgPtr = lib.errorMessage(err);
-                assertNotEquals(MemorySegment.NULL, msgPtr);
-                String msg = MemorySegmentAdapter.getString(msgPtr.reinterpret(256), 0);
+                String msg = lib.errorMessage(err);
                 assertThat(msg, is("UNESCAPED_CHARS: Within strings, some characters must be escaped, we found unescaped characters"));
             } finally {
                 lib.destroy(ctx);
@@ -426,18 +419,12 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
 
     // Error code 0 (success) should return a valid "SUCCESS" message.
     public void testErrorMessageSuccess() {
-        MemorySegment msgPtr = lib.errorMessage(0);
-        assertNotEquals(MemorySegment.NULL, msgPtr);
-        String msg = MemorySegmentAdapter.getString(msgPtr.reinterpret(256), 0);
-        assertThat(msg, is("SUCCESS: No error"));
+        assertThat(lib.errorMessage(0), is("SUCCESS: No error"));
     }
 
     // An out-of-range error code should return "UNEXPECTED_ERROR".
     public void testErrorMessageUnknownCode() {
-        MemorySegment msgPtr = lib.errorMessage(9999);
-        assertNotEquals(MemorySegment.NULL, msgPtr);
-        String msg = MemorySegmentAdapter.getString(msgPtr.reinterpret(256), 0);
-        assertThat(msg, is("UNEXPECTED_ERROR"));
+        assertThat(lib.errorMessage(9999), is("UNEXPECTED_ERROR"));
     }
 
     // ---- Large document ----
@@ -526,10 +513,7 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
             for (int offset : List.of(0, 1)) {
                 int err = lib.stage1(ctx, MemorySegment.ofArray(buffer), offset, 0, MemorySegment.ofArray(out), out.length, outCount);
                 assertNotEquals("should return non-zero error for empty", 0, err);
-                MemorySegment msgPtr = lib.errorMessage(err);
-                assertNotEquals(MemorySegment.NULL, msgPtr);
-                String msg = MemorySegmentAdapter.getString(msgPtr.reinterpret(256), 0);
-                assertThat(msg, is("EMPTY: no JSON found"));
+                assertThat(lib.errorMessage(err), is("EMPTY: no JSON found"));
             }
         } finally {
             lib.destroy(ctx);
@@ -611,10 +595,7 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
                 if (err != 0) {
                     // stage1 may return an error for random bytes (e.g. invalid UTF-8) — that's fine,
                     // but it there is an error then error handling must succeed
-                    MemorySegment msgPtr = lib.errorMessage(err);
-                    assertNotEquals(MemorySegment.NULL, msgPtr);
-                    String msg = MemorySegmentAdapter.getString(msgPtr.reinterpret(256), 0);
-                    assertThat(msg, is(not(emptyOrNullString())));
+                    assertThat(lib.errorMessage(err), is(not(emptyOrNullString())));
                 }
             } finally {
                 lib.destroy(ctx);

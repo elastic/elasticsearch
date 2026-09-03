@@ -9,7 +9,6 @@
 
 package org.elasticsearch.simdjson.internal;
 
-import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdjson.JsonParsingException;
@@ -82,11 +81,8 @@ public final class StructuralIndexer implements AutoCloseable {
     }
 
     private static String readErrorMessage(int err) {
-        MemorySegment ptr = LIB.errorMessage(err);
-        if (ptr.equals(MemorySegment.NULL)) {
-            return "unknown error (code " + err + ")";
-        }
-        return MemorySegmentAdapter.getString(ptr.reinterpret(256), 0);
+        String msg = LIB.errorMessage(err);
+        return msg != null ? msg : "unknown error (code " + err + ")";
     }
 
     @Override

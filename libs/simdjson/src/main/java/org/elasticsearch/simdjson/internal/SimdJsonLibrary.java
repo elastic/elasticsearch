@@ -83,9 +83,9 @@ public interface SimdJsonLibrary {
     );
 
     /**
-     * Returns a pointer to a static, null-terminated error message for an error code returned by
-     * {@link #stage1}. The caller must read the string from the returned segment.
+     * Returns a static, null-terminated error message for an error code returned by {@link #stage1},
+     * or {@code null} if the native library returns a null pointer.
      */
     @Function("simdjson_stage1_error_message")
-    MemorySegment errorMessage(int errorCode);
+    String errorMessage(int errorCode);
 }

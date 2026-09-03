@@ -20,6 +20,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
@@ -145,12 +146,20 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * retry). A closed HTTP client ({@code Connection pool shut down} / client-closed
      * {@link IllegalStateException}) is the same 503: the client is gone, not the object. Other
      * {@link IllegalStateException}s are returned as-is (HTTP 500 via classify) so a programming
-     * error is not retried and is not disguised as a client 400. A missing object or any other
-     * failure becomes an {@link IOException},
-     * which the external source operator classifies as a client-class 400. Returns the exception
-     * (never throws) so both the synchronous and async read paths can route it.
+     * error is not retried and is not disguised as a client 400. A circuit-breaker rejection is
+     * returned as a {@link CircuitBreakingException} naming the path, wherever it sits in the cause
+     * chain: the destination buffer for a native-async read is allocated inside the SDK's response
+     * pipeline, so the SDK's retry stage wraps the trip in a status-neutral {@code SdkClientException} —
+     * unwrapping it preserves the breaker's 429 so load shedding is not reported as a permanent
+     * query error. A missing object or any other failure becomes an {@link IOException}, which the
+     * external source operator classifies as a client-class 400. Returns the exception (never throws)
+     * so both the synchronous and async read paths can route it.
      */
     private Exception mapReadFailure(String context, Throwable cause) {
+        CircuitBreakingException breakerTrip = unwrapBreakerTrip(cause, context, path);
+        if (breakerTrip != null) {
+            return breakerTrip;
+        }
         if (cause instanceof S3Exception s3 && ExternalUnavailableException.isRetryableStatus(s3.statusCode())) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(s3.statusCode());
             long retryAfterMs = 0L;

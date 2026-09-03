@@ -27,6 +27,7 @@ import org.apache.orc.CompressionKind;
 import org.apache.orc.OrcFile;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
+import org.apache.orc.impl.OrcTail;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.time.DateFormatter;
@@ -44,11 +45,13 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -60,6 +63,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.After;
 import org.junit.Before;
@@ -70,6 +74,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
@@ -92,7 +97,6 @@ public class OrcFormatReaderTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() {
-        OrcStorageObjectAdapter.clearCacheForTests();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -844,6 +848,66 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertSame("withPushedFilter(null) must return same instance", reader, reader.withPushedFilter(null));
     }
 
+    public void testWithPushedFilterNullClearsExistingFilter() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 5;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            for (int i = 0; i < 5; i++) {
+                idCol.vector[i] = i + 1;
+            }
+        });
+
+        SearchArgument sarg = SearchArgumentFactory.newBuilder()
+            .startNot()
+            .lessThanEquals("id", PredicateLeaf.Type.LONG, 100L)
+            .end()
+            .build();
+
+        OrcFormatReader filtered = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(sarg);
+        StorageObject storageObject = createStorageObject(orcData);
+        try (CloseableIterator<Page> filteredIter = filtered.read(storageObject, null, 1024)) {
+            assertFalse("No rows should match the filter", filteredIter.hasNext());
+        }
+
+        FormatReader cleared = filtered.withPushedFilter(null);
+        assertNotSame("withPushedFilter(null) must fork when a filter is installed", filtered, cleared);
+        assertSame("second null is identity", cleared, cleared.withPushedFilter(null));
+        assertEquals(5, countRows((OrcFormatReader) cleared, storageObject, null, 1024));
+    }
+
+    public void testWithPushedFilterNullClearsPushedExpressions() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 5;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            for (int i = 0; i < 5; i++) {
+                idCol.vector[i] = i + 1;
+            }
+        });
+
+        OrcPushedExpressions pushed = new OrcPushedExpressions(
+            List.of(
+                new GreaterThan(
+                    Source.EMPTY,
+                    new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG),
+                    new Literal(Source.EMPTY, 100L, DataType.LONG),
+                    null
+                )
+            )
+        );
+        OrcFormatReader filtered = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(pushed);
+        StorageObject storageObject = createStorageObject(orcData);
+        try (CloseableIterator<Page> filteredIter = filtered.read(storageObject, null, 1024)) {
+            assertFalse("No rows should match the pushed expressions", filteredIter.hasNext());
+        }
+
+        FormatReader cleared = filtered.withPushedFilter(null);
+        assertNotSame("withPushedFilter(null) must fork when expressions are installed", filtered, cleared);
+        assertSame("second null is identity", cleared, cleared.withPushedFilter(null));
+        assertEquals(5, countRows((OrcFormatReader) cleared, storageObject, null, 1024));
+    }
+
     public void testReadWithPushedFilterMatchingAll() throws Exception {
         TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
         byte[] orcData = createOrcFile(schema, batch -> {
@@ -1206,6 +1270,27 @@ public class OrcFormatReaderTests extends ESTestCase {
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
         List<SplitRange> ranges = reader.discoverSplitRanges(storageObject);
         assertTrue("Empty file (no stripes) should return empty ranges", ranges.isEmpty());
+    }
+
+    public void testTailWeightDoesNotDependOnSerializedBufferPosition() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 1;
+            ((LongColumnVector) batch.cols[0]).vector[0] = 1;
+        });
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        reader.discoverSplitRanges(storageObject);
+        FooterByteCache.Key key = FooterByteCache.Key.keyFor(storageObject, storageObject.length());
+        OrcTail tail = reader.parsedTailForTests(key);
+        ByteBuffer serializedTail = tail.getSerializedTail();
+        assertTrue(serializedTail.hasRemaining());
+        long weight = OrcFormatReader.estimateTailWeightBytes(tail);
+
+        serializedTail.position(serializedTail.limit());
+
+        assertEquals(weight, OrcFormatReader.estimateTailWeightBytes(tail));
     }
 
     public void testDiscoverSplitRanges_multiStripeFile() throws Exception {
@@ -1975,8 +2060,8 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
         drainWarnings();
 
-        // ...which is why the reader may advertise the capability. Pinned so a future row-level ORC predicate path
-        // cannot quietly inherit "true" and start null-filling instead of dropping.
+        // ...which is why the reader may opt into the capability the SPI withholds by default. Pinned so a future
+        // row-level ORC predicate path cannot keep the now-stale "true" and start null-filling instead of dropping.
         assertTrue(new OrcFormatReader(blockFactory).dropsRowsUnderPushedFilter());
     }
 
@@ -2985,6 +3070,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
         SourceMetadata metadata = reader.metadata(createStorageObject(orcData));
         assertTrue("expected source statistics", metadata.statistics().isPresent());
+        assertEquals("two stripes", 2L, metadata.statistics().get().readableUnitCount().orElse(-1));
         var optColStats = metadata.statistics().get().columnStatistics();
         assertTrue("expected per-column statistics", optColStats.isPresent());
         var colStats = optColStats.get();

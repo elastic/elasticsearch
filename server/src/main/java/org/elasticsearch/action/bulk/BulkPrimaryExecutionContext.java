@@ -197,8 +197,15 @@ class BulkPrimaryExecutionContext {
         assert assertInvariants(ItemProcessingState.INITIAL);
         requestToExecute = writeRequest;
         currentItemState = ItemProcessingState.TRANSLATED;
-        pressureExpansionTracker.addExpandedBytes(expansionDeltaBytes(getCurrent(), writeRequest));
         assert assertInvariants(ItemProcessingState.TRANSLATED);
+    }
+
+    public void trackMemoryConsumptionForTranslatedUpdateRequest(DocWriteRequest<?> translatedRequest) {
+        assert assertInvariants(ItemProcessingState.INITIAL);
+        long expandedBytes = expansionDeltaBytes(getCurrent(), translatedRequest);
+        if (expandedBytes > 0) {
+            pressureExpansionTracker.addExpandedBytes(expandedBytes);
+        }
     }
 
     /**
@@ -389,6 +396,8 @@ class BulkPrimaryExecutionContext {
         // anymore.
         if (primary.routingEntry().isSearchable() == false) {
             if (requestToExecute != null) {
+                // In the failure path (i.e. after a memory pressure rejection) getCurrent() == requestToExecute
+                // and thus the expansionDeltaBytes == 0 and this will be a no-op
                 pressureExpansionTracker.removeExpandedBytes(expansionDeltaBytes(getCurrent(), requestToExecute));
             }
             requestToExecute = null;

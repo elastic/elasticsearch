@@ -224,6 +224,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "logs_csv_gz_strict_multi",
         "logs_parquet_strict_format",
         "logs_noext_strict",
+        "logs_noext_parquet_strict",
+        "logs_noext_parquet_strict_sr",
         "employees_extensionless",
         "logs_id_partition",
         "logs_partition_collide_nonstrict",
@@ -1509,6 +1511,78 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(e.getMessage(), containsString("Cannot determine how to read"));
         assertThat(e.getMessage(), containsString("no file extension"));
         assertThat(e.getMessage(), containsString("[format]"));
+    }
+
+    /**
+     * Strict dataset over an extensionless Parquet file with an explicit {@code format=parquet} setting must succeed.
+     * Contrast with {@link #testStrictDatasetWithUnknowableFormatFailsCleanlyNotNpe}: that case has no format setting
+     * (format truly unknown). This case has the setting — the file factory picks it up via the explicit format and reads
+     * the file correctly. The companion S3 regression (Iceberg wrapper mis-routing on extensionless S3 paths) is covered
+     * by the unit test {@code DataSourceModuleTests#testLazyTableCatalogWrapperDeclinesExplicitRegisteredFormat}.
+     */
+    public void testStrictParquetWithExtensionlessFileAndExplicitFormat() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        // Write a 3-row Parquet fixture to a path with no file extension.
+        Path noExt = createTempDir().resolve("employees");
+        writeParquet(noExt, 3, 1000);
+
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", null));
+        properties.put("name", new DatasetFieldMapping("keyword", null));
+        properties.put("value", new DatasetFieldMapping("integer", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_noext_parquet_strict",
+                    "local_ds",
+                    noExt.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+
+        // Cold query (schema cache empty for a fresh dataset) must succeed.
+        try (var response = run(syncEsqlQueryRequest("FROM logs_noext_parquet_strict | SORT id | LIMIT 5"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(0L));
+            assertThat(rows.get(1).get(0), equalTo(1L));
+            assertThat(rows.get(2).get(0), equalTo(2L));
+        }
+
+        // Companion: same extensionless file, same strict mapping, but schema_resolution also present in settings.
+        // schema_resolution is another dataset-level key the Iceberg catalog's validateConfig would reject as unknown;
+        // verifying it works cold confirms the factory-routing fix covers all dataset settings, not just format.
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_noext_parquet_strict_sr",
+                    "local_ds",
+                    noExt.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet", "schema_resolution", "first_file_wins")),
+                    mapping
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM logs_noext_parquet_strict_sr | SORT id | LIMIT 5"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(0L));
+            assertThat(rows.get(1).get(0), equalTo(1L));
+            assertThat(rows.get(2).get(0), equalTo(2L));
+        }
     }
 
     public void testNdJsonRenameStrictReadsByPhysicalJsonKey() throws Exception {

@@ -63,7 +63,10 @@ abstract class AbstractTSDBSyntheticIdCodec extends FilterCodec {
 
     AbstractTSDBSyntheticIdCodec(String name, Codec delegate, DocValuesFormatForField docValuesFormatForField) {
         super(name, delegate);
-        this.storedFieldsFormat = new TSDBStoredFieldsFormat(delegate.storedFieldsFormat());
+        // The delegate may already read synthetic ids; a second layer would keep one in place through merges.
+        this.storedFieldsFormat = delegate.storedFieldsFormat() instanceof TSDBStoredFieldsFormat tsdbStoredFieldsFormat
+            ? tsdbStoredFieldsFormat
+            : new TSDBStoredFieldsFormat(delegate.storedFieldsFormat());
         // fieldInfosFormat() below is final, so on the read path -- where the codec comes from SPI -- this is the only one there is.
         FieldInfosFormat delegateFieldInfosFormat = delegate instanceof Elasticsearch96Codec elasticsearchCodec
             ? elasticsearchCodec.delegate().fieldInfosFormat()

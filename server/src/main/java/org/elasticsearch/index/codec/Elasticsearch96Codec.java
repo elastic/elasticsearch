@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec;
 
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
+import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.Codec;
@@ -104,10 +105,10 @@ public class Elasticsearch96Codec extends FilterCodec {
     ) {
         super("Elasticsearch96", new Lucene104Codec(luceneMode));
         this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(delegate.fieldInfosFormat());
-        this.storedFieldsFormat = new ElasticsearchStoredFieldsFormat(
-            storedFieldsMode,
-            modeBeforeTheAttribute,
-            delegate.storedFieldsFormat()
+        // TSDBStoredFieldsFormat adds a reader for synthetic ids, and only for segments whose _id says it has one; writes go
+        // straight to the format underneath. Segments without a synthetic id are unaffected either way.
+        this.storedFieldsFormat = new TSDBStoredFieldsFormat(
+            new ElasticsearchStoredFieldsFormat(storedFieldsMode, modeBeforeTheAttribute, delegate.storedFieldsFormat())
         );
     }
 

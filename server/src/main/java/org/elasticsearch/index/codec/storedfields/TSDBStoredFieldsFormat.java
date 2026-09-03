@@ -36,6 +36,11 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
         this.delegate = delegate;
     }
 
+    /** The format this one reads and writes through. */
+    public StoredFieldsFormat delegate() {
+        return delegate;
+    }
+
     @Override
     public StoredFieldsReader fieldsReader(Directory directory, SegmentInfo si, FieldInfos fn, IOContext context) throws IOException {
         return new TSDBStoredFieldsReader(directory, si, fn, context);

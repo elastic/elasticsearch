@@ -338,39 +338,7 @@ public final class QuerySettingDef<T> {
      * is archived rather than applied.
      */
     T effectiveDefault(Settings clusterState, Settings nodeSettings) {
-        String raw = rawOperatorValue(clusterState, nodeSettings);
-        if (raw == null) {
-            // Absent and present-but-null both read as null here, and "unset" is the right reading of both, so
-            // testing Setting#exists as well would add nothing.
-            return defaultValue;
-        }
-        T parsed;
-        try {
-            parsed = clusterParser.parse(raw);
-        } catch (Exception e) {
-            return defaultValue;
-        }
-        if (validator != null) {
-            try {
-                if (validator.validate(parsed, CLUSTER_UPDATE_CONTEXT) != null) {
-                    return defaultValue;
-                }
-            } catch (Exception e) {
-                return defaultValue;
-            }
-        }
-        T folded;
-        try {
-            // Same fold as every other layer, so an operator value is normalised the way a per-query one would be.
-            // Also the one remaining path by which an operator's value could otherwise throw on the query path.
-            folded = reconciler.reconcile(defaultValue, parsed);
-            if (folded != null) {
-                canonicalizer.apply(folded);
-            }
-        } catch (Exception e) {
-            return defaultValue;
-        }
-        return folded;
+        return operatorValue(clusterState, nodeSettings).value();
     }
 
     /**
@@ -380,25 +348,57 @@ public final class QuerySettingDef<T> {
      */
     @Nullable
     String clusterValueError(Settings clusterState, Settings nodeSettings) {
+        return operatorValue(clusterState, nodeSettings).error();
+    }
+
+    /**
+     * The operator's value as it will actually be used, together with the reason it cannot be — exactly one of which
+     * is meaningful. {@link #effectiveDefault} and {@link #clusterValueError} are two views of this one computation
+     * rather than two implementations of the same rules: a value the first silently falls back on and the second
+     * calls usable is a silent fallback with no operator signal, which is the outcome the pair exists to prevent.
+     * <p>
+     * Every step that can reject the value is here, in the order resolution applies it: parse, fold through the
+     * reconciler as any other layer would, validate, canonicalize. The validator sees the <b>folded</b> value,
+     * because that is the one going into force — validating what was parsed would check something no query sees.
+     */
+    private OperatorValue<T> operatorValue(Settings clusterState, Settings nodeSettings) {
         String raw = rawOperatorValue(clusterState, nodeSettings);
         if (raw == null) {
-            return null;
+            // Absent and present-but-null both read as null, and "unset" is the right reading of both.
+            return new OperatorValue<>(defaultValue, null);
         }
-        T parsed;
+        T folded;
         try {
-            parsed = clusterParser.parse(raw);
+            folded = reconciler.reconcile(defaultValue, clusterParser.parse(raw));
         } catch (Exception e) {
-            return describe(e);
+            return new OperatorValue<>(defaultValue, describe(e));
         }
-        if (validator == null) {
-            return null;
+        if (folded == null) {
+            // The operator's value folded away to nothing — "off", for a setting where null means off. Nothing is
+            // going into force, so there is nothing to validate and the registry default applies.
+            return new OperatorValue<>(defaultValue, null);
+        }
+        if (validator != null) {
+            String error;
+            try {
+                error = validator.validate(folded, CLUSTER_UPDATE_CONTEXT);
+            } catch (Exception e) {
+                return new OperatorValue<>(defaultValue, describe(e));
+            }
+            if (error != null) {
+                return new OperatorValue<>(defaultValue, error);
+            }
         }
         try {
-            return validator.validate(parsed, CLUSTER_UPDATE_CONTEXT);
+            canonicalizer.apply(folded);
         } catch (Exception e) {
-            return describe(e);
+            return new OperatorValue<>(defaultValue, describe(e));
         }
+        return new OperatorValue<>(folded, null);
     }
+
+    /** The operator value in force and the reason it is not, exactly one of which is meaningful. */
+    private record OperatorValue<V>(@Nullable V value, @Nullable String error) {}
 
     /**
      * The operator's configured value as written, or {@code null} if there is none. Cluster state wins over

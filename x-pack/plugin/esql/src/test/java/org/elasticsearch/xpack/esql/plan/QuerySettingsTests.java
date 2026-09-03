@@ -880,7 +880,7 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testSettingWithoutClusterDefaultIgnoresItsWouldBeKey() {
-        // column_metadata did not opt in, so even a value sitting at its would-be key changes nothing.
+        // project_routing is refused a cluster default outright, so a value at its would-be key changes nothing.
         Settings stray = Settings.builder().put("esql.query.settings.project_routing", "some-project").build();
         ResolvedSettings resolved = QuerySettings.resolve(stray, Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
         assertThat(resolved, equalTo(QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED)));
@@ -977,6 +977,28 @@ public class QuerySettingsTests extends ESTestCase {
             QuerySettings.resolve(List.of(def), bad, Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED).get(def),
             equalTo("ok")
         );
+        // ... and the operator is told. A value the fallback drops but clusterValueError calls usable would be a
+        // silent fallback with no signal at all, which is the one outcome the pair exists to prevent.
+        assertThat(def.clusterValueError(bad, Settings.EMPTY), is(notNullValue()));
+    }
+
+    public void testTheValueInForceIsTheOneValidated() {
+        // effectiveDefault returns the folded value, so the folded value is what the validator must see. Validating
+        // what was parsed would check something no query ever runs with.
+        QuerySettingDef<String> def = QuerySettingDef.string("validated_after_fold")
+            .withDefault("d")
+            .withReconciler((previous, current) -> previous == null ? current : previous + "+" + current)
+            // Rejects the parsed value and accepts the folded one, so the two answers differ.
+            .withValidator((value, ctx) -> value.equals("op") ? "the unfolded value must not be validated" : null)
+            .withClusterDefault()
+            .build();
+        Settings operator = Settings.builder().put(def.clusterSetting().getKey(), "op").build();
+
+        assertThat(
+            QuerySettings.resolve(List.of(def), operator, Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED).get(def),
+            equalTo("d+op")
+        );
+        assertThat(def.clusterValueError(operator, Settings.EMPTY), is(nullValue()));
     }
 
     public void testErrorIsReportedForAnExceptionCarryingNoMessage() {

@@ -10,6 +10,7 @@
 package org.elasticsearch;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Tuple;
@@ -65,6 +66,8 @@ import java.util.stream.Collectors;
  * newly-added feature, use {@link org.elasticsearch.cluster.ClusterState#getMinTransportVersion}.
  */
 public record TransportVersion(String name, int id, TransportVersion nextPatchVersion) implements Comparable<TransportVersion> {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(TransportVersion.class);
 
     /**
      * Constructs an unnamed transport version.
@@ -432,6 +435,18 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     @Override
     public int compareTo(TransportVersion tv) {
         return Integer.compare(id(), tv.id());
+    }
+
+    /**
+     * Returns an estimated heap footprint for this transport version instance, including any linked
+     * {@link #nextPatchVersion()} chain.
+     */
+    public long ramBytesUsed() {
+        long size = BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(name);
+        if (nextPatchVersion != null) {
+            size += nextPatchVersion.ramBytesUsed();
+        }
+        return RamUsageEstimator.alignObjectSize(size);
     }
 
     /**

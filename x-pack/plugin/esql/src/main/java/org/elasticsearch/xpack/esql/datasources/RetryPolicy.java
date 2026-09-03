@@ -33,9 +33,9 @@ import java.util.function.LongSupplier;
  * computed exponential backoff, truncated to the remaining budget so the sleep never overshoots.
  * {@link #THROTTLE_RETRIES_SANITY_CAP} is a safety backstop; under typical cloud-provider
  * behaviour the time budget is the effective bound. When the budget is disabled
- * ({@code esql.external.throttle_max_retry_duration=0}) the sanity cap alone limits retries,
- * and the total delay can reach {@link #THROTTLE_RETRIES_SANITY_CAP} ×
- * {@link #DEFAULT_THROTTLE_MAX_DELAY_MS} (≈4.2 h).
+ * ({@code esql.external.throttle_max_retry_duration=0}), {@code StorageProviderRegistry} caps
+ * throttle retries at 10, so the worst-case delay is 10 × {@link #DEFAULT_THROTTLE_MAX_DELAY_MS}
+ * (≈5 min) rather than hours.
  * <p>
  * <b>Non-throttle transient arm:</b> bounded by attempt count (default {@link #DEFAULT_MAX_RETRIES})
  * with an optional secondary time budget check — semantics unchanged from the original design.

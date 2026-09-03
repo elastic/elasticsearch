@@ -320,6 +320,39 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertEquals("retry-after hint must be propagated as ms", 3_000L, eue.retryAfterMs());
     }
 
+    public void testAsync5xxResponseIsClassifiedAsExternalUnavailable() throws Exception {
+        // Before the fix, a non-2xx async response produced a plain IOException, which the retry
+        // layer treats as terminal (client error). A 500/503 must reach mapReadFailure so it is
+        // classified as ExternalUnavailableException and retried as a 503.
+        DirectReadBuffer realBuffer = FACTORY.allocate(0);
+
+        HttpResponse<DirectReadBuffer> mockResponse = mock(HttpResponse.class);
+        // Use 500 (non-throttling 5xx) to verify the retryable-but-not-throttling classification.
+        when(mockResponse.statusCode()).thenReturn(500);
+        when(mockResponse.headers()).thenReturn(HttpHeaders.of(java.util.Map.of(), (a, b) -> true));
+        when(mockResponse.body()).thenReturn(realBuffer);
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(CompletableFuture.completedFuture(mockResponse)).when(mockClient).sendAsync(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject obj = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        AtomicReference<Exception> error = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        obj.readBytesAsync(0, 100, FACTORY, Runnable::run, ActionListener.wrap(result -> { latch.countDown(); }, e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException.class));
+        org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException eue =
+            (org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException) error.get();
+        assertFalse("500 is retryable but not throttling", eue.throttling());
+        assertEquals("no retry-after on a plain 500", 0L, eue.retryAfterMs());
+    }
+
     @SuppressWarnings("unchecked")
     private static void mockSendAsyncWithBodyChunks(HttpClient mockClient, int statusCode, List<ByteBuffer> bodyChunks) throws Exception {
         doAnswer(invocation -> {

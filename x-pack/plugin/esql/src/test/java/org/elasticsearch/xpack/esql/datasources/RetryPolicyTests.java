@@ -693,8 +693,30 @@ public class RetryPolicyTests extends ESTestCase {
         for (int attempt = 50; attempt <= 70; attempt++) {
             long delay = policy.delayMillis(attempt, true);
             assertTrue("delayMillis must be positive at attempt " + attempt, delay > 0);
-            assertTrue("delayMillis must not exceed throttleMaxDelayMs at attempt " + attempt, delay <= 30_000L + 30_000L / 4 + 1);
+            assertTrue("delayMillis must not exceed throttleMaxDelayMs at attempt " + attempt, delay <= 30_000L);
         }
+    }
+
+    public void testDecideDoesNotOverflowAfterManyHintGuidedRetries() {
+        // Regression: 55 Retry-After:1 hints walk `attempt` to 55 cheaply (no delayMillis call).
+        // The 56th exception has no hint, so delayMillis(55, true) is called — that used to overflow
+        // and throw IAE. Verify decide() returns a retry decision instead.
+        AtomicLong clockNanos = new AtomicLong(0L);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(300_000).withClock(clockNanos::get);
+        long startNanos = 0L;
+        ExternalUnavailableException withHint = new ExternalUnavailableException(true, 1_000L, "throttled with hint");
+        ExternalUnavailableException noHint = new ExternalUnavailableException(true, "throttled no hint");
+
+        int attempt = 0;
+        for (; attempt < 55; attempt++) {
+            clockNanos.addAndGet(1_000L * 1_000_000L); // advance 1s per hint retry
+            RetryPolicy.RetryDecision d = policy.decide(withHint, attempt, startNanos);
+            assertTrue("hint retry " + attempt + " must be accepted", d.retry());
+        }
+        // 56th call: no hint → delayMillis(55, true) — previously caused IAE due to overflow.
+        RetryPolicy.RetryDecision d = policy.decide(noHint, attempt, startNanos);
+        assertTrue("computed-delay retry after 55 hint retries must be accepted", d.retry());
+        assertTrue("delay must be positive", d.delayMillis() > 0);
     }
 
     public void testParseRetryAfterMs() {

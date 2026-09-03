@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -40,6 +41,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetim
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -55,7 +58,9 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
+import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.Header;
@@ -731,7 +736,93 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             // translateIntermediate that forces the initial per-series aggregate for a not-yet-aggregated subtree.
             IntermediateResult aggregated = child.kind().afterInitialAggregation ? child : collapse(child, child.header(), child.value());
 
-            return new RelabelLayout(relabel).command(cmd).configuration(configuration()).input(aggregated).result();
+            Source source = relabel.source();
+            Attribute destination = relabel.destination();
+            Expression destinationValue = relabel.definition() == PromqlBuiltinFunctionDefinitions.LABEL_REPLACE
+                ? labelReplaceValue(source, relabel, aggregated)
+                : labelJoinValue(source, relabel, aggregated);
+
+            String name = mapFinite(destination);
+            Alias derived = new Alias(source, destination.name(), destinationValue, destination.id());
+            LogicalPlan plan = new Eval(cmd.source(), aggregated.plan(), List.of(derived));
+            var unshadowed = new ArrayList<NamedExpression>();
+            for (Attribute attribute : plan.output()) {
+                if (attribute.id().equals(derived.id()) || mapFinite(attribute).equals(name) == false) {
+                    unshadowed.add(attribute);
+                }
+            }
+            if (unshadowed.size() < plan.output().size()) {
+                plan = new Project(cmd.source(), plan, unshadowed);
+            }
+            Header header = aggregated.header().union(finite(List.of(name)));
+            return new IntermediateResult(
+                plan,
+                header,
+                aggregated.value(),
+                aggregated.step(),
+                aggregated.pendingFilter(),
+                Kind.AFTER_INITIAL_AGGREGATE
+            );
+        }
+
+        /**
+         * The {@code label_replace} destination value:
+         * {@code COALESCE(RegexExpand(COALESCE(src, ""), regex, repl), existingDst)}.
+         * The inner coalesce feeds the empty string when the source label is absent (so the regex matches against {@code ""}
+         * like Prometheus). The outer coalesce implements Prometheus's no-match semantics: a no-match ({@code null}) leaves
+         * the destination label unchanged, so it falls back to the destination's existing value - the stored label when the
+         * destination overwrites one, or {@code ""} (the "absent" grouping key) when the destination is a new label. A match
+         * with an empty expansion (the delete sentinel) resolves to {@code ""}, joining that same "absent" group.
+         */
+        private Expression labelReplaceValue(Source source, MetadataManipulationFunction relabel, IntermediateResult table) {
+            List<Expression> params = relabel.parameters();
+            String srcLabel = literalString(params.get(2));
+            Expression regex = params.get(3);
+            Expression replacement = params.get(1);
+            Expression src = sourceLabelValue(source, table, srcLabel);
+            Expression extracted = new RegexExpand(source, src, regex, replacement);
+            Expression existingDst = sourceLabelValue(source, table, mapFinite(relabel.destination()));
+            return new Coalesce(source, extracted, List.of(existingDst));
+        }
+
+        /**
+         * The {@code label_join} destination value: the source label values coalesced to {@code ""} and joined by the
+         * separator. With no source labels the result is {@code ""} - the same "absent" grouping key produced by
+         * {@code label_replace}; a single source label is copied verbatim (no separator). With two or more source labels the
+         * separator is inserted between every value, so even all-empty sources yield the separator run (for example a
+         * {@code "-"} separator over two absent labels produces {@code "-"}), matching Prometheus.
+         */
+        private Expression labelJoinValue(Source source, MetadataManipulationFunction relabel, IntermediateResult table) {
+            List<Expression> params = relabel.parameters();
+            Literal separator = Literal.keyword(source, literalString(params.get(1)));
+
+            List<Expression> parts = new ArrayList<>(2 * params.size() + 1);
+            for (int i = 2; i < params.size(); i++) {
+                if (parts.isEmpty() == false) {
+                    parts.add(separator);
+                }
+                parts.add(sourceLabelValue(source, table, literalString(params.get(i))));
+            }
+
+            return switch (parts.size()) {
+                case 0 -> Literal.keyword(source, "");
+                case 1 -> parts.getFirst();
+                default -> new Concat(source, parts.getFirst(), parts.subList(1, parts.size()));
+            };
+        }
+
+        /**
+         * The value of a source label as a non-null string: {@code COALESCE(ToString(label), "")}, or {@code ""} if the
+         * table does not carry the label. The lookup reads the table's plan, so it sees stored labels only: a destination an
+         * enclosing {@code by(dst)} requires is a name in the header, never a column here, and cannot resolve to itself.
+         */
+        private Expression sourceLabelValue(Source source, IntermediateResult table, String labelName) {
+            Attribute label = table.label(labelName);
+            if (label == null) {
+                return Literal.keyword(source, "");
+            }
+            Expression stringValue = DataType.isString(label.dataType()) ? label : new ToString(source, label, configuration());
+            return new Coalesce(source, stringValue, List.of(Literal.keyword(source, "")));
         }
 
         /** Translates a scalar function (time(), etc.): an expression over the unchanged source. */
@@ -999,6 +1090,11 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         aggregates.add(step);
         aggregates.addAll(keys);
         return aggregates;
+    }
+
+    /** The string value of a keyword-literal PromQL function argument. */
+    private static String literalString(Expression literal) {
+        return BytesRefs.toString(((Literal) literal).value());
     }
 
     /** Flattens a left-associative top-level {@code or} chain into branches; branch 0 has the highest precedence. */

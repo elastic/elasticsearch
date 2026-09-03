@@ -810,7 +810,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private int randomEstimatedRowSize(boolean huge) {
-        int hugeBoundary = SourceOperator.MIN_TARGET_PAGE_SIZE * 10;
+        int hugeBoundary = SourceOperator.TARGET_PAGE_SIZE / SourceOperator.MIN_TARGET_PAGE_SIZE;
         return huge ? between(hugeBoundary, Integer.MAX_VALUE) : between(1, hugeBoundary);
     }
 

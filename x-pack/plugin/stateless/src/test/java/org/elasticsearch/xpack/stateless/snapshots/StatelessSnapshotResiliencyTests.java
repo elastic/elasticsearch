@@ -502,7 +502,6 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             public void stop() {
                 if (primaryRelocationService != null) {
                     primaryRelocationService.stop();
-                    primaryRelocationService.close();
                 }
                 testStatelessPlugin.consistencyService.stop();
                 testStatelessPlugin.translogReplicator.stop();
@@ -511,6 +510,11 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 testStatelessPlugin.objectStoreService.stop();
                 testStatelessPlugin.cacheService.close();
                 super.stop();
+                // StatelessPrimaryRelocationSourceService::close should be called after IndicesService has already
+                // closed all shards.
+                if (primaryRelocationService != null) {
+                    primaryRelocationService.close();
+                }
             }
 
             @Override

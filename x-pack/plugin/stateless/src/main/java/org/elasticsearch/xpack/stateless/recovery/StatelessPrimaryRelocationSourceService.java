@@ -209,6 +209,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                         l.onFailure(e);
                         return;
                     }
+                    assert throttledPrimaryRelocations != null : "startRelocation cannot called on non-index nodes";
                     throttledPrimaryRelocations.enqueueRelocation(parentClient, request, indexShard, l);
                 }
 

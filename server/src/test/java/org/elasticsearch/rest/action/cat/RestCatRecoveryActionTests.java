@@ -69,40 +69,44 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             final RecoveryState state = new RecoveryState(shardRouting, targetNode, sourceNode);
             state.setLocalRetries(randomIntBetween(0, 10));
 
-            // Walk the state machine to a randomly chosen target stage. Declaration order matches traversal order.
+            // Walk the state machine to a randomly chosen target stage.
             final RecoveryState.Stage targetStage = randomFrom(RecoveryState.Stage.values());
-            if (targetStage.ordinal() >= RecoveryState.Stage.INIT.ordinal()) {
-                state.setStage(RecoveryState.Stage.INIT);
-            }
-            if (targetStage.ordinal() >= RecoveryState.Stage.INDEX.ordinal()) {
-                state.setStage(RecoveryState.Stage.INDEX);
-                final int reusedFiles = randomIntBetween(0, 5);
-                for (int f = 0; f < reusedFiles; f++) {
-                    state.getIndex().addFileDetail("reused-" + f, randomLongBetween(1, 1 << 20), true);
+            while (state.getStage() != targetStage) {
+                switch (state.getStage()) {
+                    case CREATED -> state.setStage(RecoveryState.Stage.INIT);
+                    case INIT -> {
+                        state.setStage(RecoveryState.Stage.INDEX);
+                        final int reusedFiles = randomIntBetween(0, 5);
+                        for (int f = 0; f < reusedFiles; f++) {
+                            state.getIndex().addFileDetail("reused-" + f, randomLongBetween(1, 1 << 20), true);
+                        }
+                        final int nonReusedFiles = randomIntBetween(1, 10);
+                        for (int f = 0; f < nonReusedFiles; f++) {
+                            final long length = randomLongBetween(1, 1 << 20);
+                            state.getIndex().addFileDetail("file-" + f, length, false);
+                            state.getIndex().addRecoveredBytesToFile("file-" + f, randomLongBetween(0, length));
+                        }
+                        state.getIndex().setFileDetailsComplete();
+                    }
+                    case INDEX -> state.setStage(RecoveryState.Stage.VERIFY_INDEX);
+                    case VERIFY_INDEX -> {
+                        state.setStage(RecoveryState.Stage.TRANSLOG);
+                        final int translogOps = randomIntBetween(0, 1 << 18);
+                        state.getTranslog().totalOperations(translogOps);
+                        state.getTranslog().incrementRecoveredOperations(randomIntBetween(0, translogOps));
+                    }
+                    case TRANSLOG -> state.setStage(RecoveryState.Stage.FINALIZE);
+                    case FINALIZE -> state.setStage(RecoveryState.Stage.DONE);
+                    case DONE -> fail(
+                        Strings.format(
+                            "Walked through all recovery stages without reaching targetStage %s, final state %s: this should be impossible",
+                            targetStage,
+                            state
+                        )
+                    );
                 }
-                final int nonReusedFiles = randomIntBetween(1, 10);
-                for (int f = 0; f < nonReusedFiles; f++) {
-                    final long length = randomLongBetween(1, 1 << 20);
-                    state.getIndex().addFileDetail("file-" + f, length, false);
-                    state.getIndex().addRecoveredBytesToFile("file-" + f, randomLongBetween(0, length));
-                }
-                state.getIndex().setFileDetailsComplete();
             }
-            if (targetStage.ordinal() >= RecoveryState.Stage.VERIFY_INDEX.ordinal()) {
-                state.setStage(RecoveryState.Stage.VERIFY_INDEX);
-            }
-            if (targetStage.ordinal() >= RecoveryState.Stage.TRANSLOG.ordinal()) {
-                state.setStage(RecoveryState.Stage.TRANSLOG);
-                final int translogOps = randomIntBetween(0, 1 << 18);
-                state.getTranslog().totalOperations(translogOps);
-                state.getTranslog().incrementRecoveredOperations(randomIntBetween(0, translogOps));
-            }
-            if (targetStage.ordinal() >= RecoveryState.Stage.FINALIZE.ordinal()) {
-                state.setStage(RecoveryState.Stage.FINALIZE);
-            }
-            if (targetStage.ordinal() >= RecoveryState.Stage.DONE.ordinal()) {
-                state.setStage(RecoveryState.Stage.DONE);
-            }
+
             recoveryStates.add(state);
         }
 

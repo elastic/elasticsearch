@@ -382,9 +382,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithEnabledTests
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/154731
-- class: org.elasticsearch.xpack.esql.action.ExternalCsvHivePartitionedIT
-  method: testCommaSeparatedResourceFirstFileWinsRoundTrips
-  issue: https://github.com/elastic/elasticsearch/issues/154662
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:change_point.values null column}
   issue: https://github.com/elastic/elasticsearch/issues/154877
@@ -758,24 +755,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
   method: test {csv-spec:tdigest.count with bucket, time, and instance in FROM}
   issue: https://github.com/elastic/elasticsearch/issues/158089
-- class: org.elasticsearch.xpack.esql.action.CsvExternalReadConfigParityIT
-  method: testDuplicateListingColdEqualsWarm
-  issue: https://github.com/elastic/elasticsearch/issues/157988
-- class: org.elasticsearch.xpack.esql.action.ExternalReadConfigContaminationIT
-  method: testLicensedCountStillCrossesTheMultiFileFold
-  issue: https://github.com/elastic/elasticsearch/issues/157990
-- class: org.elasticsearch.xpack.esql.action.ExternalReadConfigContaminationIT
-  method: testHeterogeneousMultiFileFoldIsNotServedAcrossConfigurations
-  issue: https://github.com/elastic/elasticsearch/issues/157991
-- class: org.elasticsearch.xpack.esql.action.ExternalReadConfigContaminationIT
-  method: testDeclaredMultiFileReadIsNotServedTheInferredFold
-  issue: https://github.com/elastic/elasticsearch/issues/157992
-- class: org.elasticsearch.xpack.esql.action.NdjsonExternalReadConfigParityIT
-  method: testDuplicateListingColdEqualsWarm
-  issue: https://github.com/elastic/elasticsearch/issues/157989
-- class: org.elasticsearch.xpack.esql.action.TsvExternalReadConfigParityIT
-  method: testDuplicateListingColdEqualsWarm
-  issue: https://github.com/elastic/elasticsearch/issues/157993
 - class: org.elasticsearch.foreign.processor.BoundsCheckGeneratedClassBehaviorTests
   method: testSlicedSegmentCheckThrowsWhenSliceExceedsSegment
   issue: https://github.com/elastic/elasticsearch/issues/158125

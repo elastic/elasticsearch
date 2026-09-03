@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldInfosFormat;
+import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.apache.lucene.document.Document;
@@ -89,7 +90,7 @@ public class CodecTests extends ESTestCase {
             assertEquals(mode.toString(), lucene.knnVectorsFormat().getName(), es.knnVectorsFormat().getName());
 
             // Everything else is inherited from the delegate and must stay identical.
-            assertEquals(mode.toString(), lucene.storedFieldsFormat().getClass(), es.storedFieldsFormat().getClass());
+            assertEquals(mode.toString(), lucene.storedFieldsFormat().getClass(), effectiveStoredFieldsFormat(es).getClass());
             assertEquals(mode.toString(), lucene.termVectorsFormat().getClass(), es.termVectorsFormat().getClass());
             assertEquals(mode.toString(), lucene.normsFormat().getClass(), es.normsFormat().getClass());
             assertEquals(mode.toString(), lucene.segmentInfoFormat().getClass(), es.segmentInfoFormat().getClass());
@@ -114,7 +115,8 @@ public class CodecTests extends ESTestCase {
      */
     /**
      * Adaptive points only changes how BKD leaves are sized while writing; the files are Lucene90 point files and the reader is
-     * Lucene's own. Segments written with it therefore have to stay queryable.
+     * Lucene's own. Segments written with it therefore have to stay queryable, which is what would break if the writer ever
+     * diverged from the format the reader expects.
      */
     public void testAdaptivePointsSegmentsStayQueryable() throws Exception {
         Codec codec = createCodecService().codec(CodecService.DEFAULT_CODEC);
@@ -283,7 +285,7 @@ public class CodecTests extends ESTestCase {
 
     public void testDefault() throws Exception {
         Codec codec = createCodecService().codec("default");
-        Lucene90StoredFieldsFormat storedFieldsFormat = (Lucene90StoredFieldsFormat) codec.storedFieldsFormat();
+        Lucene90StoredFieldsFormat storedFieldsFormat = (Lucene90StoredFieldsFormat) effectiveStoredFieldsFormat(codec);
         var mode = getLucene90StoredFieldsFormatMode(storedFieldsFormat);
         assertEquals(Lucene90StoredFieldsFormat.Mode.BEST_SPEED, mode);
     }
@@ -318,7 +320,7 @@ public class CodecTests extends ESTestCase {
 
     public void testLegacyDefault() throws Exception {
         Codec codec = createCodecService().codec("legacy_default");
-        assertThat(codec.storedFieldsFormat(), Matchers.instanceOf(Lucene90StoredFieldsFormat.class));
+        assertThat(effectiveStoredFieldsFormat(codec), Matchers.instanceOf(Lucene90StoredFieldsFormat.class));
         // Make sure the legacy codec is writable
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setCodec(codec))) {
             Document doc = new Document();
@@ -331,7 +333,7 @@ public class CodecTests extends ESTestCase {
 
     public void testLegacyBestCompression() throws Exception {
         Codec codec = createCodecService().codec("legacy_best_compression");
-        assertThat(codec.storedFieldsFormat(), Matchers.instanceOf(Lucene90StoredFieldsFormat.class));
+        assertThat(effectiveStoredFieldsFormat(codec), Matchers.instanceOf(Lucene90StoredFieldsFormat.class));
         // Make sure the legacy codec is writable
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setCodec(codec))) {
             Document doc = new Document();
@@ -363,6 +365,14 @@ public class CodecTests extends ESTestCase {
         assertFalse(codecList.contains("unknown_codec"));
 
         assertEquals(expectedCodecCount, availableCodecs.length);
+    }
+
+    /**
+     * The implementation behind {@link ElasticsearchStoredFieldsFormat}, which selects it per segment.
+     */
+    private static StoredFieldsFormat effectiveStoredFieldsFormat(Codec codec) {
+        StoredFieldsFormat format = codec.storedFieldsFormat();
+        return format instanceof ElasticsearchStoredFieldsFormat elasticsearchFormat ? elasticsearchFormat.writeFormat() : format;
     }
 
     private CodecService createCodecService() throws IOException {

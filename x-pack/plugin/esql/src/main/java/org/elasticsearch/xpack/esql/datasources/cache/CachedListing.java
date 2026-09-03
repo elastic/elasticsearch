@@ -12,10 +12,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import java.util.List;
 
 /**
- * A cached glob listing together with the client-facing notices raised while producing it (objects dropped by
- * {@code file_exclusions}, partition columns renamed off reserved names). The notices live with the listing so a
- * cache hit replays them exactly like the expansion that produced them did; emitted only where raised, the same query
- * would warn on its first run and go quiet on its second.
+ * A glob listing as stored in the listing cache, plus the notices raised while producing it.
+ * <p>
+ * Expanding a glob can raise notices the user should see: objects dropped by {@code file_exclusions}, or a partition
+ * column renamed because it clashed with a reserved name. The listing itself is cached. If the notices were emitted
+ * only where they were raised, a cache hit would skip them, and the same query would warn on its first run and go
+ * quiet on its second. Storing them with the listing lets a hit replay exactly what the miss did.
  */
 public record CachedListing(FileList files, List<String> warnings) {
     public CachedListing {

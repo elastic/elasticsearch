@@ -628,7 +628,7 @@ public class BulkOperationTests extends ESTestCase {
     }
 
     /**
-     * {@link NodeClient#executeLocally} throws rather than notifying the listener when it cannot start a shard request at all, so the
+     * {@link NodeClient#executeAndReturnTask} throws rather than notifying the listener when it cannot start a shard request at all, so the
      * ref acquired for that request is never released. On the redirect round the throw escapes into a
      * {@link org.elasticsearch.action.support.RefCountingRunnable} delegate, which logs and swallows it once assertions are disabled,
      * leaving the bulk operation to hang and its task registered forever.
@@ -651,7 +651,7 @@ public class BulkOperationTests extends ESTestCase {
         NodeClient client = new NoOpNodeClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
-            public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+            public <Request extends ActionRequest, Response extends ActionResponse> Task executeAndReturnTask(
                 ActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
@@ -674,7 +674,7 @@ public class BulkOperationTests extends ESTestCase {
                 ActionListener<Response> listener
             ) {
                 try {
-                    executeLocally(action, request, listener);
+                    executeAndReturnTask(action, request, listener);
                 } catch (TaskCancelledException | IllegalArgumentException | IllegalStateException e) {
                     listener.onFailure(e);
                 }
@@ -1223,7 +1223,7 @@ public class BulkOperationTests extends ESTestCase {
         return new NoOpNodeClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
-            public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
@@ -1237,20 +1237,7 @@ public class BulkOperationTests extends ESTestCase {
                     } catch (Exception responseException) {
                         notifyOnceListener.onFailure(responseException);
                     }
-                } else {
-                    fail("Unexpected client call to " + action.name());
-                }
-                return null;
-            }
-
-            @Override
-            @SuppressWarnings("unchecked")
-            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                if (LazyRolloverAction.INSTANCE.equals(action)) {
+                } else if (LazyRolloverAction.INSTANCE.equals(action)) {
                     ActionListener<RolloverResponse> notifyOnceListener = ActionListener.notifyOnce(
                         (ActionListener<RolloverResponse>) listener
                     );
@@ -1261,7 +1248,7 @@ public class BulkOperationTests extends ESTestCase {
                     }
                 } else if (TransportShardBulkAction.TYPE.equals(action)) {
                     try {
-                        executeLocally(action, request, listener);
+                        executeAndReturnTask(action, request, listener);
                     } catch (TaskCancelledException | IllegalArgumentException | IllegalStateException e) {
                         listener.onFailure(e);
                     }

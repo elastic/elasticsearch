@@ -3447,7 +3447,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         size += RamUsageEstimator.sizeOf(lifecyclePolicyName);
         size += RamUsageEstimator.sizeOfObject(lifecycleExecutionState);
         size += RamUsageEstimator.shallowSizeOf(autoExpandReplicas);
-        size += RamUsageEstimator.shallowSizeOf(indexMode);
         size += RamUsageEstimator.shallowSizeOf(timeSeriesStart);
         size += RamUsageEstimator.shallowSizeOf(timeSeriesEnd);
         size += RamUsageEstimator.sizeOfObject(stats);

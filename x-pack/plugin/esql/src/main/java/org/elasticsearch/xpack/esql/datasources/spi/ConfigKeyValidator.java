@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -21,8 +23,8 @@ public final class ConfigKeyValidator {
 
     /**
      * Keys the framework injects into the config map itself, which no user ever typed. The dataset layer wraps a
-     * dataset's parent data-source settings under {@code _datasource} before handing the map to a factory, so the key
-     * is present on every dataset-originated query.
+     * dataset's parent data-source settings under {@code _datasource} before handing the map to a factory — but only
+     * when the parent actually has settings (see {@link DatasetRewriter}{@code #mergeSettings}).
      * <p>
      * They are excluded from the unknown-key report because this check exists to tell a user which of <em>their</em>
      * settings was not understood. A factory that claims no per-query options at all (the table catalogs pass an empty

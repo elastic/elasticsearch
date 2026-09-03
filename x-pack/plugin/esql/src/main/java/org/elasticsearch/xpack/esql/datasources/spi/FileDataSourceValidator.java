@@ -62,7 +62,12 @@ public class FileDataSourceValidator implements DataSourceValidator {
             + "it is disabled by default";
 
     // Dataset settings are plain values — no secrets. Credentials are inherited from the parent datasource.
-    private static final String SCHEMA_SAMPLE_SIZE = "schema_sample_size";
+    /**
+     * The schema-sampling bound — format-specific vocabulary owned by the text formats (CSV/TSV and NDJSON
+     * claim it; the self-describing Parquet does not). Public so the query path can tolerate it on datasets
+     * stored before it became format-scoped; see {@code FileSourceFactory#LEGACY_VOCABULARY_KEYS}.
+     */
+    public static final String SCHEMA_SAMPLE_SIZE = "schema_sample_size";
     /**
      * Upper bound accepted for {@code schema_sample_size} at registration. It MUST NOT sit below any reader's own
      * default for the setting, or the validator forbids the value the reader uses when the user says nothing: the
@@ -96,28 +101,15 @@ public class FileDataSourceValidator implements DataSourceValidator {
     }
 
     /**
-     * Full set of base dataset fields accepted by every file-based source, independent of file format:
-     * the {@link #COORDINATOR_DATASET_KEYS} (which includes the {@code format} selector) plus the
-     * format-agnostic {@code schema_sample_size} sampling bound (which is consumed by the format
-     * readers, not the coordinator). Format-specific fields are unioned on per-resource against the
-     * resolved format in {@link #validateDataset}.
-     */
-    private static final Set<String> DATASET_FIELDS;
-    static {
-        Set<String> fields = new HashSet<>(COORDINATOR_DATASET_KEYS);
-        fields.add(SCHEMA_SAMPLE_SIZE);
-        DATASET_FIELDS = Set.copyOf(fields);
-    }
-
-    /**
-     * Base dataset fields excluding the {@code format} selector, used by the no-resolver path: without a
-     * {@link FormatConfigKeyResolver} the validator cannot validate a {@code format} value, so it rejects
-     * {@code format} (and every format-specific key) just as it did before {@code format} became a
-     * first-class setting.
+     * {@link #COORDINATOR_DATASET_KEYS} plus {@link #SCHEMA_SAMPLE_SIZE} minus the {@code format} selector,
+     * used only by the no-resolver path: with no format names to validate against it rejects {@code format}
+     * and every format-specific key, but keeps accepting {@code schema_sample_size} (bounded-int validated)
+     * as it did before the key became format-scoped. Production always wires a resolver (see {@code EsqlPlugin}).
      */
     private static final Set<String> DATASET_FIELDS_WITHOUT_FORMAT;
     static {
-        Set<String> fields = new HashSet<>(DATASET_FIELDS);
+        Set<String> fields = new HashSet<>(COORDINATOR_DATASET_KEYS);
+        fields.add(SCHEMA_SAMPLE_SIZE);
         fields.remove(FormatNameResolver.CONFIG_FORMAT);
         DATASET_FIELDS_WITHOUT_FORMAT = Set.copyOf(fields);
     }
@@ -266,8 +258,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
         Map<String, Object> result = new HashMap<>();
 
-        // schema_sample_size keeps its dedicated bounded-int validation, which also stores the parsed int.
-        validateInt(settings, result, SCHEMA_SAMPLE_SIZE, 1, SCHEMA_SAMPLE_SIZE_MAX, errors);
+        // Only validate schema_sample_size when the resolved format claims it (CSV/NDJSON do; Parquet does not).
+        if (acceptedFields.contains(SCHEMA_SAMPLE_SIZE)) {
+            validateInt(settings, result, SCHEMA_SAMPLE_SIZE, 1, SCHEMA_SAMPLE_SIZE_MAX, errors);
+        }
 
         // Strictly validate the data-shape coordinator keys by delegating to the very parsers the
         // query path uses, so a malformed setting is rejected at PUT time with the same message it
@@ -376,10 +370,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * {@code format}, or format-specific settings on a resource whose format cannot be determined).
      *
      * <p>The format is resolved as: explicit {@code format} setting → resource extension → unknown.
-     * A known format accepts the base fields plus that format's keys (strict). An unknown format
-     * accepts the base fields only; a remaining key that some registered format recognises draws a
-     * targeted "set format" error, while a key no format recognises is reported as a plain unknown
-     * setting. Without a resolver, {@code format} itself is rejected (see {@link #DATASET_FIELDS_WITHOUT_FORMAT}).
+     * A known format accepts the coordinator fields plus that format's keys, with rejections split by
+     * {@link #acceptForFormat}. An unknown format accepts the coordinator fields only; a remaining key
+     * that some registered format recognises draws a targeted "set format" error, while a key no format
+     * recognises is reported as a plain unknown setting. Without a resolver, {@code format} itself is
+     * rejected (see {@link #DATASET_FIELDS_WITHOUT_FORMAT}).
      *
      * <p>Returns {@code null} to signal that an explicit {@code format} value is not a registered
      * format: the caller short-circuits on the single {@code unknown format} error rather than piling
@@ -400,17 +395,18 @@ public class FileDataSourceValidator implements DataSourceValidator {
                 errors.addValidationError(unknownFormatError(explicitFormat, formatConfigKeyResolver.knownFormats()));
                 return null;
             }
-            return acceptStrict(settings, formatKeys, errors);
+            return acceptForFormat(settings, explicitFormat, formatKeys, errors);
         }
 
         // No usable explicit format: infer the format from the resource extension.
         String extensionFormat = resource == null ? null : formatFromExtension(resource);
         if (extensionFormat != null) {
             Set<String> formatKeys = formatConfigKeyResolver.configKeysForFormat(extensionFormat);
-            return acceptStrict(settings, formatKeys != null ? formatKeys : Set.of(), errors);
+            return acceptForFormat(settings, extensionFormat, formatKeys != null ? formatKeys : Set.of(), errors);
         }
 
-        // Format unknown: accept the base fields only. Split the remaining keys so each gets the right
+        // Format unknown: accept the coordinator fields only, so no format-specific key is stored where
+        // it might not apply. Split the remaining keys so each gets the right
         // diagnosis. A key some registered format recognises cannot be validated here (we do not know
         // which format it belongs to), so it draws a targeted "set format" hint — but only when there
         // is a resource URI to anchor the hint to (null resource already produces its own "[resource]
@@ -421,7 +417,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         Map<String, Object> unknownKeys = new HashMap<>();
         for (Map.Entry<String, Object> entry : settings.entrySet()) {
             String key = entry.getKey();
-            if (DATASET_FIELDS.contains(key)) {
+            if (COORDINATOR_DATASET_KEYS.contains(key)) {
                 continue;
             }
             if (allFormatKeys.contains(key)) {
@@ -430,11 +426,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
                 unknownKeys.put(key, entry.getValue());
             }
         }
-        rejectUnknownFields(unknownKeys, DATASET_FIELDS, errors);
+        rejectUnknownFields(unknownKeys, COORDINATOR_DATASET_KEYS, errors);
         if (needFormat.isEmpty() == false) {
             errors.addValidationError(cannotDetermineFormatError(resource, needFormat));
         }
-        return DATASET_FIELDS;
+        return COORDINATOR_DATASET_KEYS;
     }
 
     /**
@@ -472,11 +468,37 @@ public class FileDataSourceValidator implements DataSourceValidator {
         return "cannot determine format for [" + resource + "]; set \"format\" to use settings like " + new TreeSet<>(formatSpecificKeys);
     }
 
-    /** Accepts the base dataset fields unioned with {@code formatKeys}, rejecting anything else. */
-    private static Set<String> acceptStrict(Map<String, Object> settings, Set<String> formatKeys, ValidationException errors) {
-        Set<String> accepted = new HashSet<>(DATASET_FIELDS);
+    /**
+     * Reported when a setting is real format vocabulary — some registered format claims it — but the
+     * resolved format does not: not a typo, so not an "unknown setting". Exposed so tests assert the
+     * exact production message.
+     */
+    public static String notSupportedByFormatError(String setting, String format) {
+        return "[" + setting + "] is not supported for format [" + format + "]";
+    }
+
+    /**
+     * Accepts {@link #COORDINATOR_DATASET_KEYS} unioned with {@code formatKeys}. Rejections are split:
+     * a key claimed by some other registered format draws {@link #notSupportedByFormatError} naming the
+     * resolved format; anything else is a typo reported as a generic unknown setting.
+     */
+    private Set<String> acceptForFormat(Map<String, Object> settings, String format, Set<String> formatKeys, ValidationException errors) {
+        Set<String> accepted = new HashSet<>(COORDINATOR_DATASET_KEYS);
         accepted.addAll(formatKeys);
-        rejectUnknownFields(settings, accepted, errors);
+        Set<String> allFormatKeys = allFormatConfigKeys();
+        Map<String, Object> unknownKeys = new HashMap<>();
+        for (Map.Entry<String, Object> entry : settings.entrySet()) {
+            String key = entry.getKey();
+            if (accepted.contains(key)) {
+                continue;
+            }
+            if (allFormatKeys.contains(key)) {
+                errors.addValidationError(notSupportedByFormatError(key, format));
+            } else {
+                unknownKeys.put(key, entry.getValue());
+            }
+        }
+        rejectUnknownFields(unknownKeys, accepted, errors);
         return accepted;
     }
 

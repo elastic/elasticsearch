@@ -48,6 +48,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * Module that collects all data source implementations from plugins.
@@ -489,6 +490,13 @@ public final class DataSourceModule implements Closeable {
         }
 
         @Override
+        public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
+            // Forward the sink rather than inheriting the interface default, which would drop it and
+            // fall back to the two-argument form -- losing the resolver's buffered warning routing.
+            resolveDelegate().validateConfig(location, credentials.decryptInPlace(config), warningSink);
+        }
+
+        @Override
         public Connector open(Map<String, Object> config) {
             return resolveDelegate().open(credentials.decryptInPlace(config));
         }
@@ -622,6 +630,13 @@ public final class DataSourceModule implements Closeable {
         @Override
         public void validateConfig(String location, Map<String, Object> config) {
             resolveDelegate().validateConfig(location, credentials.decryptInPlace(config));
+        }
+
+        @Override
+        public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
+            // Forward the sink rather than inheriting the interface default, which would drop it and
+            // fall back to the two-argument form -- losing the resolver's buffered warning routing.
+            resolveDelegate().validateConfig(location, credentials.decryptInPlace(config), warningSink);
         }
 
         @Override

@@ -204,9 +204,11 @@ public class ExternalSourceResolver {
     private final Supplier<ThreadContext.StoredContext> restorableContext;
 
     /**
-     * Hive-partition shadow-column warning messages collected during one {@link #resolve} call's schema-resolution
-     * chain (see {@link #warnOnShadowedColumns}). That chain runs on {@link #metadataReadExecutor} — a real thread
-     * pool in production, so a direct {@code HeaderWarning.addWarning} call from inside it would land on that
+     * Warning messages collected during one {@link #resolve} call's schema-resolution chain: Hive-partition
+     * shadow-column warnings (see {@link #warnOnShadowedColumns}) and the factories' config-validation warnings
+     * (see {@code ExternalSourceFactory#validateConfig(String, Map, Consumer)}). That chain runs on
+     * {@link #metadataReadExecutor} — a real thread pool in production, so a direct
+     * {@code HeaderWarning.addWarning} call from inside it would land on that
      * executor thread's {@link ThreadContext} rather than the originating request's, and never reach the client.
      * Messages are instead buffered here and replayed via {@code HeaderWarning} from {@link #resolve}'s completion
      * listener, once {@link #restorableContext} has restored the caller's original context. Cleared at the start of
@@ -445,9 +447,9 @@ public class ExternalSourceResolver {
         // aborts its glob-expansion and anchor/single-file read backoff promptly, matching the per-read wrapping the
         // async fan-out already gets.
         //
-        // Flush any Hive-partition shadow-column warnings buffered in pendingShadowWarnings (see its javadoc) before
-        // delegating to the caller's listener, so HeaderWarning.addWarning is called from here rather than from
-        // whatever executor thread actually ran the schema reconciliation.
+        // Flush any warnings buffered in pendingShadowWarnings (see its javadoc) before delegating to the
+        // caller's listener, so HeaderWarning.addWarning is called from here rather than from whatever
+        // executor thread actually ran the schema reconciliation or config validation.
         ActionListener<ExternalSourceResolution> withShadowWarnings = ActionListener.runBefore(
             listener,
             () -> pendingShadowWarnings.forEach(HeaderWarning::addWarning)
@@ -2189,8 +2191,9 @@ public class ExternalSourceResolver {
             if (factory.canHandle(path, config)) {
                 // Validate outside the try block so a user config error (unknown key) propagates
                 // immediately rather than being swallowed as a factory failure and retried against
-                // the next factory in the registry.
-                factory.validateConfig(path, config);
+                // the next factory in the registry. Warnings are buffered, not emitted here: this
+                // runs on the metadata-read executor, whose ThreadContext never reaches the client.
+                factory.validateConfig(path, config, pendingShadowWarnings::add);
                 try {
                     return factory.resolveMetadata(path, config);
                 } catch (Exception e) {
@@ -2303,7 +2306,7 @@ public class ExternalSourceResolver {
             resolveWithFactory(path, hint, config, candidates, index + 1, e, listener);
         });
         try {
-            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, next);
+            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, pendingShadowWarnings::add, next);
         } catch (Exception e) {
             // A factory that throws synchronously from dispatch (before invoking the listener) must not abort the
             // whole resolve: fall through to the next candidate exactly as the async onFailure path does.

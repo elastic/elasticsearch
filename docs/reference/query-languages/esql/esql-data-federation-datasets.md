@@ -376,10 +376,9 @@ setting can bring them back.
 
 **Advanced:**
 
-% schema_sample_size (default 20000) hidden until https://github.com/elastic/elasticsearch/issues/155636 is resolved
-
 | Setting | Default (CSV / TSV) | Description |
 |---|---|---|
+| `schema_sample_size` {applies_to}`stack: experimental 9.6+` | `20000` | Rows sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
 | `quote` | `"` / none | The quote character, or `"none"` to turn quoting off. An explicit value overrides the `mode` preset. |
 | `escape` | `\` / none | The escape character, or `"none"` to turn escaping off. An explicit value overrides the `mode` preset. |
 | `comment` | `//` | Lines beginning with this prefix are skipped. |
@@ -391,11 +390,13 @@ setting can bring them back.
 
 ### NDJSON settings
 
-% **Commonly changed:** table hidden — schema_sample_size was the only row.
-% Restore when https://github.com/elastic/elasticsearch/issues/155636 is resolved:
-% | Setting | Default | Description |
-% |---|---|---|
-% | `schema_sample_size` | `20000` | Lines sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
+**Commonly changed:**
+
+| Setting | Default | Description |
+|---|---|---|
+| `schema_sample_size` {applies_to}`stack: experimental 9.6+` | `20000` | Lines sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
+
+**Advanced:**
 
 | Setting | Default | Description |
 |---|---|---|
